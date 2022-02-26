@@ -61,6 +61,9 @@ mod unit_tests {
 
         local_storage::delete(&config, "files", "notes.txt").unwrap();
 
-        assert_eq!(None, local_storage::read::<_, _, Vec<u8>>(&config, "files", "notes.txt").unwrap());
+        assert_eq!(
+            None,
+            local_storage::read::<_, _, Vec<u8>>(&config, "files", "notes.txt").unwrap()
+        );
     }
 }

@@ -26,7 +26,10 @@ mod sync_tests {
             }],
             // new_file
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
@@ -39,26 +42,48 @@ mod sync_tests {
             ],
             // new_files
             vec![
-                Operation::Create { client_num: 0, path: "/a/b/c/d" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/b/c/d",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[("/a/b/c/d", b"")]);
-                        test_utils::assert_local_work_paths(&db, &root, &["/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
+                        test_utils::assert_local_work_paths(
+                            &db,
+                            &root,
+                            &["/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
+                        );
                         test_utils::assert_server_work_paths(&db, &root, &[]);
                     },
                 },
             ],
             // edited_document
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
-                Operation::Edit { client_num: 0, path: "/document", content: b"document content" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document",
+                    content: b"document content",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
                         test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"document content")]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/document", b"document content")],
+                        );
                         test_utils::assert_local_work_paths(&db, &root, &["/document"]);
                         test_utils::assert_server_work_paths(&db, &root, &[]);
                     },
@@ -66,28 +91,61 @@ mod sync_tests {
             ],
             // move
             vec![
-                Operation::Create { client_num: 0, path: "/folder/" },
-                Operation::Create { client_num: 0, path: "/document" },
-                Operation::Move { client_num: 0, path: "/document", new_parent_path: "/folder/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/folder/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/document",
+                    new_parent_path: "/folder/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/folder/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/folder/document", b"")]);
-                        test_utils::assert_local_work_paths(&db, &root, &["/folder/", "/folder/document"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/folder/", "/folder/document"],
+                        );
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/folder/document", b"")],
+                        );
+                        test_utils::assert_local_work_paths(
+                            &db,
+                            &root,
+                            &["/folder/", "/folder/document"],
+                        );
                         test_utils::assert_server_work_paths(&db, &root, &[]);
                     },
                 },
             ],
             // rename
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
-                Operation::Rename { client_num: 0, path: "/document", new_name: "document2" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/document",
+                    new_name: "document2",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
                         test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document2", b"")]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/document2", b"")],
+                        );
                         test_utils::assert_local_work_paths(&db, &root, &["/document2"]);
                         test_utils::assert_server_work_paths(&db, &root, &[]);
                     },
@@ -95,8 +153,14 @@ mod sync_tests {
             ],
             // delete
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
-                Operation::Delete { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
@@ -109,8 +173,14 @@ mod sync_tests {
             ],
             // delete_parent
             vec![
-                Operation::Create { client_num: 0, path: "/parent/document" },
-                Operation::Delete { client_num: 0, path: "/parent/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/document",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/parent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
@@ -123,8 +193,14 @@ mod sync_tests {
             ],
             // delete_grandparent
             vec![
-                Operation::Create { client_num: 0, path: "/grandparent/parent/document" },
-                Operation::Delete { client_num: 0, path: "/grandparent/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/grandparent/parent/document",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/grandparent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
@@ -167,7 +243,10 @@ mod sync_tests {
             ],
             // new_file
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Custom {
                     f: &|dbs, root| {
@@ -183,7 +262,8 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
                         let account = lockbook_core::get_account(&db).unwrap();
-                        let document_path = test_utils::path(&root, &format!("/{}", account.username));
+                        let document_path =
+                            test_utils::path(&root, &format!("/{}", account.username));
                         lockbook_core::create_file_at_path(&db, &document_path).unwrap();
                     },
                 },
@@ -194,66 +274,123 @@ mod sync_tests {
                         let account = lockbook_core::get_account(&db).unwrap();
                         let document_path = format!("/{}", account.username);
                         test_utils::assert_all_paths(&db, &root, &["/", &document_path]);
-                        test_utils::assert_all_document_contents(&db, &root, &[(&document_path, b"")]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[(&document_path, b"")],
+                        );
                     },
                 },
             ],
             // new_files
             vec![
-                Operation::Create { client_num: 0, path: "/a/b/c/d" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/b/c/d",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[("/a/b/c/d", b"")]);
                     },
                 },
             ],
             // edited_document
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
-                Operation::Edit { client_num: 0, path: "/document", content: b"document content" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document",
+                    content: b"document content",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
                         test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"document content")]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/document", b"document content")],
+                        );
                     },
                 },
             ],
             // move
             vec![
-                Operation::Create { client_num: 0, path: "/folder/" },
-                Operation::Create { client_num: 0, path: "/document" },
-                Operation::Move { client_num: 0, path: "/document", new_parent_path: "/folder/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/folder/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/document",
+                    new_parent_path: "/folder/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/folder/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/folder/document", b"")]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/folder/", "/folder/document"],
+                        );
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/folder/document", b"")],
+                        );
                     },
                 },
             ],
             // rename
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
-                Operation::Rename { client_num: 0, path: "/document", new_name: "document2" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/document",
+                    new_name: "document2",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
                         test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document2", b"")]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/document2", b"")],
+                        );
                     },
                 },
             ],
             // delete
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
-                Operation::Delete { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Custom {
                     f: &|dbs, root| {
@@ -265,8 +402,14 @@ mod sync_tests {
             ],
             // delete_parent
             vec![
-                Operation::Create { client_num: 0, path: "/folder/document" },
-                Operation::Delete { client_num: 0, path: "/folder/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/folder/document",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/folder/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Custom {
                     f: &|dbs, root| {
@@ -278,8 +421,14 @@ mod sync_tests {
             ],
             // delete_grandparent
             vec![
-                Operation::Create { client_num: 0, path: "/grandparent/parent/document" },
-                Operation::Delete { client_num: 0, path: "/grandparent/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/grandparent/parent/document",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/grandparent/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Custom {
                     f: &|dbs, root| {
@@ -314,7 +463,10 @@ mod sync_tests {
             // new_file
             vec![
                 Operation::Sync { client_num: 0 },
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
@@ -327,36 +479,69 @@ mod sync_tests {
             // new_files
             vec![
                 Operation::Sync { client_num: 0 },
-                Operation::Create { client_num: 0, path: "/a/b/c/d" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/b/c/d",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[("/a/b/c/d", b"")]);
-                        test_utils::assert_local_work_paths(&db, root, &["/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
+                        test_utils::assert_local_work_paths(
+                            &db,
+                            root,
+                            &["/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
+                        );
                     },
                 },
             ],
             // edited_document
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
-                Operation::Edit { client_num: 0, path: "/document", content: b"document content" },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document",
+                    content: b"document content",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
                         test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"document content")]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/document", b"document content")],
+                        );
                         test_utils::assert_local_work_paths(&db, root, &["/document"]);
                     },
                 },
             ],
             // edit_unedit
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
-                Operation::Edit { client_num: 0, path: "/document", content: b"document content" },
-                Operation::Edit { client_num: 0, path: "/document", content: b"" },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document",
+                    content: b"document content",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document",
+                    content: b"",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
@@ -368,26 +553,58 @@ mod sync_tests {
             ],
             // move
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
-                Operation::Create { client_num: 0, path: "/folder/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/folder/",
+                },
                 Operation::Sync { client_num: 0 },
-                Operation::Move { client_num: 0, path: "/document", new_parent_path: "/folder/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/document",
+                    new_parent_path: "/folder/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/folder/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/folder/document", b"")]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/folder/", "/folder/document"],
+                        );
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/folder/document", b"")],
+                        );
                         test_utils::assert_local_work_paths(&db, root, &["/folder/document"]);
                     },
                 },
             ],
             // move_unmove
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
-                Operation::Create { client_num: 0, path: "/folder/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/folder/",
+                },
                 Operation::Sync { client_num: 0 },
-                Operation::Move { client_num: 0, path: "/document", new_parent_path: "/folder/" },
-                Operation::Move { client_num: 0, path: "/folder/document", new_parent_path: "/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/document",
+                    new_parent_path: "/folder/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/folder/document",
+                    new_parent_path: "/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
@@ -399,24 +616,46 @@ mod sync_tests {
             ],
             // rename
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
-                Operation::Rename { client_num: 0, path: "/document", new_name: "document2" },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/document",
+                    new_name: "document2",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
                         test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document2", b"")]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/document2", b"")],
+                        );
                         test_utils::assert_local_work_paths(&db, root, &["/document2"]);
                     },
                 },
             ],
             // rename_unrename
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
-                Operation::Rename { client_num: 0, path: "/document", new_name: "document2" },
-                Operation::Rename { client_num: 0, path: "/document2", new_name: "document" },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/document",
+                    new_name: "document2",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/document2",
+                    new_name: "document",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
@@ -428,9 +667,15 @@ mod sync_tests {
             ],
             // delete
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
-                Operation::Delete { client_num: 0, path: "/document" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
@@ -442,9 +687,15 @@ mod sync_tests {
             ],
             // delete_parent
             vec![
-                Operation::Create { client_num: 0, path: "/parent/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/document",
+                },
                 Operation::Sync { client_num: 0 },
-                Operation::Delete { client_num: 0, path: "/parent/" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/parent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
@@ -456,9 +707,15 @@ mod sync_tests {
             ],
             // delete_grandparent
             vec![
-                Operation::Create { client_num: 0, path: "/grandparent/parent/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/grandparent/parent/document",
+                },
                 Operation::Sync { client_num: 0 },
-                Operation::Delete { client_num: 0, path: "/grandparent/" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/grandparent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
@@ -501,7 +758,10 @@ mod sync_tests {
             ],
             // new_file
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Client { client_num: 1 },
                 Operation::Custom {
@@ -513,20 +773,34 @@ mod sync_tests {
             ],
             // new_files
             vec![
-                Operation::Create { client_num: 0, path: "/a/b/c/d" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/b/c/d",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Client { client_num: 1 },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_server_work_paths(&db, &root, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
+                        test_utils::assert_server_work_paths(
+                            &db,
+                            &root,
+                            &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
+                        );
                     },
                 },
             ],
             // edited_document
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
-                Operation::Edit { client_num: 0, path: "/document", content: b"document content" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document",
+                    content: b"document content",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Client { client_num: 1 },
                 Operation::Custom {
@@ -538,22 +812,43 @@ mod sync_tests {
             ],
             // move
             vec![
-                Operation::Create { client_num: 0, path: "/folder/" },
-                Operation::Create { client_num: 0, path: "/document" },
-                Operation::Move { client_num: 0, path: "/document", new_parent_path: "/folder/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/folder/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/document",
+                    new_parent_path: "/folder/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Client { client_num: 1 },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_server_work_paths(&db, &root, &["/", "/folder/", "/folder/document"]);
+                        test_utils::assert_server_work_paths(
+                            &db,
+                            &root,
+                            &["/", "/folder/", "/folder/document"],
+                        );
                     },
                 },
             ],
             // rename
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
-                Operation::Rename { client_num: 0, path: "/document", new_name: "document2" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/document",
+                    new_name: "document2",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Client { client_num: 1 },
                 Operation::Custom {
@@ -565,8 +860,14 @@ mod sync_tests {
             ],
             // delete
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
-                Operation::Delete { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Client { client_num: 1 },
                 Operation::Custom {
@@ -578,8 +879,14 @@ mod sync_tests {
             ],
             // delete_parent
             vec![
-                Operation::Create { client_num: 0, path: "/parent/document" },
-                Operation::Delete { client_num: 0, path: "/parent/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/document",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/parent/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Client { client_num: 1 },
                 Operation::Custom {
@@ -591,8 +898,14 @@ mod sync_tests {
             ],
             // delete_grandparent
             vec![
-                Operation::Create { client_num: 0, path: "/grandparent/parent/document" },
-                Operation::Delete { client_num: 0, path: "/grandparent/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/grandparent/parent/document",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/grandparent/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Client { client_num: 1 },
                 Operation::Custom {
@@ -638,7 +951,10 @@ mod sync_tests {
             ],
             // new_file
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
                 Operation::Custom {
@@ -651,64 +967,117 @@ mod sync_tests {
             ],
             // new_files
             vec![
-                Operation::Create { client_num: 0, path: "/a/b/c/d" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/b/c/d",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[("/a/b/c/d", b"")]);
                     },
                 },
             ],
             // edited_document
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
-                Operation::Edit { client_num: 0, path: "/document", content: b"document content" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document",
+                    content: b"document content",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"document content")]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/document", b"document content")],
+                        );
                     },
                 },
             ],
             // move
             vec![
-                Operation::Create { client_num: 0, path: "/folder/" },
-                Operation::Create { client_num: 0, path: "/document" },
-                Operation::Move { client_num: 0, path: "/document", new_parent_path: "/folder/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/folder/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/document",
+                    new_parent_path: "/folder/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/folder/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/folder/document", b"")]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/folder/", "/folder/document"],
+                        );
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/folder/document", b"")],
+                        );
                     },
                 },
             ],
             // rename
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
-                Operation::Rename { client_num: 0, path: "/document", new_name: "document2" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/document",
+                    new_name: "document2",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document2", b"")]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/document2", b"")],
+                        );
                     },
                 },
             ],
             // delete
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
-                Operation::Delete { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
                 Operation::Custom {
@@ -721,8 +1090,14 @@ mod sync_tests {
             ],
             // delete_parent
             vec![
-                Operation::Create { client_num: 0, path: "/parent/document" },
-                Operation::Delete { client_num: 0, path: "/parent/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/document",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/parent/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
                 Operation::Custom {
@@ -735,8 +1110,14 @@ mod sync_tests {
             ],
             // delete_grandparent
             vec![
-                Operation::Create { client_num: 0, path: "/grandparent/parent/document" },
-                Operation::Delete { client_num: 0, path: "/grandparent/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/grandparent/parent/document",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/grandparent/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
                 Operation::Custom {
@@ -787,7 +1168,10 @@ mod sync_tests {
             // new_file
             vec![
                 Operation::Sync { client_num: 1 },
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Custom {
                     f: &|dbs, root| {
@@ -801,23 +1185,37 @@ mod sync_tests {
             // new_files
             vec![
                 Operation::Sync { client_num: 1 },
-                Operation::Create { client_num: 0, path: "/a/b/c/d" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/b/c/d",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(&db, &root, &["/"]);
                         test_utils::assert_all_document_contents(&db, &root, &[]);
-                        test_utils::assert_server_work_paths(&db, &root, &["/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
+                        test_utils::assert_server_work_paths(
+                            &db,
+                            &root,
+                            &["/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
+                        );
                     },
                 },
             ],
             // edited_document
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Edit { client_num: 0, path: "/document", content: b"document content" },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document",
+                    content: b"document content",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Custom {
                     f: &|dbs, root| {
@@ -830,11 +1228,21 @@ mod sync_tests {
             ],
             // move
             vec![
-                Operation::Create { client_num: 0, path: "/folder/" },
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/folder/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/document", new_parent_path: "/folder/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/document",
+                    new_parent_path: "/folder/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Custom {
                     f: &|dbs, root| {
@@ -847,10 +1255,17 @@ mod sync_tests {
             ],
             // rename
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Rename { client_num: 0, path: "/document", new_name: "document2" },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/document",
+                    new_name: "document2",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Custom {
                     f: &|dbs, root| {
@@ -863,10 +1278,16 @@ mod sync_tests {
             ],
             // delete
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/document" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Custom {
                     f: &|dbs, root| {
@@ -879,26 +1300,50 @@ mod sync_tests {
             ],
             // delete_parent
             vec![
-                Operation::Create { client_num: 0, path: "/parent/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/parent/" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/parent/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/parent/", "/parent/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/parent/document", b"")]);
-                        test_utils::assert_server_work_paths(&db, &root, &["/parent/", "/parent/document"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/parent/", "/parent/document"],
+                        );
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/parent/document", b"")],
+                        );
+                        test_utils::assert_server_work_paths(
+                            &db,
+                            &root,
+                            &["/parent/", "/parent/document"],
+                        );
                     },
                 },
             ],
             // delete_grandparent
             vec![
-                Operation::Create { client_num: 0, path: "/grandparent/parent/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/grandparent/parent/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/grandparent/" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/grandparent/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Custom {
                     f: &|dbs, root| {
@@ -913,11 +1358,19 @@ mod sync_tests {
                                 "/grandparent/parent/document",
                             ],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[("/grandparent/parent/document", b"")]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/grandparent/parent/document", b"")],
+                        );
                         test_utils::assert_server_work_paths(
                             &db,
                             &root,
-                            &["/grandparent/", "/grandparent/parent/", "/grandparent/parent/document"],
+                            &[
+                                "/grandparent/",
+                                "/grandparent/parent/",
+                                "/grandparent/parent/document",
+                            ],
                         );
                     },
                 },
@@ -958,7 +1411,10 @@ mod sync_tests {
             // new_file
             vec![
                 Operation::Sync { client_num: 1 },
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
                 Operation::Custom {
@@ -972,72 +1428,125 @@ mod sync_tests {
             // new_files
             vec![
                 Operation::Sync { client_num: 1 },
-                Operation::Create { client_num: 0, path: "/a/b/c/d" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/b/c/d",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[("/a/b/c/d", b"")]);
                     },
                 },
             ],
             // edited_document
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Edit { client_num: 0, path: "/document", content: b"document content" },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document",
+                    content: b"document content",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"document content")]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/document", b"document content")],
+                        );
                     },
                 },
             ],
             // move
             vec![
-                Operation::Create { client_num: 0, path: "/folder/" },
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/folder/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/document", new_parent_path: "/folder/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/document",
+                    new_parent_path: "/folder/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/folder/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/folder/document", b"")]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/folder/", "/folder/document"],
+                        );
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/folder/document", b"")],
+                        );
                     },
                 },
             ],
             // rename
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Rename { client_num: 0, path: "/document", new_name: "document2" },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/document",
+                    new_name: "document2",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document2", b"")]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/document2", b"")],
+                        );
                     },
                 },
             ],
             // delete
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/document" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
                 Operation::Custom {
@@ -1050,10 +1559,16 @@ mod sync_tests {
             ],
             // delete_parent
             vec![
-                Operation::Create { client_num: 0, path: "/parent/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/parent/" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/parent/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
                 Operation::Custom {
@@ -1066,10 +1581,16 @@ mod sync_tests {
             ],
             // delete_grandparent
             vec![
-                Operation::Create { client_num: 0, path: "/grandparent/parent/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/grandparent/parent/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/grandparent/" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/grandparent/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
                 Operation::Custom {
@@ -1106,106 +1627,236 @@ mod sync_tests {
         for mut ops in [
             // identical_move
             vec![
-                Operation::Create { client_num: 0, path: "/parent/" },
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/document", new_parent_path: "/parent/" },
-                Operation::Move { client_num: 1, path: "/document", new_parent_path: "/parent/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/document",
+                    new_parent_path: "/parent/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/document",
+                    new_parent_path: "/parent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/parent/", "/parent/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/parent/document", b"")]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/parent/", "/parent/document"],
+                        );
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/parent/document", b"")],
+                        );
                     },
                 },
             ],
             // different_move
             vec![
-                Operation::Create { client_num: 0, path: "/parent/" },
-                Operation::Create { client_num: 0, path: "/parent2/" },
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent2/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/document", new_parent_path: "/parent/" },
-                Operation::Move { client_num: 1, path: "/document", new_parent_path: "/parent2/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/document",
+                    new_parent_path: "/parent/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/document",
+                    new_parent_path: "/parent2/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/parent/", "/parent2/", "/parent/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/parent/document", b"")]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/parent/", "/parent2/", "/parent/document"],
+                        );
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/parent/document", b"")],
+                        );
                     },
                 },
             ],
             // identical_rename
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Rename { client_num: 0, path: "/document", new_name: "document2" },
-                Operation::Rename { client_num: 1, path: "/document", new_name: "document2" },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/document",
+                    new_name: "document2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/document",
+                    new_name: "document2",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document2", b"")]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/document2", b"")],
+                        );
                     },
                 },
             ],
             // different_rename
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Rename { client_num: 0, path: "/document", new_name: "document2" },
-                Operation::Rename { client_num: 1, path: "/document", new_name: "document3" },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/document",
+                    new_name: "document2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/document",
+                    new_name: "document3",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document2", b"")]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/document2", b"")],
+                        );
                     },
                 },
             ],
             // move_then_rename
             vec![
-                Operation::Create { client_num: 0, path: "/parent/" },
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/document", new_parent_path: "/parent/" },
-                Operation::Rename { client_num: 1, path: "/document", new_name: "document2" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/document",
+                    new_parent_path: "/parent/",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/document",
+                    new_name: "document2",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/parent/", "/parent/document2"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/parent/document2", b"")]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/parent/", "/parent/document2"],
+                        );
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/parent/document2", b"")],
+                        );
                     },
                 },
             ],
             // rename_then_move
             vec![
-                Operation::Create { client_num: 0, path: "/parent/" },
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Rename { client_num: 0, path: "/document", new_name: "document2" },
-                Operation::Move { client_num: 1, path: "/document", new_parent_path: "/parent/" },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/document",
+                    new_name: "document2",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/document",
+                    new_parent_path: "/parent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/parent/", "/parent/document2"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/parent/document2", b"")]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/parent/", "/parent/document2"],
+                        );
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/parent/document2", b"")],
+                        );
                     },
                 },
             ],
             // identical_delete
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/document" },
-                Operation::Delete { client_num: 1, path: "/document" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/document",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1216,11 +1867,20 @@ mod sync_tests {
             ],
             // identical_delete_parent
             vec![
-                Operation::Create { client_num: 0, path: "/parent/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/parent/" },
-                Operation::Delete { client_num: 1, path: "/parent/" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/parent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1231,11 +1891,20 @@ mod sync_tests {
             ],
             // delete_parent_then_direct
             vec![
-                Operation::Create { client_num: 0, path: "/parent/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/parent/" },
-                Operation::Delete { client_num: 1, path: "/parent/document" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/parent/document",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1246,11 +1915,20 @@ mod sync_tests {
             ],
             // delete_direct_then_parent
             vec![
-                Operation::Create { client_num: 0, path: "/parent/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/parent/document" },
-                Operation::Delete { client_num: 1, path: "/parent/" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/parent/document",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/parent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1261,11 +1939,20 @@ mod sync_tests {
             ],
             // identical_delete_grandparent
             vec![
-                Operation::Create { client_num: 0, path: "/grandparent/parent/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/grandparent/parent/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/grandparent/" },
-                Operation::Delete { client_num: 1, path: "/grandparent/" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/grandparent/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/grandparent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1276,11 +1963,20 @@ mod sync_tests {
             ],
             // delete_grandparent_then_direct
             vec![
-                Operation::Create { client_num: 0, path: "/grandparent/parent/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/grandparent/parent/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/grandparent/" },
-                Operation::Delete { client_num: 1, path: "/grandparent/parent/document" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/grandparent/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/grandparent/parent/document",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1291,11 +1987,20 @@ mod sync_tests {
             ],
             // delete_direct_then_grandparent
             vec![
-                Operation::Create { client_num: 0, path: "/grandparent/parent/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/grandparent/parent/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/grandparent/parent/document" },
-                Operation::Delete { client_num: 1, path: "/grandparent/" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/grandparent/parent/document",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/grandparent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1306,11 +2011,20 @@ mod sync_tests {
             ],
             // delete_grandparent_then_parent
             vec![
-                Operation::Create { client_num: 0, path: "/grandparent/parent/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/grandparent/parent/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/grandparent/" },
-                Operation::Delete { client_num: 1, path: "/grandparent/parent/" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/grandparent/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/grandparent/parent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1321,11 +2035,20 @@ mod sync_tests {
             ],
             // delete_parent_then_grandparent
             vec![
-                Operation::Create { client_num: 0, path: "/grandparent/parent/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/grandparent/parent/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/grandparent/parent/" },
-                Operation::Delete { client_num: 1, path: "/grandparent/" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/grandparent/parent/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/grandparent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1336,12 +2059,25 @@ mod sync_tests {
             ],
             // move_then_delete
             vec![
-                Operation::Create { client_num: 0, path: "/parent/" },
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/document", new_parent_path: "/parent/" },
-                Operation::Delete { client_num: 1, path: "/document" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/document",
+                    new_parent_path: "/parent/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/document",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1352,12 +2088,25 @@ mod sync_tests {
             ],
             // delete_then_move
             vec![
-                Operation::Create { client_num: 0, path: "/parent/" },
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/document" },
-                Operation::Move { client_num: 1, path: "/document", new_parent_path: "/parent/" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/document",
+                    new_parent_path: "/parent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1368,12 +2117,25 @@ mod sync_tests {
             ],
             // move_then_delete_new_parent
             vec![
-                Operation::Create { client_num: 0, path: "/parent/" },
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/document", new_parent_path: "/parent/" },
-                Operation::Delete { client_num: 1, path: "/parent/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/document",
+                    new_parent_path: "/parent/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/parent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1384,12 +2146,25 @@ mod sync_tests {
             ],
             // delete_new_parent_then_move
             vec![
-                Operation::Create { client_num: 0, path: "/parent/" },
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/parent/" },
-                Operation::Move { client_num: 1, path: "/document", new_parent_path: "/parent/" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/document",
+                    new_parent_path: "/parent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1400,11 +2175,21 @@ mod sync_tests {
             ],
             // move_then_delete_old_parent
             vec![
-                Operation::Create { client_num: 0, path: "/parent/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/parent/document", new_parent_path: "/" },
-                Operation::Delete { client_num: 1, path: "/parent/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/parent/document",
+                    new_parent_path: "/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/parent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1415,11 +2200,21 @@ mod sync_tests {
             ],
             // delete_old_parent_then_move
             vec![
-                Operation::Create { client_num: 0, path: "/parent/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/parent/" },
-                Operation::Move { client_num: 1, path: "/parent/document", new_parent_path: "/" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/parent/document",
+                    new_parent_path: "/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1430,11 +2225,21 @@ mod sync_tests {
             ],
             // rename_then_delete
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Rename { client_num: 0, path: "/document", new_name: "document2" },
-                Operation::Delete { client_num: 1, path: "/document" },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/document",
+                    new_name: "document2",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/document",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1445,11 +2250,21 @@ mod sync_tests {
             ],
             // delete_then_rename
             vec![
-                Operation::Create { client_num: 0, path: "/document" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/document" },
-                Operation::Rename { client_num: 1, path: "/document", new_name: "document2" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/document",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/document",
+                    new_name: "document2",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1460,81 +2275,170 @@ mod sync_tests {
             ],
             // create_then_move_parent
             vec![
-                Operation::Create { client_num: 0, path: "/parent/" },
-                Operation::Create { client_num: 0, path: "/parent2/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent2/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Create { client_num: 0, path: "/parent/document" },
-                Operation::Move { client_num: 1, path: "/parent/", new_parent_path: "/parent2/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/document",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/parent/",
+                    new_parent_path: "/parent2/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
                             &db,
                             &root,
-                            &["/", "/parent2/", "/parent2/parent/", "/parent2/parent/document"],
+                            &[
+                                "/",
+                                "/parent2/",
+                                "/parent2/parent/",
+                                "/parent2/parent/document",
+                            ],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[("/parent2/parent/document", b"")]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/parent2/parent/document", b"")],
+                        );
                     },
                 },
             ],
             // move_parent_then_create
             vec![
-                Operation::Create { client_num: 0, path: "/parent/" },
-                Operation::Create { client_num: 0, path: "/parent2/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent2/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/parent/", new_parent_path: "/parent2/" },
-                Operation::Create { client_num: 1, path: "/parent/document" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/parent/",
+                    new_parent_path: "/parent2/",
+                },
+                Operation::Create {
+                    client_num: 1,
+                    path: "/parent/document",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
                             &db,
                             &root,
-                            &["/", "/parent2/", "/parent2/parent/", "/parent2/parent/document"],
+                            &[
+                                "/",
+                                "/parent2/",
+                                "/parent2/parent/",
+                                "/parent2/parent/document",
+                            ],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[("/parent2/parent/document", b"")]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/parent2/parent/document", b"")],
+                        );
                     },
                 },
             ],
             // create_then_rename_parent
             vec![
-                Operation::Create { client_num: 0, path: "/parent/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Create { client_num: 0, path: "/parent/document" },
-                Operation::Rename { client_num: 1, path: "/parent/", new_name: "parent2" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/document",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/parent/",
+                    new_name: "parent2",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/parent2/", "/parent2/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/parent2/document", b"")]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/parent2/", "/parent2/document"],
+                        );
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/parent2/document", b"")],
+                        );
                     },
                 },
             ],
             // rename_parent_then_create
             vec![
-                Operation::Create { client_num: 0, path: "/parent/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Rename { client_num: 0, path: "/parent/", new_name: "parent2" },
-                Operation::Create { client_num: 1, path: "/parent/document" },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/parent/",
+                    new_name: "parent2",
+                },
+                Operation::Create {
+                    client_num: 1,
+                    path: "/parent/document",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/parent2/", "/parent2/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/parent2/document", b"")]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/parent2/", "/parent2/document"],
+                        );
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/parent2/document", b"")],
+                        );
                     },
                 },
             ],
             // create_then_delete_parent
             vec![
-                Operation::Create { client_num: 0, path: "/parent/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Create { client_num: 0, path: "/parent/document" },
-                Operation::Delete { client_num: 1, path: "/parent/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/document",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/parent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1545,11 +2449,20 @@ mod sync_tests {
             ],
             // delete_parent_then_create
             vec![
-                Operation::Create { client_num: 0, path: "/parent/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/parent/" },
-                Operation::Create { client_num: 1, path: "/parent/document" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Create {
+                    client_num: 1,
+                    path: "/parent/document",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1560,11 +2473,20 @@ mod sync_tests {
             ],
             // create_then_delete_grandparent
             vec![
-                Operation::Create { client_num: 0, path: "/grandparent/parent/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/grandparent/parent/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Create { client_num: 0, path: "/grandparent/parent/document" },
-                Operation::Delete { client_num: 1, path: "/grandparent/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/grandparent/parent/document",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/grandparent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1575,11 +2497,20 @@ mod sync_tests {
             ],
             // delete_grandparent_then_create
             vec![
-                Operation::Create { client_num: 0, path: "/grandparent/parent/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/grandparent/parent/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/grandparent/" },
-                Operation::Create { client_num: 1, path: "/grandparent/parent/document" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/grandparent/",
+                },
+                Operation::Create {
+                    client_num: 1,
+                    path: "/grandparent/parent/document",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1590,16 +2521,35 @@ mod sync_tests {
             ],
             // identical_content_edit_not_mergable
             vec![
-                Operation::Create { client_num: 0, path: "/document.draw" },
-                Operation::Edit { client_num: 0, path: "/document.draw", content: b"document content" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document.draw",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.draw",
+                    content: b"document content",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Edit { client_num: 0, path: "/document.draw", content: b"document content 2" },
-                Operation::Edit { client_num: 1, path: "/document.draw", content: b"document content 2" },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.draw",
+                    content: b"document content 2",
+                },
+                Operation::Edit {
+                    client_num: 1,
+                    path: "/document.draw",
+                    content: b"document content 2",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document.draw", "/document-1.draw"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/document.draw", "/document-1.draw"],
+                        );
                         test_utils::assert_all_document_contents(
                             &db,
                             &root,
@@ -1613,12 +2563,27 @@ mod sync_tests {
             ],
             // identical_content_edit_mergable
             vec![
-                Operation::Create { client_num: 0, path: "/document.md" },
-                Operation::Edit { client_num: 0, path: "/document.md", content: b"document content" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document.md",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.md",
+                    content: b"document content",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Edit { client_num: 0, path: "/document.md", content: b"document content 2" },
-                Operation::Edit { client_num: 1, path: "/document.md", content: b"document content 2" },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.md",
+                    content: b"document content 2",
+                },
+                Operation::Edit {
+                    client_num: 1,
+                    path: "/document.md",
+                    content: b"document content 2",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1633,16 +2598,35 @@ mod sync_tests {
             ],
             // different_content_edit_not_mergable
             vec![
-                Operation::Create { client_num: 0, path: "/document.draw" },
-                Operation::Edit { client_num: 0, path: "/document.draw", content: b"document\n\ncontent\n" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document.draw",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.draw",
+                    content: b"document\n\ncontent\n",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Edit { client_num: 0, path: "/document.draw", content: b"document 2\n\ncontent\n" },
-                Operation::Edit { client_num: 1, path: "/document.draw", content: b"document\n\ncontent 2\n" },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.draw",
+                    content: b"document 2\n\ncontent\n",
+                },
+                Operation::Edit {
+                    client_num: 1,
+                    path: "/document.draw",
+                    content: b"document\n\ncontent 2\n",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document.draw", "/document-1.draw"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/document.draw", "/document-1.draw"],
+                        );
                         test_utils::assert_all_document_contents(
                             &db,
                             &root,
@@ -1656,12 +2640,27 @@ mod sync_tests {
             ],
             // different_content_edit_mergable
             vec![
-                Operation::Create { client_num: 0, path: "/document.md" },
-                Operation::Edit { client_num: 0, path: "/document.md", content: b"document\n\ncontent\n" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document.md",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.md",
+                    content: b"document\n\ncontent\n",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Edit { client_num: 0, path: "/document.md", content: b"document 2\n\ncontent\n" },
-                Operation::Edit { client_num: 1, path: "/document.md", content: b"document\n\ncontent 2\n" },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.md",
+                    content: b"document 2\n\ncontent\n",
+                },
+                Operation::Edit {
+                    client_num: 1,
+                    path: "/document.md",
+                    content: b"document\n\ncontent 2\n",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1676,18 +2675,44 @@ mod sync_tests {
             ],
             // different_content_edit_mergable_with_move_in_first_sync
             vec![
-                Operation::Create { client_num: 0, path: "/parent/" },
-                Operation::Create { client_num: 0, path: "/document.md" },
-                Operation::Edit { client_num: 0, path: "/document.md", content: b"document\n\ncontent\n" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document.md",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.md",
+                    content: b"document\n\ncontent\n",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Edit { client_num: 0, path: "/document.md", content: b"document 2\n\ncontent\n" },
-                Operation::Move { client_num: 0, path: "/document.md", new_parent_path: "/parent/" },
-                Operation::Edit { client_num: 1, path: "/document.md", content: b"document\n\ncontent 2\n" },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.md",
+                    content: b"document 2\n\ncontent\n",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/document.md",
+                    new_parent_path: "/parent/",
+                },
+                Operation::Edit {
+                    client_num: 1,
+                    path: "/document.md",
+                    content: b"document\n\ncontent 2\n",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/parent/", "/parent/document.md"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/parent/", "/parent/document.md"],
+                        );
                         test_utils::assert_all_document_contents(
                             &db,
                             &root,
@@ -1698,18 +2723,44 @@ mod sync_tests {
             ],
             // different_content_edit_mergable_with_move_in_second_sync
             vec![
-                Operation::Create { client_num: 0, path: "/parent/" },
-                Operation::Create { client_num: 0, path: "/document.md" },
-                Operation::Edit { client_num: 0, path: "/document.md", content: b"document\n\ncontent\n" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document.md",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.md",
+                    content: b"document\n\ncontent\n",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Edit { client_num: 0, path: "/document.md", content: b"document 2\n\ncontent\n" },
-                Operation::Edit { client_num: 1, path: "/document.md", content: b"document\n\ncontent 2\n" },
-                Operation::Move { client_num: 1, path: "/document.md", new_parent_path: "/parent/" },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.md",
+                    content: b"document 2\n\ncontent\n",
+                },
+                Operation::Edit {
+                    client_num: 1,
+                    path: "/document.md",
+                    content: b"document\n\ncontent 2\n",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/document.md",
+                    new_parent_path: "/parent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/parent/", "/parent/document.md"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/parent/", "/parent/document.md"],
+                        );
                         test_utils::assert_all_document_contents(
                             &db,
                             &root,
@@ -1720,17 +2771,39 @@ mod sync_tests {
             ],
             // move_then_edit_content
             vec![
-                Operation::Create { client_num: 0, path: "/parent/" },
-                Operation::Create { client_num: 0, path: "/document.md" },
-                Operation::Edit { client_num: 0, path: "/document.md", content: b"document content" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document.md",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.md",
+                    content: b"document content",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/document.md", new_parent_path: "/parent/" },
-                Operation::Edit { client_num: 1, path: "/document.md", content: b"document content 2" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/document.md",
+                    new_parent_path: "/parent/",
+                },
+                Operation::Edit {
+                    client_num: 1,
+                    path: "/document.md",
+                    content: b"document content 2",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/parent/", "/parent/document.md"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/parent/", "/parent/document.md"],
+                        );
                         test_utils::assert_all_document_contents(
                             &db,
                             &root,
@@ -1741,17 +2814,39 @@ mod sync_tests {
             ],
             // edit_content_then_move
             vec![
-                Operation::Create { client_num: 0, path: "/parent/" },
-                Operation::Create { client_num: 0, path: "/document.md" },
-                Operation::Edit { client_num: 0, path: "/document.md", content: b"document content" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document.md",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.md",
+                    content: b"document content",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Edit { client_num: 0, path: "/document.md", content: b"document content 2" },
-                Operation::Move { client_num: 1, path: "/document.md", new_parent_path: "/parent/" },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.md",
+                    content: b"document content 2",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/document.md",
+                    new_parent_path: "/parent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/parent/", "/parent/document.md"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/parent/", "/parent/document.md"],
+                        );
                         test_utils::assert_all_document_contents(
                             &db,
                             &root,
@@ -1762,12 +2857,27 @@ mod sync_tests {
             ],
             // rename_then_edit_content
             vec![
-                Operation::Create { client_num: 0, path: "/document.md" },
-                Operation::Edit { client_num: 0, path: "/document.md", content: b"document content" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document.md",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.md",
+                    content: b"document content",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Rename { client_num: 0, path: "/document.md", new_name: "document2.md" },
-                Operation::Edit { client_num: 1, path: "/document.md", content: b"document content 2" },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/document.md",
+                    new_name: "document2.md",
+                },
+                Operation::Edit {
+                    client_num: 1,
+                    path: "/document.md",
+                    content: b"document content 2",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1782,12 +2892,27 @@ mod sync_tests {
             ],
             // edit_content_then_rename
             vec![
-                Operation::Create { client_num: 0, path: "/document.md" },
-                Operation::Edit { client_num: 0, path: "/document.md", content: b"document content" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document.md",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.md",
+                    content: b"document content",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Edit { client_num: 0, path: "/document.md", content: b"document content 2" },
-                Operation::Rename { client_num: 1, path: "/document.md", new_name: "document2.md" },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.md",
+                    content: b"document content 2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/document.md",
+                    new_name: "document2.md",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1802,12 +2927,26 @@ mod sync_tests {
             ],
             // delete_then_edit_content
             vec![
-                Operation::Create { client_num: 0, path: "/document.md" },
-                Operation::Edit { client_num: 0, path: "/document.md", content: b"document content" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document.md",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.md",
+                    content: b"document content",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/document.md" },
-                Operation::Edit { client_num: 1, path: "/document.md", content: b"document content 2" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/document.md",
+                },
+                Operation::Edit {
+                    client_num: 1,
+                    path: "/document.md",
+                    content: b"document content 2",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1818,12 +2957,26 @@ mod sync_tests {
             ],
             // edit_content_then_delete
             vec![
-                Operation::Create { client_num: 0, path: "/document.md" },
-                Operation::Edit { client_num: 0, path: "/document.md", content: b"document content" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/document.md",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.md",
+                    content: b"document content",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Edit { client_num: 0, path: "/document.md", content: b"document content 2" },
-                Operation::Delete { client_num: 1, path: "/document.md" },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/document.md",
+                    content: b"document content 2",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/document.md",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1834,12 +2987,26 @@ mod sync_tests {
             ],
             // delete_parent_then_edit_content
             vec![
-                Operation::Create { client_num: 0, path: "/parent/document.md" },
-                Operation::Edit { client_num: 0, path: "/parent/document.md", content: b"document content" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/document.md",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/parent/document.md",
+                    content: b"document content",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/parent/" },
-                Operation::Edit { client_num: 1, path: "/parent/document.md", content: b"document content 2" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/parent/",
+                },
+                Operation::Edit {
+                    client_num: 1,
+                    path: "/parent/document.md",
+                    content: b"document content 2",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1850,12 +3017,26 @@ mod sync_tests {
             ],
             // edit_content_then_delete_parent
             vec![
-                Operation::Create { client_num: 0, path: "/parent/document.md" },
-                Operation::Edit { client_num: 0, path: "/parent/document.md", content: b"document content" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/parent/document.md",
+                },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/parent/document.md",
+                    content: b"document content",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Edit { client_num: 0, path: "/parent/document.md", content: b"document content 2" },
-                Operation::Delete { client_num: 1, path: "/parent/" },
+                Operation::Edit {
+                    client_num: 0,
+                    path: "/parent/document.md",
+                    content: b"document content 2",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/parent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1866,7 +3047,10 @@ mod sync_tests {
             ],
             // delete_grandparent_then_edit_content
             vec![
-                Operation::Create { client_num: 0, path: "/grandparent/parent/document.md" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/grandparent/parent/document.md",
+                },
                 Operation::Edit {
                     client_num: 0,
                     path: "/grandparent/parent/document.md",
@@ -1874,7 +3058,10 @@ mod sync_tests {
                 },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Delete { client_num: 0, path: "/grandparent/" },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/grandparent/",
+                },
                 Operation::Edit {
                     client_num: 1,
                     path: "/grandparent/parent/document.md",
@@ -1890,7 +3077,10 @@ mod sync_tests {
             ],
             // edit_content_then_delete_grandparent
             vec![
-                Operation::Create { client_num: 0, path: "/grandparent/parent/document.md" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/grandparent/parent/document.md",
+                },
                 Operation::Edit {
                     client_num: 0,
                     path: "/grandparent/parent/document.md",
@@ -1903,7 +3093,10 @@ mod sync_tests {
                     path: "/grandparent/parent/document.md",
                     content: b"document content 2",
                 },
-                Operation::Delete { client_num: 1, path: "/grandparent/" },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/grandparent/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1947,12 +3140,26 @@ mod sync_tests {
         for mut ops in [
             // two_cycle
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/a/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1963,14 +3170,35 @@ mod sync_tests {
             ],
             // three_cycle_one_move_reverted
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1981,14 +3209,35 @@ mod sync_tests {
             ],
             // three_cycle_two_moves_reverted
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -1999,94 +3248,244 @@ mod sync_tests {
             ],
             // four_cycle_one_move_reverted
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/d/", "/d/c/", "/d/c/b/", "/d/c/b/a/"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/d/", "/d/c/", "/d/c/b/", "/d/c/b/a/"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[]);
                     },
                 },
             ],
             // four_cycle_two_moves_reverted_adjacent
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/c/", "/c/b/", "/c/b/a/", "/d/"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/c/", "/c/b/", "/c/b/a/", "/d/"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[]);
                     },
                 },
             ],
             // four_cycle_two_moves_reverted_alternating
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/b/", "/b/a/", "/d/", "/d/c/"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/b/", "/b/a/", "/d/", "/d/c/"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[]);
                     },
                 },
             ],
             // four_cycle_three_moves_reverted
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/b/", "/b/a/", "/c/", "/d/"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/b/", "/b/a/", "/c/", "/d/"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[]);
                     },
                 },
             ],
             // two_cycle_with_renames_first_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Rename { client_num: 0, path: "/a/", new_name: "a2" },
-                Operation::Rename { client_num: 0, path: "/b/", new_name: "b2" },
-                Operation::Move { client_num: 0, path: "/a2/", new_parent_path: "/b2/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/a/" },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/a/",
+                    new_name: "a2",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/b/",
+                    new_name: "b2",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a2/",
+                    new_parent_path: "/b2/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2097,38 +3496,108 @@ mod sync_tests {
             ],
             // three_cycle_one_move_reverted_with_renames_first_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Rename { client_num: 0, path: "/a/", new_name: "a2" },
-                Operation::Rename { client_num: 0, path: "/b/", new_name: "b2" },
-                Operation::Rename { client_num: 0, path: "/c/", new_name: "c2" },
-                Operation::Move { client_num: 0, path: "/a2/", new_parent_path: "/b2/" },
-                Operation::Move { client_num: 0, path: "/b2/", new_parent_path: "/c2/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/a/",
+                    new_name: "a2",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/b/",
+                    new_name: "b2",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/c/",
+                    new_name: "c2",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a2/",
+                    new_parent_path: "/b2/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/b2/",
+                    new_parent_path: "/c2/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[]);
                     },
                 },
             ],
             // three_cycle_two_moves_reverted_with_renames_first_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Rename { client_num: 0, path: "/a/", new_name: "a2" },
-                Operation::Rename { client_num: 0, path: "/b/", new_name: "b2" },
-                Operation::Rename { client_num: 0, path: "/c/", new_name: "c2" },
-                Operation::Move { client_num: 0, path: "/a2/", new_parent_path: "/b2/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/a/",
+                    new_name: "a2",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/b/",
+                    new_name: "b2",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/c/",
+                    new_name: "c2",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a2/",
+                    new_parent_path: "/b2/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2139,20 +3608,64 @@ mod sync_tests {
             ],
             // four_cycle_one_move_reverted_with_renames_first_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Rename { client_num: 0, path: "/a/", new_name: "a2" },
-                Operation::Rename { client_num: 0, path: "/b/", new_name: "b2" },
-                Operation::Rename { client_num: 0, path: "/c/", new_name: "c2" },
-                Operation::Rename { client_num: 0, path: "/d/", new_name: "d2" },
-                Operation::Move { client_num: 0, path: "/a2/", new_parent_path: "/b2/" },
-                Operation::Move { client_num: 0, path: "/b2/", new_parent_path: "/c2/" },
-                Operation::Move { client_num: 0, path: "/c2/", new_parent_path: "/d2/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/a/",
+                    new_name: "a2",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/b/",
+                    new_name: "b2",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/c/",
+                    new_name: "c2",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/d/",
+                    new_name: "d2",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a2/",
+                    new_parent_path: "/b2/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/b2/",
+                    new_parent_path: "/c2/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/c2/",
+                    new_parent_path: "/d2/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2167,86 +3680,252 @@ mod sync_tests {
             ],
             // four_cycle_two_moves_reverted_adjacent_with_renames_first_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Rename { client_num: 0, path: "/a/", new_name: "a2" },
-                Operation::Rename { client_num: 0, path: "/b/", new_name: "b2" },
-                Operation::Rename { client_num: 0, path: "/c/", new_name: "c2" },
-                Operation::Rename { client_num: 0, path: "/d/", new_name: "d2" },
-                Operation::Move { client_num: 0, path: "/a2/", new_parent_path: "/b2/" },
-                Operation::Move { client_num: 0, path: "/b2/", new_parent_path: "/c2/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/a/",
+                    new_name: "a2",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/b/",
+                    new_name: "b2",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/c/",
+                    new_name: "c2",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/d/",
+                    new_name: "d2",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a2/",
+                    new_parent_path: "/b2/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/b2/",
+                    new_parent_path: "/c2/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/", "/d2/"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/", "/d2/"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[]);
                     },
                 },
             ],
             // four_cycle_two_moves_reverted_alternating_with_renames_first_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Rename { client_num: 0, path: "/a/", new_name: "a2" },
-                Operation::Rename { client_num: 0, path: "/b/", new_name: "b2" },
-                Operation::Rename { client_num: 0, path: "/c/", new_name: "c2" },
-                Operation::Rename { client_num: 0, path: "/d/", new_name: "d2" },
-                Operation::Move { client_num: 0, path: "/a2/", new_parent_path: "/b2/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 0, path: "/c2/", new_parent_path: "/d2/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/a/",
+                    new_name: "a2",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/b/",
+                    new_name: "b2",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/c/",
+                    new_name: "c2",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/d/",
+                    new_name: "d2",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a2/",
+                    new_parent_path: "/b2/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/c2/",
+                    new_parent_path: "/d2/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/b2/", "/b2/a2/", "/d2/", "/d2/c2/"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/b2/", "/b2/a2/", "/d2/", "/d2/c2/"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[]);
                     },
                 },
             ],
             // four_cycle_three_moves_reverted_with_renames_first_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Rename { client_num: 0, path: "/a/", new_name: "a2" },
-                Operation::Rename { client_num: 0, path: "/b/", new_name: "b2" },
-                Operation::Rename { client_num: 0, path: "/c/", new_name: "c2" },
-                Operation::Rename { client_num: 0, path: "/d/", new_name: "d2" },
-                Operation::Move { client_num: 0, path: "/a2/", new_parent_path: "/b2/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/a/",
+                    new_name: "a2",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/b/",
+                    new_name: "b2",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/c/",
+                    new_name: "c2",
+                },
+                Operation::Rename {
+                    client_num: 0,
+                    path: "/d/",
+                    new_name: "d2",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a2/",
+                    new_parent_path: "/b2/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/b2/", "/b2/a2/", "/c2/", "/d2/"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/b2/", "/b2/a2/", "/c2/", "/d2/"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[]);
                     },
                 },
             ],
             // two_cycle_with_renames_second_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Rename { client_num: 1, path: "/a/", new_name: "a2" },
-                Operation::Rename { client_num: 1, path: "/b/", new_name: "b2" },
-                Operation::Move { client_num: 1, path: "/b2/", new_parent_path: "/a2/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/a/",
+                    new_name: "a2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/b/",
+                    new_name: "b2",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b2/",
+                    new_parent_path: "/a2/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2257,38 +3936,108 @@ mod sync_tests {
             ],
             // three_cycle_one_move_reverted_with_renames_second_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-                Operation::Rename { client_num: 1, path: "/a/", new_name: "a2" },
-                Operation::Rename { client_num: 1, path: "/b/", new_name: "b2" },
-                Operation::Rename { client_num: 1, path: "/c/", new_name: "c2" },
-                Operation::Move { client_num: 1, path: "/c2/", new_parent_path: "/a2/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/a/",
+                    new_name: "a2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/b/",
+                    new_name: "b2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/c/",
+                    new_name: "c2",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c2/",
+                    new_parent_path: "/a2/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[]);
                     },
                 },
             ],
             // three_cycle_two_moves_reverted_with_renames_second_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Rename { client_num: 1, path: "/a/", new_name: "a2" },
-                Operation::Rename { client_num: 1, path: "/b/", new_name: "b2" },
-                Operation::Rename { client_num: 1, path: "/c/", new_name: "c2" },
-                Operation::Move { client_num: 1, path: "/b2/", new_parent_path: "/c2/" },
-                Operation::Move { client_num: 1, path: "/c2/", new_parent_path: "/a2/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/a/",
+                    new_name: "a2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/b/",
+                    new_name: "b2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/c/",
+                    new_name: "c2",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b2/",
+                    new_parent_path: "/c2/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c2/",
+                    new_parent_path: "/a2/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2299,20 +4048,64 @@ mod sync_tests {
             ],
             // four_cycle_one_move_reverted_with_renames_second_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-                Operation::Rename { client_num: 1, path: "/a/", new_name: "a2" },
-                Operation::Rename { client_num: 1, path: "/b/", new_name: "b2" },
-                Operation::Rename { client_num: 1, path: "/c/", new_name: "c2" },
-                Operation::Rename { client_num: 1, path: "/d/", new_name: "d2" },
-                Operation::Move { client_num: 1, path: "/d2/", new_parent_path: "/a2/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/a/",
+                    new_name: "a2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/b/",
+                    new_name: "b2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/c/",
+                    new_name: "c2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/d/",
+                    new_name: "d2",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d2/",
+                    new_parent_path: "/a2/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2327,85 +4120,246 @@ mod sync_tests {
             ],
             // four_cycle_two_moves_reverted_adjacent_with_renames_second_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-                Operation::Rename { client_num: 1, path: "/a/", new_name: "a2" },
-                Operation::Rename { client_num: 1, path: "/b/", new_name: "b2" },
-                Operation::Rename { client_num: 1, path: "/c/", new_name: "c2" },
-                Operation::Rename { client_num: 1, path: "/d/", new_name: "d2" },
-                Operation::Move { client_num: 1, path: "/c2/", new_parent_path: "/d2/" },
-                Operation::Move { client_num: 1, path: "/d2/", new_parent_path: "/a2/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/a/",
+                    new_name: "a2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/b/",
+                    new_name: "b2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/c/",
+                    new_name: "c2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/d/",
+                    new_name: "d2",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c2/",
+                    new_parent_path: "/d2/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d2/",
+                    new_parent_path: "/a2/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/", "/d2/"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/", "/d2/"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[]);
                     },
                 },
             ],
             // four_cycle_two_moves_reverted_alternating_with_renames_second_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Rename { client_num: 1, path: "/a/", new_name: "a2" },
-                Operation::Rename { client_num: 1, path: "/b/", new_name: "b2" },
-                Operation::Rename { client_num: 1, path: "/c/", new_name: "c2" },
-                Operation::Rename { client_num: 1, path: "/d/", new_name: "d2" },
-                Operation::Move { client_num: 1, path: "/b2/", new_parent_path: "/c2/" },
-                Operation::Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d2/", new_parent_path: "/a2/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/a/",
+                    new_name: "a2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/b/",
+                    new_name: "b2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/c/",
+                    new_name: "c2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/d/",
+                    new_name: "d2",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b2/",
+                    new_parent_path: "/c2/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d2/",
+                    new_parent_path: "/a2/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/b2/", "/b2/a2/", "/d2/", "/d2/c2/"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/b2/", "/b2/a2/", "/d2/", "/d2/c2/"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[]);
                     },
                 },
             ],
             // four_cycle_three_moves_reverted_with_renames_second_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Rename { client_num: 1, path: "/a/", new_name: "a2" },
-                Operation::Rename { client_num: 1, path: "/b/", new_name: "b2" },
-                Operation::Rename { client_num: 1, path: "/c/", new_name: "c2" },
-                Operation::Rename { client_num: 1, path: "/d/", new_name: "d2" },
-                Operation::Move { client_num: 1, path: "/b2/", new_parent_path: "/c2/" },
-                Operation::Move { client_num: 1, path: "/c2/", new_parent_path: "/d2/" },
-                Operation::Move { client_num: 1, path: "/d2/", new_parent_path: "/a2/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/a/",
+                    new_name: "a2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/b/",
+                    new_name: "b2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/c/",
+                    new_name: "c2",
+                },
+                Operation::Rename {
+                    client_num: 1,
+                    path: "/d/",
+                    new_name: "d2",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b2/",
+                    new_parent_path: "/c2/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c2/",
+                    new_parent_path: "/d2/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d2/",
+                    new_parent_path: "/a2/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/b2/", "/b2/a2/", "/c2/", "/d2/"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/b2/", "/b2/a2/", "/c2/", "/d2/"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[]);
                     },
                 },
             ],
             // two_cycle_with_deletes_first_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/a/" },
-                Operation::Delete { client_num: 0, path: "/b/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/a/",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/b/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2416,15 +4370,39 @@ mod sync_tests {
             ],
             // three_cycle_one_move_reverted_with_deletes_first_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
-                Operation::Delete { client_num: 0, path: "/c/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/a/",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/c/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2435,16 +4413,43 @@ mod sync_tests {
             ],
             // three_cycle_two_moves_reverted_with_deletes_first_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
-                Operation::Delete { client_num: 0, path: "/b/" },
-                Operation::Delete { client_num: 0, path: "/c/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/a/",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/c/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2455,17 +4460,48 @@ mod sync_tests {
             ],
             // four_cycle_one_move_reverted_with_deletes_first_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-                Operation::Delete { client_num: 0, path: "/d/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2476,18 +4512,52 @@ mod sync_tests {
             ],
             // four_cycle_two_moves_reverted_adjacent_with_deletes_first_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-                Operation::Delete { client_num: 0, path: "/c/" },
-                Operation::Delete { client_num: 0, path: "/d/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2498,18 +4568,52 @@ mod sync_tests {
             ],
             // four_cycle_two_moves_reverted_alternating_with_deletes_first_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-                Operation::Delete { client_num: 0, path: "/b/" },
-                Operation::Delete { client_num: 0, path: "/d/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2520,19 +4624,56 @@ mod sync_tests {
             ],
             // four_cycle_three_moves_reverted_with_deletes_first_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-                Operation::Delete { client_num: 0, path: "/b/" },
-                Operation::Delete { client_num: 0, path: "/c/" },
-                Operation::Delete { client_num: 0, path: "/d/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Delete {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2543,13 +4684,30 @@ mod sync_tests {
             ],
             // two_cycle_with_deletes_second_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/a/" },
-                Operation::Delete { client_num: 1, path: "/a/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/a/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2560,16 +4718,43 @@ mod sync_tests {
             ],
             // three_cycle_one_move_reverted_with_deletes_second_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
-                Operation::Delete { client_num: 1, path: "/a/" },
-                Operation::Delete { client_num: 1, path: "/b/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/a/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/a/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/b/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2580,15 +4765,39 @@ mod sync_tests {
             ],
             // three_cycle_two_moves_reverted_with_deletes_second_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
-                Operation::Delete { client_num: 1, path: "/a/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/a/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2599,19 +4808,56 @@ mod sync_tests {
             ],
             // four_cycle_one_move_reverted_with_deletes_second_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-                Operation::Delete { client_num: 1, path: "/a/" },
-                Operation::Delete { client_num: 1, path: "/b/" },
-                Operation::Delete { client_num: 1, path: "/c/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/a/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/b/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/c/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2622,18 +4868,52 @@ mod sync_tests {
             ],
             // four_cycle_two_moves_reverted_adjacent_with_deletes_second_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-                Operation::Delete { client_num: 1, path: "/a/" },
-                Operation::Delete { client_num: 1, path: "/b/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/a/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/b/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2644,18 +4924,52 @@ mod sync_tests {
             ],
             // four_cycle_two_moves_reverted_alternating_with_deletes_second_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-                Operation::Delete { client_num: 1, path: "/a/" },
-                Operation::Delete { client_num: 1, path: "/c/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/a/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/c/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2666,17 +4980,48 @@ mod sync_tests {
             ],
             // four_cycle_three_moves_reverted_with_deletes_second_device
             vec![
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 0, path: "/b/" },
-                Operation::Create { client_num: 0, path: "/c/" },
-                Operation::Create { client_num: 0, path: "/d/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-                Operation::Delete { client_num: 1, path: "/a/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
+                Operation::Delete {
+                    client_num: 1,
+                    path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2687,30 +5032,69 @@ mod sync_tests {
             ],
             // move_two_cycle_with_children
             vec![
-                Operation::Create { client_num: 0, path: "/a/child/" },
-                Operation::Create { client_num: 0, path: "/b/child/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/child/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/child/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/a/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/b/", "/b/a/", "/b/child/", "/b/a/child/"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/b/", "/b/a/", "/b/child/", "/b/a/child/"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[]);
                     },
                 },
             ],
             // three_cycle_one_move_reverted_with_children
             vec![
-                Operation::Create { client_num: 0, path: "/a/child/" },
-                Operation::Create { client_num: 0, path: "/b/child/" },
-                Operation::Create { client_num: 0, path: "/c/child/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/child/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/child/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/child/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2733,21 +5117,50 @@ mod sync_tests {
             ],
             // three_cycle_two_moves_reverted_with_children
             vec![
-                Operation::Create { client_num: 0, path: "/a/child/" },
-                Operation::Create { client_num: 0, path: "/b/child/" },
-                Operation::Create { client_num: 0, path: "/c/child/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/child/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/child/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/child/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
                             &db,
                             &root,
-                            &["/", "/b/", "/b/a/", "/c/", "/b/child/", "/b/a/child/", "/c/child/"],
+                            &[
+                                "/",
+                                "/b/",
+                                "/b/a/",
+                                "/c/",
+                                "/b/child/",
+                                "/b/a/child/",
+                                "/c/child/",
+                            ],
                         );
                         test_utils::assert_all_document_contents(&db, &root, &[]);
                     },
@@ -2755,16 +5168,44 @@ mod sync_tests {
             ],
             // four_cycle_one_move_reverted_with_children
             vec![
-                Operation::Create { client_num: 0, path: "/a/child/" },
-                Operation::Create { client_num: 0, path: "/b/child/" },
-                Operation::Create { client_num: 0, path: "/c/child/" },
-                Operation::Create { client_num: 0, path: "/d/child/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/child/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/child/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/child/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/child/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2789,16 +5230,44 @@ mod sync_tests {
             ],
             // four_cycle_two_moves_reverted_adjacent_with_children
             vec![
-                Operation::Create { client_num: 0, path: "/a/child/" },
-                Operation::Create { client_num: 0, path: "/b/child/" },
-                Operation::Create { client_num: 0, path: "/c/child/" },
-                Operation::Create { client_num: 0, path: "/d/child/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/child/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/child/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/child/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/child/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2823,16 +5292,44 @@ mod sync_tests {
             ],
             // four_cycle_two_moves_reverted_alternating_with_children
             vec![
-                Operation::Create { client_num: 0, path: "/a/child/" },
-                Operation::Create { client_num: 0, path: "/b/child/" },
-                Operation::Create { client_num: 0, path: "/c/child/" },
-                Operation::Create { client_num: 0, path: "/d/child/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/child/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/child/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/child/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/child/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2857,16 +5354,44 @@ mod sync_tests {
             ],
             // four_cycle_three_moves_reverted_with_children
             vec![
-                Operation::Create { client_num: 0, path: "/a/child/" },
-                Operation::Create { client_num: 0, path: "/b/child/" },
-                Operation::Create { client_num: 0, path: "/c/child/" },
-                Operation::Create { client_num: 0, path: "/d/child/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/child/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/b/child/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/c/child/",
+                },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/d/child/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-                Operation::Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-                Operation::Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-                Operation::Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/a/",
+                    new_parent_path: "/b/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/b/",
+                    new_parent_path: "/c/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/c/",
+                    new_parent_path: "/d/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/d/",
+                    new_parent_path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2925,21 +5450,37 @@ mod sync_tests {
             // concurrent_create_documents
             vec![
                 Operation::Sync { client_num: 1 },
-                Operation::Create { client_num: 0, path: "/a.md" },
-                Operation::Create { client_num: 1, path: "/a.md" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a.md",
+                },
+                Operation::Create {
+                    client_num: 1,
+                    path: "/a.md",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(&db, &root, &["/", "/a.md", "/a-1.md"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/a.md", b""), ("/a-1.md", b"")]);
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/a.md", b""), ("/a-1.md", b"")],
+                        );
                     },
                 },
             ],
             // concurrent_create_folders
             vec![
                 Operation::Sync { client_num: 1 },
-                Operation::Create { client_num: 0, path: "/a/" },
-                Operation::Create { client_num: 1, path: "/a/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/",
+                },
+                Operation::Create {
+                    client_num: 1,
+                    path: "/a/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2951,12 +5492,22 @@ mod sync_tests {
             // concurrent_create_folders_with_children
             vec![
                 Operation::Sync { client_num: 1 },
-                Operation::Create { client_num: 0, path: "/a/child/" },
-                Operation::Create { client_num: 1, path: "/a/child/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a/child/",
+                },
+                Operation::Create {
+                    client_num: 1,
+                    path: "/a/child/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/a/", "/a-1/", "/a/child/", "/a-1/child/"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/a/", "/a-1/", "/a/child/", "/a-1/child/"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[]);
                     },
                 },
@@ -2964,8 +5515,14 @@ mod sync_tests {
             // concurrent_create_document_then_folder
             vec![
                 Operation::Sync { client_num: 1 },
-                Operation::Create { client_num: 0, path: "/a.md" },
-                Operation::Create { client_num: 1, path: "/a.md/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a.md",
+                },
+                Operation::Create {
+                    client_num: 1,
+                    path: "/a.md/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2977,8 +5534,14 @@ mod sync_tests {
             // concurrent_create_folder_then_document
             vec![
                 Operation::Sync { client_num: 1 },
-                Operation::Create { client_num: 0, path: "/a.md/" },
-                Operation::Create { client_num: 1, path: "/a.md" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a.md/",
+                },
+                Operation::Create {
+                    client_num: 1,
+                    path: "/a.md",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
@@ -2990,12 +5553,22 @@ mod sync_tests {
             // concurrent_create_document_then_folder_with_child
             vec![
                 Operation::Sync { client_num: 1 },
-                Operation::Create { client_num: 0, path: "/a.md" },
-                Operation::Create { client_num: 1, path: "/a.md/child/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a.md",
+                },
+                Operation::Create {
+                    client_num: 1,
+                    path: "/a.md/child/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/a.md", "/a-1.md/", "/a-1.md/child/"]);
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/a.md", "/a-1.md/", "/a-1.md/child/"],
+                        );
                         test_utils::assert_all_document_contents(&db, &root, &[("/a.md", b"")]);
                     },
                 },
@@ -3003,90 +5576,181 @@ mod sync_tests {
             // concurrent_create_folder_with_child_then_document
             vec![
                 Operation::Sync { client_num: 1 },
-                Operation::Create { client_num: 0, path: "/a.md/child/" },
-                Operation::Create { client_num: 1, path: "/a.md" },
-                Operation::Custom {
-                    f: &|dbs, root| {
-                        let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/a.md/", "/a.md/child/", "/a-1.md"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/a-1.md", b"")]);
-                    },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a.md/child/",
                 },
-            ],
-            // concurrent_move_then_create_documents
-            vec![
-                Operation::Create { client_num: 0, path: "/folder/a.md" },
-                Operation::Sync { client_num: 0 },
-                Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/folder/a.md", new_parent_path: "/" },
-                Operation::Create { client_num: 1, path: "/a.md" },
-                Operation::Custom {
-                    f: &|dbs, root| {
-                        let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/a.md", "/a-1.md"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/a.md", b""), ("/a-1.md", b"")]);
-                    },
+                Operation::Create {
+                    client_num: 1,
+                    path: "/a.md",
                 },
-            ],
-            // concurrent_create_then_move_documents
-            vec![
-                Operation::Create { client_num: 0, path: "/folder/a.md" },
-                Operation::Sync { client_num: 0 },
-                Operation::Sync { client_num: 1 },
-                Operation::Create { client_num: 0, path: "/a.md" },
-                Operation::Move { client_num: 1, path: "/folder/a.md", new_parent_path: "/" },
-                Operation::Custom {
-                    f: &|dbs, root| {
-                        let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/a.md", "/a-1.md"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/a.md", b""), ("/a-1.md", b"")]);
-                    },
-                },
-            ],
-            // concurrent_move_then_create_folders
-            vec![
-                Operation::Create { client_num: 0, path: "/folder/a.md/" },
-                Operation::Sync { client_num: 0 },
-                Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/folder/a.md/", new_parent_path: "/" },
-                Operation::Create { client_num: 1, path: "/a.md/" },
-                Operation::Custom {
-                    f: &|dbs, root| {
-                        let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/a.md/", "/a-1.md/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
-                    },
-                },
-            ],
-            // concurrent_create_then_move_folders
-            vec![
-                Operation::Create { client_num: 0, path: "/folder/a.md/" },
-                Operation::Sync { client_num: 0 },
-                Operation::Sync { client_num: 1 },
-                Operation::Create { client_num: 0, path: "/a.md/" },
-                Operation::Move { client_num: 1, path: "/folder/a.md/", new_parent_path: "/" },
-                Operation::Custom {
-                    f: &|dbs, root| {
-                        let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/a.md/", "/a-1.md/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
-                    },
-                },
-            ],
-            // concurrent_move_then_create_folders_with_children
-            vec![
-                Operation::Create { client_num: 0, path: "/folder/a.md/child/" },
-                Operation::Sync { client_num: 0 },
-                Operation::Sync { client_num: 1 },
-                Operation::Move { client_num: 0, path: "/folder/a.md/", new_parent_path: "/" },
-                Operation::Create { client_num: 1, path: "/a.md/child/" },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
                             &db,
                             &root,
-                            &["/", "/folder/", "/a.md/", "/a-1.md/", "/a.md/child/", "/a-1.md/child/"],
+                            &["/", "/a.md/", "/a.md/child/", "/a-1.md"],
+                        );
+                        test_utils::assert_all_document_contents(&db, &root, &[("/a-1.md", b"")]);
+                    },
+                },
+            ],
+            // concurrent_move_then_create_documents
+            vec![
+                Operation::Create {
+                    client_num: 0,
+                    path: "/folder/a.md",
+                },
+                Operation::Sync { client_num: 0 },
+                Operation::Sync { client_num: 1 },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/folder/a.md",
+                    new_parent_path: "/",
+                },
+                Operation::Create {
+                    client_num: 1,
+                    path: "/a.md",
+                },
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[1].1;
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/folder/", "/a.md", "/a-1.md"],
+                        );
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/a.md", b""), ("/a-1.md", b"")],
+                        );
+                    },
+                },
+            ],
+            // concurrent_create_then_move_documents
+            vec![
+                Operation::Create {
+                    client_num: 0,
+                    path: "/folder/a.md",
+                },
+                Operation::Sync { client_num: 0 },
+                Operation::Sync { client_num: 1 },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a.md",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/folder/a.md",
+                    new_parent_path: "/",
+                },
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[1].1;
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/folder/", "/a.md", "/a-1.md"],
+                        );
+                        test_utils::assert_all_document_contents(
+                            &db,
+                            &root,
+                            &[("/a.md", b""), ("/a-1.md", b"")],
+                        );
+                    },
+                },
+            ],
+            // concurrent_move_then_create_folders
+            vec![
+                Operation::Create {
+                    client_num: 0,
+                    path: "/folder/a.md/",
+                },
+                Operation::Sync { client_num: 0 },
+                Operation::Sync { client_num: 1 },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/folder/a.md/",
+                    new_parent_path: "/",
+                },
+                Operation::Create {
+                    client_num: 1,
+                    path: "/a.md/",
+                },
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[1].1;
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/folder/", "/a.md/", "/a-1.md/"],
+                        );
+                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                    },
+                },
+            ],
+            // concurrent_create_then_move_folders
+            vec![
+                Operation::Create {
+                    client_num: 0,
+                    path: "/folder/a.md/",
+                },
+                Operation::Sync { client_num: 0 },
+                Operation::Sync { client_num: 1 },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a.md/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/folder/a.md/",
+                    new_parent_path: "/",
+                },
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[1].1;
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &["/", "/folder/", "/a.md/", "/a-1.md/"],
+                        );
+                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                    },
+                },
+            ],
+            // concurrent_move_then_create_folders_with_children
+            vec![
+                Operation::Create {
+                    client_num: 0,
+                    path: "/folder/a.md/child/",
+                },
+                Operation::Sync { client_num: 0 },
+                Operation::Sync { client_num: 1 },
+                Operation::Move {
+                    client_num: 0,
+                    path: "/folder/a.md/",
+                    new_parent_path: "/",
+                },
+                Operation::Create {
+                    client_num: 1,
+                    path: "/a.md/child/",
+                },
+                Operation::Custom {
+                    f: &|dbs, root| {
+                        let db = &dbs[1].1;
+                        test_utils::assert_all_paths(
+                            &db,
+                            &root,
+                            &[
+                                "/",
+                                "/folder/",
+                                "/a.md/",
+                                "/a-1.md/",
+                                "/a.md/child/",
+                                "/a-1.md/child/",
+                            ],
                         );
                         test_utils::assert_all_document_contents(&db, &root, &[]);
                     },
@@ -3094,18 +5758,35 @@ mod sync_tests {
             ],
             // concurrent_create_then_move_folders_with_children
             vec![
-                Operation::Create { client_num: 0, path: "/folder/a.md/child/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/folder/a.md/child/",
+                },
                 Operation::Sync { client_num: 0 },
                 Operation::Sync { client_num: 1 },
-                Operation::Create { client_num: 0, path: "/a.md/child/" },
-                Operation::Move { client_num: 1, path: "/folder/a.md/", new_parent_path: "/" },
+                Operation::Create {
+                    client_num: 0,
+                    path: "/a.md/child/",
+                },
+                Operation::Move {
+                    client_num: 1,
+                    path: "/folder/a.md/",
+                    new_parent_path: "/",
+                },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
                             &db,
                             &root,
-                            &["/", "/folder/", "/a.md/", "/a-1.md/", "/a.md/child/", "/a-1.md/child/"],
+                            &[
+                                "/",
+                                "/folder/",
+                                "/a.md/",
+                                "/a-1.md/",
+                                "/a.md/child/",
+                                "/a-1.md/child/",
+                            ],
                         );
                         test_utils::assert_all_document_contents(&db, &root, &[]);
                     },
@@ -3192,13 +5873,18 @@ mod sync_tests {
         let db1 = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db1);
 
-        let file1 = lockbook_core::create_file_at_path(&db1, &test_utils::path(&root, "/file1.md")).unwrap();
+        let file1 = lockbook_core::create_file_at_path(&db1, &test_utils::path(&root, "/file1.md"))
+            .unwrap();
         lockbook_core::sync_all(&db1, None).unwrap();
 
         file_service::insert_metadatum(
             &db1,
             RepoSource::Local,
-            &files::apply_delete(&file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(), file1.id).unwrap(),
+            &files::apply_delete(
+                &file_service::get_all_metadata(&db1, RepoSource::Local).unwrap(),
+                file1.id,
+            )
+            .unwrap(),
         )
         .unwrap();
         lockbook_core::sync_all(&db1, None).unwrap();
@@ -3213,7 +5899,8 @@ mod sync_tests {
         let (_account, root) = test_utils::create_account(&db1);
         let b = lockbook_core::create_file_at_path(&db1, &test_utils::path(&root, "/b")).unwrap();
         let c = lockbook_core::create_file_at_path(&db1, &test_utils::path(&root, "/c/")).unwrap();
-        let d = lockbook_core::create_file_at_path(&db1, &test_utils::path(&root, "/c/d/")).unwrap();
+        let d =
+            lockbook_core::create_file_at_path(&db1, &test_utils::path(&root, "/c/d/")).unwrap();
         lockbook_core::move_file(&db1, b.id, d.id).unwrap();
         lockbook_core::move_file(&db1, c.id, d.id).unwrap_err();
     }
@@ -3223,7 +5910,9 @@ mod sync_tests {
         let db1 = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db1);
 
-        let document = lockbook_core::create_file_at_path(&db1, &test_utils::path(&root, "/document")).unwrap();
+        let document =
+            lockbook_core::create_file_at_path(&db1, &test_utils::path(&root, "/document"))
+                .unwrap();
 
         lockbook_core::sync_all(&db1, None).unwrap();
         let db2 = test_utils::make_and_sync_new_client(&db1);

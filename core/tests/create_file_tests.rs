@@ -6,7 +6,9 @@ mod create_document_tests {
     use lockbook_core::assert_matches;
     use lockbook_core::service::api_service;
     use lockbook_core::service::api_service::ApiError;
-    use lockbook_core::service::test_utils::{generate_account, generate_file_metadata, generate_root_metadata};
+    use lockbook_core::service::test_utils::{
+        generate_account, generate_file_metadata, generate_root_metadata,
+    };
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::FileMetadataDiff;
     use lockbook_models::file_metadata::FileType;
@@ -19,9 +21,15 @@ mod create_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        api_service::request(&account, FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] })
-            .unwrap();
+        let (doc, _doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        api_service::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc)],
+            },
+        )
+        .unwrap();
     }
 
     #[test]
@@ -32,13 +40,23 @@ mod create_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        api_service::request(&account, FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] })
-            .unwrap();
+        let (doc, _doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        api_service::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc)],
+            },
+        )
+        .unwrap();
 
         // create document with same id and key
-        let result =
-            api_service::request(&account, FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] });
+        let result = api_service::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc)],
+            },
+        );
         assert_get_updates_required!(result);
     }
 
@@ -50,15 +68,25 @@ mod create_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        api_service::request(&account, FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] })
-            .unwrap();
+        let (doc, _doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        api_service::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc)],
+            },
+        )
+        .unwrap();
 
         // create document with same path
         let (mut doc2, _) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
         doc2.name = doc.name;
-        let result =
-            api_service::request(&account, FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc2)] });
+        let result = api_service::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc2)],
+            },
+        );
 
         assert_get_updates_required!(result);
     }
@@ -71,10 +99,15 @@ mod create_document_tests {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         // create document
-        let (mut doc, _doc_key) = generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let (mut doc, _doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
         doc.parent = Uuid::new_v4();
-        let result =
-            api_service::request(&account, FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] });
+        let result = api_service::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                updates: vec![FileMetadataDiff::new(&doc)],
+            },
+        );
 
         assert_get_updates_required!(result);
     }

@@ -18,8 +18,8 @@ use lockbook_models::api::DeleteAccountRequest;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 
 use crate::exhaustive_sync::trial::Action::{
-    AttemptFolderMove, DeleteFile, MoveDocument, NewDocument, NewFolder, NewMarkdownDocument, RenameFile, SyncAndCheck,
-    UpdateDocument,
+    AttemptFolderMove, DeleteFile, MoveDocument, NewDocument, NewFolder, NewMarkdownDocument,
+    RenameFile, SyncAndCheck, UpdateDocument,
 };
 use crate::exhaustive_sync::trial::Status::{Failed, Ready, Running, Succeeded};
 use crate::exhaustive_sync::utils::{find_by_name, random_filename, random_utf8};
@@ -81,11 +81,13 @@ impl Trial {
             self.clients.push(test_config());
         }
 
-        create_account(&self.clients[0], &random_username(), &url()).map_err(|err| Failed(format!("{:#?}", err)))?;
+        create_account(&self.clients[0], &random_username(), &url())
+            .map_err(|err| Failed(format!("{:#?}", err)))?;
         let account_string = export_account(&self.clients[0]).unwrap();
 
         for client in &self.clients[1..] {
-            import_account(&client, &account_string).map_err(|err| Failed(format!("{:#?}", err)))?;
+            import_account(&client, &account_string)
+                .map_err(|err| Failed(format!("{:#?}", err)))?;
             sync_all(&client, None).map_err(|err| Failed(format!("{:#?}", err)))?;
         }
 
@@ -98,7 +100,11 @@ impl Trial {
             let step = self.steps[index].clone();
             additional_completed_steps += 1;
             match step {
-                Action::NewDocument { client, parent, name } => {
+                Action::NewDocument {
+                    client,
+                    parent,
+                    name,
+                } => {
                     let db = self.clients[client].clone();
                     let parent = find_by_name(&db, &parent).id;
                     if let Err(err) = create_file(&db, &name, parent, Document) {
@@ -106,7 +112,11 @@ impl Trial {
                         break 'steps;
                     }
                 }
-                Action::NewMarkdownDocument { client, parent, name } => {
+                Action::NewMarkdownDocument {
+                    client,
+                    parent,
+                    name,
+                } => {
                     let db = self.clients[client].clone();
                     let parent = find_by_name(&db, &parent).id;
                     if let Err(err) = create_file(&db, &name, parent, Document) {
@@ -114,7 +124,11 @@ impl Trial {
                         break 'steps;
                     }
                 }
-                Action::NewFolder { client, parent, name } => {
+                Action::NewFolder {
+                    client,
+                    parent,
+                    name,
+                } => {
                     let db = self.clients[client].clone();
                     let parent = find_by_name(&db, &parent).id;
                     if let Err(err) = create_file(&db, &name, parent, Folder) {
@@ -122,7 +136,11 @@ impl Trial {
                         break 'steps;
                     }
                 }
-                Action::UpdateDocument { client, name, new_content } => {
+                Action::UpdateDocument {
+                    client,
+                    name,
+                    new_content,
+                } => {
                     let db = self.clients[client].clone();
                     let doc = find_by_name(&db, &name).id;
                     if let Err(err) = write_document(&db, doc, new_content.as_bytes()) {
@@ -130,7 +148,11 @@ impl Trial {
                         break 'steps;
                     }
                 }
-                Action::RenameFile { client, name, new_name } => {
+                Action::RenameFile {
+                    client,
+                    name,
+                    new_name,
+                } => {
                     let db = self.clients[client].clone();
                     let doc = find_by_name(&db, &name).id;
                     if let Err(err) = rename_file(&db, doc, &new_name) {
@@ -138,7 +160,11 @@ impl Trial {
                         break 'steps;
                     }
                 }
-                Action::MoveDocument { client, doc_name, destination_name } => {
+                Action::MoveDocument {
+                    client,
+                    doc_name,
+                    destination_name,
+                } => {
                     let db = self.clients[client].clone();
                     let doc = find_by_name(&db, &doc_name).id;
                     let dest = find_by_name(&db, &destination_name).id;
@@ -148,7 +174,11 @@ impl Trial {
                         break 'steps;
                     }
                 }
-                Action::AttemptFolderMove { client, folder_name, destination_name } => {
+                Action::AttemptFolderMove {
+                    client,
+                    folder_name,
+                    destination_name,
+                } => {
                     let db = self.clients[client].clone();
                     let folder = find_by_name(&db, &folder_name).id;
                     let destination_folder = find_by_name(&db, &destination_name).id;
@@ -196,7 +226,10 @@ impl Trial {
                         }
 
                         if !calculate_work(row).unwrap().work_units.is_empty() {
-                            self.status = Failed(format!("work units not empty, client: {}", row.writeable_path));
+                            self.status = Failed(format!(
+                                "work units not empty, client: {}",
+                                row.writeable_path
+                            ));
                             break 'steps;
                         }
                     }
@@ -234,7 +267,10 @@ impl Trial {
                         new_name: random_filename(),
                     }));
 
-                    mutants.push(self.create_mutation(DeleteFile { client: client_index, name: file.decrypted_name }));
+                    mutants.push(self.create_mutation(DeleteFile {
+                        client: client_index,
+                        name: file.decrypted_name,
+                    }));
                 }
             }
 

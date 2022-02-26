@@ -12,9 +12,14 @@ mod get_public_key_tests {
         let (root, _) = generate_root_metadata(&account);
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        let result = api_service::request(&account, GetPublicKeyRequest { username: account.username.clone() })
-            .unwrap()
-            .key;
+        let result = api_service::request(
+            &account,
+            GetPublicKeyRequest {
+                username: account.username.clone(),
+            },
+        )
+        .unwrap()
+        .key;
         assert_eq!(result, account.public_key());
     }
 

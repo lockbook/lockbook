@@ -4,9 +4,10 @@ mod delete_and_list_tests {
     use lockbook_core::service::test_utils;
     use lockbook_core::Error::UiError;
     use lockbook_core::{
-        assert_matches, create_file, create_file_at_path, delete_file, list_metadatas, list_paths, move_file,
-        read_document, rename_file, save_document_to_disk, write_document, CreateFileError, FileDeleteError,
-        MoveFileError, ReadDocumentError, RenameFileError, SaveDocumentToDiskError, WriteToDocumentError,
+        assert_matches, create_file, create_file_at_path, delete_file, list_metadatas, list_paths,
+        move_file, read_document, rename_file, save_document_to_disk, write_document,
+        CreateFileError, FileDeleteError, MoveFileError, ReadDocumentError, RenameFileError,
+        SaveDocumentToDiskError, WriteToDocumentError,
     };
     use lockbook_models::file_metadata::FileType;
 
@@ -15,11 +16,17 @@ mod delete_and_list_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
         let doc = create_file_at_path(&db, &test_utils::path(&root, "/doc.md")).unwrap();
-        assert_eq!(list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(), 1);
+        assert_eq!(
+            list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(),
+            1
+        );
 
         delete_file(&db, doc.id).unwrap();
 
-        assert_eq!(list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(), 0);
+        assert_eq!(
+            list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(),
+            0
+        );
     }
 
     #[test]
@@ -27,11 +34,17 @@ mod delete_and_list_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
         let doc = create_file_at_path(&db, &test_utils::path(&root, "/doc.md")).unwrap();
-        assert_eq!(list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(), 1);
+        assert_eq!(
+            list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(),
+            1
+        );
 
         delete_file(&db, doc.id).unwrap();
 
-        assert_matches!(read_document(&db, doc.id), Err(UiError(ReadDocumentError::FileDoesNotExist)));
+        assert_matches!(
+            read_document(&db, doc.id),
+            Err(UiError(ReadDocumentError::FileDoesNotExist))
+        );
     }
 
     #[test]
@@ -39,7 +52,10 @@ mod delete_and_list_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
         let doc = create_file_at_path(&db, &test_utils::path(&root, "/doc.md")).unwrap();
-        assert_eq!(list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(), 1);
+        assert_eq!(
+            list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(),
+            1
+        );
 
         delete_file(&db, doc.id).unwrap();
 
@@ -55,7 +71,10 @@ mod delete_and_list_tests {
         let (_account, root) = test_utils::create_account(&db);
         let folder = create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
 
-        assert_eq!(list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(), 1);
+        assert_eq!(
+            list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(),
+            1
+        );
 
         delete_file(&db, folder.id).unwrap();
 
@@ -70,7 +89,10 @@ mod delete_and_list_tests {
         let db = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db);
 
-        assert_matches!(delete_file(&db, root.id), Err(UiError(FileDeleteError::CannotDeleteRoot)));
+        assert_matches!(
+            delete_file(&db, root.id),
+            Err(UiError(FileDeleteError::CannotDeleteRoot))
+        );
     }
 
     #[test]
@@ -81,7 +103,10 @@ mod delete_and_list_tests {
         write_document(&db, doc.id, "content".as_bytes()).unwrap();
         assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
         delete_file(&db, doc.parent).unwrap();
-        assert_matches!(read_document(&db, doc.id), Err(UiError(ReadDocumentError::FileDoesNotExist)));
+        assert_matches!(
+            read_document(&db, doc.id),
+            Err(UiError(ReadDocumentError::FileDoesNotExist))
+        );
     }
 
     #[test]
@@ -106,7 +131,10 @@ mod delete_and_list_tests {
         write_document(&db, doc.id, "content".as_bytes()).unwrap();
         assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
         delete_file(&db, doc.parent).unwrap();
-        assert_matches!(rename_file(&db, doc.id, "test2.md"), Err(UiError(RenameFileError::FileDoesNotExist)));
+        assert_matches!(
+            rename_file(&db, doc.id, "test2.md"),
+            Err(UiError(RenameFileError::FileDoesNotExist))
+        );
     }
 
     #[test]
@@ -117,7 +145,10 @@ mod delete_and_list_tests {
         write_document(&db, doc.id, "content".as_bytes()).unwrap();
         assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
         delete_file(&db, doc.parent).unwrap();
-        assert_matches!(rename_file(&db, doc.parent, "folder2"), Err(UiError(RenameFileError::FileDoesNotExist)));
+        assert_matches!(
+            rename_file(&db, doc.parent, "folder2"),
+            Err(UiError(RenameFileError::FileDoesNotExist))
+        );
     }
 
     #[test]
@@ -129,7 +160,10 @@ mod delete_and_list_tests {
         write_document(&db, doc.id, "content".as_bytes()).unwrap();
         assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
         delete_file(&db, doc.parent).unwrap();
-        assert_matches!(move_file(&db, doc.id, folder2.id), Err(UiError(MoveFileError::FileDoesNotExist)));
+        assert_matches!(
+            move_file(&db, doc.id, folder2.id),
+            Err(UiError(MoveFileError::FileDoesNotExist))
+        );
     }
 
     #[test]
@@ -141,7 +175,10 @@ mod delete_and_list_tests {
         write_document(&db, doc.id, "content".as_bytes()).unwrap();
         assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
         delete_file(&db, doc.parent).unwrap();
-        assert_matches!(move_file(&db, doc.parent, folder2.id), Err(UiError(MoveFileError::FileDoesNotExist)));
+        assert_matches!(
+            move_file(&db, doc.parent, folder2.id),
+            Err(UiError(MoveFileError::FileDoesNotExist))
+        );
     }
 
     #[test]
@@ -153,7 +190,10 @@ mod delete_and_list_tests {
         write_document(&db, doc.id, "content".as_bytes()).unwrap();
         assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
         delete_file(&db, folder2.id).unwrap();
-        assert_matches!(move_file(&db, doc.id, folder2.id), Err(UiError(MoveFileError::TargetParentDoesNotExist)));
+        assert_matches!(
+            move_file(&db, doc.id, folder2.id),
+            Err(UiError(MoveFileError::TargetParentDoesNotExist))
+        );
     }
 
     #[test]
@@ -165,7 +205,10 @@ mod delete_and_list_tests {
         write_document(&db, doc.id, "content".as_bytes()).unwrap();
         assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
         delete_file(&db, folder2.id).unwrap();
-        assert_matches!(move_file(&db, doc.parent, folder2.id), Err(UiError(MoveFileError::TargetParentDoesNotExist)));
+        assert_matches!(
+            move_file(&db, doc.parent, folder2.id),
+            Err(UiError(MoveFileError::TargetParentDoesNotExist))
+        );
     }
 
     #[test]

@@ -15,15 +15,15 @@ mod sync_fuzzer {
     use lockbook_core::service::test_utils::{assert_dbs_eq, random_username, test_config, url};
     use lockbook_core::Error::UiError;
     use lockbook_core::{
-        calculate_work, create_file, delete_file, get_path_by_id, list_metadatas, move_file, rename_file,
-        write_document, MoveFileError,
+        calculate_work, create_file, delete_file, get_path_by_id, list_metadatas, move_file,
+        rename_file, write_document, MoveFileError,
     };
     use lockbook_models::file_metadata::DecryptedFileMetadata;
     use lockbook_models::file_metadata::FileType::{Document, Folder};
 
     use crate::sync_fuzzer::Actions::{
-        AttemptFolderMove, DeleteFile, MoveDocument, NewFolder, NewMarkdownDocument, RenameFile, SyncAndCheck,
-        UpdateDocument,
+        AttemptFolderMove, DeleteFile, MoveDocument, NewFolder, NewMarkdownDocument, RenameFile,
+        SyncAndCheck, UpdateDocument,
     };
 
     /// Starting parameters that matter
@@ -99,21 +99,33 @@ mod sync_fuzzer {
                     let parent = Self::pick_random_parent(&client, rng);
                     let name = Self::random_filename(rng);
                     let file = create_file(&client, &name, parent.id, Folder).unwrap();
-                    print!("[{:?}]\t{:?}", file.id, get_path_by_id(&client, file.id).unwrap());
+                    print!(
+                        "[{:?}]\t{:?}",
+                        file.id,
+                        get_path_by_id(&client, file.id).unwrap()
+                    );
                 }
                 NewMarkdownDocument => {
                     let client = Self::random_client(clients, rng);
                     let parent = Self::pick_random_parent(&client, rng);
                     let name = Self::random_filename(rng) + ".md"; // TODO pick a random extension (or no extension)
                     let file = create_file(&client, &name, parent.id, Document).unwrap();
-                    print!("[{:?}]\t{:?}", file.id, get_path_by_id(&client, file.id).unwrap());
+                    print!(
+                        "[{:?}]\t{:?}",
+                        file.id,
+                        get_path_by_id(&client, file.id).unwrap()
+                    );
                 }
                 UpdateDocument => {
                     let client = Self::random_client(clients, rng);
                     if let Some(file) = Self::pick_random_document(&client, rng) {
                         let new_content = Self::random_utf8(rng);
                         write_document(&client, file.id, &new_content.as_bytes()).unwrap();
-                        print!("[{:?}]\t{:?}", file.id, get_path_by_id(&client, file.id).unwrap());
+                        print!(
+                            "[{:?}]\t{:?}",
+                            file.id,
+                            get_path_by_id(&client, file.id).unwrap()
+                        );
                     }
                 }
                 MoveDocument => {
@@ -141,7 +153,10 @@ mod sync_fuzzer {
                             let move_file_result = move_file(&client, file.id, new_parent.id);
                             match move_file_result {
                                 Ok(()) | Err(UiError(MoveFileError::FolderMovedIntoItself)) => {}
-                                _ => panic!("Unexpected error while moving file: {:#?}", move_file_result),
+                                _ => panic!(
+                                    "Unexpected error while moving file: {:#?}",
+                                    move_file_result
+                                ),
                             }
                             print!(
                                 "[{:?}]\t{:?} to {:?}",
@@ -169,7 +184,11 @@ mod sync_fuzzer {
                 DeleteFile => {
                     let client = Self::random_client(clients, rng);
                     if let Some(file) = Self::pick_random_file(&client, rng) {
-                        print!("[{:?}]\t{:?}", file.id, get_path_by_id(&client, file.id).unwrap());
+                        print!(
+                            "[{:?}]\t{:?}",
+                            file.id,
+                            get_path_by_id(&client, file.id).unwrap()
+                        );
                         delete_file(&client, file.id).unwrap();
                     }
                 }
@@ -183,7 +202,10 @@ mod sync_fuzzer {
         }
 
         fn random_filename(rng: &mut StdRng) -> String {
-            rng.sample_iter(&Alphanumeric).take(7).map(char::from).collect()
+            rng.sample_iter(&Alphanumeric)
+                .take(7)
+                .map(char::from)
+                .collect()
         }
 
         fn random_utf8(rng: &mut StdRng) -> String {

@@ -9,23 +9,33 @@ mod get_updates_test {
         // new account
         let account = generate_account();
         let (mut root, _) = generate_root_metadata(&account);
-        root.metadata_version = api_service::request(&account, NewAccountRequest::new(&account, &root))
-            .unwrap()
-            .folder_metadata_version;
+        root.metadata_version =
+            api_service::request(&account, NewAccountRequest::new(&account, &root))
+                .unwrap()
+                .folder_metadata_version;
 
         // get updates at version 0
-        let result = api_service::request(&account, GetUpdatesRequest { since_metadata_version: 0 })
-            .unwrap()
-            .file_metadata
-            .len();
+        let result = api_service::request(
+            &account,
+            GetUpdatesRequest {
+                since_metadata_version: 0,
+            },
+        )
+        .unwrap()
+        .file_metadata
+        .len();
         assert_eq!(result, 1);
 
         // get updates at version of root folder
-        let result =
-            api_service::request(&account, GetUpdatesRequest { since_metadata_version: root.metadata_version })
-                .unwrap()
-                .file_metadata
-                .len();
+        let result = api_service::request(
+            &account,
+            GetUpdatesRequest {
+                since_metadata_version: root.metadata_version,
+            },
+        )
+        .unwrap()
+        .file_metadata
+        .len();
         assert_eq!(result, 0);
     }
 }
