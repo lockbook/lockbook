@@ -25,18 +25,14 @@ mod get_document_tests {
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
         api_service::request(
             &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc)],
-            },
+            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
         )
         .unwrap();
 
         // get metadata version
         let metadata_version = api_service::request(
             &account,
-            GetUpdatesRequest {
-                since_metadata_version: root.metadata_version,
-            },
+            GetUpdatesRequest { since_metadata_version: root.metadata_version },
         )
         .unwrap()
         .file_metadata
@@ -64,9 +60,7 @@ mod get_document_tests {
         // get content version
         let content_version = api_service::request(
             &account,
-            GetUpdatesRequest {
-                since_metadata_version: metadata_version,
-            },
+            GetUpdatesRequest { since_metadata_version: metadata_version },
         )
         .unwrap()
         .file_metadata

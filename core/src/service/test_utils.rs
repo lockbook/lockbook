@@ -28,38 +28,14 @@ use crate::repo::{account_repo, db_version_repo};
 use crate::service::{file_service, integrity_service, path_service, sync_service};
 
 pub enum Operation<'a> {
-    Client {
-        client_num: usize,
-    },
-    Sync {
-        client_num: usize,
-    },
-    Create {
-        client_num: usize,
-        path: &'a str,
-    },
-    Rename {
-        client_num: usize,
-        path: &'a str,
-        new_name: &'a str,
-    },
-    Move {
-        client_num: usize,
-        path: &'a str,
-        new_parent_path: &'a str,
-    },
-    Delete {
-        client_num: usize,
-        path: &'a str,
-    },
-    Edit {
-        client_num: usize,
-        path: &'a str,
-        content: &'a [u8],
-    },
-    Custom {
-        f: &'a dyn Fn(&[(usize, Config)], &DecryptedFileMetadata) -> (),
-    },
+    Client { client_num: usize },
+    Sync { client_num: usize },
+    Create { client_num: usize, path: &'a str },
+    Rename { client_num: usize, path: &'a str, new_name: &'a str },
+    Move { client_num: usize, path: &'a str, new_parent_path: &'a str },
+    Delete { client_num: usize, path: &'a str },
+    Edit { client_num: usize, path: &'a str, content: &'a [u8] },
+    Custom { f: &'a dyn Fn(&[(usize, Config)], &DecryptedFileMetadata) -> () },
 }
 
 pub fn run(ops: &[Operation]) {
@@ -83,10 +59,7 @@ pub fn run(ops: &[Operation]) {
                     let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
                     crate::sync_all(client, None).map_err(err_to_string)
                 }()
-                .expect(&format!(
-                    "Operation::Sync error. client_num={:?}",
-                    client_num
-                ));
+                .expect(&format!("Operation::Sync error. client_num={:?}", client_num));
             }
             Operation::Create { client_num, path } => {
                 || -> Result<_, String> {
@@ -99,11 +72,7 @@ pub fn run(ops: &[Operation]) {
                     client_num, path
                 ));
             }
-            Operation::Rename {
-                client_num,
-                path,
-                new_name,
-            } => {
+            Operation::Rename { client_num, path, new_name } => {
                 || -> Result<_, String> {
                     let path = root.decrypted_name.clone() + path;
                     let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
@@ -115,11 +84,7 @@ pub fn run(ops: &[Operation]) {
                     client_num, path, new_name
                 ));
             }
-            Operation::Move {
-                client_num,
-                path,
-                new_parent_path,
-            } => {
+            Operation::Move { client_num, path, new_parent_path } => {
                 || -> Result<_, String> {
                     let path = root.decrypted_name.clone() + path;
                     let new_parent_path = root.decrypted_name.clone() + new_parent_path;
@@ -146,11 +111,7 @@ pub fn run(ops: &[Operation]) {
                     client_num, path
                 ));
             }
-            Operation::Edit {
-                client_num,
-                path,
-                content,
-            } => {
+            Operation::Edit { client_num, path, content } => {
                 || -> Result<_, String> {
                     let path = root.decrypted_name.clone() + path;
                     let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
@@ -208,9 +169,7 @@ pub fn assert_local_work_ids(db: &Config, ids: &[Uuid]) {
 }
 
 pub fn assert_local_work_paths(
-    db: &Config,
-    root: &DecryptedFileMetadata,
-    expected_paths: &[&'static str],
+    db: &Config, root: &DecryptedFileMetadata, expected_paths: &[&'static str],
 ) {
     let all_local_files = file_service::get_all_metadata(db, RepoSource::Local).unwrap();
 
@@ -235,9 +194,7 @@ pub fn assert_server_work_ids(db: &Config, ids: &[Uuid]) {
 }
 
 pub fn assert_server_work_paths(
-    db: &Config,
-    root: &DecryptedFileMetadata,
-    expected_paths: &[&'static str],
+    db: &Config, root: &DecryptedFileMetadata, expected_paths: &[&'static str],
 ) {
     let all_local_files = file_service::get_all_metadata(db, RepoSource::Local).unwrap();
     let new_server_files = sync_service::calculate_work(db)

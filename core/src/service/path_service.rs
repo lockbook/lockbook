@@ -78,8 +78,7 @@ pub fn get_by_path(config: &Config, path: &str) -> Result<DecryptedFileMetadata,
 }
 
 pub fn get_by_path_using_files(
-    files: &[DecryptedFileMetadata],
-    path: &str,
+    files: &[DecryptedFileMetadata], path: &str,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     info!("getting metadata at path: {}", path);
     let paths = split_path(path);
@@ -172,8 +171,7 @@ pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, CoreError> {
 }
 
 pub fn get_path_by_id_using_files(
-    files: &[DecryptedFileMetadata],
-    id: Uuid,
+    files: &[DecryptedFileMetadata], id: Uuid,
 ) -> Result<String, CoreError> {
     info!("getting path by id: {}", id);
     let mut current_metadata = files.find(id)?;

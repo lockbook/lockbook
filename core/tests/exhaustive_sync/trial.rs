@@ -100,11 +100,7 @@ impl Trial {
             let step = self.steps[index].clone();
             additional_completed_steps += 1;
             match step {
-                Action::NewDocument {
-                    client,
-                    parent,
-                    name,
-                } => {
+                Action::NewDocument { client, parent, name } => {
                     let db = self.clients[client].clone();
                     let parent = find_by_name(&db, &parent).id;
                     if let Err(err) = create_file(&db, &name, parent, Document) {
@@ -112,11 +108,7 @@ impl Trial {
                         break 'steps;
                     }
                 }
-                Action::NewMarkdownDocument {
-                    client,
-                    parent,
-                    name,
-                } => {
+                Action::NewMarkdownDocument { client, parent, name } => {
                     let db = self.clients[client].clone();
                     let parent = find_by_name(&db, &parent).id;
                     if let Err(err) = create_file(&db, &name, parent, Document) {
@@ -124,11 +116,7 @@ impl Trial {
                         break 'steps;
                     }
                 }
-                Action::NewFolder {
-                    client,
-                    parent,
-                    name,
-                } => {
+                Action::NewFolder { client, parent, name } => {
                     let db = self.clients[client].clone();
                     let parent = find_by_name(&db, &parent).id;
                     if let Err(err) = create_file(&db, &name, parent, Folder) {
@@ -136,11 +124,7 @@ impl Trial {
                         break 'steps;
                     }
                 }
-                Action::UpdateDocument {
-                    client,
-                    name,
-                    new_content,
-                } => {
+                Action::UpdateDocument { client, name, new_content } => {
                     let db = self.clients[client].clone();
                     let doc = find_by_name(&db, &name).id;
                     if let Err(err) = write_document(&db, doc, new_content.as_bytes()) {
@@ -148,11 +132,7 @@ impl Trial {
                         break 'steps;
                     }
                 }
-                Action::RenameFile {
-                    client,
-                    name,
-                    new_name,
-                } => {
+                Action::RenameFile { client, name, new_name } => {
                     let db = self.clients[client].clone();
                     let doc = find_by_name(&db, &name).id;
                     if let Err(err) = rename_file(&db, doc, &new_name) {
@@ -160,11 +140,7 @@ impl Trial {
                         break 'steps;
                     }
                 }
-                Action::MoveDocument {
-                    client,
-                    doc_name,
-                    destination_name,
-                } => {
+                Action::MoveDocument { client, doc_name, destination_name } => {
                     let db = self.clients[client].clone();
                     let doc = find_by_name(&db, &doc_name).id;
                     let dest = find_by_name(&db, &destination_name).id;
@@ -174,11 +150,7 @@ impl Trial {
                         break 'steps;
                     }
                 }
-                Action::AttemptFolderMove {
-                    client,
-                    folder_name,
-                    destination_name,
-                } => {
+                Action::AttemptFolderMove { client, folder_name, destination_name } => {
                     let db = self.clients[client].clone();
                     let folder = find_by_name(&db, &folder_name).id;
                     let destination_folder = find_by_name(&db, &destination_name).id;

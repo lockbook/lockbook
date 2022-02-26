@@ -99,33 +99,21 @@ mod sync_fuzzer {
                     let parent = Self::pick_random_parent(&client, rng);
                     let name = Self::random_filename(rng);
                     let file = create_file(&client, &name, parent.id, Folder).unwrap();
-                    print!(
-                        "[{:?}]\t{:?}",
-                        file.id,
-                        get_path_by_id(&client, file.id).unwrap()
-                    );
+                    print!("[{:?}]\t{:?}", file.id, get_path_by_id(&client, file.id).unwrap());
                 }
                 NewMarkdownDocument => {
                     let client = Self::random_client(clients, rng);
                     let parent = Self::pick_random_parent(&client, rng);
                     let name = Self::random_filename(rng) + ".md"; // TODO pick a random extension (or no extension)
                     let file = create_file(&client, &name, parent.id, Document).unwrap();
-                    print!(
-                        "[{:?}]\t{:?}",
-                        file.id,
-                        get_path_by_id(&client, file.id).unwrap()
-                    );
+                    print!("[{:?}]\t{:?}", file.id, get_path_by_id(&client, file.id).unwrap());
                 }
                 UpdateDocument => {
                     let client = Self::random_client(clients, rng);
                     if let Some(file) = Self::pick_random_document(&client, rng) {
                         let new_content = Self::random_utf8(rng);
                         write_document(&client, file.id, &new_content.as_bytes()).unwrap();
-                        print!(
-                            "[{:?}]\t{:?}",
-                            file.id,
-                            get_path_by_id(&client, file.id).unwrap()
-                        );
+                        print!("[{:?}]\t{:?}", file.id, get_path_by_id(&client, file.id).unwrap());
                     }
                 }
                 MoveDocument => {
@@ -184,11 +172,7 @@ mod sync_fuzzer {
                 DeleteFile => {
                     let client = Self::random_client(clients, rng);
                     if let Some(file) = Self::pick_random_file(&client, rng) {
-                        print!(
-                            "[{:?}]\t{:?}",
-                            file.id,
-                            get_path_by_id(&client, file.id).unwrap()
-                        );
+                        print!("[{:?}]\t{:?}", file.id, get_path_by_id(&client, file.id).unwrap());
                         delete_file(&client, file.id).unwrap();
                     }
                 }

@@ -14,9 +14,7 @@ mod get_public_key_tests {
 
         let result = api_service::request(
             &account,
-            GetPublicKeyRequest {
-                username: account.username.clone(),
-            },
+            GetPublicKeyRequest { username: account.username.clone() },
         )
         .unwrap()
         .key;
