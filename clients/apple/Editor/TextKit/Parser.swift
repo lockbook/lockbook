@@ -6,12 +6,12 @@ import Down
 
 public class Parser: Visitor {
 
-    private var indexes: IndexConverter
+    public var indexes: IndexConverter
     public var processedDocument: [AttributeRange] = []
     private var depth = 0
 
     public init(_ input: String) {
-        self.indexes = IndexConverter(string: input)
+        self.indexes = IndexConverter(input)
         let document = (try? Down(markdownString: input).toDocument())!
         self.visit(document: document)
     }
@@ -68,6 +68,7 @@ public class Parser: Visitor {
     }
 
     public func visit(heading node: Heading)  {
+        print("start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
         let range = NSRange(location: 0, length: 3)
         let style = Styler.style(node)
         processedDocument.append(AttributeRange(attribute: style, range: range))
@@ -129,9 +130,9 @@ public class IndexConverter {
     private let string: String
     
     /// string.count of each line
-    private var columnLookup: [Int] = []
+    public var columnLookup: [Int] = []
     
-    init(string: String) {
+    init(_ string: String) {
         self.string = string
         
         let counts = string
@@ -159,8 +160,17 @@ public class IndexConverter {
     public func getRange(node: BaseNode) -> NSRange {
         let pointee = node.cmarkNode.pointee
         
-        let startUTF8 = getUTF8Index(utf8Row: pointee.start_line, utf8Col: pointee.start_column)
-        let offset = getUTF8Index(utf8Row: pointee.end_line, utf8Col: pointee.end_column) - startUTF8
+        return getRange(
+            startCol: pointee.start_column,
+            endCol: pointee.end_column,
+            startLine: pointee.start_line,
+            endLine: pointee.end_line
+        )
+    }
+    
+    public func getRange(startCol: Int32, endCol: Int32, startLine: Int32, endLine: Int32) -> NSRange {
+        let startUTF8 = getUTF8Index(utf8Row: startLine, utf8Col: startCol)
+        let offset = getUTF8Index(utf8Row: endLine, utf8Col: endCol) - startUTF8
         
         let start = string.utf8.index(string.startIndex, offsetBy: startUTF8)
         let end = string.utf8.index(start, offsetBy: offset)
