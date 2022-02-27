@@ -5,7 +5,7 @@ use libsecp256k1::PublicKey;
 use lockbook_models::api::FileUsage;
 use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
 use lockbook_models::tree::FileMetaExt;
-use log::error;
+use log::{error, info};
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
 use redis::{AsyncCommands, AsyncIter};
@@ -36,6 +36,12 @@ lazy_static! {
     .unwrap();
     pub static ref METRICS_STATISTICS: MetricsStatistics =
         MetricsStatistics::from(&METRICS_COUNTERS_VEC);
+    pub static ref METRICS_USAGE_BY_USER_VEC: IntGaugeVec = register_int_gauge_vec!(
+        "lockbook_metrics_usage_by_user",
+        "Lockbook's total usage by user.",
+        &["username"]
+    )
+    .unwrap();
 }
 
 #[derive(Debug)]
@@ -47,14 +53,18 @@ pub fn start_metrics_worker(server_state: &Arc<ServerState>) {
     let state_clone = server_state.clone();
 
     tokio::spawn(async move {
-        if let Err(ServerError::ClientError(e)) = start(state_clone).await {
-            error!("Metrics client error: {:?}", e) // there is expected to be none
+        info!("Started capturing metrics.");
+
+        if let Err(e) = start(state_clone).await {
+            error!("interrupting metrics loop due to error: {:?}", e)
         }
     });
 }
 
 pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<MetricsError>> {
     loop {
+        info!("Metrics refresh started.");
+
         let public_keys = get_all_public_keys(&server_state).await?;
         METRICS_STATISTICS.total_users.set(public_keys.len() as i64);
 
@@ -84,7 +94,11 @@ pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<Met
             let bytes = calculate_total_document_bytes(&mut con, &metadatas).await?;
 
             total_bytes += bytes;
-            total_documents += ids.len();
+            total_documents += metadatas.len();
+
+            METRICS_USAGE_BY_USER_VEC
+                .with_label_values(&[&keys::stringify_public_key(&public_key)])
+                .set(bytes);
 
             tokio::time::sleep(server_state.config.metrics.time_between_redis_calls).await;
         }
@@ -160,12 +174,16 @@ pub async fn calculate_total_document_bytes(
 
     for metadata in metadatas {
         if metadata.file_type == FileType::Document {
-            let file_usage: FileUsage = con
-                .maybe_json_get(keys::size(metadata.id))
-                .await?
-                .ok_or_else(|| internal!("Cannot retrieve file usage for id: {:?}", metadata.id))?;
+            if metadata.content_version != 0 {
+                let file_usage: FileUsage = con
+                    .maybe_json_get(keys::size(metadata.id))
+                    .await?
+                    .ok_or_else(|| {
+                        internal!("Cannot retrieve file usage for id: {:?}", metadata.id)
+                    })?;
 
-            total_size += file_usage.size_bytes
+                total_size += file_usage.size_bytes
+            }
         }
     }
 

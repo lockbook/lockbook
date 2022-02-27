@@ -97,4 +97,28 @@ mod get_usage_tests {
 
         assert_eq!(usage.usages.len(), 1);
     }
+
+    #[test]
+    fn usage_new_files_have_no_size() {
+        let config = test_config();
+        let generated_account = generate_account();
+        create_account(&config, &generated_account.username, &generated_account.api_url).unwrap();
+        let root = get_root(&config).unwrap();
+
+        create_file(&config, &random_username(), root.id, FileType::Document).unwrap();
+
+        assert!(get_usage(&config).unwrap().usages.is_empty(), "Returned non-empty usage!");
+
+        sync_all!(&config).unwrap();
+
+        let total_usage = get_usage(&config)
+            .unwrap()
+            .usages
+            .iter()
+            .filter(|usage| usage.file_id != root.id)
+            .map(|usage| usage.size_bytes)
+            .sum::<u64>();
+
+        assert_eq!(total_usage, 32, "Returned a file size above the default 32 bytes!");
+    }
 }
