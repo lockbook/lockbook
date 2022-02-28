@@ -1,5 +1,7 @@
 ARG HASH
 FROM rust:1.55 AS cli-build
+RUN rustup component add rustfmt
+RUN rustup component add clippy
 
 # CLI depends on core via a relative import
 COPY core/Cargo.toml /core/Cargo.toml

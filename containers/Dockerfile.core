@@ -1,5 +1,7 @@
 ARG HASH
 FROM rust:1.55 AS core-build
+RUN rustup component add clippy
+RUN rustup component add rustfmt
 
 WORKDIR core
 

@@ -1,6 +1,7 @@
 FROM rust:1.55
 
-
+RUN rustup component add rustfmt
+RUN rustup component add clippy
 WORKDIR core
 
 # Getting libunwind and gperftools

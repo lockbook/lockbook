@@ -7,6 +7,9 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 RUN apt update -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
+RUN rustup component add rustfmt
+RUN rustup component add clippy
+
 WORKDIR linux
 
 # Linux depends on core via a relative import
