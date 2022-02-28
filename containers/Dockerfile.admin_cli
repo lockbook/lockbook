@@ -1,5 +1,5 @@
 ARG HASH
-FROM rust AS admin-cli-build
+FROM rust:1.55 AS admin-cli-build
 # Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
 RUN rustup toolchain install stable
 RUN rustup component add rustfmt --toolchain stable
