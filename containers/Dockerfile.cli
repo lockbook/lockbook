@@ -1,11 +1,6 @@
 ARG HASH
 FROM rust:1.55 AS cli-build
 
-# Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
-RUN rustup toolchain install stable
-RUN rustup component add rustfmt --toolchain stable
-RUN rustup component add clippy --toolchain stable
-
 # CLI depends on core via a relative import
 COPY core/Cargo.toml /core/Cargo.toml
 COPY containers/dummy.rs /core/src/lib.rs

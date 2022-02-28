@@ -1,11 +1,6 @@
 ARG HASH
 FROM rust:1.55 AS core-build
 
-# Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
-RUN rustup toolchain install stable
-RUN rustup component add clippy --toolchain stable
-RUN rustup component add rustfmt --toolchain stable
-
 WORKDIR core
 
 # Required to get cargo to get and compile deps but not our source
