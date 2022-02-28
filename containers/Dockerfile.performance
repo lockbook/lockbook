@@ -1,4 +1,4 @@
-FROM rust
+FROM rust:1.55
 
 RUN rustup toolchain install stable
 RUN rustup component add rustfmt --toolchain stable
