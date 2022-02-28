@@ -287,6 +287,7 @@ mod sync_fuzzer {
         pb.set_style(
             ProgressStyle::default_bar()
                 .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {msg}")
+                .unwrap()
                 .with_key("eta", |state| format!("{:.1}s", state.eta().as_secs_f64()))
                 .progress_chars("#>-"),
         );
