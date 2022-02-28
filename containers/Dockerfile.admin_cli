@@ -1,9 +1,7 @@
 ARG HASH
 FROM rust:1.55 AS admin-cli-build
-# Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
-RUN rustup toolchain install stable
-RUN rustup component add rustfmt --toolchain stable
-RUN rustup component add clippy --toolchain stable
+RUN rustup component add rustfmt
+RUN rustup component add clippy
 
 WORKDIR admin-cli
 
@@ -45,8 +43,8 @@ RUN cargo build --release
 
 # Check formatting
 FROM admin_cli:${HASH} AS admin-cli-fmt
-RUN cargo +stable fmt -- --check -l
+RUN cargo fmt -- --check -l
 
 # Check lint
 FROM admin_cli:${HASH} AS admin-cli-lint
-RUN cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments -A clippy::upper-case-acronyms
+RUN cargo clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments -A clippy::upper-case-acronyms
