@@ -55,12 +55,9 @@ To setup payment for the first time you need to send `Plan` info and `Payment` i
 3. [Create and confirm a `SetUpIntent`](https://stripe.com/docs/api/setup_intents/create)
 4. [Create a `Subscription`](https://stripe.com/docs/api/subscriptions/create)
 
-These api calls are done over [`async-stripe`](https://github.com/arlyon/async-stripe).
+Lockbook server will store `StripeUserInfo`, a struct containing user's [customer_id](https://stripe.com/docs/api/customers/object#customer_object-id), [payment_method](https://stripe.com/docs/api/payment_methods/object) history, and [subscription](https://stripe.com/docs/api/subscriptions/object) history.
 
-All the information collected from these stripe api calls will be stored in `StripeUserInfo`. This contains a stripe user's customer id, payment method history, and subscription history.
-
-`StripeUserInfo` will be stored in redis. It will be referenced when a user wants to change their account tier once more, or to get the last 4 digits of their credit card.
-
+After stripe api calls, `lockbook_server` will:
 1. store info
 2. cleanup stripe upon failure
 3. look for customer already exists errors

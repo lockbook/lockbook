@@ -53,7 +53,7 @@ pub async fn new_account(
         file(request.root_folder.id),
     ];
 
-    let tx_result = tx!(&mut con, pipe_name, watched_keys, {
+    let tx_result = tx!(&mut con, pipe, watched_keys, {
         if con.exists(public_key(&request.username)).await? {
             return Err(Abort(ClientError(UsernameTaken)));
         }
@@ -76,8 +76,7 @@ pub async fn new_account(
             return Err(Abort(ClientError(FileIdTaken)));
         }
 
-        pipe_name
-            .json_set(public_key(&request.username), request.public_key)?
+        pipe.json_set(public_key(&request.username), request.public_key)?
             .json_set(username(&request.public_key), &request.username)?
             .json_set(owned_files(&request.public_key), [request.root_folder.id])?
             .set(data_cap(&request.public_key), FREE_TIER_USAGE_SIZE)
@@ -117,12 +116,7 @@ pub async fn get_usage(
 
     let cap: u64 = con.get(data_cap(&context.public_key)).await?;
 
-    let usages = get_file_usage(&mut con, &context.public_key)
-        .await
-        .map_err(|e| match e {
-            GetFileUsageError::UserNotFound => ClientError(GetUsageError::UserNotFound),
-            GetFileUsageError::Internal(e) => ServerError::from(e),
-        })?;
+    let usages = get_file_usage(&mut con, &context.public_key).await?;
 
     Ok(GetUsageResponse { usages, cap })
 }

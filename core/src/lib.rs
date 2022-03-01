@@ -19,7 +19,7 @@ use uuid::Uuid;
 use crate::billing_service::CreditCardLast4Digits;
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
-use lockbook_models::api::{AccountTier, CreditCardRejectReason};
+use lockbook_models::api::{AccountTier, CardDeclineReason, CardRejectReason};
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
@@ -600,10 +600,14 @@ pub enum SwitchAccountTierError {
     InvalidCreditCardCVC,
     InvalidCreditCardExpYear,
     InvalidCreditCardExpMonth,
-    CardDecline,
+    GenericCardDecline,
+    BalanceOrCreditExceededCardDecline,
+    TryAgainCardDecline,
+    NotSupportedCardDecline,
+    ExpiredCardDecline,
     ClientUpdateRequired,
     CurrentUsageIsMoreThanNewTier,
-    AlreadyInBillingWorkflow,
+    ConcurrentRequestsAreTooSoon,
 }
 
 pub fn switch_account_tier(
@@ -612,26 +616,32 @@ pub fn switch_account_tier(
     billing_service::switch_account_tier(config, new_account_tier).map_err(|e| match e {
         CoreError::OldCardDoesNotExist => UiError(SwitchAccountTierError::OldCardDoesNotExist),
         CoreError::InvalidCreditCard(field) => match field {
-            CreditCardRejectReason::Number => {
-                UiError(SwitchAccountTierError::InvalidCreditCardNumber)
-            }
-            CreditCardRejectReason::ExpYear => {
-                UiError(SwitchAccountTierError::InvalidCreditCardExpYear)
-            }
-            CreditCardRejectReason::ExpMonth => {
+            CardRejectReason::Number => UiError(SwitchAccountTierError::InvalidCreditCardNumber),
+            CardRejectReason::ExpYear => UiError(SwitchAccountTierError::InvalidCreditCardExpYear),
+            CardRejectReason::ExpMonth => {
                 UiError(SwitchAccountTierError::InvalidCreditCardExpMonth)
             }
-            CreditCardRejectReason::CVC => UiError(SwitchAccountTierError::InvalidCreditCardCVC),
+            CardRejectReason::CVC => UiError(SwitchAccountTierError::InvalidCreditCardCVC),
         },
         CoreError::NewTierIsOldTier => UiError(SwitchAccountTierError::NewTierIsOldTier),
         CoreError::ServerUnreachable => UiError(SwitchAccountTierError::CouldNotReachServer),
-        CoreError::CardDecline(_) => UiError(SwitchAccountTierError::CardDecline),
+        CoreError::CardDecline(decline_reason) => match decline_reason {
+            CardDeclineReason::Generic => UiError(SwitchAccountTierError::GenericCardDecline),
+            CardDeclineReason::BalanceOrCreditExceeded => {
+                UiError(SwitchAccountTierError::BalanceOrCreditExceededCardDecline)
+            }
+            CardDeclineReason::TryAgain => UiError(SwitchAccountTierError::TryAgainCardDecline),
+            CardDeclineReason::NotSupported => {
+                UiError(SwitchAccountTierError::NotSupportedCardDecline)
+            }
+            CardDeclineReason::ExpiredCard => UiError(SwitchAccountTierError::ExpiredCardDecline),
+        },
         CoreError::CurrentUsageIsMoreThanNewTier => {
             UiError(SwitchAccountTierError::CurrentUsageIsMoreThanNewTier)
         }
         CoreError::AccountNonexistent => UiError(SwitchAccountTierError::NoAccount),
-        CoreError::AlreadyInBillingWorkflow => {
-            UiError(SwitchAccountTierError::AlreadyInBillingWorkflow)
+        CoreError::ConcurrentRequestsAreTooSoon => {
+            UiError(SwitchAccountTierError::ConcurrentRequestsAreTooSoon)
         }
         CoreError::ClientUpdateRequired => UiError(SwitchAccountTierError::ClientUpdateRequired),
         _ => unexpected!("{:#?}", e),

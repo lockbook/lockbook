@@ -31,8 +31,8 @@ pub fn switch_account_tier(
             ApiError::Endpoint(SwitchAccountTierError::CurrentUsageIsMoreThanNewTier) => {
                 CoreError::CurrentUsageIsMoreThanNewTier
             }
-            ApiError::Endpoint(SwitchAccountTierError::AlreadyInBillingWorkflow) => {
-                CoreError::AlreadyInBillingWorkflow
+            ApiError::Endpoint(SwitchAccountTierError::ConcurrentRequestsAreTooSoon) => {
+                CoreError::ConcurrentRequestsAreTooSoon
             }
             ApiError::Endpoint(SwitchAccountTierError::UserNotFound) => {
                 CoreError::AccountNonexistent

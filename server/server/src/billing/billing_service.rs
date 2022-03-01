@@ -1,11 +1,13 @@
 use crate::account_service::GetFileUsageError;
 use crate::billing::stripe_client;
-use crate::billing::stripe_model::{StripePaymentInfo, StripeSubscriptionInfo, StripeUserInfo};
+use crate::billing::stripe_model::{
+    StripePaymentInfo, StripeSubscriptionInfo, StripeUserInfo, Timestamp,
+};
 use crate::keys::{data_cap, public_key_from_stripe_customer_id, stripe_user_info};
-use crate::ServerError::{ClientError, InternalError};
+use crate::ServerError::ClientError;
 use crate::{
-    account_service, RequestContext, ServerError, ServerState, SimplifiedStripeError,
-    FREE_TIER_USAGE_SIZE, MONTHLY_TIER_USAGE_SIZE,
+    account_service, keys, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE,
+    PREMIUM_TIER_USAGE_SIZE,
 };
 use deadpool_redis::redis::AsyncCommands;
 use deadpool_redis::Connection;
@@ -15,6 +17,7 @@ use lockbook_models::api::{
     AccountTier, GetCreditCardError, GetCreditCardRequest, GetCreditCardResponse, PaymentMethod,
     SwitchAccountTierError, SwitchAccountTierRequest, SwitchAccountTierResponse,
 };
+use log::info;
 use redis_utils::converters::{JsonGet, JsonSet, PipelineJsonSet};
 use redis_utils::tx;
 use std::fmt::Debug;
@@ -30,21 +33,33 @@ pub async fn switch_account_tier(
 ) -> Result<SwitchAccountTierResponse, ServerError<SwitchAccountTierError>> {
     let (request, server_state) = (&context.request, context.server_state);
 
+    info!(
+        "Attempting to switching the account tier of {} to {}",
+        keys::stringify_public_key(&context.public_key),
+        if let AccountTier::Premium(_) = request.account_tier { "premium" } else { "free" }
+    );
+
     let mut con = server_state.index_db_pool.get().await?;
 
-    let mut user_info = lock_payment_workflow(&context.public_key, &mut con).await?;
+    let mut user_info = lock_payment_workflow(
+        &context.public_key,
+        &mut con,
+        server_state.config.stripe.millis_between_user_payment_flows,
+    )
+    .await?;
 
     let current_data_cap: u64 = con.get(data_cap(&context.public_key)).await?;
 
     let new_data_cap = match (current_data_cap, &request.account_tier) {
-        (FREE_TIER_USAGE_SIZE, AccountTier::Monthly(card)) => {
+        (FREE_TIER_USAGE_SIZE, AccountTier::Premium(card)) => {
             create_subscription(server_state, &mut con, &context.public_key, card, &mut user_info)
                 .await?
         }
-        (FREE_TIER_USAGE_SIZE, AccountTier::Free) | (_, AccountTier::Monthly(_)) => {
+        (FREE_TIER_USAGE_SIZE, AccountTier::Free)
+        | (PREMIUM_TIER_USAGE_SIZE, AccountTier::Premium(_)) => {
             return Err(ClientError(SwitchAccountTierError::NewTierIsOldTier));
         }
-        (_, AccountTier::Free) => {
+        (PREMIUM_TIER_USAGE_SIZE, AccountTier::Free) => {
             let usage: u64 = account_service::get_file_usage(&mut con, &context.public_key)
                 .await
                 .map_err(|e| match e {
@@ -73,6 +88,13 @@ pub async fn switch_account_tier(
 
             FREE_TIER_USAGE_SIZE
         }
+        (_, AccountTier::Free) | (_, AccountTier::Premium(_)) => {
+            return Err(internal!(
+                "Unrecognized current data cap: {}, public_key: {:?}",
+                current_data_cap,
+                context.public_key
+            ));
+        }
     };
 
     user_info.last_in_payment_flow = 0;
@@ -80,6 +102,19 @@ pub async fn switch_account_tier(
     con.set(data_cap(&context.public_key), new_data_cap).await?;
     con.json_set(stripe_user_info(&context.public_key), &user_info)
         .await?;
+
+    info!(
+        "Successfully completed switch the account tier of {} from {} to {}.",
+        keys::stringify_public_key(&context.public_key),
+        if current_data_cap == PREMIUM_TIER_USAGE_SIZE {
+            "premium"
+        } else if current_data_cap == FREE_TIER_USAGE_SIZE {
+            "free"
+        } else {
+            "unknown"
+        },
+        if let AccountTier::Premium(_) = request.account_tier { "premium" } else { "free" }
+    );
 
     Ok(SwitchAccountTierResponse {})
 }
@@ -95,28 +130,29 @@ fn get_active_subscription_index<U: Debug>(
     Ok(active_pos)
 }
 
-const MAXIMUM_PAYMENT_FLOW_LOCK_MILLIS: i64 = 30000;
-
 async fn lock_payment_workflow(
     public_key: &PublicKey, con: &mut deadpool_redis::Connection,
+    millis_between_payment_flows: Timestamp,
 ) -> Result<StripeUserInfo, ServerError<SwitchAccountTierError>> {
     let mut user_info = StripeUserInfo::default();
 
-    let tx_result = tx!(con, pipe_name, &[stripe_user_info(public_key)], {
+    let tx_result = tx!(con, pipe, &[stripe_user_info(public_key)], {
         user_info = con
             .maybe_json_get(stripe_user_info(public_key))
             .await?
             .unwrap_or_default();
 
-        if get_time().0 - user_info.last_in_payment_flow < MAXIMUM_PAYMENT_FLOW_LOCK_MILLIS {
-            return Err(Abort(ClientError(SwitchAccountTierError::AlreadyInBillingWorkflow)));
+        let current_time = get_time().0 as Timestamp;
+
+        if current_time - user_info.last_in_payment_flow < millis_between_payment_flows {
+            return Err(Abort(ClientError(SwitchAccountTierError::ConcurrentRequestsAreTooSoon)));
         }
 
-        user_info.last_in_payment_flow = get_time().0;
+        user_info.last_in_payment_flow = current_time;
 
-        pipe_name.json_set(stripe_user_info(public_key), &user_info)?;
+        pipe.json_set(stripe_user_info(public_key), &user_info)?;
 
-        Ok(&mut pipe_name)
+        Ok(&mut pipe)
     });
     return_if_error!(tx_result);
 
@@ -202,32 +238,14 @@ async fn create_subscription(
                 .max_by_key(|info| info.created_at)) {
                 (Some(customer_id), Some(payment_info)) => (stripe::CustomerId::from_str(customer_id)?, payment_info.id.clone()),
                 (Some(_), None) | (None, None) => return Err(ClientError(SwitchAccountTierError::OldCardDoesNotExist)),
-                (None, Some(_)) => return Err(internal!("User info is in a mismatched state where payment information exists despite no customer existing: {:?}", user_info)),
+                (None, Some(_)) => return Err(internal!("StripeUserInfo is in an inconsistent state. !payment_methods.is_empty() && customer_id.is_none(): {:?}", user_info))
             }
         }
     };
 
-    let subscription_resp = match stripe_client::create_subscription(
-        server_state,
-        customer_id.clone(),
-        &payment_method_id,
-    )
-    .await
-    {
-        Ok(resp) => resp,
-        Err(SimplifiedStripeError::Other(e)) => return Err(InternalError(e)),
-        Err(e) => {
-            match payment_method {
-                PaymentMethod::NewCard { .. } if user_info.payment_methods.len() == 1 => {
-                    stripe_client::delete_customer(&server_state.stripe_client, &customer_id)
-                        .await?;
-                }
-                _ => {}
-            }
-
-            return Err(ServerError::<SwitchAccountTierError>::from(e));
-        }
-    };
+    let subscription_resp =
+        stripe_client::create_subscription(server_state, customer_id.clone(), &payment_method_id)
+            .await?;
 
     user_info.subscriptions.push(StripeSubscriptionInfo {
         id: subscription_resp.id.to_string(),
@@ -235,7 +253,7 @@ async fn create_subscription(
         is_active: true,
     });
 
-    Ok(MONTHLY_TIER_USAGE_SIZE)
+    Ok(PREMIUM_TIER_USAGE_SIZE)
 }
 
 pub async fn get_credit_card(
@@ -282,6 +300,8 @@ pub async fn stripe_webhooks(
 
     let event =
         stripe::Webhook::construct_event(payload, sig, &server_state.config.stripe.signing_secret)?;
+
+    info!("A verified stripe request has been received. event: {:?}.", event.event_type);
 
     let mut con = server_state.index_db_pool.get().await?;
 
@@ -367,7 +387,12 @@ pub async fn stripe_webhooks(
                     .await?;
             }
         }
-        (_, _) => {}
+        (_, _) => {
+            return internal!(
+                "An unexpected and unhandled stripe event has been received. event: {:?}",
+                event.event_type
+            )
+        }
     }
 
     Ok(())

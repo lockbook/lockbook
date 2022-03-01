@@ -9,9 +9,10 @@ mod switch_account_tier_test {
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::FileType;
     use rand::RngCore;
+    use std::time::Duration;
 
     #[test]
-    fn switch_account_tier_to_premium_and_back() {
+    fn switch_to_premium_and_back() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
 
@@ -38,7 +39,7 @@ mod switch_account_tier_test {
     }
 
     #[test]
-    fn switch_account_tier_new_tier_is_old_tier_free() {
+    fn new_tier_is_old_tier() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
@@ -54,13 +55,6 @@ mod switch_account_tier_test {
                 SwitchAccountTierError::NewTierIsOldTier
             ))
         );
-    }
-
-    #[test]
-    fn switch_account_tier_new_tier_is_old_tier() {
-        let account = generate_account();
-        let (root, _) = generate_root_metadata(&account);
-        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         api_service::request(
             &account,
@@ -96,14 +90,14 @@ mod switch_account_tier_test {
     }
 
     #[test]
-    fn switch_account_tier_preexisting_card_does_not_exist() {
+    fn card_does_not_exist() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         let result = api_service::request(
             &account,
-            SwitchAccountTierRequest { account_tier: AccountTier::Monthly(PaymentMethod::OldCard) },
+            SwitchAccountTierRequest { account_tier: AccountTier::Premium(PaymentMethod::OldCard) },
         );
 
         assert_matches!(
@@ -115,7 +109,7 @@ mod switch_account_tier_test {
     }
 
     #[test]
-    fn switch_account_tier_decline() {
+    fn card_decline() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
@@ -143,11 +137,11 @@ mod switch_account_tier_test {
             ),
             (
                 test_credit_cards::decline::INCORRECT_NUMBER,
-                SwitchAccountTierError::CardDeclined(CardDeclineReason::IncorrectNumber),
+                SwitchAccountTierError::InvalidCreditCard(CardRejectReason::Number),
             ),
             (
                 test_credit_cards::decline::INCORRECT_CVC,
-                SwitchAccountTierError::CardDeclined(CardDeclineReason::IncorrectCVC),
+                SwitchAccountTierError::InvalidCreditCard(CardRejectReason::CVC),
             ),
         ];
 
@@ -165,7 +159,7 @@ mod switch_account_tier_test {
     }
 
     #[test]
-    fn switch_account_tier_invalid_card() {
+    fn invalid_cards() {
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
@@ -176,28 +170,28 @@ mod switch_account_tier_test {
                 None,
                 None,
                 None,
-                SwitchAccountTierError::InvalidCreditCard(CreditCardRejectReason::Number),
+                SwitchAccountTierError::InvalidCreditCard(CardRejectReason::Number),
             ),
             (
                 test_credit_cards::GOOD,
                 Some(1970),
                 None,
                 None,
-                SwitchAccountTierError::InvalidCreditCard(CreditCardRejectReason::ExpYear),
+                SwitchAccountTierError::InvalidCreditCard(CardRejectReason::ExpYear),
             ),
             (
                 test_credit_cards::GOOD,
                 None,
                 Some(14),
                 None,
-                SwitchAccountTierError::InvalidCreditCard(CreditCardRejectReason::ExpMonth),
+                SwitchAccountTierError::InvalidCreditCard(CardRejectReason::ExpMonth),
             ),
             (
                 test_credit_cards::GOOD,
                 None,
                 None,
                 Some("11"),
-                SwitchAccountTierError::InvalidCreditCard(CreditCardRejectReason::CVC),
+                SwitchAccountTierError::InvalidCreditCard(CardRejectReason::CVC),
             ),
         ];
 
@@ -220,7 +214,7 @@ mod switch_account_tier_test {
     }
 
     #[test]
-    fn switch_account_tier_current_usage_is_more_than_new_tier() {
+    fn downgrade_denied() {
         let config = test_utils::test_config();
         let (account, root) = test_utils::create_account(&config);
 
@@ -276,5 +270,30 @@ mod switch_account_tier_test {
                 SwitchAccountTierError::CurrentUsageIsMoreThanNewTier
             ))
         );
+
+        let children = lockbook_core::get_children(&config, root.id).unwrap();
+
+        for child in children {
+            lockbook_core::delete_file(&config, child.id).unwrap();
+
+            lockbook_core::sync_all(&config, None).unwrap();
+
+            if lockbook_core::get_usage(&config)
+                .unwrap()
+                .server_usage
+                .exact
+                < 1000000
+            {
+                break;
+            }
+        }
+
+        std::thread::sleep(Duration::from_secs(30));
+
+        api_service::request(
+            &account,
+            SwitchAccountTierRequest { account_tier: AccountTier::Free },
+        )
+        .unwrap();
     }
 }

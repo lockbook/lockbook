@@ -293,7 +293,7 @@ pub enum PaymentMethod {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum AccountTier {
-    Monthly(PaymentMethod),
+    Premium(PaymentMethod),
     Free,
 }
 
@@ -306,7 +306,7 @@ pub struct SwitchAccountTierRequest {
 pub struct SwitchAccountTierResponse {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum CreditCardRejectReason {
+pub enum CardRejectReason {
     Number,
     ExpYear,
     ExpMonth,
@@ -317,14 +317,9 @@ pub enum CreditCardRejectReason {
 pub enum CardDeclineReason {
     Generic,
     BalanceOrCreditExceeded,
-    Unknown,
     TryAgain,
     NotSupported,
     ExpiredCard,
-    IncorrectNumber,
-    IncorrectCVC,
-    IncorrectExpiryMonth,
-    IncorrectExpiryYear,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -332,9 +327,9 @@ pub enum SwitchAccountTierError {
     OldCardDoesNotExist,
     NewTierIsOldTier,
     CardDeclined(CardDeclineReason),
-    InvalidCreditCard(CreditCardRejectReason),
+    InvalidCreditCard(CardRejectReason),
     CurrentUsageIsMoreThanNewTier,
-    AlreadyInBillingWorkflow,
+    ConcurrentRequestsAreTooSoon,
     UserNotFound,
 }
 

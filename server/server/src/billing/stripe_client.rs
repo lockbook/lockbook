@@ -3,8 +3,8 @@ use crate::billing::stripe_client::SimplifiedStripeError::{
 };
 
 use crate::{ServerState, StripeDeclineCodeCatcher, StripeKnownDeclineCode};
-use lockbook_models::api::{CardDeclineReason, CreditCardRejectReason};
-use log::error;
+use lockbook_models::api::{CardDeclineReason, CardRejectReason};
+use log::{error, info};
 use std::fmt::Debug;
 use stripe::{
     CardDetailsParams, ErrorCode, Expandable, ParseIdError, PaymentIntentStatus, SetupIntentStatus,
@@ -14,7 +14,7 @@ use stripe::{
 #[derive(Debug)]
 pub enum SimplifiedStripeError {
     CardDeclined(CardDeclineReason),
-    InvalidCreditCard(CreditCardRejectReason),
+    InvalidCreditCard(CardRejectReason),
     Other(String),
 }
 
@@ -65,21 +65,6 @@ fn simplify_stripe_error(
                                 CardDeclined(CardDeclineReason::TryAgain)
                             }
 
-                            //Unknown
-                            StripeKnownDeclineCode::CallIssuer
-                            | StripeKnownDeclineCode::DoNotTryAgain
-                            | StripeKnownDeclineCode::DoNotHonor
-                            | StripeKnownDeclineCode::NewAccountInformationAvailable
-                            | StripeKnownDeclineCode::RestrictedCard
-                            | StripeKnownDeclineCode::RevocationOfAllAuthorizations
-                            | StripeKnownDeclineCode::RevocationOfAuthorization
-                            | StripeKnownDeclineCode::SecurityViolation
-                            | StripeKnownDeclineCode::ServiceNotAllowed
-                            | StripeKnownDeclineCode::StopPaymentOrder
-                            | StripeKnownDeclineCode::TransactionNotAllowed => {
-                                CardDeclined(CardDeclineReason::Unknown)
-                            }
-
                             // Not supported
                             StripeKnownDeclineCode::CardNotSupported
                             | StripeKnownDeclineCode::CurrencyNotSupported => {
@@ -99,7 +84,18 @@ fn simplify_stripe_error(
                             }
 
                             // Generic
-                            StripeKnownDeclineCode::Fraudulent
+                            StripeKnownDeclineCode::CallIssuer
+                            | StripeKnownDeclineCode::DoNotTryAgain
+                            | StripeKnownDeclineCode::DoNotHonor
+                            | StripeKnownDeclineCode::NewAccountInformationAvailable
+                            | StripeKnownDeclineCode::RestrictedCard
+                            | StripeKnownDeclineCode::RevocationOfAllAuthorizations
+                            | StripeKnownDeclineCode::RevocationOfAuthorization
+                            | StripeKnownDeclineCode::SecurityViolation
+                            | StripeKnownDeclineCode::ServiceNotAllowed
+                            | StripeKnownDeclineCode::StopPaymentOrder
+                            | StripeKnownDeclineCode::TransactionNotAllowed
+                            | StripeKnownDeclineCode::Fraudulent
                             | StripeKnownDeclineCode::GenericDecline
                             | StripeKnownDeclineCode::LostCard
                             | StripeKnownDeclineCode::MerchantBlacklist
@@ -113,23 +109,23 @@ fn simplify_stripe_error(
                             // Incorrect number
                             StripeKnownDeclineCode::IncorrectNumber
                             | StripeKnownDeclineCode::InvalidNumber => {
-                                CardDeclined(CardDeclineReason::IncorrectNumber)
+                                InvalidCreditCard(CardRejectReason::Number)
                             }
 
                             // Incorrect cvc
                             StripeKnownDeclineCode::IncorrectCvc
                             | StripeKnownDeclineCode::InvalidCvc => {
-                                CardDeclined(CardDeclineReason::IncorrectCVC)
+                                InvalidCreditCard(CardRejectReason::CVC)
                             }
 
                             // Incorrect expiry month
                             StripeKnownDeclineCode::InvalidExpiryMonth => {
-                                CardDeclined(CardDeclineReason::IncorrectExpiryMonth)
+                                InvalidCreditCard(CardRejectReason::ExpMonth)
                             }
 
                             // Incorrect expiry year
                             StripeKnownDeclineCode::InvalidExpiryYear => {
-                                CardDeclined(CardDeclineReason::IncorrectExpiryYear)
+                                InvalidCreditCard(CardRejectReason::ExpYear)
                             }
                         }
                         Err(e) => e,
@@ -138,10 +134,10 @@ fn simplify_stripe_error(
             }
             ErrorCode::ExpiredCard => CardDeclined(CardDeclineReason::ExpiredCard),
             ErrorCode::InvalidCardType => CardDeclined(CardDeclineReason::NotSupported),
-            ErrorCode::InvalidCvc | ErrorCode::IncorrectCvc => InvalidCreditCard(CreditCardRejectReason::CVC),
-            ErrorCode::InvalidExpiryMonth => InvalidCreditCard(CreditCardRejectReason::ExpMonth),
-            ErrorCode::InvalidExpiryYear => InvalidCreditCard(CreditCardRejectReason::ExpYear),
-            ErrorCode::InvalidNumber | ErrorCode::IncorrectNumber => InvalidCreditCard(CreditCardRejectReason::Number),
+            ErrorCode::InvalidCvc | ErrorCode::IncorrectCvc => InvalidCreditCard(CardRejectReason::CVC),
+            ErrorCode::InvalidExpiryMonth => InvalidCreditCard(CardRejectReason::ExpMonth),
+            ErrorCode::InvalidExpiryYear => InvalidCreditCard(CardRejectReason::ExpYear),
+            ErrorCode::InvalidNumber | ErrorCode::IncorrectNumber => InvalidCreditCard(CardRejectReason::Number),
             ErrorCode::ProcessingError => CardDeclined(CardDeclineReason::TryAgain),
             _ => Other(format!("Unexpected error code received: {:?}", error_code))
         }
@@ -154,17 +150,11 @@ pub async fn create_customer(
     let mut customer_params = stripe::CreateCustomer::new();
     customer_params.payment_method = Some(payment_method_id);
 
+    info!("Creating stripe customer. payment_method_id: {}", payment_method_id.as_str());
+
     stripe::Customer::create(stripe_client, customer_params)
         .await
         .map_err(SimplifiedStripeError::from)
-}
-
-pub async fn delete_customer(
-    stripe_client: &stripe::Client, customer_id: &stripe::CustomerId,
-) -> Result<(), SimplifiedStripeError> {
-    stripe::Customer::delete(stripe_client, customer_id).await?;
-
-    Ok(())
 }
 
 pub async fn create_payment_method(
@@ -196,6 +186,12 @@ pub async fn create_setup_intent(
 
     let intent_resp = stripe::SetupIntent::create(stripe_client, setup_intent_params).await?;
 
+    info!(
+        "Creating stripe setup intent. customer_id: {}, payment_method_id {}",
+        customer_id.as_str(),
+        payment_method_id.as_str()
+    );
+
     match intent_resp.status {
         SetupIntentStatus::Succeeded => Ok(intent_resp),
         _ => Err(Other(format!("Unexpected intent response status: {:?}", intent_resp.status))),
@@ -213,6 +209,12 @@ pub async fn create_subscription(
     subscription_params.default_payment_method = Some(payment_method_id);
     subscription_params.items = Some(Box::new(vec![subscription_item_params]));
     subscription_params.expand = &["latest_invoice", "latest_invoice.payment_intent"];
+
+    info!(
+        "Creating stripe subscription. customer_id: {}, payment_method_id: {}",
+        customer_id.as_str(),
+        payment_method_id
+    );
 
     let subscription_resp =
         stripe::Subscription::create(&server_state.stripe_client, subscription_params).await?;
@@ -237,14 +239,17 @@ pub async fn create_subscription(
 pub async fn detach_payment_method_from_customer(
     stripe_client: &stripe::Client, payment_method_id: &stripe::PaymentMethodId,
 ) -> Result<(), SimplifiedStripeError> {
-    stripe::PaymentMethod::detach(stripe_client, payment_method_id).await?;
+    info!("Detaching stripe payment method. payment_method_id: {}", payment_method_id.as_str());
 
+    stripe::PaymentMethod::detach(stripe_client, payment_method_id).await?;
     Ok(())
 }
 
 pub async fn cancel_subscription(
     stripe_client: &stripe::Client, subscription_id: &stripe::SubscriptionId,
 ) -> Result<(), SimplifiedStripeError> {
+    info!("Cancelling stripe subscription. subscription_id: {}", payment_method_id.as_str());
+
     stripe::Subscription::cancel(
         stripe_client,
         subscription_id,
@@ -260,6 +265,8 @@ const EXPAND_INVOICE_DETAILS: &[&str] = &["subscription"];
 pub async fn retrieve_invoice(
     stripe_client: &stripe::Client, invoice_id: &stripe::InvoiceId,
 ) -> Result<stripe::Invoice, SimplifiedStripeError> {
+    info!("Getting stripe invoice. invoice_id: {}", invoice_id.as_str());
+
     stripe::Invoice::retrieve(stripe_client, invoice_id, EXPAND_INVOICE_DETAILS)
         .await
         .map_err(SimplifiedStripeError::from)

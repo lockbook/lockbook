@@ -37,7 +37,7 @@ Values are json encoded.
 
 + `public_key:x:stripe_user_info`
   + `x` is the `public_key`.
-  + Basic stripe information for a user.
+  + [Basic stripe information](../../server/server/src/billing/stripe_model.rs) (customer id, subscription ids, payment method ids, etc) for a user.
 + `stripe_customer_id:x:public_key`.
   + `x` is the stripe `customer_id`.
 

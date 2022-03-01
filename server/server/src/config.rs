@@ -1,3 +1,4 @@
+use crate::billing::stripe_model::Timestamp;
 use std::env;
 use std::time::Duration;
 
@@ -42,6 +43,7 @@ pub struct StripeConfig {
     pub stripe_secret: String,
     pub signing_secret: String,
     pub premium_price_id: String,
+    pub millis_between_user_payment_flows: Timestamp,
 }
 
 impl StripeConfig {
@@ -50,6 +52,9 @@ impl StripeConfig {
             stripe_secret: env_or_panic("STRIPE_SECRET").parse().unwrap(),
             signing_secret: env_or_panic("STRIPE_SIGNING_SECRET").parse().unwrap(),
             premium_price_id: env_or_panic("STRIPE_PREMIUM_PRICE_ID").parse().unwrap(),
+            millis_between_user_payment_flows: env_or_panic("MILLIS_BETWEEN_PAYMENT_FLOWS")
+                .parse()
+                .unwrap(),
         }
     }
 }

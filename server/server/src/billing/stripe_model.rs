@@ -51,25 +51,27 @@ pub enum StripeKnownDeclineCode {
     WithdrawalCountLimitExceeded,
 }
 
+pub type Timestamp = u64;
+
 // This is the stripe information for a single lockbook user. This is stored on redis.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct StripeUserInfo {
     pub customer_id: Option<String>,
     pub payment_methods: Vec<StripePaymentInfo>,
     pub subscriptions: Vec<StripeSubscriptionInfo>,
-    pub last_in_payment_flow: i64,
+    pub last_in_payment_flow: Timestamp,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StripePaymentInfo {
     pub id: String,
     pub last_4: String,
-    pub created_at: u64,
+    pub created_at: Timestamp,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StripeSubscriptionInfo {
     pub id: String,
-    pub period_end: u64,
+    pub period_end: Timestamp,
     pub is_active: bool,
 }

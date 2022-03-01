@@ -356,7 +356,7 @@ pub fn generate_monthly_account_tier(
     card_number: &str, maybe_exp_year: Option<&i32>, maybe_exp_month: Option<&i32>,
     maybe_cvc: Option<&str>,
 ) -> AccountTier {
-    AccountTier::Monthly(PaymentMethod::NewCard {
+    AccountTier::Premium(PaymentMethod::NewCard {
         number: card_number.to_string(),
         exp_year: match maybe_exp_year {
             None => get_next_year(),
