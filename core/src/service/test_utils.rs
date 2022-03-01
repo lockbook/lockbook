@@ -35,7 +35,7 @@ pub enum Operation<'a> {
     Move { client_num: usize, path: &'a str, new_parent_path: &'a str },
     Delete { client_num: usize, path: &'a str },
     Edit { client_num: usize, path: &'a str, content: &'a [u8] },
-    Custom { f: &'a dyn Fn(&[(usize, Config)], &DecryptedFileMetadata) -> () },
+    Custom { f: &'a dyn Fn(&[(usize, Config)], &DecryptedFileMetadata) },
 }
 
 pub fn run(ops: &[Operation]) {
