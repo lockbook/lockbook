@@ -277,7 +277,7 @@ mod sync_fuzzer {
                 5 => AttemptFolderMove,
                 6 => RenameFile,
                 7 => DeleteFile,
-                _ => panic!("An enum was added to Actions, but does not have a corresponding random selection")
+                _ => panic!("An enum was added to Actions, but does not have a corresponding random selection"),
             }
         }
     }
