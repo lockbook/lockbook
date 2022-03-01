@@ -1,10 +1,13 @@
 #![allow(dead_code)]
 
+use core::fmt::Debug;
+
 use std::collections::HashMap;
 use std::env;
 use std::hash::Hash;
 
 use itertools::Itertools;
+use lockbook_models::tree::FileMetaExt;
 use lockbook_models::work_unit::WorkUnit;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -23,6 +26,113 @@ use crate::model::state::Config;
 use crate::repo::root_repo;
 use crate::repo::{account_repo, db_version_repo};
 use crate::service::{file_service, integrity_service, path_service, sync_service};
+
+pub enum Operation<'a> {
+    Client { client_num: usize },
+    Sync { client_num: usize },
+    Create { client_num: usize, path: &'a str },
+    Rename { client_num: usize, path: &'a str, new_name: &'a str },
+    Move { client_num: usize, path: &'a str, new_parent_path: &'a str },
+    Delete { client_num: usize, path: &'a str },
+    Edit { client_num: usize, path: &'a str, content: &'a [u8] },
+    Custom { f: &'a dyn Fn(&[(usize, Config)], &DecryptedFileMetadata) },
+}
+
+pub fn run(ops: &[Operation]) {
+    let mut clients = vec![(0, test_config())];
+    let (_account, root) = create_account(&clients[0].1);
+
+    let ensure_client_exists = |clients: &mut Vec<(usize, Config)>, client_num: &usize| {
+        if !clients.iter().any(|(c, _)| c == client_num) {
+            clients.push((*client_num, make_new_client(&clients[0].1)))
+        }
+    };
+
+    for op in ops {
+        match op {
+            Operation::Client { client_num } => {
+                ensure_client_exists(&mut clients, client_num);
+            }
+            Operation::Sync { client_num } => {
+                || -> Result<_, String> {
+                    ensure_client_exists(&mut clients, client_num);
+                    let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
+                    crate::sync_all(client, None).map_err(err_to_string)
+                }()
+                .expect(&format!("Operation::Sync error. client_num={:?}", client_num));
+            }
+            Operation::Create { client_num, path } => {
+                || -> Result<_, String> {
+                    let path = root.decrypted_name.clone() + path;
+                    let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
+                    crate::create_file_at_path(client, &path).map_err(err_to_string)
+                }()
+                .expect(&format!(
+                    "Operation::Create error. client_num={:?}, path={:?}",
+                    client_num, path
+                ));
+            }
+            Operation::Rename { client_num, path, new_name } => {
+                || -> Result<_, String> {
+                    let path = root.decrypted_name.clone() + path;
+                    let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
+                    let target = crate::get_file_by_path(client, &path).map_err(err_to_string)?;
+                    crate::rename_file(client, target.id, new_name).map_err(err_to_string)
+                }()
+                .expect(&format!(
+                    "Operation::Rename error. client_num={:?}, path={:?}, new_name={:?}",
+                    client_num, path, new_name
+                ));
+            }
+            Operation::Move { client_num, path, new_parent_path } => {
+                || -> Result<_, String> {
+                    let path = root.decrypted_name.clone() + path;
+                    let new_parent_path = root.decrypted_name.clone() + new_parent_path;
+                    let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
+                    let target = crate::get_file_by_path(client, &path).map_err(err_to_string)?;
+                    let new_parent =
+                        crate::get_file_by_path(client, &new_parent_path).map_err(err_to_string)?;
+                    crate::move_file(client, target.id, new_parent.id).map_err(err_to_string)
+                }()
+                .expect(&format!(
+                    "Operation::Move error. client_num={:?}, path={:?}, new_parent_path={:?}",
+                    client_num, path, new_parent_path
+                ));
+            }
+            Operation::Delete { client_num, path } => {
+                || -> Result<_, String> {
+                    let path = root.decrypted_name.clone() + path;
+                    let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
+                    let target = crate::get_file_by_path(client, &path).map_err(err_to_string)?;
+                    crate::delete_file(client, target.id).map_err(err_to_string)
+                }()
+                .expect(&format!(
+                    "Operation::Delete error. client_num={:?}, path={:?}",
+                    client_num, path
+                ));
+            }
+            Operation::Edit { client_num, path, content } => {
+                || -> Result<_, String> {
+                    let path = root.decrypted_name.clone() + path;
+                    let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
+                    let target = crate::get_file_by_path(client, &path).map_err(err_to_string)?;
+                    crate::write_document(client, target.id, content).map_err(err_to_string)
+                }()
+                .expect(&format!(
+                    "Operation::Edit error. client_num={:?}, path={:?}, content={:?}",
+                    client_num, path, content
+                ));
+            }
+            Operation::Custom { f } => {
+                f(&clients, &root);
+            }
+        }
+    }
+}
+
+fn err_to_string<E: Debug>(e: E) -> String {
+    format!("{}: {:?}", std::any::type_name::<E>(), e)
+}
 
 #[macro_export]
 macro_rules! assert_dirty_ids {
@@ -58,8 +168,66 @@ pub fn assert_local_work_ids(db: &Config, ids: &[Uuid]) {
     assert!(slices_equal_ignore_order(&get_dirty_ids(db, false), ids));
 }
 
+pub fn assert_local_work_paths(
+    db: &Config, root: &DecryptedFileMetadata, expected_paths: &[&'static str],
+) {
+    let all_local_files = file_service::get_all_metadata(db, RepoSource::Local).unwrap();
+
+    let mut expected_paths = expected_paths.to_vec();
+    let mut actual_paths: Vec<String> = get_dirty_ids(db, false)
+        .iter()
+        .map(|&id| path_service::get_path_by_id_using_files(&all_local_files, id).unwrap())
+        .map(|path| String::from(&path[root.decrypted_name.len()..]))
+        .collect();
+    actual_paths.sort_unstable();
+    expected_paths.sort_unstable();
+    if actual_paths != expected_paths {
+        panic!(
+            "paths did not match expectation. expected={:?}; actual={:?}",
+            expected_paths, actual_paths
+        );
+    }
+}
+
 pub fn assert_server_work_ids(db: &Config, ids: &[Uuid]) {
     assert!(slices_equal_ignore_order(&get_dirty_ids(db, true), ids));
+}
+
+pub fn assert_server_work_paths(
+    db: &Config, root: &DecryptedFileMetadata, expected_paths: &[&'static str],
+) {
+    let all_local_files = file_service::get_all_metadata(db, RepoSource::Local).unwrap();
+    let new_server_files = sync_service::calculate_work(db)
+        .unwrap()
+        .work_units
+        .into_iter()
+        .filter_map(|wu| match wu {
+            WorkUnit::ServerChange { metadata } => Some(metadata),
+            _ => None,
+        })
+        .filter(|f| all_local_files.maybe_find(f.id).is_none())
+        .collect::<Vec<DecryptedFileMetadata>>();
+    let staged = all_local_files
+        .stage(&new_server_files)
+        .into_iter()
+        .map(|s| s.0)
+        .collect::<Vec<DecryptedFileMetadata>>();
+
+    let mut expected_paths = expected_paths.to_vec();
+
+    let mut actual_paths: Vec<String> = get_dirty_ids(db, true)
+        .iter()
+        .map(|&id| path_service::get_path_by_id_using_files(&staged, id).unwrap())
+        .map(|path| String::from(&path[root.decrypted_name.len()..]))
+        .collect();
+    actual_paths.sort_unstable();
+    expected_paths.sort_unstable();
+    if actual_paths != expected_paths {
+        panic!(
+            "paths did not match expectation. expected={:?}; actual={:?}",
+            expected_paths, actual_paths
+        );
+    }
 }
 
 pub fn assert_repo_integrity(db: &Config) {
