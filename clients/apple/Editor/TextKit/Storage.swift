@@ -20,22 +20,25 @@ public class Storage: NSTextStorage {
     }
     
     public override func replaceCharacters(in range: NSRange, with string: String) {
-        print("range: \(range)")
-        print("string: \(string)")
-        print("changeInLegngth: \((string as NSString).length)")
-        beginEditing()
         backingStore.replaceCharacters(in: range, with: string)
-        
+        self.edited(.editedCharacters, range: range, changeInLength: string.utf16.count - range.length)
+
+//        self.edited(.editedAttributes, range: base.range, changeInLength: 0)
+    }
+    
+    public func syntaxHighlight() {
+        beginEditing()
         let parsed = Parser(backingStore.string)
         let base = parsed.base()
-        backingStore.setAttributes(base.attribute, range: base.range)
+//        backingStore.setAttributes(base.attribute, range: base.range)
         for modification in parsed.processedDocument {
             backingStore.addAttributes(modification.attribute, range: modification.range)
+            self.edited(.editedAttributes, range: modification.range, changeInLength: 0)
         }
-        
-        self.edited(.editedCharacters, range: range, changeInLength: string.utf16.count - range.length)
+
+        self.edited(.editedAttributes, range: base.range, changeInLength: 0)
+
         endEditing()
-//        self.edited(.editedAttributes, range: base.range, changeInLength: 0)
     }
     
 //    public override func processEditing() {

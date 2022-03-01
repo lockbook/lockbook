@@ -64,22 +64,23 @@ public class Parser: Visitor {
     }
 
     public func visit(paragraph node: Paragraph)  {
-        //        return reportWithChildren(node)
+        print("Paragraph start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
     }
 
-    public func visit(heading node: Heading)  {
-        print("start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
-        let range = NSRange(location: 0, length: 3)
+    public func visit(heading node: Heading)  { 
+        print("HEADING start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
+        let range = indexes.getRange(node: node)
         let style = Styler.style(node)
         processedDocument.append(AttributeRange(attribute: style, range: range))
+        visitChildren(of: node)
     }
 
     public func visit(thematicBreak node: ThematicBreak)  {
-//        return report(node)
+        visitChildren(of: node)
     }
 
     public func visit(text node: Text)  {
-        //        return report(node)
+        print("Text start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
     }
 
     public func visit(softBreak node: SoftBreak)  {
@@ -91,7 +92,7 @@ public class Parser: Visitor {
     }
 
     public func visit(code node: Code)  {
-        //        return report(node)
+        print("CODE1 start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
     }
 
     public func visit(htmlInline node: HtmlInline)  {
@@ -99,7 +100,7 @@ public class Parser: Visitor {
     }
 
     public func visit(customInline node: CustomInline)  {
-        //        return report(node)
+        let _ = visitChildren(of: node)
     }
 
     public func visit(emphasis node: Emphasis)  {

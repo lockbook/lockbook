@@ -28,6 +28,7 @@ struct EditorView: NSViewRepresentable {
         textView.delegate = context.coordinator
         textView.string = model.textDocument!
         textView.allowsUndo = true
+        storage.syntaxHighlight()
         
         scrollView.documentView = textView
         scrollView.hasVerticalScroller = true
@@ -65,6 +66,13 @@ class Coordinator: NSObject, NSTextViewDelegate {
             print("textview not a textview")
             return
         }
+        
+        guard let storage = textView.textStorage as? Storage else {
+            print("Wrong storage type attached to this textview")
+            return
+        }
+        
+//        storage.syntaxHighlight()
         
         onTextChange(textView.string)
     }
