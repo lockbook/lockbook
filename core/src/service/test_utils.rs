@@ -43,7 +43,7 @@ pub fn run(ops: &[Operation]) {
     let (_account, root) = create_account(&clients[0].1);
 
     let ensure_client_exists = |clients: &mut Vec<(usize, Config)>, client_num: &usize| {
-        if clients.iter().find(|(c, _)| c == client_num).is_none() {
+        if !clients.iter().any(|(c, _)| c == client_num) {
             clients.push((*client_num, make_new_client(&clients[0].1)))
         }
     };
@@ -51,11 +51,11 @@ pub fn run(ops: &[Operation]) {
     for op in ops {
         match op {
             Operation::Client { client_num } => {
-                ensure_client_exists(&mut clients, &client_num);
+                ensure_client_exists(&mut clients, client_num);
             }
             Operation::Sync { client_num } => {
                 || -> Result<_, String> {
-                    ensure_client_exists(&mut clients, &client_num);
+                    ensure_client_exists(&mut clients, client_num);
                     let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
                     crate::sync_all(client, None).map_err(err_to_string)
                 }()
@@ -179,8 +179,8 @@ pub fn assert_local_work_paths(
         .map(|&id| path_service::get_path_by_id_using_files(&all_local_files, id).unwrap())
         .map(|path| String::from(&path[root.decrypted_name.len()..]))
         .collect();
-    actual_paths.sort();
-    expected_paths.sort();
+    actual_paths.sort_unstable();
+    expected_paths.sort_unstable();
     if actual_paths != expected_paths {
         panic!(
             "paths did not match expectation. expected={:?}; actual={:?}",
@@ -220,8 +220,8 @@ pub fn assert_server_work_paths(
         .map(|&id| path_service::get_path_by_id_using_files(&staged, id).unwrap())
         .map(|path| String::from(&path[root.decrypted_name.len()..]))
         .collect();
-    actual_paths.sort();
-    expected_paths.sort();
+    actual_paths.sort_unstable();
+    expected_paths.sort_unstable();
     if actual_paths != expected_paths {
         panic!(
             "paths did not match expectation. expected={:?}; actual={:?}",
