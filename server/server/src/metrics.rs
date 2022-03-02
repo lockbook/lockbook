@@ -13,7 +13,7 @@ use redis_utils::converters::JsonGet;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 make_static_metric! {
@@ -75,21 +75,17 @@ pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<Met
         for public_key in public_keys {
             let mut con = server_state.index_db_pool.get().await?;
             let ids = get_owned(&mut con, &public_key).await?;
-            let metadatas = {
-                let metadatas_unfiltered = get_metadatas(&mut con, &ids).await?;
+            let (metadatas, is_user_active) = get_metadatas_and_user_activity_state(
+                &mut con,
+                &public_key,
+                &ids,
+                &server_state.config.metrics.time_between_redis_calls,
+            )
+            .await?;
 
-                if is_user_active(&metadatas_unfiltered).await? {
-                    active_users += 1;
-                }
-
-                metadatas_unfiltered.filter_not_deleted().map_err(|e| {
-                    internal!(
-                        "Cannot filter deleted files for public_key: {:?}, err: {:?}",
-                        public_key,
-                        e
-                    )
-                })?
-            };
+            if is_user_active {
+                active_users += 1;
+            }
 
             let bytes = calculate_total_document_bytes(&mut con, &metadatas).await?;
 
@@ -150,9 +146,10 @@ pub async fn get_owned(
         .ok_or_else(|| internal!("Cannot retrieve owned_files for public_key: {:?}", public_key))
 }
 
-pub async fn get_metadatas(
-    con: &mut deadpool_redis::Connection, ids: &[Uuid],
-) -> Result<Vec<EncryptedFileMetadata>, ServerError<MetricsError>> {
+pub async fn get_metadatas_and_user_activity_state(
+    con: &mut deadpool_redis::Connection, public_key: &PublicKey, ids: &[Uuid],
+    time_between_redis_calls: &Duration,
+) -> Result<(Vec<EncryptedFileMetadata>, bool), ServerError<MetricsError>> {
     let mut metadatas = vec![];
 
     for id in ids {
@@ -161,10 +158,28 @@ pub async fn get_metadatas(
             .await?
             .ok_or_else(|| internal!("Cannot retrieve encrypted file metadata for id: {:?}", id))?;
 
-        metadatas.push(metadata)
+        metadatas.push(metadata);
+
+        tokio::time::sleep(*time_between_redis_calls).await;
     }
 
-    Ok(metadatas)
+    let time_two_days_ago = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| internal!("{:?}", e))?
+        .as_millis()
+        - TWO_DAYS_IN_MILLIS;
+
+    let is_user_active = metadatas.iter().any(|metadata| {
+        metadata.metadata_version as u128 > time_two_days_ago
+            || metadata.content_version as u128 > time_two_days_ago
+    });
+
+    Ok((
+        metadatas.filter_not_deleted().map_err(|e| {
+            internal!("Cannot filter deleted files for public_key: {:?}, err: {:?}", public_key, e)
+        })?,
+        is_user_active,
+    ))
 }
 
 pub async fn calculate_total_document_bytes(
@@ -184,21 +199,4 @@ pub async fn calculate_total_document_bytes(
     }
 
     Ok(total_size as i64)
-}
-
-pub async fn is_user_active(
-    metadatas: &[EncryptedFileMetadata],
-) -> Result<bool, ServerError<MetricsError>> {
-    let time_two_days_ago = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| internal!("{:?}", e))?
-        .as_millis()
-        - TWO_DAYS_IN_MILLIS;
-
-    let is_active = metadatas.iter().any(|metadata| {
-        metadata.metadata_version as u128 > time_two_days_ago
-            || metadata.content_version as u128 > time_two_days_ago
-    });
-
-    Ok(is_active)
 }

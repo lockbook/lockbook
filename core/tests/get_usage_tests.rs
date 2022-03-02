@@ -119,6 +119,6 @@ mod get_usage_tests {
             .map(|usage| usage.size_bytes)
             .sum::<u64>();
 
-        assert_eq!(total_usage, 32, "Returned a file size above the default 32 bytes!");
+        assert_eq!(total_usage, 32, "Returned a file size that is not the default 32 bytes!");
     }
 }
