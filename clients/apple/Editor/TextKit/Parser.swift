@@ -5,11 +5,11 @@ import Down
 /// indicating relationships between nodes with indentation.
 
 public class Parser: Visitor {
-
+    
     public var indexes: IndexConverter
     public var processedDocument: [AttributeRange] = []
     private var depth = 0
-
+    
     public init(_ input: String) {
         self.indexes = IndexConverter(input)
         let document = (try? Down(markdownString: input).toDocument())!
@@ -18,111 +18,119 @@ public class Parser: Visitor {
     
     public func base() -> AttributeRange {
         AttributeRange(
-            attribute: Styler.body(),
+            style: .Base,
             range: indexes.wholeDocument()
         )
     }
-
-//    private func report(_ node: Node)  {
-//        return "\(indent)\(node is Document ? "" : "↳ ")\(String(reflecting: node)) range: [\(node.cmarkNode.pointee.start_column) - \(node.cmarkNode.pointee.end_column)] \n"
-//    }
-//
-//    private func reportWithChildren(_ node: Node)  {
-//        let thisNode = report(node)
-//        depth += 1
-//        let children = visitChildren(of: node).joined()
-//        depth -= 1
-//        return "\(thisNode)\(children)"
-//    }
-
+    
+    //    private func report(_ node: Node)  {
+    //        return "\(indent)\(node is Document ? "" : "↳ ")\(String(reflecting: node)) range: [\(node.cmarkNode.pointee.start_column) - \(node.cmarkNode.pointee.end_column)] \n"
+    //    }
+    //
+    //    private func reportWithChildren(_ node: Node)  {
+    //        let thisNode = report(node)
+    //        depth += 1
+    //        let children = visitChildren(of: node).joined()
+    //        depth -= 1
+    //        return "\(thisNode)\(children)"
+    //    }
+    
     public func visit(document node: Document)  {
+        print("Document start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
+        processedDocument.append(
+            AttributeRange(
+                style: Style.from(node),
+                range: indexes.getRange(node: node)
+            )
+        )
         let _ = visitChildren(of: node)
     }
-
+    
     public func visit(blockQuote node: BlockQuote)  {
-//        return reportWithChildren(node)
+        //        return reportWithChildren(node)
     }
-
+    
     public func visit(list node: List)  {
         //        return reportWithChildren(node)
     }
-
+    
     public func visit(item node: Item)  {
         //        return reportWithChildren(node)
     }
-
+    
     public func visit(codeBlock node: CodeBlock)  {
         //        return reportWithChildren(node)
     }
-
+    
     public func visit(htmlBlock node: HtmlBlock)  {
         //        return reportWithChildren(node)
     }
-
+    
     public func visit(customBlock node: CustomBlock)  {
         //        return reportWithChildren(node)
     }
-
+    
     public func visit(paragraph node: Paragraph)  {
-        print("Paragraph start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
+        
     }
-
-    public func visit(heading node: Heading)  { 
-        print("HEADING start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
+    
+    public func visit(heading node: Heading)  {
         let range = indexes.getRange(node: node)
-        let style = Styler.style(node)
-        processedDocument.append(AttributeRange(attribute: style, range: range))
+        let style = Style.from(node)
+        if node.headingLevel == 1 {
+            processedDocument.append(AttributeRange(style: style, range: range))
+        }
         visitChildren(of: node)
     }
-
+    
     public func visit(thematicBreak node: ThematicBreak)  {
         visitChildren(of: node)
     }
-
+    
     public func visit(text node: Text)  {
-        print("Text start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
+        
     }
-
+    
     public func visit(softBreak node: SoftBreak)  {
         //        return report(node)
     }
-
+    
     public func visit(lineBreak node: LineBreak)  {
         //        return report(node)
     }
-
+    
     public func visit(code node: Code)  {
         print("CODE1 start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
     }
-
+    
     public func visit(htmlInline node: HtmlInline)  {
         //        return report(node)
     }
-
+    
     public func visit(customInline node: CustomInline)  {
         let _ = visitChildren(of: node)
     }
-
+    
     public func visit(emphasis node: Emphasis)  {
         //        return report(node)
     }
-
+    
     public func visit(strong node: Strong)  {
         //        return reportWithChildren(node)
     }
-
+    
     public func visit(link node: Link)  {
         //        return reportWithChildren(node)
     }
-
+    
     public func visit(image node: Image)  {
         //        return reportWithChildren(node)
     }
-
+    
 }
 
 public struct AttributeRange {
-    let attribute: [NSAttributedString.Key : Any]
+    let style: Style
     let range: NSRange
 }
 
@@ -152,7 +160,7 @@ public class IndexConverter {
     public func getUTF8Index(utf8Row: Int32, utf8Col: Int32) -> Int {
         var previousLineCount = 0
         if utf8Row != 0 {
-            previousLineCount += columnLookup[  Int(utf8Row)]
+            previousLineCount += columnLookup[Int(utf8Row)]
         }
         
         return previousLineCount + Int(utf8Col)

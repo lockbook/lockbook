@@ -72,7 +72,7 @@ class Coordinator: NSObject, NSTextViewDelegate {
             return
         }
         
-//        storage.syntaxHighlight()
+        storage.syntaxHighlight()
         
         onTextChange(textView.string)
     }
