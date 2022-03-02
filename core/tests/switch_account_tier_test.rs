@@ -113,104 +113,31 @@ mod switch_account_tier_test {
         let (root, _) = generate_root_metadata(&account);
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        let result = api_service::request(
-            &account,
-            SwitchAccountTierRequest {
-                account_tier: generate_monthly_account_tier(
-                    test_credit_cards::decline::GENERIC,
-                    None,
-                    None,
-                    None,
-                ),
-            },
-        );
+        let scenarios = vec![
+            (test_credit_cards::decline::GENERIC, CardDeclineReason::Generic),
+            (test_credit_cards::decline::LOST_CARD, CardDeclineReason::Generic), // core should not be informed a card is stolen or lost (at least the user)
+            (
+                test_credit_cards::decline::INSUFFICIENT_FUNDS,
+                CardDeclineReason::BalanceOrCreditExceeded,
+            ),
+            (test_credit_cards::decline::PROCESSING_ERROR, CardDeclineReason::TryAgain),
+            (test_credit_cards::decline::EXPIRED_CARD, CardDeclineReason::ExpiredCard),
+        ];
 
-        assert_matches!(
-            result,
-            Err(ApiError::<SwitchAccountTierError>::Endpoint(
-                SwitchAccountTierError::CardDeclined(CardDeclineReason::Generic)
-            ))
-        );
-
-        let result = api_service::request(
-            &account,
-            SwitchAccountTierRequest {
-                account_tier: generate_monthly_account_tier(
-                    test_credit_cards::decline::LOST_CARD,
-                    None,
-                    None,
-                    None,
-                ),
-            },
-        );
-
-        // core should not be informed a card is stolen or lost
-        assert_matches!(
-            result,
-            Err(ApiError::<SwitchAccountTierError>::Endpoint(
-                SwitchAccountTierError::CardDeclined(CardDeclineReason::Generic)
-            ))
-        );
-
-        let result = api_service::request(
-            &account,
-            SwitchAccountTierRequest {
-                account_tier: generate_monthly_account_tier(
-                    test_credit_cards::decline::INSUFFICIENT_FUNDS,
-                    None,
-                    None,
-                    None,
-                ),
-            },
-        );
-
-        // core should not be informed a card is stolen or lost
-        assert_matches!(
-            result,
-            Err(ApiError::<SwitchAccountTierError>::Endpoint(
-                SwitchAccountTierError::CardDeclined(CardDeclineReason::BalanceOrCreditExceeded)
-            ))
-        );
-
-        let result = api_service::request(
-            &account,
-            SwitchAccountTierRequest {
-                account_tier: generate_monthly_account_tier(
-                    test_credit_cards::decline::PROCESSING_ERROR,
-                    None,
-                    None,
-                    None,
-                ),
-            },
-        );
-
-        // core should not be informed a card is stolen or lost
-        assert_matches!(
-            result,
-            Err(ApiError::<SwitchAccountTierError>::Endpoint(
-                SwitchAccountTierError::CardDeclined(CardDeclineReason::TryAgain)
-            ))
-        );
-
-        let result = api_service::request(
-            &account,
-            SwitchAccountTierRequest {
-                account_tier: generate_monthly_account_tier(
-                    test_credit_cards::decline::EXPIRED_CARD,
-                    None,
-                    None,
-                    None,
-                ),
-            },
-        );
-
-        // core should not be informed a card is stolen or lost
-        assert_matches!(
-            result,
-            Err(ApiError::<SwitchAccountTierError>::Endpoint(
-                SwitchAccountTierError::CardDeclined(CardDeclineReason::ExpiredCard)
-            ))
-        );
+        for (card_number, expected_err) in scenarios {
+            let result = api_service::request(
+                &account,
+                SwitchAccountTierRequest {
+                    account_tier: generate_monthly_account_tier(card_number, None, None, None),
+                },
+            );
+            match result {
+                Err(ApiError::<SwitchAccountTierError>::Endpoint(
+                    SwitchAccountTierError::CardDeclined(err),
+                )) => assert_eq!(err, expected_err),
+                other => panic!("expected {:?}, got {:?}", expected_err, other),
+            }
+        }
     }
 
     #[test]
