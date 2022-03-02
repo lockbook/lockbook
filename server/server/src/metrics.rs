@@ -173,17 +173,13 @@ pub async fn calculate_total_document_bytes(
     let mut total_size: u64 = 0;
 
     for metadata in metadatas {
-        if metadata.file_type == FileType::Document {
-            if metadata.content_version != 0 {
-                let file_usage: FileUsage = con
-                    .maybe_json_get(keys::size(metadata.id))
-                    .await?
-                    .ok_or_else(|| {
-                        internal!("Cannot retrieve file usage for id: {:?}", metadata.id)
-                    })?;
+        if metadata.file_type == FileType::Document && metadata.content_version != 0 {
+            let file_usage: FileUsage = con
+                .maybe_json_get(keys::size(metadata.id))
+                .await?
+                .ok_or_else(|| internal!("Cannot retrieve file usage for id: {:?}", metadata.id))?;
 
-                total_size += file_usage.size_bytes
-            }
+            total_size += file_usage.size_bytes
         }
     }
 
