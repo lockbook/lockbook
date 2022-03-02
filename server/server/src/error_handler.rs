@@ -78,7 +78,7 @@ impl From<stripe::WebhookError> for ServerError<StripeWebhookError> {
     fn from(e: WebhookError) -> Self {
         match e {
             WebhookError::BadKey => {
-                internal!("Cannot verify stripe request because server is using a bad signing key.")
+                internal!("Cannot verify stripe webhook request because server is using a bad signing key.")
             }
             WebhookError::BadHeader(bad_header_err) => {
                 ClientError(StripeWebhookError::InvalidHeader(format!("{:?}", bad_header_err)))
@@ -92,9 +92,9 @@ impl From<stripe::WebhookError> for ServerError<StripeWebhookError> {
                     bad_timestamp_err
                 )))
             }
-            WebhookError::BadParse(bad_parse_err) => {
-                ClientError(StripeWebhookError::ParseError(format!("{:?}", bad_parse_err)))
-            }
+            WebhookError::BadParse(bad_parse_err) => ClientError(StripeWebhookError::ParseError(
+                format!("Parsing error: {:?}", bad_parse_err),
+            )),
         }
     }
 }

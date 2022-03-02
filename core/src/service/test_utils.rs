@@ -353,18 +353,18 @@ pub fn get_next_year() -> i32 {
 }
 
 pub fn generate_monthly_account_tier(
-    card_number: &str, maybe_exp_year: Option<&i32>, maybe_exp_month: Option<&i32>,
+    card_number: &str, maybe_exp_year: Option<i32>, maybe_exp_month: Option<i32>,
     maybe_cvc: Option<&str>,
 ) -> AccountTier {
     AccountTier::Premium(PaymentMethod::NewCard {
         number: card_number.to_string(),
         exp_year: match maybe_exp_year {
             None => get_next_year(),
-            Some(exp_year) => *exp_year,
+            Some(exp_year) => exp_year,
         },
         exp_month: match maybe_exp_month {
             None => test_card_info::GENERIC_EXP_MONTH,
-            Some(exp_month) => *exp_month,
+            Some(exp_month) => exp_month,
         },
         cvc: match maybe_cvc {
             None => test_card_info::GENERIC_CVC,

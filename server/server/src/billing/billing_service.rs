@@ -104,7 +104,7 @@ pub async fn switch_account_tier(
         .await?;
 
     info!(
-        "Successfully completed switch the account tier of {} from {} to {}.",
+        "Successfully switched the account tier of {} from {} to {}.",
         keys::stringify_public_key(&context.public_key),
         if current_data_cap == PREMIUM_TIER_USAGE_SIZE {
             "premium"

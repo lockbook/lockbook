@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 // This struct provides a fall back to unknown decline codes from Stripe. Since decline codes aren't parsed by "async-stripe" (a crate),
 // we provide our own solution to parse them. Although, there are instances in which we may receive an unknown decline code. Rather than
-// making serde handle this and return an internal error, we provide this method to catch the code.
+// making serde handle this and return an internal error, we still handle the situation appropriately.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum StripeDeclineCodeCatcher {

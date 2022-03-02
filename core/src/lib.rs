@@ -596,15 +596,15 @@ pub enum SwitchAccountTierError {
     CouldNotReachServer,
     OldCardDoesNotExist,
     NewTierIsOldTier,
-    InvalidCreditCardNumber,
-    InvalidCreditCardCVC,
-    InvalidCreditCardExpYear,
-    InvalidCreditCardExpMonth,
+    InvalidCardNumber,
+    InvalidCardCVC,
+    InvalidCardExpYear,
+    InvalidCardExpMonth,
     GenericCardDecline,
     BalanceOrCreditExceededCardDecline,
-    TryAgainCardDecline,
-    NotSupportedCardDecline,
-    ExpiredCardDecline,
+    TryAgain,
+    CardNotSupported,
+    ExpiredCard,
     ClientUpdateRequired,
     CurrentUsageIsMoreThanNewTier,
     ConcurrentRequestsAreTooSoon,
@@ -616,12 +616,10 @@ pub fn switch_account_tier(
     billing_service::switch_account_tier(config, new_account_tier).map_err(|e| match e {
         CoreError::OldCardDoesNotExist => UiError(SwitchAccountTierError::OldCardDoesNotExist),
         CoreError::InvalidCreditCard(field) => match field {
-            CardRejectReason::Number => UiError(SwitchAccountTierError::InvalidCreditCardNumber),
-            CardRejectReason::ExpYear => UiError(SwitchAccountTierError::InvalidCreditCardExpYear),
-            CardRejectReason::ExpMonth => {
-                UiError(SwitchAccountTierError::InvalidCreditCardExpMonth)
-            }
-            CardRejectReason::CVC => UiError(SwitchAccountTierError::InvalidCreditCardCVC),
+            CardRejectReason::Number => UiError(SwitchAccountTierError::InvalidCardNumber),
+            CardRejectReason::ExpYear => UiError(SwitchAccountTierError::InvalidCardExpYear),
+            CardRejectReason::ExpMonth => UiError(SwitchAccountTierError::InvalidCardExpMonth),
+            CardRejectReason::CVC => UiError(SwitchAccountTierError::InvalidCardCVC),
         },
         CoreError::NewTierIsOldTier => UiError(SwitchAccountTierError::NewTierIsOldTier),
         CoreError::ServerUnreachable => UiError(SwitchAccountTierError::CouldNotReachServer),
@@ -630,11 +628,9 @@ pub fn switch_account_tier(
             CardDeclineReason::BalanceOrCreditExceeded => {
                 UiError(SwitchAccountTierError::BalanceOrCreditExceededCardDecline)
             }
-            CardDeclineReason::TryAgain => UiError(SwitchAccountTierError::TryAgainCardDecline),
-            CardDeclineReason::NotSupported => {
-                UiError(SwitchAccountTierError::NotSupportedCardDecline)
-            }
-            CardDeclineReason::ExpiredCard => UiError(SwitchAccountTierError::ExpiredCardDecline),
+            CardDeclineReason::TryAgain => UiError(SwitchAccountTierError::TryAgain),
+            CardDeclineReason::NotSupported => UiError(SwitchAccountTierError::CardNotSupported),
+            CardDeclineReason::ExpiredCard => UiError(SwitchAccountTierError::ExpiredCard),
         },
         CoreError::CurrentUsageIsMoreThanNewTier => {
             UiError(SwitchAccountTierError::CurrentUsageIsMoreThanNewTier)
