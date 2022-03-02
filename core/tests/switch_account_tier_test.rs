@@ -9,7 +9,6 @@ mod switch_account_tier_test {
     use lockbook_models::api::*;
     use lockbook_models::file_metadata::FileType;
     use rand::RngCore;
-    use std::time::Duration;
 
     #[test]
     fn switch_to_premium_and_back() {
@@ -115,38 +114,18 @@ mod switch_account_tier_test {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         let scenarios = vec![
-            (
-                test_credit_cards::decline::GENERIC,
-                SwitchAccountTierError::CardDeclined(CardDeclineReason::Generic),
-            ),
-            (
-                test_credit_cards::decline::LOST_CARD,
-                SwitchAccountTierError::CardDeclined(CardDeclineReason::Generic),
-            ), // core should not be informed a card is stolen or lost (at least the user)
+            (test_credit_cards::decline::GENERIC, CardDeclineReason::Generic),
+            (test_credit_cards::decline::LOST_CARD, CardDeclineReason::Generic), // core should not be informed a card is stolen or lost (at least the user)
             (
                 test_credit_cards::decline::INSUFFICIENT_FUNDS,
-                SwitchAccountTierError::CardDeclined(CardDeclineReason::BalanceOrCreditExceeded),
+                CardDeclineReason::BalanceOrCreditExceeded,
             ),
-            (
-                test_credit_cards::decline::PROCESSING_ERROR,
-                SwitchAccountTierError::CardDeclined(CardDeclineReason::TryAgain),
-            ),
-            (
-                test_credit_cards::decline::EXPIRED_CARD,
-                SwitchAccountTierError::CardDeclined(CardDeclineReason::ExpiredCard),
-            ),
-            (
-                test_credit_cards::decline::INCORRECT_NUMBER,
-                SwitchAccountTierError::InvalidCreditCard(CardRejectReason::Number),
-            ),
-            (
-                test_credit_cards::decline::INCORRECT_CVC,
-                SwitchAccountTierError::InvalidCreditCard(CardRejectReason::CVC),
-            ),
+            (test_credit_cards::decline::PROCESSING_ERROR, CardDeclineReason::TryAgain),
+            (test_credit_cards::decline::EXPIRED_CARD, CardDeclineReason::ExpiredCard),
         ];
 
-        for (card_number, _error) in scenarios {
-            // `_error` is underscored since cargo can't tell that it is being used by `assert_matches` macro.
+        for (card_number, _reject_reason) in scenarios {
+            // `_reject_reason` is underscored since cargo can't tell that it is being used by `assert_matches` macro.
             let result = api_service::request(
                 &account,
                 SwitchAccountTierRequest {
@@ -154,7 +133,12 @@ mod switch_account_tier_test {
                 },
             );
 
-            assert_matches!(result, Err(ApiError::<SwitchAccountTierError>::Endpoint(_error)));
+            assert_matches!(
+                result,
+                Err(ApiError::<SwitchAccountTierError>::Endpoint(
+                    SwitchAccountTierError::CardDeclined(_reject_reason)
+                ))
+            );
         }
     }
 
@@ -165,38 +149,14 @@ mod switch_account_tier_test {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         let scenarios = vec![
-            (
-                test_credit_cards::INVALID_NUMBER,
-                None,
-                None,
-                None,
-                SwitchAccountTierError::InvalidCreditCard(CardRejectReason::Number),
-            ),
-            (
-                test_credit_cards::GOOD,
-                Some(1970),
-                None,
-                None,
-                SwitchAccountTierError::InvalidCreditCard(CardRejectReason::ExpYear),
-            ),
-            (
-                test_credit_cards::GOOD,
-                None,
-                Some(14),
-                None,
-                SwitchAccountTierError::InvalidCreditCard(CardRejectReason::ExpMonth),
-            ),
-            (
-                test_credit_cards::GOOD,
-                None,
-                None,
-                Some("11"),
-                SwitchAccountTierError::InvalidCreditCard(CardRejectReason::CVC),
-            ),
+            (test_credit_cards::INVALID_NUMBER, None, None, None, CardRejectReason::Number),
+            (test_credit_cards::GOOD, Some(1970), None, None, CardRejectReason::ExpYear),
+            (test_credit_cards::GOOD, None, Some(14), None, CardRejectReason::ExpMonth),
+            (test_credit_cards::GOOD, None, None, Some("11"), CardRejectReason::CVC),
         ];
 
         // `_error` is underscored since cargo can't tell that it is being used by `assert_matches` macro.
-        for (card_number, maybe_exp_year, maybe_exp_month, maybe_cvc, _error) in scenarios {
+        for (card_number, maybe_exp_year, maybe_exp_month, maybe_cvc, _reject_reason) in scenarios {
             let result = api_service::request(
                 &account,
                 SwitchAccountTierRequest {
@@ -209,7 +169,20 @@ mod switch_account_tier_test {
                 },
             );
 
-            assert_matches!(result, Err(ApiError::<SwitchAccountTierError>::Endpoint(_error)));
+            println!(
+                "RESULT: {:?}, EXPECTED: {:?}",
+                result,
+                ApiError::<SwitchAccountTierError>::Endpoint(
+                    SwitchAccountTierError::InvalidCreditCard(_reject_reason)
+                )
+            );
+
+            assert_matches!(
+                result,
+                Err(ApiError::<SwitchAccountTierError>::Endpoint(
+                    SwitchAccountTierError::InvalidCreditCard(_reject_reason)
+                ))
+            );
         }
     }
 
@@ -287,8 +260,6 @@ mod switch_account_tier_test {
                 break;
             }
         }
-
-        std::thread::sleep(Duration::from_secs(30));
 
         api_service::request(
             &account,
