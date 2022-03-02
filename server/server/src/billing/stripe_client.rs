@@ -145,12 +145,13 @@ fn simplify_stripe_error(
 }
 
 pub async fn create_customer(
-    stripe_client: &stripe::Client, payment_method_id: stripe::PaymentMethodId,
+    stripe_client: &stripe::Client, customer_name: &str, payment_method_id: stripe::PaymentMethodId,
 ) -> Result<stripe::Customer, SimplifiedStripeError> {
+    info!("Creating stripe customer. payment_method_id: {}", payment_method_id.as_str());
+
     let mut customer_params = stripe::CreateCustomer::new();
     customer_params.payment_method = Some(payment_method_id);
-
-    info!("Creating stripe customer. payment_method_id: {}", payment_method_id.as_str());
+    customer_params.name = Some(customer_name);
 
     stripe::Customer::create(stripe_client, customer_params)
         .await
@@ -179,18 +180,18 @@ pub async fn create_setup_intent(
     stripe_client: &stripe::Client, customer_id: stripe::CustomerId,
     payment_method_id: stripe::PaymentMethodId,
 ) -> Result<stripe::SetupIntent, SimplifiedStripeError> {
+    info!(
+        "Creating stripe setup intent. customer_id: {}, payment_method_id {}",
+        customer_id.as_str(),
+        payment_method_id.as_str()
+    );
+
     let mut setup_intent_params = stripe::CreateSetupIntent::new();
     setup_intent_params.customer = Some(customer_id);
     setup_intent_params.payment_method = Some(payment_method_id);
     setup_intent_params.confirm = Some(true);
 
     let intent_resp = stripe::SetupIntent::create(stripe_client, setup_intent_params).await?;
-
-    info!(
-        "Creating stripe setup intent. customer_id: {}, payment_method_id {}",
-        customer_id.as_str(),
-        payment_method_id.as_str()
-    );
 
     match intent_resp.status {
         SetupIntentStatus::Succeeded => Ok(intent_resp),
@@ -201,29 +202,28 @@ pub async fn create_setup_intent(
 pub async fn create_subscription(
     server_state: &ServerState, customer_id: stripe::CustomerId, payment_method_id: &str,
 ) -> Result<stripe::Subscription, SimplifiedStripeError> {
-    let mut subscription_params = stripe::CreateSubscription::new(customer_id);
-    let mut subscription_item_params = stripe::CreateSubscriptionItems::new();
-    subscription_item_params.price =
-        Some(Box::new(server_state.config.stripe.premium_price_id.clone()));
-
-    subscription_params.default_payment_method = Some(payment_method_id);
-    subscription_params.items = Some(Box::new(vec![subscription_item_params]));
-    subscription_params.expand = &["latest_invoice", "latest_invoice.payment_intent"];
-
     info!(
         "Creating stripe subscription. customer_id: {}, payment_method_id: {}",
         customer_id.as_str(),
         payment_method_id
     );
 
+    let mut subscription_params = stripe::CreateSubscription::new(customer_id);
+    let mut subscription_item_params = stripe::CreateSubscriptionItems::new();
+    subscription_item_params.price = Some(server_state.config.stripe.premium_price_id.clone());
+
+    subscription_params.default_payment_method = Some(payment_method_id);
+    subscription_params.items = Some(vec![subscription_item_params]);
+    subscription_params.expand = &["latest_invoice", "latest_invoice.payment_intent"];
+
     let subscription_resp =
         stripe::Subscription::create(&server_state.stripe_client, subscription_params).await?;
 
     match subscription_resp.status {
         SubscriptionStatus::Active => Ok(subscription_resp),
-        SubscriptionStatus::Incomplete => match subscription_resp.latest_invoice.as_deref().ok_or_else(|| Other(format!("There is no latest invoice for a subscription: {:?}", subscription_resp)))? {
+        SubscriptionStatus::Incomplete => match subscription_resp.latest_invoice.as_ref().ok_or_else(|| Other(format!("There is no latest invoice for a subscription: {:?}", subscription_resp)))? {
             Expandable::Id(id) => Err(Other(format!("The latest invoice was expanded, yet returned an id: {:?}", id))),
-            Expandable::Object(invoice) => match invoice.payment_intent.as_deref().ok_or_else(|| Other(format!("There is no payment intent for the latest invoice of a subscription: {:?}", subscription_resp)))? {
+            Expandable::Object(invoice) => match invoice.payment_intent.as_ref().ok_or_else(|| Other(format!("There is no payment intent for the latest invoice of a subscription: {:?}", subscription_resp)))? {
                 Expandable::Id(id) => Err(Other(format!("The payment intent was expanded, yet returned an id: {:?}", id))),
                 Expandable::Object(payment_intent) => match payment_intent.status {
                     PaymentIntentStatus::RequiresPaymentMethod => Err(CardDeclined(CardDeclineReason::Generic)),
@@ -248,7 +248,7 @@ pub async fn detach_payment_method_from_customer(
 pub async fn cancel_subscription(
     stripe_client: &stripe::Client, subscription_id: &stripe::SubscriptionId,
 ) -> Result<(), SimplifiedStripeError> {
-    info!("Cancelling stripe subscription. subscription_id: {}", payment_method_id.as_str());
+    info!("Cancelling stripe subscription. subscription_id: {}", subscription_id.as_str());
 
     stripe::Subscription::cancel(
         stripe_client,

@@ -1,4 +1,4 @@
-use crate::account_service::GetFileUsageError;
+use crate::account_service::GetUsageHelperError;
 use crate::billing::stripe_client;
 use crate::billing::stripe_model::{
     StripePaymentInfo, StripeSubscriptionInfo, StripeUserInfo, Timestamp,
@@ -60,13 +60,13 @@ pub async fn switch_account_tier(
             return Err(ClientError(SwitchAccountTierError::NewTierIsOldTier));
         }
         (PREMIUM_TIER_USAGE_SIZE, AccountTier::Free) => {
-            let usage: u64 = account_service::get_file_usage(&mut con, &context.public_key)
+            let usage: u64 = account_service::get_usage_helper(&mut con, &context.public_key)
                 .await
                 .map_err(|e| match e {
-                    GetFileUsageError::UserNotFound => {
+                    GetUsageHelperError::UserNotFound => {
                         ClientError(SwitchAccountTierError::UserNotFound)
                     }
-                    GetFileUsageError::Internal(e) => ServerError::from(e),
+                    GetUsageHelperError::Internal(e) => ServerError::from(e),
                 })?
                 .iter()
                 .map(|a| a.size_bytes)
@@ -178,6 +178,7 @@ async fn create_subscription(
                 None => {
                     let customer_resp = stripe_client::create_customer(
                         &server_state.stripe_client,
+                        &user_info.customer_name.to_string(),
                         payment_method_resp.id(),
                     )
                     .await?;
@@ -307,9 +308,7 @@ pub async fn stripe_webhooks(
 
     match (&event.event_type, &event.data.object) {
         (stripe::EventType::InvoicePaymentFailed, stripe::EventObject::Invoice(invoice)) => {
-            if let Some(stripe::InvoiceBillingReason::SubscriptionCycle) =
-                invoice.billing_reason.as_deref()
-            {
+            if let Some(stripe::InvoiceBillingReason::SubscriptionCycle) = invoice.billing_reason {
                 let customer_id = match invoice
                     .customer
                     .as_ref()
@@ -334,7 +333,7 @@ pub async fn stripe_webhooks(
         }
         (stripe::EventType::InvoicePaid, stripe::EventObject::Invoice(partial_invoice)) => {
             if let Some(stripe::InvoiceBillingReason::SubscriptionCycle) =
-                partial_invoice.billing_reason.as_deref()
+                partial_invoice.billing_reason
             {
                 let invoice = stripe_client::retrieve_invoice(
                     &server_state.stripe_client,
@@ -348,7 +347,7 @@ pub async fn stripe_webhooks(
                     )
                 })?;
 
-                let subscription_period_end = match invoice.subscription.as_deref() {
+                let subscription_period_end = match invoice.subscription {
                     None => {
                         return Err(internal!(
                             "There should be a subscription tied to this invoice: {:?}",
@@ -364,15 +363,11 @@ pub async fn stripe_webhooks(
                     Some(Expandable::Object(subscription)) => subscription.current_period_end,
                 };
 
-                let customer_id = match invoice
-                    .customer
-                    .ok_or_else(|| {
-                        ClientError(StripeWebhookError::InvalidBody(
-                            "Cannot retrieve the customer id.".to_string(),
-                        ))
-                    })?
-                    .deref()
-                {
+                let customer_id = match invoice.customer.ok_or_else(|| {
+                    ClientError(StripeWebhookError::InvalidBody(
+                        "Cannot retrieve the customer id.".to_string(),
+                    ))
+                })? {
                     Expandable::Id(id) => id.to_string(),
                     Expandable::Object(customer) => customer.id.to_string(),
                 };
@@ -388,10 +383,10 @@ pub async fn stripe_webhooks(
             }
         }
         (_, _) => {
-            return internal!(
+            return Err(internal!(
                 "An unexpected and unhandled stripe event has been received. event: {:?}",
                 event.event_type
-            )
+            ))
         }
     }
 

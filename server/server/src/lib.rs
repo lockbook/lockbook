@@ -10,7 +10,7 @@ use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_crypto::{clock_service, pubkey};
 use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper};
 
-use crate::account_service::GetFileUsageError;
+use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_service::StripeWebhookError;
 use crate::billing::stripe_model::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
 use crate::content::file_content_client;

@@ -116,31 +116,31 @@ pub async fn get_usage(
 
     let cap: u64 = con.get(data_cap(&context.public_key)).await?;
 
-    let usages = get_file_usage(&mut con, &context.public_key).await?;
+    let usages = get_usage_helper(&mut con, &context.public_key).await?;
 
     Ok(GetUsageResponse { usages, cap })
 }
 
 #[derive(Debug)]
-pub enum GetFileUsageError {
+pub enum GetUsageHelperError {
     UserNotFound,
     Internal(redis_utils::converters::JsonGetError),
 }
 
-pub async fn get_file_usage(
+pub async fn get_usage_helper(
     con: &mut deadpool_redis::Connection, public_key: &PublicKey,
-) -> Result<Vec<FileUsage>, GetFileUsageError> {
+) -> Result<Vec<FileUsage>, GetUsageHelperError> {
     let files: Vec<Uuid> = con
         .maybe_json_get(owned_files(public_key))
         .await
-        .map_err(GetFileUsageError::Internal)?
-        .ok_or(GetFileUsageError::UserNotFound)?;
+        .map_err(GetUsageHelperError::Internal)?
+        .ok_or(GetUsageHelperError::UserNotFound)?;
 
     let keys: Vec<String> = files.into_iter().map(keys::size).collect();
 
     con.json_mget(keys)
         .await
-        .map_err(GetFileUsageError::Internal)
+        .map_err(GetUsageHelperError::Internal)
 }
 
 /// Delete's an account's files out of s3 and clears their file tree within redis

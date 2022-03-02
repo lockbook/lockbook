@@ -14,48 +14,48 @@ pub fn switch_account_tier(
 ) -> Result<(), CoreError> {
     let account = account_repo::get(config)?;
 
-    api_service::request(&account, SwitchAccountTierRequest { account_tier: new_account_tier })
-        .map_err(|e| match e {
-            ApiError::Endpoint(SwitchAccountTierError::OldCardDoesNotExist) => {
-                CoreError::OldCardDoesNotExist
-            }
-            ApiError::Endpoint(SwitchAccountTierError::NewTierIsOldTier) => {
-                CoreError::NewTierIsOldTier
-            }
-            ApiError::Endpoint(SwitchAccountTierError::InvalidCreditCard(field)) => {
-                CoreError::InvalidCreditCard(field)
-            }
-            ApiError::Endpoint(SwitchAccountTierError::CardDeclined(decline_type)) => {
-                CoreError::CardDecline(decline_type)
-            }
-            ApiError::Endpoint(SwitchAccountTierError::CurrentUsageIsMoreThanNewTier) => {
-                CoreError::CurrentUsageIsMoreThanNewTier
-            }
-            ApiError::Endpoint(SwitchAccountTierError::ConcurrentRequestsAreTooSoon) => {
-                CoreError::ConcurrentRequestsAreTooSoon
-            }
-            ApiError::Endpoint(SwitchAccountTierError::UserNotFound) => {
-                CoreError::AccountNonexistent
-            }
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            _ => core_err_unexpected(e),
-        })?;
-
-    Ok(())
+    match api_service::request(
+        &account,
+        SwitchAccountTierRequest { account_tier: new_account_tier },
+    ) {
+        Ok(_) => Ok(()),
+        Err(ApiError::Endpoint(SwitchAccountTierError::OldCardDoesNotExist)) => {
+            Err(CoreError::OldCardDoesNotExist)
+        }
+        Err(ApiError::Endpoint(SwitchAccountTierError::NewTierIsOldTier)) => {
+            Err(CoreError::NewTierIsOldTier)
+        }
+        Err(ApiError::Endpoint(SwitchAccountTierError::InvalidCreditCard(field))) => {
+            Err(CoreError::InvalidCreditCard(field))
+        }
+        Err(ApiError::Endpoint(SwitchAccountTierError::CardDeclined(decline_type))) => {
+            Err(CoreError::CardDecline(decline_type))
+        }
+        Err(ApiError::Endpoint(SwitchAccountTierError::CurrentUsageIsMoreThanNewTier)) => {
+            Err(CoreError::CurrentUsageIsMoreThanNewTier)
+        }
+        Err(ApiError::Endpoint(SwitchAccountTierError::ConcurrentRequestsAreTooSoon)) => {
+            Err(CoreError::ConcurrentRequestsAreTooSoon)
+        }
+        Err(ApiError::Endpoint(SwitchAccountTierError::UserNotFound)) => {
+            Err(CoreError::AccountNonexistent)
+        }
+        Err(ApiError::SendFailed(_)) => Err(CoreError::ServerUnreachable),
+        Err(ApiError::ClientUpdateRequired) => Err(CoreError::ClientUpdateRequired),
+        Err(e) => Err(core_err_unexpected(e)),
+    }
 }
 
 pub fn get_credit_card(config: &Config) -> Result<CreditCardLast4Digits, CoreError> {
     let account = account_repo::get(config)?;
 
-    api_service::request(&account, GetCreditCardRequest {})
-        .map_err(|e| match e {
-            ApiError::Endpoint(GetCreditCardError::NotAStripeCustomer) => {
-                CoreError::NotAStripeCustomer
-            }
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            _ => core_err_unexpected(e),
-        })
-        .map(|response| response.credit_card_last_4_digits)
+    match api_service::request(&account, GetCreditCardRequest {}) {
+        Ok(resp) => Ok(resp.credit_card_last_4_digits),
+        Err(ApiError::Endpoint(GetCreditCardError::NotAStripeCustomer)) => {
+            Err(CoreError::NotAStripeCustomer)
+        }
+        Err(ApiError::SendFailed(_)) => Err(CoreError::ServerUnreachable),
+        Err(ApiError::ClientUpdateRequired) => Err(CoreError::ClientUpdateRequired),
+        Err(e) => Err(core_err_unexpected(e)),
+    }
 }

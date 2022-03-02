@@ -1,5 +1,5 @@
 use crate::{
-    file_content_client, ClientError, GetFileUsageError, ServerError, SimplifiedStripeError,
+    file_content_client, ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError,
     StripeWebhookError,
 };
 use deadpool_redis::PoolError;
@@ -51,11 +51,11 @@ impl<T: Debug> From<stripe::ParseIdError> for ServerError<T> {
     }
 }
 
-impl From<GetFileUsageError> for ServerError<GetUsageError> {
-    fn from(e: GetFileUsageError) -> Self {
+impl From<GetUsageHelperError> for ServerError<GetUsageError> {
+    fn from(e: GetUsageHelperError) -> Self {
         match e {
-            GetFileUsageError::UserNotFound => ClientError(GetUsageError::UserNotFound),
-            GetFileUsageError::Internal(e) => ServerError::from(e),
+            GetUsageHelperError::UserNotFound => ClientError(GetUsageError::UserNotFound),
+            GetUsageHelperError::Internal(e) => ServerError::from(e),
         }
     }
 }

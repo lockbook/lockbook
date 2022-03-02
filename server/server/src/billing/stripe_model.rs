@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 // This struct provides a fall back to unknown decline codes from Stripe. Since decline codes aren't parsed by "async-stripe" (a crate),
 // we provide our own solution to parse them. Although, there are instances in which we may receive an unknown decline code. Rather than
@@ -54,12 +55,25 @@ pub enum StripeKnownDeclineCode {
 pub type Timestamp = u64;
 
 // This is the stripe information for a single lockbook user. This is stored on redis.
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct StripeUserInfo {
     pub customer_id: Option<String>,
+    pub customer_name: Uuid,
     pub payment_methods: Vec<StripePaymentInfo>,
     pub subscriptions: Vec<StripeSubscriptionInfo>,
     pub last_in_payment_flow: Timestamp,
+}
+
+impl Default for StripeUserInfo {
+    fn default() -> Self {
+        StripeUserInfo {
+            customer_id: None,
+            customer_name: Uuid::new_v4(),
+            payment_methods: vec![],
+            subscriptions: vec![],
+            last_in_payment_flow: 0,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
