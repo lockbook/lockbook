@@ -115,7 +115,7 @@ mod switch_account_tier_test {
 
         let scenarios = vec![
             (test_credit_cards::decline::GENERIC, CardDeclineReason::Generic),
-            (test_credit_cards::decline::LOST_CARD, CardDeclineReason::Generic), // core should not be informed a card is stolen or lost (at least the user)
+            (test_credit_cards::decline::LOST_CARD, CardDeclineReason::Generic), // core should not be informed a card is stolen or lost
             (
                 test_credit_cards::decline::INSUFFICIENT_FUNDS,
                 CardDeclineReason::BalanceOrCreditExceeded,
@@ -131,6 +131,7 @@ mod switch_account_tier_test {
                     account_tier: generate_monthly_account_tier(card_number, None, None, None),
                 },
             );
+
             match result {
                 Err(ApiError::<SwitchAccountTierError>::Endpoint(
                     SwitchAccountTierError::CardDeclined(err),
@@ -146,81 +147,33 @@ mod switch_account_tier_test {
         let (root, _) = generate_root_metadata(&account);
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        let result = api_service::request(
-            &account,
-            SwitchAccountTierRequest {
-                account_tier: generate_monthly_account_tier(
-                    test_credit_cards::INVALID_NUMBER,
-                    None,
-                    None,
-                    None,
-                ),
-            },
-        );
+        let scenarios = vec![
+            (test_credit_cards::INVALID_NUMBER, None, None, None, CardRejectReason::Number),
+            (test_credit_cards::GOOD, Some(1970), None, None, CardRejectReason::ExpYear),
+            (test_credit_cards::GOOD, None, Some(14), None, CardRejectReason::ExpMonth),
+            (test_credit_cards::GOOD, None, None, Some("11"), CardRejectReason::CVC),
+        ];
 
-        assert_matches!(
-            result,
-            Err(ApiError::<SwitchAccountTierError>::Endpoint(
-                SwitchAccountTierError::InvalidCreditCard(CardRejectReason::Number)
-            ))
-        );
+        for (card_number, maybe_exp_year, maybe_exp_month, maybe_cvc, expected_err) in scenarios {
+            let result = api_service::request(
+                &account,
+                SwitchAccountTierRequest {
+                    account_tier: generate_monthly_account_tier(
+                        card_number,
+                        maybe_exp_year,
+                        maybe_exp_month,
+                        maybe_cvc,
+                    ),
+                },
+            );
 
-        let result = api_service::request(
-            &account,
-            SwitchAccountTierRequest {
-                account_tier: generate_monthly_account_tier(
-                    test_credit_cards::GOOD,
-                    Some(1970),
-                    None,
-                    None,
-                ),
-            },
-        );
-
-        assert_matches!(
-            result,
-            Err(ApiError::<SwitchAccountTierError>::Endpoint(
-                SwitchAccountTierError::InvalidCreditCard(CardRejectReason::ExpYear)
-            ))
-        );
-
-        let result = api_service::request(
-            &account,
-            SwitchAccountTierRequest {
-                account_tier: generate_monthly_account_tier(
-                    test_credit_cards::GOOD,
-                    None,
-                    Some(14),
-                    None,
-                ),
-            },
-        );
-
-        assert_matches!(
-            result,
-            Err(ApiError::<SwitchAccountTierError>::Endpoint(
-                SwitchAccountTierError::InvalidCreditCard(CardRejectReason::ExpMonth)
-            ))
-        );
-
-        let result = api_service::request(
-            &account,
-            SwitchAccountTierRequest {
-                account_tier: generate_monthly_account_tier(
-                    test_credit_cards::GOOD,
-                    None,
-                    None,
-                    Some("11"),
-                ),
-            },
-        );
-
-        assert_matches!(
-            result,
-            Err(ApiError::<SwitchAccountTierError>::Endpoint(
-                SwitchAccountTierError::InvalidCreditCard(CardRejectReason::CVC)
-            ))
-        );
+            match result {
+                Err(ApiError::<SwitchAccountTierError>::Endpoint(
+                    SwitchAccountTierError::InvalidCreditCard(err),
+                )) => assert_eq!(err, expected_err),
+                other => panic!("expected {:?}, got {:?}", expected_err, other),
+            }
+        }
     }
 
     #[test]
