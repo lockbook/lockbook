@@ -33,11 +33,11 @@ pub async fn switch_account_tier(
 ) -> Result<SwitchAccountTierResponse, ServerError<SwitchAccountTierError>> {
     let (request, server_state) = (&context.request, context.server_state);
 
-    info!(
-        "Attempting to switching the account tier of {} to {}",
-        keys::stringify_public_key(&context.public_key),
-        if let AccountTier::Premium(_) = request.account_tier { "premium" } else { "free" }
-    );
+    let fmt_public_key = keys::stringify_public_key(&context.public_key);
+    let fmt_new_tier =
+        if let AccountTier::Premium(_) = request.account_tier { "premium" } else { "free" };
+
+    info!("Attempting to switching the account tier of {} to {}", fmt_public_key, fmt_new_tier);
 
     let mut con = server_state.index_db_pool.get().await?;
 
@@ -52,14 +52,23 @@ pub async fn switch_account_tier(
 
     let new_data_cap = match (current_data_cap, &request.account_tier) {
         (FREE_TIER_USAGE_SIZE, AccountTier::Premium(card)) => {
-            create_subscription(server_state, &mut con, &context.public_key, card, &mut user_info)
-                .await?
+            create_subscription(
+                server_state,
+                &mut con,
+                &context.public_key,
+                &fmt_public_key,
+                card,
+                &mut user_info,
+            )
+            .await?
         }
         (FREE_TIER_USAGE_SIZE, AccountTier::Free)
         | (PREMIUM_TIER_USAGE_SIZE, AccountTier::Premium(_)) => {
             return Err(ClientError(SwitchAccountTierError::NewTierIsOldTier));
         }
         (PREMIUM_TIER_USAGE_SIZE, AccountTier::Free) => {
+            info!("Switching account tier to free. public_key: {}", fmt_public_key);
+
             let usage: u64 = account_service::get_usage_helper(&mut con, &context.public_key)
                 .await
                 .map_err(|e| match e {
@@ -73,6 +82,10 @@ pub async fn switch_account_tier(
                 .sum();
 
             if usage > FREE_TIER_USAGE_SIZE {
+                info!(
+                    "Cannot downgrade user to free since they are over the data cap. public_key: {}",
+                    fmt_public_key
+                );
                 return Err(ClientError(SwitchAccountTierError::CurrentUsageIsMoreThanNewTier));
             }
 
@@ -84,15 +97,17 @@ pub async fn switch_account_tier(
             )
             .await?;
 
+            info!("Successfully canceled stripe subscription. public_key: {}", fmt_public_key);
+
             user_info.subscriptions[pos].is_active = false;
 
             FREE_TIER_USAGE_SIZE
         }
         (_, AccountTier::Free) | (_, AccountTier::Premium(_)) => {
             return Err(internal!(
-                "Unrecognized current data cap: {}, public_key: {:?}",
+                "Unrecognized current data cap: {}, public_key: {}",
                 current_data_cap,
-                context.public_key
+                fmt_public_key
             ));
         }
     };
@@ -105,7 +120,7 @@ pub async fn switch_account_tier(
 
     info!(
         "Successfully switched the account tier of {} from {} to {}.",
-        keys::stringify_public_key(&context.public_key),
+        fmt_public_key,
         if current_data_cap == PREMIUM_TIER_USAGE_SIZE {
             "premium"
         } else if current_data_cap == FREE_TIER_USAGE_SIZE {
@@ -113,7 +128,7 @@ pub async fn switch_account_tier(
         } else {
             "unknown"
         },
-        if let AccountTier::Premium(_) = request.account_tier { "premium" } else { "free" }
+        fmt_new_tier
     );
 
     Ok(SwitchAccountTierResponse {})
@@ -145,6 +160,10 @@ async fn lock_payment_workflow(
         let current_time = get_time().0 as Timestamp;
 
         if current_time - user_info.last_in_payment_flow < millis_between_payment_flows {
+            info!(
+                "User is already in payment flow, or this request is too soon after a failed one. public_key: {}",
+                keys::stringify_public_key(public_key)
+            );
             return Err(Abort(ClientError(SwitchAccountTierError::ConcurrentRequestsAreTooSoon)));
         }
 
@@ -156,59 +175,27 @@ async fn lock_payment_workflow(
     });
     return_if_error!(tx_result);
 
+    info!(
+        "User successfully entered payment flow. public_key: {}",
+        keys::stringify_public_key(public_key)
+    );
+
     Ok(user_info)
 }
 
 async fn create_subscription(
     server_state: &ServerState, con: &mut deadpool_redis::Connection, public_key: &PublicKey,
-    payment_method: &PaymentMethod, user_info: &mut StripeUserInfo,
+    fmt_public_key: &str, payment_method: &PaymentMethod, user_info: &mut StripeUserInfo,
 ) -> Result<u64, ServerError<SwitchAccountTierError>> {
     let (customer_id, payment_method_id) = match payment_method {
         PaymentMethod::NewCard { number, exp_year, exp_month, cvc } => {
+            info!("Creating a new card for public_key: {}", fmt_public_key);
             let payment_method_resp = stripe_client::create_payment_method(
                 &server_state.stripe_client,
                 number,
                 *exp_month,
                 *exp_year,
                 cvc,
-            )
-            .await?;
-
-            let customer_id = match &user_info.customer_id {
-                None => {
-                    let customer_resp = stripe_client::create_customer(
-                        &server_state.stripe_client,
-                        &user_info.customer_name.to_string(),
-                        payment_method_resp.id(),
-                    )
-                    .await?;
-                    let customer_id = customer_resp.id.to_string();
-
-                    con.json_set(public_key_from_stripe_customer_id(&customer_id), public_key)
-                        .await?;
-
-                    user_info.customer_id = Some(customer_id);
-                    customer_resp.id
-                }
-                Some(customer_id) => stripe::CustomerId::from_str(customer_id)?,
-            };
-
-            if let Some(info) = user_info
-                .payment_methods
-                .iter()
-                .max_by_key(|info| info.created_at)
-            {
-                stripe_client::detach_payment_method_from_customer(
-                    &server_state.stripe_client,
-                    &stripe::PaymentMethodId::from_str(&info.id)?,
-                )
-                .await?;
-            }
-
-            stripe_client::create_setup_intent(
-                &server_state.stripe_client,
-                customer_id.clone(),
-                payment_method_resp.id(),
             )
             .await?;
 
@@ -224,6 +211,80 @@ async fn create_subscription(
                 .last4
                 .clone();
 
+            info!(
+                "Created a new payment method. last_4: {}, public_key: {}",
+                last_4, fmt_public_key
+            );
+
+            let customer_id = match &user_info.customer_id {
+                None => {
+                    info!(
+                        "User has no customer_id. Creating one with stripe now. public_key: {}",
+                        keys::stringify_public_key(public_key)
+                    );
+
+                    let customer_resp = stripe_client::create_customer(
+                        &server_state.stripe_client,
+                        &user_info.customer_name.to_string(),
+                        payment_method_resp.id(),
+                    )
+                    .await?;
+                    let customer_id = customer_resp.id.to_string();
+
+                    info!("Created customer_id: {}. public_key: {}", customer_id, fmt_public_key);
+
+                    con.json_set(public_key_from_stripe_customer_id(&customer_id), public_key)
+                        .await?;
+
+                    user_info.customer_id = Some(customer_id);
+                    customer_resp.id
+                }
+                Some(customer_id) => {
+                    info!(
+                        "User already has customer_id: {} public_key: {}",
+                        customer_id, fmt_public_key
+                    );
+
+                    stripe::CustomerId::from_str(customer_id)?
+                }
+            };
+
+            if let Some(info) = user_info
+                .payment_methods
+                .iter()
+                .max_by_key(|info| info.created_at)
+            {
+                info!(
+                    "Disabling card with a payment method of {} since a new card has just been added. public_key: {}",
+                    info.id,
+                    fmt_public_key
+                );
+
+                stripe_client::detach_payment_method_from_customer(
+                    &server_state.stripe_client,
+                    &stripe::PaymentMethodId::from_str(&info.id)?,
+                )
+                .await?;
+            }
+
+            info!(
+                "Creating a setup intent to confirm a users payment method for their subscription. public_key: {}",
+                fmt_public_key
+            );
+
+            let setup_intent_resp = stripe_client::create_setup_intent(
+                &server_state.stripe_client,
+                customer_id.clone(),
+                payment_method_resp.id(),
+            )
+            .await?;
+
+            info!(
+                "Created a setup intent: {}, public_key: {}",
+                setup_intent_resp.id.to_string(),
+                fmt_public_key
+            );
+
             user_info.payment_methods.push(StripePaymentInfo {
                 id: customer_id.to_string(),
                 last_4,
@@ -233,6 +294,8 @@ async fn create_subscription(
             (customer_id, payment_method_resp.id.to_string())
         }
         PaymentMethod::OldCard => {
+            info!("Using an old card stored on redis for public_key: {}", fmt_public_key);
+
             match (&user_info.customer_id, user_info
                 .payment_methods
                 .iter()
@@ -244,9 +307,16 @@ async fn create_subscription(
         }
     };
 
+    info!("Successfully retrieved card for public_key: {}", fmt_public_key);
+
     let subscription_resp =
         stripe_client::create_subscription(server_state, customer_id.clone(), &payment_method_id)
             .await?;
+
+    info!(
+        "Successfully create subscription: {}, public_key: {}",
+        subscription_resp.id, fmt_public_key
+    );
 
     user_info.subscriptions.push(StripeSubscriptionInfo {
         id: subscription_resp.id.to_string(),
@@ -261,6 +331,8 @@ pub async fn get_credit_card(
     context: RequestContext<'_, GetCreditCardRequest>,
 ) -> Result<GetCreditCardResponse, ServerError<GetCreditCardError>> {
     let mut con = context.server_state.index_db_pool.get().await?;
+
+    info!("Getting credit card for {}", keys::stringify_public_key(&context.public_key));
 
     let user_info: StripeUserInfo = con
         .maybe_json_get(stripe_user_info(&context.public_key))
@@ -299,10 +371,12 @@ pub async fn stripe_webhooks(
         ClientError(StripeWebhookError::InvalidHeader(format!("Cannot get header as str: {:?}", e)))
     })?;
 
+    info!("Verifying a stripe webhook request.");
+
     let event =
         stripe::Webhook::construct_event(payload, sig, &server_state.config.stripe.signing_secret)?;
 
-    info!("A verified stripe request has been received. event: {:?}.", event.event_type);
+    info!("Verified stripe request. event: {:?}.", event.event_type);
 
     let mut con = server_state.index_db_pool.get().await?;
 
@@ -314,7 +388,7 @@ pub async fn stripe_webhooks(
                     .as_ref()
                     .ok_or_else(|| {
                         ClientError(StripeWebhookError::InvalidBody(
-                            "Cannot retrieve the customer id.".to_string(),
+                            "Cannot retrieve the customer_id.".to_string(),
                         ))
                     })?
                     .deref()
@@ -325,6 +399,11 @@ pub async fn stripe_webhooks(
 
                 let (public_key, user_info) =
                     get_public_key_and_stripe_user_info(&event, &mut con, &customer_id).await?;
+
+                info!(
+                    "A payment failed while stripe was renewing a customer's subscription. Their tier is being reduced. public_key: {}",
+                    keys::stringify_public_key(&public_key)
+                );
 
                 con.set(data_cap(&public_key), FREE_TIER_USAGE_SIZE).await?;
                 con.json_set(stripe_user_info(&public_key), &user_info)
@@ -365,7 +444,7 @@ pub async fn stripe_webhooks(
 
                 let customer_id = match invoice.customer.ok_or_else(|| {
                     ClientError(StripeWebhookError::InvalidBody(
-                        "Cannot retrieve the customer id.".to_string(),
+                        "Cannot retrieve the customer_id.".to_string(),
                     ))
                 })? {
                     Expandable::Id(id) => id.to_string(),
@@ -375,6 +454,11 @@ pub async fn stripe_webhooks(
                 let (public_key, mut user_info) =
                     get_public_key_and_stripe_user_info(&event, &mut con, &customer_id).await?;
                 let pos = get_active_subscription_index(&user_info.subscriptions)?;
+
+                info!(
+                    "Stripe successfully renewed a user's subscription. The user's subscription period_end is being changed. public_key: {}",
+                    keys::stringify_public_key(&public_key)
+                );
 
                 user_info.subscriptions[pos].period_end = subscription_period_end as u64;
 
@@ -400,7 +484,7 @@ async fn get_public_key_and_stripe_user_info(
         .maybe_json_get(public_key_from_stripe_customer_id(customer_id))
         .await?
         .ok_or(internal!(
-            "There is no public key related to this customer id: {:?}",
+            "There is no public_key related to this customer_id: {:?}",
             customer_id
         ))?;
 
