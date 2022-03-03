@@ -37,12 +37,12 @@ public class Parser: Visitor {
     
     public func visit(document node: Document)  {
         print("Document start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
-        processedDocument.append(
-            AttributeRange(
-                style: Style.from(node),
-                range: indexes.getRange(node: node)
-            )
-        )
+//        processedDocument.append(
+//            AttributeRange(
+//                style: Style.from(node),
+//                range: indexes.getRange(node: node)
+//            )
+//        )
         let _ = visitChildren(of: node)
     }
     
@@ -75,11 +75,13 @@ public class Parser: Visitor {
     }
     
     public func visit(heading node: Heading)  {
-        let range = indexes.getRange(node: node)
-        let style = Style.from(node)
-        if node.headingLevel == 1 {
-            processedDocument.append(AttributeRange(style: style, range: range))
-        }
+        print("Heading start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
+
+//        let range = indexes.getRange(node: node)
+//        let style = Style.from(node)
+//        if node.headingLevel == 1 {
+//            processedDocument.append(AttributeRange(style: style, range: range))
+//        }
         visitChildren(of: node)
     }
     
@@ -155,12 +157,14 @@ public class IndexConverter {
             sum += count
             self.columnLookup.append(sum)
         }
+        print(columnLookup)
     }
     
     public func getUTF8Index(utf8Row: Int32, utf8Col: Int32) -> Int {
+        let previousLineIndex = Int(utf8Row-1)
         var previousLineCount = 0
-        if utf8Row != 0 {
-            previousLineCount += columnLookup[Int(utf8Row)]
+        if previousLineIndex >= 0 && columnLookup.count > 1 {
+            previousLineCount += columnLookup[previousLineIndex]
         }
         
         return previousLineCount + Int(utf8Col)
@@ -178,7 +182,10 @@ public class IndexConverter {
     }
     
     public func getRange(startCol: Int32, endCol: Int32, startLine: Int32, endLine: Int32) -> NSRange {
-        let startUTF8 = getUTF8Index(utf8Row: startLine, utf8Col: startCol)
+        if string.isEmpty && startCol == 1 && endCol == 0 && startLine == 1 && endLine == 0 {
+            return NSRange(location: 0, length: 0)
+        }
+        let startUTF8 = getUTF8Index(utf8Row: startLine-1, utf8Col: startCol-1)
         let offset = getUTF8Index(utf8Row: endLine, utf8Col: endCol) - startUTF8
         
         let start = string.utf8.index(string.startIndex, offsetBy: startUTF8)

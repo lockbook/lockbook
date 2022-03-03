@@ -1,32 +1,20 @@
-//
-//  EditorTests.swift
-//  EditorTests
-//
-//  Created by Parth Mehrotra on 3/2/22.
-//
-
+@testable import Lockbook
+import Down
 import XCTest
 
-class EditorTests: XCTestCase {
+class EditorTest: XCTestCase {
 
-    override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
+    func testEmptyString() throws {
+        let indexer = IndexConverter("")
+        let range = indexer.getRange(startCol: 1, endCol: 0, startLine: 1, endLine: 0)
+        
+        XCTAssertEqual(range, NSRange(location: 0, length: 0))
     }
-
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
+    
+    func testSingleCharacter() throws {
+        let indexer = IndexConverter("a")
+        let range = indexer.getRange(startCol: 1, endCol: 1, startLine: 1, endLine: 1)
+        
+        XCTAssertEqual(range, NSRange(location: 0, length: 1))
     }
-
-    func testExample() throws {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-    }
-
-    func testPerformanceExample() throws {
-        // This is an example of a performance test case.
-        measure {
-            // Put the code you want to measure the time of here.
-        }
-    }
-
 }
