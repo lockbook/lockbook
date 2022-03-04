@@ -2,6 +2,7 @@ use crate::keys::public_key;
 use crate::{keys, ServerError, ServerState};
 use lazy_static::lazy_static;
 use libsecp256k1::PublicKey;
+use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::FileUsage;
 use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
 use lockbook_models::tree::FileMetaExt;
@@ -13,7 +14,7 @@ use redis_utils::converters::JsonGet;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use uuid::Uuid;
 
 make_static_metric! {
@@ -65,14 +66,18 @@ pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<Met
     loop {
         info!("Metrics refresh started.");
 
-        let public_keys = get_all_public_keys(&server_state).await?;
-        METRICS_STATISTICS.total_users.set(public_keys.len() as i64);
+        let public_keys_and_usernames = get_all_public_keys_and_usernames(&server_state).await?;
+        METRICS_STATISTICS
+            .total_users
+            .set(public_keys_and_usernames.len() as i64);
 
         let mut total_documents = 0;
         let mut total_bytes = 0;
         let mut active_users = 0;
 
-        for public_key in public_keys {
+        println!("LEN: {}", public_keys_and_usernames.len());
+
+        for (public_key, username) in public_keys_and_usernames {
             let mut con = server_state.index_db_pool.get().await?;
             let ids = get_owned(&mut con, &public_key).await?;
             let (metadatas, is_user_active) = get_metadatas_and_user_activity_state(
@@ -98,7 +103,7 @@ pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<Met
             total_documents += metadatas.len();
 
             METRICS_USAGE_BY_USER_VEC
-                .with_label_values(&[&keys::stringify_public_key(&public_key)])
+                .with_label_values(&[&username])
                 .set(bytes);
 
             tokio::time::sleep(server_state.config.metrics.time_between_redis_calls).await;
@@ -114,9 +119,9 @@ pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<Met
     }
 }
 
-pub async fn get_all_public_keys(
+pub async fn get_all_public_keys_and_usernames(
     server_state: &Arc<ServerState>,
-) -> Result<Vec<PublicKey>, ServerError<MetricsError>> {
+) -> Result<Vec<(PublicKey, String)>, ServerError<MetricsError>> {
     let mut con = server_state.index_db_pool.get().await?;
 
     let mut keys_iter: AsyncIter<String> = con.scan_match(public_key("*")).await?;
@@ -128,7 +133,7 @@ pub async fn get_all_public_keys(
         tokio::time::sleep(server_state.config.metrics.time_between_redis_calls).await;
     }
 
-    let mut public_keys: Vec<PublicKey> = vec![];
+    let mut public_keys_and_usernames: Vec<(PublicKey, String)> = vec![];
 
     for key in keys {
         let public_key = con
@@ -136,11 +141,18 @@ pub async fn get_all_public_keys(
             .await?
             .ok_or_else(|| internal!("Cannot retrieve public_key for key: {:?}", key))?;
 
-        public_keys.push(public_key);
+        let mut parts = key.split(':');
+        parts.next();
+        let username = parts
+            .next()
+            .ok_or_else(|| internal!("Cannot find username in public_key key: {:?}", key))?
+            .to_string();
+
+        public_keys_and_usernames.push((public_key, username));
         tokio::time::sleep(server_state.config.metrics.time_between_redis_calls).await;
     }
 
-    Ok(public_keys)
+    Ok(public_keys_and_usernames)
 }
 
 pub async fn get_owned(
@@ -168,16 +180,21 @@ pub async fn get_metadatas_and_user_activity_state(
         tokio::time::sleep(*time_between_redis_calls).await;
     }
 
-    let time_two_days_ago = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| internal!("{:?}", e))?
-        .as_millis()
-        - TWO_DAYS_IN_MILLIS;
+    let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
 
     let is_user_active = metadatas.iter().any(|metadata| {
-        metadata.metadata_version as u128 > time_two_days_ago
-            || metadata.content_version as u128 > time_two_days_ago
+        // println!("metadata_version: {} content_version: {} time_two_days_ago: {} | {}",
+        //          metadata.metadata_version,
+        //          metadata.content_version,
+        //          time_two_days_ago,
+        //          metadata.metadata_version > time_two_days_ago || metadata.content_version > time_two_days_ago
+        // );
+
+        metadata.metadata_version > time_two_days_ago
+            || metadata.content_version > time_two_days_ago
     });
+
+    println!("IS ACTIVE: {}", is_user_active);
 
     Ok((
         metadatas.filter_not_deleted().map_err(|e| {
