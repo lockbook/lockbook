@@ -18,22 +18,22 @@ extension Style {
     
     func attributes() -> [NSAttributedString.Key : Any] {
         Styler.style(self)
-    }
+     }
 }
 
 class Styler {
     
     static func body() -> [NSAttributedString.Key : Any] {
         [
-            .foregroundColor : UniversalColor.labelColor,
-            .font :  NSFont.systemFont(ofSize: NSFont.systemFontSize),
+            .foregroundColor : NSColor.labelColor,
+            .font :  NSFont.systemFont(ofSize: 12),
         ]
     }
     
     static func heading1() -> [NSAttributedString.Key : Any] {
         [
-            .foregroundColor : UniversalColor.fromColorAlias(from: .Red).blendColors(UniversalColor.fromColorAlias(from: .Red), by: (CGFloat(1-1)/10)),
-            .font : NSFont(descriptor: NSFont.systemFont(ofSize: NSFont.systemFontSize).fontDescriptor.withSymbolicTraits([.bold, .expanded]), size: NSFont.systemFontSize)!,
+            .foregroundColor : NSColor.labelColor,
+            .font : NSFont(descriptor: NSFont.systemFont(ofSize: 24).fontDescriptor.withSymbolicTraits([.bold, .expanded]), size: 24)!,
         ]
     }
     

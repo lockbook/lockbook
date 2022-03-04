@@ -37,12 +37,12 @@ public class Parser: Visitor {
     
     public func visit(document node: Document)  {
         print("Document start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
-//        processedDocument.append(
-//            AttributeRange(
-//                style: Style.from(node),
-//                range: indexes.getRange(node: node)
-//            )
-//        )
+        processedDocument.append(
+            AttributeRange(
+                style: Style.from(node),
+                range: indexes.getRange(node: node)
+            )
+        )
         let _ = visitChildren(of: node)
     }
     
@@ -59,7 +59,7 @@ public class Parser: Visitor {
     }
     
     public func visit(codeBlock node: CodeBlock)  {
-        //        return reportWithChildren(node)
+        print("CodeBlock start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
     }
     
     public func visit(htmlBlock node: HtmlBlock)  {
@@ -76,13 +76,13 @@ public class Parser: Visitor {
     
     public func visit(heading node: Heading)  {
         print("Heading start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
-
-//        let range = indexes.getRange(node: node)
-//        let style = Style.from(node)
-//        if node.headingLevel == 1 {
-//            processedDocument.append(AttributeRange(style: style, range: range))
-//        }
-        visitChildren(of: node)
+        
+        let range = indexes.getRange(node: node)
+        let style = Style.from(node)
+        if node.headingLevel == 1 {
+            processedDocument.append(AttributeRange(style: style, range: range))
+        }
+        let _ = visitChildren(of: node)
     }
     
     public func visit(thematicBreak node: ThematicBreak)  {
@@ -145,10 +145,11 @@ public class IndexConverter {
     
     init(_ string: String) {
         self.string = string
-        
+        print("size: \((string as NSString).length)")
+
         let counts = string
             .components(separatedBy: .newlines)
-            .map { $0.utf8.count + 1 } // \n
+            .map { $0.utf8.count }
         
         self.columnLookup.reserveCapacity(counts.count)
         
@@ -161,10 +162,11 @@ public class IndexConverter {
     }
     
     public func getUTF8Index(utf8Row: Int32, utf8Col: Int32) -> Int {
-        let previousLineIndex = Int(utf8Row-1)
         var previousLineCount = 0
-        if previousLineIndex >= 0 && columnLookup.count > 1 {
+        if utf8Row >= 1 {
+            let previousLineIndex = Int(utf8Row - 1)
             previousLineCount += columnLookup[previousLineIndex]
+            previousLineCount += Int(utf8Row) // How many newline chars until this point
         }
         
         return previousLineCount + Int(utf8Col)
@@ -186,12 +188,12 @@ public class IndexConverter {
             return NSRange(location: 0, length: 0)
         }
         let startUTF8 = getUTF8Index(utf8Row: startLine-1, utf8Col: startCol-1)
-        let offset = getUTF8Index(utf8Row: endLine, utf8Col: endCol) - startUTF8
+        let offset = getUTF8Index(utf8Row: endLine-1, utf8Col: endCol-1) - startUTF8
         
         let start = string.utf8.index(string.startIndex, offsetBy: startUTF8)
         let end = string.utf8.index(start, offsetBy: offset)
         
-        return NSRange(start...end, in: string)
+            return NSRange(start...end, in: string)
     }
     
     public func wholeDocument() -> NSRange {
