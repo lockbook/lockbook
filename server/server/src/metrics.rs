@@ -87,7 +87,12 @@ pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<Met
                 active_users += 1;
             }
 
-            let bytes = calculate_total_document_bytes(&mut con, &metadatas).await?;
+            let bytes = calculate_total_document_bytes(
+                &mut con,
+                &metadatas,
+                &server_state.config.metrics.time_between_redis_calls,
+            )
+            .await?;
 
             total_bytes += bytes;
             total_documents += metadatas.len();
@@ -184,17 +189,19 @@ pub async fn get_metadatas_and_user_activity_state(
 
 pub async fn calculate_total_document_bytes(
     con: &mut deadpool_redis::Connection, metadatas: &[EncryptedFileMetadata],
+    time_between_redis_calls: &Duration,
 ) -> Result<i64, ServerError<MetricsError>> {
     let mut total_size: u64 = 0;
 
     for metadata in metadatas {
         if metadata.file_type == FileType::Document && metadata.content_version != 0 {
-            let file_usage: FileUsage = con
-                .maybe_json_get(keys::size(metadata.id))
-                .await?
-                .ok_or_else(|| internal!("Cannot retrieve file usage for id: {:?}", metadata.id))?;
+            let file_usage: FileUsage = match con.maybe_json_get(keys::size(metadata.id)).await? {
+                Some(usage) => usage,
+                None => continue,
+            };
 
-            total_size += file_usage.size_bytes
+            total_size += file_usage.size_bytes;
+            tokio::time::sleep(*time_between_redis_calls).await;
         }
     }
 
