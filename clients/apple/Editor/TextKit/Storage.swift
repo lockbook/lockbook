@@ -39,6 +39,17 @@ public class Storage: NSTextStorage {
             self.edited(.editedAttributes, range: modification.range, changeInLength: 0)
         }
         
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2)) {
+            for modification in parsed.processedDocument {
+                if modification.style == .Code {
+                    let processed = modification.style.attributes()
+                    for (attribute, _) in processed {
+                        self.removeAttribute(attribute, range: modification.range)
+                    }
+                }
+            }
+        }
+        
 //        self.edited(.editedAttributes, range: base.range, changeInLength: 0)
         
         endEditing()

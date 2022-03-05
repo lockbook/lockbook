@@ -36,52 +36,50 @@ public class Parser: Visitor {
     //    }
     
     public func visit(document node: Document)  {
-        print("Document start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
         processedDocument.append(
             AttributeRange(
                 style: Style.from(node),
-                range: indexes.getRange(node: node)
+                range: indexes.getRange(node)
             )
         )
         let _ = visitChildren(of: node)
     }
     
     public func visit(blockQuote node: BlockQuote)  {
-        //        return reportWithChildren(node)
+        let _ = visitChildren(of: node)
     }
     
     public func visit(list node: List)  {
-        //        return reportWithChildren(node)
+        let _ = visitChildren(of: node)
     }
     
     public func visit(item node: Item)  {
-        //        return reportWithChildren(node)
+        let _ = visitChildren(of: node)
     }
     
     public func visit(codeBlock node: CodeBlock)  {
-        print("CodeBlock start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
+        let range = indexes.getRange(node)
+        let style = Style.from(node)
+        processedDocument.append(AttributeRange(style: style, range: range))
+        let _ = visitChildren(of: node)
     }
     
     public func visit(htmlBlock node: HtmlBlock)  {
-        //        return reportWithChildren(node)
+        let _ = visitChildren(of: node)
     }
     
     public func visit(customBlock node: CustomBlock)  {
-        //        return reportWithChildren(node)
+        let _ = visitChildren(of: node)
     }
     
     public func visit(paragraph node: Paragraph)  {
-        
+        let _ = visitChildren(of: node)
     }
     
     public func visit(heading node: Heading)  {
-        print("Heading start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
-        
-        let range = indexes.getRange(node: node)
+        let range = indexes.getRange(node)
         let style = Style.from(node)
-        if node.headingLevel == 1 {
-            processedDocument.append(AttributeRange(style: style, range: range))
-        }
+        processedDocument.append(AttributeRange(style: style, range: range))
         let _ = visitChildren(of: node)
     }
     
@@ -90,7 +88,7 @@ public class Parser: Visitor {
     }
     
     public func visit(text node: Text)  {
-        
+        print("Text start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
     }
     
     public func visit(softBreak node: SoftBreak)  {
@@ -102,11 +100,15 @@ public class Parser: Visitor {
     }
     
     public func visit(code node: Code)  {
-        print("CODE1 start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
+        print("Code start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
+        let range = indexes.getRange(node)
+        let style = Style.from(node)
+        processedDocument.append(AttributeRange(style: style, range: range))
+        let _ = visitChildren(of: node)
     }
     
     public func visit(htmlInline node: HtmlInline)  {
-        //        return report(node)
+        let _ = visitChildren(of: node)
     }
     
     public func visit(customInline node: CustomInline)  {
@@ -114,19 +116,23 @@ public class Parser: Visitor {
     }
     
     public func visit(emphasis node: Emphasis)  {
-        //        return report(node)
+        print("Text start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
+        let _ = visitChildren(of: node)
     }
     
     public func visit(strong node: Strong)  {
-        //        return reportWithChildren(node)
+        let _ = visitChildren(of: node)
     }
     
     public func visit(link node: Link)  {
-        //        return reportWithChildren(node)
+        let range = indexes.getRange(node)
+        let style = Style.from(node)
+        processedDocument.append(AttributeRange(style: style, range: range))
+        let _ = visitChildren(of: node)
     }
     
     public func visit(image node: Image)  {
-        //        return reportWithChildren(node)
+        let _ = visitChildren(of: node)
     }
     
 }
@@ -172,7 +178,7 @@ public class IndexConverter {
         return previousLineCount + Int(utf8Col)
     }
     
-    public func getRange(node: BaseNode) -> NSRange {
+    public func getRange(_ node: BaseNode) -> NSRange {
         let pointee = node.cmarkNode.pointee
         
         return getRange(
