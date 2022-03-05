@@ -43,7 +43,7 @@ fn simplify_stripe_error(
 ) -> SimplifiedStripeError {
     match error_code {
         None => {
-            Other(format!("Although a stripe error was encountered, there are no details about it. error_code: {:?}, decline_code: {:?}", error_code, maybe_decline_code))
+            Other(format!("stripe error with no details: error_code: {:?}, decline_code: {:?}", err_code, maybe_decline_code))
         },
         Some(error_code) => match error_code {
             ErrorCode::BalanceInsufficient => CardDeclined(CardDeclineReason::BalanceOrCreditExceeded),
