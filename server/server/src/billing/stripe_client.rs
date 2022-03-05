@@ -265,7 +265,7 @@ const EXPAND_INVOICE_DETAILS: &[&str] = &["subscription"];
 pub async fn retrieve_invoice(
     stripe_client: &stripe::Client, invoice_id: &stripe::InvoiceId,
 ) -> Result<stripe::Invoice, SimplifiedStripeError> {
-    info!("Getting stripe invoice. invoice_id: {}", invoice_id.as_str());
+    info!("Getting stripe invoice with id: {}", invoice_id.as_str());
 
     stripe::Invoice::retrieve(stripe_client, invoice_id, EXPAND_INVOICE_DETAILS)
         .await
