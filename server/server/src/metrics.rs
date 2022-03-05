@@ -75,8 +75,6 @@ pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<Met
         let mut total_bytes = 0;
         let mut active_users = 0;
 
-        println!("LEN: {}", public_keys_and_usernames.len());
-
         for (public_key, username) in public_keys_and_usernames {
             let mut con = server_state.index_db_pool.get().await?;
             let ids = get_owned(&mut con, &public_key).await?;
@@ -183,18 +181,9 @@ pub async fn get_metadatas_and_user_activity_state(
     let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
 
     let is_user_active = metadatas.iter().any(|metadata| {
-        // println!("metadata_version: {} content_version: {} time_two_days_ago: {} | {}",
-        //          metadata.metadata_version,
-        //          metadata.content_version,
-        //          time_two_days_ago,
-        //          metadata.metadata_version > time_two_days_ago || metadata.content_version > time_two_days_ago
-        // );
-
         metadata.metadata_version > time_two_days_ago
             || metadata.content_version > time_two_days_ago
     });
-
-    println!("IS ACTIVE: {}", is_user_active);
 
     Ok((
         metadatas.filter_not_deleted().map_err(|e| {
