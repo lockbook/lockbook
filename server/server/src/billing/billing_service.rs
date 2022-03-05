@@ -37,7 +37,7 @@ pub async fn switch_account_tier(
     let fmt_new_tier =
         if let AccountTier::Premium(_) = request.account_tier { "premium" } else { "free" };
 
-    info!("Attempting to switching the account tier of {} to {}", fmt_public_key, fmt_new_tier);
+    info!("Attempting to switch account tier of {} to {}", fmt_public_key, fmt_new_tier);
 
     let mut con = server_state.index_db_pool.get().await?;
 
