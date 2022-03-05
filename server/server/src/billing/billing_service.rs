@@ -36,7 +36,7 @@ pub async fn switch_account_tier(
     let fmt_new_tier =
         if let AccountTier::Premium(_) = request.account_tier { "premium" } else { "free" };
 
-    info!("Attempting to switching the account tier of {} to {}", fmt_public_key, fmt_new_tier);
+    info!("Attempting to switch account tier of {} to {}", fmt_public_key, fmt_new_tier);
 
     let mut con = server_state.index_db_pool.get().await?;
 
@@ -399,7 +399,7 @@ pub async fn stripe_webhooks(
                     get_public_key_and_stripe_user_info(&event, &mut con, &customer_id).await?;
 
                 info!(
-                    "A payment failed while stripe was renewing a customer's subscription. Their tier is being reduced. public_key: {}",
+                    "User tier being reduced due to failed renewal payment via stripe. public_key: {}",
                     keys::stringify_public_key(&public_key)
                 );
 
@@ -417,12 +417,7 @@ pub async fn stripe_webhooks(
                     &partial_invoice.id,
                 )
                 .await
-                .map_err(|e| {
-                    internal!(
-                        "While trying to get the expanded invoice, an error was encountered: {:?}",
-                        e
-                    )
-                })?;
+                .map_err(|e| internal!("error expanding invoice: {:?}", e))?;
 
                 let subscription_period_end = match invoice.subscription {
                     None => {
@@ -467,10 +462,7 @@ pub async fn stripe_webhooks(
             }
         }
         (_, _) => {
-            return Err(internal!(
-                "An unexpected and unhandled stripe event has been received. event: {:?}",
-                event.event_type
-            ))
+            return Err(internal!("unexpected and unhandled stripe event: {:?}", event.event_type))
         }
     }
 

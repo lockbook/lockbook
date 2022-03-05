@@ -41,17 +41,27 @@ fn simplify_stripe_error(
     error_code: Option<stripe::ErrorCode>, maybe_decline_code: Option<String>,
 ) -> SimplifiedStripeError {
     match error_code {
-        None => {
-            SimplifiedStripeError::Other(format!("Although a stripe error was encountered, there are no details about it. error_code: {:?}, decline_code: {:?}", error_code, maybe_decline_code))
-        },
+        None => SimplifiedStripeError::Other(format!(
+            "stripe error with no details: error_code: {:?}, decline_code: {:?}",
+            error_code, maybe_decline_code
+        )),
         Some(error_code) => match error_code {
             stripe::ErrorCode::BalanceInsufficient => SimplifiedStripeError::InsufficientFunds,
             stripe::ErrorCode::CardDeclined => match maybe_decline_code {
                 None => SimplifiedStripeError::CardDecline,
                 Some(decline_code) => {
-                    match serde_json::from_str::<StripeDeclineCodeCatcher>(&format!("\"{}\"", decline_code)).map_err(|e| SimplifiedStripeError::Other(format!("An error was encountered while serializing decline code: {:?}", e))) {
+                    match serde_json::from_str::<StripeDeclineCodeCatcher>(&format!(
+                        "\"{}\"",
+                        decline_code
+                    ))
+                    .map_err(|e| {
+                        SimplifiedStripeError::Other(format!(
+                            "An error was encountered while serializing decline code: {:?}",
+                            e
+                        ))
+                    }) {
                         Ok(StripeDeclineCodeCatcher::Unknown(unknown_decline_code)) => {
-                            error!("Unknown decline code given from stripe: {}", unknown_decline_code);
+                            error!("Unknown decline code from stripe: {}", unknown_decline_code);
                             SimplifiedStripeError::CardDecline
                         }
                         Ok(StripeDeclineCodeCatcher::Known(decline_code)) => match decline_code {
@@ -126,20 +136,24 @@ fn simplify_stripe_error(
                             StripeKnownDeclineCode::InvalidExpiryYear => {
                                 SimplifiedStripeError::InvalidExpYear
                             }
-                        }
+                        },
                         Err(e) => e,
                     }
                 }
-            }
+            },
             stripe::ErrorCode::ExpiredCard => SimplifiedStripeError::ExpiredCard,
             stripe::ErrorCode::InvalidCardType => SimplifiedStripeError::CardNotSupported,
-            stripe::ErrorCode::InvalidCvc | stripe::ErrorCode::IncorrectCvc => SimplifiedStripeError::InvalidCVC,
+            stripe::ErrorCode::InvalidCvc | stripe::ErrorCode::IncorrectCvc => {
+                SimplifiedStripeError::InvalidCVC
+            }
             stripe::ErrorCode::InvalidExpiryMonth => SimplifiedStripeError::InvalidExpMonth,
             stripe::ErrorCode::InvalidExpiryYear => SimplifiedStripeError::InvalidExpYear,
-            stripe::ErrorCode::InvalidNumber | stripe::ErrorCode::IncorrectNumber => SimplifiedStripeError::InvalidNumber,
+            stripe::ErrorCode::InvalidNumber | stripe::ErrorCode::IncorrectNumber => {
+                SimplifiedStripeError::InvalidNumber
+            }
             stripe::ErrorCode::ProcessingError => SimplifiedStripeError::TryAgain,
-            _ => SimplifiedStripeError::Other(format!("Unexpected error code received: {:?}", error_code))
-        }
+            _ => SimplifiedStripeError::Other(format!("Unexpected error code: {:?}", error_code)),
+        },
     }
 }
 
@@ -224,9 +238,9 @@ pub async fn create_subscription(
     match subscription_resp.status {
         stripe::SubscriptionStatus::Active => Ok(subscription_resp),
         stripe::SubscriptionStatus::Incomplete => match subscription_resp.latest_invoice.as_ref().ok_or_else(|| SimplifiedStripeError::Other(format!("There is no latest invoice for a subscription: {:?}", subscription_resp)))? {
-            stripe::Expandable::Id(id) => Err(SimplifiedStripeError::Other(format!("The latest invoice was expanded, yet returned an id: {:?}", id))),
-            stripe::Expandable::Object(invoice) => match invoice.payment_intent.as_ref().ok_or_else(|| SimplifiedStripeError::Other(format!("There is no payment intent for the latest invoice of a subscription: {:?}", subscription_resp)))? {
-                stripe::Expandable::Id(id) => Err(SimplifiedStripeError::Other(format!("The payment intent was expanded, yet returned an id: {:?}", id))),
+            stripe::Expandable::Id(id) => Err(SimplifiedStripeError::Other(format!("latest invoice was expanded yet returned an id: {:?}", id))),
+            stripe::Expandable::Object(invoice) => match invoice.payment_intent.as_ref().ok_or_else(|| SimplifiedStripeError::Other(format!("no payment intent for latest subscription: {:?}", subscription_resp)))? {
+                stripe::Expandable::Id(id) => Err(SimplifiedStripeError::Other(format!("payment intent expanded yet returned an id: {:?}", id))),
                 stripe::Expandable::Object(payment_intent) => match payment_intent.status {
                     stripe::PaymentIntentStatus::RequiresPaymentMethod => Err(SimplifiedStripeError::CardDecline),
                     stripe::PaymentIntentStatus::RequiresAction => Err(SimplifiedStripeError::Other(format!("Payment intent requires additional action to be completed. This is unimplemented. subscription_resp: {:?}", subscription_resp))),
@@ -241,7 +255,7 @@ pub async fn create_subscription(
 pub async fn detach_payment_method_from_customer(
     stripe_client: &stripe::Client, payment_method_id: &stripe::PaymentMethodId,
 ) -> Result<(), SimplifiedStripeError> {
-    info!("Detaching stripe payment method. payment_method_id: {}", payment_method_id.as_str());
+    info!("Detaching stripe payment method with id: {}", payment_method_id.as_str());
 
     stripe::PaymentMethod::detach(stripe_client, payment_method_id).await?;
     Ok(())
@@ -250,7 +264,7 @@ pub async fn detach_payment_method_from_customer(
 pub async fn cancel_subscription(
     stripe_client: &stripe::Client, subscription_id: &stripe::SubscriptionId,
 ) -> Result<(), SimplifiedStripeError> {
-    info!("Cancelling stripe subscription. subscription_id: {}", subscription_id.as_str());
+    info!("Cancelling stripe subscription with id: {}", subscription_id.as_str());
 
     stripe::Subscription::cancel(
         stripe_client,
@@ -267,7 +281,7 @@ const EXPAND_INVOICE_DETAILS: &[&str] = &["subscription"];
 pub async fn retrieve_invoice(
     stripe_client: &stripe::Client, invoice_id: &stripe::InvoiceId,
 ) -> Result<stripe::Invoice, SimplifiedStripeError> {
-    info!("Getting stripe invoice. invoice_id: {}", invoice_id.as_str());
+    info!("Getting stripe invoice with id: {}", invoice_id.as_str());
 
     stripe::Invoice::retrieve(stripe_client, invoice_id, EXPAND_INVOICE_DETAILS)
         .await
