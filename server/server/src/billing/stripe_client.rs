@@ -52,7 +52,7 @@ fn simplify_stripe_error(
                 Some(decline_code) => {
                     match serde_json::from_str::<StripeDeclineCodeCatcher>(&format!("\"{}\"", decline_code)).map_err(|e| SimplifiedStripeError::Other(format!("An error was encountered while serializing decline code: {:?}", e))) {
                         Ok(StripeDeclineCodeCatcher::Unknown(unknown_decline_code)) => {
-                            error!("Unknown decline code given from stripe: {}", unknown_decline_code);
+                            error!("Unknown decline code from stripe: {}", unknown_decline_code);
                             CardDeclined(CardDeclineReason::Generic)
                         }
                         Ok(StripeDeclineCodeCatcher::Known(decline_code)) => match decline_code {
