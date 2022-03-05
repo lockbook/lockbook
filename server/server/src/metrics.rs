@@ -2,10 +2,11 @@ use crate::keys::public_key;
 use crate::{keys, ServerError, ServerState};
 use lazy_static::lazy_static;
 use libsecp256k1::PublicKey;
+use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::FileUsage;
 use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
 use lockbook_models::tree::FileMetaExt;
-use log::error;
+use log::{error, info};
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
 use redis::{AsyncCommands, AsyncIter};
@@ -13,7 +14,7 @@ use redis_utils::converters::JsonGet;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use uuid::Uuid;
 
 make_static_metric! {
@@ -36,6 +37,12 @@ lazy_static! {
     .unwrap();
     pub static ref METRICS_STATISTICS: MetricsStatistics =
         MetricsStatistics::from(&METRICS_COUNTERS_VEC);
+    pub static ref METRICS_USAGE_BY_USER_VEC: IntGaugeVec = register_int_gauge_vec!(
+        "lockbook_metrics_usage_by_user",
+        "Lockbook's total usage by user.",
+        &["username"]
+    )
+    .unwrap();
 }
 
 #[derive(Debug)]
@@ -47,44 +54,55 @@ pub fn start_metrics_worker(server_state: &Arc<ServerState>) {
     let state_clone = server_state.clone();
 
     tokio::spawn(async move {
-        if let Err(ServerError::ClientError(e)) = start(state_clone).await {
-            error!("Metrics client error: {:?}", e) // there is expected to be none
+        info!("Started capturing metrics.");
+
+        if let Err(e) = start(state_clone).await {
+            error!("interrupting metrics loop due to error: {:?}", e)
         }
     });
 }
 
 pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<MetricsError>> {
     loop {
-        let public_keys = get_all_public_keys(&server_state).await?;
-        METRICS_STATISTICS.total_users.set(public_keys.len() as i64);
+        info!("Metrics refresh started.");
+
+        let public_keys_and_usernames = get_all_public_keys_and_usernames(&server_state).await?;
+        METRICS_STATISTICS
+            .total_users
+            .set(public_keys_and_usernames.len() as i64);
 
         let mut total_documents = 0;
         let mut total_bytes = 0;
         let mut active_users = 0;
 
-        for public_key in public_keys {
+        for (public_key, username) in public_keys_and_usernames {
             let mut con = server_state.index_db_pool.get().await?;
             let ids = get_owned(&mut con, &public_key).await?;
-            let metadatas = {
-                let metadatas_unfiltered = get_metadatas(&mut con, &ids).await?;
+            let (metadatas, is_user_active) = get_metadatas_and_user_activity_state(
+                &mut con,
+                &public_key,
+                &ids,
+                &server_state.config.metrics.time_between_redis_calls,
+            )
+            .await?;
 
-                if is_user_active(&metadatas_unfiltered).await? {
-                    active_users += 1;
-                }
+            if is_user_active {
+                active_users += 1;
+            }
 
-                metadatas_unfiltered.filter_not_deleted().map_err(|e| {
-                    internal!(
-                        "Cannot filter deleted files for public_key: {:?}, err: {:?}",
-                        public_key,
-                        e
-                    )
-                })?
-            };
-
-            let bytes = calculate_total_document_bytes(&mut con, &metadatas).await?;
+            let bytes = calculate_total_document_bytes(
+                &mut con,
+                &metadatas,
+                &server_state.config.metrics.time_between_redis_calls,
+            )
+            .await?;
 
             total_bytes += bytes;
-            total_documents += ids.len();
+            total_documents += metadatas.len();
+
+            METRICS_USAGE_BY_USER_VEC
+                .with_label_values(&[&username])
+                .set(bytes);
 
             tokio::time::sleep(server_state.config.metrics.time_between_redis_calls).await;
         }
@@ -99,9 +117,9 @@ pub async fn start(server_state: Arc<ServerState>) -> Result<(), ServerError<Met
     }
 }
 
-pub async fn get_all_public_keys(
+pub async fn get_all_public_keys_and_usernames(
     server_state: &Arc<ServerState>,
-) -> Result<Vec<PublicKey>, ServerError<MetricsError>> {
+) -> Result<Vec<(PublicKey, String)>, ServerError<MetricsError>> {
     let mut con = server_state.index_db_pool.get().await?;
 
     let mut keys_iter: AsyncIter<String> = con.scan_match(public_key("*")).await?;
@@ -113,7 +131,7 @@ pub async fn get_all_public_keys(
         tokio::time::sleep(server_state.config.metrics.time_between_redis_calls).await;
     }
 
-    let mut public_keys: Vec<PublicKey> = vec![];
+    let mut public_keys_and_usernames: Vec<(PublicKey, String)> = vec![];
 
     for key in keys {
         let public_key = con
@@ -121,11 +139,18 @@ pub async fn get_all_public_keys(
             .await?
             .ok_or_else(|| internal!("Cannot retrieve public_key for key: {:?}", key))?;
 
-        public_keys.push(public_key);
+        let mut parts = key.split(':');
+        parts.next();
+        let username = parts
+            .next()
+            .ok_or_else(|| internal!("Cannot find username in public_key key: {:?}", key))?
+            .to_string();
+
+        public_keys_and_usernames.push((public_key, username));
         tokio::time::sleep(server_state.config.metrics.time_between_redis_calls).await;
     }
 
-    Ok(public_keys)
+    Ok(public_keys_and_usernames)
 }
 
 pub async fn get_owned(
@@ -136,9 +161,10 @@ pub async fn get_owned(
         .ok_or_else(|| internal!("Cannot retrieve owned_files for public_key: {:?}", public_key))
 }
 
-pub async fn get_metadatas(
-    con: &mut deadpool_redis::Connection, ids: &[Uuid],
-) -> Result<Vec<EncryptedFileMetadata>, ServerError<MetricsError>> {
+pub async fn get_metadatas_and_user_activity_state(
+    con: &mut deadpool_redis::Connection, public_key: &PublicKey, ids: &[Uuid],
+    time_between_redis_calls: &Duration,
+) -> Result<(Vec<EncryptedFileMetadata>, bool), ServerError<MetricsError>> {
     let mut metadatas = vec![];
 
     for id in ids {
@@ -147,44 +173,43 @@ pub async fn get_metadatas(
             .await?
             .ok_or_else(|| internal!("Cannot retrieve encrypted file metadata for id: {:?}", id))?;
 
-        metadatas.push(metadata)
+        metadatas.push(metadata);
+
+        tokio::time::sleep(*time_between_redis_calls).await;
     }
 
-    Ok(metadatas)
+    let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
+
+    let is_user_active = metadatas.iter().any(|metadata| {
+        metadata.metadata_version > time_two_days_ago
+            || metadata.content_version > time_two_days_ago
+    });
+
+    Ok((
+        metadatas.filter_not_deleted().map_err(|e| {
+            internal!("Cannot filter deleted files for public_key: {:?}, err: {:?}", public_key, e)
+        })?,
+        is_user_active,
+    ))
 }
 
 pub async fn calculate_total_document_bytes(
     con: &mut deadpool_redis::Connection, metadatas: &[EncryptedFileMetadata],
+    time_between_redis_calls: &Duration,
 ) -> Result<i64, ServerError<MetricsError>> {
     let mut total_size: u64 = 0;
 
     for metadata in metadatas {
-        if metadata.file_type == FileType::Document {
-            let file_usage: FileUsage = con
-                .maybe_json_get(keys::size(metadata.id))
-                .await?
-                .ok_or_else(|| internal!("Cannot retrieve file usage for id: {:?}", metadata.id))?;
+        if metadata.file_type == FileType::Document && metadata.content_version != 0 {
+            let file_usage: FileUsage = match con.maybe_json_get(keys::size(metadata.id)).await? {
+                Some(usage) => usage,
+                None => continue,
+            };
 
-            total_size += file_usage.size_bytes
+            total_size += file_usage.size_bytes;
+            tokio::time::sleep(*time_between_redis_calls).await;
         }
     }
 
     Ok(total_size as i64)
-}
-
-pub async fn is_user_active(
-    metadatas: &[EncryptedFileMetadata],
-) -> Result<bool, ServerError<MetricsError>> {
-    let time_two_days_ago = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| internal!("{:?}", e))?
-        .as_millis()
-        - TWO_DAYS_IN_MILLIS;
-
-    let is_active = metadatas.iter().any(|metadata| {
-        metadata.metadata_version as u128 > time_two_days_ago
-            || metadata.content_version as u128 > time_two_days_ago
-    });
-
-    Ok(is_active)
 }
