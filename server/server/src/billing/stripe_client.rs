@@ -239,7 +239,7 @@ pub async fn create_subscription(
 pub async fn detach_payment_method_from_customer(
     stripe_client: &stripe::Client, payment_method_id: &stripe::PaymentMethodId,
 ) -> Result<(), SimplifiedStripeError> {
-    info!("Detaching stripe payment method. payment_method_id: {}", payment_method_id.as_str());
+    info!("Detaching stripe payment method with id: {}", payment_method_id.as_str());
 
     stripe::PaymentMethod::detach(stripe_client, payment_method_id).await?;
     Ok(())
