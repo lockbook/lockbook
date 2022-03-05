@@ -468,7 +468,7 @@ pub async fn stripe_webhooks(
         }
         (_, _) => {
             return Err(internal!(
-                "An unexpected and unhandled stripe event has been received. event: {:?}",
+                "unexpected and unhandled stripe event: {:?}",
                 event.event_type
             ))
         }
