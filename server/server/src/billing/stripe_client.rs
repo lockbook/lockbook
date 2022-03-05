@@ -1,27 +1,26 @@
-use crate::billing::stripe_client::SimplifiedStripeError::{
-    CardDeclined, InvalidCreditCard, Other,
-};
-
-use crate::{ServerState, StripeDeclineCodeCatcher, StripeKnownDeclineCode};
-use lockbook_models::api::{CardDeclineReason, CardRejectReason};
 use log::{error, info};
 use std::fmt::Debug;
-use stripe::{
-    CardDetailsParams, ErrorCode, Expandable, ParseIdError, PaymentIntentStatus, SetupIntentStatus,
-    StripeError, SubscriptionStatus,
-};
+
+use crate::{ServerState, StripeDeclineCodeCatcher, StripeKnownDeclineCode};
 
 #[derive(Debug)]
 pub enum SimplifiedStripeError {
-    CardDeclined(CardDeclineReason),
-    InvalidCreditCard(CardRejectReason),
+    CardDecline,
+    InsufficientFunds,
+    TryAgain,
+    CardNotSupported,
+    ExpiredCard,
+    InvalidNumber,
+    InvalidExpYear,
+    InvalidExpMonth,
+    InvalidCVC,
     Other(String),
 }
 
-impl From<StripeError> for SimplifiedStripeError {
-    fn from(e: StripeError) -> Self {
+impl From<stripe::StripeError> for SimplifiedStripeError {
+    fn from(e: stripe::StripeError) -> Self {
         match e {
-            StripeError::Stripe(stripe_error) => {
+            stripe::StripeError::Stripe(stripe_error) => {
                 simplify_stripe_error(stripe_error.code, stripe_error.decline_code)
             }
             _ => SimplifiedStripeError::Other(format!(
@@ -33,8 +32,8 @@ impl From<StripeError> for SimplifiedStripeError {
 }
 
 impl From<stripe::ParseIdError> for SimplifiedStripeError {
-    fn from(e: ParseIdError) -> Self {
-        Other(format!("Stripe parsing error: {:?}", e))
+    fn from(e: stripe::ParseIdError) -> Self {
+        SimplifiedStripeError::Other(format!("Stripe parsing error: {:?}", e))
     }
 }
 
@@ -43,17 +42,17 @@ fn simplify_stripe_error(
 ) -> SimplifiedStripeError {
     match error_code {
         None => {
-            Other(format!("Although a stripe error was encountered, there are no details about it. error_code: {:?}, decline_code: {:?}", error_code, maybe_decline_code))
+            SimplifiedStripeError::Other(format!("Although a stripe error was encountered, there are no details about it. error_code: {:?}, decline_code: {:?}", error_code, maybe_decline_code))
         },
         Some(error_code) => match error_code {
-            ErrorCode::BalanceInsufficient => CardDeclined(CardDeclineReason::BalanceOrCreditExceeded),
-            ErrorCode::CardDeclined => match maybe_decline_code {
-                None => CardDeclined(CardDeclineReason::Generic),
+            stripe::ErrorCode::BalanceInsufficient => SimplifiedStripeError::InsufficientFunds,
+            stripe::ErrorCode::CardDeclined => match maybe_decline_code {
+                None => SimplifiedStripeError::CardDecline,
                 Some(decline_code) => {
                     match serde_json::from_str::<StripeDeclineCodeCatcher>(&format!("\"{}\"", decline_code)).map_err(|e| SimplifiedStripeError::Other(format!("An error was encountered while serializing decline code: {:?}", e))) {
                         Ok(StripeDeclineCodeCatcher::Unknown(unknown_decline_code)) => {
                             error!("Unknown decline code given from stripe: {}", unknown_decline_code);
-                            CardDeclined(CardDeclineReason::Generic)
+                            SimplifiedStripeError::CardDecline
                         }
                         Ok(StripeDeclineCodeCatcher::Known(decline_code)) => match decline_code {
                             // Try again
@@ -62,25 +61,25 @@ fn simplify_stripe_error(
                             | StripeKnownDeclineCode::ProcessingError
                             | StripeKnownDeclineCode::ReenterTransaction
                             | StripeKnownDeclineCode::TryAgainLater => {
-                                CardDeclined(CardDeclineReason::TryAgain)
+                                SimplifiedStripeError::TryAgain
                             }
 
                             // Not supported
                             StripeKnownDeclineCode::CardNotSupported
                             | StripeKnownDeclineCode::CurrencyNotSupported => {
-                                CardDeclined(CardDeclineReason::NotSupported)
+                                SimplifiedStripeError::CardNotSupported
                             }
 
                             // Balance or credit exceeded
                             StripeKnownDeclineCode::CardVelocityExceeded
                             | StripeKnownDeclineCode::InsufficientFunds
                             | StripeKnownDeclineCode::WithdrawalCountLimitExceeded => {
-                                CardDeclined(CardDeclineReason::BalanceOrCreditExceeded)
+                                SimplifiedStripeError::InsufficientFunds
                             }
 
                             // Expired card
                             StripeKnownDeclineCode::ExpiredCard => {
-                                CardDeclined(CardDeclineReason::ExpiredCard)
+                                SimplifiedStripeError::ExpiredCard
                             }
 
                             // Generic
@@ -103,43 +102,43 @@ fn simplify_stripe_error(
                             | StripeKnownDeclineCode::NotPermitted
                             | StripeKnownDeclineCode::PickupCard
                             | StripeKnownDeclineCode::StolenCard => {
-                                CardDeclined(CardDeclineReason::Generic)
+                                SimplifiedStripeError::CardDecline
                             }
 
                             // Incorrect number
                             StripeKnownDeclineCode::IncorrectNumber
                             | StripeKnownDeclineCode::InvalidNumber => {
-                                InvalidCreditCard(CardRejectReason::Number)
+                                SimplifiedStripeError::InvalidNumber
                             }
 
                             // Incorrect cvc
                             StripeKnownDeclineCode::IncorrectCvc
                             | StripeKnownDeclineCode::InvalidCvc => {
-                                InvalidCreditCard(CardRejectReason::CVC)
+                                SimplifiedStripeError::InvalidCVC
                             }
 
                             // Incorrect expiry month
                             StripeKnownDeclineCode::InvalidExpiryMonth => {
-                                InvalidCreditCard(CardRejectReason::ExpMonth)
+                                SimplifiedStripeError::InvalidExpMonth
                             }
 
                             // Incorrect expiry year
                             StripeKnownDeclineCode::InvalidExpiryYear => {
-                                InvalidCreditCard(CardRejectReason::ExpYear)
+                                SimplifiedStripeError::InvalidExpYear
                             }
                         }
                         Err(e) => e,
                     }
                 }
             }
-            ErrorCode::ExpiredCard => CardDeclined(CardDeclineReason::ExpiredCard),
-            ErrorCode::InvalidCardType => CardDeclined(CardDeclineReason::NotSupported),
-            ErrorCode::InvalidCvc | ErrorCode::IncorrectCvc => InvalidCreditCard(CardRejectReason::CVC),
-            ErrorCode::InvalidExpiryMonth => InvalidCreditCard(CardRejectReason::ExpMonth),
-            ErrorCode::InvalidExpiryYear => InvalidCreditCard(CardRejectReason::ExpYear),
-            ErrorCode::InvalidNumber | ErrorCode::IncorrectNumber => InvalidCreditCard(CardRejectReason::Number),
-            ErrorCode::ProcessingError => CardDeclined(CardDeclineReason::TryAgain),
-            _ => Other(format!("Unexpected error code received: {:?}", error_code))
+            stripe::ErrorCode::ExpiredCard => SimplifiedStripeError::ExpiredCard,
+            stripe::ErrorCode::InvalidCardType => SimplifiedStripeError::CardNotSupported,
+            stripe::ErrorCode::InvalidCvc | stripe::ErrorCode::IncorrectCvc => SimplifiedStripeError::InvalidCVC,
+            stripe::ErrorCode::InvalidExpiryMonth => SimplifiedStripeError::InvalidExpMonth,
+            stripe::ErrorCode::InvalidExpiryYear => SimplifiedStripeError::InvalidExpYear,
+            stripe::ErrorCode::InvalidNumber | stripe::ErrorCode::IncorrectNumber => SimplifiedStripeError::InvalidNumber,
+            stripe::ErrorCode::ProcessingError => SimplifiedStripeError::TryAgain,
+            _ => SimplifiedStripeError::Other(format!("Unexpected error code received: {:?}", error_code))
         }
     }
 }
@@ -164,7 +163,7 @@ pub async fn create_payment_method(
     let mut payment_method_params = stripe::CreatePaymentMethod::new();
     payment_method_params.type_ = Some(stripe::PaymentMethodTypeFilter::Card);
     payment_method_params.card =
-        Some(stripe::CreatePaymentMethodCardUnion::CardDetailsParams(CardDetailsParams {
+        Some(stripe::CreatePaymentMethodCardUnion::CardDetailsParams(stripe::CardDetailsParams {
             cvc: Some(cvc.to_string()),
             exp_month,
             exp_year,
@@ -194,8 +193,11 @@ pub async fn create_setup_intent(
     let intent_resp = stripe::SetupIntent::create(stripe_client, setup_intent_params).await?;
 
     match intent_resp.status {
-        SetupIntentStatus::Succeeded => Ok(intent_resp),
-        _ => Err(Other(format!("Unexpected intent response status: {:?}", intent_resp.status))),
+        stripe::SetupIntentStatus::Succeeded => Ok(intent_resp),
+        _ => Err(SimplifiedStripeError::Other(format!(
+            "Unexpected intent response status: {:?}",
+            intent_resp.status
+        ))),
     }
 }
 
@@ -220,19 +222,19 @@ pub async fn create_subscription(
         stripe::Subscription::create(&server_state.stripe_client, subscription_params).await?;
 
     match subscription_resp.status {
-        SubscriptionStatus::Active => Ok(subscription_resp),
-        SubscriptionStatus::Incomplete => match subscription_resp.latest_invoice.as_ref().ok_or_else(|| Other(format!("There is no latest invoice for a subscription: {:?}", subscription_resp)))? {
-            Expandable::Id(id) => Err(Other(format!("The latest invoice was expanded, yet returned an id: {:?}", id))),
-            Expandable::Object(invoice) => match invoice.payment_intent.as_ref().ok_or_else(|| Other(format!("There is no payment intent for the latest invoice of a subscription: {:?}", subscription_resp)))? {
-                Expandable::Id(id) => Err(Other(format!("The payment intent was expanded, yet returned an id: {:?}", id))),
-                Expandable::Object(payment_intent) => match payment_intent.status {
-                    PaymentIntentStatus::RequiresPaymentMethod => Err(CardDeclined(CardDeclineReason::Generic)),
-                    PaymentIntentStatus::RequiresAction => Err(Other(format!("Payment intent requires additional action to be completed. This is unimplemented. subscription_resp: {:?}", subscription_resp))),
-                    _ => Err(Other(format!("Unexpected payment intent failure status: {:?}", subscription_resp))),
+        stripe::SubscriptionStatus::Active => Ok(subscription_resp),
+        stripe::SubscriptionStatus::Incomplete => match subscription_resp.latest_invoice.as_ref().ok_or_else(|| SimplifiedStripeError::Other(format!("There is no latest invoice for a subscription: {:?}", subscription_resp)))? {
+            stripe::Expandable::Id(id) => Err(SimplifiedStripeError::Other(format!("The latest invoice was expanded, yet returned an id: {:?}", id))),
+            stripe::Expandable::Object(invoice) => match invoice.payment_intent.as_ref().ok_or_else(|| SimplifiedStripeError::Other(format!("There is no payment intent for the latest invoice of a subscription: {:?}", subscription_resp)))? {
+                stripe::Expandable::Id(id) => Err(SimplifiedStripeError::Other(format!("The payment intent was expanded, yet returned an id: {:?}", id))),
+                stripe::Expandable::Object(payment_intent) => match payment_intent.status {
+                    stripe::PaymentIntentStatus::RequiresPaymentMethod => Err(SimplifiedStripeError::CardDecline),
+                    stripe::PaymentIntentStatus::RequiresAction => Err(SimplifiedStripeError::Other(format!("Payment intent requires additional action to be completed. This is unimplemented. subscription_resp: {:?}", subscription_resp))),
+                    _ => Err(SimplifiedStripeError::Other(format!("Unexpected payment intent failure status: {:?}", subscription_resp))),
                 }
             }
         }
-        _ => Err(Other(format!("Unexpected subscription response: {:?}", subscription_resp)))
+        _ => Err(SimplifiedStripeError::Other(format!("Unexpected subscription response: {:?}", subscription_resp)))
     }
 }
 

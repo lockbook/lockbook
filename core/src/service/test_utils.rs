@@ -337,7 +337,7 @@ pub mod test_credit_cards {
         pub const INSUFFICIENT_FUNDS: &str = "4000000000009995";
         pub const LOST_CARD: &str = "4000000000009987";
         pub const EXPIRED_CARD: &str = "4000000000000069";
-        pub const INCORRECT_CVC: &str = "4000000000000127"; // incorrect cvc for card resulting in decline
+        pub const INCORRECT_CVC: &str = "4000000000000127";
         pub const PROCESSING_ERROR: &str = "4000000000000119";
         pub const INCORRECT_NUMBER: &str = "4242424242424241";
     }
@@ -358,19 +358,9 @@ pub fn generate_monthly_account_tier(
 ) -> AccountTier {
     AccountTier::Premium(PaymentMethod::NewCard {
         number: card_number.to_string(),
-        exp_year: match maybe_exp_year {
-            None => get_next_year(),
-            Some(exp_year) => exp_year,
-        },
-        exp_month: match maybe_exp_month {
-            None => test_card_info::GENERIC_EXP_MONTH,
-            Some(exp_month) => exp_month,
-        },
-        cvc: match maybe_cvc {
-            None => test_card_info::GENERIC_CVC,
-            Some(cvc) => cvc,
-        }
-        .to_string(),
+        exp_year: maybe_exp_year.unwrap_or_else(get_next_year),
+        exp_month: maybe_exp_month.unwrap_or(test_card_info::GENERIC_EXP_MONTH),
+        cvc: maybe_cvc.unwrap_or(test_card_info::GENERIC_CVC).to_string(),
     })
 }
 

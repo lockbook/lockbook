@@ -7,7 +7,6 @@ use lockbook_models::api::{GetUsageError, SwitchAccountTierError};
 use redis::RedisError;
 use redis_utils::converters::{JsonGetError, JsonSetError};
 use std::fmt::Debug;
-use stripe::WebhookError;
 
 impl<T: Debug> From<PoolError> for ServerError<T> {
     fn from(err: PoolError) -> Self {
@@ -63,38 +62,51 @@ impl From<GetUsageHelperError> for ServerError<GetUsageError> {
 impl From<SimplifiedStripeError> for ServerError<SwitchAccountTierError> {
     fn from(e: SimplifiedStripeError) -> Self {
         match e {
-            SimplifiedStripeError::CardDeclined(decline_type) => {
-                ClientError(SwitchAccountTierError::CardDeclined(decline_type))
+            SimplifiedStripeError::CardDecline => ClientError(SwitchAccountTierError::CardDecline),
+            SimplifiedStripeError::InsufficientFunds => {
+                ClientError(SwitchAccountTierError::InsufficientFunds)
             }
-            SimplifiedStripeError::InvalidCreditCard(field) => {
-                ClientError(SwitchAccountTierError::InvalidCreditCard(field))
+            SimplifiedStripeError::TryAgain => ClientError(SwitchAccountTierError::TryAgain),
+            SimplifiedStripeError::CardNotSupported => {
+                ClientError(SwitchAccountTierError::CardNotSupported)
             }
+            SimplifiedStripeError::ExpiredCard => ClientError(SwitchAccountTierError::ExpiredCard),
+            SimplifiedStripeError::InvalidNumber => {
+                ClientError(SwitchAccountTierError::InvalidNumber)
+            }
+            SimplifiedStripeError::InvalidExpYear => {
+                ClientError(SwitchAccountTierError::InvalidExpYear)
+            }
+            SimplifiedStripeError::InvalidExpMonth => {
+                ClientError(SwitchAccountTierError::InvalidExpMonth)
+            }
+            SimplifiedStripeError::InvalidCVC => ClientError(SwitchAccountTierError::InvalidCVC),
             SimplifiedStripeError::Other(msg) => internal!("{}", msg),
         }
     }
 }
 
 impl From<stripe::WebhookError> for ServerError<StripeWebhookError> {
-    fn from(e: WebhookError) -> Self {
+    fn from(e: stripe::WebhookError) -> Self {
         match e {
-            WebhookError::BadKey => {
+            stripe::WebhookError::BadKey => {
                 internal!("Cannot verify stripe webhook request because server is using a bad signing key.")
             }
-            WebhookError::BadHeader(bad_header_err) => {
+            stripe::WebhookError::BadHeader(bad_header_err) => {
                 ClientError(StripeWebhookError::InvalidHeader(format!("{:?}", bad_header_err)))
             }
-            WebhookError::BadSignature => {
+            stripe::WebhookError::BadSignature => {
                 ClientError(StripeWebhookError::InvalidHeader("Bad signature.".to_string()))
             }
-            WebhookError::BadTimestamp(bad_timestamp_err) => {
+            stripe::WebhookError::BadTimestamp(bad_timestamp_err) => {
                 ClientError(StripeWebhookError::InvalidHeader(format!(
                     "Timestamp for webhook is too old: {}",
                     bad_timestamp_err
                 )))
             }
-            WebhookError::BadParse(bad_parse_err) => ClientError(StripeWebhookError::ParseError(
-                format!("Parsing error: {:?}", bad_parse_err),
-            )),
+            stripe::WebhookError::BadParse(bad_parse_err) => ClientError(
+                StripeWebhookError::ParseError(format!("Parsing error: {:?}", bad_parse_err)),
+            ),
         }
     }
 }

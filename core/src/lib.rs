@@ -16,10 +16,9 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use uuid::Uuid;
 
-use crate::billing_service::CreditCardLast4Digits;
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
-use lockbook_models::api::{AccountTier, CardDeclineReason, CardRejectReason};
+use lockbook_models::api::AccountTier;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
@@ -27,6 +26,7 @@ use model::errors::Error::UiError;
 pub use model::errors::{CoreError, Error, UnexpectedError};
 use service::log_service;
 
+use crate::billing_service::CreditCardLast4Digits;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::pure_functions::drawing::SupportedImageFormats;
@@ -600,9 +600,9 @@ pub enum SwitchAccountTierError {
     InvalidCardCVC,
     InvalidCardExpYear,
     InvalidCardExpMonth,
-    GenericCardDecline,
-    BalanceOrCreditExceededCardDecline,
-    TryAgain,
+    CardDecline,
+    CardHasInsufficientFunds,
+    TryCardAgain,
     CardNotSupported,
     ExpiredCard,
     ClientUpdateRequired,
@@ -615,23 +615,19 @@ pub fn switch_account_tier(
 ) -> Result<(), Error<SwitchAccountTierError>> {
     billing_service::switch_account_tier(config, new_account_tier).map_err(|e| match e {
         CoreError::OldCardDoesNotExist => UiError(SwitchAccountTierError::OldCardDoesNotExist),
-        CoreError::InvalidCreditCard(field) => match field {
-            CardRejectReason::Number => UiError(SwitchAccountTierError::InvalidCardNumber),
-            CardRejectReason::ExpYear => UiError(SwitchAccountTierError::InvalidCardExpYear),
-            CardRejectReason::ExpMonth => UiError(SwitchAccountTierError::InvalidCardExpMonth),
-            CardRejectReason::CVC => UiError(SwitchAccountTierError::InvalidCardCVC),
-        },
+        CoreError::InvalidCardNumber => UiError(SwitchAccountTierError::InvalidCardNumber),
+        CoreError::InvalidCardExpYear => UiError(SwitchAccountTierError::InvalidCardExpYear),
+        CoreError::InvalidCardExpMonth => UiError(SwitchAccountTierError::InvalidCardExpMonth),
+        CoreError::InvalidCardCVC => UiError(SwitchAccountTierError::InvalidCardCVC),
         CoreError::NewTierIsOldTier => UiError(SwitchAccountTierError::NewTierIsOldTier),
         CoreError::ServerUnreachable => UiError(SwitchAccountTierError::CouldNotReachServer),
-        CoreError::CardDecline(decline_reason) => match decline_reason {
-            CardDeclineReason::Generic => UiError(SwitchAccountTierError::GenericCardDecline),
-            CardDeclineReason::BalanceOrCreditExceeded => {
-                UiError(SwitchAccountTierError::BalanceOrCreditExceededCardDecline)
-            }
-            CardDeclineReason::TryAgain => UiError(SwitchAccountTierError::TryAgain),
-            CardDeclineReason::NotSupported => UiError(SwitchAccountTierError::CardNotSupported),
-            CardDeclineReason::ExpiredCard => UiError(SwitchAccountTierError::ExpiredCard),
-        },
+        CoreError::CardDecline => UiError(SwitchAccountTierError::CardDecline),
+        CoreError::CardHasInsufficientFunds => {
+            UiError(SwitchAccountTierError::CardHasInsufficientFunds)
+        }
+        CoreError::TryCardAgain => UiError(SwitchAccountTierError::TryCardAgain),
+        CoreError::CardNotSupported => UiError(SwitchAccountTierError::CardNotSupported),
+        CoreError::ExpiredCard => UiError(SwitchAccountTierError::ExpiredCard),
         CoreError::CurrentUsageIsMoreThanNewTier => {
             UiError(SwitchAccountTierError::CurrentUsageIsMoreThanNewTier)
         }

@@ -24,7 +24,6 @@ use std::fmt::Debug;
 use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
-use stripe::{Expandable, Object, WebhookEvent};
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
 
@@ -226,7 +225,7 @@ async fn create_subscription(
                     let customer_resp = stripe_client::create_customer(
                         &server_state.stripe_client,
                         &user_info.customer_name.to_string(),
-                        payment_method_resp.id(),
+                        payment_method_resp.id.clone(),
                     )
                     .await?;
                     let customer_id = customer_resp.id.to_string();
@@ -275,7 +274,7 @@ async fn create_subscription(
             let setup_intent_resp = stripe_client::create_setup_intent(
                 &server_state.stripe_client,
                 customer_id.clone(),
-                payment_method_resp.id(),
+                payment_method_resp.id.clone(),
             )
             .await?;
 
@@ -296,13 +295,15 @@ async fn create_subscription(
         PaymentMethod::OldCard => {
             info!("Using an old card stored on redis for public_key: {}", fmt_public_key);
 
-            match (&user_info.customer_id, user_info
+            let payment_method = user_info
                 .payment_methods
                 .iter()
-                .max_by_key(|info| info.created_at)) {
-                (Some(customer_id), Some(payment_info)) => (stripe::CustomerId::from_str(customer_id)?, payment_info.id.clone()),
-                (Some(_), None) | (None, None) => return Err(ClientError(SwitchAccountTierError::OldCardDoesNotExist)),
-                (None, Some(_)) => return Err(internal!("StripeUserInfo is in an inconsistent state. !payment_methods.is_empty() && customer_id.is_none(): {:?}", user_info))
+                .max_by_key(|info| info.created_at)
+                .ok_or(ClientError(SwitchAccountTierError::OldCardDoesNotExist))?;
+
+            match &user_info.customer_id {
+                Some(customer_id) => (stripe::CustomerId::from_str(customer_id)?, payment_method.id.clone()),
+                None => return Err(internal!("StripeUserInfo is in an inconsistent state: has payment method but no customer id: {:?}", user_info))
             }
         }
     };
@@ -344,10 +345,7 @@ pub async fn get_credit_card(
         .iter()
         .max_by_key(|info| info.created_at)
         .ok_or_else(|| {
-            internal!(
-                "No payment method on stripe user info, although there should be at least 1: {:?}",
-                user_info
-            )
+            internal!("Should have at least 1 payment method on StripeUserInfo: {:?}", user_info)
         })?;
 
     Ok(GetCreditCardResponse { credit_card_last_4_digits: payment_method.last_4.clone() })
@@ -393,8 +391,8 @@ pub async fn stripe_webhooks(
                     })?
                     .deref()
                 {
-                    Expandable::Id(id) => id.to_string(),
-                    Expandable::Object(customer) => customer.id.to_string(),
+                    stripe::Expandable::Id(id) => id.to_string(),
+                    stripe::Expandable::Object(customer) => customer.id.to_string(),
                 };
 
                 let (public_key, user_info) =
@@ -433,13 +431,15 @@ pub async fn stripe_webhooks(
                             invoice
                         ))
                     }
-                    Some(Expandable::Id(_)) => {
+                    Some(stripe::Expandable::Id(_)) => {
                         return Err(internal!(
                             "The subscription should be expanded in this invoice: {:?}",
                             invoice
                         ))
                     }
-                    Some(Expandable::Object(subscription)) => subscription.current_period_end,
+                    Some(stripe::Expandable::Object(subscription)) => {
+                        subscription.current_period_end
+                    }
                 };
 
                 let customer_id = match invoice.customer.ok_or_else(|| {
@@ -447,8 +447,8 @@ pub async fn stripe_webhooks(
                         "Cannot retrieve the customer_id.".to_string(),
                     ))
                 })? {
-                    Expandable::Id(id) => id.to_string(),
-                    Expandable::Object(customer) => customer.id.to_string(),
+                    stripe::Expandable::Id(id) => id.to_string(),
+                    stripe::Expandable::Object(customer) => customer.id.to_string(),
                 };
 
                 let (public_key, mut user_info) =
@@ -456,7 +456,7 @@ pub async fn stripe_webhooks(
                 let pos = get_active_subscription_index(&user_info.subscriptions)?;
 
                 info!(
-                    "Stripe successfully renewed a user's subscription. The user's subscription period_end is being changed. public_key: {}",
+                    "User's subscription period_end is being changed after successful renewal. public_key: {}",
                     keys::stringify_public_key(&public_key)
                 );
 
@@ -478,23 +478,24 @@ pub async fn stripe_webhooks(
 }
 
 async fn get_public_key_and_stripe_user_info(
-    event: &WebhookEvent, con: &mut Connection, customer_id: &str,
+    event: &stripe::WebhookEvent, con: &mut Connection, customer_id: &str,
 ) -> Result<(PublicKey, StripeUserInfo), ServerError<StripeWebhookError>> {
     let public_key: PublicKey = con
         .maybe_json_get(public_key_from_stripe_customer_id(customer_id))
         .await?
-        .ok_or(internal!(
-            "There is no public_key related to this customer_id: {:?}",
-            customer_id
-        ))?;
+        .ok_or_else(|| {
+            internal!("There is no public_key related to this customer_id: {:?}", customer_id)
+        })?;
 
     let user_info: StripeUserInfo = con
         .maybe_json_get(stripe_user_info(&public_key))
         .await?
-        .ok_or(internal!(
-            "Payment failed for a customer we don't have info about on redis: {:?}",
-            event
-        ))?;
+        .ok_or_else(|| {
+            internal!(
+                "Payment failed for a customer we don't have info about on redis: {:?}",
+                event
+            )
+        })?;
 
     Ok((public_key, user_info))
 }

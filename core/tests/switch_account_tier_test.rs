@@ -114,14 +114,14 @@ mod switch_account_tier_test {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         let scenarios = vec![
-            (test_credit_cards::decline::GENERIC, CardDeclineReason::Generic),
-            (test_credit_cards::decline::LOST_CARD, CardDeclineReason::Generic), // core should not be informed a card is stolen or lost
+            (test_credit_cards::decline::GENERIC, SwitchAccountTierError::CardDecline),
+            (test_credit_cards::decline::LOST_CARD, SwitchAccountTierError::CardDecline), // core should not be informed a card is stolen or lost
             (
                 test_credit_cards::decline::INSUFFICIENT_FUNDS,
-                CardDeclineReason::BalanceOrCreditExceeded,
+                SwitchAccountTierError::InsufficientFunds,
             ),
-            (test_credit_cards::decline::PROCESSING_ERROR, CardDeclineReason::TryAgain),
-            (test_credit_cards::decline::EXPIRED_CARD, CardDeclineReason::ExpiredCard),
+            (test_credit_cards::decline::PROCESSING_ERROR, SwitchAccountTierError::TryAgain),
+            (test_credit_cards::decline::EXPIRED_CARD, SwitchAccountTierError::ExpiredCard),
         ];
 
         for (card_number, expected_err) in scenarios {
@@ -133,9 +133,9 @@ mod switch_account_tier_test {
             );
 
             match result {
-                Err(ApiError::<SwitchAccountTierError>::Endpoint(
-                    SwitchAccountTierError::CardDeclined(err),
-                )) => assert_eq!(err, expected_err),
+                Err(ApiError::<SwitchAccountTierError>::Endpoint(err)) => {
+                    assert_eq!(err, expected_err)
+                }
                 other => panic!("expected {:?}, got {:?}", expected_err, other),
             }
         }
@@ -148,10 +148,28 @@ mod switch_account_tier_test {
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
         let scenarios = vec![
-            (test_credit_cards::INVALID_NUMBER, None, None, None, CardRejectReason::Number),
-            (test_credit_cards::GOOD, Some(1970), None, None, CardRejectReason::ExpYear),
-            (test_credit_cards::GOOD, None, Some(14), None, CardRejectReason::ExpMonth),
-            (test_credit_cards::GOOD, None, None, Some("11"), CardRejectReason::CVC),
+            (
+                test_credit_cards::INVALID_NUMBER,
+                None,
+                None,
+                None,
+                SwitchAccountTierError::InvalidNumber,
+            ),
+            (
+                test_credit_cards::GOOD,
+                Some(1970),
+                None,
+                None,
+                SwitchAccountTierError::InvalidExpYear,
+            ),
+            (
+                test_credit_cards::GOOD,
+                None,
+                Some(14),
+                None,
+                SwitchAccountTierError::InvalidExpMonth,
+            ),
+            (test_credit_cards::GOOD, None, None, Some("11"), SwitchAccountTierError::InvalidCVC),
         ];
 
         for (card_number, maybe_exp_year, maybe_exp_month, maybe_cvc, expected_err) in scenarios {
@@ -168,9 +186,9 @@ mod switch_account_tier_test {
             );
 
             match result {
-                Err(ApiError::<SwitchAccountTierError>::Endpoint(
-                    SwitchAccountTierError::InvalidCreditCard(err),
-                )) => assert_eq!(err, expected_err),
+                Err(ApiError::<SwitchAccountTierError>::Endpoint(err)) => {
+                    assert_eq!(err, expected_err)
+                }
                 other => panic!("expected {:?}, got {:?}", expected_err, other),
             }
         }

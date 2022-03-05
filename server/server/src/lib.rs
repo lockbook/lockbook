@@ -3,18 +3,18 @@ extern crate log;
 use std::env;
 use std::fmt::Debug;
 
-use crate::billing::stripe_client::SimplifiedStripeError;
-use crate::ServerError::ClientError;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_crypto::{clock_service, pubkey};
 use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper};
+use serde::{Deserialize, Serialize};
 
 use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_service::StripeWebhookError;
+use crate::billing::stripe_client::SimplifiedStripeError;
 use crate::billing::stripe_model::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
 use crate::content::file_content_client;
-use serde::{Deserialize, Serialize};
+use crate::ServerError::ClientError;
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 

@@ -306,28 +306,18 @@ pub struct SwitchAccountTierRequest {
 pub struct SwitchAccountTierResponse {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum CardRejectReason {
-    Number,
-    ExpYear,
-    ExpMonth,
-    CVC,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum CardDeclineReason {
-    Generic,
-    BalanceOrCreditExceeded,
-    TryAgain,
-    NotSupported,
-    ExpiredCard,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum SwitchAccountTierError {
     OldCardDoesNotExist,
     NewTierIsOldTier,
-    CardDeclined(CardDeclineReason),
-    InvalidCreditCard(CardRejectReason),
+    CardDecline,
+    InsufficientFunds,
+    TryAgain,
+    CardNotSupported,
+    ExpiredCard,
+    InvalidNumber,
+    InvalidExpYear,
+    InvalidExpMonth,
+    InvalidCVC,
     CurrentUsageIsMoreThanNewTier,
     ConcurrentRequestsAreTooSoon,
     UserNotFound,
