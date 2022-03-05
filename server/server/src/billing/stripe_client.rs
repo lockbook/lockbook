@@ -224,7 +224,7 @@ pub async fn create_subscription(
         SubscriptionStatus::Incomplete => match subscription_resp.latest_invoice.as_ref().ok_or_else(|| Other(format!("There is no latest invoice for a subscription: {:?}", subscription_resp)))? {
             Expandable::Id(id) => Err(Other(format!("The latest invoice was expanded, yet returned an id: {:?}", id))),
             Expandable::Object(invoice) => match invoice.payment_intent.as_ref().ok_or_else(|| Other(format!("There is no payment intent for the latest invoice of a subscription: {:?}", subscription_resp)))? {
-                Expandable::Id(id) => Err(Other(format!("The payment intent was expanded, yet returned an id: {:?}", id))),
+                Expandable::Id(id) => Err(Other(format!("payment intent expanded yet returned an id: {:?}", id))),
                 Expandable::Object(payment_intent) => match payment_intent.status {
                     PaymentIntentStatus::RequiresPaymentMethod => Err(CardDeclined(CardDeclineReason::Generic)),
                     PaymentIntentStatus::RequiresAction => Err(Other(format!("Payment intent requires additional action to be completed. This is unimplemented. subscription_resp: {:?}", subscription_resp))),
