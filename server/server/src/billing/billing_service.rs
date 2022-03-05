@@ -401,7 +401,7 @@ pub async fn stripe_webhooks(
                     get_public_key_and_stripe_user_info(&event, &mut con, &customer_id).await?;
 
                 info!(
-                    "A payment failed while stripe was renewing a customer's subscription. Their tier is being reduced. public_key: {}",
+                    "User tier being reduced due to failed renewal payment via stripe. public_key: {}",
                     keys::stringify_public_key(&public_key)
                 );
 
