@@ -139,7 +139,7 @@ fn simplify_stripe_error(
             ErrorCode::InvalidExpiryYear => InvalidCreditCard(CardRejectReason::ExpYear),
             ErrorCode::InvalidNumber | ErrorCode::IncorrectNumber => InvalidCreditCard(CardRejectReason::Number),
             ErrorCode::ProcessingError => CardDeclined(CardDeclineReason::TryAgain),
-            _ => Other(format!("Unexpected error code received: {:?}", error_code))
+            _ => Other(format!("Unexpected error code: {:?}", error_code))
         }
     }
 }
