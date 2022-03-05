@@ -421,7 +421,7 @@ pub async fn stripe_webhooks(
                 .await
                 .map_err(|e| {
                     internal!(
-                        "While trying to get the expanded invoice, an error was encountered: {:?}",
+                        "error expanding invoice: {:?}",
                         e
                     )
                 })?;
