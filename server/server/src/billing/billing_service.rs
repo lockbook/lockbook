@@ -302,7 +302,7 @@ async fn create_subscription(
                 .max_by_key(|info| info.created_at)) {
                 (Some(customer_id), Some(payment_info)) => (stripe::CustomerId::from_str(customer_id)?, payment_info.id.clone()),
                 (Some(_), None) | (None, None) => return Err(ClientError(SwitchAccountTierError::OldCardDoesNotExist)),
-                (None, Some(_)) => return Err(internal!("StripeUserInfo is in an inconsistent state. !payment_methods.is_empty() && customer_id.is_none(): {:?}", user_info))
+                (None, Some(_)) => return Err(internal!("StripeUserInfo is in an inconsistent state: has payment method but no customer id: {:?}", user_info))
             }
         }
     };
