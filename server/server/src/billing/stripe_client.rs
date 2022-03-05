@@ -248,7 +248,7 @@ pub async fn detach_payment_method_from_customer(
 pub async fn cancel_subscription(
     stripe_client: &stripe::Client, subscription_id: &stripe::SubscriptionId,
 ) -> Result<(), SimplifiedStripeError> {
-    info!("Cancelling stripe subscription. subscription_id: {}", subscription_id.as_str());
+    info!("Cancelling stripe subscription with id: {}", subscription_id.as_str());
 
     stripe::Subscription::cancel(
         stripe_client,
