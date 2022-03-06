@@ -9,10 +9,12 @@ public class Parser: Visitor {
     public var indexes: IndexConverter
     public var processedDocument: [AttributeRange] = []
     var currentParent: AttributeRange?
+    let input: NSString
 
     public init(_ input: String) {
         self.indexes = IndexConverter(input)
         let document = (try? Down(markdownString: input).toDocument())!
+        self.input = input as NSString
         self.visit(document: document)
     }
 
@@ -24,7 +26,12 @@ public class Parser: Visitor {
     }
 
     public func visit(blockQuote node: BlockQuote)  {
+        let oldParent = self.currentParent
+        let newParent = BlockQuoteAR(indexes, node, currentParent!)
+        self.currentParent = newParent
+        processedDocument.append(newParent)
         let _ = visitChildren(of: node)
+        self.currentParent = oldParent
     }
 
     public func visit(list node: List)  {
@@ -32,7 +39,12 @@ public class Parser: Visitor {
     }
 
     public func visit(item node: Item)  {
+        let oldParent = self.currentParent
+        let newParent = ItemAR(indexes, node, currentParent!)
+        self.currentParent = newParent
+        processedDocument.append(newParent)
         let _ = visitChildren(of: node)
+        self.currentParent = oldParent
     }
 
     public func visit(codeBlock node: CodeBlock)  {
@@ -53,7 +65,25 @@ public class Parser: Visitor {
     }
 
     public func visit(paragraph node: Paragraph)  {
+        let oldParent = self.currentParent
+        var newParent: ParagraphAR
+        if let itemParent = oldParent as? ItemAR {
+            let itemDefinition = indexes.getRange(
+                startCol: 1,
+                endCol: node.cmarkNode.pointee.start_column - 1,
+                startLine: node.cmarkNode.pointee.start_line,
+                endLine: node.cmarkNode.pointee.start_line
+            )
+            
+            newParent = ParagraphAR(indexes, node, itemParent, self.input.substring(with: itemDefinition) as NSString)
+        } else {
+            newParent = ParagraphAR(indexes, node, currentParent!)
+        }
+
+        self.currentParent = newParent
+        processedDocument.append(newParent)
         let _ = visitChildren(of: node)
+        self.currentParent = oldParent
     }
 
     public func visit(heading node: Heading)  {
@@ -99,84 +129,35 @@ public class Parser: Visitor {
     }
 
     public func visit(emphasis node: Emphasis)  {
+        let oldParent = self.currentParent
+        let newParent = EmphasisAR(indexes, node, currentParent!)
+        self.currentParent = newParent
+        processedDocument.append(newParent)
         let _ = visitChildren(of: node)
+        self.currentParent = oldParent
+        
     }
 
     public func visit(strong node: Strong)  {
+        let oldParent = self.currentParent
+        let newParent = StrongAR(indexes, node, currentParent!)
+        self.currentParent = newParent
+        processedDocument.append(newParent)
         let _ = visitChildren(of: node)
+        self.currentParent = oldParent
     }
 
     public func visit(link node: Link)  {
+        let oldParent = self.currentParent
+        let newParent = LinkAR(indexes, node, currentParent!)
+        self.currentParent = newParent
+        processedDocument.append(newParent)
         let _ = visitChildren(of: node)
+        self.currentParent = oldParent
     }
 
     public func visit(image node: Image)  {
         let _ = visitChildren(of: node)
     }
 
-}
-
-public class IndexConverter {
-    
-    private let string: String
-    
-    /// string.count of each line
-    public var columnLookup: [Int] = []
-    
-    init(_ string: String) {
-        self.string = string
-        print("size: \((string as NSString).length)")
-
-        let counts = string
-            .components(separatedBy: .newlines)
-            .map { $0.utf8.count }
-        
-        self.columnLookup.reserveCapacity(counts.count)
-        
-        var sum = 0
-        for count in counts {
-            sum += count
-            self.columnLookup.append(sum)
-        }
-        print(columnLookup)
-    }
-    
-    public func getUTF8Index(utf8Row: Int32, utf8Col: Int32) -> Int {
-        var previousLineCount = 0
-        if utf8Row >= 1 {
-            let previousLineIndex = Int(utf8Row - 1)
-            previousLineCount += columnLookup[previousLineIndex]
-            previousLineCount += Int(utf8Row) // How many newline chars until this point
-        }
-        
-        return previousLineCount + Int(utf8Col)
-    }
-    
-    public func getRange(_ node: Node) -> NSRange {
-        let pointee = node.cmarkNode.pointee
-        
-        return getRange(
-            startCol: pointee.start_column,
-            endCol: pointee.end_column,
-            startLine: pointee.start_line,
-            endLine: pointee.end_line
-        )
-    }
-    
-    public func getRange(startCol: Int32, endCol: Int32, startLine: Int32, endLine: Int32) -> NSRange {
-        if string.isEmpty && startCol == 1 && endCol == 0 && startLine == 1 && endLine == 0 {
-            return NSRange(location: 0, length: 0)
-        }
-        let startUTF8 = getUTF8Index(utf8Row: startLine-1, utf8Col: startCol-1)
-        let offset = getUTF8Index(utf8Row: endLine-1, utf8Col: endCol-1) - startUTF8
-        
-        let start = string.utf8.index(string.startIndex, offsetBy: startUTF8)
-        let end = string.utf8.index(start, offsetBy: offset)
-        
-            return NSRange(start...end, in: string)
-    }
-    
-    public func wholeDocument() -> NSRange {
-        NSRange(location: 0, length: string.utf16.count)
-    }
 }

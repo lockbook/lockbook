@@ -12,6 +12,7 @@ public protocol AttributeRange {
     var bold: Bool { get }
     var link: String? { get }
     var monospace: Bool { get }
+    var indentation: Float { get }
 }
 
 extension AttributeRange {
@@ -36,6 +37,14 @@ extension AttributeRange {
                 .withSymbolicTraits(fontAttrs),
             size: CGFloat(textSize)
         )!
+        
+        if indentation != 0 {
+            let paraStyle = NSMutableParagraphStyle()
+            paraStyle.firstLineHeadIndent = 7
+            paraStyle.headIndent = CGFloat(indentation + 7)
+            
+            attrs[.paragraphStyle] = paraStyle
+        }
         
         return attrs
     }
@@ -68,6 +77,8 @@ class BaseAR: AttributeRange {
     var link: String? { self.parent!.link }
     
     var monospace: Bool { self.parent!.monospace }
+    
+    var indentation: Float { self.parent!.indentation }
 }
 
 class DocumentAR: BaseAR {
@@ -87,6 +98,8 @@ class DocumentAR: BaseAR {
     override var link: String? { .none }
     
     override var monospace: Bool { false }
+    
+    override var indentation: Float { 0 }
 }
 
 class HeadingAR: BaseAR {
@@ -98,10 +111,11 @@ class HeadingAR: BaseAR {
     }
     
     override var textSize: Int { 26 - ((headingLevel - 1) * 2) }
-    override var bold: Bool { true }
+    override var bold: Bool { headingLevel == 1 }
 }
 
 class InlineCodeAR: BaseAR {
+    override var foreground: NSColor { NSColor.systemPink }
     override var monospace: Bool { true }
 }
 
@@ -109,6 +123,58 @@ class CodeBlockAR: BaseAR {
     override var monospace: Bool { true }
     override var background: NSColor { NSColor.labelColor }
     override var foreground: NSColor { NSColor.windowBackgroundColor }
+}
+
+class BlockQuoteAR: BaseAR {
+    override var italics: Bool { true }
+    override var foreground: NSColor { NSColor.secondaryLabelColor }
+}
+
+class StrongAR: BaseAR {
+    override var bold: Bool { true }
+}
+
+class EmphasisAR: BaseAR {
+    override var italics: Bool { true }
+}
+
+class LinkAR: BaseAR {
+    private let destination: String?
+    
+    init(_ indexer: IndexConverter, _ node: Link, _ parent: AttributeRange?) {
+        self.destination = node.url
+        super.init(indexer, node, parent)
+    }
+    
+    override var link: String? { destination }
+}
+
+class ItemAR: BaseAR {
+    override var foreground: NSColor { NSColor.secondaryLabelColor }
+}
+
+class ParagraphAR: BaseAR {
+    private var offset: Float = 0
+    
+    init(_ indexer: IndexConverter, _ node: Paragraph, _ parent: AttributeRange?) {
+        super.init(indexer, node, parent)
+    }
+    
+    init(_ indexer: IndexConverter, _ node: Paragraph, _ parent: ItemAR, _ startOfLine: NSString) {
+        super.init(indexer, node, parent)
+        // TODO maybe not what we actually want to do. Basically it seems that paragraph styles need
+        // to apply to the first character to be taken seriously, this is a workaround for now
+        self.range = indexer.getRange(
+            startCol: 1,
+            endCol: node.cmarkNode.pointee.end_column,
+            startLine: node.cmarkNode.pointee.start_line,
+            endLine: node.cmarkNode.pointee.end_line
+        )
+        self.offset = Float(startOfLine.size(withAttributes: parent.finalizeAttributes()).width)
+        print(self.offset)
+    }
+    
+    override var indentation: Float { offset }
 }
 
 enum Style {

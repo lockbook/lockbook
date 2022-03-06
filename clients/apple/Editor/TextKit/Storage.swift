@@ -37,6 +37,8 @@ public class Storage: NSTextStorage {
 
         let parsed = Parser(backingStore.string)
         print("\(startingPoint.timeIntervalSinceNow * -1) seconds elapsed")
+        
+        print(DebugVisitor().visit(document: (try? Down(markdownString: backingStore.string).toDocument())!))
 
 //        backingStore.addAttributes(base.style, range: base.range)
         for modification in parsed.processedDocument {
