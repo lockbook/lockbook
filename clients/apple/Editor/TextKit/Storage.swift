@@ -25,6 +25,7 @@ public class Storage: NSTextStorage {
     
     public override func replaceCharacters(in range: NSRange, with string: String) {
         backingStore.replaceCharacters(in: range, with: string)
+        
         myEditedRange = range
         myChangeInLength = string.utf16.count - range.length
         self.edited(.editedCharacters, range: range, changeInLength: myChangeInLength)
@@ -32,23 +33,27 @@ public class Storage: NSTextStorage {
     
     public func syntaxHighlight() {
         beginEditing()
+        let startingPoint = Date()
+
         let parsed = Parser(backingStore.string)
+        print("\(startingPoint.timeIntervalSinceNow * -1) seconds elapsed")
+
 //        backingStore.addAttributes(base.style, range: base.range)
         for modification in parsed.processedDocument {
-            backingStore.addAttributes(modification.style.attributes(), range: modification.range)
+            backingStore.addAttributes(modification.finalizeAttributes(), range: modification.range)
             self.edited(.editedAttributes, range: modification.range, changeInLength: 0)
         }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2)) {
-            for modification in parsed.processedDocument {
-                if modification.style == .Code {
-                    let processed = modification.style.attributes()
-                    for (attribute, _) in processed {
-                        self.removeAttribute(attribute, range: modification.range)
-                    }
-                }
-            }
-        }
+
+//        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2)) {
+//            for modification in parsed.processedDocument {
+//                if modification.style == .Code {
+//                    let processed = modification.style.attributes()
+//                    for (attribute, _) in processed {
+//                        self.removeAttribute(attribute, range: modification.range)
+//                    }
+//                }
+//            }
+//        }
         
 //        self.edited(.editedAttributes, range: base.range, changeInLength: 0)
         

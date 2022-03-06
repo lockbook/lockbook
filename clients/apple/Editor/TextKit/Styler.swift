@@ -2,96 +2,98 @@ import Foundation
 import Down
 import AppKit
 
-class Styler {
+public protocol AttributeRange {
+    var range: NSRange { get }
+    var parent: AttributeRange { get }
+    var textSize: Int { get }
+    var foreground: NSColor { get }
+    var background: NSColor { get }
+    var italics: Bool { get }
+    var bold: Bool { get }
+    var link: String? { get }
+    var monospace: Bool { get }
+}
+
+extension AttributeRange {
     
-    static let body: [NSAttributedString.Key : Any] =
-    [
-        .foregroundColor : NSColor.labelColor,
-        .font :  NSFont.systemFont(ofSize: baseFontSize),
-    ]
+    var textSize: Int { self.parent.textSize }
     
-    static let heading1: [NSAttributedString.Key : Any] =
-    [
-        .foregroundColor : headingColor,
-        .font : NSFont(descriptor: NSFont.systemFont(ofSize: 30).fontDescriptor.withSymbolicTraits([.bold]), size: 30)!,
-    ]
+    var foreground: NSColor { self.parent.foreground }
     
-    static let heading2: [NSAttributedString.Key : Any] =
-    [
-        .foregroundColor : headingColor,
-        .font : NSFont(descriptor: NSFont.systemFont(ofSize: 20).fontDescriptor.withSymbolicTraits([]), size: 20)!,
-    ]
+    var background: NSColor { self.parent.background }
     
-    static let heading3: [NSAttributedString.Key : Any] =
-    [
-        .foregroundColor : headingColor,
-        .font : NSFont(descriptor: NSFont.systemFont(ofSize: 18).fontDescriptor.withSymbolicTraits([]), size: 18)!,
-    ]
+    var italics: Bool { self.parent.italics }
     
-    static let heading4: [NSAttributedString.Key : Any] =
-    [
-        .foregroundColor : headingColor,
-        .font : NSFont(descriptor: NSFont.systemFont(ofSize: 16).fontDescriptor.withSymbolicTraits([]), size: 16)!,
-    ]
+    var bold: Bool { self.parent.bold }
     
-    static let heading5: [NSAttributedString.Key : Any] =
-    [
-        .foregroundColor : headingColor,
-        .font : NSFont(descriptor: NSFont.systemFont(ofSize: 15).fontDescriptor.withSymbolicTraits([]), size: 15)!,
-    ]
+    var link: String? { self.parent.link }
     
-    static let heading6: [NSAttributedString.Key : Any] =
-    [
-        .foregroundColor : headingColor,
-        .font : NSFont(descriptor: NSFont.systemFont(ofSize: 14).fontDescriptor.withSymbolicTraits([]), size: 14)!,
-    ]
+    var monospace: Bool { self.parent.monospace }
     
-    static let code: [NSAttributedString.Key : Any] =
-    [
-        .foregroundColor : NSColor.systemPink,
-        .font : NSFont.monospacedSystemFont(ofSize: baseFontSize, weight: .regular),
-    ]
-    
-    static let codeBlock: [NSAttributedString.Key : Any] =
-    [
-        .foregroundColor : NSColor.windowBackgroundColor,
-        .backgroundColor : NSColor.labelColor,
-        .font : NSFont.monospacedSystemFont(ofSize: baseFontSize, weight: .regular),
-    ]
-    
-    static let link: [NSAttributedString.Key : Any] =
-    [
-        .foregroundColor : NSColor.linkColor,
-        .link : "https://lockbook.net",
-    ]
-    
-    static let headingColor = NSColor.labelColor
-    static let baseFontSize = CGFloat(13)
-    
-    static func style(_ style: Style) -> [NSAttributedString.Key : Any] {
-        switch style {
-        case .Base:
-            return body
-        case .Heading1:
-            return heading1
-        case .Heading2:
-            return heading2
-        case .Heading3:
-            return heading3
-        case .Heading4:
-            return heading4
-        case .Heading5:
-            return heading5
-        case .Heading6:
-            return heading6
-        case .Code:
-            return code
-        case .CodeBlock:
-            return codeBlock
-        case .Link:
-            return link
+    public func finalizeAttributes() -> [NSAttributedString.Key : Any] {
+        var attrs: [NSAttributedString.Key : Any] = [
+            .foregroundColor : self.foreground,
+            .backgroundColor : self.background,
+        ]
+        
+        if let l = link {
+            attrs[.link] = l
         }
+        
+        var fontAttrs: NSFontDescriptor.SymbolicTraits = []
+        if monospace { fontAttrs.insert(.monoSpace) }
+        if bold { fontAttrs.insert(.bold) }
+        if italics { fontAttrs.insert(.italic) }
+        
+        attrs[.font] = NSFont(
+            descriptor: NSFont.systemFont(ofSize: CGFloat(textSize))
+                .fontDescriptor
+                .withSymbolicTraits(fontAttrs),
+            size: CGFloat(textSize)
+        )!
+        
+        return attrs
     }
+}
+
+// warning: if you miss a property below, the default extension will use parent,
+// which is self, which will inf loop. Don't fuck up.
+class DocumentAR: AttributeRange {
+    
+    var range: NSRange
+    
+    init(_ range: NSRange) { self.range = range }
+    
+    var parent: AttributeRange { self }
+    
+    var textSize: Int { 13 }
+    
+    var foreground: NSColor { NSColor.labelColor }
+    
+    var background: NSColor { NSColor.clear }
+    
+    var italics: Bool { false }
+    
+    var bold: Bool { false }
+    
+    var link: String? { .none }
+    
+    var monospace: Bool { false }
+}
+
+class HeadingAR: AttributeRange {
+    
+    var range: NSRange
+    var parent: AttributeRange
+    
+    // TODO handle ranges
+    init(_ range: NSRange, _ parent: AttributeRange) {
+        self.range = range
+        self.parent = parent
+    }
+    
+    var textSize: Int { 26 }
+    var bold: Bool { true }
 }
 
 enum Style {
@@ -133,10 +135,6 @@ extension Style {
     
     static func from(_ code: Link) -> Style {
         .Link
-    }
-    
-    func attributes() -> [NSAttributedString.Key : Any] {
-        Styler.style(self)
     }
 }
 
