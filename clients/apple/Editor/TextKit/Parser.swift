@@ -36,7 +36,12 @@ public class Parser: Visitor {
     }
 
     public func visit(codeBlock node: CodeBlock)  {
+        let oldParent = self.currentParent
+        let newParent = CodeBlockAR(indexes, node, currentParent!)
+        self.currentParent = newParent
+        processedDocument.append(newParent)
         let _ = visitChildren(of: node)
+        self.currentParent = oldParent
     }
 
     public func visit(htmlBlock node: HtmlBlock)  {
@@ -52,10 +57,12 @@ public class Parser: Visitor {
     }
 
     public func visit(heading node: Heading)  {
-        let newParent = HeadingAR(indexes.getRange(node), currentParent!)
+        let oldParent = self.currentParent
+        let newParent = HeadingAR(indexes, node, currentParent!)
         self.currentParent = newParent
         processedDocument.append(newParent)
         let _ = visitChildren(of: node)
+        self.currentParent = oldParent
     }
 
     public func visit(thematicBreak node: ThematicBreak)  {
@@ -75,7 +82,12 @@ public class Parser: Visitor {
     }
 
     public func visit(code node: Code)  {
+        let oldParent = self.currentParent
+        let newParent = InlineCodeAR(indexes, node, currentParent!)
+        self.currentParent = newParent
+        processedDocument.append(newParent)
         let _ = visitChildren(of: node)
+        self.currentParent = oldParent
     }
 
     public func visit(htmlInline node: HtmlInline)  {
@@ -140,7 +152,7 @@ public class IndexConverter {
         return previousLineCount + Int(utf8Col)
     }
     
-    public func getRange(_ node: BaseNode) -> NSRange {
+    public func getRange(_ node: Node) -> NSRange {
         let pointee = node.cmarkNode.pointee
         
         return getRange(

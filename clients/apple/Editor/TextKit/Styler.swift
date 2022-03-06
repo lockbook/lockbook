@@ -4,7 +4,7 @@ import AppKit
 
 public protocol AttributeRange {
     var range: NSRange { get }
-    var parent: AttributeRange { get }
+    var parent: AttributeRange? { get }
     var textSize: Int { get }
     var foreground: NSColor { get }
     var background: NSColor { get }
@@ -15,21 +15,6 @@ public protocol AttributeRange {
 }
 
 extension AttributeRange {
-    
-    var textSize: Int { self.parent.textSize }
-    
-    var foreground: NSColor { self.parent.foreground }
-    
-    var background: NSColor { self.parent.background }
-    
-    var italics: Bool { self.parent.italics }
-    
-    var bold: Bool { self.parent.bold }
-    
-    var link: String? { self.parent.link }
-    
-    var monospace: Bool { self.parent.monospace }
-    
     public func finalizeAttributes() -> [NSAttributedString.Key : Any] {
         var attrs: [NSAttributedString.Key : Any] = [
             .foregroundColor : self.foreground,
@@ -56,44 +41,74 @@ extension AttributeRange {
     }
 }
 
-// warning: if you miss a property below, the default extension will use parent,
-// which is self, which will inf loop. Don't fuck up.
-class DocumentAR: AttributeRange {
-    
+class BaseAR: AttributeRange {
     var range: NSRange
+    var parent: AttributeRange?
     
-    init(_ range: NSRange) { self.range = range }
-    
-    var parent: AttributeRange { self }
-    
-    var textSize: Int { 13 }
-    
-    var foreground: NSColor { NSColor.labelColor }
-    
-    var background: NSColor { NSColor.clear }
-    
-    var italics: Bool { false }
-    
-    var bold: Bool { false }
-    
-    var link: String? { .none }
-    
-    var monospace: Bool { false }
-}
-
-class HeadingAR: AttributeRange {
-    
-    var range: NSRange
-    var parent: AttributeRange
-    
-    // TODO handle ranges
-    init(_ range: NSRange, _ parent: AttributeRange) {
+    init(_ range: NSRange, _ parent: AttributeRange?) {
         self.range = range
         self.parent = parent
     }
     
-    var textSize: Int { 26 }
-    var bold: Bool { true }
+    init(_ indexer: IndexConverter, _ node: Node, _ parent: AttributeRange?) {
+        self.range = indexer.getRange(node)
+        self.parent = parent
+    }
+        
+    var textSize: Int { self.parent!.textSize }
+    
+    var foreground: NSColor { self.parent!.foreground }
+    
+    var background: NSColor { self.parent!.background }
+    
+    var italics: Bool { self.parent!.italics }
+    
+    var bold: Bool { self.parent!.bold }
+    
+    var link: String? { self.parent!.link }
+    
+    var monospace: Bool { self.parent!.monospace }
+}
+
+class DocumentAR: BaseAR {
+    
+    init(_ range: NSRange) { super.init(range, .none) }
+        
+    override var textSize: Int { 13 }
+    
+    override var foreground: NSColor { NSColor.labelColor }
+    
+    override var background: NSColor { NSColor.clear }
+    
+    override var italics: Bool { false }
+    
+    override var bold: Bool { false }
+    
+    override var link: String? { .none }
+    
+    override var monospace: Bool { false }
+}
+
+class HeadingAR: BaseAR {
+    private let headingLevel: Int
+    
+    init(_ indexer: IndexConverter, _ node: Heading, _ parent: AttributeRange?) {
+        self.headingLevel = node.headingLevel
+        super.init(indexer, node, parent)
+    }
+    
+    override var textSize: Int { 26 - ((headingLevel - 1) * 2) }
+    override var bold: Bool { true }
+}
+
+class InlineCodeAR: BaseAR {
+    override var monospace: Bool { true }
+}
+
+class CodeBlockAR: BaseAR {
+    override var monospace: Bool { true }
+    override var background: NSColor { NSColor.labelColor }
+    override var foreground: NSColor { NSColor.windowBackgroundColor }
 }
 
 enum Style {

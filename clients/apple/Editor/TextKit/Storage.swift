@@ -40,8 +40,8 @@ public class Storage: NSTextStorage {
 
 //        backingStore.addAttributes(base.style, range: base.range)
         for modification in parsed.processedDocument {
-            backingStore.addAttributes(modification.finalizeAttributes(), range: modification.range)
-            self.edited(.editedAttributes, range: modification.range, changeInLength: 0)
+            setAttributes(modification.finalizeAttributes(), range: modification.range)
+//            self.edited(.editedAttributes, range: modification.range, changeInLength: 0)
         }
 
 //        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2)) {
