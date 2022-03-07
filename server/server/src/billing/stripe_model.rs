@@ -11,6 +11,7 @@ pub enum StripeDeclineCodeCatcher {
     Unknown(String),
 }
 
+// Decline codes for api version 2020-08-27
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StripeKnownDeclineCode {
