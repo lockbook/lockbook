@@ -4,21 +4,22 @@ mod get_credit_card_test {
     use lockbook_core::service::api_service;
     use lockbook_core::service::api_service::ApiError;
     use lockbook_core::service::test_utils::{
-        generate_account, generate_monthly_account_tier, generate_root_metadata, test_credit_cards,
+        generate_account, generate_premium_account_tier, generate_root_metadata, test_credit_cards,
     };
     use lockbook_models::api::*;
 
     #[test]
     fn get_credit_card() {
+        // create_account
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
-
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
+        // switch account tier to premium
         api_service::request(
             &account,
             SwitchAccountTierRequest {
-                account_tier: generate_monthly_account_tier(
+                account_tier: generate_premium_account_tier(
                     test_credit_cards::GOOD,
                     None,
                     None,
@@ -28,6 +29,7 @@ mod get_credit_card_test {
         )
         .unwrap();
 
+        // get the last 4 digits of the most recently added card
         let result = api_service::request(&account, GetCreditCardRequest {})
             .unwrap()
             .credit_card_last_4_digits;
@@ -37,11 +39,12 @@ mod get_credit_card_test {
 
     #[test]
     fn not_a_stripe_customer() {
+        // new account
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
-
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
+        // attempt to get the last 4 digits of the most recently added card
         let result = api_service::request(&account, GetCreditCardRequest {});
 
         assert_matches!(

@@ -3,7 +3,7 @@ mod switch_account_tier_test {
     use lockbook_core::assert_matches;
     use lockbook_core::service::api_service::ApiError;
     use lockbook_core::service::test_utils::{
-        generate_account, generate_monthly_account_tier, generate_root_metadata, test_credit_cards,
+        generate_account, generate_premium_account_tier, generate_root_metadata, test_credit_cards,
     };
     use lockbook_core::service::{api_service, test_utils};
     use lockbook_models::api::*;
@@ -12,15 +12,16 @@ mod switch_account_tier_test {
 
     #[test]
     fn switch_to_premium_and_back() {
+        // new account
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
-
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
+        // switch account tier to premium
         api_service::request(
             &account,
             SwitchAccountTierRequest {
-                account_tier: generate_monthly_account_tier(
+                account_tier: generate_premium_account_tier(
                     test_credit_cards::GOOD,
                     None,
                     None,
@@ -30,6 +31,7 @@ mod switch_account_tier_test {
         )
         .unwrap();
 
+        // switch account tier back to free
         api_service::request(
             &account,
             SwitchAccountTierRequest { account_tier: AccountTier::Free },
@@ -39,10 +41,12 @@ mod switch_account_tier_test {
 
     #[test]
     fn new_tier_is_old_tier() {
+        // new account
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
+        // switch account tier to free
         let result = api_service::request(
             &account,
             SwitchAccountTierRequest { account_tier: AccountTier::Free },
@@ -55,10 +59,11 @@ mod switch_account_tier_test {
             ))
         );
 
+        // switch account tier to premium
         api_service::request(
             &account,
             SwitchAccountTierRequest {
-                account_tier: generate_monthly_account_tier(
+                account_tier: generate_premium_account_tier(
                     test_credit_cards::GOOD,
                     None,
                     None,
@@ -68,10 +73,11 @@ mod switch_account_tier_test {
         )
         .unwrap();
 
+        // switch account tier to premium
         let result = api_service::request(
             &account,
             SwitchAccountTierRequest {
-                account_tier: generate_monthly_account_tier(
+                account_tier: generate_premium_account_tier(
                     test_credit_cards::GOOD,
                     None,
                     None,
@@ -90,10 +96,12 @@ mod switch_account_tier_test {
 
     #[test]
     fn card_does_not_exist() {
+        // new account
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
+        // switch account tier to premium using an "old card"
         let result = api_service::request(
             &account,
             SwitchAccountTierRequest { account_tier: AccountTier::Premium(PaymentMethod::OldCard) },
@@ -109,6 +117,7 @@ mod switch_account_tier_test {
 
     #[test]
     fn card_decline() {
+        // new account
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
@@ -125,10 +134,11 @@ mod switch_account_tier_test {
         ];
 
         for (card_number, expected_err) in scenarios {
+            // switch account tier to premium using bad card number
             let result = api_service::request(
                 &account,
                 SwitchAccountTierRequest {
-                    account_tier: generate_monthly_account_tier(card_number, None, None, None),
+                    account_tier: generate_premium_account_tier(card_number, None, None, None),
                 },
             );
 
@@ -143,6 +153,7 @@ mod switch_account_tier_test {
 
     #[test]
     fn invalid_cards() {
+        // new account
         let account = generate_account();
         let (root, _) = generate_root_metadata(&account);
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
@@ -173,10 +184,11 @@ mod switch_account_tier_test {
         ];
 
         for (card_number, maybe_exp_year, maybe_exp_month, maybe_cvc, expected_err) in scenarios {
+            // switch account tier to premium using bad card information
             let result = api_service::request(
                 &account,
                 SwitchAccountTierRequest {
-                    account_tier: generate_monthly_account_tier(
+                    account_tier: generate_premium_account_tier(
                         card_number,
                         maybe_exp_year,
                         maybe_exp_month,
@@ -196,9 +208,11 @@ mod switch_account_tier_test {
 
     #[test]
     fn downgrade_denied() {
+        // new account
         let config = test_utils::test_config();
         let (account, root) = test_utils::create_account(&config);
 
+        // create files until the account is over the 1mb data cap
         loop {
             let mut bytes: [u8; 500000] = [0u8; 500000];
 
@@ -227,10 +241,11 @@ mod switch_account_tier_test {
             }
         }
 
+        // switch account tier to premium
         api_service::request(
             &account,
             SwitchAccountTierRequest {
-                account_tier: generate_monthly_account_tier(
+                account_tier: generate_premium_account_tier(
                     test_credit_cards::GOOD,
                     None,
                     None,
@@ -240,6 +255,7 @@ mod switch_account_tier_test {
         )
         .unwrap();
 
+        // attempt to switch account tier back free
         let result = api_service::request(
             &account,
             SwitchAccountTierRequest { account_tier: AccountTier::Free },
@@ -254,6 +270,7 @@ mod switch_account_tier_test {
 
         let children = lockbook_core::get_children(&config, root.id).unwrap();
 
+        // delete files until the account is under the 1mb data cap
         for child in children {
             lockbook_core::delete_file(&config, child.id).unwrap();
 
@@ -269,6 +286,7 @@ mod switch_account_tier_test {
             }
         }
 
+        // switch account tier back to free
         api_service::request(
             &account,
             SwitchAccountTierRequest { account_tier: AccountTier::Free },

@@ -352,7 +352,7 @@ fn get_next_year() -> i32 {
     chrono::Utc::now().year() + 1
 }
 
-pub fn generate_monthly_account_tier(
+pub fn generate_premium_account_tier(
     card_number: &str, maybe_exp_year: Option<i32>, maybe_exp_month: Option<i32>,
     maybe_cvc: Option<&str>,
 ) -> AccountTier {
