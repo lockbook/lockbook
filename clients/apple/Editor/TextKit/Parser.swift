@@ -79,7 +79,6 @@ public class Parser: Visitor {
         } else {
             newParent = ParagraphAR(indexes, node, currentParent!)
         }
-
         self.currentParent = newParent
         processedDocument.append(newParent)
         let _ = visitChildren(of: node)
@@ -100,7 +99,7 @@ public class Parser: Visitor {
     }
 
     public func visit(text node: Text)  {
-        print("Text start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
+
     }
 
     public func visit(softBreak node: SoftBreak)  {
