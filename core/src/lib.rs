@@ -597,7 +597,7 @@ pub enum SwitchAccountTierError {
     OldCardDoesNotExist,
     NewTierIsOldTier,
     InvalidCardNumber,
-    InvalidCardCVC,
+    InvalidCardCvc,
     InvalidCardExpYear,
     InvalidCardExpMonth,
     CardDecline,

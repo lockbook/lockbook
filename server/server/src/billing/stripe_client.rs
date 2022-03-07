@@ -24,7 +24,7 @@ impl From<stripe::StripeError> for SimplifiedStripeError {
                 simplify_stripe_error(stripe_error.code, stripe_error.decline_code)
             }
             _ => SimplifiedStripeError::Other(format!(
-                "Unexpected stripe error was encountered: {:?}",
+                "Unexpected stripe error: {:?}",
                 e
             )),
         }

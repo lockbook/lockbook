@@ -317,7 +317,7 @@ pub enum SwitchAccountTierError {
     InvalidNumber,
     InvalidExpYear,
     InvalidExpMonth,
-    InvalidCVC,
+    InvalidCvc,
     CurrentUsageIsMoreThanNewTier,
     ConcurrentRequestsAreTooSoon,
     UserNotFound,

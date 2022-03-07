@@ -348,7 +348,7 @@ pub mod test_card_info {
     pub const GENERIC_EXP_MONTH: i32 = 8;
 }
 
-pub fn get_next_year() -> i32 {
+fn get_next_year() -> i32 {
     chrono::Utc::now().year() + 1
 }
 
