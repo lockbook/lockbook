@@ -602,7 +602,7 @@ pub enum SwitchAccountTierError {
     InvalidCardExpMonth,
     CardDecline,
     CardHasInsufficientFunds,
-    TryCardAgain,
+    TryAgain,
     CardNotSupported,
     ExpiredCard,
     ClientUpdateRequired,
@@ -625,7 +625,7 @@ pub fn switch_account_tier(
         CoreError::CardHasInsufficientFunds => {
             UiError(SwitchAccountTierError::CardHasInsufficientFunds)
         }
-        CoreError::TryCardAgain => UiError(SwitchAccountTierError::TryCardAgain),
+        CoreError::TryAgain => UiError(SwitchAccountTierError::TryAgain),
         CoreError::CardNotSupported => UiError(SwitchAccountTierError::CardNotSupported),
         CoreError::ExpiredCard => UiError(SwitchAccountTierError::ExpiredCard),
         CoreError::CurrentUsageIsMoreThanNewTier => {

@@ -10,10 +10,10 @@ pub enum SimplifiedStripeError {
     TryAgain,
     CardNotSupported,
     ExpiredCard,
-    InvalidNumber,
-    InvalidExpYear,
-    InvalidExpMonth,
-    InvalidCvc,
+    InvalidCardNumber,
+    InvalidCardExpYear,
+    InvalidCardExpMonth,
+    InvalidCardCvc,
     Other(String),
 }
 
@@ -115,23 +115,23 @@ fn simplify_stripe_error(
                             // Incorrect number
                             StripeKnownDeclineCode::IncorrectNumber
                             | StripeKnownDeclineCode::InvalidNumber => {
-                                SimplifiedStripeError::InvalidNumber
+                                SimplifiedStripeError::InvalidCardNumber
                             }
 
                             // Incorrect cvc
                             StripeKnownDeclineCode::IncorrectCvc
                             | StripeKnownDeclineCode::InvalidCvc => {
-                                SimplifiedStripeError::InvalidCvc
+                                SimplifiedStripeError::InvalidCardCvc
                             }
 
                             // Incorrect expiry month
                             StripeKnownDeclineCode::InvalidExpiryMonth => {
-                                SimplifiedStripeError::InvalidExpMonth
+                                SimplifiedStripeError::InvalidCardExpMonth
                             }
 
                             // Incorrect expiry year
                             StripeKnownDeclineCode::InvalidExpiryYear => {
-                                SimplifiedStripeError::InvalidExpYear
+                                SimplifiedStripeError::InvalidCardExpYear
                             }
                         },
                         Err(e) => e,
@@ -141,12 +141,12 @@ fn simplify_stripe_error(
             stripe::ErrorCode::ExpiredCard => SimplifiedStripeError::ExpiredCard,
             stripe::ErrorCode::InvalidCardType => SimplifiedStripeError::CardNotSupported,
             stripe::ErrorCode::InvalidCvc | stripe::ErrorCode::IncorrectCvc => {
-                SimplifiedStripeError::InvalidCvc
+                SimplifiedStripeError::InvalidCardCvc
             }
-            stripe::ErrorCode::InvalidExpiryMonth => SimplifiedStripeError::InvalidExpMonth,
-            stripe::ErrorCode::InvalidExpiryYear => SimplifiedStripeError::InvalidExpYear,
+            stripe::ErrorCode::InvalidExpiryMonth => SimplifiedStripeError::InvalidCardExpMonth,
+            stripe::ErrorCode::InvalidExpiryYear => SimplifiedStripeError::InvalidCardExpYear,
             stripe::ErrorCode::InvalidNumber | stripe::ErrorCode::IncorrectNumber => {
-                SimplifiedStripeError::InvalidNumber
+                SimplifiedStripeError::InvalidCardNumber
             }
             stripe::ErrorCode::ProcessingError => SimplifiedStripeError::TryAgain,
             _ => SimplifiedStripeError::Other(format!("Unexpected error code: {:?}", error_code)),

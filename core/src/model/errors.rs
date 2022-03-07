@@ -63,7 +63,7 @@ pub enum CoreError {
     ConcurrentRequestsAreTooSoon,
     CardDecline,
     CardHasInsufficientFunds,
-    TryCardAgain,
+    TryAgain,
     CardNotSupported,
     ExpiredCard,
     ClientUpdateRequired,

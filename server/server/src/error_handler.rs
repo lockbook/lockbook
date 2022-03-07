@@ -71,16 +71,18 @@ impl From<SimplifiedStripeError> for ServerError<SwitchAccountTierError> {
                 ClientError(SwitchAccountTierError::CardNotSupported)
             }
             SimplifiedStripeError::ExpiredCard => ClientError(SwitchAccountTierError::ExpiredCard),
-            SimplifiedStripeError::InvalidNumber => {
-                ClientError(SwitchAccountTierError::InvalidNumber)
+            SimplifiedStripeError::InvalidCardNumber => {
+                ClientError(SwitchAccountTierError::InvalidCardNumber)
             }
-            SimplifiedStripeError::InvalidExpYear => {
-                ClientError(SwitchAccountTierError::InvalidExpYear)
+            SimplifiedStripeError::InvalidCardExpYear => {
+                ClientError(SwitchAccountTierError::InvalidCardExpYear)
             }
-            SimplifiedStripeError::InvalidExpMonth => {
-                ClientError(SwitchAccountTierError::InvalidExpMonth)
+            SimplifiedStripeError::InvalidCardExpMonth => {
+                ClientError(SwitchAccountTierError::InvalidCardExpMonth)
             }
-            SimplifiedStripeError::InvalidCvc => ClientError(SwitchAccountTierError::InvalidCvc),
+            SimplifiedStripeError::InvalidCardCvc => {
+                ClientError(SwitchAccountTierError::InvalidCardCvc)
+            }
             SimplifiedStripeError::Other(msg) => internal!("{}", msg),
         }
     }
