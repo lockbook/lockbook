@@ -618,7 +618,7 @@ pub fn switch_account_tier(
         CoreError::InvalidCardNumber => UiError(SwitchAccountTierError::InvalidCardNumber),
         CoreError::InvalidCardExpYear => UiError(SwitchAccountTierError::InvalidCardExpYear),
         CoreError::InvalidCardExpMonth => UiError(SwitchAccountTierError::InvalidCardExpMonth),
-        CoreError::InvalidCardCVC => UiError(SwitchAccountTierError::InvalidCardCVC),
+        CoreError::InvalidCardCvc => UiError(SwitchAccountTierError::InvalidCardCvc),
         CoreError::NewTierIsOldTier => UiError(SwitchAccountTierError::NewTierIsOldTier),
         CoreError::ServerUnreachable => UiError(SwitchAccountTierError::CouldNotReachServer),
         CoreError::CardDecline => UiError(SwitchAccountTierError::CardDecline),

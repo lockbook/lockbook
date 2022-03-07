@@ -13,7 +13,7 @@ pub enum SimplifiedStripeError {
     InvalidNumber,
     InvalidExpYear,
     InvalidExpMonth,
-    InvalidCVC,
+    InvalidCvc,
     Other(String),
 }
 
@@ -23,10 +23,7 @@ impl From<stripe::StripeError> for SimplifiedStripeError {
             stripe::StripeError::Stripe(stripe_error) => {
                 simplify_stripe_error(stripe_error.code, stripe_error.decline_code)
             }
-            _ => SimplifiedStripeError::Other(format!(
-                "Unexpected stripe error: {:?}",
-                e
-            )),
+            _ => SimplifiedStripeError::Other(format!("Unexpected stripe error: {:?}", e)),
         }
     }
 }
@@ -124,7 +121,7 @@ fn simplify_stripe_error(
                             // Incorrect cvc
                             StripeKnownDeclineCode::IncorrectCvc
                             | StripeKnownDeclineCode::InvalidCvc => {
-                                SimplifiedStripeError::InvalidCVC
+                                SimplifiedStripeError::InvalidCvc
                             }
 
                             // Incorrect expiry month
@@ -144,7 +141,7 @@ fn simplify_stripe_error(
             stripe::ErrorCode::ExpiredCard => SimplifiedStripeError::ExpiredCard,
             stripe::ErrorCode::InvalidCardType => SimplifiedStripeError::CardNotSupported,
             stripe::ErrorCode::InvalidCvc | stripe::ErrorCode::IncorrectCvc => {
-                SimplifiedStripeError::InvalidCVC
+                SimplifiedStripeError::InvalidCvc
             }
             stripe::ErrorCode::InvalidExpiryMonth => SimplifiedStripeError::InvalidExpMonth,
             stripe::ErrorCode::InvalidExpiryYear => SimplifiedStripeError::InvalidExpYear,

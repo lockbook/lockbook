@@ -84,7 +84,7 @@ pub enum CoreError {
     InvalidCardNumber,
     InvalidCardExpYear,
     InvalidCardExpMonth,
-    InvalidCardCVC,
+    InvalidCardCvc,
     NewTierIsOldTier,
     NotAStripeCustomer,
     PathContainsEmptyFileName,

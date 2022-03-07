@@ -169,7 +169,7 @@ mod switch_account_tier_test {
                 None,
                 SwitchAccountTierError::InvalidExpMonth,
             ),
-            (test_credit_cards::GOOD, None, None, Some("11"), SwitchAccountTierError::InvalidCVC),
+            (test_credit_cards::GOOD, None, None, Some("11"), SwitchAccountTierError::InvalidCvc),
         ];
 
         for (card_number, maybe_exp_year, maybe_exp_month, maybe_cvc, expected_err) in scenarios {

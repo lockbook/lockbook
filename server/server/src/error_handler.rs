@@ -80,7 +80,7 @@ impl From<SimplifiedStripeError> for ServerError<SwitchAccountTierError> {
             SimplifiedStripeError::InvalidExpMonth => {
                 ClientError(SwitchAccountTierError::InvalidExpMonth)
             }
-            SimplifiedStripeError::InvalidCVC => ClientError(SwitchAccountTierError::InvalidCVC),
+            SimplifiedStripeError::InvalidCvc => ClientError(SwitchAccountTierError::InvalidCvc),
             SimplifiedStripeError::Other(msg) => internal!("{}", msg),
         }
     }

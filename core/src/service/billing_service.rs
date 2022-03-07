@@ -22,7 +22,7 @@ pub fn switch_account_tier(
                 SwitchAccountTierError::InvalidNumber => CoreError::InvalidCardNumber,
                 SwitchAccountTierError::InvalidExpYear => CoreError::InvalidCardExpYear,
                 SwitchAccountTierError::InvalidExpMonth => CoreError::InvalidCardExpMonth,
-                SwitchAccountTierError::InvalidCVC => CoreError::InvalidCardCVC,
+                SwitchAccountTierError::InvalidCvc => CoreError::InvalidCardCvc,
                 SwitchAccountTierError::CardDecline => CoreError::CardDecline,
                 SwitchAccountTierError::InsufficientFunds => CoreError::CardHasInsufficientFunds,
                 SwitchAccountTierError::TryAgain => CoreError::TryCardAgain,
