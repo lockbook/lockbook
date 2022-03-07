@@ -39,7 +39,7 @@ fn simplify_stripe_error(
 ) -> SimplifiedStripeError {
     match error_code {
         None => SimplifiedStripeError::Other(format!(
-            "stripe error with no details: error_code: {:?}, decline_code: {:?}",
+            "Stripe error with no details: error_code: {:?}, decline_code: {:?}",
             error_code, maybe_decline_code
         )),
         Some(error_code) => match error_code {
@@ -235,9 +235,9 @@ pub async fn create_subscription(
     match subscription_resp.status {
         stripe::SubscriptionStatus::Active => Ok(subscription_resp),
         stripe::SubscriptionStatus::Incomplete => match subscription_resp.latest_invoice.as_ref().ok_or_else(|| SimplifiedStripeError::Other(format!("There is no latest invoice for a subscription: {:?}", subscription_resp)))? {
-            stripe::Expandable::Id(id) => Err(SimplifiedStripeError::Other(format!("latest invoice was expanded yet returned an id: {:?}", id))),
-            stripe::Expandable::Object(invoice) => match invoice.payment_intent.as_ref().ok_or_else(|| SimplifiedStripeError::Other(format!("no payment intent for latest subscription: {:?}", subscription_resp)))? {
-                stripe::Expandable::Id(id) => Err(SimplifiedStripeError::Other(format!("payment intent expanded yet returned an id: {:?}", id))),
+            stripe::Expandable::Id(id) => Err(SimplifiedStripeError::Other(format!("Latest invoice was expanded yet returned an id: {:?}", id))),
+            stripe::Expandable::Object(invoice) => match invoice.payment_intent.as_ref().ok_or_else(|| SimplifiedStripeError::Other(format!("No payment intent for latest subscription: {:?}", subscription_resp)))? {
+                stripe::Expandable::Id(id) => Err(SimplifiedStripeError::Other(format!("Payment intent expanded yet returned an id: {:?}", id))),
                 stripe::Expandable::Object(payment_intent) => match payment_intent.status {
                     stripe::PaymentIntentStatus::RequiresPaymentMethod => Err(SimplifiedStripeError::CardDecline),
                     stripe::PaymentIntentStatus::RequiresAction => Err(SimplifiedStripeError::Other(format!("Payment intent requires additional action to be completed. This is unimplemented. subscription_resp: {:?}", subscription_resp))),

@@ -417,7 +417,7 @@ pub async fn stripe_webhooks(
                     &partial_invoice.id,
                 )
                 .await
-                .map_err(|e| internal!("error expanding invoice: {:?}", e))?;
+                .map_err(|e| internal!("Error expanding invoice: {:?}", e))?;
 
                 let subscription_period_end = match invoice.subscription {
                     None => {
@@ -462,7 +462,7 @@ pub async fn stripe_webhooks(
             }
         }
         (_, _) => {
-            return Err(internal!("unexpected and unhandled stripe event: {:?}", event.event_type))
+            return Err(internal!("Unexpected and unhandled stripe event: {:?}", event.event_type))
         }
     }
 
