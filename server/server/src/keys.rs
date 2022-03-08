@@ -22,6 +22,14 @@ pub fn file(id: Uuid) -> String {
     format!("file_id:{}:metadata", id)
 }
 
+pub fn stripe_user_info(pk: &PublicKey) -> String {
+    format!("public_key:{}:stripe_user_info", stringify_public_key(pk))
+}
+
+pub fn public_key_from_stripe_customer_id(customer_id: &str) -> String {
+    format!("stripe_customer_id:{}:public_key", customer_id)
+}
+
 pub fn size(id: Uuid) -> String {
     format!("file_id:{}:size", id)
 }
@@ -34,6 +42,6 @@ pub fn doc(id: Uuid, content_version: u64) -> String {
     format!("id-version:{}-{}:encrypted_document", id, content_version)
 }
 
-fn stringify_public_key(pk: &PublicKey) -> String {
+pub fn stringify_public_key(pk: &PublicKey) -> String {
     base64::encode(pk.serialize_compressed())
 }

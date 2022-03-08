@@ -33,6 +33,14 @@ Values are json encoded.
   + `x` is the `uuid` of the file.
   + size (value) is a json encoded `FileUsage` object 
 
+# Stripe Billing
+
++ `public_key:x:stripe_user_info`
+  + `x` is the `public_key`.
+  + [Basic stripe information](../../server/server/src/billing/stripe_model.rs) (customer id, subscription ids, payment method ids, etc) for a user.
++ `stripe_customer_id:x:public_key`.
+  + `x` is the stripe `customer_id`.
+
 # Document Content (TODO)
 
 + Interactions with s3 are slow (100s of milliseconds) so the plan is to cache most documents in redis. Persist

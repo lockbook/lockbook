@@ -37,6 +37,7 @@ lazy_static = "1.4.0"
 deadpool-redis = "0.10.1"
 redis = { version = "0.21", default-features = false, features = ["tokio-comp"] }
 redis_utils = "0.1.3"
+async-stripe = { git = "https://github.com/arlyon/async-stripe", default-features = true, features = ["runtime-tokio-hyper-rustls"] }
 
 [build-dependencies]
 shadow-rs = "0.6.2"

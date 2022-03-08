@@ -191,9 +191,21 @@ jobs:
       - name: CSharp-Core
         run: make csharp_interface_tests_run
 
-  Clean-Up:
+  Server-Logs:
     runs-on: [self-hosted, dockerized]
     needs: [Core-Server-Db, Kotlin-Core, Swift-Core, CSharp-Core]
+    if: always()
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Get Server Logs
+        run: make get_server_logs
+        if: always()
+
+  Clean-Up:
+    runs-on: [self-hosted, dockerized]
+    needs: [Server-Logs]
     if: always()
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,3 +1,4 @@
+use crate::billing::stripe_model::Timestamp;
 use std::env;
 use std::time::Duration;
 
@@ -33,6 +34,27 @@ impl FilesDbConfig {
             bucket: env_or_panic("FILES_DB_BUCKET"),
             access_key: env_or_panic("FILES_DB_ACCESS_KEY"),
             secret_key: env_or_panic("FILES_DB_SECRET_KEY"),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct StripeConfig {
+    pub stripe_secret: String,
+    pub signing_secret: String,
+    pub premium_price_id: String,
+    pub millis_between_user_payment_flows: Timestamp,
+}
+
+impl StripeConfig {
+    pub fn from_env_vars() -> StripeConfig {
+        StripeConfig {
+            stripe_secret: env_or_panic("STRIPE_SECRET").parse().unwrap(),
+            signing_secret: env_or_panic("STRIPE_SIGNING_SECRET").parse().unwrap(),
+            premium_price_id: env_or_panic("STRIPE_PREMIUM_PRICE_ID").parse().unwrap(),
+            millis_between_user_payment_flows: env_or_panic("MILLIS_BETWEEN_PAYMENT_FLOWS")
+                .parse()
+                .unwrap(),
         }
     }
 }
@@ -103,6 +125,7 @@ pub struct Config {
     pub index_db: IndexDbConf,
     pub files_db: FilesDbConfig,
     pub server: ServerConfig,
+    pub stripe: StripeConfig,
     pub metrics: MetricsConfig,
 }
 
@@ -112,6 +135,7 @@ impl Config {
             index_db: IndexDbConf::from_env_vars(),
             files_db: FilesDbConfig::from_env_vars(),
             server: ServerConfig::from_env_vars(),
+            stripe: StripeConfig::from_env_vars(),
             metrics: MetricsConfig::from_env_vars(),
         }
     }

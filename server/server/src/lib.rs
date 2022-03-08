@@ -1,8 +1,5 @@
 extern crate log;
 
-use deadpool_redis::redis::RedisError;
-
-use deadpool_redis::PoolError;
 use std::env;
 use std::fmt::Debug;
 
@@ -10,11 +7,14 @@ use libsecp256k1::PublicKey;
 use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_crypto::{clock_service, pubkey};
 use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper};
-
-use redis_utils::converters::JsonGetError;
-
-use crate::content::file_content_client;
 use serde::{Deserialize, Serialize};
+
+use crate::account_service::GetUsageHelperError;
+use crate::billing::billing_service::StripeWebhookError;
+use crate::billing::stripe_client::SimplifiedStripeError;
+use crate::billing::stripe_model::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
+use crate::content::file_content_client;
+use crate::ServerError::ClientError;
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -22,6 +22,7 @@ static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub struct ServerState {
     pub config: config::Config,
     pub index_db_pool: deadpool_redis::Pool,
+    pub stripe_client: stripe::Client,
     pub files_db_client: s3::bucket::Bucket,
 }
 
@@ -36,36 +37,6 @@ pub struct RequestContext<'a, TRequest> {
 pub enum ServerError<U: Debug> {
     ClientError(U),
     InternalError(String),
-}
-
-impl<T: Debug> From<PoolError> for ServerError<T> {
-    fn from(err: PoolError) -> Self {
-        internal!("Could not get conenction for pool: {:?}", err)
-    }
-}
-
-impl<T: Debug> From<RedisError> for ServerError<T> {
-    fn from(err: RedisError) -> Self {
-        internal!("Redis Error: {:?}", err)
-    }
-}
-
-impl<T: Debug> From<JsonGetError> for ServerError<T> {
-    fn from(err: JsonGetError) -> Self {
-        internal!("Redis Error: {:?}", err)
-    }
-}
-
-impl<T: Debug> From<file_content_client::Error> for ServerError<T> {
-    fn from(err: file_content_client::Error) -> Self {
-        internal!("S3 Error: {:?}", err)
-    }
-}
-
-impl<T: Debug> From<Box<bincode::ErrorKind>> for ServerError<T> {
-    fn from(err: Box<bincode::ErrorKind>) -> Self {
-        internal!("bincode error: {:?}", err)
-    }
 }
 
 #[macro_export]
@@ -112,11 +83,14 @@ pub fn verify_auth<TRequest: Request + Serialize>(
     )
 }
 
-const FREE_TIER: u64 = 1000000;
+pub const FREE_TIER_USAGE_SIZE: u64 = 1000000;
+pub const PREMIUM_TIER_USAGE_SIZE: u64 = 50000000000;
 
 pub mod account_service;
+pub mod billing;
 pub mod config;
 pub mod content;
+pub mod error_handler;
 pub mod feature_flags;
 pub mod file_service;
 pub mod keys;

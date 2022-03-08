@@ -48,7 +48,9 @@ pub enum FeatureFlag {
 async fn main() {
     let config = Config::from_env_vars();
     let (index_db_pool, files_db_client) = connect_to_state(&config).await;
-    let server_state = ServerState { config, index_db_pool, files_db_client };
+    let stripe_client = stripe::Client::new(&config.stripe.stripe_secret);
+
+    let server_state = ServerState { config, index_db_pool, stripe_client, files_db_client };
 
     let ok = match Subcommands::from_args() {
         DeleteAccount { username: user } => delete_account(server_state, &user).await,
