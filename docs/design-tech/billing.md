@@ -49,16 +49,15 @@ For now [Stripe](https://stripe.com/) will be our payment processor. Their subsc
 To setup payment for the first time you need to send `Plan` info and `Payment` info.
 
 `lockbook_server` will then:
+
 1. [Create a `PaymentMethod`](https://stripe.com/docs/api/payment_methods/create)
 2. [Create a `Customer`](https://stripe.com/docs/api/customers/create)
-3. [Create a `Subscription`](https://stripe.com/docs/api/subscriptions/create)
+3. [Create and confirm a `SetUpIntent`](https://stripe.com/docs/api/setup_intents/create)
+4. [Create a `Subscription`](https://stripe.com/docs/api/subscriptions/create)
 
-If the `Subscription`'s `status` is `active`, then it will create an entry in the `tier_table` accordingly and return success. If it's rejected due to card details then we'll indicate the failure.
+Lockbook server will store `StripeUserInfo`, a struct containing user's [customer_id](https://stripe.com/docs/api/customers/object#customer_object-id), [payment_method](https://stripe.com/docs/api/payment_methods/object) history, and [subscription](https://stripe.com/docs/api/subscriptions/object) history.
 
-If we indicate failure, they'll have to retry.
-
-There could be some annoying state-related things that we'll have to address (customer object exists already in stripe). We can either:
-
+After stripe api calls, `lockbook_server` will:
 1. store info
 2. cleanup stripe upon failure
 3. look for customer already exists errors
@@ -67,7 +66,10 @@ Stripe will inform us about billing success and failures via [webhooks](https://
 
 We will likely only need to listen for billing failures. In the case of a billing failure we're going to want to indicate to the user their card was declined. We don't want to just communicate that they're out of space. We want to communicate specifically that their card was declined. Likely what we'll do in this situation is keep them in that tier with that expiry information and set `billing_failed` to `true`. Next time they try to write we'll send them to the flow for declined cards. When the new request comes in it will have to complete logic to cancel the old subscription, especially if it's being transfered from one platform to another.
 
-When consuming webhook events, we'll likely need to enable `tls`, and [verify that the event is coming from stripe](https://stripe.com/docs/webhooks/signatures) and not some random person.
+When consuming webhook events we'll need to [verify that the event is coming from stripe](https://stripe.com/docs/webhooks/signatures) and not some random person.
+We listen for two particular events:
+- `invoice.payment_failed`: To cancel a subscription when a payment failure happens.
+- `invoice.paid`: To increase `period_end` of `StripeSubscriptionInfo`. Currently this is unused but is useful information to have in the future.
 
 Before this flow is completable we'll have to pre-register our [prices](https://stripe.com/docs/api/prices) with stripe.
 
@@ -96,7 +98,7 @@ Before this flow is possible we'll have to preconfigure our [in-app-purchase](ht
 
 Similar to the stripe flow, apple's servers will communicate with ours via webhooks. We'll [register](https://help.apple.com/app-store-connect/#/devb57be10e7) the webhook and then we'll be able to receive events.
 
-Apple requires [ATS](https://developer.apple.com/documentation/security/preventing_insecure_network_connections) which seems like a subset of the `tls` requirement coming from stripe.
+Apple requires [ATS](https://developer.apple.com/documentation/security/preventing_insecure_network_connections).
 
 Unlike stripe which uses crypto for authentication, apple is just using webhooks to avoid their servers being polled. You therefore have apple themselves verify that the message is valid. This is detailed [here](https://developer.apple.com/documentation/storekit/in-app_purchase/validating_receipts_with_the_app_store). 
 
