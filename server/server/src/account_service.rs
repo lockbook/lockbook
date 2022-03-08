@@ -1,6 +1,7 @@
 use crate::utils::username_is_valid;
-use crate::{feature_flags, keys, RequestContext, ServerError, ServerState, FREE_TIER};
+use crate::{feature_flags, keys, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE};
 use deadpool_redis::redis::AsyncCommands;
+use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
 use log::error;
 use redis_utils::converters::{JsonGet, PipelineJsonSet};
@@ -11,7 +12,6 @@ use uuid::Uuid;
 use crate::content::document_service;
 use crate::keys::{data_cap, file, meta, owned_files, public_key, size, username};
 use crate::ServerError::ClientError;
-use lockbook_models::api::GetUsageError::UserNotFound;
 use lockbook_models::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
 use lockbook_models::api::{
     DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError, GetPublicKeyRequest,
@@ -53,7 +53,7 @@ pub async fn new_account(
         file(request.root_folder.id),
     ];
 
-    let tx_result = tx!(&mut con, pipe_name, watched_keys, {
+    let tx_result = tx!(&mut con, pipe, watched_keys, {
         if con.exists(public_key(&request.username)).await? {
             return Err(Abort(ClientError(UsernameTaken)));
         }
@@ -76,11 +76,10 @@ pub async fn new_account(
             return Err(Abort(ClientError(FileIdTaken)));
         }
 
-        pipe_name
-            .json_set(public_key(&request.username), request.public_key)?
+        pipe.json_set(public_key(&request.username), request.public_key)?
             .json_set(username(&request.public_key), &request.username)?
             .json_set(owned_files(&request.public_key), [request.root_folder.id])?
-            .set(data_cap(&request.public_key), FREE_TIER)
+            .set(data_cap(&request.public_key), FREE_TIER_USAGE_SIZE)
             .json_set(meta(&root), &root)
     });
     return_if_error!(tx_result);
@@ -115,18 +114,33 @@ pub async fn get_usage(
     let (_request, server_state) = (&context.request, context.server_state);
     let mut con = server_state.index_db_pool.get().await?;
 
-    let files: Vec<Uuid> = con
-        .maybe_json_get(owned_files(&context.public_key))
-        .await?
-        .ok_or(ClientError(UserNotFound))?;
-
     let cap: u64 = con.get(data_cap(&context.public_key)).await?;
+
+    let usages = get_usage_helper(&mut con, &context.public_key).await?;
+
+    Ok(GetUsageResponse { usages, cap })
+}
+
+#[derive(Debug)]
+pub enum GetUsageHelperError {
+    UserNotFound,
+    Internal(redis_utils::converters::JsonGetError),
+}
+
+pub async fn get_usage_helper(
+    con: &mut deadpool_redis::Connection, public_key: &PublicKey,
+) -> Result<Vec<FileUsage>, GetUsageHelperError> {
+    let files: Vec<Uuid> = con
+        .maybe_json_get(owned_files(public_key))
+        .await
+        .map_err(GetUsageHelperError::Internal)?
+        .ok_or(GetUsageHelperError::UserNotFound)?;
 
     let keys: Vec<String> = files.into_iter().map(keys::size).collect();
 
-    let usages: Vec<FileUsage> = con.json_mget(keys).await?;
-
-    Ok(GetUsageResponse { usages, cap })
+    con.json_mget(keys)
+        .await
+        .map_err(GetUsageHelperError::Internal)
 }
 
 /// Delete's an account's files out of s3 and clears their file tree within redis
