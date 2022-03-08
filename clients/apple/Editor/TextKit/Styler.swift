@@ -121,8 +121,8 @@ class InlineCodeAR: BaseAR {
 
 class CodeBlockAR: BaseAR {
     override var monospace: Bool { true }
-    override var background: NSColor { NSColor.labelColor }
-    override var foreground: NSColor { NSColor.windowBackgroundColor }
+    override var background: NSColor { NSColor.black.withAlphaComponent(0.65) }
+    override var foreground: NSColor { NSColor.white }
 }
 
 class BlockQuoteAR: BaseAR {
