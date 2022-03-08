@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
+use lockbook_models::api::AccountTier;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
@@ -25,6 +26,7 @@ use model::errors::Error::UiError;
 pub use model::errors::{CoreError, Error, UnexpectedError};
 use service::log_service;
 
+use crate::billing_service::CreditCardLast4Digits;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::pure_functions::drawing::SupportedImageFormats;
@@ -34,8 +36,8 @@ use crate::service::import_export_service::{self, ImportExportFileInfo};
 use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 use crate::service::{
-    account_service, db_state_service, drawing_service, file_service, path_service, sync_service,
-    usage_service,
+    account_service, billing_service, db_state_service, drawing_service, file_service,
+    path_service, sync_service, usage_service,
 };
 use crate::sync_service::WorkCalculated;
 
@@ -586,6 +588,74 @@ pub fn export_file(
             _ => unexpected!("{:#?}", e),
         },
     )
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum SwitchAccountTierError {
+    NoAccount,
+    CouldNotReachServer,
+    OldCardDoesNotExist,
+    NewTierIsOldTier,
+    InvalidCardNumber,
+    InvalidCardCvc,
+    InvalidCardExpYear,
+    InvalidCardExpMonth,
+    CardDecline,
+    CardHasInsufficientFunds,
+    TryAgain,
+    CardNotSupported,
+    ExpiredCard,
+    ClientUpdateRequired,
+    CurrentUsageIsMoreThanNewTier,
+    ConcurrentRequestsAreTooSoon,
+}
+
+pub fn switch_account_tier(
+    config: &Config, new_account_tier: AccountTier,
+) -> Result<(), Error<SwitchAccountTierError>> {
+    billing_service::switch_account_tier(config, new_account_tier).map_err(|e| match e {
+        CoreError::OldCardDoesNotExist => UiError(SwitchAccountTierError::OldCardDoesNotExist),
+        CoreError::InvalidCardNumber => UiError(SwitchAccountTierError::InvalidCardNumber),
+        CoreError::InvalidCardExpYear => UiError(SwitchAccountTierError::InvalidCardExpYear),
+        CoreError::InvalidCardExpMonth => UiError(SwitchAccountTierError::InvalidCardExpMonth),
+        CoreError::InvalidCardCvc => UiError(SwitchAccountTierError::InvalidCardCvc),
+        CoreError::NewTierIsOldTier => UiError(SwitchAccountTierError::NewTierIsOldTier),
+        CoreError::ServerUnreachable => UiError(SwitchAccountTierError::CouldNotReachServer),
+        CoreError::CardDecline => UiError(SwitchAccountTierError::CardDecline),
+        CoreError::CardHasInsufficientFunds => {
+            UiError(SwitchAccountTierError::CardHasInsufficientFunds)
+        }
+        CoreError::TryAgain => UiError(SwitchAccountTierError::TryAgain),
+        CoreError::CardNotSupported => UiError(SwitchAccountTierError::CardNotSupported),
+        CoreError::ExpiredCard => UiError(SwitchAccountTierError::ExpiredCard),
+        CoreError::CurrentUsageIsMoreThanNewTier => {
+            UiError(SwitchAccountTierError::CurrentUsageIsMoreThanNewTier)
+        }
+        CoreError::AccountNonexistent => UiError(SwitchAccountTierError::NoAccount),
+        CoreError::ConcurrentRequestsAreTooSoon => {
+            UiError(SwitchAccountTierError::ConcurrentRequestsAreTooSoon)
+        }
+        CoreError::ClientUpdateRequired => UiError(SwitchAccountTierError::ClientUpdateRequired),
+        _ => unexpected!("{:#?}", e),
+    })
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum GetCreditCard {
+    NoAccount,
+    CouldNotReachServer,
+    NotAStripeCustomer,
+    ClientUpdateRequired,
+}
+
+pub fn get_credit_card(config: &Config) -> Result<CreditCardLast4Digits, Error<GetCreditCard>> {
+    billing_service::get_credit_card(config).map_err(|e| match e {
+        CoreError::AccountNonexistent => UiError(GetCreditCard::NoAccount),
+        CoreError::ServerUnreachable => UiError(GetCreditCard::CouldNotReachServer),
+        CoreError::NotAStripeCustomer => UiError(GetCreditCard::NotAStripeCustomer),
+        CoreError::ClientUpdateRequired => UiError(GetCreditCard::ClientUpdateRequired),
+        _ => unexpected!("{:#?}", e),
+    })
 }
 
 // This basically generates a function called `get_all_error_variants`,
