@@ -264,3 +264,68 @@ impl Request for DeleteAccountRequest {
     const METHOD: Method = Method::DELETE;
     const ROUTE: &'static str = "/delete-account";
 }
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetCreditCardRequest {}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct GetCreditCardResponse {
+    pub credit_card_last_4_digits: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum GetCreditCardError {
+    NotAStripeCustomer,
+}
+
+impl Request for GetCreditCardRequest {
+    type Response = GetCreditCardResponse;
+    type Error = GetCreditCardError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/get-credit-card";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum PaymentMethod {
+    NewCard { number: String, exp_year: i32, exp_month: i32, cvc: String },
+    OldCard,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum AccountTier {
+    Premium(PaymentMethod),
+    Free,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct SwitchAccountTierRequest {
+    pub account_tier: AccountTier,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct SwitchAccountTierResponse {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum SwitchAccountTierError {
+    OldCardDoesNotExist,
+    NewTierIsOldTier,
+    CardDecline,
+    InsufficientFunds,
+    TryAgain,
+    CardNotSupported,
+    ExpiredCard,
+    InvalidCardNumber,
+    InvalidCardExpYear,
+    InvalidCardExpMonth,
+    InvalidCardCvc,
+    CurrentUsageIsMoreThanNewTier,
+    ConcurrentRequestsAreTooSoon,
+    UserNotFound,
+}
+
+impl Request for SwitchAccountTierRequest {
+    type Response = SwitchAccountTierResponse;
+    type Error = SwitchAccountTierError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/switch-account-tier";
+}

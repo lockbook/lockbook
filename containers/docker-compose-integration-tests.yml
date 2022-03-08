@@ -33,6 +33,8 @@ services:
     entrypoint: >
       /bin/sh -c '\
         sleep 5 && \
+        export STRIPE_SIGNING_SECRET=$$(/usr/bin/stripe listen --api-key $$STRIPE_SECRET --print-secret) && \
+        (nohup /usr/bin/stripe listen --api-key $$STRIPE_SECRET --events invoice.payment_failed --events invoice.paid --forward-to $$API_URL/stripe-webhooks &) && \
         RUST_LOG=lockbook_server=debug ./target/release/lockbook-server \
       '
 
