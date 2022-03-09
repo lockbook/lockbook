@@ -1,14 +1,16 @@
 #[cfg(test)]
 mod import_export_file_tests {
+    use std::path::PathBuf;
+
     use rand::Rng;
     use uuid::Uuid;
 
     use lockbook_core::model::state::temp_config;
-    use lockbook_core::service::import_export_service::ImportExportFileInfo;
+    use lockbook_core::service::import_export_service::{ImportExportFileInfo, ImportStatus};
     use lockbook_core::service::test_utils::generate_account;
     use lockbook_core::{
         create_account, create_file, create_file_at_path, export_file, get_file_by_path, get_root,
-        import_file, write_document,
+        import_files, write_document,
     };
     use lockbook_models::file_metadata::FileType;
 
@@ -29,12 +31,22 @@ mod import_export_file_tests {
 
         let root = get_root(&config).unwrap();
 
-        let f = move |info: ImportExportFileInfo| {
+        let f = move |status: ImportStatus| {
             // only checking if the disk path exists since a lockbook folder that has children won't be created until its first child is
-            assert!(info.disk_path.exists());
+            match status {
+                ImportStatus::CalculatedTotal(_) => {}
+                ImportStatus::Error(path, err) => {
+                    panic!("error importing '{}': {:#?}", path.display(), err)
+                }
+                ImportStatus::StartingItem(path_str) => {
+                    let disk_path = PathBuf::from(path_str);
+                    assert!(disk_path.exists());
+                }
+                ImportStatus::FinishedItem(_metadata) => {}
+            }
         };
 
-        import_file(&config, doc_path, root.id, Some(Box::new(f.clone()))).unwrap();
+        import_files(&config, &[doc_path], root.id, &f).unwrap();
 
         get_file_by_path(&config, &format!("/{}/{}", root.decrypted_name, name)).unwrap();
 
@@ -49,7 +61,7 @@ mod import_export_file_tests {
 
         std::fs::write(&child_path, rand::thread_rng().gen::<[u8; 32]>()).unwrap();
 
-        import_file(&config, parent_path, root.id, Some(Box::new(f.clone()))).unwrap();
+        import_files(&config, &[parent_path], root.id, &f).unwrap();
 
         get_file_by_path(
             &config,

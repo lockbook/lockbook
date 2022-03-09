@@ -1,104 +1,128 @@
 use std::fs;
-use std::fs::{DirEntry, OpenOptions};
+use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use uuid::Uuid;
 
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
+use lockbook_models::tree::FileMetaExt;
 
+use crate::model::filename::NameComponents;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::service::file_service;
-use crate::service::path_service;
 use crate::CoreError;
-use lockbook_models::tree::FileMetaExt;
 
-pub struct ImportExportFileInfo {
-    pub disk_path: PathBuf,
-    pub lockbook_path: String,
+pub enum ImportStatus {
+    CalculatedTotal(usize),
+    Error(PathBuf, CoreError),
+    StartingItem(String),
+    FinishedItem(DecryptedFileMetadata),
 }
 
-pub fn import_file(
-    config: &Config, disk_path: PathBuf, parent: Uuid,
-    import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+pub fn import_files<F: Fn(ImportStatus)>(
+    config: &Config, sources: &[PathBuf], dest: Uuid, update_status: &F,
 ) -> Result<(), CoreError> {
-    info!("importing file {:?} to {}", disk_path, parent);
-    if file_service::get_not_deleted_metadata(config, RepoSource::Local, parent)?.file_type
-        != FileType::Folder
-    {
+    info!("importing files {:?} to {}", sources, dest);
+
+    let parent = file_service::get_not_deleted_metadata(config, RepoSource::Local, dest)?;
+    if parent.file_type == FileType::Document {
         return Err(CoreError::FileNotFolder);
     }
 
-    import_file_recursively(
-        config,
-        &disk_path,
-        &path_service::get_path_by_id(config, parent)?,
-        &import_progress,
-    )
-}
+    let n_files = get_total_child_count(sources)?;
+    update_status(ImportStatus::CalculatedTotal(n_files));
 
-fn import_file_recursively(
-    config: &Config, disk_path: &Path, lockbook_path: &str,
-    import_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
-) -> Result<(), CoreError> {
-    if !disk_path.exists() {
-        return Err(CoreError::DiskPathInvalid);
-    }
-
-    let is_document = disk_path.is_file();
-    let lockbook_path_with_new = format!(
-        "{}{}{}",
-        lockbook_path,
-        disk_path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .ok_or(CoreError::DiskPathInvalid)?,
-        if is_document { "" } else { "/" }
-    );
-
-    if let Some(ref func) = import_progress {
-        func(ImportExportFileInfo {
-            disk_path: disk_path.to_path_buf(),
-            lockbook_path: lockbook_path.to_string(),
-        })
-    }
-
-    if is_document {
-        let content = fs::read(&disk_path).map_err(CoreError::from)?;
-        let file_metadata = match path_service::create_at_path(config, &lockbook_path_with_new) {
-            Ok(file_metadata) => file_metadata,
-            Err(CoreError::PathTaken) => {
-                path_service::get_by_path(config, &lockbook_path_with_new)?
-            }
-            Err(err) => return Err(err),
-        };
-
-        file_service::insert_document(config, RepoSource::Local, &file_metadata, &content)?;
-    } else {
-        let children: Vec<Result<DirEntry, std::io::Error>> =
-            fs::read_dir(disk_path).map_err(CoreError::from)?.collect();
-
-        if children.is_empty() {
-            match path_service::create_at_path(config, &lockbook_path_with_new) {
-                Ok(_) | Err(CoreError::PathTaken) => {}
-                Err(err) => return Err(err),
-            }
-        } else {
-            for maybe_child in children {
-                let child_path = maybe_child.map_err(CoreError::from)?.path();
-
-                import_file_recursively(
-                    config,
-                    &child_path,
-                    &lockbook_path_with_new,
-                    import_progress,
-                )?;
-            }
+    for disk_path in sources {
+        if let Err(err) = import_file_recursively(config, disk_path, &dest, update_status) {
+            update_status(ImportStatus::Error(disk_path.clone(), err));
         }
     }
 
     Ok(())
+}
+
+fn import_file_recursively<F: Fn(ImportStatus)>(
+    config: &Config, disk_path: &Path, dest: &Uuid, update_status: &F,
+) -> Result<(), CoreError> {
+    update_status(ImportStatus::StartingItem(format!("{}", disk_path.display())));
+
+    if !disk_path.exists() {
+        return Err(CoreError::DiskPathInvalid);
+    }
+
+    let disk_file_name = disk_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or(CoreError::DiskPathInvalid)?;
+
+    let ftype = match disk_path.is_file() {
+        true => FileType::Document,
+        false => FileType::Folder,
+    };
+
+    let file_name = generate_non_conflicting_name(config, dest, disk_file_name)?;
+    let file_metadata = file_service::create_file(config, &file_name, *dest, ftype)?;
+
+    if ftype == FileType::Document {
+        let content = fs::read(&disk_path).map_err(CoreError::from)?;
+        file_service::insert_document(config, RepoSource::Local, &file_metadata, &content)?;
+        update_status(ImportStatus::FinishedItem(file_metadata));
+    } else {
+        update_status(ImportStatus::FinishedItem(file_metadata.clone()));
+
+        let entries = fs::read_dir(disk_path).map_err(CoreError::from)?;
+
+        for entry in entries {
+            let child_path = entry.map_err(CoreError::from)?.path();
+            import_file_recursively(config, &child_path, &file_metadata.id, update_status)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn generate_non_conflicting_name(
+    config: &Config, parent: &Uuid, proposed_name: &str,
+) -> Result<String, CoreError> {
+    let sibblings = file_service::get_children(config, *parent)?;
+    let mut new_name = NameComponents::from(proposed_name);
+    loop {
+        if !sibblings
+            .iter()
+            .any(|f| f.decrypted_name == new_name.to_name())
+        {
+            return Ok(new_name.to_name());
+        }
+        new_name = new_name.generate_next();
+    }
+}
+
+fn get_total_child_count(paths: &[PathBuf]) -> Result<usize, CoreError> {
+    let mut count = 0;
+    for p in paths {
+        count += get_child_count(p)?;
+    }
+    Ok(count)
+}
+
+fn get_child_count(path: &Path) -> Result<usize, CoreError> {
+    let mut count = 1;
+    if path.is_dir() {
+        let children = std::fs::read_dir(path).map_err(CoreError::from)?;
+        for maybe_child in children {
+            let child_path = maybe_child.map_err(CoreError::from)?.path();
+
+            count += get_child_count(&child_path)?;
+        }
+    }
+    Ok(count)
+}
+
+pub struct ImportExportFileInfo {
+    pub disk_path: PathBuf,
+    pub lockbook_path: String,
 }
 
 pub fn export_file(

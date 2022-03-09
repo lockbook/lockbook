@@ -30,7 +30,7 @@ use crate::model::state::Config;
 use crate::pure_functions::drawing::SupportedImageFormats;
 use crate::repo::{account_repo, last_updated_repo};
 use crate::service::db_state_service::State;
-use crate::service::import_export_service::{self, ImportExportFileInfo};
+use crate::service::import_export_service::{self, ImportExportFileInfo, ImportStatus};
 use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 use crate::service::{
@@ -547,21 +547,16 @@ pub enum ImportFileError {
     NoAccount,
     ParentDoesNotExist,
     DocumentTreatedAsFolder,
-    DiskPathInvalid,
 }
 
-pub fn import_file(
-    config: &Config, disk_path: PathBuf, parent: Uuid,
-    import_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+pub fn import_files<F: Fn(ImportStatus)>(
+    config: &Config, sources: &[PathBuf], dest: Uuid, update_status: &F,
 ) -> Result<(), Error<ImportFileError>> {
-    import_export_service::import_file(config, disk_path, parent, import_progress).map_err(|e| {
-        match e {
-            CoreError::AccountNonexistent => UiError(ImportFileError::NoAccount),
-            CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
-            CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
-            CoreError::DiskPathInvalid => UiError(ImportFileError::DiskPathInvalid),
-            _ => unexpected!("{:#?}", e),
-        }
+    import_export_service::import_files(config, sources, dest, update_status).map_err(|e| match e {
+        CoreError::AccountNonexistent => UiError(ImportFileError::NoAccount),
+        CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
+        CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
+        _ => unexpected!("{:#?}", e),
     })
 }
 
