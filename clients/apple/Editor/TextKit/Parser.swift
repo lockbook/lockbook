@@ -99,7 +99,12 @@ public class Parser: Visitor {
     }
 
     public func visit(text node: Text)  {
-
+        let oldParent = self.currentParent
+        let newParent = TextAR(indexes, node, currentParent!)
+        self.currentParent = newParent
+        processedDocument.append(newParent)
+        let _ = visitChildren(of: node)
+        self.currentParent = oldParent
     }
 
     public func visit(softBreak node: SoftBreak)  {

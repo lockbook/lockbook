@@ -28,25 +28,43 @@ public class Storage: NSTextStorage {
         
         myEditedRange = range
         myChangeInLength = string.utf16.count - range.length
+        
         self.edited(.editedCharacters, range: range, changeInLength: myChangeInLength)
     }
     
     public func syntaxHighlight() {
+        print()
+        print(DebugVisitor().visit(document: (try? Down(markdownString: backingStore.string).toDocument())!))
+
         var startingPoint = Date()
-        
-        var parsed: Parser?
-            parsed = Parser(backingStore.string)
-            currentStyles = parsed!.processedDocument
+        let newStyles = Parser(backingStore.string).processedDocument
+        adjustCurrentStyles()
         print("parser perf: \(startingPoint.timeIntervalSinceNow * -1)")
 
         startingPoint = Date()
-        beginEditing()
-        for modification in currentStyles {
-            print(modification.range)
-            setAttributes(modification.finalizeAttributes(), range: modification.range)
+        let sameSize = currentStyles.count == newStyles.count
+        var dirty = !sameSize
+        if sameSize {
+            for (index, currentStyle) in currentStyles.enumerated() {
+                if !currentStyle.isEqual(to: newStyles[index]) {
+                    dirty = true
+                    break
+                }
+            }
         }
-        endEditing()
+        
+        if dirty {
+            print("DIRT")
+            currentStyles = newStyles
+            beginEditing()
+            
+            for modification in newStyles {
+                setAttributes(modification.finalizeAttributes(), range: modification.range)
+            }
+            endEditing()
+        }
         print("doc update perf: \(startingPoint.timeIntervalSinceNow * -1)")
+        print()
     }
     
     func adjustCurrentStyles() {

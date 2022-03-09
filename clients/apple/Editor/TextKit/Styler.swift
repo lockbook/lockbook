@@ -13,6 +13,13 @@ public protocol AttributeRange {
     var link: String? { get }
     var monospace: Bool { get }
     var indentation: Float { get }
+    func isEqual (to: AttributeRange) -> Bool
+}
+
+extension AttributeRange where Self : Equatable {
+    func isEqual (to: AttributeRange) -> Bool {
+        return (to as? Self).flatMap({ $0 == self }) ?? false
+    }
 }
 
 extension AttributeRange {
@@ -51,6 +58,10 @@ extension AttributeRange {
 }
 
 class BaseAR: AttributeRange {
+    func isEqual(to: AttributeRange) -> Bool {
+        self.textSize == to.textSize
+    }
+    
     var range: NSRange
     var parent: AttributeRange?
     
@@ -63,7 +74,7 @@ class BaseAR: AttributeRange {
         self.range = indexer.getRange(node)
         self.parent = parent
     }
-        
+    
     var textSize: Int { self.parent!.textSize }
     
     var foreground: NSColor { self.parent!.foreground }
@@ -84,7 +95,7 @@ class BaseAR: AttributeRange {
 class DocumentAR: BaseAR {
     
     init(_ range: NSRange) { super.init(range, .none) }
-        
+    
     override var textSize: Int { 13 }
     
     override var foreground: NSColor { NSColor.labelColor }
@@ -171,11 +182,12 @@ class ParagraphAR: BaseAR {
             endLine: node.cmarkNode.pointee.end_line
         )
         self.offset = Float(startOfLine.size(withAttributes: parent.finalizeAttributes()).width)
-        print(self.offset)
     }
     
     override var indentation: Float { offset }
 }
+
+class TextAR: BaseAR { }
 
 enum Style {
     case Base
