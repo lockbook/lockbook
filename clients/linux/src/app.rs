@@ -19,7 +19,8 @@ use gtk::{
 };
 use uuid::Uuid;
 
-use lockbook_core::service::import_export_service::ImportExportFileInfo;
+use lockbook_core::service::import_export_service::{ImportExportFileInfo, ImportStatus};
+use lockbook_core::CoreError;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 
 use crate::account::{AccountScreen, TextAreaDropPasteInfo};
@@ -694,22 +695,36 @@ impl LbApp {
     fn show_dialog_import_file(
         &self, parent: Uuid, uris: Vec<String>, finish_ch: Option<glib::Sender<Vec<String>>>,
     ) -> LbResult<()> {
-        let (d, disk_lbl, lb_lbl, prog_lbl, pbar) = self.gui.new_import_export_dialog(true);
+        let d = self.gui.new_dialog("Import Files");
+        util::gui::set_marginy(&d, 36);
+        util::gui::set_marginx(&d, 100);
+
+        let disk_lbl = GtkLabel::new(None);
+        util::gui::set_marginx(&disk_lbl, 16);
+        disk_lbl.set_margin_top(5);
+
+        let pbar = GtkProgressBar::new();
+        util::gui::set_marginx(&pbar, 16);
+        util::gui::set_marginy(&pbar, 16);
+        pbar.set_size_request(300, -1);
+
+        let prog_lbl = GtkLabel::new(None);
+        util::gui::set_marginy(&prog_lbl, 4);
+
+        d.get_content_area().add(&disk_lbl);
+        d.get_content_area().add(&pbar);
+        d.get_content_area().add(&prog_lbl);
 
         const FILE_SCHEME: &str = "file://";
-
-        let mut total = 0;
-        let progress = Rc::new(RefCell::new(-1));
 
         let mut paths = Vec::new();
 
         for uri in &uris {
             if let Some(path) = uri.strip_prefix(FILE_SCHEME) {
-                let escaped_uri = glib::uri_unescape_string(path, None)
+                let unescaped_uri = glib::uri_unescape_string(path, None)
                     .ok_or_else(|| uerr_dialog!("Unable to escape uri!"))?
                     .to_string();
-                total += util::io::get_children_count(PathBuf::from(&escaped_uri))?;
-                paths.push(escaped_uri);
+                paths.push(PathBuf::from(&format!("{}/bad", unescaped_uri)));
             } else {
                 return Err(uerr_dialog!("Unsupported uri!"));
             }
@@ -717,46 +732,62 @@ impl LbApp {
 
         d.show_all();
 
+        let mut total = 0;
+        let mut progress = 0;
+        let mut errors: Vec<String> = Vec::new();
+        let m = self.messenger.clone();
+
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-        rx.attach(
-            None,
-            glib::clone!(
-                @strong self.messenger as m,
-                @strong progress
-                => move |maybe_info: Option<ImportExportFileInfo>| {
-                    *progress.borrow_mut() += 1;
-                    pbar.set_fraction(*progress.borrow() as f64 / total as f64);
-
-                    match maybe_info {
-                        None => {
-                            d.close();
-                            m.send(Msg::RefreshTree);
+        rx.attach(None, move |maybe_info: Option<ImportStatus>| {
+            match maybe_info {
+                None => {
+                    m.send(Msg::RefreshTree);
+                    if !errors.is_empty() {
+                        let area = d.get_content_area();
+                        area.foreach(|w| area.remove(w));
+                        for err_msg in &errors {
+                            let lbl = gtk::Label::new(Some(err_msg));
+                            lbl.set_halign(gtk::Align::Start);
+                            util::gui::set_margin(&lbl, 8);
+                            area.add(&lbl);
                         }
-                        Some(info) => {
-                            lb_lbl.set_text(&info.lockbook_path);
-                            disk_lbl.set_text(&format!("{}", info.disk_path.display()));
-                            prog_lbl.set_text(&format!("{}/{}", *progress.borrow(), total));
-                        }
+                        d.set_title("Import Errors");
+                        d.show_all();
+                    } else {
+                        d.close();
                     }
-                    glib::Continue(true)
                 }
-            ),
-        );
+                Some(status) => match status {
+                    ImportStatus::CalculatedTotal(n_files) => total = n_files,
+                    ImportStatus::Error(disk_path, err) => errors.push(match err {
+                        CoreError::DiskPathInvalid => {
+                            format!("invalid disk path '{}'", disk_path.display())
+                        }
+                        _ => format!("unexpected error: {:#?}", err),
+                    }),
+                    ImportStatus::StartingItem(disk_path) => {
+                        progress += 1;
+                        pbar.set_fraction(progress as f64 / total as f64);
+                        disk_lbl.set_text(&format!("Importing: {}", disk_path));
+                        prog_lbl.set_text(&format!("{}/{}", progress, total));
+                    }
+                    ImportStatus::FinishedItem(_metadata) => {}
+                },
+            }
+            glib::Continue(true)
+        });
 
-        let import_progress = glib::clone!(@strong tx => move |progress: ImportExportFileInfo| {
-            tx.send(Some(progress)).unwrap();
+        let import_progress = glib::clone!(@strong tx => move |status: ImportStatus| {
+            tx.send(Some(status)).unwrap();
         });
 
         thread::spawn(glib::clone!(
             @strong self.core as c,
             @strong self.messenger as m
             => move || {
-                for path in &paths {
-                    if let Err(err) = c.import_file(parent, path, Some(Box::new(import_progress.clone()))) {
-                        m.send_err_dialog("Import files", err);
-                        break;
-                    };
-                }
+                if let Err(err) = c.import_files(parent, &paths, &import_progress) {
+                    m.send_err_dialog("Import files", err);
+                };
 
                 tx.send(None).unwrap();
 
@@ -771,7 +802,7 @@ impl LbApp {
                     };
 
                     for path in paths {
-                        let name = match PathBuf::from(path).file_name() {
+                        let name = match path.file_name() {
                             None => {
                                 m.send_err_dialog("getting disk file name", uerr_dialog!("Unable to get disk file's name"));
                                 return;
