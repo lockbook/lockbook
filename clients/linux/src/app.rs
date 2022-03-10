@@ -1,4 +1,3 @@
-use std::cell::Cell;
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -718,9 +717,6 @@ impl LbApp {
 
         const FILE_SCHEME: &str = "file://";
 
-        let total = Cell::new(0);
-        let progress = Rc::new(RefCell::new(-1));
-
         let mut paths = Vec::new();
 
         for uri in &uris {
@@ -736,53 +732,50 @@ impl LbApp {
 
         d.show_all();
 
+        let mut total = 0;
+        let mut progress = 0;
         let mut errors: Vec<String> = Vec::new();
+        let m = self.messenger.clone();
 
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-        rx.attach(
-            None,
-            glib::clone!(
-                @strong self.messenger as m,
-                @strong progress
-                => move |maybe_info: Option<ImportStatus>| {
-                    *progress.borrow_mut() += 1;
-                    pbar.set_fraction(*progress.borrow() as f64 / total.get() as f64);
-
-                    match maybe_info {
-                        None => {
-                            m.send(Msg::RefreshTree);
-                            if !errors.is_empty() {
-                                let area = d.get_content_area();
-                                area.foreach(|w| area.remove(w));
-                                for err_msg in &errors {
-                                    let lbl = gtk::Label::new(Some(err_msg));
-                                    lbl.set_halign(gtk::Align::Start);
-                                    util::gui::set_margin(&lbl, 8);
-                                    area.add(&lbl);
-                                }
-                                d.set_title("Import Errors");
-                                d.show_all();
-                            } else {
-                                d.close();
-                            }
+        rx.attach(None, move |maybe_info: Option<ImportStatus>| {
+            match maybe_info {
+                None => {
+                    m.send(Msg::RefreshTree);
+                    if !errors.is_empty() {
+                        let area = d.get_content_area();
+                        area.foreach(|w| area.remove(w));
+                        for err_msg in &errors {
+                            let lbl = gtk::Label::new(Some(err_msg));
+                            lbl.set_halign(gtk::Align::Start);
+                            util::gui::set_margin(&lbl, 8);
+                            area.add(&lbl);
                         }
-                        Some(status) => match status {
-                            ImportStatus::CalculatedTotal(n_files) => total.set(n_files),
-                            ImportStatus::Error(disk_path, err) => errors.push(match err {
-                                CoreError::DiskPathInvalid => format!("invalid disk path '{}'", disk_path.display()),
-                                _ => format!("unexpected error: {:#?}", err),
-                            }),
-                            ImportStatus::StartingItem(disk_path) => {
-                                disk_lbl.set_text(&format!("Importing: {}", disk_path));
-                                prog_lbl.set_text(&format!("{}/{}", *progress.borrow(), total.get()));
-                            }
-                            ImportStatus::FinishedItem(_metadata) => {}
-                        }
+                        d.set_title("Import Errors");
+                        d.show_all();
+                    } else {
+                        d.close();
                     }
-                    glib::Continue(true)
                 }
-            ),
-        );
+                Some(status) => match status {
+                    ImportStatus::CalculatedTotal(n_files) => total = n_files,
+                    ImportStatus::Error(disk_path, err) => errors.push(match err {
+                        CoreError::DiskPathInvalid => {
+                            format!("invalid disk path '{}'", disk_path.display())
+                        }
+                        _ => format!("unexpected error: {:#?}", err),
+                    }),
+                    ImportStatus::StartingItem(disk_path) => {
+                        progress += 1;
+                        pbar.set_fraction(progress as f64 / total as f64);
+                        disk_lbl.set_text(&format!("Importing: {}", disk_path));
+                        prog_lbl.set_text(&format!("{}/{}", progress, total));
+                    }
+                    ImportStatus::FinishedItem(_metadata) => {}
+                },
+            }
+            glib::Continue(true)
+        });
 
         let import_progress = glib::clone!(@strong tx => move |status: ImportStatus| {
             tx.send(Some(status)).unwrap();
