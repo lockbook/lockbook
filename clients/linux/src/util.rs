@@ -79,27 +79,6 @@ pub mod gui {
     pub const RIGHT_CLICK: u32 = 3;
 }
 
-pub mod io {
-    use crate::error::{LbError, LbResult};
-    use std::fs;
-    use std::path::PathBuf;
-
-    pub fn get_children_count(path: PathBuf) -> LbResult<u64> {
-        let mut count = 1;
-
-        if !path.is_file() {
-            let children = fs::read_dir(path).map_err(LbError::fmt_program_err)?;
-            for maybe_child in children {
-                let child_path = maybe_child.map_err(LbError::fmt_program_err)?.path();
-
-                count += get_children_count(child_path)?;
-            }
-        }
-
-        Ok(count)
-    }
-}
-
 pub const LOCKBOOK_FILES_TARGET_INFO: u32 = 0;
 pub const TEXT_TARGET_INFO: u32 = 1;
 pub const URI_TARGET_INFO: u32 = 2;
