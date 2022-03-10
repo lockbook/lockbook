@@ -1,14 +1,21 @@
+import Foundation
 import SwiftUI
 import SwiftLockbookCore
-import NotepadSwift
 
-extension Color {
-    static func textEditorBackground(isDark: Bool) -> Color {
-        return isDark ? textEditorBackgroundDark : textEditorBackgroundLight
-    }
-    static let textEditorBackgroundLight = Color(red: 1.0, green: 1.0, blue: 1.0, opacity: 1.0)
-    static let textEditorBackgroundDark = Color(red: 30.0/256.0, green: 30.0/256.0, blue: 30.0/256.0, opacity: 1.0)
+#if os(iOS)
+import UIKit
+public typealias UniversalColor = UIColor
+#elseif os(macOS)
+import AppKit
+public typealias UniversalColor = NSColor
+#endif
+
+#if os(macOS)
+extension NSColor {
+    static let label = NSColor.labelColor
+    static let secondaryLabel = NSColor.secondaryLabelColor
 }
+#endif
 
 extension ColorAlias { 
     static func fromUIColor(from color: UniversalColor) -> ColorAlias {
@@ -49,6 +56,31 @@ extension ColorAlias {
         return .Yellow
     }
 }
+
+extension UniversalColor {
+    /// Converts a hex color code to UIColor.
+    /// http://stackoverflow.com/a/33397427/6669540
+    ///
+    /// - parameter hexString: The hex code.
+    convenience init(hexString: String) {
+        let hex = hexString.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int = UInt64()
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (255, 0, 0, 0)
+        }
+        self.init(red: CGFloat(r) / 255, green: CGFloat(g) / 255, blue: CGFloat(b) / 255, alpha: CGFloat(a) / 255)
+    }
+}
+
 
 #if os(iOS)
 public extension UIColor {
