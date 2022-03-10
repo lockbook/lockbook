@@ -13,7 +13,10 @@ public class Parser: Visitor {
 
     public init(_ input: String) {
         self.indexes = IndexConverter(input)
+        let startingPoint = Date()
         let document = (try? Down(markdownString: input).toDocument())!
+        print("Down perf: \(startingPoint.timeIntervalSinceNow * -1)")
+
         self.input = input as NSString
         self.visit(document: document)
     }

@@ -66,7 +66,6 @@ class Coordinator: NSObject, NSTextViewDelegate {
             print("textview not a textview")
             return
         }
-        
         guard let storage = textView.textStorage as? Storage else {
             print("Wrong storage type attached to this textview")
             return

@@ -12,6 +12,7 @@ public class Storage: NSTextStorage {
     var currentStyles: [AttributeRange] = []
     var myEditedRange: NSRange?
     var myChangeInLength: Int = 0
+    var us: Bool = false
     
     public override var string: String {
         get {
@@ -33,10 +34,10 @@ public class Storage: NSTextStorage {
     }
     
     public func syntaxHighlight() {
+        us = true
         print()
-        print(DebugVisitor().visit(document: (try? Down(markdownString: backingStore.string).toDocument())!))
-
         var startingPoint = Date()
+
         let newStyles = Parser(backingStore.string).processedDocument
         adjustCurrentStyles()
         print("parser perf: \(startingPoint.timeIntervalSinceNow * -1)")
@@ -65,6 +66,7 @@ public class Storage: NSTextStorage {
         }
         print("doc update perf: \(startingPoint.timeIntervalSinceNow * -1)")
         print()
+        us = false
     }
     
     func adjustCurrentStyles() {
@@ -72,7 +74,9 @@ public class Storage: NSTextStorage {
     }
     
     public override func setAttributes(_ attrs: [NSAttributedString.Key : Any]?, range: NSRange) {
-        backingStore.setAttributes(attrs, range: range)
-        self.edited(.editedAttributes, range: range, changeInLength: 0)
+        if us {
+            backingStore.setAttributes(attrs, range: range)
+            self.edited(.editedAttributes, range: range, changeInLength: 0)
+        }
     }
 }

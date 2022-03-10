@@ -48,6 +48,7 @@
 		877FB55E26D1B8A10008AB3F /* LBDrawingPKDrawingConversions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5036ACCA149F0864585B7D44 /* LBDrawingPKDrawingConversions.swift */; };
 		877FB56026D2C7D60008AB3F /* StatusService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB55F26D2C7D60008AB3F /* StatusService.swift */; };
 		877FB56126D2C7D60008AB3F /* StatusService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB55F26D2C7D60008AB3F /* StatusService.swift */; };
+		8794F43827D9525200B1B7EB /* Down in Frameworks */ = {isa = PBXBuildFile; productRef = 8794F43727D9525200B1B7EB /* Down */; };
 		879B81CF27D56A800022FE00 /* IndexConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 879B81CE27D56A800022FE00 /* IndexConverter.swift */; };
 		879B81D027D56A800022FE00 /* IndexConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 879B81CE27D56A800022FE00 /* IndexConverter.swift */; };
 		87AA99F3269610D8009E5591 /* NewFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87AA99F2269610D8009E5591 /* NewFileSheet.swift */; };
@@ -86,9 +87,7 @@
 		EA831A562534E3C80048CE26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA831A542534E3C80048CE26 /* AppView.swift */; };
 		EA9079C32569960A00E04F5D /* FileCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA9079C22569960A00E04F5D /* FileCell.swift */; };
 		EA9EEFD225FC058100E8C790 /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA8C627B25EF091900330E27 /* SwiftLockbookCore */; };
-		EA9EEFD425FC058100E8C790 /* Down in Frameworks */ = {isa = PBXBuildFile; productRef = EAA64F7F25F08E59007B9250 /* Down */; };
 		EA9EEFD525FC058200E8C790 /* SwiftLockbookCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA14E81E2516655B00B9158C /* SwiftLockbookCore */; };
-		EA9EEFD725FC058200E8C790 /* Down in Frameworks */ = {isa = PBXBuildFile; productRef = EA71418A25F08D0F00631F2B /* Down */; };
 		EAAA10D925B3FD58005140EE /* BottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8741E8E325AAA524005B7B01 /* BottomBar.swift */; };
 		EAEDCD0B2516FC1C00EBE313 /* BookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD0A2516FC1C00EBE313 /* BookView.swift */; };
 		EAEDCD0C2516FC1C00EBE313 /* BookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEDCD0A2516FC1C00EBE313 /* BookView.swift */; };
@@ -186,7 +185,6 @@
 			files = (
 				EA82B20C262652F700EE82B9 /* Introspect in Frameworks */,
 				EA9EEFD225FC058100E8C790 /* SwiftLockbookCore in Frameworks */,
-				EA9EEFD425FC058100E8C790 /* Down in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -194,8 +192,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8794F43827D9525200B1B7EB /* Down in Frameworks */,
 				EA9EEFD525FC058200E8C790 /* SwiftLockbookCore in Frameworks */,
-				EA9EEFD725FC058200E8C790 /* Down in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -435,7 +433,6 @@
 			name = "Lockbook (iOS)";
 			packageProductDependencies = (
 				EA8C627B25EF091900330E27 /* SwiftLockbookCore */,
-				EAA64F7F25F08E59007B9250 /* Down */,
 				EA82B20B262652F700EE82B9 /* Introspect */,
 			);
 			productName = "Lockbook (iOS)";
@@ -457,7 +454,7 @@
 			name = "Lockbook (macOS)";
 			packageProductDependencies = (
 				EA14E81E2516655B00B9158C /* SwiftLockbookCore */,
-				EA71418A25F08D0F00631F2B /* Down */,
+				8794F43727D9525200B1B7EB /* Down */,
 			);
 			productName = "Lockbook (macOS)";
 			productReference = EA5C7D772516606000F7F358 /* Lockbook.app */;
@@ -494,8 +491,8 @@
 			);
 			mainGroup = EA5C7D622516605F00F7F358;
 			packageReferences = (
-				EA71418925F08D0F00631F2B /* XCRemoteSwiftPackageReference "Down" */,
 				EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */,
+				8794F43627D9525200B1B7EB /* XCRemoteSwiftPackageReference "Down" */,
 			);
 			productRefGroup = EA5C7D702516606000F7F358 /* Products */;
 			projectDirPath = "";
@@ -1108,12 +1105,12 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		EA71418925F08D0F00631F2B /* XCRemoteSwiftPackageReference "Down" */ = {
+		8794F43627D9525200B1B7EB /* XCRemoteSwiftPackageReference "Down" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/johnxnguyen/Down.git";
+			repositoryURL = "https://github.com/Parth/Down";
 			requirement = {
 				kind = revision;
-				revision = 2524b6247081451083f82d64f1a6d3eb95468870;
+				revision = bc7f15eefdc44612da63b349082794d880fd039a;
 			};
 		};
 		EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */ = {
@@ -1127,14 +1124,14 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		8794F43727D9525200B1B7EB /* Down */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8794F43627D9525200B1B7EB /* XCRemoteSwiftPackageReference "Down" */;
+			productName = Down;
+		};
 		EA14E81E2516655B00B9158C /* SwiftLockbookCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftLockbookCore;
-		};
-		EA71418A25F08D0F00631F2B /* Down */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = EA71418925F08D0F00631F2B /* XCRemoteSwiftPackageReference "Down" */;
-			productName = Down;
 		};
 		EA82B20B262652F700EE82B9 /* Introspect */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -1144,11 +1141,6 @@
 		EA8C627B25EF091900330E27 /* SwiftLockbookCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftLockbookCore;
-		};
-		EAA64F7F25F08E59007B9250 /* Down */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = EA71418925F08D0F00631F2B /* XCRemoteSwiftPackageReference "Down" */;
-			productName = Down;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

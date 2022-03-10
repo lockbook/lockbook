@@ -25,7 +25,6 @@ public class IndexConverter {
             sum += count
             self.columnLookup.append(sum)
         }
-        var startingPoint = Date()
         
         var index = 0
         var currentIndex = string.utf8.startIndex
@@ -62,7 +61,6 @@ public class IndexConverter {
         if string.isEmpty && startCol == 1 && endCol == 0 && startLine == 1 && endLine == 0 {
             return NSRange(location: 0, length: 0)
         }
-        
         
         let startUTF8 = getUTF8Index(utf8Row: startLine-1, utf8Col: startCol-1)
         let offset = getUTF8Index(utf8Row: endLine-1, utf8Col: endCol-1) - startUTF8

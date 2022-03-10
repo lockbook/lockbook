@@ -58,10 +58,6 @@ extension AttributeRange {
 }
 
 class BaseAR: AttributeRange {
-    func isEqual(to: AttributeRange) -> Bool {
-        self.textSize == to.textSize
-    }
-    
     var range: NSRange
     var parent: AttributeRange?
     
@@ -90,6 +86,17 @@ class BaseAR: AttributeRange {
     var monospace: Bool { self.parent!.monospace }
     
     var indentation: Float { self.parent!.indentation }
+    
+    func isEqual(to: AttributeRange) -> Bool {
+        self.textSize == to.textSize &&
+        self.foreground == to.foreground &&
+        self.background == to.background &&
+        self.italics == to.italics &&
+        self.bold == to.bold &&
+        self.link == to.link &&
+        self.monospace == to.monospace &&
+        self.indentation == to.indentation
+    }
 }
 
 class DocumentAR: BaseAR {
@@ -188,47 +195,3 @@ class ParagraphAR: BaseAR {
 }
 
 class TextAR: BaseAR { }
-
-enum Style {
-    case Base
-    case Heading1
-    case Heading2
-    case Heading3
-    case Heading4
-    case Heading5
-    case Heading6
-    case Code
-    case CodeBlock
-    case Link
-}
-
-extension Style {
-    static func from(_ heading: Heading) -> Style {
-        switch heading.headingLevel {
-        case 1: return .Heading1
-        case 2: return .Heading2
-        case 3: return .Heading3
-        case 4: return .Heading4
-        case 5: return .Heading5
-        default: return .Heading6
-        }
-    }
-    
-    static func from(_ document: Document) -> Style {
-        .Base
-    }
-    
-    static func from(_ code: Code) -> Style {
-        .Code
-    }
-    
-    static func from(_ code: CodeBlock) -> Style {
-        .CodeBlock
-    }
-    
-    static func from(_ code: Link) -> Style {
-        .Link
-    }
-}
-
-
