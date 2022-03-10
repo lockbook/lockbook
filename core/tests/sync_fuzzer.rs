@@ -277,7 +277,7 @@ mod sync_fuzzer {
                 5 => AttemptFolderMove,
                 6 => RenameFile,
                 7 => DeleteFile,
-                _ => panic!("An enum was added to Actions, but does not have a corresponding random selection")
+                _ => panic!("An enum was added to Actions, but does not have a corresponding random selection"),
             }
         }
     }
@@ -287,6 +287,7 @@ mod sync_fuzzer {
         pb.set_style(
             ProgressStyle::default_bar()
                 .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {msg}")
+                .unwrap()
                 .with_key("eta", |state| format!("{:.1}s", state.eta().as_secs_f64()))
                 .progress_chars("#>-"),
         );

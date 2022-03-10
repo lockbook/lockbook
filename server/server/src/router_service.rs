@@ -1,7 +1,9 @@
 use crate::account_service::*;
+use crate::billing::billing_service;
+use crate::billing::billing_service::*;
 use crate::file_service::*;
 use crate::utils::get_build_info;
-use crate::{router_service, verify_auth, verify_client_version, ServerState};
+use crate::{router_service, verify_auth, verify_client_version, ServerError, ServerState};
 use lazy_static::lazy_static;
 use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_models::api::*;
@@ -11,7 +13,7 @@ use prometheus::{register_histogram_vec, HistogramVec, TextEncoder};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::sync::Arc;
-use warp::http::Method;
+use warp::http::{HeaderValue, Method, StatusCode};
 use warp::hyper::body::Bytes;
 use warp::{reject, Filter, Rejection};
 
@@ -85,6 +87,8 @@ pub fn core_routes(
         .or(core_req!(GetUsageRequest, get_usage, server_state))
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
         .or(core_req!(DeleteAccountRequest, delete_account, server_state))
+        .or(core_req!(GetCreditCardRequest, get_credit_card, server_state))
+        .or(core_req!(SwitchAccountTierRequest, switch_account_tier, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
@@ -111,6 +115,38 @@ pub fn get_metrics() -> impl Filter<Extract = impl warp::Reply, Error = warp::Re
             }
         }
     })
+}
+
+pub fn stripe_webhooks(
+    server_state: &Arc<ServerState>,
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    let cloned_state = Arc::clone(server_state);
+
+    warp::post()
+        .and(warp::path("stripe-webhooks"))
+        .and(warp::any().map(move || Arc::clone(&cloned_state)))
+        .and(warp::body::bytes())
+        .and(warp::header::header("Stripe-Signature"))
+        .then(|state: Arc<ServerState>, request: Bytes, stripe_sig: HeaderValue| async move {
+            match billing_service::stripe_webhooks(&state, request, stripe_sig).await {
+                Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
+                Err(e) => {
+                    error!("{:?}", e);
+
+                    let status_code = match e {
+                        ServerError::ClientError(StripeWebhookError::VerificationError(_))
+                        | ServerError::ClientError(StripeWebhookError::InvalidBody(_))
+                        | ServerError::ClientError(StripeWebhookError::InvalidHeader(_))
+                        | ServerError::ClientError(StripeWebhookError::ParseError(_)) => {
+                            StatusCode::BAD_REQUEST
+                        }
+                        ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                    };
+
+                    warp::reply::with_status("".to_string(), status_code)
+                }
+            }
+        })
 }
 
 pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Clone {

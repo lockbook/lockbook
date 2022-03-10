@@ -1,9 +1,8 @@
 ARG HASH
-FROM rust AS server-build
-# Use https://rust-lang.github.io/rustup-components-history/ to select one with cargo and rustfmt
-RUN rustup toolchain install stable
-RUN rustup component add rustfmt --toolchain stable
-RUN rustup component add clippy --toolchain stable
+
+FROM rust:1.55 AS server-build
+RUN rustup component add rustfmt
+RUN rustup component add clippy
 
 WORKDIR server
 
@@ -24,6 +23,8 @@ COPY server/server/Cargo.toml .
 COPY server/server/build.rs .
 COPY rustfmt.toml .
 
+RUN curl -L https://github.com/stripe/stripe-cli/releases/download/v1.7.13/stripe_1.7.13_linux_x86_64.tar.gz | tar -xz -C /usr/bin
+
 # Dependency on core which has compile-time env var
 ENV API_URL=unused
 RUN cargo test --release # test to pickup dev deps
@@ -41,8 +42,8 @@ RUN cargo build --release
 
 # Check formatting
 FROM server:${HASH} AS server-fmt
-RUN cargo +stable fmt -- --check -l
+RUN cargo fmt -- --check -l
 
 # Check lint
 FROM server:${HASH} AS server-lint
-RUN cargo +stable clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments -A clippy::upper-case-acronyms
+RUN cargo clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments -A clippy::upper-case-acronyms

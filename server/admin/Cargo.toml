@@ -12,4 +12,6 @@ rust-s3 = "0.27.0-rc3"
 lockbook-models = { path = "../../core/libs/models" }
 deadpool-redis = "0.10.1"
 redis = { version = "0.21", default-features = false, features = ["tokio-comp"] }
-redis_utils = "0.1.2"
+redis_utils = "0.1.3"
+reqwest = "0.11.7"
+async-stripe = { git = "https://github.com/arlyon/async-stripe", default-features = true, features = ["runtime-tokio-hyper-rustls"] }
