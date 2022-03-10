@@ -49,6 +49,7 @@
 		877FB56026D2C7D60008AB3F /* StatusService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB55F26D2C7D60008AB3F /* StatusService.swift */; };
 		877FB56126D2C7D60008AB3F /* StatusService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877FB55F26D2C7D60008AB3F /* StatusService.swift */; };
 		8794F43827D9525200B1B7EB /* Down in Frameworks */ = {isa = PBXBuildFile; productRef = 8794F43727D9525200B1B7EB /* Down */; };
+		8794F43A27D97F4600B1B7EB /* Down in Frameworks */ = {isa = PBXBuildFile; productRef = 8794F43927D97F4600B1B7EB /* Down */; };
 		879B81CF27D56A800022FE00 /* IndexConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 879B81CE27D56A800022FE00 /* IndexConverter.swift */; };
 		879B81D027D56A800022FE00 /* IndexConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 879B81CE27D56A800022FE00 /* IndexConverter.swift */; };
 		87AA99F3269610D8009E5591 /* NewFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87AA99F2269610D8009E5591 /* NewFileSheet.swift */; };
@@ -185,6 +186,7 @@
 			files = (
 				EA82B20C262652F700EE82B9 /* Introspect in Frameworks */,
 				EA9EEFD225FC058100E8C790 /* SwiftLockbookCore in Frameworks */,
+				8794F43A27D97F4600B1B7EB /* Down in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -434,6 +436,7 @@
 			packageProductDependencies = (
 				EA8C627B25EF091900330E27 /* SwiftLockbookCore */,
 				EA82B20B262652F700EE82B9 /* Introspect */,
+				8794F43927D97F4600B1B7EB /* Down */,
 			);
 			productName = "Lockbook (iOS)";
 			productReference = EA5C7D6F2516606000F7F358 /* Lockbook.app */;
@@ -1125,6 +1128,11 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		8794F43727D9525200B1B7EB /* Down */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8794F43627D9525200B1B7EB /* XCRemoteSwiftPackageReference "Down" */;
+			productName = Down;
+		};
+		8794F43927D97F4600B1B7EB /* Down */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 8794F43627D9525200B1B7EB /* XCRemoteSwiftPackageReference "Down" */;
 			productName = Down;

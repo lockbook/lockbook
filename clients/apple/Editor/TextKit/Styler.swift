@@ -1,13 +1,18 @@
 import Foundation
 import Down
+
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
 import AppKit
+#endif
 
 public protocol AttributeRange {
     var range: NSRange { get }
     var parent: AttributeRange? { get }
     var textSize: Int { get }
-    var foreground: NSColor { get }
-    var background: NSColor { get }
+    var foreground: UniversalColor { get }
+    var background: UniversalColor { get }
     var italics: Bool { get }
     var bold: Bool { get }
     var link: String? { get }
@@ -33,6 +38,19 @@ extension AttributeRange {
             attrs[.link] = l
         }
         
+        #if os(iOS)
+        var fontAttrs: UIFontDescriptor.SymbolicTraits = []
+        if monospace { fontAttrs.insert(.traitMonoSpace) }
+        if bold { fontAttrs.insert(.traitBold) }
+        if italics { fontAttrs.insert(.traitItalic) }
+        
+        attrs[.font] = UIFont(
+            descriptor: UIFont.systemFont(ofSize: CGFloat(textSize))
+                .fontDescriptor
+                .withSymbolicTraits(fontAttrs)!,
+            size: CGFloat(textSize)
+        )
+        #else
         var fontAttrs: NSFontDescriptor.SymbolicTraits = []
         if monospace { fontAttrs.insert(.monoSpace) }
         if bold { fontAttrs.insert(.bold) }
@@ -44,6 +62,8 @@ extension AttributeRange {
                 .withSymbolicTraits(fontAttrs),
             size: CGFloat(textSize)
         )!
+        #endif
+
         
         if indentation != 0 {
             let paraStyle = NSMutableParagraphStyle()
@@ -73,9 +93,9 @@ class BaseAR: AttributeRange {
     
     var textSize: Int { self.parent!.textSize }
     
-    var foreground: NSColor { self.parent!.foreground }
+    var foreground: UniversalColor { self.parent!.foreground }
     
-    var background: NSColor { self.parent!.background }
+    var background: UniversalColor { self.parent!.background }
     
     var italics: Bool { self.parent!.italics }
     
@@ -105,9 +125,9 @@ class DocumentAR: BaseAR {
     
     override var textSize: Int { 13 }
     
-    override var foreground: NSColor { NSColor.labelColor }
+    override var foreground: UniversalColor { UniversalColor.label }
     
-    override var background: NSColor { NSColor.clear }
+    override var background: UniversalColor { UniversalColor.clear }
     
     override var italics: Bool { false }
     
@@ -133,19 +153,19 @@ class HeadingAR: BaseAR {
 }
 
 class InlineCodeAR: BaseAR {
-    override var foreground: NSColor { NSColor.systemPink }
+    override var foreground: UniversalColor { UniversalColor.systemPink }
     override var monospace: Bool { true }
 }
 
 class CodeBlockAR: BaseAR {
     override var monospace: Bool { true }
-    override var background: NSColor { NSColor.black.withAlphaComponent(0.65) }
-    override var foreground: NSColor { NSColor.white }
+    override var background: UniversalColor { UniversalColor.black.withAlphaComponent(0.65) }
+    override var foreground: UniversalColor { UniversalColor.white }
 }
 
 class BlockQuoteAR: BaseAR {
     override var italics: Bool { true }
-    override var foreground: NSColor { NSColor.secondaryLabelColor }
+    override var foreground: UniversalColor { UniversalColor.secondaryLabel }
 }
 
 class StrongAR: BaseAR {
@@ -168,7 +188,7 @@ class LinkAR: BaseAR {
 }
 
 class ItemAR: BaseAR {
-    override var foreground: NSColor { NSColor.secondaryLabelColor }
+    override var foreground: UniversalColor { UniversalColor.secondaryLabel }
 }
 
 class ParagraphAR: BaseAR {

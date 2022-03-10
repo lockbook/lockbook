@@ -4,13 +4,21 @@ import SwiftUI
 struct EditorView: UIViewRepresentable {
     
     @EnvironmentObject var model: DocumentLoader
+    let storage = Storage()
     
     lazy var delegate: Coordinator = Coordinator(textChange: updateModel)
     
     func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView()
+        let layoutManager = NSLayoutManager()
+        storage.addLayoutManager(layoutManager)
+        let textContainer = NSTextContainer(size: .zero)
+        layoutManager.addTextContainer(textContainer)
+        
+        let textView = UITextView(frame: .zero, textContainer: textContainer)
         textView.delegate = context.coordinator
         textView.text = model.textDocument!
+        textView.autoresizingMask = .flexibleHeight
+        storage.syntaxHighlight()
         return textView
     }
     
@@ -39,6 +47,13 @@ class Coordinator: NSObject, UITextViewDelegate {
     }
     
     public func textViewDidChange(_ textView: UITextView) {
+        guard let storage = textView.textStorage as? Storage else {
+            print("Wrong storage type attached to this textview")
+            return
+        }
+        
+        storage.syntaxHighlight()
+        
         onTextChange(textView.text)
     }
 }
