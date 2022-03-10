@@ -35,7 +35,6 @@ class DocumentLoader: ObservableObject {
     }
     
     func startLoading(_ meta: DecryptedFileMetadata) {
-        print("loading \(meta.decryptedName)")
         let type = DocumentLoader.getType(name: meta.decryptedName)
         
         self.meta = meta

@@ -54,7 +54,7 @@ struct OnboardingView: View {
                             .disabled(self.onboardingState.working)
                             .onSubmit(self.onboardingState.handleImport)
                         #if os(iOS)
-                        Scanner()
+                        QRScanner()
                         #endif
                     }
                     Text(onboardingState.importAccountError)
