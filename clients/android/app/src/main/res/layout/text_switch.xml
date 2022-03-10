@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <LinearLayout android:layout_height="wrap_content"
+        android:layout_width="wrap_content"
+        android:background="@drawable/text_switch_bg"
+        android:orientation="horizontal"
+        android:weightSum="2"
+        >
+        <Button
+            android:id="@+id/tsv_option_one"
+            style="@style/Main.Button.Borderless.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_margin="5dp"
+            android:text="New Account"
+            android:background="@drawable/text_switch_bg"
+            android:maxLines="1" />
+
+        <Button
+            android:id="@+id/tsv_option_two"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_margin="5dp"
+            style="@style/Main.Button.Borderless.Colored"
+            android:text="Import Account"
+            android:maxLines="1" />
+
+
+
+
+    </LinearLayout>
+
+</merge>
