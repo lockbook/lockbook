@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct Scanner: View {
+struct QRScanner: View {
     
     @EnvironmentObject var onboardingState: OnboardingService
     
