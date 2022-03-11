@@ -2,6 +2,10 @@
 
 set -ea
 
+command -V redis-server
+command -V minio
+command -V mc
+
 projRoot=`git rev-parse --show-toplevel`
 
 dir="$1"
