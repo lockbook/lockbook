@@ -3,12 +3,14 @@
 set -ea
 
 projRoot=`git rev-parse --show-toplevel`
-cd $projRoot/server/server
 
 dir="$1"
 if [ -z "$dir" ]; then
 	dir="/tmp/lbdev"
 fi
+
+mkdir -p $dir
+cd $dir
 
 printf "Starting redis server... "
 redis-server > redis-server.log 2>&1 &
@@ -16,14 +18,19 @@ printf "Done. PID: $! \n"
 
 printf "Starting minio server... "
 minio server $dir > minio-server.log 2>&1 &
+minioPID="$!"
 
+cd $projRoot/server/server
 . ../../containers/local.env
 
-while ! nc -z $FILES_DB_HOST $FILES_DB_PORT
-do
+while true; do
+	minioListenPID="$(lsof -Pi :$FILES_DB_PORT -sTCP:LISTEN -t || echo)"
+	if [ "$minioPID" = "$minioListenPID" ] ; then
+		break
+	fi
 	sleep 0.2
 done
-printf "Done. PID: $! \n"
+printf "Done. PID: $minioPID \n"
 
 echo "Configuring minio..."
 mc config host add filesdb $FILES_DB_SCHEME://$FILES_DB_HOST:$FILES_DB_PORT $FILES_DB_ACCESS_KEY $FILES_DB_SECRET_KEY
