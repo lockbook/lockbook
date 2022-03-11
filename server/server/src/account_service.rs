@@ -194,7 +194,7 @@ pub async fn purge_account(
     delete_account(context.clone()).await?;
 
     // Delete everything else
-    let username: String = con.get(keys::username(&context.public_key)).await?;
+    let username: String = con.json_get(keys::username(&context.public_key)).await?;
     debug!("purging username: {}", username);
     con.del(keys::username(&context.public_key)).await?;
     con.del(public_key(&username)).await?;
