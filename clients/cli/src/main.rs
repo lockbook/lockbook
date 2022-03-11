@@ -18,6 +18,7 @@ mod move_file;
 mod new;
 mod new_account;
 mod print;
+mod print_tree;
 mod remove;
 mod rename;
 mod status;
@@ -109,6 +110,12 @@ enum Lockbook {
     /// Print the contents of a file to stdout
     Print {
         /// Absolute path of a document (lockbook list-docs)
+        path: String,
+    },
+
+    /// Print the file tree with a given file as the head
+    PrintTree {
+        /// Absolute path of a file !@#$%^&*I don't know what this is:(lockbook list-docs)
         path: String,
     },
 
