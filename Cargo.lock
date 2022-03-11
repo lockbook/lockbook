@@ -2093,7 +2093,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.2.25"
+version = "0.2.26"
 dependencies = [
  "atty",
  "chrono",
@@ -2161,7 +2161,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-desktop"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "base64 0.11.0",
  "fuzzy-matcher",
