@@ -1,8 +1,7 @@
 use core::time;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::thread;
-
+use std::{fs, thread};
 use itertools::Itertools;
 use uuid::Uuid;
 
@@ -68,20 +67,28 @@ impl Experiment {
     pub fn kick_off(self) {
         let state = Arc::new(Mutex::new(self));
 
-        for thread in 0..num_cpus::get() {
+        fs::create_dir("trials").unwrap();
+
+        for thread_id in 0..num_cpus::get() {
+            fs::create_dir(format!("trials/{}", thread_id)).unwrap();
             let thread_state = state.clone();
-            thread::spawn(move || loop {
-                match Self::grab_ready_trial_for_thread(thread, thread_state.clone()) {
-                    (Some(mut work), _) => {
-                        let mutants = work.execute();
-                        Self::publish_results(thread, thread_state.clone(), work, &mutants);
+            thread::Builder::new().name(format!("{}", thread_id)).spawn(move || {
+                let mut trial_number = 0;
+                loop {
+                    match Self::grab_ready_trial_for_thread(thread_id, thread_state.clone()) {
+                        (Some(mut work), _) => {
+                            fs::write(format!("trials/{}/{}", thread_id, trial_number), format!("{:?}", work)).expect("Unable to write file");
+                            let mutants = work.execute();
+                            Self::publish_results(thread_id, thread_state.clone(), work, &mutants);
+                        }
+                        (None, true) => {
+                            thread::sleep(time::Duration::from_millis(100));
+                        }
+                        (None, false) => break,
                     }
-                    (None, true) => {
-                        thread::sleep(time::Duration::from_millis(100));
-                    }
-                    (None, false) => break,
+                    trial_number += 1;
                 }
-            });
+            }).unwrap();
         }
 
         let mut print_count = 0;
