@@ -228,19 +228,7 @@ fn insert_metadata_given_decrypted_metadata(
             && metadatum.file_type == FileType::Document
             && file_service::maybe_get_metadata(config, RepoSource::Local, metadatum.id)?.is_none();
 
-        // local deletions should discard other changes
-        if source == RepoSource::Local && metadatum.deleted {
-            if let Some(mut base) =
-                metadata_repo::maybe_get(config, RepoSource::Base, encrypted_metadata.id)?
-            {
-                base.deleted = true;
-                metadata_repo::insert(config, source, &base)?;
-            } else {
-                metadata_repo::insert(config, source, &encrypted_metadata)?;
-            }
-        } else {
-            metadata_repo::insert(config, source, &encrypted_metadata)?;
-        }
+        metadata_repo::insert(config, source, &encrypted_metadata)?;
 
         if new_doc {
             file_service::insert_document(config, RepoSource::Local, metadatum, &[])?;
