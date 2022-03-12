@@ -1,40 +1,26 @@
 use core::time;
+use itertools::Itertools;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::{fs, thread};
-use itertools::Itertools;
-use uuid::Uuid;
 
 use lockbook_crypto::clock_service::{get_time, Timestamp};
 
-use crate::exhaustive_sync::trial::{Status, Trial};
+use crate::exhaustive_sync::trial::Trial;
 
 pub type ThreadID = usize;
+pub type TrialID = usize;
 
 #[derive(Clone)]
 pub struct Experiment {
     pub pending: Vec<Trial>,
-    pub concluded: Vec<Trial>,
-    pub running: HashMap<ThreadID, (Timestamp, Trial)>,
+    pub concluded: Vec<Trial>, // This becomes a list of errors
+    pub running: HashMap<ThreadID, (Timestamp, Trial)>, // This becomes a list of workers, their current trial, and when they last checked in
 }
 
 impl Default for Experiment {
     fn default() -> Self {
-        Experiment {
-            pending: vec![Trial {
-                id: Uuid::new_v4(),
-                clients: vec![],
-                target_clients: 2,
-                target_steps: 6,
-                steps: vec![],
-                completed_steps: 0,
-                status: Status::Ready,
-                start_time: 0,
-                end_time: 0,
-            }],
-            running: HashMap::new(),
-            concluded: vec![],
-        }
+        Experiment { pending: vec![Trial::default()], running: HashMap::new(), concluded: vec![] }
     }
 }
 
@@ -72,23 +58,37 @@ impl Experiment {
         for thread_id in 0..num_cpus::get() {
             fs::create_dir(format!("trials/{}", thread_id)).unwrap();
             let thread_state = state.clone();
-            thread::Builder::new().name(format!("{}", thread_id)).spawn(move || {
-                let mut trial_number = 0;
-                loop {
-                    match Self::grab_ready_trial_for_thread(thread_id, thread_state.clone()) {
-                        (Some(mut work), _) => {
-                            fs::write(format!("trials/{}/{}", thread_id, trial_number), format!("{:?}", work)).expect("Unable to write file");
-                            let mutants = work.execute();
-                            Self::publish_results(thread_id, thread_state.clone(), work, &mutants);
+            thread::Builder::new()
+                .name(format!("{}", thread_id))
+                .spawn(move || {
+                    let mut trial_number = 0;
+                    loop {
+                        match Self::grab_ready_trial_for_thread(thread_id, thread_state.clone()) {
+                            (Some(mut work), _) => {
+                                fs::write(
+                                    format!("trials/{}/{}", thread_id, trial_number),
+                                    format!("{:?}", work),
+                                )
+                                .expect("Unable to write file");
+                                let mutants = work.execute();
+                                Self::publish_results(
+                                    thread_id,
+                                    thread_state.clone(),
+                                    work,
+                                    &mutants,
+                                );
+                                fs::remove_file(format!("trials/{}/{}", thread_id, trial_number))
+                                    .unwrap();
+                            }
+                            (None, true) => {
+                                thread::sleep(time::Duration::from_millis(100));
+                            }
+                            (None, false) => break,
                         }
-                        (None, true) => {
-                            thread::sleep(time::Duration::from_millis(100));
-                        }
-                        (None, false) => break,
+                        trial_number += 1;
                     }
-                    trial_number += 1;
-                }
-            }).unwrap();
+                })
+                .unwrap();
         }
 
         let mut print_count = 0;

@@ -67,6 +67,22 @@ pub struct Trial {
     pub end_time: i64,
 }
 
+impl Default for Trial {
+    fn default() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            clients: vec![],
+            target_clients: 2,
+            target_steps: 6,
+            steps: vec![],
+            completed_steps: 0,
+            status: Status::Ready,
+            start_time: 0,
+            end_time: 0,
+        }
+    }
+}
+
 impl Drop for Trial {
     fn drop(&mut self) {
         if thread::panicking() {
@@ -82,7 +98,7 @@ impl Trial {
         }
 
         create_account(&self.clients[0], &random_username(), &url())
-            .map_err(|err| Failed(format!("{:#?}", err)))?;
+            .map_err(|err| Failed(format!("failed to create account: {:#?}", err)))?;
         let account_string = export_account(&self.clients[0]).unwrap();
 
         for client in &self.clients[1..] {
