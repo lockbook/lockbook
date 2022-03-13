@@ -3810,6 +3810,7 @@ mod sync_tests {
         test_utils::assert_dbs_eq(&db1, &db2);
     }
 
+    // this is the one that actually stuck the fuzzer (1 through 4 did not)
     #[test]
     fn fuzzer_stuck_test_5() {
         let db1 = test_utils::test_config();
@@ -3836,12 +3837,12 @@ mod sync_tests {
         lockbook_core::move_file(&db1, a.id, b.id).unwrap();
         lockbook_core::delete_file(&db1, b.id).unwrap();
 
-        // lockbook_core::sync_all(&db1, None).unwrap();
-        // lockbook_core::sync_all(&db2, None).unwrap();
-        // lockbook_core::sync_all(&db1, None).unwrap();
-        // lockbook_core::sync_all(&db2, None).unwrap();
-        // test_utils::assert_repo_integrity(&db1);
-        // test_utils::assert_dbs_eq(&db1, &db2);
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        test_utils::assert_repo_integrity(&db1);
+        test_utils::assert_dbs_eq(&db1, &db2);
     }
 
     #[test]
