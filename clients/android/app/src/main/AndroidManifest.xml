@@ -32,8 +32,6 @@
         <activity
             android:name=".screen.WelcomeActivity" />
         <activity
-            android:name=".screen.NewAccountActivity" />
-        <activity
             android:name=".screen.ImportAccountActivity" />
         <activity android:name=".screen.MainScreenActivity" />
         <activity android:name=".screen.SettingsActivity" />

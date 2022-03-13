@@ -8,8 +8,8 @@ import app.lockbook.getRes
 import app.lockbook.util.LbError
 import app.lockbook.util.SingleMutableLiveData
 import com.github.michaelbull.result.Err
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import timber.log.Timber
 
 class ImportAccountViewModel(application: Application) : AndroidViewModel(application) {
     val syncModel = SyncModel()
@@ -20,12 +20,13 @@ class ImportAccountViewModel(application: Application) : AndroidViewModel(applic
         get() = _updateImportUI
 
     init {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             val syncResult = syncModel.trySync()
 
             if (syncResult is Err) {
                 _updateImportUI.postValue(UpdateImportUI.NotifyError(syncResult.error.toLbError(getRes())))
             }
+            _updateImportUI.postValue(UpdateImportUI.FinishedSync)
         }
     }
 }

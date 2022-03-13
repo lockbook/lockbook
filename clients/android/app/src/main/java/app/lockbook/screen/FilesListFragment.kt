@@ -5,7 +5,9 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.method.LinkMovementMethod
 import android.view.*
+import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -22,6 +24,7 @@ import app.lockbook.util.FilesFragment
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.viewholder.isSelected
 import com.afollestad.recyclical.withItem
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import timber.log.Timber
@@ -38,7 +41,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel?> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(FilesListViewModel::class.java))
-                        return FilesListViewModel(requireActivity().application) as T
+                        return FilesListViewModel(requireActivity().application, (activity as MainScreenActivity).isThisANewAccount()) as T
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }
             }
@@ -165,10 +168,17 @@ class FilesListFragment : Fragment(), FilesFragment {
     }
 
     private fun updateSyncProgress(syncProgress: SyncProgress) {
-        syncSnackProgressBar.setProgressMax(syncProgress.total)
-        snackProgressBarManager.setProgress(syncProgress.progress)
-        syncSnackProgressBar.setMessage(syncProgress.action.toString())
-        snackProgressBarManager.updateTo(syncSnackProgressBar)
+        if (syncProgress.progress == 0) {
+            snackProgressBarManager.dismiss()
+
+            updateUI(UpdateFilesUI.ShowSyncSnackBar(syncProgress.total))
+        } else {
+
+            syncSnackProgressBar.setProgressMax(syncProgress.total)
+            snackProgressBarManager.setProgress(syncProgress.progress)
+            syncSnackProgressBar.setMessage(syncProgress.action.toMessage())
+            snackProgressBarManager.updateTo(syncSnackProgressBar)
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -176,7 +186,7 @@ class FilesListFragment : Fragment(), FilesFragment {
 
         val syncStatus = model.syncModel.syncStatus
         if (syncStatus is SyncStatus.Syncing) {
-            updateUI(UpdateFilesUI.ShowSyncSnackBar)
+            updateUI(UpdateFilesUI.ShowSyncSnackBar(syncStatus.syncProgress.total))
             updateSyncProgress(syncStatus.syncProgress)
         }
     }
@@ -318,10 +328,12 @@ class FilesListFragment : Fragment(), FilesFragment {
     private fun updateUI(uiUpdates: UpdateFilesUI) {
         when (uiUpdates) {
             is UpdateFilesUI.NotifyError -> alertModel.notifyError(uiUpdates.error)
-            is UpdateFilesUI.NotifyWithSnackbar -> alertModel.notify(uiUpdates.msg)
-            UpdateFilesUI.ShowSyncSnackBar -> {
+            is UpdateFilesUI.NotifyWithSnackbar -> {
+                alertModel.notify(uiUpdates.msg)
+            }
+            is UpdateFilesUI.ShowSyncSnackBar -> {
                 snackProgressBarManager.dismiss()
-                syncSnackProgressBar.setMessage(resources.getString(R.string.list_files_sync_snackbar_default))
+                syncSnackProgressBar.setMessage(resources.getString(R.string.list_files_sync_snackbar, uiUpdates.totalSyncItems.toString()))
                 snackProgressBarManager.show(
                     syncSnackProgressBar,
                     SnackProgressBarManager.LENGTH_INDEFINITE
@@ -336,6 +348,14 @@ class FilesListFragment : Fragment(), FilesFragment {
                 )
             }
             UpdateFilesUI.ToggleMenuBar -> toggleMenuBar()
+            UpdateFilesUI.ShowBeforeWeStart -> {
+                val bottomSheetDialog = BottomSheetDialog(requireContext())
+                bottomSheetDialog.setContentView(R.layout.sheet_before_you_start)
+
+                bottomSheetDialog.findViewById<TextView>(R.id.before_you_start_description)!!.movementMethod = LinkMovementMethod.getInstance()
+
+                bottomSheetDialog.show()
+            }
         }.exhaustive
     }
 
@@ -471,9 +491,10 @@ class FilesListFragment : Fragment(), FilesFragment {
 sealed class UpdateFilesUI {
     data class UpdateBreadcrumbBar(val breadcrumbItems: List<BreadCrumbItem>) : UpdateFilesUI()
     data class NotifyError(val error: LbError) : UpdateFilesUI()
-    object ShowSyncSnackBar : UpdateFilesUI()
+    data class ShowSyncSnackBar(val totalSyncItems: Int) : UpdateFilesUI()
     object StopProgressSpinner : UpdateFilesUI()
     object ToggleMenuBar : UpdateFilesUI()
+    object ShowBeforeWeStart : UpdateFilesUI()
     data class NotifyWithSnackbar(val msg: String) : UpdateFilesUI()
 }
 

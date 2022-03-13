@@ -12,7 +12,6 @@ import app.lockbook.databinding.ActivityImportAccountBinding
 import app.lockbook.model.*
 import app.lockbook.util.exhaustive
 import kotlinx.coroutines.*
-import timber.log.Timber
 
 class ImportAccountActivity : AppCompatActivity() {
     private var _binding: ActivityImportAccountBinding? = null
@@ -35,19 +34,18 @@ class ImportAccountActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         _binding = ActivityImportAccountBinding.inflate(layoutInflater)
-
-        Timber.e("GOT TO NEXT ACTIVITY")
+        setContentView(binding.root)
 
         model.syncModel.notifySyncProgress.observe(
             this
         ) { progress ->
-            binding.importInfo.text = progress.action.toString()
+            binding.importInfo.text = progress.action.toMessage()
         }
 
         model.updateImportUI.observe(
             this
         ) { updateImportUI ->
-            when(updateImportUI) {
+            when (updateImportUI) {
                 UpdateImportUI.FinishedSync -> {
                     val intent = Intent(applicationContext, MainScreenActivity::class.java)
 

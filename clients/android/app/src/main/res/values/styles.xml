@@ -28,7 +28,7 @@
     </style>
 
     <style name="Main.Widget.Dialog" parent="Theme.AppCompat.DayNight.Dialog">
-        <item name="android:background">@color/windowBackground</item>
+        <item name="android:background">@color/dialogBackgroundColor</item>
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
@@ -39,7 +39,7 @@
     </style>
 
     <style name="Main.Widget.Dialog.Alert" parent="Theme.AppCompat.DayNight.Dialog.Alert">
-        <item name="android:background">@color/windowBackground</item>
+        <item name="android:background">@color/dialogBackgroundColor</item>
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>

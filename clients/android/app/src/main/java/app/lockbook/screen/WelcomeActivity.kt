@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
-import android.text.Html
 import android.text.method.LinkMovementMethod
 import android.view.LayoutInflater
 import android.view.View
@@ -13,9 +12,7 @@ import android.view.inputmethod.EditorInfo
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentManager
 import androidx.viewpager2.adapter.FragmentStateAdapter
-import androidx.viewpager2.widget.ViewPager2
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.ActivityMainBinding
@@ -29,7 +26,6 @@ import com.github.michaelbull.result.Ok
 import com.google.android.material.tabs.TabLayoutMediator
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.*
-import timber.log.Timber
 import java.lang.ref.WeakReference
 
 class WelcomeActivity : AppCompatActivity() {
@@ -51,11 +47,6 @@ class WelcomeActivity : AppCompatActivity() {
 
         binding.welcomeCreateImport.adapter = CreateImportFragmentAdapter(this)
         binding.welcomeLearnMore.movementMethod = LinkMovementMethod.getInstance()
-        binding.welcomeLearnMore.text = Html.fromHtml(
-            "<a href='https://lockbook.net'> ${resources.getString(R.string.learn_more)} </a>",
-            0
-        )
-
 
         TabLayoutMediator(
             binding.welcomeStateSwitcher,
@@ -105,7 +96,6 @@ class ImportFragment : Fragment() {
             }
         }
 
-
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -123,7 +113,7 @@ class ImportFragment : Fragment() {
 
         importBinding.newAccountQrImportButton.setOnClickListener {
             onQRCodeResult.launch(
-                IntentIntegrator(requireActivity()).createScanIntent()
+                IntentIntegrator(requireActivity()).setOrientationLocked(false).createScanIntent()
             )
         }
 
@@ -133,7 +123,6 @@ class ImportFragment : Fragment() {
 
         return importBinding.root
     }
-
 
     private fun importAccount(account: String) {
         val welcomeActivity = (requireActivity() as WelcomeActivity)
@@ -205,6 +194,7 @@ class CreateFragment : Fragment() {
             when (val createAccountResult = CoreModel.generateAccount(App.config, username)) {
                 is Ok -> {
                     val intent = Intent(context, MainScreenActivity::class.java)
+                    intent.putExtra(IS_THIS_A_NEW_ACCOUNT, true)
 
                     welcomeActivity.startActivity(intent)
                     welcomeActivity.finishAffinity()

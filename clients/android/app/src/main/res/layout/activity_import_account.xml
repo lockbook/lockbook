@@ -17,7 +17,8 @@
         android:textAlignment="center"
         android:paddingHorizontal="70dp"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        android:layout_height="wrap_content"
+        android:text="@string/import_account_starting_import"/>
 
     <TextView
         android:layout_width="wrap_content"

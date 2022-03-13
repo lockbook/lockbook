@@ -97,46 +97,44 @@ class MainScreenActivity : AppCompatActivity() {
         slidingPaneLayout.lockMode = SlidingPaneLayout.LOCK_MODE_LOCKED
 
         model.launchDetailsScreen.observe(
-            this,
-            { screen ->
-                launchDetailsScreen(screen)
-            }
-        )
+            this
+        ) { screen ->
+            launchDetailsScreen(screen)
+        }
 
         model.launchTransientScreen.observe(
-            this,
-            { screen ->
-                when (screen) {
-                    is TransientScreen.Create -> {
-                        CreateFileDialogFragment().show(
-                            supportFragmentManager,
-                            CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG
-                        )
-                    }
-                    is TransientScreen.Info -> {
-                        FileInfoDialogFragment().show(
-                            supportFragmentManager,
-                            FileInfoDialogFragment.FILE_INFO_DIALOG_TAG
-                        )
-                    }
-                    is TransientScreen.Move -> {
-                        MoveFileDialogFragment().show(
-                            supportFragmentManager,
-                            MoveFileDialogFragment.MOVE_FILE_DIALOG_TAG
-                        )
-                    }
-                    is TransientScreen.Rename -> {
-                        RenameFileDialogFragment().show(
-                            supportFragmentManager,
-                            RenameFileDialogFragment.RENAME_FILE_DIALOG_TAG
-                        )
-                    }
-                    is TransientScreen.Share -> {
-                        finalizeShare(screen.files)
-                    }
+            this
+        ) { screen ->
+            when (screen) {
+                is TransientScreen.Create -> {
+                    CreateFileDialogFragment().show(
+                        supportFragmentManager,
+                        CreateFileDialogFragment.CREATE_FILE_DIALOG_TAG
+                    )
+                }
+                is TransientScreen.Info -> {
+                    FileInfoDialogFragment().show(
+                        supportFragmentManager,
+                        FileInfoDialogFragment.FILE_INFO_DIALOG_TAG
+                    )
+                }
+                is TransientScreen.Move -> {
+                    MoveFileDialogFragment().show(
+                        supportFragmentManager,
+                        MoveFileDialogFragment.MOVE_FILE_DIALOG_TAG
+                    )
+                }
+                is TransientScreen.Rename -> {
+                    RenameFileDialogFragment().show(
+                        supportFragmentManager,
+                        RenameFileDialogFragment.RENAME_FILE_DIALOG_TAG
+                    )
+                }
+                is TransientScreen.Share -> {
+                    finalizeShare(screen.files)
                 }
             }
-        )
+        }
 
         model.updateMainScreenUI.observe(
             this,
@@ -247,9 +245,9 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 
-    fun isThisAnImport(): Boolean {
-        return intent.extras?.getBoolean(IS_THIS_AN_IMPORT, false) ?: false
+    fun isThisANewAccount(): Boolean {
+        return intent.extras?.getBoolean(IS_THIS_A_NEW_ACCOUNT, false) ?: false
     }
 }
 
-const val IS_THIS_AN_IMPORT = "is_this_an_import"
+const val IS_THIS_A_NEW_ACCOUNT = "is_this_a_new_account"

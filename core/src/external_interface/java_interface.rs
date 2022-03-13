@@ -470,24 +470,35 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
             ClientWorkUnit::PullMetadata => (JValue::Bool(0), JValue::Object(JObject::null())),
             ClientWorkUnit::PushMetadata => (JValue::Bool(1), JValue::Object(JObject::null())),
             ClientWorkUnit::PullDocument(file_name) => {
-                let obj = env_c.new_string(file_name)
+                let obj = env_c
+                    .new_string(file_name)
                     .expect("Couldn't create JString from rust string!");
 
                 (JValue::Bool(0), JValue::Object(JObject::from(obj)))
-            },
+            }
             ClientWorkUnit::PushDocument(file_name) => {
-                let obj = env_c.new_string(file_name)
+                let obj = env_c
+                    .new_string(file_name)
                     .expect("Couldn't create JString from rust string!");
 
                 (JValue::Bool(1), JValue::Object(JObject::from(obj)))
-            },
+            }
         };
 
-        let args =
-            [JValue::Int(sync_progress.total as i32), JValue::Int(sync_progress.progress as i32), is_pushing, file_name]
-                .to_vec();
+        let args = [
+            JValue::Int(sync_progress.total as i32),
+            JValue::Int(sync_progress.progress as i32),
+            is_pushing,
+            file_name,
+        ]
+        .to_vec();
         env_c
-            .call_method(jsyncmodel, "updateSyncProgressAndTotal", "(IIZLjava/lang/String;)V", args.as_slice())
+            .call_method(
+                jsyncmodel,
+                "updateSyncProgressAndTotal",
+                "(IIZLjava/lang/String;)V",
+                args.as_slice(),
+            )
             .unwrap();
     };
 

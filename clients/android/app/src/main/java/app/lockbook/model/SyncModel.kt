@@ -3,11 +3,9 @@ package app.lockbook.model
 import androidx.lifecycle.LiveData
 import app.lockbook.App.Companion.config
 import app.lockbook.util.*
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
-import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.*
 
-class SyncModel() {
+class SyncModel {
     var syncStatus: SyncStatus = SyncStatus.NotSyncing
 
     private val _notifySyncProgress = SingleMutableLiveData<SyncProgress>()
@@ -24,12 +22,13 @@ class SyncModel() {
             Ok(Unit)
         }
 
+    // used by core over ffi
     fun updateSyncProgressAndTotal(
         total: Int,
         progress: Int,
         isPushing: Boolean,
         fileName: String?
-    ) { // used by core over ffi
+    ) {
         val syncAction = when {
             isPushing && fileName != null -> {
                 SyncMessage.PushingDocument(fileName)
@@ -52,16 +51,11 @@ class SyncModel() {
         _notifySyncProgress.postValue(syncProgress)
     }
 
-    private fun sync(): Result<Unit, CoreError> {
-        when (val workCalculatedResult = CoreModel.calculateWork(config)) {
-            is Ok -> if (workCalculatedResult.value.workUnits.isEmpty()) {
-                return Ok(Unit)
-            }
-            is Err -> {
-                return Err(workCalculatedResult.error)
-            }
-        }
+    fun hasSyncWork(): Result<Boolean, CoreError> {
+        return CoreModel.calculateWork(config).map { workCalculated -> workCalculated.workUnits.isNotEmpty() }
+    }
 
+    private fun sync(): Result<Unit, CoreError> {
         syncStatus = SyncStatus.StartingSync
         return CoreModel.sync(config, this)
     }
@@ -85,7 +79,7 @@ sealed class SyncMessage {
     data class PullingDocument(val fileName: String) : SyncMessage()
     data class PushingDocument(val fileName: String) : SyncMessage()
 
-    override fun toString(): String = when (val syncMessage = this) {
+    fun toMessage(): String = when (val syncMessage = this) {
         is PullingDocument -> "Pulling ${syncMessage.fileName}."
         is PushingDocument -> "Pushing ${syncMessage.fileName}."
         PullingMetadata -> "Pulling files."
