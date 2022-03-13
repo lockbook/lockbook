@@ -3720,6 +3720,132 @@ mod sync_tests {
     }
 
     #[test]
+    fn fuzzer_stuck_test_2() {
+        let db1 = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
+
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        let a = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a/")).unwrap();
+        let b =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a/b/")).unwrap();
+        lockbook_core::move_file(&db2, b.id, root.id).unwrap();
+        lockbook_core::rename_file(&db2, b.id, "b2").unwrap();
+        let _c = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/c/")).unwrap();
+        lockbook_core::move_file(&db2, b.id, a.id).unwrap();
+
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        test_utils::assert_repo_integrity(&db1);
+        test_utils::assert_dbs_eq(&db1, &db2);
+    }
+
+    #[test]
+    fn fuzzer_stuck_test_3() {
+        let db1 = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
+
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        let _a = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a/")).unwrap();
+
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        test_utils::assert_repo_integrity(&db1);
+        test_utils::assert_dbs_eq(&db1, &db2);
+
+        let _b =
+            lockbook_core::create_file_at_path(&db1, &test_utils::path(&root, "/a/b.md")).unwrap();
+        let c = lockbook_core::create_file_at_path(&db1, &test_utils::path(&root, "/a/c")).unwrap();
+        lockbook_core::rename_file(&db1, c.id, "c2").unwrap();
+
+        let _d =
+            lockbook_core::create_file_at_path(&db1, &test_utils::path(&root, "/a/d")).unwrap();
+
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        test_utils::assert_repo_integrity(&db1);
+        test_utils::assert_dbs_eq(&db1, &db2);
+    }
+
+    #[test]
+    fn fuzzer_stuck_test_4() {
+        let db1 = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
+
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        let _a = lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a/")).unwrap();
+        let b =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/a/b/")).unwrap();
+        lockbook_core::move_file(&db2, b.id, root.id).unwrap();
+        lockbook_core::rename_file(&db2, b.id, "b2").unwrap();
+        let c =
+            lockbook_core::create_file_at_path(&db2, &test_utils::path(&root, "/c.md")).unwrap();
+        lockbook_core::write_document(&db2, c.id, b"DPCN8G0CK8qXSyJhervmmEXFnkt").unwrap();
+
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        test_utils::assert_repo_integrity(&db1);
+        test_utils::assert_dbs_eq(&db1, &db2);
+    }
+
+    // this is the one that actually stuck the fuzzer (1 through 4 did not)
+    #[test]
+    fn fuzzer_stuck_test_5() {
+        let db1 = test_utils::test_config();
+        let (_account, root) = test_utils::create_account(&db1);
+        let db2 = test_utils::make_and_sync_new_client(&db1);
+
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+
+        let a = lockbook_core::create_file_at_path(&db1, &test_utils::path(&root, "/a/")).unwrap();
+        let b =
+            lockbook_core::create_file_at_path(&db1, &test_utils::path(&root, "/a/b/")).unwrap();
+
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        test_utils::assert_repo_integrity(&db1);
+        test_utils::assert_dbs_eq(&db1, &db2);
+
+        lockbook_core::move_file(&db1, b.id, root.id).unwrap();
+        lockbook_core::move_file(&db1, a.id, b.id).unwrap();
+        lockbook_core::delete_file(&db1, b.id).unwrap();
+
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        lockbook_core::sync_all(&db1, None).unwrap();
+        lockbook_core::sync_all(&db2, None).unwrap();
+        test_utils::assert_repo_integrity(&db1);
+        test_utils::assert_dbs_eq(&db1, &db2);
+    }
+
+    #[test]
     fn fuzzer_get_updates_required_test() {
         let db1 = test_utils::test_config();
         let (_account, root) = test_utils::create_account(&db1);
