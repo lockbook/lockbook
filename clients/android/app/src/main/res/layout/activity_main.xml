@@ -38,7 +38,7 @@
             android:id="@+id/welcome_learn_more"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingStart="4dp"
+            android:paddingHorizontal="4dp"
             android:paddingTop="20dp"
             android:text="@string/learn_more"
             android:textColor="@color/blue"
