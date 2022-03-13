@@ -1,54 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/import_account_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:gravity="center"
     android:orientation="vertical"
-    android:paddingHorizontal="25dp"
-    tools:context=".screen.WelcomeActivity">
-
-    <TextView
-        style="@style/Main.Text.Headline"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingBottom="20dp"
-        android:text="@string/lockbook_import" />
-
-    <ImageButton
-        android:id="@+id/qr_import_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="?android:selectableItemBackground"
-        android:contentDescription="@string/qr_code_content_description"
-        app:srcCompat="@drawable/ic_baseline_qr_code_scanner_24" />
-
-    <EditText
-        android:id="@+id/text_import_account_string"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="20dp"
-        android:fontFamily="monospace"
-        android:hint="@string/import_description"
-        android:imeOptions="actionDone"
-        android:importantForAutofill="no"
-        android:inputType="textVisiblePassword" />
-
-    <Button
-        android:id="@+id/import_lockbook"
-
-        style="@style/Main.Button.Borderless.Colored"
-        android:text="@string/import_account_import_button" />
+    android:gravity="center">
 
     <ProgressBar
         android:id="@+id/import_account_progress_bar"
-        style="?android:attr/progressBarStyle"
+        android:layout_width="80dp"
+        android:layout_height="80dp" />
+
+    <TextView
+        android:id="@+id/import_info"
+        android:paddingTop="30dp"
+        style="@style/Main.Text.Medium"
+        android:textAlignment="center"
+        android:paddingHorizontal="70dp"
         android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <TextView
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:indeterminate="true"
-        android:minHeight="20dp"
-        android:visibility="gone" />
+        android:paddingTop="20dp"
+        android:text="@string/import_account_do_not_exit"/>
 
 </LinearLayout>

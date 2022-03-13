@@ -16,7 +16,7 @@ import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-class FilesListViewModel(application: Application, isThisAnImport: Boolean) : AndroidViewModel(application) {
+class FilesListViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _notifyUpdateFilesUI = SingleMutableLiveData<UpdateFilesUI>()
 
@@ -28,13 +28,10 @@ class FilesListViewModel(application: Application, isThisAnImport: Boolean) : An
     val selectableFiles = emptySelectableDataSourceTyped<DecryptedFileMetadata>()
     var breadcrumbItems = listOf<BreadCrumbItem>()
 
-    val syncModel = SyncModel(_notifyUpdateFilesUI)
+    val syncModel = SyncModel()
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            if (isThisAnImport) {
-                syncModel.trySync(getContext())
-            }
             startUpInRoot()
         }
     }
@@ -110,7 +107,10 @@ class FilesListViewModel(application: Application, isThisAnImport: Boolean) : An
 
     fun onSwipeToRefresh() {
         viewModelScope.launch(Dispatchers.IO) {
-            syncModel.trySync(getContext())
+            val syncResult = syncModel.trySync()
+            if (syncResult is Err) {
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(syncResult.error.toLbError(getRes())))
+            }
             refreshFiles()
             postUIUpdate(UpdateFilesUI.StopProgressSpinner)
         }
@@ -118,7 +118,20 @@ class FilesListViewModel(application: Application, isThisAnImport: Boolean) : An
 
     fun syncBasedOnPreferences() {
         viewModelScope.launch(Dispatchers.IO) {
-            syncModel.syncBasedOnPreferences(getContext())
+            if (PreferenceManager.getDefaultSharedPreferences(getContext())
+                .getBoolean(
+                        app.lockbook.util.getString(
+                                getRes(),
+                                R.string.sync_automatically_key
+                            ),
+                        false
+                    )
+            ) {
+                val syncResult = syncModel.trySync()
+                if (syncResult is Err) {
+                    _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(syncResult.error.toLbError(getRes())))
+                }
+            }
             refreshFiles()
         }
     }

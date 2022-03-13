@@ -1,19 +1,12 @@
 package app.lockbook.ui
 
 import android.content.Context
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.drawable.TransitionDrawable
 import android.util.AttributeSet
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import androidx.appcompat.content.res.AppCompatResources
-import androidx.appcompat.widget.SwitchCompat
 import app.lockbook.R
-import app.lockbook.util.Animate
-import app.lockbook.util.exhaustive
 
 class TextSwitchView @JvmOverloads constructor(
     context: Context,
@@ -37,14 +30,14 @@ class TextSwitchView @JvmOverloads constructor(
         optionOneButton.text = optionOneText
         optionTwoButton.text = optionTwoText
 
-        if(isOptionOneChosen) {
+        if (isOptionOneChosen) {
             optionOneButton.background = AppCompatResources.getDrawable(context, R.drawable.text_switch_bg)
         } else {
             optionTwoButton.background = AppCompatResources.getDrawable(context, R.drawable.text_switch_bg)
         }
 
         optionOneButton.setOnClickListener {
-            if(!isOptionOneChosen) {
+            if (!isOptionOneChosen) {
                 optionTwoButton.background = null
                 optionOneButton.background = AppCompatResources.getDrawable(context, R.drawable.text_switch_bg)
                 isOptionOneChosen = true
@@ -52,14 +45,14 @@ class TextSwitchView @JvmOverloads constructor(
         }
 
         optionTwoButton.setOnClickListener {
-            if(isOptionOneChosen) {
+            if (isOptionOneChosen) {
                 optionOneButton.background = null
                 optionTwoButton.background = AppCompatResources.getDrawable(context, R.drawable.text_switch_bg)
                 isOptionOneChosen = false
             }
         }
 
-        if(textSize != -1f) {
+        if (textSize != -1f) {
             optionOneButton.textSize = textSize
             optionTwoButton.textSize = textSize
         }
@@ -68,7 +61,7 @@ class TextSwitchView @JvmOverloads constructor(
     }
 
     private fun animateButton(option: TextSwitchOption) {
-        val (newOption, oldOption) = when(option) {
+        val (newOption, oldOption) = when (option) {
             TextSwitchOption.One -> {
                 listOf(optionOneButton, optionTwoButton)
             }
@@ -84,7 +77,7 @@ class TextSwitchView @JvmOverloads constructor(
 
 //    override fun onDraw(canvas: Canvas?) {
 //        paint.color = widgetBackgroundColor
-////        canvas!!.drawCircle((measuredWidth / 2f), (measuredHeight / 2f), 5f, paint)
+// //        canvas!!.drawCircle((measuredWidth / 2f), (measuredHeight / 2f), 5f, paint)
 //        canvas!!.drawRoundRect(0f, 0f, measuredWidth.toFloat(), measuredHeight.toFloat(), 50f, 50f, paint)
 //
 //        paint.color = textsColor

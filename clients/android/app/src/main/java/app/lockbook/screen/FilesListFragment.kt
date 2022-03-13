@@ -38,7 +38,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel?> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(FilesListViewModel::class.java))
-                        return FilesListViewModel(requireActivity().application, (activity as MainScreenActivity).isThisAnImport()) as T
+                        return FilesListViewModel(requireActivity().application) as T
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }
             }
@@ -86,11 +86,16 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         model.notifyUpdateFilesUI.observe(
-            viewLifecycleOwner,
-            { uiUpdates ->
-                updateUI(uiUpdates)
-            }
-        )
+            viewLifecycleOwner
+        ) { uiUpdates ->
+            updateUI(uiUpdates)
+        }
+
+        model.syncModel.notifySyncProgress.observe(
+            viewLifecycleOwner
+        ) { syncProgress ->
+            updateSyncProgress(syncProgress)
+        }
 
         setUpFilesList()
 
@@ -159,13 +164,20 @@ class FilesListFragment : Fragment(), FilesFragment {
         return binding.root
     }
 
+    private fun updateSyncProgress(syncProgress: SyncProgress) {
+        syncSnackProgressBar.setProgressMax(syncProgress.total)
+        snackProgressBarManager.setProgress(syncProgress.progress)
+        syncSnackProgressBar.setMessage(syncProgress.action.toString())
+        snackProgressBarManager.updateTo(syncSnackProgressBar)
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
         val syncStatus = model.syncModel.syncStatus
-        if (syncStatus is SyncStatus.IsSyncing) {
+        if (syncStatus is SyncStatus.Syncing) {
             updateUI(UpdateFilesUI.ShowSyncSnackBar)
-            updateUI(UpdateFilesUI.UpdateSyncSnackBar(syncStatus.total, syncStatus.progress))
+            updateSyncProgress(syncStatus.syncProgress)
         }
     }
 
@@ -323,17 +335,6 @@ class FilesListFragment : Fragment(), FilesFragment {
                     uiUpdates.breadcrumbItems.toMutableList()
                 )
             }
-            is UpdateFilesUI.UpdateSyncSnackBar -> {
-                syncSnackProgressBar.setProgressMax(uiUpdates.total)
-                snackProgressBarManager.setProgress(uiUpdates.progress)
-                syncSnackProgressBar.setMessage(
-                    resources.getString(
-                        R.string.list_files_sync_snackbar,
-                        uiUpdates.total.toString()
-                    )
-                )
-                snackProgressBarManager.updateTo(syncSnackProgressBar)
-            }
             UpdateFilesUI.ToggleMenuBar -> toggleMenuBar()
         }.exhaustive
     }
@@ -473,7 +474,6 @@ sealed class UpdateFilesUI {
     object ShowSyncSnackBar : UpdateFilesUI()
     object StopProgressSpinner : UpdateFilesUI()
     object ToggleMenuBar : UpdateFilesUI()
-    data class UpdateSyncSnackBar(val total: Int, val progress: Int) : UpdateFilesUI()
     data class NotifyWithSnackbar(val msg: String) : UpdateFilesUI()
 }
 

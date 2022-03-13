@@ -11,12 +11,12 @@
     <string name="hello_first_fragment">Hello first fragment</string>
     <string name="hello_second_fragment">Hello second fragment. Arg: %1$s</string>
 
-    <string name="lockbook_title">lockbook</string>
+    <string name="lockbook_title">Lockbook</string>
     <string name="lockbook_moto">Secure. Private. Reliable.</string>
-    <string name="lockbook_import">Import Lockbook</string>
-    <string name="lockbook_new_account">New Lockbook</string>
+    <string name="lockbook_import">Import Account</string>
+    <string name="create_account">Create Account</string>
 
-    <string name="import_description">Enter an account string.</string>
+    <string name="import_description">Account string</string>
     <string name="import_account_import_button">Import</string>
 
     <string name="new_account_description_one">Press continue to generate a keypair.</string>
@@ -24,7 +24,7 @@
     <string name="new_account_description_three">Lockbook is available on every platform, login on another device to keep your key safe.</string>
     <string name="new_account_description_four">No one can access your content besides you.</string>
     <string name="new_account_description_five">No one can keep your keys safe besides you.</string>
-    <string name="new_account_username">Select a username.</string>
+    <string name="new_account_username">Choose a username: a–z, 0–9</string>
     <string name="new_account_submit">Continue</string>
 
     <string name="new_file_name">Name</string>
@@ -272,4 +272,8 @@
     <string name="file_layout_linear_value" translatable="false">linear_layout</string>
 
     <string name="open_new_doc_automatically_key" translatable="false">open_new_doc_automatically</string>
+    <string name="learn_more">Learn more…</string>
+    <string name="welcome_create">Create</string>
+    <string name="welcome_import">Import</string>
+    <string name="import_account_do_not_exit">Do not exit the app.</string>
 </resources>

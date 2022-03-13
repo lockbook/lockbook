@@ -1,69 +1,94 @@
 package app.lockbook.model
 
-import android.content.Context
-import android.content.res.Resources
-import androidx.preference.PreferenceManager
+import androidx.lifecycle.LiveData
 import app.lockbook.App.Companion.config
-import app.lockbook.R
-import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
 
-class SyncModel(
-    private val _notifyUpdateFilesUI: SingleMutableLiveData<UpdateFilesUI>
-) {
-    var syncStatus: SyncStatus = SyncStatus.IsNotSyncing
+class SyncModel() {
+    var syncStatus: SyncStatus = SyncStatus.NotSyncing
 
-    fun trySync(context: Context) {
-        if (syncStatus is SyncStatus.IsNotSyncing
-        ) {
-            sync(context.resources)
-            syncStatus = SyncStatus.IsNotSyncing
+    private val _notifySyncProgress = SingleMutableLiveData<SyncProgress>()
+
+    val notifySyncProgress: LiveData<SyncProgress>
+        get() = _notifySyncProgress
+
+    fun trySync(): Result<Unit, CoreError> =
+        if (syncStatus is SyncStatus.NotSyncing) {
+            val syncResult = sync()
+            syncStatus = SyncStatus.NotSyncing
+            syncResult
+        } else {
+            Ok(Unit)
         }
-    }
 
-    fun syncBasedOnPreferences(context: Context) {
-        if (PreferenceManager.getDefaultSharedPreferences(context)
-            .getBoolean(getString(context.resources, R.string.sync_automatically_key), false)
-        ) {
-            trySync(context)
+    fun updateSyncProgressAndTotal(
+        total: Int,
+        progress: Int,
+        isPushing: Boolean,
+        fileName: String?
+    ) { // used by core over ffi
+        val syncAction = when {
+            isPushing && fileName != null -> {
+                SyncMessage.PushingDocument(fileName)
+            }
+            isPushing && fileName == null -> {
+                SyncMessage.PushingMetadata
+            }
+            !isPushing && fileName != null -> {
+                SyncMessage.PullingDocument(fileName)
+            }
+            else -> {
+                SyncMessage.PullingMetadata
+            }
         }
-    }
 
-    fun updateSyncProgressAndTotal(total: Int, progress: Int) { // used by core over ffi
-        val newStatus = SyncStatus.IsSyncing(total, progress)
-
+        val syncProgress = SyncProgress(progress, total, syncAction)
+        val newStatus = SyncStatus.Syncing(syncProgress)
         syncStatus = newStatus
-        _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateSyncSnackBar(newStatus.total, newStatus.progress))
+
+        _notifySyncProgress.postValue(syncProgress)
     }
 
-    private fun sync(resources: Resources) {
-        val upToDateMsg =
-            resources.getString(R.string.list_files_sync_finished_snackbar)
-
+    private fun sync(): Result<Unit, CoreError> {
         when (val workCalculatedResult = CoreModel.calculateWork(config)) {
             is Ok -> if (workCalculatedResult.value.workUnits.isEmpty()) {
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyWithSnackbar(upToDateMsg))
-                return
+                return Ok(Unit)
             }
             is Err -> {
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(workCalculatedResult.error.toLbError(resources)))
-                return
+                return Err(workCalculatedResult.error)
             }
         }
 
-        syncStatus = SyncStatus.IsSyncing(0, 1)
-        _notifyUpdateFilesUI.postValue(UpdateFilesUI.ShowSyncSnackBar)
-
-        when (val syncResult = CoreModel.sync(config, this)) {
-            is Ok -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyWithSnackbar(upToDateMsg))
-            is Err -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(syncResult.error.toLbError(resources)))
-        }
+        syncStatus = SyncStatus.StartingSync
+        return CoreModel.sync(config, this)
     }
 }
 
 sealed class SyncStatus {
-    object IsNotSyncing : SyncStatus()
-    data class IsSyncing(var total: Int, var progress: Int) : SyncStatus()
+    object NotSyncing : SyncStatus()
+    object StartingSync : SyncStatus()
+    data class Syncing(var syncProgress: SyncProgress) : SyncStatus()
+}
+
+data class SyncProgress(
+    var progress: Int,
+    var total: Int,
+    var action: SyncMessage
+)
+
+sealed class SyncMessage {
+    object PullingMetadata : SyncMessage()
+    object PushingMetadata : SyncMessage()
+    data class PullingDocument(val fileName: String) : SyncMessage()
+    data class PushingDocument(val fileName: String) : SyncMessage()
+
+    override fun toString(): String = when (val syncMessage = this) {
+        is PullingDocument -> "Pulling ${syncMessage.fileName}."
+        is PushingDocument -> "Pushing ${syncMessage.fileName}."
+        PullingMetadata -> "Pulling files."
+        PushingMetadata -> "Pushing files."
+    }
 }
