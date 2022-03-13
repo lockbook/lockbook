@@ -3,11 +3,13 @@ package app.lockbook.screen
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.text.method.LinkMovementMethod
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.autofill.AutofillManager
 import android.view.inputmethod.EditorInfo
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -15,9 +17,9 @@ import androidx.fragment.app.Fragment
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import app.lockbook.App
 import app.lockbook.R
-import app.lockbook.databinding.ActivityMainBinding
-import app.lockbook.databinding.FragmentWelcomeCreateAccountBinding
-import app.lockbook.databinding.FragmentWelcomeImportAccountBinding
+import app.lockbook.databinding.ActivityOnBoardingBinding
+import app.lockbook.databinding.FragmentOnBoardingCreateAccountBinding
+import app.lockbook.databinding.FragmentOnBoardingImportAccountBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
 import app.lockbook.util.exhaustive
@@ -28,8 +30,8 @@ import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.*
 import java.lang.ref.WeakReference
 
-class WelcomeActivity : AppCompatActivity() {
-    private var _binding: ActivityMainBinding? = null
+class OnBoardingActvity : AppCompatActivity() {
+    private var _binding: ActivityOnBoardingBinding? = null
 
     // This property is only valid between onCreateView and
     // onDestroyView.
@@ -42,20 +44,20 @@ class WelcomeActivity : AppCompatActivity() {
     @SuppressLint("SetTextI18n")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        _binding = ActivityMainBinding.inflate(layoutInflater)
+        _binding = ActivityOnBoardingBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        binding.welcomeCreateImport.adapter = CreateImportFragmentAdapter(this)
-        binding.welcomeLearnMore.movementMethod = LinkMovementMethod.getInstance()
+        binding.onBoardingCreateImportViewPager.adapter = CreateImportFragmentAdapter(this)
+        binding.onBoardingLearnMore.movementMethod = LinkMovementMethod.getInstance()
 
         TabLayoutMediator(
-            binding.welcomeStateSwitcher,
-            binding.welcomeCreateImport
+            binding.onBoardingSwitcher,
+            binding.onBoardingCreateImportViewPager
         ) { tabLayout, position ->
             tabLayout.text = if (position == 0) {
-                resources.getText(R.string.welcome_create)
+                resources.getText(R.string.on_boarding_create)
             } else {
-                resources.getText(R.string.welcome_import)
+                resources.getText(R.string.on_boarding_import)
             }
         }.attach()
     }
@@ -75,7 +77,7 @@ class WelcomeActivity : AppCompatActivity() {
 }
 
 class ImportFragment : Fragment() {
-    private var _importBinding: FragmentWelcomeImportAccountBinding? = null
+    private var _importBinding: FragmentOnBoardingImportAccountBinding? = null
 
     // This property is only valid between onCreateView and
     // onDestroyView.
@@ -91,7 +93,10 @@ class ImportFragment : Fragment() {
                     IntentIntegrator.parseActivityResult(result.resultCode, result.data)
 
                 intentResult?.contents?.let { account ->
-                    importAccount(account)
+                    importBinding.onBoardingAccountString.setText(account)
+                    forceAutoFillCheckSave()
+
+                    importBinding.onBoardingImportSubmit.performClick()
                 }
             }
         }
@@ -101,33 +106,52 @@ class ImportFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        _importBinding = FragmentWelcomeImportAccountBinding.inflate(inflater, container, false)
+        _importBinding = FragmentOnBoardingImportAccountBinding.inflate(inflater, container, false)
 
-        importBinding.welcomeAccountString.setOnEditorActionListener { _, actionId, _ ->
+        importBinding.onBoardingAccountString.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
-                importAccount(importBinding.welcomeAccountString.text.toString())
+                forceAutoFillCheckSave()
+
+                importAccount(importBinding.onBoardingAccountString.text.toString())
             }
 
             true
         }
 
-        importBinding.newAccountQrImportButton.setOnClickListener {
+        importBinding.onBoardingAccountString.setOnFocusChangeListener { _, hasFocus ->
+            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1 && hasFocus) {
+                requireContext()
+                    .getSystemService(AutofillManager::class.java)
+                    .requestAutofill(importBinding.onBoardingAccountString)
+            }
+        }
+
+        importBinding.onBoardingQrCodeImport.setOnClickListener {
             onQRCodeResult.launch(
                 IntentIntegrator(requireActivity()).setOrientationLocked(false).createScanIntent()
             )
         }
 
-        importBinding.welcomeSubmit.setOnClickListener {
-            importAccount(importBinding.welcomeAccountString.text.toString())
+        importBinding.onBoardingImportSubmit.setOnClickListener {
+            forceAutoFillCheckSave()
+            importAccount(importBinding.onBoardingAccountString.text.toString())
         }
 
         return importBinding.root
     }
 
-    private fun importAccount(account: String) {
-        val welcomeActivity = (requireActivity() as WelcomeActivity)
+    private fun forceAutoFillCheckSave() {
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
+            requireContext()
+                .getSystemService(AutofillManager::class.java)
+                .commit()
+        }
+    }
 
-        welcomeActivity.binding.welcomeProgressBar.visibility = View.VISIBLE
+    private fun importAccount(account: String) {
+        val welcomeActivity = (requireActivity() as OnBoardingActvity)
+
+        welcomeActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
 
         uiScope.launch {
             when (val importAccountResult = CoreModel.importAccount(App.config, account)) {
@@ -139,7 +163,7 @@ class ImportFragment : Fragment() {
                 }
                 is Err -> {
                     withContext(Dispatchers.Main) {
-                        welcomeActivity.binding.welcomeProgressBar.visibility = View.GONE
+                        welcomeActivity.binding.onBoardingProgressBar.visibility = View.GONE
                     }
 
                     welcomeActivity.alertModel.notifyError(
@@ -154,7 +178,7 @@ class ImportFragment : Fragment() {
 }
 
 class CreateFragment : Fragment() {
-    private var _createBinding: FragmentWelcomeCreateAccountBinding? = null
+    private var _createBinding: FragmentOnBoardingCreateAccountBinding? = null
 
     // This property is only valid between onCreateView and
     // onDestroyView.
@@ -168,27 +192,27 @@ class CreateFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        _createBinding = FragmentWelcomeCreateAccountBinding.inflate(inflater, container, false)
+        _createBinding = FragmentOnBoardingCreateAccountBinding.inflate(inflater, container, false)
 
-        createBinding.welcomeAccountUsername.setOnEditorActionListener { _, actionId, _ ->
+        createBinding.onBoardingUsername.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
-                createAccount(createBinding.welcomeAccountUsername.text.toString())
+                createAccount(createBinding.onBoardingUsername.text.toString())
             }
 
             true
         }
 
-        createBinding.welcomeSubmit.setOnClickListener {
-            createAccount(createBinding.welcomeAccountUsername.text.toString())
+        createBinding.onBoardingCreateSubmit.setOnClickListener {
+            createAccount(createBinding.onBoardingUsername.text.toString())
         }
 
         return createBinding.root
     }
 
     private fun createAccount(username: String) {
-        val welcomeActivity = (requireActivity() as WelcomeActivity)
+        val welcomeActivity = (requireActivity() as OnBoardingActvity)
 
-        welcomeActivity.binding.welcomeProgressBar.visibility = View.VISIBLE
+        welcomeActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
 
         uiScope.launch {
             when (val createAccountResult = CoreModel.generateAccount(App.config, username)) {
@@ -201,7 +225,7 @@ class CreateFragment : Fragment() {
                 }
                 is Err -> {
                     withContext(Dispatchers.Main) {
-                        welcomeActivity.binding.welcomeProgressBar.visibility = View.GONE
+                        welcomeActivity.binding.onBoardingProgressBar.visibility = View.GONE
                     }
 
                     welcomeActivity.alertModel.notifyError(

@@ -41,7 +41,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel?> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(FilesListViewModel::class.java))
-                        return FilesListViewModel(requireActivity().application, true) as T
+                        return FilesListViewModel(requireActivity().application, (activity as MainScreenActivity).isThisANewAccount()) as T
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }
             }

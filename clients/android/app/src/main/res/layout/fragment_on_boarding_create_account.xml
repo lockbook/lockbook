@@ -7,7 +7,7 @@
     android:paddingHorizontal="25dp">
 
     <EditText
-        android:id="@+id/welcome_account_username"
+        android:id="@+id/on_boarding_username"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="20dp"
@@ -19,16 +19,8 @@
         android:layout_marginTop="20dp" />
 
     <Button
-        android:id="@+id/welcome_submit"
+        android:id="@+id/on_boarding_create_submit"
         style="@style/Main.Button.Borderless.Colored"
         android:text="@string/create_account" />
-
-    <ProgressBar
-        android:id="@+id/welcome_progress_bar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:indeterminate="true"
-        android:minHeight="20dp"
-        android:visibility="gone" />
 
 </LinearLayout>

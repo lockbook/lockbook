@@ -7,7 +7,7 @@
     android:gravity="center"
     android:orientation="vertical"
     android:paddingHorizontal="25dp"
-    tools:context=".screen.WelcomeActivity">
+    tools:context=".screen.OnBoardingActvity">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="wrap_content"
@@ -16,7 +16,7 @@
         android:paddingBottom="20dp" >
 
         <androidx.appcompat.widget.AppCompatImageView
-            android:id="@+id/welcome_icon"
+            android:id="@+id/on_boarding_lockbook_icon"
             android:layout_width="140dp"
             android:layout_height="140dp"
             android:layout_gravity="start"
@@ -25,17 +25,17 @@
             app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
-            android:id="@+id/textView"
+            android:id="@+id/on_boarding_lockbook_title"
             style="@style/Main.Text.Headline"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:paddingTop="15dp"
             android:text="@string/lockbook_title"
-            app:layout_constraintStart_toEndOf="@+id/welcome_icon"
+            app:layout_constraintStart_toEndOf="@+id/on_boarding_lockbook_icon"
             app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
-            android:id="@+id/welcome_learn_more"
+            android:id="@+id/on_boarding_learn_more"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:paddingHorizontal="4dp"
@@ -43,13 +43,13 @@
             android:text="@string/learn_more"
             android:textColor="@color/blue"
             android:textStyle="bold"
-            app:layout_constraintStart_toStartOf="@+id/textView"
-            app:layout_constraintTop_toBottomOf="@+id/textView" />
+            app:layout_constraintStart_toStartOf="@+id/on_boarding_lockbook_title"
+            app:layout_constraintTop_toBottomOf="@+id/on_boarding_lockbook_title" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <com.google.android.material.tabs.TabLayout
-        android:id="@+id/welcome_state_switcher"
+        android:id="@+id/on_boarding_switcher"
         android:layout_width="250dp"
         android:layout_height="30dp"
         app:tabTextAppearance="@android:style/TextAppearance.Widget.TabWidget">
@@ -57,22 +57,22 @@
         <com.google.android.material.tabs.TabItem
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/welcome_create"/>
+            android:text="@string/on_boarding_create"/>
 
         <com.google.android.material.tabs.TabItem
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/welcome_import"/>
+            android:text="@string/on_boarding_import"/>
 
     </com.google.android.material.tabs.TabLayout>
 
     <androidx.viewpager2.widget.ViewPager2
-        android:id="@+id/welcome_create_import"
+        android:id="@+id/on_boarding_create_import_view_pager"
         android:layout_width="match_parent"
         android:layout_height="200dp" />
 
     <ProgressBar
-        android:id="@+id/welcome_progress_bar"
+        android:id="@+id/on_boarding_progress_bar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:indeterminate="true"

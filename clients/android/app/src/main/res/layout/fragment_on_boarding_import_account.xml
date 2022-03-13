@@ -8,7 +8,7 @@
     android:paddingHorizontal="25dp">
 
     <EditText
-        android:id="@+id/welcome_account_string"
+        android:id="@+id/on_boarding_account_string"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="20dp"
@@ -17,10 +17,11 @@
         android:imeOptions="actionDone"
         android:inputType="textPassword"
         android:autofillHints="password"
+        android:importantForAutofill="yes"
         android:layout_marginTop="20dp" />
 
     <ImageButton
-        android:id="@+id/new_account_qr_import_button"
+        android:id="@+id/on_boarding_qr_code_import"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:background="?android:selectableItemBackground"
@@ -28,8 +29,8 @@
         app:srcCompat="@drawable/ic_baseline_qr_code_scanner_24"  />
 
     <Button
-        android:id="@+id/welcome_submit"
+        android:id="@+id/on_boarding_import_submit"
         style="@style/Main.Button.Borderless.Colored"
-        android:text="@string/welcome_import" />
+        android:text="@string/on_boarding_import" />
 
 </LinearLayout>

@@ -236,8 +236,8 @@
 
     <string name="open_new_doc_automatically_key" translatable="false">open_new_doc_automatically</string>
     <string name="learn_more"><a href="https://lockbook.net">Learn more…</a></string>
-    <string name="welcome_create">Create</string>
-    <string name="welcome_import">Import</string>
+    <string name="on_boarding_create">Create</string>
+    <string name="on_boarding_import">Import</string>
     <string name="import_account_do_not_exit">Do not exit the app.</string>
     <string name="import_account_starting_import">Starting import…</string>
     <string name="before_you_start">Before you start…</string>
