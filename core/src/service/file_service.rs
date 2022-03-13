@@ -1896,10 +1896,10 @@ mod unit_tests {
             .unwrap();
         file_service::prune_deleted(config).unwrap();
 
-        assert_metadata_changes_count!(config, 1);
+        assert_metadata_changes_count!(config, 2);
         assert_document_changes_count!(config, 0);
         assert_metadata_count!(config, RepoSource::Base, 2);
-        assert_metadata_count!(config, RepoSource::Local, 2);
+        assert_metadata_count!(config, RepoSource::Local, 3);
         assert_document_count!(config, RepoSource::Base, 1);
         assert_document_count!(config, RepoSource::Local, 1);
     }
