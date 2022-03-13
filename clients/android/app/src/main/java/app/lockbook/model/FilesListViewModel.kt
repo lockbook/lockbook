@@ -44,12 +44,20 @@ class FilesListViewModel(application: Application, isThisANewAccount: Boolean) :
     private fun startUpInRoot() {
         when (val createAtRootResult = FileModel.createAtRoot(getContext())) {
             is Ok -> {
-                fileModel = createAtRootResult.value
-                refreshFiles()
-                breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
+                val tempFileModel = createAtRootResult.value
+                if (tempFileModel == null) {
+                    _notifyUpdateFilesUI.postValue(UpdateFilesUI.SyncImport)
+                } else {
+                    fileModel = tempFileModel
+
+                    refreshFiles()
+                    breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
+                    _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
+                }
             }
-            is Err -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(createAtRootResult.error))
+            is Err -> {
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(createAtRootResult.error))
+            }
         }
     }
 

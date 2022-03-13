@@ -156,9 +156,7 @@ class ImportFragment : Fragment() {
         uiScope.launch {
             when (val importAccountResult = CoreModel.importAccount(App.config, account)) {
                 is Ok -> {
-                    val intent = Intent(context, ImportAccountActivity::class.java)
-
-                    welcomeActivity.startActivity(intent)
+                    welcomeActivity.startActivity(Intent(context, ImportAccountActivity::class.java))
                     welcomeActivity.finishAffinity()
                 }
                 is Err -> {

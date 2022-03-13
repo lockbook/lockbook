@@ -31,7 +31,7 @@ class MainScreenActivity : AppCompatActivity() {
     // This property is only valid between onCreateView and
     // onDestroyView.
     val binding get() = _binding!!
-    val slidingPaneLayout get() = binding.slidingPaneLayout
+    private val slidingPaneLayout get() = binding.slidingPaneLayout
 
     private val alertModel by lazy {
         AlertModel(WeakReference(this))
@@ -247,6 +247,11 @@ class MainScreenActivity : AppCompatActivity() {
 
     fun isThisANewAccount(): Boolean {
         return intent.extras?.getBoolean(IS_THIS_A_NEW_ACCOUNT, false) ?: false
+    }
+
+    fun syncImportAccount() {
+        startActivity(Intent(this, ImportAccountActivity::class.java))
+        finishAffinity()
     }
 }
 

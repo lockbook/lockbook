@@ -356,6 +356,9 @@ class FilesListFragment : Fragment(), FilesFragment {
 
                 bottomSheetDialog.show()
             }
+            UpdateFilesUI.SyncImport -> {
+                (activity as MainScreenActivity).syncImportAccount()
+            }
         }.exhaustive
     }
 
@@ -495,6 +498,7 @@ sealed class UpdateFilesUI {
     object StopProgressSpinner : UpdateFilesUI()
     object ToggleMenuBar : UpdateFilesUI()
     object ShowBeforeWeStart : UpdateFilesUI()
+    object SyncImport : UpdateFilesUI()
     data class NotifyWithSnackbar(val msg: String) : UpdateFilesUI()
 }
 

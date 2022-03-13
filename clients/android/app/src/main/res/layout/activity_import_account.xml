@@ -20,10 +20,4 @@
         android:layout_height="wrap_content"
         android:text="@string/import_account_starting_import"/>
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:paddingTop="20dp"
-        android:text="@string/import_account_do_not_exit"/>
-
 </LinearLayout>

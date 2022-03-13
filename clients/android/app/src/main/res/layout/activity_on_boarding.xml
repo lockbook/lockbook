@@ -52,6 +52,7 @@
         android:id="@+id/on_boarding_switcher"
         android:layout_width="250dp"
         android:layout_height="30dp"
+        android:background="#00000000"
         app:tabTextAppearance="@android:style/TextAppearance.Widget.TabWidget">
 
         <com.google.android.material.tabs.TabItem
