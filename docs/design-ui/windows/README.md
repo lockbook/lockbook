@@ -1,4 +1,4 @@
-# macOS
+# windows
 
 ## Onboarding
 <details>
