@@ -21,7 +21,7 @@ use lockbook_models::account::Account;
 use lockbook_models::api::AccountTier;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
-use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use model::errors::Error::UiError;
 pub use model::errors::{CoreError, Error, UnexpectedError};
 use service::log_service;
@@ -228,7 +228,7 @@ pub enum GetAndGetChildrenError {
 
 pub fn get_and_get_children_recursively(
     config: &Config, id: Uuid,
-) -> Result<Vec<EncryptedFileMetadata>, Error<GetAndGetChildrenError>> {
+) -> Result<Vec<DecryptedFileMetadata>, Error<GetAndGetChildrenError>> {
     file_service::get_and_get_children_recursively(config, id).map_err(|e| match e {
         CoreError::FileNonexistent => UiError(GetAndGetChildrenError::FileDoesNotExist),
         CoreError::FileNotFolder => UiError(GetAndGetChildrenError::DocumentTreatedAsFolder),
@@ -324,8 +324,8 @@ pub fn list_paths(
     path_service::get_all_paths(config, filter).map_err(|e| unexpected_only!("{:#?}", e))
 }
 
-pub fn get_path_by_id(config: &Config, uuid: Uuid) -> Result<String, UnexpectedError> {
-    path_service::get_path_by_id(config, uuid).map_err(|e| unexpected_only!("{:#?}", e))
+pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, UnexpectedError> {
+    path_service::get_path_by_id(config, id).map_err(|e| unexpected_only!("{:#?}", e))
 }
 
 pub fn list_metadatas(config: &Config) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
