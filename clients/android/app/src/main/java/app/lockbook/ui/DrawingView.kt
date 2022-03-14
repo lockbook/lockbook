@@ -99,7 +99,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                     drawing.translationX = -left
                     drawing.translationY = -top
 
-                    drawing.isDirty = true
+                    drawing.justEdited()
 
                     return true
                 }
@@ -387,7 +387,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                     MotionEvent.ACTION_MOVE -> lineTo(modelPoint, event.pressure)
                 }
 
-                drawing.isDirty = true
+                drawing.justEdited()
             }
         }
     }
@@ -605,7 +605,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         if (refreshScreen) {
             drawing.set(drawingClone)
-            drawing.isDirty = true
+            drawing.justEdited()
 
             strokeState.strokesBounds.clear()
             tempCanvas.drawColor(

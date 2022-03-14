@@ -18,8 +18,10 @@ import app.lockbook.util.ColorAlias
 import app.lockbook.util.Drawing
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 class DrawingViewModel(
     application: Application,
@@ -47,7 +49,7 @@ class DrawingViewModel(
         persistentDrawing.model = this
     }
 
-    fun setUpPaint() {
+    private fun setUpPaint() {
         persistentStrokeState.apply {
             strokePaint.isAntiAlias = true
             strokePaint.style = Paint.Style.STROKE
@@ -65,31 +67,33 @@ class DrawingViewModel(
     }
 
     fun waitAndSaveContents() {
-        lastEdit = System.currentTimeMillis()
-        val currentEdit = lastEdit
+        lastEdit = System.currentTimeMillis() // the newest edit
+        val currentEdit = lastEdit // the current edit for when the courutine is launched
 
-        handler.postDelayed(
-            {
+        handler.postDelayed({
                 viewModelScope.launch(Dispatchers.IO) {
-
                     if (currentEdit == lastEdit && persistentDrawing.isDirty) {
-                        val writeToDocumentResult =
+                        when(val writeToDocumentResult =
                             CoreModel.writeToDocument(
                                 config,
                                 id,
                                 Klaxon().toJsonString(persistentDrawing.clone()).replace(" ", "")
-                            )
-
-                        if (writeToDocumentResult is Err) {
-                            _notifyError.postValue(
-                                writeToDocumentResult.error.toLbError(
-                                    getRes()
+                            )) {
+                            is Ok -> {
+                                Timber.e("Finally finished $currentEdit successfully.")
+                                persistentDrawing.isDirty = false
+                            }
+                            is Err -> {
+                                Timber.e("Finally finished $currentEdit unsuccessfully.")
+                                _notifyError.postValue(
+                                    writeToDocumentResult.error.toLbError(
+                                        getRes()
+                                    )
                                 )
-                            )
-                        } else {
-                            persistentDrawing.isDirty = false
-                        }
+                            }
+                        }.exhaustive
                     }
+
                 }
             },
             5000

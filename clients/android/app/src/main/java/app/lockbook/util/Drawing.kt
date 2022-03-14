@@ -20,10 +20,17 @@ data class Drawing(
     @Json(ignored = true)
     lateinit var model: DrawingViewModel
     @Json(ignored = true)
-    var isDirty: Boolean by Delegates.observable(false) { property, oldValue, newValue ->
-        if (newValue && !oldValue) {
-            model.waitAndSaveContents()
+    var isDirty: Boolean = false
+
+    fun justEdited() {
+
+        if(isDirty) {
+            model.lastEdit = System.currentTimeMillis()
+        } else {
+            isDirty = true
         }
+
+        model.waitAndSaveContents()
     }
 
     fun set(drawing: Drawing) {
