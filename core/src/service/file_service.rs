@@ -69,28 +69,12 @@ pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<DecryptedFileMetada
 
 pub fn get_and_get_children_recursively(
     config: &Config, id: Uuid,
-) -> Result<Vec<EncryptedFileMetadata>, CoreError> {
+) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
     info!("get all children of file: {}", id);
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
     let files = files.filter_not_deleted()?;
     let file_and_descendants = files::find_with_descendants(&files, id)?;
-
-    // convert from decryptedfilemetadata to filemetadata because that's what this function needs to return for some reason
-    let account = account_repo::get(config)?;
-    let encrypted_files = file_encryption_service::encrypt_metadata(&account, &files)?;
-    let mut result = Vec::new();
-    for file in file_and_descendants {
-        let encrypted_file = encrypted_files
-            .iter()
-            .find(|f| f.id == file.id)
-            .ok_or_else(|| {
-                CoreError::Unexpected(String::from(
-                    "get_and_get_children_recursively: encrypted file not found",
-                ))
-            })?;
-        result.push(encrypted_file.clone());
-    }
-    Ok(result)
+    Ok(file_and_descendants)
 }
 
 pub fn delete_file(config: &Config, id: Uuid) -> Result<(), CoreError> {
