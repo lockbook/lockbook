@@ -68,7 +68,7 @@ The expected errors are:
 * `FileAlreadySharedWithThatUser`
 
 ### Get Pending Shares
-A pending share is a file which is shared with a user but the user doesn't have
+A pending share is a file which is shared with a user, but the user doesn't have
 any links to the file. `get_pending_shares` returns the metadata for all such
 files. It accepts no arguments.
 
