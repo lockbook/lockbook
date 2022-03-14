@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     app:popupTheme="@style/Main.Widget.Actionbar"
-    tools:context="app.lockbook.screen.WelcomeActivity">
+    tools:context="app.lockbook.screen.OnBoardingActvity">
     <item
         android:id="@+id/menu_list_files_sort"
         android:icon="@drawable/ic_baseline_sort_24"

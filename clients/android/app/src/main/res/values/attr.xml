@@ -5,4 +5,11 @@
         <attr name="text_color" format="color" />
         <attr name="text_size" format="integer" />
     </declare-styleable>
+
+    <declare-styleable name="TextSwitchView">
+        <attr name="tsv_option_one_text" format="string" />
+        <attr name="tsv_option_two_text" format="string" />
+        <attr name="tsv_is_option_one_chosen" format="boolean" />
+        <attr name="tsv_text_size" format="float" />
+    </declare-styleable>
 </resources>
