@@ -1,4 +1,4 @@
-# Android Screens UI
+# Android
 
 ## Onboarding
 <details>

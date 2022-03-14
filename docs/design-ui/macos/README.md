@@ -1,21 +1,27 @@
-# Linux
+# macOS
 
 ## New Account
 <details>
 
 ![new-account](new-account.png)
+![errors](new-account-errors.png)
+![dark](new-account-dark.png)
+
 </details>
 
 ## Import Account
 <details>
 
 ![import-account](import-account.png)
+![initial-sync](initial-sync.png)
+
 </details>
 
 ## Main Screen
 <details>
 
-![main-screen](main-screen.png)
+![main-screen.png](main-screen.png)
+
 </details>
 
 ## Editor
@@ -27,17 +33,7 @@
 ## Settings
 <details>
 
-![settings](settings.png)
-</details>
+![settings-1.png](settings-1.png)
+![settings-2.png](settings-2.png)
 
-## Usage
-<details>
-
-![usage](usage.png)
-</details>
-
-## About
-<details>
-
-![about](about.png)
 </details>
