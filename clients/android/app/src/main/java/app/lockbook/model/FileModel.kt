@@ -30,7 +30,8 @@ class FileModel(
     private var sortStyle: SortStyle
 ) {
     companion object {
-        fun createAtRoot(context: Context): Result<FileModel, LbError> {
+        // Returns Ok(null) if there is no root
+        fun createAtRoot(context: Context): Result<FileModel?, LbError> {
             val pref = PreferenceManager.getDefaultSharedPreferences(context)
             val res = context.resources
 
@@ -50,13 +51,12 @@ class FileModel(
 
             return when (val getRootResult = CoreModel.getRoot(config)) {
                 is Ok -> {
-                    val root = getRootResult.value
-                    when (val getChildrenResult = CoreModel.getChildren(config, root.id)) {
+                    when (val getChildrenResult = CoreModel.getChildren(config, getRootResult.value.id)) {
                         is Ok -> {
                             val fileModel = FileModel(
-                                root,
+                                getRootResult.value,
                                 getChildrenResult.value,
-                                mutableListOf(root),
+                                mutableListOf(getRootResult.value),
                                 sortStyle
                             )
                             fileModel.sortChildren()
@@ -66,7 +66,13 @@ class FileModel(
                         is Err -> Err(getChildrenResult.error.toLbError(res))
                     }
                 }
-                is Err -> Err(getRootResult.error.toLbError(res))
+                is Err -> {
+                    if (getRootResult.error == GetRootError.NoRoot) {
+                        Ok(null)
+                    } else {
+                        Err(getRootResult.error.toLbError(res))
+                    }
+                }
             }
         }
     }

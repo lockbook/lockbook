@@ -46,7 +46,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
             is Ok -> {
                 when (getDBStateResult.value) {
                     State.Empty -> {
-                        startActivity(Intent(this, WelcomeActivity::class.java))
+                        startActivity(Intent(this, OnBoardingActvity::class.java))
                         finish()
                     }
                     State.ReadyToUse -> startFromExistingAccount()

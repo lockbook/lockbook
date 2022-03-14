@@ -10,13 +10,14 @@ import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.DecryptedFileMetadata
 import app.lockbook.util.SingleMutableLiveData
+import app.lockbook.util.exhaustive
 import com.afollestad.recyclical.datasource.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-class FilesListViewModel(application: Application, isThisAnImport: Boolean) : AndroidViewModel(application) {
+class FilesListViewModel(application: Application, isThisANewAccount: Boolean) : AndroidViewModel(application) {
 
     private val _notifyUpdateFilesUI = SingleMutableLiveData<UpdateFilesUI>()
 
@@ -28,13 +29,14 @@ class FilesListViewModel(application: Application, isThisAnImport: Boolean) : An
     val selectableFiles = emptySelectableDataSourceTyped<DecryptedFileMetadata>()
     var breadcrumbItems = listOf<BreadCrumbItem>()
 
-    val syncModel = SyncModel(_notifyUpdateFilesUI)
+    val syncModel = SyncModel()
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            if (isThisAnImport) {
-                syncModel.trySync(getContext())
+            if (isThisANewAccount) {
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.ShowBeforeWeStart)
             }
+
             startUpInRoot()
         }
     }
@@ -42,12 +44,20 @@ class FilesListViewModel(application: Application, isThisAnImport: Boolean) : An
     private fun startUpInRoot() {
         when (val createAtRootResult = FileModel.createAtRoot(getContext())) {
             is Ok -> {
-                fileModel = createAtRootResult.value
-                refreshFiles()
-                breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
+                val tempFileModel = createAtRootResult.value
+                if (tempFileModel == null) {
+                    _notifyUpdateFilesUI.postValue(UpdateFilesUI.SyncImport)
+                } else {
+                    fileModel = tempFileModel
+
+                    refreshFiles()
+                    breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
+                    _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
+                }
             }
-            is Err -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(createAtRootResult.error))
+            is Err -> {
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(createAtRootResult.error))
+            }
         }
     }
 
@@ -104,13 +114,12 @@ class FilesListViewModel(application: Application, isThisAnImport: Boolean) : An
             breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
 
             _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
-//            _notifyUpdateFilesUI.postValue(UpdateFilesUI.ToggleMenuBar)
         }
     }
 
     fun onSwipeToRefresh() {
         viewModelScope.launch(Dispatchers.IO) {
-            syncModel.trySync(getContext())
+            syncWithSnackBar()
             refreshFiles()
             postUIUpdate(UpdateFilesUI.StopProgressSpinner)
         }
@@ -118,9 +127,46 @@ class FilesListViewModel(application: Application, isThisAnImport: Boolean) : An
 
     fun syncBasedOnPreferences() {
         viewModelScope.launch(Dispatchers.IO) {
-            syncModel.syncBasedOnPreferences(getContext())
+            if (PreferenceManager.getDefaultSharedPreferences(getContext())
+                .getBoolean(
+                        app.lockbook.util.getString(
+                                getRes(),
+                                R.string.sync_automatically_key
+                            ),
+                        false
+                    )
+            ) {
+                syncWithSnackBar()
+            }
             refreshFiles()
         }
+    }
+
+    private fun syncWithSnackBar() {
+        when (val hasSyncWorkResult = syncModel.hasSyncWork()) {
+            is Ok -> if (!hasSyncWorkResult.value) {
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyWithSnackbar(getString(R.string.list_files_sync_finished_snackbar)))
+                return
+            }
+            is Err -> _notifyUpdateFilesUI.postValue(
+                UpdateFilesUI.NotifyError(
+                    hasSyncWorkResult.error.toLbError(
+                        getRes()
+                    )
+                )
+            )
+        }
+
+        when (val syncResult = syncModel.trySync()) {
+            is Ok -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyWithSnackbar(getString(R.string.list_files_sync_finished_snackbar)))
+            is Err -> _notifyUpdateFilesUI.postValue(
+                UpdateFilesUI.NotifyError(
+                    syncResult.error.toLbError(
+                        getRes()
+                    )
+                )
+            )
+        }.exhaustive
     }
 
     fun reloadFiles() {

@@ -30,9 +30,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".screen.WelcomeActivity" />
-        <activity
-            android:name=".screen.NewAccountActivity" />
+            android:name=".screen.OnBoardingActvity" />
         <activity
             android:name=".screen.ImportAccountActivity" />
         <activity android:name=".screen.MainScreenActivity" />

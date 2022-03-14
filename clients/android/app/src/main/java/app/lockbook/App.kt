@@ -86,10 +86,10 @@ class ForegroundBackgroundObserver(val context: Context) : LifecycleObserver {
 class SyncWork(appContext: Context, workerParams: WorkerParameters) :
     Worker(appContext, workerParams) {
     override fun doWork(): Result {
-        val syncAllResult =
+        val syncResult =
             CoreModel.sync(Config(applicationContext.filesDir.absolutePath), null)
-        return if (syncAllResult is Err) {
-            when (val error = syncAllResult.error) {
+        return if (syncResult is Err) {
+            when (val error = syncResult.error) {
                 is SyncAllError.NoAccount -> {
                     Timber.e("No account.")
                 }

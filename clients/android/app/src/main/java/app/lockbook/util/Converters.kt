@@ -128,6 +128,7 @@ val createAccountConverter = object : Converter {
                             CreateAccountError.CouldNotReachServer::class.simpleName -> CreateAccountError.CouldNotReachServer
                             CreateAccountError.AccountExistsAlready::class.simpleName -> CreateAccountError.AccountExistsAlready
                             CreateAccountError.ClientUpdateRequired::class.simpleName -> CreateAccountError.ClientUpdateRequired
+                            CreateAccountError.ServerDisabled::class.simpleName -> CreateAccountError.ServerDisabled
                             else -> CreateAccountError.Unexpected("createAccountConverter $unmatchedUiError $error")
                         }
                     )

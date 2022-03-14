@@ -14,6 +14,7 @@
   <color name="light">#E3E5EB</color>
   <color name="white">#FFFFFF</color>
   <color name="grey">#787878</color>
+  <color name="lightBlack">#222222</color>
 
   <color name="transparent">#00000000</color>
 
@@ -29,6 +30,9 @@
   <color name="windowBackground">@color/white</color>
   <color name="textColor">@color/black</color>
   <color name="iconColor">@color/black</color>
+  <color name="bottomSheetBackgroundColor">@color/light</color>
+  <color name="dialogBackgroundColor">@color/white</color>
 
   <bool name="windowLightStatusBar">true</bool>
+
 </resources>
