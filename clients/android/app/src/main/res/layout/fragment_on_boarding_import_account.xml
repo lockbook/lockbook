@@ -31,6 +31,6 @@
     <Button
         android:id="@+id/on_boarding_import_submit"
         style="@style/Main.Button.Borderless.Colored"
-        android:text="@string/on_boarding_import" />
+        android:text="@string/lockbook_import" />
 
 </LinearLayout>

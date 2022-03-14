@@ -149,26 +149,23 @@ class ImportFragment : Fragment() {
     }
 
     private fun importAccount(account: String) {
-        val welcomeActivity = (requireActivity() as OnBoardingActvity)
+        val onBoardingActivity = (requireActivity() as OnBoardingActvity)
 
-        welcomeActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
+        onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
 
         uiScope.launch {
             when (val importAccountResult = CoreModel.importAccount(App.config, account)) {
                 is Ok -> {
-                    welcomeActivity.startActivity(Intent(context, ImportAccountActivity::class.java))
-                    welcomeActivity.finishAffinity()
+                    onBoardingActivity.startActivity(Intent(context, ImportAccountActivity::class.java))
+                    onBoardingActivity.finishAffinity()
                 }
                 is Err -> {
                     withContext(Dispatchers.Main) {
-                        welcomeActivity.binding.onBoardingProgressBar.visibility = View.GONE
-                    }
-
-                    welcomeActivity.alertModel.notifyError(
-                        importAccountResult.error.toLbError(
+                        onBoardingActivity.binding.onBoardingProgressBar.visibility = View.GONE
+                        importBinding.onBoardingAccountString.error = importAccountResult.error.toLbError(
                             resources
-                        )
-                    )
+                        ).msg
+                    }
                 }
             }.exhaustive
         }
@@ -208,9 +205,9 @@ class CreateFragment : Fragment() {
     }
 
     private fun createAccount(username: String) {
-        val welcomeActivity = (requireActivity() as OnBoardingActvity)
+        val onBoardingActivity = (requireActivity() as OnBoardingActvity)
 
-        welcomeActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
+        onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
 
         uiScope.launch {
             when (val createAccountResult = CoreModel.generateAccount(App.config, username)) {
@@ -218,19 +215,16 @@ class CreateFragment : Fragment() {
                     val intent = Intent(context, MainScreenActivity::class.java)
                     intent.putExtra(IS_THIS_A_NEW_ACCOUNT, true)
 
-                    welcomeActivity.startActivity(intent)
-                    welcomeActivity.finishAffinity()
+                    onBoardingActivity.startActivity(intent)
+                    onBoardingActivity.finishAffinity()
                 }
                 is Err -> {
                     withContext(Dispatchers.Main) {
-                        welcomeActivity.binding.onBoardingProgressBar.visibility = View.GONE
-                    }
-
-                    welcomeActivity.alertModel.notifyError(
-                        createAccountResult.error.toLbError(
+                        onBoardingActivity.binding.onBoardingProgressBar.visibility = View.GONE
+                        createBinding.onBoardingUsername.error = createAccountResult.error.toLbError(
                             resources
-                        )
-                    )
+                        ).msg
+                    }
                 }
             }.exhaustive
         }
