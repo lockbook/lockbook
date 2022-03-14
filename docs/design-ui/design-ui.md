@@ -1,8 +1,10 @@
 # Design UI
 
-[Apple](/docs/design-ui/macos/README.md)
-
 [Android](/docs/design-ui/android/README.md)
+
+[iPhone](/docs/design-ui/iphone/README.md)
+
+[Mac](/docs/design-ui/macos/README.md)
 
 [Windows]()
 
