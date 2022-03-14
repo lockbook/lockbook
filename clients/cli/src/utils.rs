@@ -111,11 +111,7 @@ pub fn get_editor() -> SupportedEditors {
 }
 
 pub fn get_directory_location() -> CliResult<String> {
-    let result = if cfg!(target_os = "windows") {
-        format!("/Temp/{}", Uuid::new_v4())
-    } else {
-        format!("/tmp/{}", Uuid::new_v4())
-    };
+    let result = format!("{}/{}", env::temp_dir().to_str().unwrap_or("/tmp"), Uuid::new_v4());
     fs::create_dir(&result)
         .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
     Ok(result)
