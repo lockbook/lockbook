@@ -15,7 +15,7 @@ The sharing UX needs to address the following concerns:
 To share a file, a user selects the "share" option from a context menu. They are
 prompted to enter a username for a user to share the file with and a share mode
 (read or write). The username is checked immediately - **the client must be
-online to share**. The sharer is always considered the owner of the file is and
+online to share**. The sharer is always considered the owner of the file and
 is billed for its storage.
 
 Additional ideas for non-MVP:
