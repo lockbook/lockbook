@@ -54,7 +54,7 @@ Core will expose four new functions:
 
 ### Share
 `share` is the function used to share a file. It accepts a file id, a username,
-and a share mode and it returns only a success or error. It fetches the public
+and a share mode, and it returns only a success or error. It fetches the public
 key for the username and adds a user access key to the file for the user (the
 file key encrypted with the user's public key). The share registers as an
 unsynced file change and is only uploaded during the next sync.
