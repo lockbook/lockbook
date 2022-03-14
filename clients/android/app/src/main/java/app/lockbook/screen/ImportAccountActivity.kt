@@ -5,13 +5,11 @@ import android.os.Bundle
 import android.view.View
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.databinding.ActivityImportAccountBinding
 import app.lockbook.model.*
 import app.lockbook.util.exhaustive
-import kotlinx.coroutines.*
 
 class ImportAccountActivity : AppCompatActivity() {
     private var _binding: ActivityImportAccountBinding? = null
@@ -36,10 +34,13 @@ class ImportAccountActivity : AppCompatActivity() {
         _binding = ActivityImportAccountBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        model.syncModel.notifySyncProgress.observe(
+        model.syncModel.notifySyncStepInfo.observe(
             this
-        ) { progress ->
-            binding.importInfo.text = progress.action.toMessage()
+        ) { stepInfo ->
+            binding.importAccountProgressBar.max = stepInfo.total
+            binding.importAccountProgressBar.progress = stepInfo.progress
+
+            binding.importInfo.text = stepInfo.action.toMessage()
         }
 
         model.updateImportUI.observe(
@@ -47,9 +48,8 @@ class ImportAccountActivity : AppCompatActivity() {
         ) { updateImportUI ->
             when (updateImportUI) {
                 UpdateImportUI.FinishedSync -> {
-                    val intent = Intent(applicationContext, MainScreenActivity::class.java)
+                    startActivity(Intent(applicationContext, MainScreenActivity::class.java))
 
-                    startActivity(intent)
                     finishAffinity()
                 }
                 is UpdateImportUI.NotifyError -> {

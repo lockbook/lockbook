@@ -8,10 +8,10 @@ import com.github.michaelbull.result.*
 class SyncModel {
     var syncStatus: SyncStatus = SyncStatus.NotSyncing
 
-    private val _notifySyncProgress = SingleMutableLiveData<SyncProgress>()
+    private val _notifySyncStepInfo = SingleMutableLiveData<SyncStepInfo>()
 
-    val notifySyncProgress: LiveData<SyncProgress>
-        get() = _notifySyncProgress
+    val notifySyncStepInfo: LiveData<SyncStepInfo>
+        get() = _notifySyncStepInfo
 
     fun trySync(): Result<Unit, CoreError> =
         if (syncStatus is SyncStatus.NotSyncing) {
@@ -44,11 +44,11 @@ class SyncModel {
             }
         }
 
-        val syncProgress = SyncProgress(progress, total, syncAction)
+        val syncProgress = SyncStepInfo(progress, total, syncAction)
         val newStatus = SyncStatus.Syncing(syncProgress)
         syncStatus = newStatus
 
-        _notifySyncProgress.postValue(syncProgress)
+        _notifySyncStepInfo.postValue(syncProgress)
     }
 
     fun hasSyncWork(): Result<Boolean, CoreError> {
@@ -64,10 +64,10 @@ class SyncModel {
 sealed class SyncStatus {
     object NotSyncing : SyncStatus()
     object StartingSync : SyncStatus()
-    data class Syncing(var syncProgress: SyncProgress) : SyncStatus()
+    data class Syncing(var syncStepInfo: SyncStepInfo) : SyncStatus()
 }
 
-data class SyncProgress(
+data class SyncStepInfo(
     var progress: Int,
     var total: Int,
     var action: SyncMessage

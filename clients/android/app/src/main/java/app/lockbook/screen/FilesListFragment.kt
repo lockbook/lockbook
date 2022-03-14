@@ -94,7 +94,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             updateUI(uiUpdates)
         }
 
-        model.syncModel.notifySyncProgress.observe(
+        model.syncModel.notifySyncStepInfo.observe(
             viewLifecycleOwner
         ) { syncProgress ->
             updateSyncProgress(syncProgress)
@@ -167,16 +167,16 @@ class FilesListFragment : Fragment(), FilesFragment {
         return binding.root
     }
 
-    private fun updateSyncProgress(syncProgress: SyncProgress) {
-        if (syncProgress.progress == 0) {
+    private fun updateSyncProgress(syncStepInfo: SyncStepInfo) {
+        if (syncStepInfo.progress == 0) {
             snackProgressBarManager.dismiss()
 
-            updateUI(UpdateFilesUI.ShowSyncSnackBar(syncProgress.total))
+            updateUI(UpdateFilesUI.ShowSyncSnackBar(syncStepInfo.total))
         } else {
 
-            syncSnackProgressBar.setProgressMax(syncProgress.total)
-            snackProgressBarManager.setProgress(syncProgress.progress)
-            syncSnackProgressBar.setMessage(syncProgress.action.toMessage())
+            syncSnackProgressBar.setProgressMax(syncStepInfo.total)
+            snackProgressBarManager.setProgress(syncStepInfo.progress)
+            syncSnackProgressBar.setMessage(syncStepInfo.action.toMessage())
             snackProgressBarManager.updateTo(syncSnackProgressBar)
         }
     }
@@ -186,8 +186,8 @@ class FilesListFragment : Fragment(), FilesFragment {
 
         val syncStatus = model.syncModel.syncStatus
         if (syncStatus is SyncStatus.Syncing) {
-            updateUI(UpdateFilesUI.ShowSyncSnackBar(syncStatus.syncProgress.total))
-            updateSyncProgress(syncStatus.syncProgress)
+            updateUI(UpdateFilesUI.ShowSyncSnackBar(syncStatus.syncStepInfo.total))
+            updateSyncProgress(syncStatus.syncStepInfo)
         }
     }
 

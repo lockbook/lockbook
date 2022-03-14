@@ -7,12 +7,14 @@
 
     <ProgressBar
         android:id="@+id/import_account_progress_bar"
-        android:layout_width="80dp"
-        android:layout_height="80dp" />
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:paddingHorizontal="20dp"/>
 
     <TextView
         android:id="@+id/import_info"
-        android:paddingTop="30dp"
+        android:paddingTop="10dp"
         style="@style/Main.Text.Medium"
         android:textAlignment="center"
         android:paddingHorizontal="70dp"
