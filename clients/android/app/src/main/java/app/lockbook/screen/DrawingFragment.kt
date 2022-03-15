@@ -19,6 +19,7 @@ import app.lockbook.R
 import app.lockbook.databinding.FragmentDrawingBinding
 import app.lockbook.model.*
 import app.lockbook.ui.DrawingView
+import app.lockbook.ui.PenState
 import app.lockbook.util.ColorAlias
 import app.lockbook.util.exhaustive
 import java.lang.ref.WeakReference
@@ -116,7 +117,7 @@ class DrawingFragment : Fragment() {
             }
             is DrawingView.Tool.Eraser -> {
                 eraser.setImageResource(R.drawable.ic_eraser_outline)
-                drawingView.strokeState.isErasing = false
+                drawingView.strokeState.penState = PenState.Drawing
             }
         }
 
@@ -138,7 +139,7 @@ class DrawingFragment : Fragment() {
             }
             is DrawingView.Tool.Eraser -> {
                 eraser.setImageResource(R.drawable.ic_eraser_filled)
-                drawingView.strokeState.isErasing = true
+                drawingView.strokeState.penState = PenState.ErasingWithTouchButton
             }
         }.exhaustive
 

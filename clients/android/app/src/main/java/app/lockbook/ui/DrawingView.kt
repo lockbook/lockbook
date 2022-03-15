@@ -10,7 +10,9 @@ import androidx.core.content.res.ResourcesCompat
 import app.lockbook.R
 import app.lockbook.model.AlertModel
 import app.lockbook.screen.MainScreenActivity
-import app.lockbook.util.*
+import app.lockbook.util.ColorAlias
+import app.lockbook.util.Drawing
+import app.lockbook.util.Stroke
 import java.lang.ref.WeakReference
 import java.util.*
 import kotlin.math.pow
@@ -368,13 +370,13 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         val action = event.action
 
         strokeState.apply {
-            if (action == SPEN_ACTION_DOWN) { // stay erasing if the button isn't held but it is the same stroke && vice versa
-                isErasing = true
-            } else if (action == SPEN_ACTION_UP) {
-                isErasing = false
+            if (action == SPEN_ACTION_DOWN || (action == MotionEvent.ACTION_DOWN && event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY)) { // stay erasing if the button isn't held but it is the same stroke && vice versa
+                penState = PenState.ErasingWithPen
+            } else if (penState == PenState.ErasingWithPen && (action == MotionEvent.ACTION_UP || action == SPEN_ACTION_UP)) {
+                penState = PenState.Drawing
             }
 
-            if (isErasing) {
+            if (penState == PenState.ErasingWithPen || penState == PenState.ErasingWithTouchButton) {
                 if ((action == SPEN_ACTION_DOWN || action == MotionEvent.ACTION_DOWN) && (!erasePoints.first.x.isNaN() || !erasePoints.second.x.isNaN())) {
                     erasePoints.first.set(PointF(Float.NaN, Float.NaN))
                     erasePoints.second.set(PointF(Float.NaN, Float.NaN))
@@ -686,7 +688,6 @@ data class DrawingStrokeState(
         Pair(PointF(Float.NaN, Float.NaN), PointF(Float.NaN, Float.NaN)),
     var penSizeMultiplier: Int = 7,
     var strokeAlpha: Int = 255,
-    var isErasing: Boolean = false,
     var strokeColor: ColorAlias = ColorAlias.White,
     val strokePaint: Paint = Paint(),
     val bitmapPaint: Paint = Paint(),
@@ -695,4 +696,11 @@ data class DrawingStrokeState(
     var rollingAveragePressure: Float = Float.NaN,
     val strokePath: Path = Path(),
     val strokesBounds: MutableList<RectF> = mutableListOf(),
+    var penState: PenState = PenState.Drawing
 )
+
+enum class PenState {
+    Drawing,
+    ErasingWithPen,
+    ErasingWithTouchButton
+}

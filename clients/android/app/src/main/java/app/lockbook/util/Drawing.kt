@@ -5,7 +5,6 @@ import android.graphics.Color
 import app.lockbook.model.DrawingViewModel
 import com.beust.klaxon.Json
 import java.util.LinkedHashMap
-import kotlin.properties.Delegates
 
 data class Drawing(
     var scale: Float = 1f,
@@ -24,7 +23,7 @@ data class Drawing(
 
     fun justEdited() {
 
-        if(isDirty) {
+        if (isDirty) {
             model.lastEdit = System.currentTimeMillis()
         } else {
             isDirty = true

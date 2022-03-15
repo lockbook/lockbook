@@ -68,17 +68,20 @@ class DrawingViewModel(
 
     fun waitAndSaveContents() {
         lastEdit = System.currentTimeMillis() // the newest edit
-        val currentEdit = lastEdit // the current edit for when the courutine is launched
+        val currentEdit = lastEdit // the current edit for when the coroutine is launched
 
-        handler.postDelayed({
+        handler.postDelayed(
+            {
                 viewModelScope.launch(Dispatchers.IO) {
                     if (currentEdit == lastEdit && persistentDrawing.isDirty) {
-                        when(val writeToDocumentResult =
-                            CoreModel.writeToDocument(
-                                config,
-                                id,
-                                Klaxon().toJsonString(persistentDrawing.clone()).replace(" ", "")
-                            )) {
+                        when (
+                            val writeToDocumentResult =
+                                CoreModel.writeToDocument(
+                                    config,
+                                    id,
+                                    Klaxon().toJsonString(persistentDrawing.clone()).replace(" ", "")
+                                )
+                        ) {
                             is Ok -> {
                                 Timber.e("Finally finished $currentEdit successfully.")
                                 persistentDrawing.isDirty = false
@@ -93,7 +96,6 @@ class DrawingViewModel(
                             }
                         }.exhaustive
                     }
-
                 }
             },
             5000
