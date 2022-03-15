@@ -7,6 +7,7 @@ import android.os.Build
 import android.util.AttributeSet
 import android.view.*
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.view.GestureDetectorCompat
 import app.lockbook.R
 import app.lockbook.model.AlertModel
 import app.lockbook.screen.MainScreenActivity
@@ -58,6 +59,24 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         const val SPEN_ACTION_DOWN = 211
         const val SPEN_ACTION_UP = 212
     }
+
+    private val gestureDetector =
+        GestureDetectorCompat(
+            context,
+            object : GestureDetector.SimpleOnGestureListener() {
+                override fun onScroll(
+                    e1: MotionEvent?,
+                    e2: MotionEvent?,
+                    distanceX: Float,
+                    distanceY: Float
+                ): Boolean {
+                    drawing.translationX += distanceX / drawing.scale
+                    drawing.translationX += distanceY / drawing.scale
+
+                    return true
+                }
+            }
+        )
 
     private val scaleGestureDetector =
         ScaleGestureDetector(
@@ -220,13 +239,20 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         strokeState.strokePaint.color = strokeColor
 
-        canvasBitmap = restoreBitmap
-        drawing.model.persistentBitmap = restoreBitmap
-
-        canvas = restoreCanvas
-        drawing.model.persistentCanvas = restoreCanvas
+        setNewBitmap(restoreBitmap, restoreCanvas)
 
         alignViewPortWithBitmap()
+    }
+
+    private fun setNewBitmap(
+        newBitmap: Bitmap,
+        newCanvas: Canvas
+    ) {
+        canvasBitmap = newBitmap
+        drawing.model.persistentBitmap = newBitmap
+
+        canvas = newCanvas
+        drawing.model.persistentCanvas = newCanvas
     }
 
     private fun alignViewPortWithBitmap() {
@@ -379,7 +405,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         val action = event.action
 
         strokeState.apply {
-            if (action == SPEN_ACTION_DOWN || (action == MotionEvent.ACTION_DOWN && event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY)) { // stay erasing if the button isn't held but it is the same stroke && vice versa
+            if (action == SPEN_ACTION_DOWN || (action == MotionEvent.ACTION_DOWN && (event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY || event.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER))) { // stay erasing if the button isn't held but it is the same stroke && vice versa
                 penState = PenState.ErasingWithPen
             } else if (penState == PenState.ErasingWithPen && (action == MotionEvent.ACTION_UP || action == SPEN_ACTION_UP)) {
                 penState = PenState.Drawing
