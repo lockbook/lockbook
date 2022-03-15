@@ -24,7 +24,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     lateinit var drawing: Drawing
     private lateinit var canvasBitmap: Bitmap
-    private lateinit var tempCanvas: Canvas
+    private lateinit var canvas: Canvas
 
     lateinit var strokeState: DrawingStrokeState
 
@@ -75,14 +75,14 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                     drawing.scale *= detector.scaleFactor
 
                     val screenLocationNormalized = PointF(
-                        onScreenFocusPoint.x / tempCanvas.clipBounds.width(),
-                        onScreenFocusPoint.y / tempCanvas.clipBounds.height()
+                        onScreenFocusPoint.x / canvas.clipBounds.width(),
+                        onScreenFocusPoint.y / canvas.clipBounds.height()
                     )
 
                     val currentViewPortWidth =
-                        tempCanvas.clipBounds.width() / drawing.scale
+                        canvas.clipBounds.width() / drawing.scale
                     val currentViewPortHeight =
-                        tempCanvas.clipBounds.height() / drawing.scale
+                        canvas.clipBounds.height() / drawing.scale
 
                     driftWhileScalingX =
                         (onScreenFocusPoint.x - detector.focusX) / drawing.scale
@@ -160,7 +160,10 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         }
     }
 
-    private fun restoreFromModel() {
+    private fun restoreBitmapFromDrawing() {
+        val restoreBitmap = Bitmap.createBitmap(CANVAS_WIDTH, CANVAS_HEIGHT, Bitmap.Config.ARGB_8888)
+        val restoreCanvas = Canvas(restoreBitmap)
+
         for (stroke in drawing.strokes) {
             val strokeColor = getColor(stroke.color, stroke.alpha)
 
@@ -200,7 +203,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                         x2,
                         y2
                     )
-                    tempCanvas.drawPath(strokePath, strokePaint)
+                    restoreCanvas.drawPath(strokePath, strokePaint)
                     strokePath.reset()
                 }
             }
@@ -217,14 +220,20 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         strokeState.strokePaint.color = strokeColor
 
-        alignViewPortWithDrawing()
+        canvasBitmap = restoreBitmap
+        drawing.model.persistentBitmap = restoreBitmap
+
+        canvas = restoreCanvas
+        drawing.model.persistentCanvas = restoreCanvas
+
+        alignViewPortWithBitmap()
     }
 
-    private fun alignViewPortWithDrawing() {
+    private fun alignViewPortWithBitmap() {
         val currentViewPortWidth =
-            tempCanvas.clipBounds.width() / drawing.scale
+            canvas.clipBounds.width() / drawing.scale
         val currentViewPortHeight =
-            tempCanvas.clipBounds.height() / drawing.scale
+            canvas.clipBounds.height() / drawing.scale
         viewPort.left = -drawing.translationX.toInt()
         viewPort.top = -drawing.translationY.toInt()
         viewPort.right = (viewPort.left + currentViewPortWidth).toInt()
@@ -288,17 +297,17 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     private fun screenToModel(screen: PointF): PointF? {
         var modelX =
-            (viewPort.width() * (screen.x / tempCanvas.clipBounds.width())) + viewPort.left
+            (viewPort.width() * (screen.x / canvas.clipBounds.width())) + viewPort.left
 
         if (modelX < 0) modelX = 0f
-        if (modelX > tempCanvas.clipBounds.width()) modelX =
-            tempCanvas.clipBounds.width().toFloat()
+        if (modelX > canvas.clipBounds.width()) modelX =
+            canvas.clipBounds.width().toFloat()
 
         var modelY =
-            (viewPort.height() * (screen.y / tempCanvas.clipBounds.height())) + viewPort.top
+            (viewPort.height() * (screen.y / canvas.clipBounds.height())) + viewPort.top
         if (modelY < 0) modelY = 0f
-        if (modelY > tempCanvas.clipBounds.height()) modelY =
-            tempCanvas.clipBounds.height().toFloat()
+        if (modelY > canvas.clipBounds.height()) modelY =
+            canvas.clipBounds.height().toFloat()
 
         if (modelX.isNaN() || modelY.isNaN()) {
             return null
@@ -325,17 +334,17 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     fun initialize(persistentDrawing: Drawing, persistentBitmap: Bitmap, persistentCanvas: Canvas, persistentStrokeState: DrawingStrokeState) {
         visibility = View.VISIBLE
         this.drawing = persistentDrawing
-        this.tempCanvas = persistentCanvas
+        this.canvas = persistentCanvas
         this.canvasBitmap = persistentBitmap
         this.strokeState = persistentStrokeState
 
         val emptyBitmap = Bitmap.createBitmap(CANVAS_WIDTH, CANVAS_HEIGHT, Bitmap.Config.ARGB_8888)
 
         if (persistentDrawing != Drawing() && persistentBitmap.sameAs(emptyBitmap)) {
-            restoreFromModel()
+            restoreBitmapFromDrawing()
         }
 
-        alignViewPortWithDrawing()
+        alignViewPortWithBitmap()
 
         isDrawingAvailable = true
         if (isThreadAvailable) {
@@ -471,7 +480,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 point.y
             )
 
-            tempCanvas.drawPath(strokePath, strokePaint)
+            canvas.drawPath(strokePath, strokePaint)
 
             strokePath.reset()
             lastPoint.set(point)
@@ -610,11 +619,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             drawing.justEdited()
 
             strokeState.strokesBounds.clear()
-            tempCanvas.drawColor(
-                Color.TRANSPARENT,
-                PorterDuff.Mode.CLEAR
-            )
-            restoreFromModel()
+
+            restoreBitmapFromDrawing()
         }
     }
 
