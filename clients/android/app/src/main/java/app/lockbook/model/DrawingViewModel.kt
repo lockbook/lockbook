@@ -21,7 +21,6 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import timber.log.Timber
 
 class DrawingViewModel(
     application: Application,
@@ -83,11 +82,9 @@ class DrawingViewModel(
                                 )
                         ) {
                             is Ok -> {
-                                Timber.e("Finally finished $currentEdit successfully.")
                                 persistentDrawing.isDirty = false
                             }
                             is Err -> {
-                                Timber.e("Finally finished $currentEdit unsuccessfully.")
                                 _notifyError.postValue(
                                     writeToDocumentResult.error.toLbError(
                                         getRes()

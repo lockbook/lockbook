@@ -70,10 +70,18 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                     distanceX: Float,
                     distanceY: Float
                 ): Boolean {
-                    drawing.translationX += distanceX / drawing.scale
-                    drawing.translationX += distanceY / drawing.scale
+                    return if (e1 != null && e2 != null) {
+                        drawing.translationX -= distanceX / drawing.scale
+                        drawing.translationY -= distanceY / drawing.scale
 
-                    return true
+                        alignViewPortWithBitmap()
+
+                        drawing.justEdited()
+
+                        true
+                    } else {
+                        false
+                    }
                 }
             }
         )
@@ -81,13 +89,16 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private val scaleGestureDetector =
         ScaleGestureDetector(
             context,
-            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            object : ScaleGestureDetector.OnScaleGestureListener {
                 override fun onScaleBegin(detector: ScaleGestureDetector?): Boolean {
-                    if (detector != null) {
+                    return if (detector != null) {
                         onScreenFocusPoint = PointF(detector.focusX, detector.focusY)
                         modelFocusPoint = screenToModel(onScreenFocusPoint) ?: return false
+
+                        true
+                    } else {
+                        false
                     }
-                    return true
                 }
 
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
@@ -128,7 +139,6 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 override fun onScaleEnd(detector: ScaleGestureDetector?) {
                     driftWhileScalingX = 0f
                     driftWhileScalingY = 0f
-                    super.onScaleEnd(detector)
                 }
             }
         )
@@ -325,15 +335,15 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         var modelX =
             (viewPort.width() * (screen.x / canvas.clipBounds.width())) + viewPort.left
 
-        if (modelX < 0) modelX = 0f
-        if (modelX > canvas.clipBounds.width()) modelX =
-            canvas.clipBounds.width().toFloat()
+//        if (modelX < 0) modelX = 0f
+//        if (modelX > canvas.clipBounds.width()) modelX =
+//            canvas.clipBounds.width().toFloat()
 
         var modelY =
             (viewPort.height() * (screen.y / canvas.clipBounds.height())) + viewPort.top
-        if (modelY < 0) modelY = 0f
-        if (modelY > canvas.clipBounds.height()) modelY =
-            canvas.clipBounds.height().toFloat()
+//        if (modelY < 0) modelY = 0f
+//        if (modelY > canvas.clipBounds.height()) modelY =
+//            canvas.clipBounds.height().toFloat()
 
         if (modelX.isNaN() || modelY.isNaN()) {
             return null
@@ -397,6 +407,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private fun handleFingerEvent(event: MotionEvent) {
+        gestureDetector.onTouchEvent(event)
         scaleGestureDetector.onTouchEvent(event)
     }
 
