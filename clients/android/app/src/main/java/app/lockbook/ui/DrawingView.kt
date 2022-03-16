@@ -89,14 +89,12 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             context,
             object : ScaleGestureDetector.OnScaleGestureListener {
                 override fun onScaleBegin(detector: ScaleGestureDetector?): Boolean {
-                    return if (detector != null) {
-                        onScreenFocusPoint = PointF(detector.focusX, detector.focusY)
-                        modelFocusPoint = screenToModel(onScreenFocusPoint) ?: return false
+                    if(detector == null) return false
 
-                        true
-                    } else {
-                        false
-                    }
+                    onScreenFocusPoint = PointF(detector.focusX, detector.focusY)
+                    modelFocusPoint = screenToModel(onScreenFocusPoint) ?: return false
+
+                    return true
                 }
 
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
@@ -359,16 +357,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     private fun screenToModel(screen: PointF): PointF? {
         var modelX =
             (viewPort.width() * (screen.x / canvas.clipBounds.width())) + viewPort.left
-
-//        if (modelX < 0) modelX = 0f
-//        if (modelX > canvas.clipBounds.width()) modelX =
-//            canvas.clipBounds.width().toFloat()
-
         var modelY =
             (viewPort.height() * (screen.y / canvas.clipBounds.height())) + viewPort.top
-//        if (modelY < 0) modelY = 0f
-//        if (modelY > canvas.clipBounds.height()) modelY =
-//            canvas.clipBounds.height().toFloat()
 
         if (modelX.isNaN() || modelY.isNaN()) {
             return null
