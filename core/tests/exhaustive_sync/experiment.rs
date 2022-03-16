@@ -1,41 +1,43 @@
+use crate::exhaustive_sync::trial::Trial;
+use basic_human_duration::ChronoHumanDuration;
 use core::time;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::thread;
-
 use itertools::Itertools;
+use std::collections::HashMap;
+use std::fs::{File, OpenOptions};
+use std::io::Write;
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
+use std::{fs, thread};
 use uuid::Uuid;
 
-use lockbook_crypto::clock_service::{get_time, Timestamp};
-
-use crate::exhaustive_sync::trial::{Status, Trial};
-
 pub type ThreadID = usize;
+pub type TrialID = Uuid;
 
-#[derive(Clone)]
 pub struct Experiment {
+    pub start_time: Instant,
     pub pending: Vec<Trial>,
-    pub concluded: Vec<Trial>,
-    pub running: HashMap<ThreadID, (Timestamp, Trial)>,
+    pub errors: u64,
+    pub error_log: File,
+    pub done: u64,
+    pub running: HashMap<ThreadID, (Instant, TrialID)>,
 }
 
 impl Default for Experiment {
     fn default() -> Self {
-        Experiment {
-            pending: vec![Trial {
-                id: Uuid::new_v4(),
-                clients: vec![],
-                target_clients: 2,
-                target_steps: 6,
-                steps: vec![],
-                completed_steps: 0,
-                status: Status::Ready,
-                start_time: 0,
-                end_time: 0,
-            }],
-            running: HashMap::new(),
-            concluded: vec![],
-        }
+        let start_time = Instant::now();
+        let pending = vec![Trial::default()];
+        let running = HashMap::new();
+        let errors = 0;
+        let done = 0;
+        fs::create_dir_all("trials").unwrap();
+        let error_log = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .append(true)
+            .open("trials/errors.log")
+            .unwrap();
+
+        Experiment { start_time, pending, running, done, errors, error_log }
     }
 }
 
@@ -49,7 +51,8 @@ impl Experiment {
         let experiment = state.pending.pop();
         match experiment {
             Some(found) => {
-                state.running.insert(thread, (get_time(), found.clone()));
+                found.persist(thread);
+                state.running.insert(thread, (Instant::now(), found.id));
                 (Some(found), true)
             }
             None => (None, !state.running.is_empty()),
@@ -59,91 +62,89 @@ impl Experiment {
     pub fn publish_results(
         thread: ThreadID, experiments: Arc<Mutex<Self>>, result: Trial, mutants: &[Trial],
     ) {
+        result.maybe_cleanup(thread);
         let mut state = experiments.lock().unwrap();
+
+        if result.failed() {
+            writeln!(state.error_log, "{}", result.file_name(thread))
+                .unwrap_or_else(|err| eprintln!("failed to write failure to file: {:?}", err));
+            state.errors += 1;
+        } else {
+            state.done += 1;
+        }
+
         state.running.remove(&thread);
-        state.concluded.push(result);
         state.pending.extend_from_slice(mutants);
     }
 
     pub fn kick_off(self) {
         let state = Arc::new(Mutex::new(self));
 
-        for thread in 0..num_cpus::get() {
+        for thread_id in 0..num_cpus::get() {
+            fs::create_dir_all(format!("trials/{}", thread_id)).unwrap();
             let thread_state = state.clone();
-            thread::spawn(move || loop {
-                match Self::grab_ready_trial_for_thread(thread, thread_state.clone()) {
-                    (Some(mut work), _) => {
-                        let mutants = work.execute();
-                        Self::publish_results(thread, thread_state.clone(), work, &mutants);
+            thread::Builder::new()
+                .name(format!("{}", thread_id))
+                .spawn(move || loop {
+                    match Self::grab_ready_trial_for_thread(thread_id, thread_state.clone()) {
+                        (Some(mut work), _) => {
+                            let mutants = work.execute();
+                            Self::publish_results(thread_id, thread_state.clone(), work, &mutants);
+                        }
+                        (None, true) => {
+                            thread::sleep(time::Duration::from_millis(100));
+                        }
+                        (None, false) => break,
                     }
-                    (None, true) => {
-                        thread::sleep(time::Duration::from_millis(100));
-                    }
-                    (None, false) => break,
-                }
-            });
+                })
+                .unwrap();
         }
 
-        let mut print_count = 0;
+        // Info loop
         loop {
-            print_count += 1;
-            thread::sleep(time::Duration::from_millis(10000));
-            let experiments = state.lock().unwrap().clone();
-            let current_time = get_time().0;
-            let mut failures = experiments.concluded.clone();
-            failures.retain(|trial| trial.status.failed());
-            if experiments.pending.is_empty() && experiments.running.is_empty() {
-                break;
+            {
+                let experiments = state.lock().unwrap();
+                println!(
+                    "Done: {}, Errors: {}, TPS: {}, Started: {}, Possibly Stalled: {:?}",
+                    experiments.done,
+                    experiments.errors,
+                    experiments.trials_per_second(),
+                    experiments.uptime(),
+                    experiments.possibly_stalled()
+                );
             }
+            thread::sleep(time::Duration::from_secs(5));
+        }
+    }
 
-            let stuck: HashMap<ThreadID, (Timestamp, Trial)> = experiments
-                .running
-                .clone()
-                .into_iter()
-                .filter(|(_, (time, _))| time.0 != 0 && current_time - time.0 > 10000)
-                .collect();
+    fn uptime(&self) -> String {
+        let duration = self.start_time.elapsed();
+        let duration = chrono::Duration::from_std(duration).unwrap();
+        duration.format_human().to_string()
+    }
 
-            println!(
-                "{} pending, {} running, {} stuck, {} run, {} failures.",
-                &experiments.pending.len(),
-                &experiments.running.len(),
-                &stuck.len(),
-                &experiments.concluded.len(),
-                &failures.len()
-            );
+    fn trials_per_second(&self) -> u64 {
+        let seconds = self.start_time.elapsed().as_secs();
+        let trials = self.done + self.errors;
 
-            if (!failures.is_empty() || !stuck.is_empty()) && print_count % 12 == 0 {
-                println!("failures: {:#?}", failures);
-                println!("stuck: {:#?}", stuck);
-            }
-
-            if print_count % 12 == 0 {
-                if let Some(trial) = experiments
-                    .concluded
-                    .clone()
-                    .into_iter()
-                    .sorted_by_key(|t| t.end_time - t.start_time)
-                    .last()
-                {
-                    println!(
-                        "slowest trial took {}s: {:#?}",
-                        (trial.end_time - trial.start_time) as f64 / 1000.0,
-                        trial
-                    );
-                }
-            }
+        if seconds == 0 {
+            return 0;
         }
 
-        let experiments = state.lock().unwrap();
-        let mut failures = experiments.concluded.clone();
-        failures.retain(|trial| trial.status.failed());
+        trials / seconds
+    }
 
-        println!(
-            "{} trials concluded with {} failures.",
-            experiments.concluded.len(),
-            failures.len()
-        );
-
-        println!("{:#?}", failures);
+    fn possibly_stalled(&self) -> Vec<String> {
+        self.running
+            .iter()
+            .map(|(thread, (start_time, trial_id))| (thread, start_time.elapsed(), trial_id))
+            .filter(|(_, elapsed, _)| elapsed.as_secs() > 10)
+            .sorted_by(|(_, elapsed_a, _), (_, elapsed_b, _)| Ord::cmp(&elapsed_a, &elapsed_b))
+            .rev()
+            .take(5)
+            .map(|(thread, elapsed, trial)| {
+                format!("{:?}s, {}/{}", elapsed.as_secs(), thread, trial)
+            })
+            .collect()
     }
 }
