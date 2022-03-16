@@ -1,8 +1,10 @@
+use std::time::Instant;
 use std::{fs, thread};
 
 use uuid::Uuid;
 use variant_count::VariantCount;
 
+use crate::exhaustive_sync::experiment::ThreadID;
 use lockbook_core::model::state::Config;
 use lockbook_core::service::api_service;
 use lockbook_core::service::integrity_service::test_repo_integrity;
@@ -13,7 +15,6 @@ use lockbook_core::{
     move_file, rename_file, sync_all, write_document, MoveFileError,
 };
 use lockbook_core::{create_file, list_metadatas};
-use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::DeleteAccountRequest;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 
@@ -42,7 +43,7 @@ pub enum Status {
     Ready,
     Running,
     Succeeded,
-    Failed(String),
+    Failed(String), // Add support for re-attempts here?
 }
 
 impl Status {
@@ -63,32 +64,8 @@ pub struct Trial {
     pub steps: Vec<Action>,
     pub completed_steps: usize,
     pub status: Status,
-    pub start_time: i64,
-    pub end_time: i64,
-}
-
-impl Default for Trial {
-    fn default() -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            clients: vec![],
-            target_clients: 2,
-            target_steps: 6,
-            steps: vec![],
-            completed_steps: 0,
-            status: Status::Ready,
-            start_time: 0,
-            end_time: 0,
-        }
-    }
-}
-
-impl Drop for Trial {
-    fn drop(&mut self) {
-        if thread::panicking() {
-            println!("{} is stuck in {:?}", self.id, self.status);
-        }
-    }
+    pub start_time: Instant,
+    pub end_time: Instant,
 }
 
 impl Trial {
@@ -325,7 +302,7 @@ impl Trial {
     }
 
     pub fn execute(&mut self) -> Vec<Trial> {
-        self.start_time = get_time().0;
+        self.start_time = Instant::now();
         self.status = if let Err(err) = self.create_clients() { err } else { Running };
 
         let mut all_mutations = vec![];
@@ -339,7 +316,7 @@ impl Trial {
             }
         }
 
-        self.end_time = get_time().0;
+        self.end_time = Instant::now();
         self.cleanup();
 
         all_mutations
@@ -366,10 +343,63 @@ impl Trial {
         clone.steps.push(new_action);
         clone.status = Ready;
         clone.completed_steps = 0;
-        clone.start_time = 0;
-        clone.end_time = 0;
+        clone.start_time = Instant::now();
+        clone.end_time = Instant::now();
         clone.clients = vec![];
         clone.id = Uuid::new_v4();
         clone
+    }
+}
+
+impl Trial {
+    pub fn file_name(&self, thread: ThreadID) -> String {
+        format!("trials/{}/{}", thread, self.id)
+    }
+    pub fn persist(&self, thread: ThreadID) {
+        fs::write(self.file_name(thread), format!("{:#?}", self)).unwrap_or_else(|err| {
+            eprintln!("Unable to write file: {}/{:?}, {:?}", thread, self, err)
+        });
+    }
+
+    pub fn maybe_cleanup(&self, thread: ThreadID) {
+        match self.status {
+            Failed(_) => self.persist(thread),
+            _ => fs::remove_file(self.file_name(thread)).unwrap_or_else(|err| {
+                eprintln!("Unable to cleanup file: {}/{}, {:?}", thread, self.id, err)
+            }),
+        }
+    }
+}
+
+impl Default for Trial {
+    fn default() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            clients: vec![],
+            target_clients: 2,
+            target_steps: 6,
+            steps: vec![],
+            completed_steps: 0,
+            status: Status::Ready,
+            start_time: Instant::now(),
+            end_time: Instant::now(),
+        }
+    }
+}
+
+impl Drop for Trial {
+    fn drop(&mut self) {
+        if thread::panicking() {
+            println!("{} is stuck in {:?}", self.id, self.status);
+        }
+    }
+}
+
+impl Trial {
+    pub fn failed(&self) -> bool {
+        match self.status {
+            Failed(_) => true,
+            _ => false,
+        }
     }
 }
