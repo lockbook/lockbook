@@ -46,6 +46,7 @@ class DrawingViewModel(
     init {
         setUpPaint()
         persistentDrawing.model = this
+        persistentDrawing.uiMode = getRes().configuration.uiMode
     }
 
     private fun setUpPaint() {

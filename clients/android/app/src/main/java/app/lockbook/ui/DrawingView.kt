@@ -148,6 +148,33 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         holder.addCallback(this)
     }
 
+    fun initialize(persistentDrawing: Drawing, persistentBitmap: Bitmap, persistentCanvas: Canvas, persistentStrokeState: DrawingStrokeState) {
+        visibility = View.VISIBLE
+        this.drawing = persistentDrawing
+        this.canvas = persistentCanvas
+        this.canvasBitmap = persistentBitmap
+        this.strokeState = persistentStrokeState
+
+        val emptyBitmap = Bitmap.createBitmap(CANVAS_WIDTH, CANVAS_HEIGHT, Bitmap.Config.ARGB_8888)
+
+        if (persistentDrawing != Drawing() && persistentBitmap.sameAs(emptyBitmap)) {
+            restoreBitmapFromDrawing()
+        }
+
+        // If the user's theme changed, refresh the entire drawing to account for black white stroke differences
+        if (resources.configuration.uiMode != drawing.uiMode) {
+            drawing.uiMode = resources.configuration.uiMode
+            restoreBitmapFromDrawing()
+        }
+
+        alignViewPortWithBitmap()
+
+        isDrawingAvailable = true
+        if (isThreadAvailable) {
+            startThread()
+        }
+    }
+
     private fun render(canvas: Canvas) {
         canvas.save()
         canvas.scale(
@@ -365,27 +392,6 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         }
 
         return PointF(modelX, modelY)
-    }
-
-    fun initialize(persistentDrawing: Drawing, persistentBitmap: Bitmap, persistentCanvas: Canvas, persistentStrokeState: DrawingStrokeState) {
-        visibility = View.VISIBLE
-        this.drawing = persistentDrawing
-        this.canvas = persistentCanvas
-        this.canvasBitmap = persistentBitmap
-        this.strokeState = persistentStrokeState
-
-        val emptyBitmap = Bitmap.createBitmap(CANVAS_WIDTH, CANVAS_HEIGHT, Bitmap.Config.ARGB_8888)
-
-        if (persistentDrawing != Drawing() && persistentBitmap.sameAs(emptyBitmap)) {
-            restoreBitmapFromDrawing()
-        }
-
-        alignViewPortWithBitmap()
-
-        isDrawingAvailable = true
-        if (isThreadAvailable) {
-            startThread()
-        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
