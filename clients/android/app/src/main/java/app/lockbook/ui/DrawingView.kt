@@ -89,7 +89,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             context,
             object : ScaleGestureDetector.OnScaleGestureListener {
                 override fun onScaleBegin(detector: ScaleGestureDetector?): Boolean {
-                    if(detector == null) return false
+                    if (detector == null) return false
 
                     onScreenFocusPoint = PointF(detector.focusX, detector.focusY)
                     modelFocusPoint = screenToModel(onScreenFocusPoint) ?: return false
