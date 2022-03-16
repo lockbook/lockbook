@@ -323,18 +323,20 @@ impl Trial {
     }
 
     fn cleanup(&self) {
-        let account = get_account(&self.clients[0]).unwrap();
-
-        // Delete account in server
-        api_service::request(&account, DeleteAccountRequest {}).unwrap_or_else(|err| {
-            println!("Failed to delete account: {} error : {:?}", account.username, err)
-        });
-
-        // Delete account locally
-        for client in &self.clients {
-            fs::remove_dir_all(&client.writeable_path).unwrap_or_else(|err| {
-                println!("failed to cleanup file: {}, error: {}", client.writeable_path, err)
+        if let Ok(account) = get_account(&self.clients[0]) {
+            // Delete account in server
+            api_service::request(&account, DeleteAccountRequest {}).unwrap_or_else(|err| {
+                println!("Failed to delete account: {} error : {:?}", account.username, err)
             });
+
+            // Delete account locally
+            for client in &self.clients {
+                fs::remove_dir_all(&client.writeable_path).unwrap_or_else(|err| {
+                    println!("failed to cleanup file: {}, error: {}", client.writeable_path, err)
+                });
+            }
+        } else {
+            eprintln!("no account to cleanup!");
         }
     }
 
@@ -353,7 +355,11 @@ impl Trial {
 
 impl Trial {
     pub fn file_name(&self, thread: ThreadID) -> String {
-        format!("trials/{}/{}", thread, self.id)
+        if self.failed() {
+            format!("trials/{}/{}.fail", thread, self.id)
+        } else {
+            format!("trials/{}/{}", thread, self.id)
+        }
     }
     pub fn persist(&self, thread: ThreadID) {
         fs::write(self.file_name(thread), format!("{:#?}", self)).unwrap_or_else(|err| {
