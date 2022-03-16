@@ -1,6 +1,26 @@
 package app.lockbook.util
 
 import com.beust.klaxon.Json
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
+
+data class Intermediate<T>(
+    val tag: ShallowResult,
+    val content: T
+) {
+    fun <O: Any, E: CoreError> toResult(): Result<O, E> {
+        when(tag) {
+            ShallowResult.Ok -> Ok(content)
+            ShallowResult.Err -> Err(content)
+        }
+    }
+}
+
+enum class ShallowResult {
+    Ok,
+    Err
+}
 
 data class DecryptedFileMetadata(
     val id: String = "",

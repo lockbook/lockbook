@@ -2,6 +2,7 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: 'androidx.navigation.safeargs'
 apply plugin: "org.jmailen.kotlinter"
+apply plugin: 'kotlinx-serialization'
 
 android {
     compileSdkVersion 32
@@ -106,6 +107,7 @@ dependencies {
     implementation "com.jakewharton.timber:timber:$logger_version"
     implementation "androidx.work:work-runtime-ktx:$work_version"
     implementation "com.github.tingyik90:snackprogressbar:$snackprogressbar_version"
+    implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.3.2"
 
     implementation project(':core')
 }

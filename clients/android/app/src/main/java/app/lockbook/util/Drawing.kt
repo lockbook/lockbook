@@ -4,23 +4,32 @@ import android.content.res.Configuration
 import android.graphics.Color
 import app.lockbook.model.DrawingViewModel
 import com.beust.klaxon.Json
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import java.util.LinkedHashMap
 import kotlin.properties.Delegates
 
+@Serializable
 data class Drawing(
     var scale: Float = 1f,
     @Json(name = "translation_x")
+    @SerialName("translation_x")
     var translationX: Float = 0f,
     @Json(name = "translation_y")
+    @SerialName("translation_y")
     var translationY: Float = 0f,
     var strokes: MutableList<Stroke> = mutableListOf(),
     var theme: LinkedHashMap<String, ColorRGB>? = null,
 ) {
 
     @Json(ignored = true)
+    @Transient
     lateinit var model: DrawingViewModel
+    @Transient
     @Json(ignored = true)
     var isDirty: Boolean = false
+    @Transient
     @Json(ignored = true)
     var uiMode by Delegates.notNull<Int>()
 
@@ -88,17 +97,22 @@ data class Drawing(
     }
 }
 
+@Serializable
 data class Stroke(
     @Json(name = "points_x")
+    @SerialName("points_x")
     val pointsX: MutableList<Float>,
     @Json(name = "points_y")
+    @SerialName("points_y")
     val pointsY: MutableList<Float>,
     @Json(name = "points_girth")
+    @SerialName("points_girth")
     val pointsGirth: MutableList<Float>,
     val color: ColorAlias,
     val alpha: Float
 )
 
+@Serializable
 enum class ColorAlias {
     Black,
     Red,
@@ -110,6 +124,7 @@ enum class ColorAlias {
     White,
 }
 
+@Serializable
 data class ColorRGB(
     val r: Int,
     val g: Int,
