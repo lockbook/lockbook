@@ -5,8 +5,6 @@ import android.annotation.SuppressLint
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.*
 import android.widget.SeekBar
 import androidx.appcompat.widget.AppCompatSeekBar
@@ -19,6 +17,7 @@ import app.lockbook.R
 import app.lockbook.databinding.FragmentDrawingBinding
 import app.lockbook.model.*
 import app.lockbook.ui.DrawingView
+import app.lockbook.ui.PenState
 import app.lockbook.util.ColorAlias
 import app.lockbook.util.exhaustive
 import java.lang.ref.WeakReference
@@ -63,10 +62,17 @@ class DrawingFragment : Fragment() {
     )
 
     private var isFirstLaunch = true
-
-    private var autoSaveTimer = Timer()
-    private val handler = Handler(requireNotNull(Looper.myLooper()))
-    private lateinit var gestureDetector: GestureDetector
+    private val gestureDetector by lazy {
+        GestureDetector(
+            requireContext(),
+            object : GestureDetector.SimpleOnGestureListener() {
+                override fun onSingleTapUp(e: MotionEvent?): Boolean {
+                    changeToolsVisibility(toolbar.visibility)
+                    return true
+                }
+            }
+        )
+    }
 
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
@@ -116,7 +122,7 @@ class DrawingFragment : Fragment() {
             }
             is DrawingView.Tool.Eraser -> {
                 eraser.setImageResource(R.drawable.ic_eraser_outline)
-                drawingView.strokeState.isErasing = false
+                drawingView.strokeState.penState = PenState.Drawing
             }
         }
 
@@ -138,7 +144,7 @@ class DrawingFragment : Fragment() {
             }
             is DrawingView.Tool.Eraser -> {
                 eraser.setImageResource(R.drawable.ic_eraser_filled)
-                drawingView.strokeState.isErasing = true
+                drawingView.strokeState.penState = PenState.ErasingWithTouchButton
             }
         }.exhaustive
 
@@ -225,7 +231,12 @@ class DrawingFragment : Fragment() {
         toolbar.visibility = View.VISIBLE
 
         isFirstLaunch = false
-        drawingView.initialize(model.persistentDrawing, model.persistentBitmap, model.persistentCanvas, model.persistentStrokeState)
+        drawingView.initialize(
+            model.persistentDrawing,
+            model.persistentBitmap,
+            model.persistentCanvas,
+            model.persistentStrokeState
+        )
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -277,36 +288,6 @@ class DrawingFragment : Fragment() {
 
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
-
-        gestureDetector = GestureDetector(
-            requireContext(),
-            object : GestureDetector.OnGestureListener {
-                override fun onDown(e: MotionEvent?): Boolean = true
-
-                override fun onShowPress(e: MotionEvent?) {}
-
-                override fun onSingleTapUp(e: MotionEvent?): Boolean {
-                    changeToolsVisibility(toolbar.visibility)
-                    return true
-                }
-
-                override fun onScroll(
-                    e1: MotionEvent?,
-                    e2: MotionEvent?,
-                    distanceX: Float,
-                    distanceY: Float
-                ): Boolean = true
-
-                override fun onLongPress(e: MotionEvent?) {}
-
-                override fun onFling(
-                    e1: MotionEvent?,
-                    e2: MotionEvent?,
-                    velocityX: Float,
-                    velocityY: Float
-                ): Boolean = true
-            }
-        )
 
         drawingView.setOnTouchListener { _, event ->
             if (event != null && event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER) {
