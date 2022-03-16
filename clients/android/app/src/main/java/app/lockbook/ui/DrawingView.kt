@@ -70,18 +70,16 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                     distanceX: Float,
                     distanceY: Float
                 ): Boolean {
-                    return if (e1 != null && e2 != null) {
-                        drawing.translationX -= distanceX / drawing.scale
-                        drawing.translationY -= distanceY / drawing.scale
+                    if (e1 == null || e2 == null) return false
 
-                        alignViewPortWithBitmap()
+                    drawing.translationX -= distanceX / drawing.scale
+                    drawing.translationY -= distanceY / drawing.scale
 
-                        drawing.justEdited()
+                    alignViewPortWithBitmap()
 
-                        true
-                    } else {
-                        false
-                    }
+                    drawing.justEdited()
+
+                    return true
                 }
             }
         )
