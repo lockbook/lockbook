@@ -18,6 +18,7 @@ import app.lockbook.util.ColorAlias
 import app.lockbook.util.Drawing
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -45,9 +46,10 @@ class DrawingViewModel(
     init {
         setUpPaint()
         persistentDrawing.model = this
+        persistentDrawing.uiMode = getRes().configuration.uiMode
     }
 
-    fun setUpPaint() {
+    private fun setUpPaint() {
         persistentStrokeState.apply {
             strokePaint.isAntiAlias = true
             strokePaint.style = Paint.Style.STROKE
@@ -65,30 +67,32 @@ class DrawingViewModel(
     }
 
     fun waitAndSaveContents() {
-        lastEdit = System.currentTimeMillis()
-        val currentEdit = lastEdit
+        lastEdit = System.currentTimeMillis() // the newest edit
+        val currentEdit = lastEdit // the current edit for when the coroutine is launched
 
         handler.postDelayed(
             {
                 viewModelScope.launch(Dispatchers.IO) {
-
                     if (currentEdit == lastEdit && persistentDrawing.isDirty) {
-                        val writeToDocumentResult =
-                            CoreModel.writeToDocument(
-                                config,
-                                id,
-                                Klaxon().toJsonString(persistentDrawing.clone()).replace(" ", "")
-                            )
-
-                        if (writeToDocumentResult is Err) {
-                            _notifyError.postValue(
-                                writeToDocumentResult.error.toLbError(
-                                    getRes()
+                        when (
+                            val writeToDocumentResult =
+                                CoreModel.writeToDocument(
+                                    config,
+                                    id,
+                                    Klaxon().toJsonString(persistentDrawing.clone()).replace(" ", "")
                                 )
-                            )
-                        } else {
-                            persistentDrawing.isDirty = false
-                        }
+                        ) {
+                            is Ok -> {
+                                persistentDrawing.isDirty = false
+                            }
+                            is Err -> {
+                                _notifyError.postValue(
+                                    writeToDocumentResult.error.toLbError(
+                                        getRes()
+                                    )
+                                )
+                            }
+                        }.exhaustive
                     }
                 }
             },

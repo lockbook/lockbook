@@ -7,10 +7,13 @@ import android.os.Build
 import android.util.AttributeSet
 import android.view.*
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.view.GestureDetectorCompat
 import app.lockbook.R
 import app.lockbook.model.AlertModel
 import app.lockbook.screen.MainScreenActivity
-import app.lockbook.util.*
+import app.lockbook.util.ColorAlias
+import app.lockbook.util.Drawing
+import app.lockbook.util.Stroke
 import java.lang.ref.WeakReference
 import java.util.*
 import kotlin.math.pow
@@ -22,7 +25,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     lateinit var drawing: Drawing
     private lateinit var canvasBitmap: Bitmap
-    private lateinit var tempCanvas: Canvas
+    private lateinit var canvas: Canvas
 
     lateinit var strokeState: DrawingStrokeState
 
@@ -57,15 +60,40 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         const val SPEN_ACTION_UP = 212
     }
 
+    private val gestureDetector =
+        GestureDetectorCompat(
+            context,
+            object : GestureDetector.SimpleOnGestureListener() {
+                override fun onScroll(
+                    e1: MotionEvent?,
+                    e2: MotionEvent?,
+                    distanceX: Float,
+                    distanceY: Float
+                ): Boolean {
+                    if (e1 == null || e2 == null) return false
+
+                    drawing.translationX -= distanceX / drawing.scale
+                    drawing.translationY -= distanceY / drawing.scale
+
+                    alignViewPortWithBitmap()
+
+                    drawing.justEdited()
+
+                    return true
+                }
+            }
+        )
+
     private val scaleGestureDetector =
         ScaleGestureDetector(
             context,
-            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            object : ScaleGestureDetector.OnScaleGestureListener {
                 override fun onScaleBegin(detector: ScaleGestureDetector?): Boolean {
-                    if (detector != null) {
-                        onScreenFocusPoint = PointF(detector.focusX, detector.focusY)
-                        modelFocusPoint = screenToModel(onScreenFocusPoint) ?: return false
-                    }
+                    if (detector == null) return false
+
+                    onScreenFocusPoint = PointF(detector.focusX, detector.focusY)
+                    modelFocusPoint = screenToModel(onScreenFocusPoint) ?: return false
+
                     return true
                 }
 
@@ -73,14 +101,14 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                     drawing.scale *= detector.scaleFactor
 
                     val screenLocationNormalized = PointF(
-                        onScreenFocusPoint.x / tempCanvas.clipBounds.width(),
-                        onScreenFocusPoint.y / tempCanvas.clipBounds.height()
+                        onScreenFocusPoint.x / canvas.clipBounds.width(),
+                        onScreenFocusPoint.y / canvas.clipBounds.height()
                     )
 
                     val currentViewPortWidth =
-                        tempCanvas.clipBounds.width() / drawing.scale
+                        canvas.clipBounds.width() / drawing.scale
                     val currentViewPortHeight =
-                        tempCanvas.clipBounds.height() / drawing.scale
+                        canvas.clipBounds.height() / drawing.scale
 
                     driftWhileScalingX =
                         (onScreenFocusPoint.x - detector.focusX) / drawing.scale
@@ -99,7 +127,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                     drawing.translationX = -left
                     drawing.translationY = -top
 
-                    drawing.isDirty = true
+                    drawing.justEdited()
 
                     return true
                 }
@@ -107,7 +135,6 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 override fun onScaleEnd(detector: ScaleGestureDetector?) {
                     driftWhileScalingX = 0f
                     driftWhileScalingY = 0f
-                    super.onScaleEnd(detector)
                 }
             }
         )
@@ -115,6 +142,33 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     init {
         holder.setKeepScreenOn(true)
         holder.addCallback(this)
+    }
+
+    fun initialize(persistentDrawing: Drawing, persistentBitmap: Bitmap, persistentCanvas: Canvas, persistentStrokeState: DrawingStrokeState) {
+        visibility = View.VISIBLE
+        this.drawing = persistentDrawing
+        this.canvas = persistentCanvas
+        this.canvasBitmap = persistentBitmap
+        this.strokeState = persistentStrokeState
+
+        val emptyBitmap = Bitmap.createBitmap(CANVAS_WIDTH, CANVAS_HEIGHT, Bitmap.Config.ARGB_8888)
+
+        if (persistentDrawing != Drawing() && persistentBitmap.sameAs(emptyBitmap)) {
+            restoreBitmapFromDrawing()
+        }
+
+        // If the user's theme changed, refresh the entire drawing to account for black white stroke differences
+        if (resources.configuration.uiMode != drawing.uiMode) {
+            drawing.uiMode = resources.configuration.uiMode
+            restoreBitmapFromDrawing()
+        }
+
+        alignViewPortWithBitmap()
+
+        isDrawingAvailable = true
+        if (isThreadAvailable) {
+            startThread()
+        }
     }
 
     private fun render(canvas: Canvas) {
@@ -158,7 +212,10 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         }
     }
 
-    private fun restoreFromModel() {
+    private fun restoreBitmapFromDrawing() {
+        val restoreBitmap = Bitmap.createBitmap(CANVAS_WIDTH, CANVAS_HEIGHT, Bitmap.Config.ARGB_8888)
+        val restoreCanvas = Canvas(restoreBitmap)
+
         for (stroke in drawing.strokes) {
             val strokeColor = getColor(stroke.color, stroke.alpha)
 
@@ -198,7 +255,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                         x2,
                         y2
                     )
-                    tempCanvas.drawPath(strokePath, strokePaint)
+                    restoreCanvas.drawPath(strokePath, strokePaint)
                     strokePath.reset()
                 }
             }
@@ -215,14 +272,27 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         strokeState.strokePaint.color = strokeColor
 
-        alignViewPortWithDrawing()
+        setNewBitmap(restoreBitmap, restoreCanvas)
+
+        alignViewPortWithBitmap()
     }
 
-    private fun alignViewPortWithDrawing() {
+    private fun setNewBitmap(
+        newBitmap: Bitmap,
+        newCanvas: Canvas
+    ) {
+        canvasBitmap = newBitmap
+        drawing.model.persistentBitmap = newBitmap
+
+        canvas = newCanvas
+        drawing.model.persistentCanvas = newCanvas
+    }
+
+    private fun alignViewPortWithBitmap() {
         val currentViewPortWidth =
-            tempCanvas.clipBounds.width() / drawing.scale
+            canvas.clipBounds.width() / drawing.scale
         val currentViewPortHeight =
-            tempCanvas.clipBounds.height() / drawing.scale
+            canvas.clipBounds.height() / drawing.scale
         viewPort.left = -drawing.translationX.toInt()
         viewPort.top = -drawing.translationY.toInt()
         viewPort.right = (viewPort.left + currentViewPortWidth).toInt()
@@ -286,17 +356,9 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     private fun screenToModel(screen: PointF): PointF? {
         var modelX =
-            (viewPort.width() * (screen.x / tempCanvas.clipBounds.width())) + viewPort.left
-
-        if (modelX < 0) modelX = 0f
-        if (modelX > tempCanvas.clipBounds.width()) modelX =
-            tempCanvas.clipBounds.width().toFloat()
-
+            (viewPort.width() * (screen.x / canvas.clipBounds.width())) + viewPort.left
         var modelY =
-            (viewPort.height() * (screen.y / tempCanvas.clipBounds.height())) + viewPort.top
-        if (modelY < 0) modelY = 0f
-        if (modelY > tempCanvas.clipBounds.height()) modelY =
-            tempCanvas.clipBounds.height().toFloat()
+            (viewPort.height() * (screen.y / canvas.clipBounds.height())) + viewPort.top
 
         if (modelX.isNaN() || modelY.isNaN()) {
             return null
@@ -320,27 +382,6 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         return PointF(modelX, modelY)
     }
 
-    fun initialize(persistentDrawing: Drawing, persistentBitmap: Bitmap, persistentCanvas: Canvas, persistentStrokeState: DrawingStrokeState) {
-        visibility = View.VISIBLE
-        this.drawing = persistentDrawing
-        this.tempCanvas = persistentCanvas
-        this.canvasBitmap = persistentBitmap
-        this.strokeState = persistentStrokeState
-
-        val emptyBitmap = Bitmap.createBitmap(CANVAS_WIDTH, CANVAS_HEIGHT, Bitmap.Config.ARGB_8888)
-
-        if (persistentDrawing != Drawing() && persistentBitmap.sameAs(emptyBitmap)) {
-            restoreFromModel()
-        }
-
-        alignViewPortWithDrawing()
-
-        isDrawingAvailable = true
-        if (isThreadAvailable) {
-            startThread()
-        }
-    }
-
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         if (event != null) {
@@ -360,6 +401,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
     }
 
     private fun handleFingerEvent(event: MotionEvent) {
+        gestureDetector.onTouchEvent(event)
         scaleGestureDetector.onTouchEvent(event)
     }
 
@@ -368,13 +410,13 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         val action = event.action
 
         strokeState.apply {
-            if (action == SPEN_ACTION_DOWN) { // stay erasing if the button isn't held but it is the same stroke && vice versa
-                isErasing = true
-            } else if (action == SPEN_ACTION_UP) {
-                isErasing = false
+            if (action == SPEN_ACTION_DOWN || (action == MotionEvent.ACTION_DOWN && (event.buttonState == MotionEvent.BUTTON_STYLUS_PRIMARY || event.getToolType(0) == MotionEvent.TOOL_TYPE_ERASER))) { // stay erasing if the button isn't held but it is the same stroke && vice versa
+                penState = PenState.ErasingWithPen
+            } else if (penState == PenState.ErasingWithPen && (action == MotionEvent.ACTION_UP || action == SPEN_ACTION_UP)) {
+                penState = PenState.Drawing
             }
 
-            if (isErasing) {
+            if (penState == PenState.ErasingWithPen || penState == PenState.ErasingWithTouchButton) {
                 if ((action == SPEN_ACTION_DOWN || action == MotionEvent.ACTION_DOWN) && (!erasePoints.first.x.isNaN() || !erasePoints.second.x.isNaN())) {
                     erasePoints.first.set(PointF(Float.NaN, Float.NaN))
                     erasePoints.second.set(PointF(Float.NaN, Float.NaN))
@@ -387,7 +429,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                     MotionEvent.ACTION_MOVE -> lineTo(modelPoint, event.pressure)
                 }
 
-                drawing.isDirty = true
+                drawing.justEdited()
             }
         }
     }
@@ -469,7 +511,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                 point.y
             )
 
-            tempCanvas.drawPath(strokePath, strokePaint)
+            canvas.drawPath(strokePath, strokePaint)
 
             strokePath.reset()
             lastPoint.set(point)
@@ -605,14 +647,11 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         if (refreshScreen) {
             drawing.set(drawingClone)
-            drawing.isDirty = true
+            drawing.justEdited()
 
             strokeState.strokesBounds.clear()
-            tempCanvas.drawColor(
-                Color.TRANSPARENT,
-                PorterDuff.Mode.CLEAR
-            )
-            restoreFromModel()
+
+            restoreBitmapFromDrawing()
         }
     }
 
@@ -686,7 +725,6 @@ data class DrawingStrokeState(
         Pair(PointF(Float.NaN, Float.NaN), PointF(Float.NaN, Float.NaN)),
     var penSizeMultiplier: Int = 7,
     var strokeAlpha: Int = 255,
-    var isErasing: Boolean = false,
     var strokeColor: ColorAlias = ColorAlias.White,
     val strokePaint: Paint = Paint(),
     val bitmapPaint: Paint = Paint(),
@@ -695,4 +733,11 @@ data class DrawingStrokeState(
     var rollingAveragePressure: Float = Float.NaN,
     val strokePath: Path = Path(),
     val strokesBounds: MutableList<RectF> = mutableListOf(),
+    var penState: PenState = PenState.Drawing
 )
+
+enum class PenState {
+    Drawing,
+    ErasingWithPen,
+    ErasingWithTouchButton
+}
