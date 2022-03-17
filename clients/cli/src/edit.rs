@@ -1,6 +1,5 @@
 use std::fs;
 use std::io::Write;
-use std::path::Path;
 
 use lockbook_core::{
     get_file_by_path, read_document, Error as CoreError, GetFileByPathError, ReadDocumentError,
@@ -32,29 +31,32 @@ pub fn edit(file_name: &str) -> CliResult<()> {
         | CoreError::Unexpected(_) => err_unexpected!("reading encrypted doc: {:#?}", err),
     })?;
 
-    let file_location = format!("{}/{}", get_directory_location()?, file_metadata.decrypted_name);
-    let temp_file_path = Path::new(file_location.as_str());
-    let mut file_handle = fs::File::create(&temp_file_path)
+    let mut file_buf = get_directory_location()?;
+    file_buf.push(file_metadata.decrypted_name);
+    let file_path = file_buf.as_path();
+    let file_string = file_path.to_str().unwrap().to_string();
+
+    let mut file_handle = fs::File::create(file_buf.as_path())
         .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
 
     file_handle
         .write_all(&file_content)
-        .map_err(|err| err!(OsCouldNotWriteFile(file_location.clone(), err)))?;
+        .map_err(|err| err!(OsCouldNotWriteFile(file_string.clone(), err)))?;
 
     file_handle
         .sync_all()
-        .map_err(|err| err!(OsCouldNotWriteFile(file_location.clone(), err)))?;
+        .map_err(|err| err!(OsCouldNotWriteFile(file_string.clone(), err)))?;
 
-    let watcher = set_up_auto_save(file_metadata.id, file_location.clone());
+    let watcher = set_up_auto_save(file_metadata.id, file_string.clone());
 
-    let edit_was_successful = edit_file_with_editor(&file_location);
+    let edit_was_successful = edit_file_with_editor(&file_string);
 
     if let Some(ok) = watcher {
-        stop_auto_save(ok, file_location.clone());
+        stop_auto_save(ok, file_string.clone());
     }
 
     if edit_was_successful {
-        match save_temp_file_contents(file_metadata.id, &file_location) {
+        match save_temp_file_contents(file_metadata.id, &file_string) {
             Ok(_) => println!("Document encrypted and saved. Cleaning up temporary file."),
             Err(err) => err.print(),
         }
@@ -62,5 +64,5 @@ pub fn edit(file_name: &str) -> CliResult<()> {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
 
-    fs::remove_file(&temp_file_path).map_err(|err| err!(OsCouldNotDeleteFile(file_location, err)))
+    fs::remove_file(&file_path).map_err(|err| err!(OsCouldNotDeleteFile(file_string, err)))
 }

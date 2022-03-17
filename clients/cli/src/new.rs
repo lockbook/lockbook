@@ -4,7 +4,6 @@ use lockbook_core::{
 use lockbook_models::file_metadata::FileType::Folder;
 use std::fs;
 use std::fs::File;
-use std::path::Path;
 
 use crate::error::CliResult;
 use crate::utils::{
@@ -37,9 +36,12 @@ pub fn new(file_name: &str) -> CliResult<()> {
         Unexpected(msg) => err_unexpected!("{}", msg),
     })?;
 
-    let file_location = format!("{}/{}", get_directory_location()?, file_metadata.decrypted_name);
-    let temp_file_path = Path::new(&file_location);
-    let _ = File::create(&temp_file_path)
+    let mut file_buf = get_directory_location()?;
+    file_buf.push(file_metadata.decrypted_name);
+    let file_path = file_buf.as_path();
+    let file_string = file_path.to_str().unwrap().to_string();
+
+    let _ = File::create(&file_path)
         .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
 
     if file_metadata.file_type == Folder {
@@ -47,16 +49,16 @@ pub fn new(file_name: &str) -> CliResult<()> {
         return Ok(());
     }
 
-    let watcher = set_up_auto_save(file_metadata.id, file_location.clone());
+    let watcher = set_up_auto_save(file_metadata.id, file_string.clone());
 
-    let edit_was_successful = edit_file_with_editor(&file_location);
+    let edit_was_successful = edit_file_with_editor(&file_string);
 
     if let Some(ok) = watcher {
-        stop_auto_save(ok, file_location.clone());
+        stop_auto_save(ok, file_string.clone());
     }
 
     if edit_was_successful {
-        match save_temp_file_contents(file_metadata.id, &file_location) {
+        match save_temp_file_contents(file_metadata.id, &file_string) {
             Ok(_) => println!("Document encrypted and saved. Cleaning up temporary file."),
             Err(err) => err.print(),
         }
@@ -69,6 +71,6 @@ pub fn new(file_name: &str) -> CliResult<()> {
         })?;
     }
 
-    fs::remove_file(&temp_file_path)
-        .map_err(|err| err_unexpected!("deleting temporary file '{}': {}", &file_location, err))
+    fs::remove_file(&file_path)
+        .map_err(|err| err_unexpected!("deleting temporary file '{}': {}", &file_string, err))
 }
