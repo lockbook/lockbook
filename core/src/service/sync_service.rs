@@ -359,23 +359,22 @@ impl fmt::Debug for ResolvedDocument {
 fn get_resolved_document(
     config: &Config, account: &Account, all_metadata_state: &[RepoState<DecryptedFileMetadata>],
     remote_metadatum: &DecryptedFileMetadata, merged_metadatum: &DecryptedFileMetadata,
-) -> Result<Option<ResolvedDocument>, CoreError> {
-    let maybe_remote_document_encrypted = api_service::request(
-        account,
-        GetDocumentRequest {
-            id: remote_metadatum.id,
-            content_version: remote_metadatum.content_version, // todo: is this content_version is incorrect?
-        },
-    )?
-    .content;
-    let maybe_remote_document = match maybe_remote_document_encrypted {
-        Some(remote_document_encrypted) => {
-            Some(file_compression_service::decompress(&file_encryption_service::decrypt_document(
-                &remote_document_encrypted,
-                remote_metadatum,
-            )?)?)
-        }
-        None => None,
+) -> Result<ResolvedDocument, CoreError> {
+    let remote_document = if remote_metadatum.content_version != 0 {
+        let remote_document_encrypted = api_service::request(
+            account,
+            GetDocumentRequest {
+                id: remote_metadatum.id,
+                content_version: remote_metadatum.content_version,
+            },
+        )?
+        .content;
+        file_compression_service::decompress(&file_encryption_service::decrypt_document(
+            &remote_document_encrypted,
+            remote_metadatum,
+        )?)?
+    } else {
+        vec![]
     };
 
     let maybe_metadata_state = all_metadata_state
@@ -398,38 +397,33 @@ fn get_resolved_document(
             (None, None)
         };
 
-    match maybe_remote_document {
-        Some(remote_document) => {
-            // merge document content for documents with updated content
-            let mut merged_document = merge_maybe_documents(
-                merged_metadatum,
-                remote_metadatum,
-                maybe_base_document,
-                maybe_local_document,
-                remote_document,
-            )?;
+    // merge document content for documents with updated content
+    let mut merged_document = merge_maybe_documents(
+        merged_metadatum,
+        remote_metadatum,
+        maybe_base_document,
+        maybe_local_document,
+        remote_document,
+    )?;
 
-            if let ResolvedDocument::Copied {
-                remote_metadata: _,
-                remote_document: _,
-                ref mut copied_local_metadata,
-                copied_local_document: _,
-            } = merged_document
-            {
-                copied_local_metadata.decrypted_name = files::suggest_non_conflicting_filename(
-                    copied_local_metadata.id,
-                    &all_metadata_state
-                        .iter()
-                        .map(|rs| rs.clone().local())
-                        .collect::<Vec<DecryptedFileMetadata>>(),
-                    &[copied_local_metadata.clone()],
-                )?;
-            }
-
-            Ok(Some(merged_document))
-        }
-        None => Ok(None),
+    if let ResolvedDocument::Copied {
+        remote_metadata: _,
+        remote_document: _,
+        ref mut copied_local_metadata,
+        copied_local_document: _,
+    } = merged_document
+    {
+        copied_local_metadata.decrypted_name = files::suggest_non_conflicting_filename(
+            copied_local_metadata.id,
+            &all_metadata_state
+                .iter()
+                .map(|rs| rs.clone().local())
+                .collect::<Vec<DecryptedFileMetadata>>(),
+            &[copied_local_metadata.clone()],
+        )?;
     }
+
+    Ok(merged_document)
 }
 
 fn should_pull_document(
@@ -542,23 +536,23 @@ where
                 &remote_metadatum,
                 &merged_metadatum,
             )? {
-                Some(ResolvedDocument::Merged {
+                ResolvedDocument::Merged {
                     remote_metadata,
                     remote_document,
                     merged_metadata,
                     merged_document,
-                }) => {
+                } => {
                     // update base to remote
                     base_document_updates.push((remote_metadata, remote_document));
                     // update local to merged
                     local_document_updates.push((merged_metadata, merged_document));
                 }
-                Some(ResolvedDocument::Copied {
+                ResolvedDocument::Copied {
                     remote_metadata,
                     remote_document,
                     copied_local_metadata,
                     copied_local_document,
-                }) => {
+                } => {
                     base_document_updates.push((remote_metadata.clone(), remote_document.clone())); // update base to remote
                     local_metadata_updates.push(remote_metadata.clone()); // reset conflicted local
                     local_document_updates.push((remote_metadata.clone(), remote_document)); // reset conflicted local
@@ -567,7 +561,6 @@ where
                         .push((copied_local_metadata.clone(), copied_local_document));
                     // new local document from merge
                 }
-                None => {}
             }
         }
     }

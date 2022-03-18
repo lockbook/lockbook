@@ -99,7 +99,7 @@ pub struct GetDocumentRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetDocumentResponse {
-    pub content: Option<EncryptedDocument>,
+    pub content: EncryptedDocument,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

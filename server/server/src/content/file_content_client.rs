@@ -143,9 +143,9 @@ pub fn background_delete(state: &ServerState, file_id: Uuid, content_version: u6
 
 pub async fn get(
     state: &ServerState, file_id: Uuid, content_version: u64,
-) -> Result<Option<Vec<u8>>, Error> {
+) -> Result<Vec<u8>, Error> {
     let client = &state.files_db_client;
-    let mut response = Ok(None);
+    let mut response = Ok(vec![]);
     for attempt_number in 1..=3 {
         let (body, status) = client
             .get_object(&format!("/{}-{}", file_id, content_version))
@@ -155,10 +155,9 @@ pub async fn get(
         match (body, status) {
             (data, 200) => {
                 if data.is_empty() {
-                    return Ok(None);
-                } else {
-                    return Ok(Some(data));
+                    error!("in s3, {}-{} was empty", file_id, content_version)
                 }
+                return Ok(data);
             }
             (body, 500..=599) => {
                 error!(

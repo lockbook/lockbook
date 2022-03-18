@@ -50,11 +50,11 @@ pub async fn create<T: Debug>(
 
 pub async fn get(
     state: &ServerState, id: Uuid, content_version: u64,
-) -> Result<Option<EncryptedDocument>, ServerError<GetDocumentError>> {
-    let maybe_bytes = match content_cache::get(state, id, content_version).await? {
-        Some(document_bytes) => Some(document_bytes),
+) -> Result<EncryptedDocument, ServerError<GetDocumentError>> {
+    let document_bytes = match content_cache::get(state, id, content_version).await? {
+        Some(document_bytes) => document_bytes,
         None => {
-            let maybe_bytes = file_content_client::get(state, id, content_version)
+            let bytes = file_content_client::get(state, id, content_version)
                 .await
                 .map_err(|err| match err {
                     NoSuchKey(_, _) => ServerError::ClientError(DocumentNotFound),
@@ -63,17 +63,12 @@ pub async fn get(
                     | SignatureDoesNotMatch(_, _)
                     | Unknown(_, _) => internal!("Cannot get file from s3: {:?}", err),
                 })?;
-            if let Some(bytes) = &maybe_bytes {
-                content_cache::create(state, id, content_version, bytes).await?;
-            }
-            maybe_bytes
+            content_cache::create(state, id, content_version, &bytes).await?;
+            bytes
         }
     };
 
-    match maybe_bytes {
-        Some(document_bytes) => Ok(Some(bincode::deserialize(&document_bytes)?)),
-        None => Ok(None),
-    }
+    Ok(bincode::deserialize(&document_bytes)?)
 }
 
 pub async fn delete<T: Debug>(
