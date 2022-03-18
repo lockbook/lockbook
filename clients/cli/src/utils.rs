@@ -88,7 +88,6 @@ pub enum SupportedEditors {
     Nano,
     Sublime,
     Code,
-    #[cfg(target_os = "windows")]
     Notepad,
 }
 
@@ -171,6 +170,9 @@ pub fn edit_file_with_editor(file_location: &str) -> bool {
 #[cfg(not(target_os = "windows"))]
 pub fn edit_file_with_editor(file_location: &str) -> bool {
         let command = match get_editor() {
+            Notepad => {
+                eprintln!("Notepad is only supported on windows! Set LOCKBOOK_EDITOR to a different editor.");
+            }
             Vim => format!("</dev/tty vim {}", file_location),
             Emacs => format!("</dev/tty emacs {}", file_location),
             Nano => format!("</dev/tty nano {}", file_location),
