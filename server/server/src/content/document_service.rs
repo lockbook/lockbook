@@ -57,11 +57,11 @@ pub async fn get(
             let maybe_bytes = file_content_client::get(state, id, content_version)
                 .await
                 .map_err(|err| match err {
-                    NoSuchKey(_) => ServerError::ClientError(DocumentNotFound),
-                    InvalidAccessKeyId(_)
-                    | ResponseNotUtf8(_)
-                    | SignatureDoesNotMatch(_)
-                    | Unknown(_) => internal!("Cannot get file from s3: {:?}", err),
+                    NoSuchKey(_, _) => ServerError::ClientError(DocumentNotFound),
+                    InvalidAccessKeyId(_, _)
+                    | ResponseNotUtf8(_, _)
+                    | SignatureDoesNotMatch(_, _)
+                    | Unknown(_, _) => internal!("Cannot get file from s3: {:?}", err),
                 })?;
             if let Some(bytes) = &maybe_bytes {
                 content_cache::create(state, id, content_version, bytes).await?;

@@ -1,0 +1,44 @@
+Trial {
+    id: 8a716357-2372-48b9-9980-27eced8038be,
+    clients: [],
+    target_clients: 2,
+    target_steps: 7,
+    steps: [
+        NewMarkdownDocument {
+            client: 0,
+            parent: "root",
+            name: "uZnxwqM.md",
+        },
+        NewMarkdownDocument {
+            client: 1,
+            parent: "root",
+            name: "oA37xy6.md",
+        },
+        NewFolder {
+            client: 1,
+            parent: "root",
+            name: "Tv1QuoE",
+        },
+        NewFolder {
+            client: 1,
+            parent: "root",
+            name: "CYYDGVq",
+        },
+        SyncAndCheck,
+        NewMarkdownDocument {
+            client: 0,
+            parent: "CYYDGVq",
+            name: "EDJIxzr.md",
+        },
+    ],
+    completed_steps: 0,
+    status: Ready,
+    start_time: Instant {
+        tv_sec: 1219067,
+        tv_nsec: 464558066,
+    },
+    end_time: Instant {
+        tv_sec: 1219067,
+        tv_nsec: 464558106,
+    },
+}
