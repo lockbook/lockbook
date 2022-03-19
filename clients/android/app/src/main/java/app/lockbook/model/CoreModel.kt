@@ -4,14 +4,30 @@ import app.lockbook.core.*
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
+import kotlinx.serialization.*
+import kotlinx.serialization.json.*
+import kotlinx.serialization.modules.*
+import kotlinx.serialization.PolymorphicSerializer.*
+
 
 object CoreModel {
 
     private const val PROD_API_URL = "https://api.prod.lockbook.net"
     fun getAPIURL(): String = System.getenv("API_URL") ?: PROD_API_URL
 
-    fun setUpInitLogger(path: String): Result<Unit, InitLoggerError> {
+    val serializationModule = SerializersModule {
+        // Init Logger
+        polymorphic(IntermCoreResult::class) {
+            subclass(IntermCoreResult.Ok.serializer())
+            subclass(IntermCoreResult.Err.serializer(PolymorphicSerializer(Any::class)))
+        }
+
+
+    }
+
+    fun setUpInitLogger(path: String): Result<Unit, CoreError<InitLoggerError>> {
         val initLoggerResult: Result<Unit, InitLoggerError>? =
             Klaxon().converter(initLoggerConverter)
                 .parse(initLogger(path))

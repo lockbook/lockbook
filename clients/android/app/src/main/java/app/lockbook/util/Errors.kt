@@ -3,8 +3,54 @@ package app.lockbook.util
 import android.content.res.Resources
 import androidx.annotation.StringRes
 import app.lockbook.R
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonClassDiscriminator
 
-sealed class CoreError {
+@OptIn(ExperimentalSerializationApi::class)
+@JsonClassDiscriminator("tag")
+@Serializable
+sealed class CoreError<out E: UiCoreError> {
+    @Serializable
+    @SerialName("UiError")
+    class UiError<out E: UiCoreError>(val content: E) : CoreError<E>()
+
+    @Serializable
+    @SerialName("Unexpected")
+    class Unexpected(val content: String) : CoreError<Nothing>()
+
+    fun toLbError(res: Resources): LbError = when (this) {
+        is UiError -> content.toLbError(res)
+        is Unexpected -> {
+            LbError.newProgError(content)
+        }
+    }
+}
+
+@OptIn(ExperimentalSerializationApi::class)
+@JsonClassDiscriminator("tag")
+@Serializable
+sealed class IntermCoreResult<O, out E: UiCoreError> {
+    @Serializable
+    @SerialName("Ok")
+    class Ok<O>(val content: O) : IntermCoreResult<O, Nothing>()
+
+    @Serializable
+    @SerialName("Err")
+    class Err<out E: UiCoreError>(val content: CoreError<E>) : IntermCoreResult<Unit, E>()
+
+    fun toResult(): com.github.michaelbull.result.Result<O, CoreError<E>> {
+        return when (this) {
+            is Ok -> {
+                com.github.michaelbull.result.Ok(content)
+            }
+            is Err -> com.github.michaelbull.result.Err(content)
+        }
+    }
+}
+
+sealed class UiCoreError {
     fun toLbError(res: Resources): LbError = when (this) {
         GetUsageError.NoAccount,
         GetAccountError.NoAccount,
@@ -73,162 +119,138 @@ sealed class CoreError {
         MoveFileError.FolderMovedIntoItself -> LbError.newUserError(getString(res, R.string.folder_moved_into_itself))
         MoveFileError.TargetParentHasChildNamedThat -> LbError.newUserError(getString(res, R.string.target_parent_has_a_child_named_that))
         CreateAccountError.ServerDisabled -> LbError.newUserError(getString(res, R.string.new_account_disabled))
-        is CalculateWorkError.Unexpected -> LbError.newProgError(this.error)
-        is SyncAllError.Unexpected -> LbError.newProgError(this.error)
-        is MoveFileError.Unexpected -> LbError.newProgError(this.error)
-        is RenameFileError.Unexpected -> LbError.newProgError(this.error)
-        is ExportDrawingToDiskError.Unexpected -> LbError.newProgError(this.error)
-        is ExportDrawingError.Unexpected -> LbError.newProgError(this.error)
-        is SaveDocumentToDiskError.Unexpected -> LbError.newProgError(this.error)
-        is FileDeleteError.Unexpected -> LbError.newProgError(this.error)
-        is GetFileByIdError.Unexpected -> LbError.newProgError(this.error)
-        is ReadDocumentError.Unexpected -> LbError.newProgError(this.error)
-        is GetRootError.Unexpected -> LbError.newProgError(this.error)
-        is WriteToDocumentError.Unexpected -> LbError.newProgError(this.error)
-        is GetAccountError.Unexpected -> LbError.newProgError(this.error)
-        is AccountExportError.Unexpected -> LbError.newProgError(this.error)
-        is ImportError.Unexpected -> LbError.newProgError(this.error)
-        is CreateAccountError.Unexpected -> LbError.newProgError(this.error)
-        is MigrationError.Unexpected -> LbError.newProgError(this.error)
-        is InitLoggerError.Unexpected -> LbError.newProgError(this.error)
-        is GetStateError.Unexpected -> LbError.newProgError(this.error)
-        is GetUsageError.Unexpected -> LbError.newProgError(this.error)
-        is CreateFileError.Unexpected -> LbError.newProgError(this.error)
-        is GetChildrenError.Unexpected -> LbError.newProgError(this.error)
     }
 }
 
-sealed class InitLoggerError : CoreError() {
-    data class Unexpected(val error: String) : InitLoggerError()
-}
+@kotlinx.serialization.Serializable
+sealed class InitLoggerError: UiCoreError()
 
-sealed class GetUsageError : CoreError() {
+@kotlinx.serialization.Serializable
+sealed class GetUsageError: UiCoreError() {
     object NoAccount : GetUsageError()
     object CouldNotReachServer : GetUsageError()
     object ClientUpdateRequired : GetUsageError()
-    data class Unexpected(val error: String) : GetUsageError()
 }
 
-sealed class GetStateError : CoreError() {
-    data class Unexpected(val error: String) : GetStateError()
-}
+@kotlinx.serialization.Serializable
+sealed class GetStateError
 
-sealed class MigrationError : CoreError() {
+@kotlinx.serialization.Serializable
+sealed class MigrationError: UiCoreError() {
     object StateRequiresCleaning : MigrationError()
-    data class Unexpected(val error: String) : MigrationError()
 }
 
-sealed class CreateAccountError : CoreError() {
+@kotlinx.serialization.Serializable
+sealed class CreateAccountError: UiCoreError() {
     object UsernameTaken : CreateAccountError()
     object InvalidUsername : CreateAccountError()
     object CouldNotReachServer : CreateAccountError()
     object AccountExistsAlready : CreateAccountError()
     object ClientUpdateRequired : CreateAccountError()
     object ServerDisabled : CreateAccountError()
-    data class Unexpected(val error: String) : CreateAccountError()
 }
 
-sealed class ImportError : CoreError() {
+@kotlinx.serialization.Serializable
+sealed class ImportError: UiCoreError() {
     object AccountStringCorrupted : ImportError()
     object AccountExistsAlready : ImportError()
     object AccountDoesNotExist : ImportError()
     object UsernamePKMismatch : ImportError()
     object CouldNotReachServer : ImportError()
     object ClientUpdateRequired : ImportError()
-    data class Unexpected(val error: String) : ImportError()
 }
 
-sealed class AccountExportError : CoreError() {
+sealed class AccountExportError: UiCoreError() {
     object NoAccount : AccountExportError()
-    data class Unexpected(val error: String) : AccountExportError()
 }
 
-sealed class GetAccountError : CoreError() {
+@kotlinx.serialization.Serializable
+sealed class GetAccountError: UiCoreError() {
     object NoAccount : GetAccountError()
-    data class Unexpected(val error: String) : GetAccountError()
 }
 
-sealed class GetRootError : CoreError() {
+@kotlinx.serialization.Serializable
+sealed class GetRootError: UiCoreError() {
     object NoRoot : GetRootError()
-    data class Unexpected(val error: String) : GetRootError()
 }
 
-sealed class WriteToDocumentError : CoreError() {
+@kotlinx.serialization.Serializable
+sealed class WriteToDocumentError: UiCoreError() {
     object NoAccount : WriteToDocumentError()
     object FileDoesNotExist : WriteToDocumentError()
     object FolderTreatedAsDocument : WriteToDocumentError()
-    data class Unexpected(val error: String) : WriteToDocumentError()
 }
 
-sealed class CreateFileError : CoreError() {
+@kotlinx.serialization.Serializable
+sealed class CreateFileError: UiCoreError() {
     object NoAccount : CreateFileError()
     object DocumentTreatedAsFolder : CreateFileError()
     object CouldNotFindAParent : CreateFileError()
     object FileNameNotAvailable : CreateFileError()
     object FileNameContainsSlash : CreateFileError()
     object FileNameEmpty : CreateFileError()
-    data class Unexpected(val error: String) : CreateFileError()
 }
 
-sealed class GetChildrenError : CoreError() {
-    data class Unexpected(val error: String) : GetChildrenError()
+@kotlinx.serialization.Serializable
+sealed class GetChildrenError: UiCoreError() {
 }
 
-sealed class GetFileByIdError : CoreError() {
+@kotlinx.serialization.Serializable
+sealed class GetFileByIdError: UiCoreError() {
     object NoFileWithThatId : GetFileByIdError()
-    data class Unexpected(val error: String) : GetFileByIdError()
 }
 
-sealed class FileDeleteError : CoreError() {
+@kotlinx.serialization.Serializable
+sealed class FileDeleteError: UiCoreError() {
     object FileDoesNotExist : FileDeleteError()
     object CannotDeleteRoot : FileDeleteError()
-    data class Unexpected(val error: String) : FileDeleteError()
 }
 
-sealed class ReadDocumentError : CoreError() {
+@kotlinx.serialization.Serializable
+sealed class ReadDocumentError: UiCoreError() {
     object TreatedFolderAsDocument : ReadDocumentError()
     object NoAccount : ReadDocumentError()
     object FileDoesNotExist : ReadDocumentError()
-    data class Unexpected(val error: String) : ReadDocumentError()
 }
 
-sealed class SaveDocumentToDiskError : CoreError() {
+@kotlinx.serialization.Serializable
+sealed class SaveDocumentToDiskError: UiCoreError() {
     object TreatedFolderAsDocument : SaveDocumentToDiskError()
     object NoAccount : SaveDocumentToDiskError()
     object FileDoesNotExist : SaveDocumentToDiskError()
     object BadPath : SaveDocumentToDiskError()
     object FileAlreadyExistsInDisk : SaveDocumentToDiskError()
-    data class Unexpected(val error: String) : SaveDocumentToDiskError()
 }
 
-sealed class ExportDrawingError : CoreError() {
+@kotlinx.serialization.Serializable
+sealed class ExportDrawingError: UiCoreError() {
     object FolderTreatedAsDrawing : ExportDrawingError()
     object FileDoesNotExist : ExportDrawingError()
     object NoAccount : ExportDrawingError()
     object InvalidDrawing : ExportDrawingError()
-    data class Unexpected(val error: String) : ExportDrawingError()
 }
 
-sealed class ExportDrawingToDiskError : CoreError() {
+@kotlinx.serialization.Serializable
+sealed class ExportDrawingToDiskError: UiCoreError() {
     object FolderTreatedAsDrawing : ExportDrawingToDiskError()
     object FileDoesNotExist : ExportDrawingToDiskError()
     object NoAccount : ExportDrawingToDiskError()
     object InvalidDrawing : ExportDrawingToDiskError()
     object BadPath : ExportDrawingToDiskError()
     object FileAlreadyExistsInDisk : ExportDrawingToDiskError()
-    data class Unexpected(val error: String) : ExportDrawingToDiskError()
 }
 
-sealed class RenameFileError : CoreError() {
+@kotlinx.serialization.Serializable
+sealed class RenameFileError: UiCoreError() {
     object FileDoesNotExist : RenameFileError()
     object NewNameContainsSlash : RenameFileError()
     object FileNameNotAvailable : RenameFileError()
     object NewNameEmpty : RenameFileError()
     object CannotRenameRoot : RenameFileError()
-    data class Unexpected(val error: String) : RenameFileError()
 }
 
-sealed class MoveFileError : CoreError() {
+@kotlinx.serialization.Serializable
+sealed class MoveFileError: UiCoreError() {
     object NoAccount : MoveFileError()
     object FileDoesNotExist : MoveFileError()
     object DocumentTreatedAsFolder : MoveFileError()
@@ -236,21 +258,20 @@ sealed class MoveFileError : CoreError() {
     object TargetParentHasChildNamedThat : MoveFileError()
     object CannotMoveRoot : MoveFileError()
     object FolderMovedIntoItself : MoveFileError()
-    data class Unexpected(val error: String) : MoveFileError()
 }
 
-sealed class SyncAllError : CoreError() {
+@kotlinx.serialization.Serializable
+sealed class SyncAllError: UiCoreError() {
     object NoAccount : SyncAllError()
     object CouldNotReachServer : SyncAllError()
     object ClientUpdateRequired : SyncAllError()
-    data class Unexpected(val error: String) : SyncAllError()
 }
 
-sealed class CalculateWorkError : CoreError() {
+@kotlinx.serialization.Serializable
+sealed class CalculateWorkError: UiCoreError() {
     object NoAccount : CalculateWorkError()
     object CouldNotReachServer : CalculateWorkError()
     object ClientUpdateRequired : CalculateWorkError()
-    data class Unexpected(val error: String) : CalculateWorkError()
 }
 
 val <T> T.exhaustive: T

@@ -1,26 +1,11 @@
 package app.lockbook.util
 
+import android.content.res.Resources
 import com.beust.klaxon.Json
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
-import com.github.michaelbull.result.Result
+import kotlinx.serialization.Serializable
 
-data class Intermediate<T>(
-    val tag: ShallowResult,
-    val content: T
-) {
-    fun <O: Any, E: CoreError> toResult(): Result<O, E> {
-        when(tag) {
-            ShallowResult.Ok -> Ok(content)
-            ShallowResult.Err -> Err(content)
-        }
-    }
-}
-
-enum class ShallowResult {
-    Ok,
-    Err
-}
+import kotlinx.serialization.*
+import kotlinx.serialization.json.*
 
 data class DecryptedFileMetadata(
     val id: String = "",
@@ -43,12 +28,15 @@ enum class FileType {
     Document, Folder
 }
 
-data class Account(
+@Serializable
+class Account(
     val username: String,
-    @Json(name = "api_url")
+
+    @SerialName("api_url")
     val apiUrl: String,
-    @Json(name = "private_key")
-    val privateKey: List<Byte>,
+
+    @SerialName("private_key")
+    val privateKey: Array<Int>
 )
 
 data class WorkCalculated(

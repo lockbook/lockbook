@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData
 import app.lockbook.App.Companion.config
 import app.lockbook.util.*
 import com.github.michaelbull.result.*
+import com.github.michaelbull.result.Ok
 
 class SyncModel {
     var syncStatus: SyncStatus = SyncStatus.NotSyncing

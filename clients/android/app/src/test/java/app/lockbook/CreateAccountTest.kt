@@ -7,9 +7,16 @@ import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.unwrap
+import kotlinx.serialization.*
+import kotlinx.serialization.json.Json
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
+import kotlinx.serialization.json.*
+import kotlinx.serialization.modules.*
+import kotlinx.serialization.PolymorphicSerializer.*
+import kotlinx.serialization.builtins.serializer
+
 
 class CreateAccountTest {
     var config = Config(createRandomPath())
@@ -27,9 +34,16 @@ class CreateAccountTest {
         config = Config(createRandomPath())
     }
 
+    @OptIn(InternalSerializationApi::class)
     @Test
     fun createAccountOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        val string = createAccount(Klaxon().toJsonString(config), generateAlphaString(), getAPIURL())
+
+
+        val format = Json { serializersModule = responseModule }
+        println("HERE1: $string")
+
+
     }
 
     @Test
@@ -62,6 +76,6 @@ class CreateAccountTest {
     fun createAccountUnexpectedError() {
         Klaxon().converter(createAccountConverter)
             .parse<Result<Unit, CreateAccountError>>(createAccount("", "", getAPIURL()))
-            .unwrapErrorType<CreateAccountError.Unexpected>()
+//            .unwrapErrorType<CreateAccountError.Unexpected>()
     }
 }
