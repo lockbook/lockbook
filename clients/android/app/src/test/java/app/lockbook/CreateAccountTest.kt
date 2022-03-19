@@ -15,7 +15,6 @@ import org.junit.Test
 import kotlinx.serialization.json.*
 import kotlinx.serialization.modules.*
 import kotlinx.serialization.PolymorphicSerializer.*
-import kotlinx.serialization.builtins.serializer
 
 
 class CreateAccountTest {
@@ -34,48 +33,41 @@ class CreateAccountTest {
         config = Config(createRandomPath())
     }
 
-    @OptIn(InternalSerializationApi::class)
     @Test
     fun createAccountOk() {
-        val string = createAccount(Klaxon().toJsonString(config), generateAlphaString(), getAPIURL())
-
-
-        val format = Json { serializersModule = responseModule }
-        println("HERE1: $string")
-
-
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
     }
 
     @Test
     fun createAccountUsernameTaken() {
         val username = generateAlphaString()
 
-        CoreModel.generateAccount(config, username).unwrap()
+        CoreModel.createAccount(config, username).unwrap()
 
         config = Config(createRandomPath())
 
-        CoreModel.generateAccount(config, username)
+        CoreModel.createAccount(config, username)
             .unwrapErrorType<CreateAccountError.UsernameTaken>()
     }
 
     @Test
     fun createAccountInvalidUsername() {
-        CoreModel.generateAccount(config, "!@#$%^&*()")
+        CoreModel.createAccount(config, "!@#$%^&*()")
             .unwrapErrorType<CreateAccountError.InvalidUsername>()
     }
 
     @Test
     fun createAccountExistsAlready() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
-        CoreModel.generateAccount(config, generateAlphaString())
+        CoreModel.createAccount(config, generateAlphaString())
             .unwrapErrorType<CreateAccountError.AccountExistsAlready>()
     }
 
     @Test
     fun createAccountUnexpectedError() {
-        Klaxon().converter(createAccountConverter)
-            .parse<Result<Unit, CreateAccountError>>(createAccount("", "", getAPIURL()))
-//            .unwrapErrorType<CreateAccountError.Unexpected>()
+        CoreModel.jsonParser.decodeFromString<IntermCoreResult<Unit, CreateAccountError>>(
+            createAccount("", "", getAPIURL())
+        ).unwrapUnexpected()
     }
 }

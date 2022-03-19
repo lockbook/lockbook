@@ -1,11 +1,13 @@
 package app.lockbook
 
+import app.lockbook.core.renameFile
 import app.lockbook.core.saveDocumentToDisk
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.unwrap
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,7 +30,7 @@ class SaveDocumentToDiskTest {
 
     @Test
     fun saveDocumentToDiskOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -44,7 +46,7 @@ class SaveDocumentToDiskTest {
 
     @Test
     fun saveDocumentToDiskFolder() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -61,7 +63,7 @@ class SaveDocumentToDiskTest {
 
     @Test
     fun saveDocumentToDiskDoesNotExist() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         CoreModel.saveDocumentToDisk(config, generateId(), generateFakeRandomPath())
             .unwrapErrorType<SaveDocumentToDiskError.FileDoesNotExist>()
@@ -69,7 +71,7 @@ class SaveDocumentToDiskTest {
 
     @Test
     fun saveDocumentToDiskBadPath() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -86,7 +88,7 @@ class SaveDocumentToDiskTest {
 
     @Test
     fun exportDrawingToDiskFileAlreadyExistsInDisk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -107,9 +109,8 @@ class SaveDocumentToDiskTest {
 
     @Test
     fun saveDocumentToDiskUnexpectedError() {
-        Klaxon().converter(saveDocumentToDiskConverter)
-            .parse<Result<Unit, SaveDocumentToDiskError>>(
-                saveDocumentToDisk("", "", "")
-            ).unwrapErrorType<SaveDocumentToDiskError.Unexpected>()
+        CoreModel.jsonParser.decodeFromString<IntermCoreResult<Unit, SaveDocumentToDiskError>>(
+            saveDocumentToDisk("", "", "")
+        ).unwrapUnexpected()
     }
 }

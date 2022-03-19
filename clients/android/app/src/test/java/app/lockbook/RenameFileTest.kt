@@ -1,11 +1,13 @@
 package app.lockbook
 
+import app.lockbook.core.readDocument
 import app.lockbook.core.renameFile
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.unwrap
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,7 +30,7 @@ class RenameFileTest {
 
     @Test
     fun renameFileOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -53,7 +55,7 @@ class RenameFileTest {
 
     @Test
     fun renameFileDoesNotExist() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         CoreModel.getRoot(config).unwrap()
 
@@ -63,7 +65,7 @@ class RenameFileTest {
 
     @Test
     fun renameFileContainsSlash() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -90,7 +92,7 @@ class RenameFileTest {
 
     @Test
     fun renameFileNameNotAvailable() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -117,7 +119,7 @@ class RenameFileTest {
     @Test
     fun renameFileEmpty() {
         val fileName = generateAlphaString()
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -142,7 +144,7 @@ class RenameFileTest {
 
     @Test
     fun cannotRenameRoot() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -152,8 +154,8 @@ class RenameFileTest {
 
     @Test
     fun renameFileUnexpectedError() {
-        Klaxon().converter(renameFileConverter)
-            .parse<Result<Unit, RenameFileError>>(renameFile("", "", ""))
-            .unwrapErrorType<RenameFileError.Unexpected>()
+        CoreModel.jsonParser.decodeFromString<IntermCoreResult<Unit, RenameFileError>>(
+            renameFile("", "", "")
+        ).unwrapUnexpected()
     }
 }

@@ -1,11 +1,13 @@
 package app.lockbook
 
+import app.lockbook.core.moveFile
 import app.lockbook.core.readDocument
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.unwrap
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,7 +30,7 @@ class ReadDocumentTest {
 
     @Test
     fun readDocumentOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -44,7 +46,7 @@ class ReadDocumentTest {
 
     @Test
     fun readFolder() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -61,7 +63,7 @@ class ReadDocumentTest {
 
     @Test
     fun readDocumentDoesNotExist() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         CoreModel.readDocument(config, generateId())
             .unwrapErrorType<ReadDocumentError.FileDoesNotExist>()
@@ -69,8 +71,8 @@ class ReadDocumentTest {
 
     @Test
     fun readDocumentUnexpectedError() {
-        Klaxon().converter(readDocumentConverter)
-            .parse<Result<String, ReadDocumentError>>(readDocument("", ""))
-            .unwrapErrorType<ReadDocumentError.Unexpected>()
+        CoreModel.jsonParser.decodeFromString<IntermCoreResult<String, ReadDocumentError>>(
+            readDocument("", "")
+        ).unwrapUnexpected()
     }
 }

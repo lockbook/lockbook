@@ -1,11 +1,13 @@
 package app.lockbook
 
 import app.lockbook.core.backgroundSync
+import app.lockbook.core.saveDocumentToDisk
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.unwrap
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,7 +30,7 @@ class SyncAllTest {
 
     @Test
     fun syncAllOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -46,18 +48,18 @@ class SyncAllTest {
             FileType.Folder
         ).unwrap()
 
-        CoreModel.sync(config, null).unwrap()
+        CoreModel.syncAll(config, null).unwrap()
     }
 
     @Test
     fun syncAllNoAccount() {
-        CoreModel.sync(config, null).unwrapErrorType<SyncAllError.NoAccount>()
+        CoreModel.syncAll(config, null).unwrapErrorType<SyncAllError.NoAccount>()
     }
 
     @Test
     fun syncAllUnexpectedError() {
-        Klaxon().converter(syncConverter)
-            .parse<Result<Unit, SyncAllError>>(backgroundSync(Klaxon().toJsonString("")))
-            .unwrapErrorType<SyncAllError.Unexpected>()
+        CoreModel.jsonParser.decodeFromString<IntermCoreResult<Unit, SyncAllError>>(
+            backgroundSync("")
+        ).unwrapUnexpected()
     }
 }

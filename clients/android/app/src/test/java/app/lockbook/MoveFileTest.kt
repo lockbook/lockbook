@@ -1,11 +1,13 @@
 package app.lockbook
 
+import app.lockbook.core.migrateDB
 import app.lockbook.core.moveFile
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.unwrap
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,7 +30,7 @@ class MoveFileTest {
 
     @Test
     fun moveFileOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -51,7 +53,7 @@ class MoveFileTest {
 
     @Test
     fun moveFileDoesNotExist() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -68,7 +70,7 @@ class MoveFileTest {
 
     @Test
     fun moveFileDocumentTreatedAsFolder() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -92,7 +94,7 @@ class MoveFileTest {
 
     @Test
     fun moveFileTargetParentDoesNotExist() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -111,7 +113,7 @@ class MoveFileTest {
     fun moveFileTargetParentHasChildNamedThat() {
         val documentName = generateAlphaString()
 
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -142,7 +144,7 @@ class MoveFileTest {
 
     @Test
     fun cannotMoveRoot() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -152,7 +154,7 @@ class MoveFileTest {
 
     @Test
     fun moveFileMoveFolderIntoItself() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -169,8 +171,8 @@ class MoveFileTest {
 
     @Test
     fun moveFileUnexpectedError() {
-        Klaxon().converter(moveFileConverter)
-            .parse<Result<Unit, MoveFileError>>(moveFile("", "", ""))
-            .unwrapErrorType<MoveFileError.Unexpected>()
+        CoreModel.jsonParser.decodeFromString<IntermCoreResult<Unit, MoveFileError>>(
+            moveFile("", "", "")
+        ).unwrapUnexpected()
     }
 }

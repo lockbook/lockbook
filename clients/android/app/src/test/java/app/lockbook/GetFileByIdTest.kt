@@ -1,11 +1,13 @@
 package app.lockbook
 
 import app.lockbook.core.exportAccount
+import app.lockbook.core.getDBState
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.unwrap
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,7 +30,7 @@ class GetFileByIdTest {
 
     @Test
     fun getFileByIdOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -53,7 +55,7 @@ class GetFileByIdTest {
 
     @Test
     fun getFileByIdNoFile() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         CoreModel.getFileById(config, generateId())
             .unwrapErrorType<GetFileByIdError.NoFileWithThatId>()
@@ -61,8 +63,8 @@ class GetFileByIdTest {
 
     @Test
     fun getFileByIdUnexpectedError() {
-        Klaxon().converter(getFileByIdConverter)
-            .parse<Result<DecryptedFileMetadata, GetFileByIdError>>(exportAccount(""))
-            .unwrapErrorType<GetFileByIdError.Unexpected>()
+        CoreModel.jsonParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, GetFileByIdError>>(
+            exportAccount("")
+        ).unwrapUnexpected()
     }
 }

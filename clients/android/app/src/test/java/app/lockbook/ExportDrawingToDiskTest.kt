@@ -1,11 +1,13 @@
 package app.lockbook
 
+import app.lockbook.core.exportAccount
 import app.lockbook.core.exportDrawingToDisk
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.unwrap
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,7 +30,7 @@ class ExportDrawingToDiskTest {
 
     @Test
     fun exportDrawingToDiskOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -61,7 +63,7 @@ class ExportDrawingToDiskTest {
 
     @Test
     fun exportDrawingToDiskFileDoesNotExist() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         CoreModel.getRoot(config).unwrap()
 
@@ -75,7 +77,7 @@ class ExportDrawingToDiskTest {
 
     @Test
     fun exportDrawingToDiskInvalidDrawing() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -98,7 +100,7 @@ class ExportDrawingToDiskTest {
 
     @Test
     fun exportDrawingToDiskFolderTreatedAsDrawing() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -119,7 +121,7 @@ class ExportDrawingToDiskTest {
 
     @Test
     fun exportDrawingToDiskBadPath() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -138,7 +140,7 @@ class ExportDrawingToDiskTest {
 
     @Test
     fun exportDrawingToDiskFileAlreadyExistsInDisk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -162,8 +164,8 @@ class ExportDrawingToDiskTest {
 
     @Test
     fun exportDrawingToDiskUnexpectedError() {
-        Klaxon().converter(exportDrawingToDiskConverter)
-            .parse<Result<Unit, ExportDrawingToDiskError>>(exportDrawingToDisk("", "", "", ""))
-            .unwrapErrorType<ExportDrawingToDiskError.Unexpected>()
+        CoreModel.jsonParser.decodeFromString<IntermCoreResult<Unit, ExportDrawingToDiskError>>(
+            exportDrawingToDisk("", "", "", "")
+        ).unwrapUnexpected()
     }
 }

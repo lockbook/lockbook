@@ -1,11 +1,13 @@
 package app.lockbook
 
 import app.lockbook.core.deleteFile
+import app.lockbook.core.getUsage
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.unwrap
+import kotlinx.serialization.decodeFromString
 import org.junit.*
 
 class DeleteFileTest {
@@ -26,7 +28,7 @@ class DeleteFileTest {
 
     @Test
     fun deleteFileOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -51,14 +53,14 @@ class DeleteFileTest {
 
     @Test
     fun deleteFileNoFileWithThatId() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         CoreModel.deleteFile(config, generateId()).unwrapErrorType<FileDeleteError.FileDoesNotExist>()
     }
 
     @Test
     fun deleteFileCannotDeleteRoot() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -68,8 +70,8 @@ class DeleteFileTest {
 
     @Test
     fun deleteFileUnexpectedError() {
-        Klaxon().converter(deleteFileConverter)
-            .parse<Result<Unit, FileDeleteError>>(deleteFile("", ""))
-            .unwrapErrorType<FileDeleteError.Unexpected>()
+        CoreModel.jsonParser.decodeFromString<IntermCoreResult<Unit, FileDeleteError>>(
+            deleteFile("", "")
+        ).unwrapUnexpected()
     }
 }

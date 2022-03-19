@@ -1,10 +1,12 @@
 package app.lockbook
 
 import app.lockbook.core.exportAccount
+import app.lockbook.core.getRoot
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.*
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,7 +29,7 @@ class ExportAccountTest {
 
     @Test
     fun exportAccountOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         CoreModel.exportAccount(config).unwrap()
     }
@@ -39,8 +41,8 @@ class ExportAccountTest {
 
     @Test
     fun exportAccountUnexpectedError() {
-        Klaxon().converter(exportAccountConverter)
-            .parse<Result<String, AccountExportError>>(exportAccount(""))
-            .unwrapErrorType<AccountExportError.Unexpected>()
+        CoreModel.jsonParser.decodeFromString<IntermCoreResult<String, AccountExportError>>(
+            exportAccount("")
+        ).unwrapUnexpected()
     }
 }

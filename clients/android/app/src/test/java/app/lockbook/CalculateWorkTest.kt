@@ -1,11 +1,13 @@
 package app.lockbook
 
 import app.lockbook.core.calculateWork
+import app.lockbook.core.createAccount
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.unwrap
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,7 +30,7 @@ class CalculateWorkTest {
 
     @Test
     fun calculateWorkOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -51,9 +53,8 @@ class CalculateWorkTest {
 
     @Test
     fun calculateWorkUnexpectedError() {
-        Klaxon().converter(calculateWorkConverter)
-            .parse<Result<WorkCalculated, CalculateWorkError>>(
-                calculateWork("")
-            ).unwrapErrorType<CalculateWorkError.Unexpected>()
+        CoreModel.jsonParser.decodeFromString<IntermCoreResult<WorkCalculated, CalculateWorkError>>(
+            calculateWork("")
+        ).unwrapUnexpected()
     }
 }

@@ -1,11 +1,13 @@
 package app.lockbook
 
+import app.lockbook.core.calculateWork
 import app.lockbook.core.createFile
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.unwrap
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,7 +30,7 @@ class CreateFileTest {
 
     @Test
     fun createFileOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -49,7 +51,7 @@ class CreateFileTest {
 
     @Test
     fun createFileContainsSlash() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -70,7 +72,7 @@ class CreateFileTest {
 
     @Test
     fun createFileEmpty() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -91,7 +93,7 @@ class CreateFileTest {
 
     @Test
     fun createFileNotAvailable() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
         val fileName = generateAlphaString()
@@ -123,8 +125,8 @@ class CreateFileTest {
 
     @Test
     fun createFileUnexpectedError() {
-        Klaxon().converter(createFileConverter)
-            .parse<Result<DecryptedFileMetadata, CreateFileError>>(createFile("", "", "", ""))
-            .unwrapErrorType<CreateFileError.Unexpected>()
+        CoreModel.jsonParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, CreateFileError>>(
+            createFile("", "", "", "")
+        ).unwrapUnexpected()
     }
 }

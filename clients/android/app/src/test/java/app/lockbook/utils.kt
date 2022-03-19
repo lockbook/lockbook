@@ -26,10 +26,10 @@ fun createRandomPath(): String {
     return path
 }
 
-inline fun <reified T : CoreError> Result<*, CoreError>?.unwrapErrorType(): T {
+inline fun <reified E: UiCoreError> Result<*, CoreError<UiCoreError>>?.unwrapErrorType(): E {
     val error = this?.unwrapError()
-    require(error is T) {
-        "${Thread.currentThread().stackTrace[1]}: ${if (error == null) "null" else error::class.qualifiedName} is not of type ${T::class.qualifiedName}"
+    require(error is E) {
+        "${Thread.currentThread().stackTrace[1]}: ${if (error == null) "null" else error::class.qualifiedName} is not of type ${E::class.qualifiedName}"
     }
 
     return error

@@ -1,11 +1,13 @@
 package app.lockbook
 
+import app.lockbook.core.importAccount
 import app.lockbook.core.migrateDB
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.unwrap
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -30,14 +32,15 @@ class MigrateDBTest {
     fun migrateDBOk() {
         CoreModel.getDBState(config).unwrap()
 
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         CoreModel.migrateDB(config).unwrap()
     }
 
     @Test
     fun getDBStateUnexpectedError() {
-        Klaxon().converter(migrateDBConverter).parse<Result<Unit, MigrationError>>(migrateDB(""))
-            .unwrapErrorType<MigrationError.Unexpected>()
+        CoreModel.jsonParser.decodeFromString<IntermCoreResult<Unit, MigrationError>>(
+            migrateDB("")
+        ).unwrapUnexpected()
     }
 }

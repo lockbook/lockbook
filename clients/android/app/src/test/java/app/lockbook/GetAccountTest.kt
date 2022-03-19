@@ -1,11 +1,13 @@
 package app.lockbook
 
+import app.lockbook.core.exportDrawingToDisk
 import app.lockbook.core.getAccount
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.unwrap
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,7 +30,7 @@ class GetAccountTest {
 
     @Test
     fun getAccountOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         CoreModel.getAccount(config).unwrap()
     }
@@ -40,8 +42,8 @@ class GetAccountTest {
 
     @Test
     fun getAccountUnexpectedError() {
-        Klaxon().converter(getAccountConverter)
-            .parse<Result<Account, GetAccountError>>(getAccount(""))
-            .unwrapErrorType<GetAccountError.Unexpected>()
+        CoreModel.jsonParser.decodeFromString<IntermCoreResult<Account, GetAccountError>>(
+            getAccount("")
+        ).unwrapUnexpected()
     }
 }

@@ -35,7 +35,7 @@ class ShareModel(
         }
     }
 
-    fun shareDocuments(selectedFiles: List<DecryptedFileMetadata>, appDataDir: File): Result<Unit, CoreError> {
+    fun shareDocuments(selectedFiles: List<DecryptedFileMetadata>, appDataDir: File): Result<Unit, CoreError<UiCoreError>> {
         val cacheDir = getMainShareFolder(appDataDir)
 
         isLoadingOverlayVisible = true
@@ -102,7 +102,7 @@ class ShareModel(
     private fun retrieveSelectedDocuments(
         selectedFiles: List<DecryptedFileMetadata>,
         documents: MutableList<DecryptedFileMetadata>
-    ): Result<Unit, CoreError> {
+    ): Result<Unit, CoreError<UiCoreError>> {
         for (file in selectedFiles) {
             when (file.fileType) {
                 FileType.Document -> {

@@ -1,11 +1,13 @@
 package app.lockbook
 
+import app.lockbook.core.getUncompressedUsage
 import app.lockbook.core.importAccount
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.unwrap
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,7 +30,7 @@ class ImportAccountTest {
 
     @Test
     fun importAccountOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val exportAccountString = CoreModel.exportAccount(config).unwrap()
 
@@ -45,8 +47,8 @@ class ImportAccountTest {
 
     @Test
     fun importAccountUnexpectedError() {
-        Klaxon().converter(importAccountConverter)
-            .parse<Result<Unit, ImportError>>(importAccount("", ""))
-            .unwrapErrorType<ImportError.Unexpected>()
+        CoreModel.jsonParser.decodeFromString<IntermCoreResult<Unit, ImportError>>(
+            importAccount("", "")
+        ).unwrapUnexpected()
     }
 }

@@ -1,11 +1,13 @@
 package app.lockbook
 
+import app.lockbook.core.backgroundSync
 import app.lockbook.core.writeDocument
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.unwrap
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,7 +30,7 @@ class WriteToDocumentTest {
 
     @Test
     fun writeToDocumentOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -44,7 +46,7 @@ class WriteToDocumentTest {
 
     @Test
     fun writeToDocumentFileDoesNotExist() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         CoreModel.writeToDocument(config, generateId(), "")
             .unwrapErrorType<WriteToDocumentError.FileDoesNotExist>()
@@ -52,7 +54,7 @@ class WriteToDocumentTest {
 
     @Test
     fun writeToDocumentFolderTreatedAsDocument() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
@@ -69,8 +71,8 @@ class WriteToDocumentTest {
 
     @Test
     fun writeToDocumentUnexpectedError() {
-        Klaxon().converter(writeDocumentConverter)
-            .parse<Result<Unit, WriteToDocumentError>>(writeDocument("", "", ""))
-            .unwrapErrorType<WriteToDocumentError.Unexpected>()
+        CoreModel.jsonParser.decodeFromString<IntermCoreResult<Unit, WriteToDocumentError>>(
+            writeDocument("", "", "")
+        ).unwrapUnexpected()
     }
 }
