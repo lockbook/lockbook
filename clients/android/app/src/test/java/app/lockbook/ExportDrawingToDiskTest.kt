@@ -58,7 +58,7 @@ class ExportDrawingToDiskTest {
             generateId(),
             SupportedImageFormats.Jpeg,
             generateFakeRandomPath()
-        ).unwrapErrorType<ExportDrawingToDiskError.NoAccount>()
+        ).unwrapErrorType(ExportDrawingToDiskError.NoAccount)
     }
 
     @Test
@@ -72,7 +72,7 @@ class ExportDrawingToDiskTest {
             generateId(),
             SupportedImageFormats.Jpeg,
             generateFakeRandomPath()
-        ).unwrapErrorType<ExportDrawingToDiskError.FileDoesNotExist>()
+        ).unwrapErrorType(ExportDrawingToDiskError.FileDoesNotExist)
     }
 
     @Test
@@ -95,7 +95,7 @@ class ExportDrawingToDiskTest {
             document.id,
             SupportedImageFormats.Jpeg,
             generateFakeRandomPath()
-        ).unwrapErrorType<ExportDrawingToDiskError.InvalidDrawing>()
+        ).unwrapErrorType(ExportDrawingToDiskError.InvalidDrawing)
     }
 
     @Test
@@ -116,7 +116,7 @@ class ExportDrawingToDiskTest {
             folder.id,
             SupportedImageFormats.Jpeg,
             generateFakeRandomPath()
-        ).unwrapErrorType<ExportDrawingToDiskError.FolderTreatedAsDrawing>()
+        ).unwrapErrorType(ExportDrawingToDiskError.FolderTreatedAsDrawing)
     }
 
     @Test
@@ -135,7 +135,7 @@ class ExportDrawingToDiskTest {
         CoreModel.writeToDocument(config, document.id, Klaxon().toJsonString(Drawing())).unwrap()
 
         CoreModel.exportDrawingToDisk(config, document.id, SupportedImageFormats.Jpeg, "")
-            .unwrapErrorType<ExportDrawingToDiskError.BadPath>()
+            .unwrapErrorType(ExportDrawingToDiskError.BadPath)
     }
 
     @Test
@@ -159,7 +159,7 @@ class ExportDrawingToDiskTest {
             .unwrap()
 
         CoreModel.exportDrawingToDisk(config, document.id, SupportedImageFormats.Jpeg, path)
-            .unwrapErrorType<ExportDrawingToDiskError.FileAlreadyExistsInDisk>()
+            .unwrapErrorType(ExportDrawingToDiskError.FileAlreadyExistsInDisk)
     }
 
     @Test

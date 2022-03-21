@@ -42,7 +42,7 @@ class ImportAccountTest {
     @Test
     fun importAccountStringCorrupted() {
         CoreModel.importAccount(config, "!@#$%^&*()")
-            .unwrapErrorType<ImportError.AccountStringCorrupted>()
+            .unwrapErrorType(ImportError.AccountStringCorrupted)
     }
 
     @Test

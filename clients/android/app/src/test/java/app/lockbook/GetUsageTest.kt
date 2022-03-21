@@ -37,7 +37,7 @@ class GetUsageTest {
 
     @Test
     fun getUsageNoAccount() {
-        CoreModel.getUsage(config).unwrapErrorType<GetUsageError.NoAccount>()
+        CoreModel.getUsage(config).unwrapErrorType(GetUsageError.NoAccount)
     }
 
     @Test

@@ -53,7 +53,7 @@ class SyncAllTest {
 
     @Test
     fun syncAllNoAccount() {
-        CoreModel.syncAll(config, null).unwrapErrorType<SyncAllError.NoAccount>()
+        CoreModel.syncAll(config, null).unwrapErrorType(SyncAllError.NoAccount)
     }
 
     @Test

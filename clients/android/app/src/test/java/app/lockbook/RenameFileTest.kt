@@ -60,7 +60,7 @@ class RenameFileTest {
         CoreModel.getRoot(config).unwrap()
 
         CoreModel.renameFile(config, generateId(), generateAlphaString())
-            .unwrapErrorType<RenameFileError.FileDoesNotExist>()
+            .unwrapErrorType(RenameFileError.FileDoesNotExist)
     }
 
     @Test
@@ -84,10 +84,10 @@ class RenameFileTest {
         ).unwrap()
 
         CoreModel.renameFile(config, document.id, "/")
-            .unwrapErrorType<RenameFileError.NewNameContainsSlash>()
+            .unwrapErrorType(RenameFileError.NewNameContainsSlash)
 
         CoreModel.renameFile(config, folder.id, "/")
-            .unwrapErrorType<RenameFileError.NewNameContainsSlash>()
+            .unwrapErrorType(RenameFileError.NewNameContainsSlash)
     }
 
     @Test
@@ -113,7 +113,7 @@ class RenameFileTest {
         ).unwrap()
 
         CoreModel.renameFile(config, folder.id, fileName)
-            .unwrapErrorType<RenameFileError.FileNameNotAvailable>()
+            .unwrapErrorType(RenameFileError.FileNameNotAvailable)
     }
 
     @Test
@@ -137,9 +137,9 @@ class RenameFileTest {
             FileType.Folder
         ).unwrap()
 
-        CoreModel.renameFile(config, document.id, "").unwrapErrorType<RenameFileError.NewNameEmpty>()
+        CoreModel.renameFile(config, document.id, "").unwrapErrorType(RenameFileError.NewNameEmpty)
 
-        CoreModel.renameFile(config, folder.id, "").unwrapErrorType<RenameFileError.NewNameEmpty>()
+        CoreModel.renameFile(config, folder.id, "").unwrapErrorType(RenameFileError.NewNameEmpty)
     }
 
     @Test
@@ -149,7 +149,7 @@ class RenameFileTest {
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
         CoreModel.renameFile(config, rootFileMetadata.id, generateAlphaString())
-            .unwrapErrorType<RenameFileError.CannotRenameRoot>()
+            .unwrapErrorType(RenameFileError.CannotRenameRoot)
     }
 
     @Test

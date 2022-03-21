@@ -49,7 +49,7 @@ class WriteToDocumentTest {
         CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         CoreModel.writeToDocument(config, generateId(), "")
-            .unwrapErrorType<WriteToDocumentError.FileDoesNotExist>()
+            .unwrapErrorType(WriteToDocumentError.FileDoesNotExist)
     }
 
     @Test
@@ -66,7 +66,7 @@ class WriteToDocumentTest {
         ).unwrap()
 
         CoreModel.writeToDocument(config, folder.id, "")
-            .unwrapErrorType<WriteToDocumentError.FolderTreatedAsDocument>()
+            .unwrapErrorType(WriteToDocumentError.FolderTreatedAsDocument)
     }
 
     @Test

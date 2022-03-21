@@ -37,7 +37,7 @@ class GetAccountTest {
 
     @Test
     fun getAccountNoAccount() {
-        CoreModel.getAccount(config).unwrapErrorType<GetAccountError.NoAccount>()
+        CoreModel.getAccount(config).unwrapErrorType(GetAccountError.NoAccount)
     }
 
     @Test

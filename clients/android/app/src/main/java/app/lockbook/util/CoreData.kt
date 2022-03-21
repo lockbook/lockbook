@@ -49,6 +49,7 @@ data class WorkCalculated(
 @Serializable
 data class WorkUnit(val content: DecryptedFileMetadata, val tag: String)
 
+@Serializable
 data class Config(val writeable_path: String)
 
 @Serializable

@@ -5,6 +5,7 @@ import app.lockbook.util.*
 import com.github.michaelbull.result.Result
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.PolymorphicSerializer
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.decodeFromString
@@ -15,62 +16,67 @@ import kotlinx.serialization.modules.SerializersModuleBuilder
 import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
 
-
 object CoreModel {
     private const val PROD_API_URL = "https://api.prod.lockbook.net"
     fun getAPIURL(): String = System.getenv("API_URL") ?: PROD_API_URL
 
     private val serializationModule = SerializersModule {
-        fun <O> SerializersModuleBuilder.createPolyRelation(serializer: KSerializer<O>) {
-            polymorphic(IntermCoreResult::class) {
-                subclass(IntermCoreResult.Ok.serializer(serializer))
-                subclass(IntermCoreResult.Err.serializer(PolymorphicSerializer(Any::class)))
-            }
-        }
-
-        // Init Logger
-        // Migrate DB
-        // Sync All
-        // Write To Document Error
-        // Save Document To Disk
-        // Export Drawing To Disk
-        // Delete File
-        // Rename File
-        // Move File
-        createPolyRelation(Unit.serializer())
-
-        // Get DB State
-        createPolyRelation(State.serializer())
-
-        // Create Account
-        // Import Account
-        // Get Account
-        createPolyRelation(Account.serializer())
-
-        // Export Account
-        // Read Document
-        createPolyRelation(String.serializer())
-
-        // Get Root
-        // Get File By Id
-        // Create File
-        createPolyRelation(DecryptedFileMetadata.serializer())
-
-        // Get Usage
-        createPolyRelation(UsageMetrics.serializer())
-
-        // Get Uncompressed Usage
-        createPolyRelation(UsageItemMetric.serializer())
-
-        // Get Children
-        createPolyRelation(ListSerializer(DecryptedFileMetadata.serializer()))
-
-        // Calculate Work
-        createPolyRelation(WorkCalculated.serializer())
+//        polymorphic(IntermCoreResult::class) {
+//            subclass(IntermCoreResult.Ok.serializer(Account.serializer()))
+//            subclass(IntermCoreResult.Err.serializer(GetAccountError.serializer()))
+//        }
+//
+//        fun <O> SerializersModuleBuilder.createPolyRelation(serializer: KSerializer<O>) {
+//            polymorphic(IntermCoreResult::class) {
+//                subclass(IntermCoreResult.Ok.serializer(serializer))
+//                subclass(IntermCoreResult.Err.serializer(PolymorphicSerializer(Any::class)))
+//            }
+//        }
+//
+//        // Init Logger
+//        // Migrate DB
+//        // Sync All
+//        // Write To Document Error
+//        // Save Document To Disk
+//        // Export Drawing To Disk
+//        // Delete File
+//        // Rename File
+//        // Move File
+//        createPolyRelation(Unit.serializer())
+//
+//        // Get DB State
+//        createPolyRelation(State.serializer())
+//
+//        // Create Account
+//        // Import Account
+//        // Get Account
+//        createPolyRelation(Account.serializer())
+//
+//        // Export Account
+//        // Read Document
+//        createPolyRelation(String.serializer())
+//
+//        // Get Root
+//        // Get File By Id
+//        // Create File
+//        createPolyRelation(DecryptedFileMetadata.serializer())
+//
+//        // Get Usage
+//        createPolyRelation(UsageMetrics.serializer())
+//
+//        // Get Uncompressed Usage
+//        createPolyRelation(UsageItemMetric.serializer())
+//
+//        // Get Children
+//        createPolyRelation(ListSerializer(DecryptedFileMetadata.serializer()))
+//
+//        // Calculate Work
+//        createPolyRelation(WorkCalculated.serializer())
     }
 
     val jsonParser = Json {
         serializersModule = serializationModule
+        isLenient = true
     }
 
     fun setUpInitLogger(path: String): Result<Unit, CoreError<InitLoggerError>> =
@@ -98,14 +104,19 @@ object CoreModel {
     fun createAccount(
         config: Config,
         account: String
-    ): Result<Unit, CoreError<CreateAccountError>> =
-        jsonParser.decodeFromString<IntermCoreResult<Unit, CreateAccountError>>(
-            createAccount(
-                jsonParser.encodeToString(config),
-                account,
-                getAPIURL()
-            )
+    ): Result<Account, CoreError<CreateAccountError>> {
+        val a = createAccount(
+            jsonParser.encodeToString(config),
+            account,
+            getAPIURL()
+        )
+
+        println("Here $a")
+
+        return jsonParser.decodeFromString<IntermCoreResult<Account, CreateAccountError>>(
+            a
         ).toResult()
+    }
 
 
     fun importAccount(config: Config, account: String): Result<Unit, CoreError<ImportError>> =

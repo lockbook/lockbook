@@ -58,7 +58,7 @@ class SaveDocumentToDiskTest {
         ).unwrap()
 
         CoreModel.saveDocumentToDisk(config, folder.id, generateFakeRandomPath())
-            .unwrapErrorType<SaveDocumentToDiskError.TreatedFolderAsDocument>()
+            .unwrapErrorType(SaveDocumentToDiskError.TreatedFolderAsDocument)
     }
 
     @Test
@@ -66,7 +66,7 @@ class SaveDocumentToDiskTest {
         CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         CoreModel.saveDocumentToDisk(config, generateId(), generateFakeRandomPath())
-            .unwrapErrorType<SaveDocumentToDiskError.FileDoesNotExist>()
+            .unwrapErrorType(SaveDocumentToDiskError.FileDoesNotExist)
     }
 
     @Test
@@ -83,7 +83,7 @@ class SaveDocumentToDiskTest {
         ).unwrap()
 
         CoreModel.saveDocumentToDisk(config, document.id, "")
-            .unwrapErrorType<SaveDocumentToDiskError.BadPath>()
+            .unwrapErrorType(SaveDocumentToDiskError.BadPath)
     }
 
     @Test
@@ -104,7 +104,7 @@ class SaveDocumentToDiskTest {
         CoreModel.saveDocumentToDisk(config, document.id, path).unwrap()
 
         CoreModel.saveDocumentToDisk(config, document.id, path)
-            .unwrapErrorType<SaveDocumentToDiskError.FileAlreadyExistsInDisk>()
+            .unwrapErrorType(SaveDocumentToDiskError.FileAlreadyExistsInDisk)
     }
 
     @Test

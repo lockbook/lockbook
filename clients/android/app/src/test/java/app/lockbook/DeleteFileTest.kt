@@ -55,7 +55,7 @@ class DeleteFileTest {
     fun deleteFileNoFileWithThatId() {
         CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
-        CoreModel.deleteFile(config, generateId()).unwrapErrorType<FileDeleteError.FileDoesNotExist>()
+        CoreModel.deleteFile(config, generateId()).unwrapErrorType(FileDeleteError.FileDoesNotExist)
     }
 
     @Test
@@ -65,7 +65,7 @@ class DeleteFileTest {
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
         CoreModel.deleteFile(config, rootFileMetadata.id)
-            .unwrapErrorType<FileDeleteError.CannotDeleteRoot>()
+            .unwrapErrorType(FileDeleteError.CannotDeleteRoot)
     }
 
     @Test

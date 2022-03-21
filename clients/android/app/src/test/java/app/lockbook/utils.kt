@@ -26,13 +26,13 @@ fun createRandomPath(): String {
     return path
 }
 
-inline fun <reified E: UiCoreError> Result<*, CoreError<UiCoreError>>?.unwrapErrorType(): E {
+fun Result<*, CoreError<UiCoreError>>?.unwrapErrorType(enumType: UiCoreError): UiCoreError {
     val error = this?.unwrapError()
-    require(error is E) {
-        "${Thread.currentThread().stackTrace[1]}: ${if (error == null) "null" else error::class.qualifiedName} is not of type ${E::class.qualifiedName}"
+    require(error is CoreError.UiError && error.content == enumType) {
+        "${Thread.currentThread().stackTrace[1]}: ${if (error == null) "null" else error::class.qualifiedName} is not of type ${enumType::class.qualifiedName}"
     }
 
-    return error
+    return error.content
 }
 
 const val unrecognizedErrorTemplate = " is an unrecognized error type from "
@@ -55,7 +55,6 @@ val errorsToCheck = listOf<KClass<*>>(
     RenameFileError::class,
     SyncAllError::class,
     WriteToDocumentError::class,
-    ExportDrawingError::class
 )
 
 val checkIfAllErrorsPresentConverter = object : Converter {

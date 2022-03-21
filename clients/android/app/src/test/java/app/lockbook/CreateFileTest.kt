@@ -60,14 +60,14 @@ class CreateFileTest {
             rootFileMetadata.id,
             "/",
             FileType.Document
-        ).unwrapErrorType<CreateFileError.FileNameContainsSlash>()
+        ).unwrapErrorType(CreateFileError.FileNameContainsSlash)
 
         CoreModel.createFile(
             config,
             rootFileMetadata.id,
             "/",
             FileType.Folder
-        ).unwrapErrorType<CreateFileError.FileNameContainsSlash>()
+        ).unwrapErrorType(CreateFileError.FileNameContainsSlash)
     }
 
     @Test
@@ -81,14 +81,14 @@ class CreateFileTest {
             rootFileMetadata.id,
             "",
             FileType.Document
-        ).unwrapErrorType<CreateFileError.FileNameEmpty>()
+        ).unwrapErrorType(CreateFileError.FileNameEmpty)
 
         CoreModel.createFile(
             config,
             rootFileMetadata.id,
             "",
             FileType.Folder
-        ).unwrapErrorType<CreateFileError.FileNameEmpty>()
+        ).unwrapErrorType(CreateFileError.FileNameEmpty)
     }
 
     @Test
@@ -110,7 +110,7 @@ class CreateFileTest {
             rootFileMetadata.id,
             fileName,
             FileType.Folder
-        ).unwrapErrorType<CreateFileError.FileNameNotAvailable>()
+        ).unwrapErrorType(CreateFileError.FileNameNotAvailable)
     }
 
     @Test
@@ -120,7 +120,7 @@ class CreateFileTest {
             generateId(),
             generateAlphaString(),
             FileType.Document
-        ).unwrapErrorType<CreateFileError.NoAccount>()
+        ).unwrapErrorType(CreateFileError.NoAccount)
     }
 
     @Test

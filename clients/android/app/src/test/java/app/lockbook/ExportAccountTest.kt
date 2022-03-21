@@ -36,7 +36,7 @@ class ExportAccountTest {
 
     @Test
     fun exportAccountNoAccount() {
-        CoreModel.exportAccount(config).unwrapErrorType<AccountExportError.NoAccount>()
+        CoreModel.exportAccount(config).unwrapErrorType(AccountExportError.NoAccount)
     }
 
     @Test

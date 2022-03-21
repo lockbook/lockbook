@@ -58,7 +58,7 @@ class GetFileByIdTest {
         CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         CoreModel.getFileById(config, generateId())
-            .unwrapErrorType<GetFileByIdError.NoFileWithThatId>()
+            .unwrapErrorType(GetFileByIdError.NoFileWithThatId)
     }
 
     @Test

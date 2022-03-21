@@ -58,7 +58,7 @@ class ReadDocumentTest {
         ).unwrap()
 
         CoreModel.readDocument(config, folder.id)
-            .unwrapErrorType<ReadDocumentError.TreatedFolderAsDocument>()
+            .unwrapErrorType(ReadDocumentError.TreatedFolderAsDocument)
     }
 
     @Test
@@ -66,7 +66,7 @@ class ReadDocumentTest {
         CoreModel.createAccount(config, generateAlphaString()).unwrap()
 
         CoreModel.readDocument(config, generateId())
-            .unwrapErrorType<ReadDocumentError.FileDoesNotExist>()
+            .unwrapErrorType(ReadDocumentError.FileDoesNotExist)
     }
 
     @Test

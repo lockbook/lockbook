@@ -65,7 +65,7 @@ class MoveFileTest {
         ).unwrap()
 
         CoreModel.moveFile(config, generateId(), folder.id)
-            .unwrapErrorType<MoveFileError.FileDoesNotExist>()
+            .unwrapErrorType(MoveFileError.FileDoesNotExist)
     }
 
     @Test
@@ -89,7 +89,7 @@ class MoveFileTest {
         ).unwrap()
 
         CoreModel.moveFile(config, folder.id, document.id)
-            .unwrapErrorType<MoveFileError.DocumentTreatedAsFolder>()
+            .unwrapErrorType(MoveFileError.DocumentTreatedAsFolder)
     }
 
     @Test
@@ -106,7 +106,7 @@ class MoveFileTest {
         ).unwrap()
 
         CoreModel.moveFile(config, document.id, generateId())
-            .unwrapErrorType<MoveFileError.TargetParentDoesNotExist>()
+            .unwrapErrorType(MoveFileError.TargetParentDoesNotExist)
     }
 
     @Test
@@ -139,7 +139,7 @@ class MoveFileTest {
         ).unwrap()
 
         CoreModel.moveFile(config, firstDocument.id, folder.id)
-            .unwrapErrorType<MoveFileError.TargetParentHasChildNamedThat>()
+            .unwrapErrorType(MoveFileError.TargetParentHasChildNamedThat)
     }
 
     @Test
@@ -149,7 +149,7 @@ class MoveFileTest {
         val rootFileMetadata = CoreModel.getRoot(config).unwrap()
 
         CoreModel.moveFile(config, rootFileMetadata.id, rootFileMetadata.id)
-            .unwrapErrorType<MoveFileError.CannotMoveRoot>()
+            .unwrapErrorType(MoveFileError.CannotMoveRoot)
     }
 
     @Test
@@ -166,7 +166,7 @@ class MoveFileTest {
         ).unwrap()
 
         CoreModel.moveFile(config, folder.id, folder.id)
-            .unwrapErrorType<MoveFileError.FolderMovedIntoItself>()
+            .unwrapErrorType(MoveFileError.FolderMovedIntoItself)
     }
 
     @Test
