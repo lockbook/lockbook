@@ -9,7 +9,7 @@ use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::FileMetadataUpsertsError::{GetUpdatesRequired, RootImmutable};
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::FileType::Document;
-use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadataDiff};
+use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadataDiff, Owner};
 use lockbook_models::tree::FileMetaExt;
 use log::info;
 use redis_utils::converters::{JsonGet, PipelineJsonSet};
@@ -22,6 +22,7 @@ pub async fn upsert_file_metadata(
 ) -> Result<(), ServerError<FileMetadataUpsertsError>> {
     let (request, server_state) = (&context.request, context.server_state);
     check_for_changed_root(&request.updates)?;
+    let owner = Owner(context.public_key);
 
     let mut con = server_state.index_db_pool.get().await?;
     let mut docs_to_delete: Vec<EncryptedFileMetadata> = vec![];
@@ -35,7 +36,7 @@ pub async fn upsert_file_metadata(
         let keys: Vec<String> = files.into_iter().map(keys::file).collect();
         let mut files: Vec<EncryptedFileMetadata> = con.watch_json_mget(keys).await?;
 
-        docs_to_delete = apply_changes(now, &request.updates, &mut files)?;
+        docs_to_delete = apply_changes(now, &owner, &request.updates, &mut files)?;
 
         files
             .verify_integrity()
@@ -76,7 +77,7 @@ fn check_for_changed_root(
 }
 
 fn apply_changes(
-    now: u64, changes: &[FileMetadataDiff], metas: &mut Vec<EncryptedFileMetadata>,
+    now: u64, owner: &Owner, changes: &[FileMetadataDiff], metas: &mut Vec<EncryptedFileMetadata>,
 ) -> Result<Vec<EncryptedFileMetadata>, TxError<ServerError<FileMetadataUpsertsError>>> {
     let mut deleted_documents = vec![];
     for change in changes {
@@ -106,7 +107,7 @@ fn apply_changes(
                     // TODO this could be more descriptive
                     return Err(Abort(ClientError(GetUpdatesRequired)));
                 }
-                metas.push(new_meta(now, change))
+                metas.push(new_meta(now, change, owner))
             }
         }
     }
@@ -131,13 +132,13 @@ fn apply_changes(
     Ok(deleted_documents)
 }
 
-fn new_meta(now: u64, diff: &FileMetadataDiff) -> EncryptedFileMetadata {
+fn new_meta(now: u64, diff: &FileMetadataDiff, owner: &Owner) -> EncryptedFileMetadata {
     EncryptedFileMetadata {
         id: diff.id,
         file_type: diff.file_type,
         parent: diff.new_parent,
         name: diff.new_name.clone(),
-        owner: diff.owner.clone(),
+        owner: owner.clone(),
         metadata_version: now,
         content_version: 0,
         deleted: diff.new_deleted,
