@@ -36,7 +36,7 @@ pub fn edit(file_name: &str) -> CliResult<()> {
     let file_path = file_buf.as_path();
     let file_string = file_path.to_str().unwrap().to_string();
 
-    let mut file_handle = fs::File::create(file_buf.as_path())
+    let mut file_handle = fs::File::create(&file_buf)
         .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
 
     file_handle
@@ -47,16 +47,16 @@ pub fn edit(file_name: &str) -> CliResult<()> {
         .sync_all()
         .map_err(|err| err!(OsCouldNotWriteFile(file_string.clone(), err)))?;
 
-    let watcher = set_up_auto_save(file_metadata.id, file_string.clone());
+    let watcher = set_up_auto_save(file_metadata.id, file_buf.clone());
 
-    let edit_was_successful = edit_file_with_editor(&file_string);
+    let edit_was_successful = edit_file_with_editor(&file_buf);
 
     if let Some(ok) = watcher {
-        stop_auto_save(ok, file_string.clone());
+        stop_auto_save(ok, file_buf.clone());
     }
 
     if edit_was_successful {
-        match save_temp_file_contents(file_metadata.id, &file_string) {
+        match save_temp_file_contents(file_metadata.id, &file_buf) {
             Ok(_) => println!("Document encrypted and saved. Cleaning up temporary file."),
             Err(err) => err.print(),
         }

@@ -41,7 +41,7 @@ pub fn new(file_name: &str) -> CliResult<()> {
     let file_path = file_buf.as_path();
     let file_string = file_path.to_str().unwrap().to_string();
 
-    let _ = File::create(&file_path)
+    let _ = File::create(&file_buf)
         .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
 
     if file_metadata.file_type == Folder {
@@ -49,16 +49,16 @@ pub fn new(file_name: &str) -> CliResult<()> {
         return Ok(());
     }
 
-    let watcher = set_up_auto_save(file_metadata.id, file_string.clone());
+    let watcher = set_up_auto_save(file_metadata.id, file_buf.clone());
 
-    let edit_was_successful = edit_file_with_editor(&file_string);
+    let edit_was_successful = edit_file_with_editor(&file_buf);
 
     if let Some(ok) = watcher {
-        stop_auto_save(ok, file_string.clone());
+        stop_auto_save(ok, file_buf.clone());
     }
 
     if edit_was_successful {
-        match save_temp_file_contents(file_metadata.id, &file_string) {
+        match save_temp_file_contents(file_metadata.id, &file_buf) {
             Ok(_) => println!("Document encrypted and saved. Cleaning up temporary file."),
             Err(err) => err.print(),
         }

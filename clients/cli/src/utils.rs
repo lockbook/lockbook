@@ -144,7 +144,7 @@ pub fn get_image_format(image_format: &str) -> SupportedImageFormats {
 }
 
 #[cfg(target_os = "windows")]
-pub fn edit_file_with_editor(file_location: &str) -> bool {
+pub fn edit_file_with_editor(file_location: &PathBuf) -> bool {
     // if cfg!(target_os = "windows") 
         let command = match get_editor() {
             Vim | Emacs | Nano => {
@@ -207,7 +207,7 @@ pub fn print_last_successful_sync() -> CliResult<()> {
     Ok(())
 }
 
-pub fn set_up_auto_save(id: Uuid, location: String) -> Option<Hotwatch> {
+pub fn set_up_auto_save(id: Uuid, location: PathBuf) -> Option<Hotwatch> {
     match Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5)) {
         Ok(mut watcher) => {
             watcher
@@ -232,17 +232,17 @@ pub fn set_up_auto_save(id: Uuid, location: String) -> Option<Hotwatch> {
     }
 }
 
-pub fn stop_auto_save(mut watcher: Hotwatch, file_location: String) {
+pub fn stop_auto_save(mut watcher: Hotwatch, file_location: PathBuf) {
     watcher
         .unwatch(file_location)
         .unwrap_or_else(|err| eprintln!("file watcher failed to unwatch: {:#?}", err))
 }
 
-pub fn save_temp_file_contents(id: Uuid, location: &str) -> CliResult<()> {
+pub fn save_temp_file_contents(id: Uuid, location: &PathBuf) -> CliResult<()> {
     let secret = fs::read_to_string(&location)
         .map_err(|err| {
             err_unexpected!(
-                "could not read from temporary file, not deleting {}, err: {:#?}",
+                "could not read from temporary file, not deleting {:?}, err: {:#?}",
                 location,
                 err
             )
