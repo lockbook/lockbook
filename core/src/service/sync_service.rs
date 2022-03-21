@@ -361,14 +361,8 @@ fn get_resolved_document(
     remote_metadatum: &DecryptedFileMetadata, merged_metadatum: &DecryptedFileMetadata,
 ) -> Result<ResolvedDocument, CoreError> {
     let remote_document = if remote_metadatum.content_version != 0 {
-        let remote_document_encrypted = api_service::request(
-            account,
-            GetDocumentRequest {
-                id: remote_metadatum.id,
-                content_version: remote_metadatum.content_version,
-            },
-        )?
-        .content;
+        let remote_document_encrypted =
+            api_service::request(account, GetDocumentRequest::from(remote_metadatum))?.content;
         file_compression_service::decompress(&file_encryption_service::decrypt_document(
             &remote_document_encrypted,
             remote_metadatum,

@@ -7,6 +7,7 @@ use crate::account::Account;
 use crate::account::Username;
 use crate::crypto::*;
 use crate::file_metadata::{EncryptedFileMetadata, FileMetadataDiff};
+use crate::tree::FileMetadata;
 
 pub trait Request {
     type Response;
@@ -95,6 +96,15 @@ impl Request for ChangeDocumentContentRequest {
 pub struct GetDocumentRequest {
     pub id: Uuid,
     pub content_version: u64,
+}
+
+impl<F> From<&F> for GetDocumentRequest
+where
+    F: FileMetadata,
+{
+    fn from(meta: &F) -> Self {
+        Self { id: meta.id(), content_version: meta.content_version() }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
