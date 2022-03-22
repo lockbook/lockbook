@@ -1,7 +1,8 @@
 use crate::billing::stripe_model::Timestamp;
 use crate::config::Environment::{Local, Prod, Unknown};
-use std::env;
+use std::fmt::Display;
 use std::time::Duration;
+use std::{env, fmt};
 
 #[derive(Clone)]
 pub struct IndexDbConf {
@@ -80,9 +81,9 @@ impl Environment {
     }
 }
 
-impl Environment {
-    pub fn to_string(&self) -> String {
-        format!("{:?}", self)
+impl Display for Environment {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", &self)
     }
 }
 
