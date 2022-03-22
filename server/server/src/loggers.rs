@@ -150,7 +150,7 @@ impl Log for PDLogger {
                             build: CARGO_PKG_VERSION.to_string(),
                         }),
                     },
-                    dedup_key: Some(dedup_key(&record)),
+                    dedup_key: Some(dedup_key(record)),
                     images: None,
                     links: None,
                     client: None,
