@@ -2225,6 +2225,7 @@ dependencies = [
  "rust-s3",
  "serde",
  "serde_json",
+ "sha2 0.10.2",
  "shadow-rs",
  "tokio",
  "tokio-test",

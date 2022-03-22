@@ -1,4 +1,5 @@
 use crate::billing::stripe_model::Timestamp;
+use crate::config::Environment::{Local, Prod, Unknown};
 use std::env;
 use std::time::Duration;
 
@@ -59,8 +60,35 @@ impl StripeConfig {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum Environment {
+    Prod,
+    Local,
+    Unknown,
+}
+
+impl Environment {
+    pub fn from_env_vars() -> Self {
+        match env::var("ENVIRONMENT") {
+            Ok(var) => match var.to_lowercase().as_str() {
+                "production" | "prod" => Prod,
+                "local" | "localhost" => Local,
+                _ => Unknown,
+            },
+            Err(_) => Unknown,
+        }
+    }
+}
+
+impl Environment {
+    pub fn to_string(&self) -> String {
+        format!("{:?}", self)
+    }
+}
+
 #[derive(Clone)]
 pub struct ServerConfig {
+    pub env: Environment,
     pub port: u16,
     pub max_auth_delay: u128,
     pub log_path: String,
@@ -71,6 +99,7 @@ pub struct ServerConfig {
 
 impl ServerConfig {
     pub fn from_env_vars() -> ServerConfig {
+        let env = Environment::from_env_vars();
         let port = env_or_panic("SERVER_PORT").parse().unwrap();
         let max_auth_delay = env_or_panic("MAX_AUTH_DELAY").parse().unwrap();
         let log_path = env_or_panic("LOG_PATH").parse().unwrap();
@@ -86,6 +115,7 @@ impl ServerConfig {
         }
 
         ServerConfig {
+            env,
             port,
             max_auth_delay,
             log_path,
@@ -122,9 +152,9 @@ impl MetricsConfig {
 
 #[derive(Clone)]
 pub struct Config {
+    pub server: ServerConfig,
     pub index_db: IndexDbConf,
     pub files_db: FilesDbConfig,
-    pub server: ServerConfig,
     pub stripe: StripeConfig,
     pub metrics: MetricsConfig,
 }
@@ -148,6 +178,9 @@ fn env_or_panic(var_name: &str) -> String {
 fn env_or_empty(var_name: &str) -> Option<String> {
     match env::var(var_name) {
         Ok(var) => Some(var),
-        Err(_) => None,
+        Err(err) => {
+            eprintln!("env var error: {:?}", err);
+            None
+        }
     }
 }

@@ -68,7 +68,7 @@ async fn check_uniqueness(
     con: &mut Connection, new_files: &[EncryptedFileMetadata],
 ) -> Result<(), TxError<ServerError<FileMetadataUpsertsError>>> {
     if !new_files.is_empty() {
-        let ids: Vec<String> = new_files.into_iter().map(keys::meta).collect();
+        let ids: Vec<String> = new_files.iter().map(keys::meta).collect();
         let existing_files: i32 = con.exists(ids).await?;
         if existing_files == 0 {
             Ok(())
