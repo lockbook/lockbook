@@ -9,4 +9,4 @@ projRoot=$(git rev-parse --show-toplevel)
 cd "$projRoot"/core
 . ../containers/local.env
 
-cargo test $1
+cargo test -- --nocapture $1

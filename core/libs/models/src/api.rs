@@ -60,6 +60,10 @@ impl Request for FileMetadataUpsertsRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum FileMetadataUpsertsError {
+    NotPermissioned,
+    NewFileHasOldParentAndName,
+    NewFileDeleted,
+    NewIdAlreadyExists,
     UserNotFound,
     RootImmutable,
     GetUpdatesRequired,
@@ -115,6 +119,7 @@ pub struct GetDocumentResponse {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetDocumentError {
     DocumentNotFound,
+    NotPermissioned,
 }
 
 impl Request for GetDocumentRequest {
