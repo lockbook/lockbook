@@ -34,6 +34,7 @@ struct EditorView: UIViewRepresentable {
         if model.reloadContent {
             model.reloadContent = false
             uiView.text = model.textDocument!
+            (uiView.textStorage as! Storage).syntaxHighlight()
         }
     }
 }
