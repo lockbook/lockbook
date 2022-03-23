@@ -2,10 +2,11 @@ package app.lockbook
 
 import app.lockbook.core.getChildren
 import app.lockbook.model.CoreModel
-import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Result
-import com.github.michaelbull.result.unwrap
+import app.lockbook.util.Config
+import app.lockbook.util.DecryptedFileMetadata
+import app.lockbook.util.GetChildrenError
+import app.lockbook.util.IntermCoreResult
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,17 +29,17 @@ class GetChildrenTest {
 
     @Test
     fun getChildrenOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
-        CoreModel.getChildren(config, rootFileMetadata.id).unwrap()
+        CoreModel.getChildren(config, rootFileMetadata.id).unwrapOk()
     }
 
     @Test
     fun getChildrenUnexpectedError() {
-        Klaxon().converter(getChildrenConverter)
-            .parse<Result<List<DecryptedFileMetadata>, GetChildrenError>>(getChildren("", ""))
-            .unwrapErrorType<GetChildrenError.Unexpected>()
+        CoreModel.getChildrenParser.decodeFromString<IntermCoreResult<List<DecryptedFileMetadata>, GetChildrenError>>(
+            getChildren("", "")
+        ).unwrapUnexpected()
     }
 }

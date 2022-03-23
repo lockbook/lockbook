@@ -83,9 +83,8 @@ class MoveFileViewModel(application: Application) :
                 }
             }
             is Err -> when (val error = getChildrenResult.error) {
-                is GetChildrenError.Unexpected -> {
-                    _unexpectedErrorHasOccurred.postValue(error.error)
-                }
+                is CoreError.UiError -> _unexpectedErrorHasOccurred.postValue(basicErrorString(getRes()))
+                is CoreError.Unexpected -> _unexpectedErrorHasOccurred.postValue(error.content)
             }.exhaustive
         }
     }

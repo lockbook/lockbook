@@ -2,10 +2,11 @@ package app.lockbook
 
 import app.lockbook.core.backgroundSync
 import app.lockbook.model.CoreModel
-import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Result
-import com.github.michaelbull.result.unwrap
+import app.lockbook.util.Config
+import app.lockbook.util.FileType
+import app.lockbook.util.IntermCoreResult
+import app.lockbook.util.SyncAllError
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,36 +29,36 @@ class SyncAllTest {
 
     @Test
     fun syncAllOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
-        ).unwrap()
+        ).unwrapOk()
 
         CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
-        ).unwrap()
+        ).unwrapOk()
 
-        CoreModel.sync(config, null).unwrap()
+        CoreModel.syncAll(config, null).unwrapOk()
     }
 
     @Test
     fun syncAllNoAccount() {
-        CoreModel.sync(config, null).unwrapErrorType<SyncAllError.NoAccount>()
+        CoreModel.syncAll(config, null).unwrapErrorType(SyncAllError.NoAccount)
     }
 
     @Test
     fun syncAllUnexpectedError() {
-        Klaxon().converter(syncConverter)
-            .parse<Result<Unit, SyncAllError>>(backgroundSync(Klaxon().toJsonString("")))
-            .unwrapErrorType<SyncAllError.Unexpected>()
+        CoreModel.syncAllParser.decodeFromString<IntermCoreResult<Unit, SyncAllError>>(
+            backgroundSync("")
+        ).unwrapUnexpected()
     }
 }
