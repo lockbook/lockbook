@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 #[macro_use]
-extern crate log;
+extern crate tracing;
 extern crate reqwest;
 
 use std::collections::HashMap;
