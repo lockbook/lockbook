@@ -2,10 +2,11 @@ package app.lockbook
 
 import app.lockbook.core.moveFile
 import app.lockbook.model.CoreModel
-import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Result
-import com.github.michaelbull.result.unwrap
+import app.lockbook.util.Config
+import app.lockbook.util.FileType
+import app.lockbook.util.IntermCoreResult
+import app.lockbook.util.MoveFileError
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,149 +29,149 @@ class MoveFileTest {
 
     @Test
     fun moveFileOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         val document = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
-        ).unwrap()
+        ).unwrapOk()
 
         val folder = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
-        ).unwrap()
+        ).unwrapOk()
 
-        CoreModel.moveFile(config, document.id, folder.id).unwrap()
+        CoreModel.moveFile(config, document.id, folder.id).unwrapOk()
     }
 
     @Test
     fun moveFileDoesNotExist() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         val folder = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
-        ).unwrap()
+        ).unwrapOk()
 
         CoreModel.moveFile(config, generateId(), folder.id)
-            .unwrapErrorType<MoveFileError.FileDoesNotExist>()
+            .unwrapErrorType(MoveFileError.FileDoesNotExist)
     }
 
     @Test
     fun moveFileDocumentTreatedAsFolder() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         val document = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
-        ).unwrap()
+        ).unwrapOk()
 
         val folder = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
-        ).unwrap()
+        ).unwrapOk()
 
         CoreModel.moveFile(config, folder.id, document.id)
-            .unwrapErrorType<MoveFileError.DocumentTreatedAsFolder>()
+            .unwrapErrorType(MoveFileError.DocumentTreatedAsFolder)
     }
 
     @Test
     fun moveFileTargetParentDoesNotExist() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         val document = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
-        ).unwrap()
+        ).unwrapOk()
 
         CoreModel.moveFile(config, document.id, generateId())
-            .unwrapErrorType<MoveFileError.TargetParentDoesNotExist>()
+            .unwrapErrorType(MoveFileError.TargetParentDoesNotExist)
     }
 
     @Test
     fun moveFileTargetParentHasChildNamedThat() {
         val documentName = generateAlphaString()
 
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         val folder = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
-        ).unwrap()
+        ).unwrapOk()
 
         val firstDocument = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             documentName,
             FileType.Document
-        ).unwrap()
+        ).unwrapOk()
 
         val secondDocument = CoreModel.createFile(
             config,
             folder.id,
             documentName,
             FileType.Document
-        ).unwrap()
+        ).unwrapOk()
 
         CoreModel.moveFile(config, firstDocument.id, folder.id)
-            .unwrapErrorType<MoveFileError.TargetParentHasChildNamedThat>()
+            .unwrapErrorType(MoveFileError.TargetParentHasChildNamedThat)
     }
 
     @Test
     fun cannotMoveRoot() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         CoreModel.moveFile(config, rootFileMetadata.id, rootFileMetadata.id)
-            .unwrapErrorType<MoveFileError.CannotMoveRoot>()
+            .unwrapErrorType(MoveFileError.CannotMoveRoot)
     }
 
     @Test
     fun moveFileMoveFolderIntoItself() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         val folder = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
-        ).unwrap()
+        ).unwrapOk()
 
         CoreModel.moveFile(config, folder.id, folder.id)
-            .unwrapErrorType<MoveFileError.FolderMovedIntoItself>()
+            .unwrapErrorType(MoveFileError.FolderMovedIntoItself)
     }
 
     @Test
     fun moveFileUnexpectedError() {
-        Klaxon().converter(moveFileConverter)
-            .parse<Result<Unit, MoveFileError>>(moveFile("", "", ""))
-            .unwrapErrorType<MoveFileError.Unexpected>()
+        CoreModel.moveFileParser.decodeFromString<IntermCoreResult<Unit, MoveFileError>>(
+            moveFile("", "", "")
+        ).unwrapUnexpected()
     }
 }
