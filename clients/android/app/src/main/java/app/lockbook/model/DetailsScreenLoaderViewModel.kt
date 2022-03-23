@@ -9,11 +9,12 @@ import app.lockbook.getRes
 import app.lockbook.util.Drawing
 import app.lockbook.util.LbError
 import app.lockbook.util.SingleMutableLiveData
-import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 
 class DetailsScreenLoaderViewModel(application: Application, loadingInfo: DetailsScreen.Loading) : AndroidViewModel(application) {
     private val _updateDetailScreenLoaderUI = SingleMutableLiveData<UpdateDetailScreenLoaderUI>()
@@ -32,7 +33,7 @@ class DetailsScreenLoaderViewModel(application: Application, loadingInfo: Detail
                                 val drawing = if (getContentsResults.value.isEmpty()) {
                                     Drawing()
                                 } else {
-                                    Klaxon().parse<Drawing>(getContentsResults.value)!!
+                                    Json.decodeFromString<Drawing>(getContentsResults.value)
                                 }
 
                                 UpdateDetailScreenLoaderUI.NotifyFinished(DetailsScreen.Drawing(loadingInfo.fileMetadata, drawing))

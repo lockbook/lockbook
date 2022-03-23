@@ -3,9 +3,7 @@ package app.lockbook
 import app.lockbook.core.exportAccount
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Result
-import com.github.michaelbull.result.unwrap
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,41 +26,41 @@ class GetFileByIdTest {
 
     @Test
     fun getFileByIdOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         val document = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
-        ).unwrap()
+        ).unwrapOk()
 
         val folder = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
-        ).unwrap()
+        ).unwrapOk()
 
-        CoreModel.getFileById(config, document.id).unwrap()
+        CoreModel.getFileById(config, document.id).unwrapOk()
 
-        CoreModel.getFileById(config, folder.id).unwrap()
+        CoreModel.getFileById(config, folder.id).unwrapOk()
     }
 
     @Test
     fun getFileByIdNoFile() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
         CoreModel.getFileById(config, generateId())
-            .unwrapErrorType<GetFileByIdError.NoFileWithThatId>()
+            .unwrapErrorType(GetFileByIdError.NoFileWithThatId)
     }
 
     @Test
     fun getFileByIdUnexpectedError() {
-        Klaxon().converter(getFileByIdConverter)
-            .parse<Result<DecryptedFileMetadata, GetFileByIdError>>(exportAccount(""))
-            .unwrapErrorType<GetFileByIdError.Unexpected>()
+        CoreModel.getFileByIdParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, GetFileByIdError>>(
+            exportAccount("")
+        ).unwrapUnexpected()
     }
 }
