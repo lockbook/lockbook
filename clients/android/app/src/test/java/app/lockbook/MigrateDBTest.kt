@@ -2,10 +2,10 @@ package app.lockbook
 
 import app.lockbook.core.migrateDB
 import app.lockbook.model.CoreModel
-import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Result
-import com.github.michaelbull.result.unwrap
+import app.lockbook.util.Config
+import app.lockbook.util.IntermCoreResult
+import app.lockbook.util.MigrationError
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,16 +28,17 @@ class MigrateDBTest {
 
     @Test
     fun migrateDBOk() {
-        CoreModel.getDBState(config).unwrap()
+        CoreModel.getDBState(config).unwrapOk()
 
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        CoreModel.migrateDB(config).unwrap()
+        CoreModel.migrateDB(config).unwrapOk()
     }
 
     @Test
     fun getDBStateUnexpectedError() {
-        Klaxon().converter(migrateDBConverter).parse<Result<Unit, MigrationError>>(migrateDB(""))
-            .unwrapErrorType<MigrationError.Unexpected>()
+        CoreModel.migrateDBParser.decodeFromString<IntermCoreResult<Unit, MigrationError>>(
+            migrateDB("")
+        ).unwrapUnexpected()
     }
 }

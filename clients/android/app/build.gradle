@@ -2,6 +2,7 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: 'androidx.navigation.safeargs'
 apply plugin: "org.jmailen.kotlinter"
+apply plugin: 'kotlinx-serialization'
 
 android {
     compileSdkVersion 32
@@ -96,7 +97,7 @@ dependencies {
     implementation "androidx.lifecycle:lifecycle-process:$lifecycle_version"
 
     // Miscellaneous
-    implementation "com.beust:klaxon:$json_parser_version"
+    implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:$json_parser_version"
     implementation "org.jetbrains.kotlin:kotlin-reflect:$kotlin_reflect"
     implementation "com.journeyapps:zxing-android-embedded:$qr_embedded_version"
     implementation "com.google.zxing:core:$qr_core_version"
