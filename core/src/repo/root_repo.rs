@@ -1,11 +1,13 @@
 use uuid::Uuid;
 
+use crate::model::errors::core_err_unexpected;
 use crate::model::state::Config;
 use crate::repo::local_storage;
 use crate::CoreError;
 
 static ROOT: &[u8; 4] = b"ROOT";
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn set(config: &Config, root: Uuid) -> Result<(), CoreError> {
     let serialized = root
         .to_simple()
@@ -15,26 +17,19 @@ pub fn set(config: &Config, root: Uuid) -> Result<(), CoreError> {
     local_storage::write(config, ROOT, ROOT, serialized)
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn maybe_get(config: &Config) -> Result<Option<Uuid>, CoreError> {
     let maybe_value: Option<Vec<u8>> = local_storage::read(config, ROOT, ROOT)?;
-    match maybe_value {
-        None => Ok(None),
-        Some(value) => match String::from_utf8(value.clone()) {
-            Ok(id) => match Uuid::parse_str(&id) {
-                Ok(id) => Ok(Some(id)),
-                Err(err) => {
-                    error!("Failed to parse {:?} into a UUID. Error: {:?}", id, err);
-                    Ok(None)
-                }
-            },
-            Err(err) => {
-                error!("Failed to parse {:?} into a UUID. Error: {:?}", &value, err);
-                Ok(None)
-            }
-        },
-    }
+    Ok(match maybe_value {
+        None => None,
+        Some(value) => Some(
+            Uuid::parse_str(&String::from_utf8(value.clone()).map_err(core_err_unexpected)?)
+                .map_err(core_err_unexpected)?,
+        ),
+    })
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn get(config: &Config) -> Result<Uuid, CoreError> {
     maybe_get(config).and_then(|f| f.ok_or(CoreError::RootNonexistent))
 }

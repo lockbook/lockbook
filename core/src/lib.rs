@@ -443,12 +443,12 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, Error<Calculate
     })
 }
 
-#[instrument(skip(config), err(Debug))]
+#[instrument(skip(config), ret(Debug))]
 pub fn get_last_synced(config: &Config) -> Result<i64, UnexpectedError> {
     last_updated_repo::get(config).map_err(|e| unexpected_only!("{:#?}", e))
 }
 
-#[instrument(skip(config), err(Debug))]
+#[instrument(skip(config), ret(Debug))]
 pub fn get_last_synced_human_string(config: &Config) -> Result<String, UnexpectedError> {
     let last_synced = last_updated_repo::get(config).map_err(|e| unexpected_only!("{:#?}", e))?;
 
