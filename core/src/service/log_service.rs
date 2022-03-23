@@ -3,6 +3,7 @@ use std::path::Path;
 use std::str::FromStr;
 
 use tracing::metadata::LevelFilter;
+use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::{fmt, prelude::*};
 
 use crate::model::errors::core_err_unexpected;
@@ -19,6 +20,8 @@ pub fn init(log_path: &Path) -> Result<(), CoreError> {
     let subscriber = tracing_subscriber::Registry::default()
         .with(
             fmt::Layer::new()
+                .with_span_events(FmtSpan::ACTIVE)
+                .with_target(false)
                 .with_writer(tracing_appender::rolling::never(log_path, LOG_FILE))
                 .with_filter(lockbook_log_level),
         )
