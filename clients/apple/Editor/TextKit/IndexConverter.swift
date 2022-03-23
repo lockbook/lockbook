@@ -65,8 +65,8 @@ public class IndexConverter {
         let startUTF8 = getUTF8Index(utf8Row: startLine-1, utf8Col: startCol-1)
         let offset = getUTF8Index(utf8Row: endLine-1, utf8Col: endCol-1) - startUTF8
         
-        let start = indexLookup[startUTF8]!
-        let end = indexLookup[startUTF8 + offset]!
+        let start = indexLookup[startUTF8] ?? indexLookup[indexLookup.count - 1]!
+        let end = indexLookup[startUTF8 + offset] ?? indexLookup[indexLookup.count - 1]!
         
         return NSRange(start...end, in: string)
     }
