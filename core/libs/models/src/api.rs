@@ -7,6 +7,7 @@ use crate::account::Account;
 use crate::account::Username;
 use crate::crypto::*;
 use crate::file_metadata::{EncryptedFileMetadata, FileMetadataDiff};
+use crate::tree::FileMetadata;
 
 pub trait Request {
     type Response;
@@ -59,6 +60,10 @@ impl Request for FileMetadataUpsertsRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum FileMetadataUpsertsError {
+    NotPermissioned,
+    NewFileHasOldParentAndName,
+    NewFileDeleted,
+    NewIdAlreadyExists,
     UserNotFound,
     RootImmutable,
     GetUpdatesRequired,
@@ -97,14 +102,24 @@ pub struct GetDocumentRequest {
     pub content_version: u64,
 }
 
+impl<F> From<&F> for GetDocumentRequest
+where
+    F: FileMetadata,
+{
+    fn from(meta: &F) -> Self {
+        Self { id: meta.id(), content_version: meta.content_version() }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetDocumentResponse {
-    pub content: Option<EncryptedDocument>,
+    pub content: EncryptedDocument,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetDocumentError {
     DocumentNotFound,
+    NotPermissioned,
 }
 
 impl Request for GetDocumentRequest {

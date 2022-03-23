@@ -56,7 +56,12 @@ mod rename_document_tests {
                 updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
             },
         );
-        assert_get_updates_required!(result);
+        assert_matches!(
+            result,
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+                FileMetadataUpsertsError::NewFileHasOldParentAndName
+            ))
+        );
     }
 
     #[test]
@@ -69,7 +74,6 @@ mod rename_document_tests {
         // create document
         let (mut doc, _doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        doc.deleted = true;
         api_service::request(
             &account,
             FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
@@ -79,6 +83,7 @@ mod rename_document_tests {
         // rename document
         let old_name = doc.name.clone();
         doc.name = random_filename();
+        doc.deleted = true;
         api_service::request(
             &account,
             FileMetadataUpsertsRequest {
