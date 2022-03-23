@@ -1,12 +1,11 @@
 package app.lockbook
 
 import app.lockbook.core.backgroundSync
-import app.lockbook.core.saveDocumentToDisk
 import app.lockbook.model.CoreModel
-import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Result
-import com.github.michaelbull.result.unwrap
+import app.lockbook.util.Config
+import app.lockbook.util.FileType
+import app.lockbook.util.IntermCoreResult
+import app.lockbook.util.SyncAllError
 import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
@@ -30,25 +29,25 @@ class SyncAllTest {
 
     @Test
     fun syncAllOk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
-        ).unwrap()
+        ).unwrapOk()
 
         CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
-        ).unwrap()
+        ).unwrapOk()
 
-        CoreModel.syncAll(config, null).unwrap()
+        CoreModel.syncAll(config, null).unwrapOk()
     }
 
     @Test
@@ -58,7 +57,7 @@ class SyncAllTest {
 
     @Test
     fun syncAllUnexpectedError() {
-        CoreModel.jsonParser.decodeFromString<IntermCoreResult<Unit, SyncAllError>>(
+        CoreModel.syncAllParser.decodeFromString<IntermCoreResult<Unit, SyncAllError>>(
             backgroundSync("")
         ).unwrapUnexpected()
     }

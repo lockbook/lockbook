@@ -14,7 +14,7 @@ class SyncModel {
     val notifySyncStepInfo: LiveData<SyncStepInfo>
         get() = _notifySyncStepInfo
 
-    fun trySync(): Result<Unit, CoreError<UiCoreError>> =
+    fun trySync(): Result<Unit, CoreError<out UiCoreError>> =
         if (syncStatus is SyncStatus.NotSyncing) {
             val syncResult = sync()
             syncStatus = SyncStatus.NotSyncing
@@ -52,11 +52,11 @@ class SyncModel {
         _notifySyncStepInfo.postValue(syncProgress)
     }
 
-    fun hasSyncWork(): Result<Boolean, CoreError<UiCoreError>> {
+    fun hasSyncWork(): Result<Boolean, CoreError<out UiCoreError>> {
         return CoreModel.calculateWork(config).map { workCalculated -> workCalculated.workUnits.isNotEmpty() }
     }
 
-    private fun sync(): Result<Unit, CoreError<UiCoreError>> {
+    private fun sync(): Result<Unit, CoreError<out UiCoreError>> {
         syncStatus = SyncStatus.StartingSync
         return CoreModel.syncAll(config, this)
     }

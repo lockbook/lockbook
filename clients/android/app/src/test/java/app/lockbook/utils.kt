@@ -1,13 +1,11 @@
 package app.lockbook
 
-import app.lockbook.util.*
-import com.beust.klaxon.Converter
-import com.beust.klaxon.JsonValue
-import com.beust.klaxon.Klaxon
+import app.lockbook.util.CoreError
+import app.lockbook.util.UiCoreError
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.getOrElse
 import com.github.michaelbull.result.unwrapError
 import java.util.*
-import kotlin.reflect.KClass
 
 // You have to build the jni from core first to be able to run the tests.
 // Next you have to add a vm option that helps java find the library:
@@ -26,7 +24,8 @@ fun createRandomPath(): String {
     return path
 }
 
-fun Result<*, CoreError<UiCoreError>>?.unwrapErrorType(enumType: UiCoreError): UiCoreError {
+fun <E> Result<*, CoreError<E>>?.unwrapErrorType(enumType: UiCoreError): UiCoreError
+where E : Enum<E>, E : UiCoreError {
     val error = this?.unwrapError()
     require(error is CoreError.UiError && error.content == enumType) {
         "${Thread.currentThread().stackTrace[1]}: ${if (error == null) "null" else error::class.qualifiedName} is not of type ${enumType::class.qualifiedName}"
@@ -35,52 +34,17 @@ fun Result<*, CoreError<UiCoreError>>?.unwrapErrorType(enumType: UiCoreError): U
     return error.content
 }
 
-const val unrecognizedErrorTemplate = " is an unrecognized error type from "
-const val obsoleteErrorTemplate = "There is an obsolete error type from "
-
-val errorsToCheck = listOf<KClass<*>>(
-    CalculateWorkError::class,
-    CreateAccountError::class,
-    CreateFileError::class,
-    FileDeleteError::class,
-    AccountExportError::class,
-    GetAccountError::class,
-    GetFileByIdError::class,
-    GetRootError::class,
-    GetUsageError::class,
-    ImportError::class,
-    MigrationError::class,
-    MoveFileError::class,
-    ReadDocumentError::class,
-    RenameFileError::class,
-    SyncAllError::class,
-    WriteToDocumentError::class,
-)
-
-val checkIfAllErrorsPresentConverter = object : Converter {
-    override fun canConvert(cls: Class<*>): Boolean = true
-
-    override fun fromJson(jv: JsonValue): Any {
-        val jsonObject = jv.obj!!
-
-        for (error in errorsToCheck) {
-            var variantsToCheck = error.nestedClasses.filter { kClass -> kClass.simpleName != "Unexpected" }
-
-            jsonObject.array<String>(error.simpleName!!)!!.forEach { variant ->
-                val sizeBefore = variantsToCheck.size
-                variantsToCheck = variantsToCheck.filter { kClass -> variant != kClass.simpleName }
-                if (variantsToCheck.size == sizeBefore && variant != "Stub") {
-                    throw Throwable(variant + unrecognizedErrorTemplate + error.simpleName)
-                }
-            }
-
-            if (variantsToCheck.isNotEmpty()) {
-                throw Throwable(obsoleteErrorTemplate + error.simpleName)
-            }
+fun <O, E> Result<O, CoreError<E>>?.unwrapOk(): O
+        where E : Enum<E>, E : UiCoreError {
+    return this!!.getOrElse { error ->
+        val errorName = if (error is CoreError.UiError) {
+            error.content
+        } else if (error is CoreError.UiError) {
+            error.content.name
+        } else {
+            "a 3rd unknown (and impossible) core error type"
         }
 
-        return Unit
+        throw Throwable("${Thread.currentThread().stackTrace[1]}: Tried unwrap on error type $errorName")
     }
-
-    override fun toJson(value: Any): String = Klaxon().toJsonString(value)
 }

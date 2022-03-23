@@ -1,12 +1,11 @@
 package app.lockbook
 
-import app.lockbook.core.createFile
 import app.lockbook.core.getRoot
 import app.lockbook.model.CoreModel
-import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Result
-import com.github.michaelbull.result.unwrap
+import app.lockbook.util.Config
+import app.lockbook.util.DecryptedFileMetadata
+import app.lockbook.util.GetRootError
+import app.lockbook.util.IntermCoreResult
 import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
@@ -30,14 +29,14 @@ class GetRootTest {
 
     @Test
     fun getRootOk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        CoreModel.getRoot(config).unwrap()
+        CoreModel.getRoot(config).unwrapOk()
     }
 
     @Test
     fun getRootUnexpectedError() {
-        CoreModel.jsonParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, GetRootError>>(
+        CoreModel.getRootParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, GetRootError>>(
             getRoot("")
         ).unwrapUnexpected()
     }

@@ -3,8 +3,6 @@ package app.lockbook
 import app.lockbook.model.CoreModel
 import app.lockbook.util.Config
 import app.lockbook.util.CoreError
-import app.lockbook.util.InitLoggerError
-import com.github.michaelbull.result.unwrap
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -27,7 +25,7 @@ class InitLoggerTest {
 
     @Test
     fun initLoggerOk() {
-        CoreModel.setUpInitLogger(config.writeable_path).unwrap()
+        CoreModel.setUpInitLogger(config.writeable_path).unwrapOk()
     }
 
     @Test

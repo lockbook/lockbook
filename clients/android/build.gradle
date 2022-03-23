@@ -16,7 +16,7 @@ buildscript {
         material_ui_version = '1.3.0'
         qr_embedded_version = '4.2.0'
         qr_core_version = '3.4.1'
-        json_parser_version = '5.5'
+        json_parser_version = '1.3.2'
         coroutine_version = '1.3.9'
         coroutine_android_version = '1.5.0-native-mt'
         lifecycle_version = '2.3.1'

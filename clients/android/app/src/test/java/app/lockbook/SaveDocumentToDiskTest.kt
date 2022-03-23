@@ -1,12 +1,11 @@
 package app.lockbook
 
-import app.lockbook.core.renameFile
 import app.lockbook.core.saveDocumentToDisk
 import app.lockbook.model.CoreModel
-import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Result
-import com.github.michaelbull.result.unwrap
+import app.lockbook.util.Config
+import app.lockbook.util.FileType
+import app.lockbook.util.IntermCoreResult
+import app.lockbook.util.SaveDocumentToDiskError
 import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
@@ -30,32 +29,32 @@ class SaveDocumentToDiskTest {
 
     @Test
     fun saveDocumentToDiskOk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         val document = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
-        ).unwrap()
+        ).unwrapOk()
 
-        CoreModel.saveDocumentToDisk(config, document.id, generateFakeRandomPath()).unwrap()
+        CoreModel.saveDocumentToDisk(config, document.id, generateFakeRandomPath()).unwrapOk()
     }
 
     @Test
     fun saveDocumentToDiskFolder() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         val folder = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
-        ).unwrap()
+        ).unwrapOk()
 
         CoreModel.saveDocumentToDisk(config, folder.id, generateFakeRandomPath())
             .unwrapErrorType(SaveDocumentToDiskError.TreatedFolderAsDocument)
@@ -63,7 +62,7 @@ class SaveDocumentToDiskTest {
 
     @Test
     fun saveDocumentToDiskDoesNotExist() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
         CoreModel.saveDocumentToDisk(config, generateId(), generateFakeRandomPath())
             .unwrapErrorType(SaveDocumentToDiskError.FileDoesNotExist)
@@ -71,16 +70,16 @@ class SaveDocumentToDiskTest {
 
     @Test
     fun saveDocumentToDiskBadPath() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         val document = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
-        ).unwrap()
+        ).unwrapOk()
 
         CoreModel.saveDocumentToDisk(config, document.id, "")
             .unwrapErrorType(SaveDocumentToDiskError.BadPath)
@@ -88,20 +87,20 @@ class SaveDocumentToDiskTest {
 
     @Test
     fun exportDrawingToDiskFileAlreadyExistsInDisk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         val document = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
-        ).unwrap()
+        ).unwrapOk()
 
         val path = generateFakeRandomPath()
 
-        CoreModel.saveDocumentToDisk(config, document.id, path).unwrap()
+        CoreModel.saveDocumentToDisk(config, document.id, path).unwrapOk()
 
         CoreModel.saveDocumentToDisk(config, document.id, path)
             .unwrapErrorType(SaveDocumentToDiskError.FileAlreadyExistsInDisk)
@@ -109,7 +108,7 @@ class SaveDocumentToDiskTest {
 
     @Test
     fun saveDocumentToDiskUnexpectedError() {
-        CoreModel.jsonParser.decodeFromString<IntermCoreResult<Unit, SaveDocumentToDiskError>>(
+        CoreModel.saveDocumentToDiskParser.decodeFromString<IntermCoreResult<Unit, SaveDocumentToDiskError>>(
             saveDocumentToDisk("", "", "")
         ).unwrapUnexpected()
     }

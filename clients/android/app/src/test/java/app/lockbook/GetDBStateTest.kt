@@ -1,12 +1,11 @@
 package app.lockbook
 
 import app.lockbook.core.getDBState
-import app.lockbook.core.getRoot
 import app.lockbook.model.CoreModel
-import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Result
-import com.github.michaelbull.result.unwrap
+import app.lockbook.util.Config
+import app.lockbook.util.GetStateError
+import app.lockbook.util.IntermCoreResult
+import app.lockbook.util.State
 import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
@@ -30,14 +29,14 @@ class GetDBStateTest {
 
     @Test
     fun getDBStateOk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        CoreModel.getDBState(config).unwrap()
+        CoreModel.getDBState(config).unwrapOk()
     }
 
     @Test
     fun getDBStateUnexpectedError() {
-        CoreModel.jsonParser.decodeFromString<IntermCoreResult<State, GetStateError>>(
+        CoreModel.getDBStateParser.decodeFromString<IntermCoreResult<State, GetStateError>>(
             getDBState("")
         ).unwrapUnexpected()
     }

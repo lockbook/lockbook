@@ -90,7 +90,7 @@ class SyncWork(appContext: Context, workerParams: WorkerParameters) :
             CoreModel.syncAll(Config(applicationContext.filesDir.absolutePath), null)
         return if (syncResult is Err) {
             val msg = when (val error = syncResult.error) {
-                is CoreError.UiError -> when(error.content) {
+                is CoreError.UiError -> when (error.content) {
                     SyncAllError.ClientUpdateRequired -> "Client update required."
                     SyncAllError.CouldNotReachServer -> "Could not reach server."
                     SyncAllError.NoAccount -> "No account."
@@ -101,7 +101,7 @@ class SyncWork(appContext: Context, workerParams: WorkerParameters) :
             }.exhaustive
 
             Timber.e(msg)
-            
+
             Result.failure()
         } else {
             Result.success()

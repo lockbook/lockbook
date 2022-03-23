@@ -3,56 +3,72 @@ package app.lockbook.util
 import android.content.res.Resources
 import androidx.annotation.StringRes
 import app.lockbook.R
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
 import kotlinx.serialization.*
-import kotlinx.serialization.descriptors.SerialDescriptor
-import kotlinx.serialization.descriptors.buildClassSerialDescriptor
-import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.json.*
 
 @OptIn(ExperimentalSerializationApi::class)
 @JsonClassDiscriminator("tag")
 @Serializable
-sealed class IntermCoreResult<O, out E : UiCoreError> {
+abstract class IntermCoreResult<O, E>
+        where E : Enum<E>, E : UiCoreError {
     @Serializable
     @SerialName("Ok")
-    class Ok<O>(val content: O) : IntermCoreResult<O, UiCoreError>()
+    class CoreOk<O>(val content: O?) : IntermCoreResult<O, Empty>()
 
     @Serializable
     @SerialName("Err")
-    class Err<out E : UiCoreError>(val content: CoreError<E>) : IntermCoreResult<Unit, E>()
+    class CoreErr<E>(val content: IntermCoreError<E>) : IntermCoreResult<Unit, E>()
+            where E : Enum<E>, E : UiCoreError
 
-    fun toResult(): com.github.michaelbull.result.Result<O, CoreError<E>> {
+    fun toResult(): Result<O, CoreError<E>> {
         return when (this) {
-            is Ok -> {
-                if (content != null) {
-                    com.github.michaelbull.result.Ok(content)
-                } else {
-                    com.github.michaelbull.result.Ok(Unit as O)
+            is CoreOk -> Ok(content ?: Unit as O)
+            is CoreErr -> when (content) {
+                is IntermCoreError.UiError -> {
+                    Err(CoreError.UiError(content.content))
+                }
+                is IntermCoreError.Unexpected -> {
+                    Err(CoreError.Unexpected(content.content))
+                }
+                else -> {
+                    Err(CoreError.Unexpected("Could not deserialize."))
                 }
             }
-            is Err -> com.github.michaelbull.result.Err(content)
+            else -> {
+                Err(CoreError.Unexpected("Could not deserialize."))
+            }
         }
     }
 
     fun unwrapUnexpected() {
-        (this as Err).content as CoreError.Unexpected
+        (this as CoreErr).content as IntermCoreError.Unexpected
     }
 }
 
 @OptIn(ExperimentalSerializationApi::class)
 @JsonClassDiscriminator("tag")
 @Serializable
-sealed class CoreError<out E : UiCoreError> {
+abstract class IntermCoreError<E : Enum<E>> {
     @Serializable
     @SerialName("UiError")
-    class UiError<out E : UiCoreError>(val content: E) : CoreError<E>()
+    class UiError<E : Enum<E>>(val content: E) : IntermCoreError<E>()
 
     @Serializable
     @SerialName("Unexpected")
-    class Unexpected<out E : UiCoreError>(val content: String) : CoreError<E>()
+    class Unexpected(val content: String) : IntermCoreError<Empty>()
+}
+
+sealed class CoreError<E>
+where E : UiCoreError {
+
+    class UiError<E : UiCoreError>(val content: E) : CoreError<E>()
+    class Unexpected<E : UiCoreError>(val content: String) : CoreError<E>()
 
     fun toLbError(res: Resources): LbError = when (this) {
-        is UiError -> content.toLbError(res)
+        is UiError -> (content as UiCoreError).toLbError(res)
         is Unexpected -> {
             LbError.newProgError(content)
         }
@@ -62,8 +78,12 @@ sealed class CoreError<out E : UiCoreError> {
 interface UiCoreError {
     fun toLbError(res: Resources): LbError
 }
+
+enum class Empty : UiCoreError
+
 @Serializable
 enum class InitLoggerError : UiCoreError
+
 @Serializable
 enum class GetUsageError : UiCoreError {
     NoAccount,
@@ -80,11 +100,12 @@ enum class GetUsageError : UiCoreError {
 }
 @Serializable
 enum class GetStateError : UiCoreError
+
 @Serializable
 enum class MigrationError : UiCoreError {
     StateRequiresCleaning;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         StateRequiresCleaning -> LbError.newUserError(getString(res, R.string.state_requires_cleaning))
     }
 }
@@ -97,7 +118,7 @@ enum class CreateAccountError : UiCoreError {
     ClientUpdateRequired,
     ServerDisabled;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         UsernameTaken -> LbError.newUserError(getString(res, R.string.username_taken))
         InvalidUsername -> LbError.newUserError(getString(res, R.string.invalid_username))
         CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
@@ -115,7 +136,7 @@ enum class ImportError : UiCoreError {
     CouldNotReachServer,
     ClientUpdateRequired;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         AccountStringCorrupted -> LbError.newUserError(getString(res, R.string.account_string_corrupted))
         AccountExistsAlready -> LbError.newUserError(getString(res, R.string.account_exists_already))
         AccountDoesNotExist -> LbError.newUserError(getString(res, R.string.account_does_not_exist))
@@ -128,7 +149,7 @@ enum class ImportError : UiCoreError {
 enum class AccountExportError : UiCoreError {
     NoAccount;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
     }
 }
@@ -137,7 +158,7 @@ enum class AccountExportError : UiCoreError {
 enum class GetAccountError : UiCoreError {
     NoAccount;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
     }
 }
@@ -145,7 +166,7 @@ enum class GetAccountError : UiCoreError {
 enum class GetRootError : UiCoreError {
     NoRoot;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         NoRoot -> LbError.newUserError(getString(res, R.string.no_root))
     }
 }
@@ -155,7 +176,7 @@ enum class WriteToDocumentError : UiCoreError {
     FileDoesNotExist,
     FolderTreatedAsDocument;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
         FolderTreatedAsDocument -> LbError.newUserError(getString(res, R.string.folder_treated_as_document))
@@ -170,7 +191,7 @@ enum class CreateFileError : UiCoreError {
     FileNameContainsSlash,
     FileNameEmpty;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         DocumentTreatedAsFolder -> LbError.newUserError(getString(res, R.string.document_treated_as_folder))
         CouldNotFindAParent -> LbError.newUserError(getString(res, R.string.could_not_find_a_parent))
@@ -181,11 +202,12 @@ enum class CreateFileError : UiCoreError {
 }
 @Serializable
 enum class GetChildrenError : UiCoreError
+
 @Serializable
 enum class GetFileByIdError : UiCoreError {
     NoFileWithThatId;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         NoFileWithThatId -> LbError.newUserError(getString(res, R.string.no_file_with_that_id))
     }
 }
@@ -194,7 +216,7 @@ enum class FileDeleteError : UiCoreError {
     FileDoesNotExist,
     CannotDeleteRoot;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
         CannotDeleteRoot -> LbError.newUserError(getString(res, R.string.cannot_delete_root))
     }
@@ -205,7 +227,7 @@ enum class ReadDocumentError : UiCoreError {
     NoAccount,
     FileDoesNotExist;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         TreatedFolderAsDocument -> LbError.newUserError(getString(res, R.string.folder_treated_as_document))
         NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
@@ -219,7 +241,7 @@ enum class SaveDocumentToDiskError : UiCoreError {
     BadPath,
     FileAlreadyExistsInDisk;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         TreatedFolderAsDocument -> LbError.newUserError(getString(res, R.string.folder_treated_as_document))
         NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
@@ -236,7 +258,7 @@ enum class ExportDrawingToDiskError : UiCoreError {
     BadPath,
     FileAlreadyExistsInDisk;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         FolderTreatedAsDrawing -> LbError.newUserError(getString(res, R.string.folder_treated_as_drawing))
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
         NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
@@ -253,7 +275,7 @@ enum class RenameFileError : UiCoreError {
     NewNameEmpty,
     CannotRenameRoot;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
         NewNameContainsSlash -> LbError.newUserError(getString(res, R.string.file_name_contains_slash))
         FileNameNotAvailable -> LbError.newUserError(getString(res, R.string.file_name_not_available))
@@ -271,7 +293,7 @@ enum class MoveFileError : UiCoreError {
     CannotMoveRoot,
     FolderMovedIntoItself;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
         DocumentTreatedAsFolder -> LbError.newUserError(getString(res, R.string.document_treated_as_folder))
@@ -287,7 +309,7 @@ enum class SyncAllError : UiCoreError {
     CouldNotReachServer,
     ClientUpdateRequired;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
         ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
@@ -299,25 +321,10 @@ enum class CalculateWorkError : UiCoreError {
     CouldNotReachServer,
     ClientUpdateRequired;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
         ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
-    }
-}
-
-open class SafeSerializer<T>(
-    private val serializer: KSerializer<T>
-): KSerializer<T?> {
-    override val descriptor = serializer.descriptor
-
-    // safe because @Serializable skips null fields
-    override fun serialize(encoder: Encoder, value: T?) = encoder.encodeSerializableValue(serializer, value!!)
-
-    override fun deserialize(decoder: Decoder): T? = try {
-        decoder.decodeSerializableValue(serializer)
-    } catch (_: Exception) {
-        null
     }
 }
 

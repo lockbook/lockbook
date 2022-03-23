@@ -1,12 +1,11 @@
 package app.lockbook
 
-import app.lockbook.core.backgroundSync
 import app.lockbook.core.writeDocument
 import app.lockbook.model.CoreModel
-import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Result
-import com.github.michaelbull.result.unwrap
+import app.lockbook.util.Config
+import app.lockbook.util.FileType
+import app.lockbook.util.IntermCoreResult
+import app.lockbook.util.WriteToDocumentError
 import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
@@ -30,23 +29,23 @@ class WriteToDocumentTest {
 
     @Test
     fun writeToDocumentOk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         val document = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
-        ).unwrap()
+        ).unwrapOk()
 
-        CoreModel.writeToDocument(config, document.id, "").unwrap()
+        CoreModel.writeToDocument(config, document.id, "").unwrapOk()
     }
 
     @Test
     fun writeToDocumentFileDoesNotExist() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
         CoreModel.writeToDocument(config, generateId(), "")
             .unwrapErrorType(WriteToDocumentError.FileDoesNotExist)
@@ -54,16 +53,16 @@ class WriteToDocumentTest {
 
     @Test
     fun writeToDocumentFolderTreatedAsDocument() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         val folder = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
-        ).unwrap()
+        ).unwrapOk()
 
         CoreModel.writeToDocument(config, folder.id, "")
             .unwrapErrorType(WriteToDocumentError.FolderTreatedAsDocument)
@@ -71,7 +70,7 @@ class WriteToDocumentTest {
 
     @Test
     fun writeToDocumentUnexpectedError() {
-        CoreModel.jsonParser.decodeFromString<IntermCoreResult<Unit, WriteToDocumentError>>(
+        CoreModel.writeToDocumentParser.decodeFromString<IntermCoreResult<Unit, WriteToDocumentError>>(
             writeDocument("", "", "")
         ).unwrapUnexpected()
     }

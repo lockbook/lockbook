@@ -1,11 +1,7 @@
 package app.lockbook.util
 
-import android.content.res.Resources
-import com.beust.klaxon.Json
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-
-import kotlinx.serialization.*
-import kotlinx.serialization.json.*
 
 @Serializable
 data class DecryptedFileMetadata(
@@ -47,7 +43,10 @@ data class WorkCalculated(
 )
 
 @Serializable
-data class WorkUnit(val content: DecryptedFileMetadata, val tag: String)
+data class WorkUnit(val content: WorkUnitMetadata, val tag: String)
+
+@Serializable
+data class WorkUnitMetadata(val metadata: DecryptedFileMetadata)
 
 @Serializable
 data class Config(val writeable_path: String)

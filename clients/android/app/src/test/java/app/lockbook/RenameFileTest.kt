@@ -1,12 +1,11 @@
 package app.lockbook
 
-import app.lockbook.core.readDocument
 import app.lockbook.core.renameFile
 import app.lockbook.model.CoreModel
-import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Result
-import com.github.michaelbull.result.unwrap
+import app.lockbook.util.Config
+import app.lockbook.util.FileType
+import app.lockbook.util.IntermCoreResult
+import app.lockbook.util.RenameFileError
 import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
@@ -30,34 +29,34 @@ class RenameFileTest {
 
     @Test
     fun renameFileOk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         val document = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
-        ).unwrap()
+        ).unwrapOk()
 
         val folder = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
-        ).unwrap()
+        ).unwrapOk()
 
-        CoreModel.renameFile(config, document.id, generateAlphaString()).unwrap()
+        CoreModel.renameFile(config, document.id, generateAlphaString()).unwrapOk()
 
-        CoreModel.renameFile(config, folder.id, generateAlphaString()).unwrap()
+        CoreModel.renameFile(config, folder.id, generateAlphaString()).unwrapOk()
     }
 
     @Test
     fun renameFileDoesNotExist() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        CoreModel.getRoot(config).unwrap()
+        CoreModel.getRoot(config).unwrapOk()
 
         CoreModel.renameFile(config, generateId(), generateAlphaString())
             .unwrapErrorType(RenameFileError.FileDoesNotExist)
@@ -65,23 +64,23 @@ class RenameFileTest {
 
     @Test
     fun renameFileContainsSlash() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         val document = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
-        ).unwrap()
+        ).unwrapOk()
 
         val folder = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
-        ).unwrap()
+        ).unwrapOk()
 
         CoreModel.renameFile(config, document.id, "/")
             .unwrapErrorType(RenameFileError.NewNameContainsSlash)
@@ -92,9 +91,9 @@ class RenameFileTest {
 
     @Test
     fun renameFileNameNotAvailable() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         val fileName = generateAlphaString()
 
@@ -103,14 +102,14 @@ class RenameFileTest {
             rootFileMetadata.id,
             fileName,
             FileType.Document
-        ).unwrap()
+        ).unwrapOk()
 
         val folder = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
-        ).unwrap()
+        ).unwrapOk()
 
         CoreModel.renameFile(config, folder.id, fileName)
             .unwrapErrorType(RenameFileError.FileNameNotAvailable)
@@ -119,23 +118,23 @@ class RenameFileTest {
     @Test
     fun renameFileEmpty() {
         val fileName = generateAlphaString()
-        CoreModel.createAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         val document = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
-        ).unwrap()
+        ).unwrapOk()
 
         val folder = CoreModel.createFile(
             config,
             rootFileMetadata.id,
             fileName,
             FileType.Folder
-        ).unwrap()
+        ).unwrapOk()
 
         CoreModel.renameFile(config, document.id, "").unwrapErrorType(RenameFileError.NewNameEmpty)
 
@@ -144,9 +143,9 @@ class RenameFileTest {
 
     @Test
     fun cannotRenameRoot() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         CoreModel.renameFile(config, rootFileMetadata.id, generateAlphaString())
             .unwrapErrorType(RenameFileError.CannotRenameRoot)
@@ -154,7 +153,7 @@ class RenameFileTest {
 
     @Test
     fun renameFileUnexpectedError() {
-        CoreModel.jsonParser.decodeFromString<IntermCoreResult<Unit, RenameFileError>>(
+        CoreModel.renameFileParser.decodeFromString<IntermCoreResult<Unit, RenameFileError>>(
             renameFile("", "", "")
         ).unwrapUnexpected()
     }

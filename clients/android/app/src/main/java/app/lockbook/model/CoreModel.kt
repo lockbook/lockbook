@@ -4,8 +4,6 @@ import app.lockbook.core.*
 import app.lockbook.util.*
 import com.github.michaelbull.result.Result
 import kotlinx.serialization.KSerializer
-import kotlinx.serialization.PolymorphicSerializer
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.decodeFromString
@@ -20,154 +18,165 @@ object CoreModel {
     private const val PROD_API_URL = "https://api.prod.lockbook.net"
     fun getAPIURL(): String = System.getenv("API_URL") ?: PROD_API_URL
 
-    private val serializationModule = SerializersModule {
-//        polymorphic(IntermCoreResult::class) {
-//            subclass(IntermCoreResult.Ok.serializer(Account.serializer()))
-//            subclass(IntermCoreResult.Err.serializer(GetAccountError.serializer()))
-//        }
-//
-//        fun <O> SerializersModuleBuilder.createPolyRelation(serializer: KSerializer<O>) {
-//            polymorphic(IntermCoreResult::class) {
-//                subclass(IntermCoreResult.Ok.serializer(serializer))
-//                subclass(IntermCoreResult.Err.serializer(PolymorphicSerializer(Any::class)))
-//            }
-//        }
-//
-//        // Init Logger
-//        // Migrate DB
-//        // Sync All
-//        // Write To Document Error
-//        // Save Document To Disk
-//        // Export Drawing To Disk
-//        // Delete File
-//        // Rename File
-//        // Move File
-//        createPolyRelation(Unit.serializer())
-//
-//        // Get DB State
-//        createPolyRelation(State.serializer())
-//
-//        // Create Account
-//        // Import Account
-//        // Get Account
-//        createPolyRelation(Account.serializer())
-//
-//        // Export Account
-//        // Read Document
-//        createPolyRelation(String.serializer())
-//
-//        // Get Root
-//        // Get File By Id
-//        // Create File
-//        createPolyRelation(DecryptedFileMetadata.serializer())
-//
-//        // Get Usage
-//        createPolyRelation(UsageMetrics.serializer())
-//
-//        // Get Uncompressed Usage
-//        createPolyRelation(UsageItemMetric.serializer())
-//
-//        // Get Children
-//        createPolyRelation(ListSerializer(DecryptedFileMetadata.serializer()))
-//
-//        // Calculate Work
-//        createPolyRelation(WorkCalculated.serializer())
+    private fun <O, E : Enum<E>> SerializersModuleBuilder.createPolyRelation(okSerializer: KSerializer<O>, errSerializer: KSerializer<E>) {
+        polymorphic(IntermCoreResult::class) {
+            subclass(IntermCoreResult.CoreOk.serializer(okSerializer))
+            subclass(IntermCoreResult.CoreErr.serializer(errSerializer))
+        }
+
+        polymorphic(IntermCoreError::class) {
+            subclass(IntermCoreError.UiError.serializer(errSerializer))
+            subclass(IntermCoreError.Unexpected.serializer())
+        }
     }
 
-    val jsonParser = Json {
-        serializersModule = serializationModule
-        isLenient = true
+    val setUpInitLoggerParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), InitLoggerError.serializer())
+        }
     }
 
     fun setUpInitLogger(path: String): Result<Unit, CoreError<InitLoggerError>> =
-        jsonParser.decodeFromString<IntermCoreResult<Unit, InitLoggerError>>(initLogger(path))
+        setUpInitLoggerParser.decodeFromString<IntermCoreResult<Unit, InitLoggerError>>(initLogger(path))
             .toResult()
 
+    val getDBStateParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(State.serializer(), GetStateError.serializer())
+        }
+    }
+
     fun getDBState(config: Config): Result<State, CoreError<GetStateError>> =
-        jsonParser.decodeFromString<IntermCoreResult<State, GetStateError>>(
+        getDBStateParser.decodeFromString<IntermCoreResult<State, GetStateError>>(
             getDBState(
-                jsonParser.encodeToString(
+                getDBStateParser.encodeToString(
                     config
                 )
             )
         ).toResult()
 
+    val migrateDBParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), MigrationError.serializer())
+        }
+    }
+
     fun migrateDB(config: Config): Result<Unit, CoreError<MigrationError>> =
-        jsonParser.decodeFromString<IntermCoreResult<Unit, MigrationError>>(
+        migrateDBParser.decodeFromString<IntermCoreResult<Unit, MigrationError>>(
             migrateDB(
-                jsonParser.encodeToString(
+                migrateDBParser.encodeToString(
                     config
                 )
             )
         ).toResult()
+
+    val createAccountParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Account.serializer(), CreateAccountError.serializer())
+        }
+    }
 
     fun createAccount(
         config: Config,
         account: String
-    ): Result<Account, CoreError<CreateAccountError>> {
-        val a = createAccount(
-            jsonParser.encodeToString(config),
+    ): Result<Account, CoreError<CreateAccountError>> = createAccountParser.decodeFromString<IntermCoreResult<Account, CreateAccountError>>(
+        createAccount(
+            createAccountParser.encodeToString(config),
             account,
             getAPIURL()
         )
+    ).toResult()
 
-        println("Here $a")
+    val importAccountParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Account.serializer(), ImportError.serializer())
+        }
+    }
 
-        return jsonParser.decodeFromString<IntermCoreResult<Account, CreateAccountError>>(
+    fun importAccount(config: Config, account: String): Result<Account, CoreError<ImportError>> {
+        val a = importAccount(
+            importAccountParser.encodeToString(
+                config
+            ),
+            account
+        )
+
+        print(a)
+        return importAccountParser.decodeFromString<IntermCoreResult<Account, ImportError>>(
             a
         ).toResult()
     }
 
-
-    fun importAccount(config: Config, account: String): Result<Unit, CoreError<ImportError>> =
-        jsonParser.decodeFromString<IntermCoreResult<Unit, ImportError>>(
-            importAccount(
-                jsonParser.encodeToString(
-                    config
-                ), account
-            )
-        ).toResult()
+    val exportAccountParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(String.serializer(), AccountExportError.serializer())
+        }
+    }
 
     fun exportAccount(config: Config): Result<String, CoreError<AccountExportError>> =
-        jsonParser.decodeFromString<IntermCoreResult<String, AccountExportError>>(
+        exportAccountParser.decodeFromString<IntermCoreResult<String, AccountExportError>>(
             exportAccount(
-                jsonParser.encodeToString(config)
+                exportAccountParser.encodeToString(config)
             )
         ).toResult()
 
+    val syncAllParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), SyncAllError.serializer())
+        }
+    }
+
     fun syncAll(config: Config, syncModel: SyncModel?): Result<Unit, CoreError<SyncAllError>> =
-        jsonParser.decodeFromString<IntermCoreResult<Unit, SyncAllError>>(
+        syncAllParser.decodeFromString<IntermCoreResult<Unit, SyncAllError>>(
             if (syncModel != null) {
-                syncAll(jsonParser.encodeToString(config), syncModel)
+                syncAll(syncAllParser.encodeToString(config), syncModel)
             } else {
-                backgroundSync(jsonParser.encodeToString(config))
+                backgroundSync(syncAllParser.encodeToString(config))
             }
         ).toResult()
+
+    val writeToDocumentParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), WriteToDocumentError.serializer())
+        }
+    }
 
     fun writeToDocument(
         config: Config,
         id: String,
         content: String
     ): Result<Unit, CoreError<WriteToDocumentError>> =
-        jsonParser.decodeFromString<IntermCoreResult<Unit, WriteToDocumentError>>(
+        writeToDocumentParser.decodeFromString<IntermCoreResult<Unit, WriteToDocumentError>>(
             writeDocument(
-                jsonParser.encodeToString(config),
+                writeToDocumentParser.encodeToString(config),
                 id,
                 content
             )
         ).toResult()
 
+    val getRootParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(DecryptedFileMetadata.serializer(), GetRootError.serializer())
+        }
+    }
+
     fun getRoot(config: Config): Result<DecryptedFileMetadata, CoreError<GetRootError>> =
-        jsonParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, GetRootError>>(
+        getRootParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, GetRootError>>(
             getRoot(
-                jsonParser.encodeToString(config)
+                getRootParser.encodeToString(config)
             )
         ).toResult()
 
+    val getAccountParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Account.serializer(), GetAccountError.serializer())
+        }
+    }
+
     fun getAccount(config: Config): Result<Account, CoreError<GetAccountError>> =
-        jsonParser.decodeFromString<IntermCoreResult<Account, GetAccountError>>(
+        getAccountParser.decodeFromString<IntermCoreResult<Account, GetAccountError>>(
             getAccount(
-                jsonParser.encodeToString(config)
+                getAccountParser.encodeToString(config)
             )
         ).toResult()
 
@@ -175,61 +184,99 @@ object CoreModel {
         metadataVersion: Long
     ): String = app.lockbook.core.convertToHumanDuration(metadataVersion)
 
+    val getUsageParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(UsageMetrics.serializer(), GetUsageError.serializer())
+        }
+    }
+
     fun getUsage(
         config: Config
     ): Result<UsageMetrics, CoreError<GetUsageError>> =
-        jsonParser.decodeFromString<IntermCoreResult<UsageMetrics, GetUsageError>>(
+        getUsageParser.decodeFromString<IntermCoreResult<UsageMetrics, GetUsageError>>(
             getUsage(
-                jsonParser.encodeToString(config)
+                getUsageParser.encodeToString(config)
             )
         ).toResult()
 
+    val getUncompressedUsageParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(UsageItemMetric.serializer(), GetUsageError.serializer())
+        }
+    }
 
     fun getUncompressedUsage(
         config: Config
     ): Result<UsageItemMetric, CoreError<GetUsageError>> =
-        jsonParser.decodeFromString<IntermCoreResult<UsageItemMetric, GetUsageError>>(
-            getUncompressedUsage(jsonParser.encodeToString(config))
+        getUncompressedUsageParser.decodeFromString<IntermCoreResult<UsageItemMetric, GetUsageError>>(
+            getUncompressedUsage(getUncompressedUsageParser.encodeToString(config))
         ).toResult()
+
+    val getChildrenParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(ListSerializer(DecryptedFileMetadata.serializer()), GetChildrenError.serializer())
+        }
+    }
 
     fun getChildren(
         config: Config,
         parentId: String
     ): Result<List<DecryptedFileMetadata>, CoreError<GetChildrenError>> =
-        jsonParser.decodeFromString<IntermCoreResult<List<DecryptedFileMetadata>, GetChildrenError>>(
-            getChildren(jsonParser.encodeToString(config), parentId)
+        getChildrenParser.decodeFromString<IntermCoreResult<List<DecryptedFileMetadata>, GetChildrenError>>(
+            getChildren(getChildrenParser.encodeToString(config), parentId)
         ).toResult()
 
+    val getFileByIdParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(DecryptedFileMetadata.serializer(), GetFileByIdError.serializer())
+        }
+    }
 
     fun getFileById(
         config: Config,
         id: String
     ): Result<DecryptedFileMetadata, CoreError<GetFileByIdError>> =
-        jsonParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, GetFileByIdError>>(
-            getFileById(jsonParser.encodeToString(config), id)
+        getFileByIdParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, GetFileByIdError>>(
+            getFileById(getFileByIdParser.encodeToString(config), id)
         ).toResult()
 
+    val readDocumentParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(String.serializer(), ReadDocumentError.serializer())
+        }
+    }
 
     fun readDocument(
         config: Config,
         id: String
     ): Result<String, CoreError<ReadDocumentError>> =
-        jsonParser.decodeFromString<IntermCoreResult<String, ReadDocumentError>>(
+        readDocumentParser.decodeFromString<IntermCoreResult<String, ReadDocumentError>>(
             readDocument(
-                jsonParser.encodeToString(config),
+                readDocumentParser.encodeToString(config),
                 id
             )
         ).toResult()
+
+    val saveDocumentToDiskParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), SaveDocumentToDiskError.serializer())
+        }
+    }
 
     fun saveDocumentToDisk(
         config: Config,
         id: String,
         location: String
     ): Result<Unit, CoreError<SaveDocumentToDiskError>> =
-        jsonParser.decodeFromString<IntermCoreResult<Unit, SaveDocumentToDiskError>>(
-            saveDocumentToDisk(jsonParser.encodeToString(config), id, location)
+        saveDocumentToDiskParser.decodeFromString<IntermCoreResult<Unit, SaveDocumentToDiskError>>(
+            saveDocumentToDisk(saveDocumentToDiskParser.encodeToString(config), id, location)
         ).toResult()
 
+    val exportDrawingToDiskParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), ExportDrawingToDiskError.serializer())
+        }
+    }
 
     fun exportDrawingToDisk(
         config: Config,
@@ -237,14 +284,20 @@ object CoreModel {
         format: SupportedImageFormats,
         location: String
     ): Result<Unit, CoreError<ExportDrawingToDiskError>> =
-        jsonParser.decodeFromString<IntermCoreResult<Unit, ExportDrawingToDiskError>>(
+        exportDrawingToDiskParser.decodeFromString<IntermCoreResult<Unit, ExportDrawingToDiskError>>(
             exportDrawingToDisk(
-                jsonParser.encodeToString(config),
+                exportDrawingToDiskParser.encodeToString(config),
                 id,
-                jsonParser.encodeToString(format),
+                exportDrawingToDiskParser.encodeToString(format),
                 location
             )
         ).toResult()
+
+    val createFileParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(DecryptedFileMetadata.serializer(), CreateFileError.serializer())
+        }
+    }
 
     fun createFile(
         config: Config,
@@ -252,56 +305,82 @@ object CoreModel {
         name: String,
         fileType: FileType
     ): Result<DecryptedFileMetadata, CoreError<CreateFileError>> =
-        jsonParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, CreateFileError>>(
+        createFileParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, CreateFileError>>(
             createFile(
-                jsonParser.encodeToString(config),
+                createFileParser.encodeToString(config),
                 name,
                 parentId,
-                jsonParser.encodeToString(fileType)
+                createFileParser.encodeToString(fileType)
             )
         ).toResult()
+
+    val deleteFileParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), FileDeleteError.serializer())
+        }
+    }
 
     fun deleteFile(
         config: Config,
         id: String
     ): Result<Unit, CoreError<FileDeleteError>> =
-        jsonParser.decodeFromString<IntermCoreResult<Unit, FileDeleteError>>(
+        deleteFileParser.decodeFromString<IntermCoreResult<Unit, FileDeleteError>>(
             deleteFile(
-                jsonParser.encodeToString(
+                deleteFileParser.encodeToString(
                     config
-                ), id
+                ),
+                id
             )
         ).toResult()
 
+    val renameFileParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), RenameFileError.serializer())
+        }
+    }
 
     fun renameFile(
         config: Config,
         id: String,
         name: String
     ): Result<Unit, CoreError<RenameFileError>> =
-        jsonParser.decodeFromString<IntermCoreResult<Unit, RenameFileError>>(
+        renameFileParser.decodeFromString<IntermCoreResult<Unit, RenameFileError>>(
             renameFile(
-                jsonParser.encodeToString(
+                renameFileParser.encodeToString(
                     config
-                ), id, name
+                ),
+                id, name
             )
         ).toResult()
+
+    val moveFileParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), MoveFileError.serializer())
+        }
+    }
 
     fun moveFile(
         config: Config,
         id: String,
         parentId: String
     ): Result<Unit, CoreError<MoveFileError>> =
-        jsonParser.decodeFromString<IntermCoreResult<Unit, MoveFileError>>(
+        moveFileParser.decodeFromString<IntermCoreResult<Unit, MoveFileError>>(
             moveFile(
-                jsonParser.encodeToString(
+                moveFileParser.encodeToString(
                     config
-                ), id, parentId
+                ),
+                id, parentId
             )
         ).toResult()
 
+    val calculateWorkParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(WorkCalculated.serializer(), CalculateWorkError.serializer())
+        }
+    }
+
     fun calculateWork(config: Config): Result<WorkCalculated, CoreError<CalculateWorkError>> =
-        jsonParser.decodeFromString<IntermCoreResult<WorkCalculated, CalculateWorkError>>(
-            calculateWork(jsonParser.encodeToString(config))
+        calculateWorkParser.decodeFromString<IntermCoreResult<WorkCalculated, CalculateWorkError>>(
+            calculateWork(calculateWorkParser.encodeToString(config))
         ).toResult()
 }

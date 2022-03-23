@@ -1,12 +1,11 @@
 package app.lockbook
 
-import app.lockbook.core.getChildren
 import app.lockbook.core.getUncompressedUsage
 import app.lockbook.model.CoreModel
-import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Result
-import com.github.michaelbull.result.unwrap
+import app.lockbook.util.Config
+import app.lockbook.util.GetUsageError
+import app.lockbook.util.IntermCoreResult
+import app.lockbook.util.UsageItemMetric
 import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
@@ -30,15 +29,15 @@ class GetUncompressedUsageTest {
 
     @Test
     fun getUncompressedUsageOk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        CoreModel.getUncompressedUsage(config).unwrap()
+        CoreModel.getUncompressedUsage(config).unwrapOk()
     }
 
     @Test
     fun getUncompressedUsageUnexpectedError() {
-        CoreModel.jsonParser.decodeFromString<IntermCoreResult<UsageItemMetric, GetUsageError>>(
-                getUncompressedUsage("")
+        CoreModel.getUncompressedUsageParser.decodeFromString<IntermCoreResult<UsageItemMetric, GetUsageError>>(
+            getUncompressedUsage("")
         ).unwrapUnexpected()
     }
 }

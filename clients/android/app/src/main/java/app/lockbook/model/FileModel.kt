@@ -131,7 +131,7 @@ class FileModel(
         }
     }
 
-    fun intoParent(): Result<Unit, CoreError<UiCoreError>> {
+    fun intoParent(): Result<Unit, CoreError<out UiCoreError>> {
         return CoreModel.getFileById(config, parent.parent).andThen { newParent ->
             refreshChildrenAtNewParent(newParent).map {
                 if (fileDir.size != 1) {
