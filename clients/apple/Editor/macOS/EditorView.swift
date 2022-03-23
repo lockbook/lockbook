@@ -47,8 +47,10 @@ struct EditorView: NSViewRepresentable {
         if let nsView = scroll.documentView as? NSTextView {
             if model.reloadContent {
                 model.reloadContent = false
-                
                 nsView.string = model.textDocument!
+                
+                // Seems like that let doesn't store the same ref
+                (nsView.textStorage as! Storage).syntaxHighlight()
             }
         }
     }
