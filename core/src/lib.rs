@@ -41,12 +41,12 @@ use crate::service::{
 };
 use crate::sync_service::WorkCalculated;
 
-#[instrument(skip(log_path), ret(Debug))]
+#[instrument(skip(log_path), err(Debug))]
 pub fn init_logger(log_path: &Path) -> Result<(), UnexpectedError> {
     log_service::init(log_path).map_err(|err| unexpected_only!("{:#?}", err))
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn get_db_state(config: &Config) -> Result<State, UnexpectedError> {
     db_state_service::get_state(config).map_err(|e| unexpected_only!("{:#?}", e))
 }
@@ -56,7 +56,7 @@ pub enum MigrationError {
     StateRequiresCleaning,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn migrate_db(config: &Config) -> Result<(), Error<MigrationError>> {
     db_state_service::perform_migration(config).map_err(|e| match e {
         CoreError::ClientWipeRequired => UiError(MigrationError::StateRequiresCleaning),
@@ -74,7 +74,7 @@ pub enum CreateAccountError {
     ServerDisabled,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn create_account(
     config: &Config, username: &str, api_url: &str,
 ) -> Result<Account, Error<CreateAccountError>> {
@@ -99,7 +99,7 @@ pub enum ImportError {
     ClientUpdateRequired,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn import_account(
     config: &Config, account_string: &str,
 ) -> Result<Account, Error<ImportError>> {
@@ -119,7 +119,7 @@ pub enum AccountExportError {
     NoAccount,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn export_account(config: &Config) -> Result<String, Error<AccountExportError>> {
     account_service::export_account(config).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(AccountExportError::NoAccount),
@@ -132,7 +132,7 @@ pub enum GetAccountError {
     NoAccount,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn get_account(config: &Config) -> Result<Account, Error<GetAccountError>> {
     account_repo::get(config).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(GetAccountError::NoAccount),
@@ -150,7 +150,7 @@ pub enum CreateFileAtPathError {
     DocumentTreatedAsFolder,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config, path_and_name), err(Debug))]
 pub fn create_file_at_path(
     config: &Config, path_and_name: &str,
 ) -> Result<DecryptedFileMetadata, Error<CreateFileAtPathError>> {
@@ -174,7 +174,7 @@ pub enum WriteToDocumentError {
     FolderTreatedAsDocument,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config, content), err(Debug))]
 pub fn write_document(
     config: &Config, id: Uuid, content: &[u8],
 ) -> Result<(), Error<WriteToDocumentError>> {
@@ -196,7 +196,7 @@ pub enum CreateFileError {
     FileNameContainsSlash,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config, name), err(Debug))]
 pub fn create_file(
     config: &Config, name: &str, parent: Uuid, file_type: FileType,
 ) -> Result<DecryptedFileMetadata, Error<CreateFileError>> {
@@ -217,7 +217,7 @@ pub enum GetRootError {
     NoRoot,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn get_root(config: &Config) -> Result<DecryptedFileMetadata, Error<GetRootError>> {
     file_service::get_root(config).map_err(|err| match err {
         CoreError::RootNonexistent => UiError(GetRootError::NoRoot),
@@ -225,7 +225,7 @@ pub fn get_root(config: &Config) -> Result<DecryptedFileMetadata, Error<GetRootE
     })
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn get_children(
     config: &Config, id: Uuid,
 ) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
@@ -238,7 +238,7 @@ pub enum GetAndGetChildrenError {
     DocumentTreatedAsFolder,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn get_and_get_children_recursively(
     config: &Config, id: Uuid,
 ) -> Result<Vec<DecryptedFileMetadata>, Error<GetAndGetChildrenError>> {
@@ -254,7 +254,7 @@ pub enum GetFileByIdError {
     NoFileWithThatId,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn get_file_by_id(
     config: &Config, id: Uuid,
 ) -> Result<DecryptedFileMetadata, Error<GetFileByIdError>> {
@@ -269,7 +269,7 @@ pub enum GetFileByPathError {
     NoFileAtThatPath,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config, path), err(Debug))]
 pub fn get_file_by_path(
     config: &Config, path: &str,
 ) -> Result<DecryptedFileMetadata, Error<GetFileByPathError>> {
@@ -285,7 +285,7 @@ pub enum FileDeleteError {
     FileDoesNotExist,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteError>> {
     file_service::delete_file(config, id).map_err(|e| match e {
         CoreError::RootModificationInvalid => UiError(FileDeleteError::CannotDeleteRoot),
@@ -301,7 +301,7 @@ pub enum ReadDocumentError {
     FileDoesNotExist,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn read_document(
     config: &Config, id: Uuid,
 ) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
@@ -322,7 +322,7 @@ pub enum SaveDocumentToDiskError {
     FileAlreadyExistsInDisk,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config, location), err(Debug))]
 pub fn save_document_to_disk(
     config: &Config, id: Uuid, location: &str,
 ) -> Result<(), Error<SaveDocumentToDiskError>> {
@@ -336,19 +336,19 @@ pub fn save_document_to_disk(
     })
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn list_paths(
     config: &Config, filter: Option<path_service::Filter>,
 ) -> Result<Vec<String>, UnexpectedError> {
     path_service::get_all_paths(config, filter).map_err(|e| unexpected_only!("{:#?}", e))
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, UnexpectedError> {
     path_service::get_path_by_id(config, id).map_err(|e| unexpected_only!("{:#?}", e))
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn list_metadatas(config: &Config) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
     file_service::get_all_not_deleted_metadata(config, RepoSource::Local)
         .map_err(|e| unexpected_only!("{:#?}", e))
@@ -363,7 +363,7 @@ pub enum RenameFileError {
     CannotRenameRoot,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config, new_name), err(Debug))]
 pub fn rename_file(
     config: &Config, id: Uuid, new_name: &str,
 ) -> Result<(), Error<RenameFileError>> {
@@ -388,7 +388,7 @@ pub enum MoveFileError {
     TargetParentHasChildNamedThat,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
     file_service::move_file(config, id, new_parent).map_err(|e| match e {
         CoreError::RootModificationInvalid => UiError(MoveFileError::CannotMoveRoot),
@@ -409,7 +409,7 @@ pub enum SyncAllError {
     CouldNotReachServer,
 }
 
-#[instrument(skip(config, f), ret(Debug))]
+#[instrument(skip(config, f), err(Debug))]
 pub fn sync_all(
     config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), Error<SyncAllError>> {
@@ -421,7 +421,7 @@ pub fn sync_all(
     })
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, UnexpectedError> {
     file_service::get_local_changes(config).map_err(|e| unexpected_only!("{:#?}", e))
 }
@@ -433,7 +433,7 @@ pub enum CalculateWorkError {
     ClientUpdateRequired,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn calculate_work(config: &Config) -> Result<WorkCalculated, Error<CalculateWorkError>> {
     sync_service::calculate_work(config).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(CalculateWorkError::NoAccount),
@@ -443,14 +443,14 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, Error<Calculate
     })
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn get_last_synced(config: &Config) -> Result<i64, UnexpectedError> {
     last_updated_repo::get(config).map_err(|e| unexpected_only!("{:#?}", e))
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn get_last_synced_human_string(config: &Config) -> Result<String, UnexpectedError> {
-    let last_synced = get_last_synced(config)?;
+    let last_synced = last_updated_repo::get(config).map_err(|e| unexpected_only!("{:#?}", e))?;
 
     Ok(if last_synced != 0 {
         Duration::milliseconds(clock_service::get_time().0 - last_synced)
@@ -468,7 +468,7 @@ pub enum GetUsageError {
     ClientUpdateRequired,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn get_usage(config: &Config) -> Result<UsageMetrics, Error<GetUsageError>> {
     usage_service::get_usage(config).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(GetUsageError::NoAccount),
@@ -478,7 +478,7 @@ pub fn get_usage(config: &Config) -> Result<UsageMetrics, Error<GetUsageError>> 
     })
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, Error<GetUsageError>> {
     usage_service::get_uncompressed_usage(config).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(GetUsageError::NoAccount),
@@ -496,7 +496,7 @@ pub enum GetDrawingError {
     FileDoesNotExist,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
     drawing_service::get_drawing(config, id).map_err(|e| match e {
         CoreError::DrawingInvalid => UiError(GetDrawingError::InvalidDrawing),
@@ -515,7 +515,7 @@ pub enum SaveDrawingError {
     InvalidDrawing,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config, drawing_bytes), err(Debug))]
 pub fn save_drawing(
     config: &Config, id: Uuid, drawing_bytes: &[u8],
 ) -> Result<(), Error<SaveDrawingError>> {
@@ -536,7 +536,7 @@ pub enum ExportDrawingError {
     InvalidDrawing,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn export_drawing(
     config: &Config, id: Uuid, format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
@@ -560,7 +560,7 @@ pub enum ExportDrawingToDiskError {
     FileAlreadyExistsInDisk,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn export_drawing_to_disk(
     config: &Config, id: Uuid, format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
@@ -585,7 +585,7 @@ pub enum ImportFileError {
     DocumentTreatedAsFolder,
 }
 
-#[instrument(skip(config, update_status), ret(Debug))]
+#[instrument(skip(config, sources, update_status), err(Debug))]
 pub fn import_files<F: Fn(ImportStatus)>(
     config: &Config, sources: &[PathBuf], dest: Uuid, update_status: &F,
 ) -> Result<(), Error<ImportFileError>> {
@@ -605,7 +605,7 @@ pub enum ExportFileError {
     DiskPathInvalid,
 }
 
-#[instrument(skip(config, export_progress), ret(Debug))]
+#[instrument(skip(config, destination, export_progress), err(Debug))]
 pub fn export_file(
     config: &Config, id: Uuid, destination: PathBuf, edit: bool,
     export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
@@ -641,7 +641,7 @@ pub enum SwitchAccountTierError {
     ConcurrentRequestsAreTooSoon,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn switch_account_tier(
     config: &Config, new_account_tier: AccountTier,
 ) -> Result<(), Error<SwitchAccountTierError>> {
@@ -680,7 +680,7 @@ pub enum GetCreditCard {
     ClientUpdateRequired,
 }
 
-#[instrument(skip(config), ret(Debug))]
+#[instrument(skip(config), err(Debug))]
 pub fn get_credit_card(config: &Config) -> Result<CreditCardLast4Digits, Error<GetCreditCard>> {
     billing_service::get_credit_card(config).map_err(|e| match e {
         CoreError::AccountNonexistent => UiError(GetCreditCard::NoAccount),
