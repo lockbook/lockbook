@@ -104,6 +104,9 @@ impl Experiment {
         loop {
             {
                 let experiments = state.lock().unwrap();
+                if experiments.pending.is_empty() && experiments.done > 0 {
+                    break;
+                }
                 println!(
                     "Done: {}, Errors: {}, TPS: {}, Started: {}, Possibly Stalled: {:?}",
                     experiments.done,

@@ -81,7 +81,6 @@ pub fn core_routes(
     core_req!(NewAccountRequest, new_account, server_state)
         .or(core_req!(ChangeDocumentContentRequest, change_document_content, server_state))
         .or(core_req!(FileMetadataUpsertsRequest, upsert_file_metadata, server_state))
-        .or(core_req!(ChangeDocumentContentRequest, change_document_content, server_state))
         .or(core_req!(GetDocumentRequest, get_document, server_state))
         .or(core_req!(GetPublicKeyRequest, get_public_key, server_state))
         .or(core_req!(GetUsageRequest, get_usage, server_state))

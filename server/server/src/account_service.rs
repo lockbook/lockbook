@@ -114,6 +114,7 @@ pub async fn get_usage(
     let (_request, server_state) = (&context.request, context.server_state);
     let mut con = server_state.index_db_pool.get().await?;
 
+    // TODO this can (and should not) page
     let cap: u64 = con.get(data_cap(&context.public_key)).await?;
 
     let usages = get_usage_helper(&mut con, &context.public_key).await?;

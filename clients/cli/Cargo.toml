@@ -1,7 +1,6 @@
 [package]
 name = "lockbook-cli"
-version = "0.2.26"
-authors = ["parth"]
+version = "0.3.17"
 edition = "2018"
 
 [[bin]]

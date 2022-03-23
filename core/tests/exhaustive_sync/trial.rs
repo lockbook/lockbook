@@ -383,7 +383,7 @@ impl Default for Trial {
             id: Uuid::new_v4(),
             clients: vec![],
             target_clients: 2,
-            target_steps: 6,
+            target_steps: 7,
             steps: vec![],
             completed_steps: 0,
             status: Status::Ready,

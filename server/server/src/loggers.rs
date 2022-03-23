@@ -8,6 +8,7 @@ use pagerduty_rs::types::{
     AlertTrigger, AlertTriggerPayload, Change, ChangePayload, Event, Severity,
 };
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::Path;
 use std::time::SystemTime;
@@ -69,9 +70,9 @@ pub fn init(config: &Config) {
         .chain(stdout_logger)
         .chain(file_logger);
 
-    match config.server.pd_api_key.as_ref() {
+    match config.server.pd_api_key {
+        Some(_) => base_logger.chain(pd_logger(config, handle)),
         None => base_logger,
-        Some(api_key) => base_logger.chain(pd_logger(CARGO_PKG_VERSION, api_key, handle)),
     }
     .level(log::LevelFilter::Info)
     .level_for("lockbook_server", log::LevelFilter::Debug)
@@ -79,22 +80,24 @@ pub fn init(config: &Config) {
     .expect("Failed setting logger!");
 }
 
-fn pd_logger(build: &str, pd_api_key: &str, handle: Handle) -> Dispatch {
+fn pd_logger(config: &Config, handle: Handle) -> Dispatch {
+    let key = config.clone().server.pd_api_key.unwrap();
+    let config = config.clone();
     notify(
-        pd_api_key,
+        &key,
         &handle,
         Event::Change(Change {
             payload: ChangePayload {
                 summary: String::from("Lockbook Server is starting up..."),
                 timestamp: SystemTime::now().into(),
-                source: Some(String::from("localhost")), // TODO: Hostname
-                custom_details: Some(ChangeDetail { build: String::from(build) }),
+                source: Some(config.server.env.to_string()),
+                custom_details: Some(ChangeDetail { build: CARGO_PKG_VERSION.to_string() }),
             },
             links: None,
         }),
     );
 
-    let pdl = PDLogger { key: String::from(pd_api_key), handle, build: String::from(build) };
+    let pdl = PDLogger { key, handle, config };
 
     fern::Dispatch::new()
         .format(move |out, message, _| {
@@ -106,11 +109,18 @@ fn pd_logger(build: &str, pd_api_key: &str, handle: Handle) -> Dispatch {
 struct PDLogger {
     key: String,
     handle: Handle,
-    build: String,
+    config: Config,
+}
+
+fn dedup_key(record: &Record) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(record.args().to_string());
+    let result = hasher.finalize();
+    base64::encode(result)
 }
 
 impl Log for PDLogger {
-    /// This is where you decide what getss sent to pagerduty
+    /// This is where you decide what gets sent to pagerduty
     /// Currently only errors are sent, and rustls::session is explicitly black-holed
     /// Logs from rustls::session will still be logged to the file and standard streams, but they're
     /// incredibly noisy and clients can cause them to "fatal log" quite easily (ex: attempt to connect via TLS 1.0)
@@ -127,7 +137,7 @@ impl Log for PDLogger {
                     payload: AlertTriggerPayload {
                         severity: level_to_severity(record.level()),
                         summary: record.args().to_string(),
-                        source: "localhost".to_string(), // TODO: Hostname
+                        source: self.config.server.env.to_string(),
                         timestamp: Some(SystemTime::now().into()),
                         component: None,
                         group: None,
@@ -137,10 +147,10 @@ impl Log for PDLogger {
                             logger: record.target().to_string(),
                             file: record.file().map(|c| c.to_string()),
                             line: record.line().map(|c| c.to_string()),
-                            build: self.build.to_string(),
+                            build: CARGO_PKG_VERSION.to_string(),
                         }),
                     },
-                    dedup_key: None,
+                    dedup_key: Some(dedup_key(record)),
                     images: None,
                     links: None,
                     client: None,

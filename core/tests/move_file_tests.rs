@@ -63,7 +63,12 @@ mod move_document_tests {
                 ],
             },
         );
-        assert_get_updates_required!(result);
+        assert_matches!(
+            result,
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+                FileMetadataUpsertsError::NewFileHasOldParentAndName
+            ))
+        );
     }
 
     #[test]
@@ -92,10 +97,8 @@ mod move_document_tests {
         let (root, root_key) = generate_root_metadata(&account);
         api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
 
-        // create deleted document and folder
         let (mut doc, _doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        doc.deleted = true;
         let (folder, _folder_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Folder);
         api_service::request(
@@ -106,7 +109,8 @@ mod move_document_tests {
         )
         .unwrap();
 
-        // move document
+        // move & delete document
+        doc.deleted = true;
         doc.parent = folder.id;
         api_service::request(
             &account,

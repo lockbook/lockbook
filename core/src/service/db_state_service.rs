@@ -3,6 +3,7 @@ use serde::Serialize;
 use crate::model::state::Config;
 use crate::repo::{account_repo, db_version_repo};
 use crate::CoreError;
+use crate::State::{Empty, MigrationRequired, StateRequiresClearing};
 
 pub fn get_code_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
@@ -20,18 +21,19 @@ pub fn get_state(config: &Config) -> Result<State, CoreError> {
     if account_repo::maybe_get(config)?.is_none() {
         db_version_repo::set(config, get_code_version())?;
         info!("db_state: empty");
-        return Ok(State::Empty);
+        return Ok(Empty);
     }
 
     let state = match db_version_repo::maybe_get(config)? {
-        None => Ok(State::StateRequiresClearing),
+        None => Ok(StateRequiresClearing),
         Some(state_version) => {
             if state_version == get_code_version() {
                 Ok(State::ReadyToUse)
             } else {
                 match state_version.as_str() {
-                    "0.1.5" => Ok(State::ReadyToUse),
-                    _ => Ok(State::StateRequiresClearing),
+                    "0.1.5" => Ok(StateRequiresClearing),
+                    "0.1.6" => Ok(MigrationRequired),
+                    _ => Ok(StateRequiresClearing),
                 }
             }
         }
@@ -52,9 +54,14 @@ pub fn perform_migration(config: &Config) -> Result<(), CoreError> {
     }
 
     match db_version.as_str() {
-        "0.1.6" => Ok(()),
+        "0.1.6" => upgrade_0_3_17(config),
         _ => Err(CoreError::ClientWipeRequired),
     }
+}
+
+fn upgrade_0_3_17(config: &Config) -> Result<(), CoreError> {
+    db_version_repo::set(config, get_code_version())?;
+    Ok(())
 }
 
 #[cfg(test)]

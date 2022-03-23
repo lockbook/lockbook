@@ -165,7 +165,6 @@ pub struct FileMetadataDiff {
     pub new_name: SecretFileName,
     pub new_deleted: bool,
     pub new_folder_access_keys: EncryptedFolderAccessKey,
-    pub owner: Owner,
 }
 
 impl FileMetadataDiff {
@@ -178,7 +177,6 @@ impl FileMetadataDiff {
             new_name: metadata.name.clone(),
             new_deleted: metadata.deleted,
             new_folder_access_keys: metadata.folder_access_keys.clone(),
-            owner: metadata.owner.clone(),
         }
     }
 
@@ -193,7 +191,6 @@ impl FileMetadataDiff {
             new_name: new_metadata.name.clone(),
             new_deleted: new_metadata.deleted,
             new_folder_access_keys: new_metadata.folder_access_keys.clone(),
-            owner: new_metadata.owner.clone(),
         }
     }
 }

@@ -23,6 +23,7 @@ printf "Done. PID: $! \n"
 printf "Starting minio server... "
 minio server $dir > minio-server.log 2>&1 &
 minioPID="$!"
+sleep 1
 
 cd $projRoot/server/server
 . ../../containers/local.env
@@ -42,4 +43,4 @@ mc mb -p --region=$FILES_DB_REGION filesdb/$FILES_DB_BUCKET
 mc policy set public filesdb/$FILES_DB_BUCKET
 
 echo "Compiling and running lockbook server..."
-cargo run
+#cargo run
