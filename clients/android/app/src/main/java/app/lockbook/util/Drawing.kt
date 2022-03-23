@@ -3,6 +3,7 @@ package app.lockbook.util
 import android.content.res.Configuration
 import android.graphics.Color
 import app.lockbook.model.DrawingViewModel
+import kotlinx.serialization.Required
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
@@ -11,12 +12,17 @@ import kotlin.properties.Delegates
 
 @Serializable
 data class Drawing(
+    @Required
     var scale: Float = 1f,
+    @Required
     @SerialName("translation_x")
     var translationX: Float = 0f,
+    @Required
     @SerialName("translation_y")
     var translationY: Float = 0f,
+    @Required
     var strokes: MutableList<Stroke> = mutableListOf(),
+    @Required
     var theme: LinkedHashMap<String, ColorRGB>? = null,
 ) {
 

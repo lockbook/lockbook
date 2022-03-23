@@ -39,6 +39,8 @@ class ExportDrawingToDiskTest {
             FileType.Document
         ).unwrapOk()
 
+        println("HERE: ${Json.encodeToString(Drawing())}")
+
         CoreModel.writeToDocument(config, document.id, Json.encodeToString(Drawing())).unwrapOk()
 
         CoreModel.exportDrawingToDisk(
