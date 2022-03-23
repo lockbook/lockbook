@@ -34,10 +34,12 @@ abstract class IntermCoreResult<O, E>
                     Err(CoreError.Unexpected(content.content))
                 }
                 else -> {
+                    // impossible
                     Err(CoreError.Unexpected("Could not deserialize."))
                 }
             }
             else -> {
+                // impossible
                 Err(CoreError.Unexpected("Could not deserialize."))
             }
         }
