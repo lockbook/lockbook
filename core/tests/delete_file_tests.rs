@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod delete_document_tests {
-    use lockbook_core::assert_get_updates_required;
     use lockbook_core::assert_matches;
     use lockbook_core::service::api_service;
     use lockbook_core::service::api_service::ApiError;
@@ -48,14 +47,48 @@ mod delete_document_tests {
         // create document
         let (doc, _doc_key) =
             generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let mut diff = FileMetadataDiff::new_diff(root.id, &doc.name, &doc);
+        diff.new_deleted = true;
         let result = api_service::request(
             &account,
             FileMetadataUpsertsRequest {
                 // create document as if deleting an existing document
-                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
+                updates: vec![diff],
             },
         );
-        assert_get_updates_required!(result);
+        assert_matches!(
+            result,
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+                FileMetadataUpsertsError::NewFileHasOldParentAndName
+            ))
+        );
+    }
+
+    #[test]
+    fn delete_document_new_document() {
+        // new account
+        let account = generate_account();
+        let (root, root_key) = generate_root_metadata(&account);
+        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+
+        // create document
+        let (doc, _doc_key) =
+            generate_file_metadata(&account, &root, &root_key, FileType::Document);
+        let mut doc = doc;
+        doc.deleted = true;
+        let result = api_service::request(
+            &account,
+            FileMetadataUpsertsRequest {
+                // create document as if deleting an existing document
+                updates: vec![FileMetadataDiff::new(&doc)],
+            },
+        );
+        assert_matches!(
+            result,
+            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+                FileMetadataUpsertsError::NewFileDeleted
+            ))
+        );
     }
 
     #[test]

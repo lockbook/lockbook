@@ -76,7 +76,7 @@ mod get_document_tests {
                 .unwrap();
         assert_eq!(
             result.content,
-            Some(AESEncrypted { value: vec!(69), nonce: vec!(69), _t: Default::default() })
+            AESEncrypted { value: vec!(69), nonce: vec!(69), _t: Default::default() }
         );
     }
 
