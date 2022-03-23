@@ -87,22 +87,21 @@ class SyncWork(appContext: Context, workerParams: WorkerParameters) :
     Worker(appContext, workerParams) {
     override fun doWork(): Result {
         val syncResult =
-            CoreModel.sync(Config(applicationContext.filesDir.absolutePath), null)
+            CoreModel.syncAll(Config(applicationContext.filesDir.absolutePath), null)
         return if (syncResult is Err) {
-            when (val error = syncResult.error) {
-                is SyncAllError.NoAccount -> {
-                    Timber.e("No account.")
+            val msg = when (val error = syncResult.error) {
+                is CoreError.UiError -> when (error.content) {
+                    SyncAllError.ClientUpdateRequired -> "Client update required."
+                    SyncAllError.CouldNotReachServer -> "Could not reach server."
+                    SyncAllError.NoAccount -> "No account."
                 }
-                is SyncAllError.CouldNotReachServer -> {
-                    Timber.e("Could not reach server.")
-                }
-                is SyncAllError.ClientUpdateRequired -> {
-                    Timber.e("Client update required.")
-                }
-                is SyncAllError.Unexpected -> {
-                    Timber.e("Unable to sync all files: ${error.error}")
+                is CoreError.Unexpected -> {
+                    "Unable to sync all files: ${error.content}"
                 }
             }.exhaustive
+
+            Timber.e(msg)
+
             Result.failure()
         } else {
             Result.success()
