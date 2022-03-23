@@ -2,254 +2,280 @@ package app.lockbook.model
 
 import app.lockbook.core.*
 import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.SerializersModuleBuilder
+import kotlinx.serialization.modules.polymorphic
+import kotlinx.serialization.modules.subclass
 
 object CoreModel {
-
     private const val PROD_API_URL = "https://api.prod.lockbook.net"
     fun getAPIURL(): String = System.getenv("API_URL") ?: PROD_API_URL
 
-    fun setUpInitLogger(path: String): Result<Unit, InitLoggerError> {
-        val initLoggerResult: Result<Unit, InitLoggerError>? =
-            Klaxon().converter(initLoggerConverter)
-                .parse(initLogger(path))
-
-        if (initLoggerResult != null) {
-            return initLoggerResult
+    private fun <O, E : Enum<E>> SerializersModuleBuilder.createPolyRelation(okSerializer: KSerializer<O>, errSerializer: KSerializer<E>) {
+        polymorphic(IntermCoreResult::class) {
+            subclass(IntermCoreResult.CoreOk.serializer(okSerializer))
+            subclass(IntermCoreResult.CoreErr.serializer(errSerializer))
         }
 
-        return Err(InitLoggerError.Unexpected("initLoggerConverter was unable to be called!"))
+        polymorphic(IntermCoreError::class) {
+            subclass(IntermCoreError.UiError.serializer(errSerializer))
+            subclass(IntermCoreError.Unexpected.serializer())
+        }
     }
 
-    fun getDBState(config: Config): Result<State, GetStateError> {
-        val getStateResult: Result<State, GetStateError>? =
-            Klaxon().converter(getStateConverter)
-                .parse(getDBState(Klaxon().toJsonString(config)))
-
-        if (getStateResult != null) {
-            return getStateResult
+    val setUpInitLoggerParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), InitLoggerError.serializer())
         }
-
-        return Err(GetStateError.Unexpected("getStateConverter was unable to be called!"))
     }
 
-    fun migrateDB(config: Config): Result<Unit, MigrationError> {
-        val migrateDBResult: Result<Unit, MigrationError>? =
-            Klaxon().converter(migrateDBConverter)
-                .parse(migrateDB(Klaxon().toJsonString(config)))
+    fun setUpInitLogger(path: String): Result<Unit, CoreError<InitLoggerError>> =
+        setUpInitLoggerParser.decodeFromString<IntermCoreResult<Unit, InitLoggerError>>(initLogger(path))
+            .toResult()
 
-        if (migrateDBResult != null) {
-            return migrateDBResult
+    val getDBStateParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(State.serializer(), GetStateError.serializer())
         }
-
-        return Err(MigrationError.Unexpected("migrateDBConverter was unable to be called!"))
     }
 
-    fun generateAccount(config: Config, account: String): Result<Unit, CreateAccountError> {
-        val createAccountResult: Result<Unit, CreateAccountError>? =
-            Klaxon().converter(createAccountConverter)
-                .parse(createAccount(Klaxon().toJsonString(config), account, getAPIURL()))
+    fun getDBState(config: Config): Result<State, CoreError<GetStateError>> =
+        getDBStateParser.decodeFromString<IntermCoreResult<State, GetStateError>>(
+            getDBState(
+                getDBStateParser.encodeToString(
+                    config
+                )
+            )
+        ).toResult()
 
-        if (createAccountResult != null) {
-            return createAccountResult
+    val migrateDBParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), MigrationError.serializer())
         }
-
-        return Err(CreateAccountError.Unexpected("createAccountConverter was unable to be called!"))
     }
 
-    fun importAccount(config: Config, account: String): Result<Unit, ImportError> {
-        val importResult: Result<Unit, ImportError>? =
-            Klaxon().converter(importAccountConverter)
-                .parse(importAccount(Klaxon().toJsonString(config), account))
+    fun migrateDB(config: Config): Result<Unit, CoreError<MigrationError>> =
+        migrateDBParser.decodeFromString<IntermCoreResult<Unit, MigrationError>>(
+            migrateDB(
+                migrateDBParser.encodeToString(
+                    config
+                )
+            )
+        ).toResult()
 
-        if (importResult != null) {
-            return importResult
+    val createAccountParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Account.serializer(), CreateAccountError.serializer())
         }
-
-        return Err(ImportError.Unexpected("importAccountConverter was unable to be called!"))
     }
 
-    fun exportAccount(config: Config): Result<String, AccountExportError> {
-        val exportResult: Result<String, AccountExportError>? =
-            Klaxon().converter(exportAccountConverter)
-                .parse(exportAccount(Klaxon().toJsonString(config)))
+    fun createAccount(
+        config: Config,
+        account: String
+    ): Result<Account, CoreError<CreateAccountError>> = createAccountParser.decodeFromString<IntermCoreResult<Account, CreateAccountError>>(
+        createAccount(
+            createAccountParser.encodeToString(config),
+            account,
+            getAPIURL()
+        )
+    ).toResult()
 
-        if (exportResult != null) {
-            return exportResult
+    val importAccountParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Account.serializer(), ImportError.serializer())
         }
-
-        return Err(AccountExportError.Unexpected("exportAccountConverter was unable to be called!"))
     }
 
-    fun sync(config: Config, syncModel: SyncModel?): Result<Unit, SyncAllError> {
-        val syncResult: Result<Unit, SyncAllError>? = if (syncModel != null) {
-            Klaxon().converter(syncConverter).parse(syncAll(Klaxon().toJsonString(config), syncModel))
-        } else {
-            Klaxon().converter(syncConverter).parse(backgroundSync(Klaxon().toJsonString(config)))
-        }
+    fun importAccount(config: Config, account: String): Result<Account, CoreError<ImportError>> {
+        val a = importAccount(
+            importAccountParser.encodeToString(
+                config
+            ),
+            account
+        )
 
-        if (syncResult != null) {
-            return syncResult
-        }
+        print(a)
+        return importAccountParser.decodeFromString<IntermCoreResult<Account, ImportError>>(
+            a
+        ).toResult()
+    }
 
-        return Err(SyncAllError.Unexpected("syncConverter was unable to be called!"))
+    val exportAccountParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(String.serializer(), AccountExportError.serializer())
+        }
+    }
+
+    fun exportAccount(config: Config): Result<String, CoreError<AccountExportError>> =
+        exportAccountParser.decodeFromString<IntermCoreResult<String, AccountExportError>>(
+            exportAccount(
+                exportAccountParser.encodeToString(config)
+            )
+        ).toResult()
+
+    val syncAllParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), SyncAllError.serializer())
+        }
+    }
+
+    fun syncAll(config: Config, syncModel: SyncModel?): Result<Unit, CoreError<SyncAllError>> =
+        syncAllParser.decodeFromString<IntermCoreResult<Unit, SyncAllError>>(
+            if (syncModel != null) {
+                syncAll(syncAllParser.encodeToString(config), syncModel)
+            } else {
+                backgroundSync(syncAllParser.encodeToString(config))
+            }
+        ).toResult()
+
+    val writeToDocumentParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), WriteToDocumentError.serializer())
+        }
     }
 
     fun writeToDocument(
         config: Config,
         id: String,
         content: String
-    ): Result<Unit, WriteToDocumentError> {
-        val writeResult: Result<Unit, WriteToDocumentError>? =
-            Klaxon().converter(writeDocumentConverter).parse(
-                writeDocument(
-                    Klaxon().toJsonString(config),
-                    id,
-                    content
-                )
+    ): Result<Unit, CoreError<WriteToDocumentError>> =
+        writeToDocumentParser.decodeFromString<IntermCoreResult<Unit, WriteToDocumentError>>(
+            writeDocument(
+                writeToDocumentParser.encodeToString(config),
+                id,
+                content
             )
+        ).toResult()
 
-        if (writeResult != null) {
-            return writeResult
+    val getRootParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(DecryptedFileMetadata.serializer(), GetRootError.serializer())
         }
-
-        return Err(WriteToDocumentError.Unexpected("writeDocument was unable to be called!"))
     }
 
-    fun getRoot(config: Config): Result<DecryptedFileMetadata, GetRootError> {
-        val getRootResult: Result<DecryptedFileMetadata, GetRootError>? =
-            Klaxon().converter(getRootConverter).parse(getRoot(Klaxon().toJsonString(config)))
+    fun getRoot(config: Config): Result<DecryptedFileMetadata, CoreError<GetRootError>> =
+        getRootParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, GetRootError>>(
+            getRoot(
+                getRootParser.encodeToString(config)
+            )
+        ).toResult()
 
-        if (getRootResult != null) {
-            return getRootResult
+    val getAccountParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Account.serializer(), GetAccountError.serializer())
         }
-
-        return Err(GetRootError.Unexpected("getRootConverter was unable to be called!"))
     }
 
-    fun getAccount(config: Config): Result<Account, GetAccountError> {
-        val getAccountResult: Result<Account, GetAccountError>? =
-            Klaxon().converter(getAccountConverter)
-                .parse(getAccount(Klaxon().toJsonString(config)))
-
-        if (getAccountResult != null) {
-            return getAccountResult
-        }
-
-        return Err(GetAccountError.Unexpected("getChildrenConverter was unable to be called!"))
-    }
+    fun getAccount(config: Config): Result<Account, CoreError<GetAccountError>> =
+        getAccountParser.decodeFromString<IntermCoreResult<Account, GetAccountError>>(
+            getAccount(
+                getAccountParser.encodeToString(config)
+            )
+        ).toResult()
 
     fun convertToHumanDuration(
         metadataVersion: Long
     ): String = app.lockbook.core.convertToHumanDuration(metadataVersion)
 
+    val getUsageParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(UsageMetrics.serializer(), GetUsageError.serializer())
+        }
+    }
+
     fun getUsage(
         config: Config
-    ): Result<UsageMetrics, GetUsageError> {
-        val getUsageResult: Result<UsageMetrics, GetUsageError>? =
-            Klaxon().converter(getUsageConverter)
-                .parse(getUsage(Klaxon().toJsonString(config)))
+    ): Result<UsageMetrics, CoreError<GetUsageError>> =
+        getUsageParser.decodeFromString<IntermCoreResult<UsageMetrics, GetUsageError>>(
+            getUsage(
+                getUsageParser.encodeToString(config)
+            )
+        ).toResult()
 
-        if (getUsageResult != null) {
-            return getUsageResult
+    val getUncompressedUsageParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(UsageItemMetric.serializer(), GetUsageError.serializer())
         }
-
-        return Err(GetUsageError.Unexpected("getLocalAndServerUsageConverter was unable to be called!"))
     }
 
     fun getUncompressedUsage(
         config: Config
-    ): Result<UsageItemMetric, GetUsageError> {
-        val getUncompressedUsageResult: Result<UsageItemMetric, GetUsageError>? =
-            Klaxon().converter(getUncompressedUsageConverter)
-                .parse(getUncompressedUsage(Klaxon().toJsonString(config)))
+    ): Result<UsageItemMetric, CoreError<GetUsageError>> =
+        getUncompressedUsageParser.decodeFromString<IntermCoreResult<UsageItemMetric, GetUsageError>>(
+            getUncompressedUsage(getUncompressedUsageParser.encodeToString(config))
+        ).toResult()
 
-        if (getUncompressedUsageResult != null) {
-            return getUncompressedUsageResult
+    val getChildrenParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(ListSerializer(DecryptedFileMetadata.serializer()), GetChildrenError.serializer())
         }
-
-        return Err(GetUsageError.Unexpected("getLocalAndServerUsageConverter was unable to be called!"))
     }
 
     fun getChildren(
         config: Config,
         parentId: String
-    ): Result<List<DecryptedFileMetadata>, GetChildrenError> {
-        val getChildrenResult: Result<List<DecryptedFileMetadata>, GetChildrenError>? =
-            Klaxon().converter(getChildrenConverter)
-                .parse(getChildren(Klaxon().toJsonString(config), parentId))
+    ): Result<List<DecryptedFileMetadata>, CoreError<GetChildrenError>> =
+        getChildrenParser.decodeFromString<IntermCoreResult<List<DecryptedFileMetadata>, GetChildrenError>>(
+            getChildren(getChildrenParser.encodeToString(config), parentId)
+        ).toResult()
 
-        if (getChildrenResult != null) {
-            return getChildrenResult
+    val getFileByIdParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(DecryptedFileMetadata.serializer(), GetFileByIdError.serializer())
         }
-
-        return Err(GetChildrenError.Unexpected("getChildrenConverter was unable to be called!"))
     }
 
     fun getFileById(
         config: Config,
         id: String
-    ): Result<DecryptedFileMetadata, GetFileByIdError> {
-        val getFileByIdResult: Result<DecryptedFileMetadata, GetFileByIdError>? =
-            Klaxon().converter(
-                getFileByIdConverter
-            ).parse(getFileById(Klaxon().toJsonString(config), id))
+    ): Result<DecryptedFileMetadata, CoreError<GetFileByIdError>> =
+        getFileByIdParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, GetFileByIdError>>(
+            getFileById(getFileByIdParser.encodeToString(config), id)
+        ).toResult()
 
-        if (getFileByIdResult != null) {
-            return getFileByIdResult
+    val readDocumentParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(String.serializer(), ReadDocumentError.serializer())
         }
-
-        return Err(GetFileByIdError.Unexpected("getFileByIdConverter was unable to be called!"))
     }
 
     fun readDocument(
         config: Config,
         id: String
-    ): Result<String, ReadDocumentError> {
-        val getDocumentResult: Result<String, ReadDocumentError>? =
-            Klaxon().converter(readDocumentConverter)
-                .parse(readDocument(Klaxon().toJsonString(config), id))
+    ): Result<String, CoreError<ReadDocumentError>> =
+        readDocumentParser.decodeFromString<IntermCoreResult<String, ReadDocumentError>>(
+            readDocument(
+                readDocumentParser.encodeToString(config),
+                id
+            )
+        ).toResult()
 
-        if (getDocumentResult != null) {
-            return getDocumentResult
+    val saveDocumentToDiskParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), SaveDocumentToDiskError.serializer())
         }
-
-        return Err(ReadDocumentError.Unexpected("readDocumentConverter was unable to be called!"))
     }
 
     fun saveDocumentToDisk(
         config: Config,
         id: String,
         location: String
-    ): Result<Unit, SaveDocumentToDiskError> {
-        val saveDocumentToDiskResult: Result<Unit, SaveDocumentToDiskError>? =
-            Klaxon().converter(saveDocumentToDiskConverter)
-                .parse(saveDocumentToDisk(Klaxon().toJsonString(config), id, location))
+    ): Result<Unit, CoreError<SaveDocumentToDiskError>> =
+        saveDocumentToDiskParser.decodeFromString<IntermCoreResult<Unit, SaveDocumentToDiskError>>(
+            saveDocumentToDisk(saveDocumentToDiskParser.encodeToString(config), id, location)
+        ).toResult()
 
-        if (saveDocumentToDiskResult != null) {
-            return saveDocumentToDiskResult
+    val exportDrawingToDiskParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), ExportDrawingToDiskError.serializer())
         }
-
-        return Err(SaveDocumentToDiskError.Unexpected("saveDocumentToDiskConverter was unable to be called!"))
-    }
-
-    fun exportDrawing(
-        config: Config,
-        id: String,
-        format: SupportedImageFormats
-    ): Result<List<Byte>, ExportDrawingError> {
-        val klaxon = Klaxon()
-        val exportDrawingResult: Result<List<Byte>, ExportDrawingError>? =
-            Klaxon().converter(exportDrawingConverter)
-                .parse(exportDrawing(klaxon.toJsonString(config), id, klaxon.toJsonString(format)))
-
-        if (exportDrawingResult != null) {
-            return exportDrawingResult
-        }
-
-        return Err(ExportDrawingError.Unexpected("exportDrawingConverter was unable to be called!"))
     }
 
     fun exportDrawingToDisk(
@@ -257,17 +283,20 @@ object CoreModel {
         id: String,
         format: SupportedImageFormats,
         location: String
-    ): Result<Unit, ExportDrawingToDiskError> {
-        val klaxon = Klaxon()
-        val exportDrawingToDiskResult: Result<Unit, ExportDrawingToDiskError>? =
-            Klaxon().converter(exportDrawingToDiskConverter)
-                .parse(exportDrawingToDisk(klaxon.toJsonString(config), id, klaxon.toJsonString(format), location))
+    ): Result<Unit, CoreError<ExportDrawingToDiskError>> =
+        exportDrawingToDiskParser.decodeFromString<IntermCoreResult<Unit, ExportDrawingToDiskError>>(
+            exportDrawingToDisk(
+                exportDrawingToDiskParser.encodeToString(config),
+                id,
+                exportDrawingToDiskParser.encodeToString(format),
+                location
+            )
+        ).toResult()
 
-        if (exportDrawingToDiskResult != null) {
-            return exportDrawingToDiskResult
+    val createFileParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(DecryptedFileMetadata.serializer(), CreateFileError.serializer())
         }
-
-        return Err(ExportDrawingToDiskError.Unexpected("exportDrawingConverter was unable to be called!"))
     }
 
     fun createFile(
@@ -275,75 +304,83 @@ object CoreModel {
         parentId: String,
         name: String,
         fileType: FileType
-    ): Result<DecryptedFileMetadata, CreateFileError> {
-        val klaxon = Klaxon()
-        val createFileResult: Result<DecryptedFileMetadata, CreateFileError>? =
-            klaxon.converter(createFileConverter)
-                .parse(createFile(Klaxon().toJsonString(config), name, parentId, klaxon.toJsonString(fileType)))
+    ): Result<DecryptedFileMetadata, CoreError<CreateFileError>> =
+        createFileParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, CreateFileError>>(
+            createFile(
+                createFileParser.encodeToString(config),
+                name,
+                parentId,
+                createFileParser.encodeToString(fileType)
+            )
+        ).toResult()
 
-        if (createFileResult != null) {
-            return createFileResult
+    val deleteFileParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), FileDeleteError.serializer())
         }
-
-        return Err(CreateFileError.Unexpected("createFileConverter was unable to be called!"))
     }
 
     fun deleteFile(
         config: Config,
         id: String
-    ): Result<Unit, FileDeleteError> {
-        val fileDelete: Result<Unit, FileDeleteError>? =
-            Klaxon().converter(deleteFileConverter)
-                .parse(deleteFile(Klaxon().toJsonString(config), id))
+    ): Result<Unit, CoreError<FileDeleteError>> =
+        deleteFileParser.decodeFromString<IntermCoreResult<Unit, FileDeleteError>>(
+            deleteFile(
+                deleteFileParser.encodeToString(
+                    config
+                ),
+                id
+            )
+        ).toResult()
 
-        if (fileDelete != null) {
-            return fileDelete
+    val renameFileParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), RenameFileError.serializer())
         }
-
-        return Err(FileDeleteError.Unexpected("deleteFileConverter was unable to be called!"))
     }
 
     fun renameFile(
         config: Config,
         id: String,
         name: String
-    ): Result<Unit, RenameFileError> {
-        val renameResult: Result<Unit, RenameFileError>? =
-            Klaxon().converter(renameFileConverter)
-                .parse(renameFile(Klaxon().toJsonString(config), id, name))
+    ): Result<Unit, CoreError<RenameFileError>> =
+        renameFileParser.decodeFromString<IntermCoreResult<Unit, RenameFileError>>(
+            renameFile(
+                renameFileParser.encodeToString(
+                    config
+                ),
+                id, name
+            )
+        ).toResult()
 
-        if (renameResult != null) {
-            return renameResult
+    val moveFileParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), MoveFileError.serializer())
         }
-
-        return Err(RenameFileError.Unexpected("renameFileConverter was unable to be called!"))
     }
 
     fun moveFile(
         config: Config,
         id: String,
         parentId: String
-    ): Result<Unit, MoveFileError> {
-        val moveResult: Result<Unit, MoveFileError>? =
-            Klaxon().converter(moveFileConverter)
-                .parse(moveFile(Klaxon().toJsonString(config), id, parentId))
+    ): Result<Unit, CoreError<MoveFileError>> =
+        moveFileParser.decodeFromString<IntermCoreResult<Unit, MoveFileError>>(
+            moveFile(
+                moveFileParser.encodeToString(
+                    config
+                ),
+                id, parentId
+            )
+        ).toResult()
 
-        if (moveResult != null) {
-            return moveResult
+    val calculateWorkParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(WorkCalculated.serializer(), CalculateWorkError.serializer())
         }
-
-        return Err(MoveFileError.Unexpected("moveFileConverter was unable to be called!"))
     }
 
-    fun calculateWork(config: Config): Result<WorkCalculated, CalculateWorkError> {
-        val calculateWorkResult: Result<WorkCalculated, CalculateWorkError>? =
-            Klaxon().converter(calculateWorkConverter)
-                .parse(calculateWork(Klaxon().toJsonString(config)))
-
-        if (calculateWorkResult != null) {
-            return calculateWorkResult
-        }
-
-        return Err(CalculateWorkError.Unexpected("calculateSyncWorkConverter was unable to be called!"))
-    }
+    fun calculateWork(config: Config): Result<WorkCalculated, CoreError<CalculateWorkError>> =
+        calculateWorkParser.decodeFromString<IntermCoreResult<WorkCalculated, CalculateWorkError>>(
+            calculateWork(calculateWorkParser.encodeToString(config))
+        ).toResult()
 }

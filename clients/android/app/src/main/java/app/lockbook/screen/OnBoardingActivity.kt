@@ -210,7 +210,7 @@ class CreateFragment : Fragment() {
         onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
 
         uiScope.launch {
-            when (val createAccountResult = CoreModel.generateAccount(App.config, username)) {
+            when (val createAccountResult = CoreModel.createAccount(App.config, username)) {
                 is Ok -> {
                     val intent = Intent(context, MainScreenActivity::class.java)
                     intent.putExtra(IS_THIS_A_NEW_ACCOUNT, true)

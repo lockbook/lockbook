@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData
 import app.lockbook.App.Companion.config
 import app.lockbook.util.*
 import com.github.michaelbull.result.*
+import com.github.michaelbull.result.Ok
 
 class SyncModel {
     var syncStatus: SyncStatus = SyncStatus.NotSyncing
@@ -13,7 +14,7 @@ class SyncModel {
     val notifySyncStepInfo: LiveData<SyncStepInfo>
         get() = _notifySyncStepInfo
 
-    fun trySync(): Result<Unit, CoreError> =
+    fun trySync(): Result<Unit, CoreError<out UiCoreError>> =
         if (syncStatus is SyncStatus.NotSyncing) {
             val syncResult = sync()
             syncStatus = SyncStatus.NotSyncing
@@ -51,13 +52,13 @@ class SyncModel {
         _notifySyncStepInfo.postValue(syncProgress)
     }
 
-    fun hasSyncWork(): Result<Boolean, CoreError> {
+    fun hasSyncWork(): Result<Boolean, CoreError<out UiCoreError>> {
         return CoreModel.calculateWork(config).map { workCalculated -> workCalculated.workUnits.isNotEmpty() }
     }
 
-    private fun sync(): Result<Unit, CoreError> {
+    private fun sync(): Result<Unit, CoreError<out UiCoreError>> {
         syncStatus = SyncStatus.StartingSync
-        return CoreModel.sync(config, this)
+        return CoreModel.syncAll(config, this)
     }
 }
 

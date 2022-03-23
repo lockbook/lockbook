@@ -6,6 +6,8 @@ import app.lockbook.App.Companion.config
 import app.lockbook.R
 import app.lockbook.util.*
 import com.github.michaelbull.result.*
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
 
 enum class SortStyle {
     AToZ,
@@ -67,7 +69,7 @@ class FileModel(
                     }
                 }
                 is Err -> {
-                    if (getRootResult.error == GetRootError.NoRoot) {
+                    if (getRootResult.error == CoreError.UiError<GetRootError>(GetRootError.NoRoot)) {
                         Ok(null)
                     } else {
                         Err(getRootResult.error.toLbError(res))
@@ -77,7 +79,7 @@ class FileModel(
         }
     }
 
-    fun refreshChildrenAtAncestor(position: Int): Result<Unit, GetChildrenError> {
+    fun refreshChildrenAtAncestor(position: Int): Result<Unit, CoreError<GetChildrenError>> {
         val firstChildPosition = position + 1
         for (index in firstChildPosition until fileDir.size) {
             fileDir.removeAt(firstChildPosition)
@@ -104,7 +106,7 @@ class FileModel(
         }
     }
 
-    private fun refreshChildrenAtNewParent(newParent: DecryptedFileMetadata): Result<Unit, GetChildrenError> {
+    private fun refreshChildrenAtNewParent(newParent: DecryptedFileMetadata): Result<Unit, CoreError<GetChildrenError>> {
         val oldParent = parent
         parent = newParent
 
@@ -116,20 +118,20 @@ class FileModel(
         return refreshChildrenResult
     }
 
-    fun refreshChildren(): Result<Unit, GetChildrenError> {
+    fun refreshChildren(): Result<Unit, CoreError<GetChildrenError>> {
         return CoreModel.getChildren(config, parent.id).map { newChildren ->
             children = newChildren.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent }
             sortChildren()
         }
     }
 
-    fun intoChild(newParent: DecryptedFileMetadata): Result<Unit, GetChildrenError> {
+    fun intoChild(newParent: DecryptedFileMetadata): Result<Unit, CoreError<GetChildrenError>> {
         return refreshChildrenAtNewParent(newParent).map {
             fileDir.add(newParent)
         }
     }
 
-    fun intoParent(): Result<Unit, CoreError> {
+    fun intoParent(): Result<Unit, CoreError<out UiCoreError>> {
         return CoreModel.getFileById(config, parent.parent).andThen { newParent ->
             refreshChildrenAtNewParent(newParent).map {
                 if (fileDir.size != 1) {

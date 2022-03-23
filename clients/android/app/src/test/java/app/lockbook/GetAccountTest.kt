@@ -2,10 +2,11 @@ package app.lockbook
 
 import app.lockbook.core.getAccount
 import app.lockbook.model.CoreModel
-import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Result
-import com.github.michaelbull.result.unwrap
+import app.lockbook.util.Account
+import app.lockbook.util.Config
+import app.lockbook.util.GetAccountError
+import app.lockbook.util.IntermCoreResult
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,20 +29,20 @@ class GetAccountTest {
 
     @Test
     fun getAccountOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        CoreModel.getAccount(config).unwrap()
+        CoreModel.getAccount(config).unwrapOk()
     }
 
     @Test
     fun getAccountNoAccount() {
-        CoreModel.getAccount(config).unwrapErrorType<GetAccountError.NoAccount>()
+        CoreModel.getAccount(config).unwrapErrorType(GetAccountError.NoAccount)
     }
 
     @Test
     fun getAccountUnexpectedError() {
-        Klaxon().converter(getAccountConverter)
-            .parse<Result<Account, GetAccountError>>(getAccount(""))
-            .unwrapErrorType<GetAccountError.Unexpected>()
+        CoreModel.getAccountParser.decodeFromString<IntermCoreResult<Account, GetAccountError>>(
+            getAccount("")
+        ).unwrapUnexpected()
     }
 }

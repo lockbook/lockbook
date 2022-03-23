@@ -7,20 +7,21 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.os.Handler
 import android.os.Looper
-import androidx.lifecycle.*
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.viewModelScope
 import app.lockbook.App.Companion.config
 import app.lockbook.getRes
 import app.lockbook.ui.DrawingStrokeState
 import app.lockbook.ui.DrawingView
 import app.lockbook.ui.DrawingView.Tool
 import app.lockbook.util.*
-import app.lockbook.util.ColorAlias
-import app.lockbook.util.Drawing
-import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 class DrawingViewModel(
     application: Application,
@@ -79,7 +80,7 @@ class DrawingViewModel(
                                 CoreModel.writeToDocument(
                                     config,
                                     id,
-                                    Klaxon().toJsonString(persistentDrawing.clone()).replace(" ", "")
+                                    Json.encodeToString(persistentDrawing.clone()).replace(" ", "")
                                 )
                         ) {
                             is Ok -> {

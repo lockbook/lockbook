@@ -2,8 +2,7 @@ package app.lockbook
 
 import app.lockbook.model.CoreModel
 import app.lockbook.util.Config
-import app.lockbook.util.InitLoggerError
-import com.github.michaelbull.result.unwrap
+import app.lockbook.util.CoreError
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -26,12 +25,11 @@ class InitLoggerTest {
 
     @Test
     fun initLoggerOk() {
-        CoreModel.setUpInitLogger(config.writeable_path).unwrap()
+        CoreModel.setUpInitLogger(config.writeable_path).unwrapOk()
     }
 
     @Test
     fun initLoggerUnexpected() {
-        CoreModel.setUpInitLogger("${config.writeable_path}/${generateAlphaString()}.txt")
-            .unwrapErrorType<InitLoggerError.Unexpected>()
+        CoreModel.setUpInitLogger("${config.writeable_path}/${generateAlphaString()}.txt").component2()!! as CoreError.Unexpected
     }
 }

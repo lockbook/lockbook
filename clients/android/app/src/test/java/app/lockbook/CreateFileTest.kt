@@ -3,9 +3,7 @@ package app.lockbook
 import app.lockbook.core.createFile
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Result
-import com.github.michaelbull.result.unwrap
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,72 +26,72 @@ class CreateFileTest {
 
     @Test
     fun createFileOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
-        ).unwrap()
+        ).unwrapOk()
 
         CoreModel.createFile(
             config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
-        ).unwrap()
+        ).unwrapOk()
     }
 
     @Test
     fun createFileContainsSlash() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         CoreModel.createFile(
             config,
             rootFileMetadata.id,
             "/",
             FileType.Document
-        ).unwrapErrorType<CreateFileError.FileNameContainsSlash>()
+        ).unwrapErrorType(CreateFileError.FileNameContainsSlash)
 
         CoreModel.createFile(
             config,
             rootFileMetadata.id,
             "/",
             FileType.Folder
-        ).unwrapErrorType<CreateFileError.FileNameContainsSlash>()
+        ).unwrapErrorType(CreateFileError.FileNameContainsSlash)
     }
 
     @Test
     fun createFileEmpty() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
 
         CoreModel.createFile(
             config,
             rootFileMetadata.id,
             "",
             FileType.Document
-        ).unwrapErrorType<CreateFileError.FileNameEmpty>()
+        ).unwrapErrorType(CreateFileError.FileNameEmpty)
 
         CoreModel.createFile(
             config,
             rootFileMetadata.id,
             "",
             FileType.Folder
-        ).unwrapErrorType<CreateFileError.FileNameEmpty>()
+        ).unwrapErrorType(CreateFileError.FileNameEmpty)
     }
 
     @Test
     fun createFileNotAvailable() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrap()
+        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
         val fileName = generateAlphaString()
 
         CoreModel.createFile(
@@ -101,14 +99,14 @@ class CreateFileTest {
             rootFileMetadata.id,
             fileName,
             FileType.Document
-        ).unwrap()
+        ).unwrapOk()
 
         CoreModel.createFile(
             config,
             rootFileMetadata.id,
             fileName,
             FileType.Folder
-        ).unwrapErrorType<CreateFileError.FileNameNotAvailable>()
+        ).unwrapErrorType(CreateFileError.FileNameNotAvailable)
     }
 
     @Test
@@ -118,13 +116,13 @@ class CreateFileTest {
             generateId(),
             generateAlphaString(),
             FileType.Document
-        ).unwrapErrorType<CreateFileError.NoAccount>()
+        ).unwrapErrorType(CreateFileError.NoAccount)
     }
 
     @Test
     fun createFileUnexpectedError() {
-        Klaxon().converter(createFileConverter)
-            .parse<Result<DecryptedFileMetadata, CreateFileError>>(createFile("", "", "", ""))
-            .unwrapErrorType<CreateFileError.Unexpected>()
+        CoreModel.createFileParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, CreateFileError>>(
+            createFile("", "", "", "")
+        ).unwrapUnexpected()
     }
 }

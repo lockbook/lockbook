@@ -1,21 +1,23 @@
 package app.lockbook.util
 
-import com.beust.klaxon.Json
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class DecryptedFileMetadata(
     val id: String = "",
-    @Json(name = "file_type")
+    @SerialName("file_type")
     val fileType: FileType = FileType.Document,
     val parent: String = "",
-    @Json(name = "decrypted_name")
+    @SerialName("decrypted_name")
     val decryptedName: String = "",
     val owner: String = "",
-    @Json(name = "metadata_version")
+    @SerialName("metadata_version")
     val metadataVersion: Long = 0,
-    @Json(name = "content_version")
+    @SerialName("content_version")
     val contentVersion: Long = 0,
     val deleted: Boolean = false,
-    @Json(name = "decrypted_access_key")
+    @SerialName("decrypted_access_key")
     val decryptedAccessKey: List<Int> = listOf()
 )
 
@@ -23,25 +25,33 @@ enum class FileType {
     Document, Folder
 }
 
-data class Account(
+@Serializable
+class Account(
     val username: String,
-    @Json(name = "api_url")
+    @SerialName("api_url")
     val apiUrl: String,
-    @Json(name = "private_key")
-    val privateKey: List<Byte>,
+    @SerialName("private_key")
+    val privateKey: Array<Int>
 )
 
+@Serializable
 data class WorkCalculated(
-    @Json(name = "work_units")
+    @SerialName("work_units")
     val workUnits: List<WorkUnit>,
-    @Json(name = "most_recent_update_from_server")
+    @SerialName("most_recent_update_from_server")
     val mostRecentUpdateFromServer: Long,
 )
 
-data class WorkUnit(val content: DecryptedFileMetadata, val tag: String)
+@Serializable
+data class WorkUnit(val content: WorkUnitMetadata, val tag: String)
 
+@Serializable
+data class WorkUnitMetadata(val metadata: DecryptedFileMetadata)
+
+@Serializable
 data class Config(val writeable_path: String)
 
+@Serializable
 enum class State {
     ReadyToUse,
     Empty,
@@ -49,23 +59,26 @@ enum class State {
     StateRequiresClearing
 }
 
+@Serializable
 data class UsageMetrics(
     val usages: List<FileUsage>,
-    @Json(name = "server_usage")
+    @SerialName("server_usage")
     val serverUsage: UsageItemMetric,
-    @Json(name = "data_cap")
+    @SerialName("data_cap")
     val dataCap: UsageItemMetric,
 )
 
+@Serializable
 data class UsageItemMetric(
     val exact: Int,
     val readable: String,
 )
 
+@Serializable
 data class FileUsage(
-    @Json(name = "file_id")
+    @SerialName("file_id")
     val fileId: String,
-    @Json(name = "size_bytes")
+    @SerialName("size_bytes")
     val sizeBytes: Int,
 )
 

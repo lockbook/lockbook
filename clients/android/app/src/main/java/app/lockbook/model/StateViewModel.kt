@@ -7,12 +7,12 @@ import androidx.lifecycle.viewModelScope
 import app.lockbook.App
 import app.lockbook.getRes
 import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
 import com.github.michaelbull.result.Err
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.io.File
-import java.util.ArrayList
 
 class StateViewModel(application: Application) : AndroidViewModel(application) {
     var detailsScreen: DetailsScreen? = null
@@ -66,7 +66,7 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
                 CoreModel.writeToDocument(
                     App.config,
                     id,
-                    Klaxon().toJsonString(drawing).replace(" ", "")
+                    Json.encodeToString(drawing).replace(" ", "")
                 )
 
             if (writeToDocumentResult is Err) {

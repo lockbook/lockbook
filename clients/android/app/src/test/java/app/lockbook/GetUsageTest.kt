@@ -2,10 +2,11 @@ package app.lockbook
 
 import app.lockbook.core.getUsage
 import app.lockbook.model.CoreModel
-import app.lockbook.util.*
-import com.beust.klaxon.Klaxon
-import com.github.michaelbull.result.Result
-import com.github.michaelbull.result.unwrap
+import app.lockbook.util.Config
+import app.lockbook.util.GetUsageError
+import app.lockbook.util.IntermCoreResult
+import app.lockbook.util.UsageMetrics
+import kotlinx.serialization.decodeFromString
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -28,20 +29,20 @@ class GetUsageTest {
 
     @Test
     fun getUsageOk() {
-        CoreModel.generateAccount(config, generateAlphaString()).unwrap()
+        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
 
-        CoreModel.getUsage(config).unwrap()
+        CoreModel.getUsage(config).unwrapOk()
     }
 
     @Test
     fun getUsageNoAccount() {
-        CoreModel.getUsage(config).unwrapErrorType<GetUsageError.NoAccount>()
+        CoreModel.getUsage(config).unwrapErrorType(GetUsageError.NoAccount)
     }
 
     @Test
     fun getUsageUnexpectedError() {
-        Klaxon().converter(getUsageConverter)
-            .parse<Result<UsageMetrics, GetUsageError>>(getUsage(""))
-            .unwrapErrorType<GetUsageError.Unexpected>()
+        CoreModel.getUsageParser.decodeFromString<IntermCoreResult<UsageMetrics, GetUsageError>>(
+            getUsage("")
+        ).unwrapUnexpected()
     }
 }
