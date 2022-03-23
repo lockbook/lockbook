@@ -1,15 +1,21 @@
 use crate::internal;
 use crate::keys::{file, owned_files, size};
 use crate::ServerError;
-use crate::ServerError::ClientError;
+use crate::ServerError::{ClientError, InternalError};
 use crate::{keys, RequestContext};
+use deadpool_redis::Connection;
 
 use crate::content::document_service;
+use crate::file_service::OwnershipCheck::{FileMissing, NotOwned};
+use deadpool_redis::redis::AsyncCommands;
+use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
-use lockbook_models::api::FileMetadataUpsertsError::{GetUpdatesRequired, RootImmutable};
+use lockbook_models::api::FileMetadataUpsertsError::{
+    GetUpdatesRequired, NewFileDeleted, NewFileHasOldParentAndName, NotPermissioned, RootImmutable,
+};
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::FileType::Document;
-use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadataDiff};
+use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadataDiff, Owner};
 use lockbook_models::tree::FileMetaExt;
 use log::info;
 use redis_utils::converters::{JsonGet, PipelineJsonSet};
@@ -21,11 +27,11 @@ pub async fn upsert_file_metadata(
     context: RequestContext<'_, FileMetadataUpsertsRequest>,
 ) -> Result<(), ServerError<FileMetadataUpsertsError>> {
     let (request, server_state) = (&context.request, context.server_state);
+    let owner = Owner(context.public_key);
     check_for_changed_root(&request.updates)?;
 
     let mut con = server_state.index_db_pool.get().await?;
     let mut docs_to_delete: Vec<EncryptedFileMetadata> = vec![];
-    // TODO should we further check that each metadata has the right owner?
     let tx = tx!(&mut con, pipe, &[owned_files(&context.public_key)], {
         let now = get_time().0 as u64;
         let files: Vec<Uuid> = con
@@ -35,7 +41,7 @@ pub async fn upsert_file_metadata(
         let keys: Vec<String> = files.into_iter().map(keys::file).collect();
         let mut files: Vec<EncryptedFileMetadata> = con.watch_json_mget(keys).await?;
 
-        docs_to_delete = apply_changes(now, &request.updates, &mut files)?;
+        docs_to_delete = apply_changes(&mut con, now, &owner, &request.updates, &mut files).await?;
 
         files
             .verify_integrity()
@@ -58,6 +64,22 @@ pub async fn upsert_file_metadata(
     Ok(())
 }
 
+async fn check_uniqueness(
+    con: &mut Connection, new_files: &[EncryptedFileMetadata],
+) -> Result<(), TxError<ServerError<FileMetadataUpsertsError>>> {
+    if !new_files.is_empty() {
+        let ids: Vec<String> = new_files.iter().map(keys::meta).collect();
+        let existing_files: i32 = con.exists(ids).await?;
+        if existing_files == 0 {
+            Ok(())
+        } else {
+            Err(Abort(ClientError(NotPermissioned)))
+        }
+    } else {
+        Ok(())
+    }
+}
+
 fn check_for_changed_root(
     changes: &[FileMetadataDiff],
 ) -> Result<(), ServerError<FileMetadataUpsertsError>> {
@@ -67,7 +89,7 @@ fn check_for_changed_root(
                 return Err(ClientError(RootImmutable));
             }
             if change.id == change.new_parent {
-                // TODO could be get updates variant
+                // TODO could be createdRoot
                 return Err(ClientError(GetUpdatesRequired));
             }
         }
@@ -75,10 +97,12 @@ fn check_for_changed_root(
     Ok(())
 }
 
-fn apply_changes(
-    now: u64, changes: &[FileMetadataDiff], metas: &mut Vec<EncryptedFileMetadata>,
+async fn apply_changes(
+    con: &mut Connection, now: u64, owner: &Owner, changes: &[FileMetadataDiff],
+    metas: &mut Vec<EncryptedFileMetadata>,
 ) -> Result<Vec<EncryptedFileMetadata>, TxError<ServerError<FileMetadataUpsertsError>>> {
     let mut deleted_documents = vec![];
+    let mut new_files = vec![];
     for change in changes {
         match metas.maybe_find_mut(change.id) {
             Some(meta) => {
@@ -89,7 +113,8 @@ fn apply_changes(
                         return Err(Abort(ClientError(GetUpdatesRequired)));
                     }
                 } else {
-                    // TODO this could be more descriptive
+                    // You authored a file, and you pushed it to the server, and failed to record the change
+                    // And now you think this is still a new file, so you get updates
                     return Err(Abort(ClientError(GetUpdatesRequired)));
                 }
                 meta.parent = change.new_parent;
@@ -103,13 +128,19 @@ fn apply_changes(
             }
             None => {
                 if change.old_parent_and_name.is_some() {
-                    // TODO this could be more descriptive
-                    return Err(Abort(ClientError(GetUpdatesRequired)));
+                    return Err(Abort(ClientError(NewFileHasOldParentAndName)));
                 }
-                metas.push(new_meta(now, change))
+                if change.new_deleted {
+                    return Err(Abort(ClientError(NewFileDeleted)));
+                }
+                let new_meta = new_meta(now, change, owner);
+                metas.push(new_meta.clone());
+                new_files.push(new_meta);
             }
         }
     }
+
+    check_uniqueness(con, &new_files).await?;
 
     let implicitly_deleted_ids = metas
         .filter_deleted()
@@ -131,13 +162,13 @@ fn apply_changes(
     Ok(deleted_documents)
 }
 
-fn new_meta(now: u64, diff: &FileMetadataDiff) -> EncryptedFileMetadata {
+fn new_meta(now: u64, diff: &FileMetadataDiff, owner: &Owner) -> EncryptedFileMetadata {
     EncryptedFileMetadata {
         id: diff.id,
         file_type: diff.file_type,
         parent: diff.new_parent,
         name: diff.new_name.clone(),
-        owner: diff.owner.clone(),
+        owner: owner.clone(),
         metadata_version: now,
         content_version: 0,
         deleted: diff.new_deleted,
@@ -148,13 +179,24 @@ fn new_meta(now: u64, diff: &FileMetadataDiff) -> EncryptedFileMetadata {
 
 /// Changes the content and size of a document
 /// Grabs the file out of redis and does some preliminary checks regarding ownership and version
-/// TODO After #949 do actual ownership checks, prior to the first create
 /// TODO After billing, do actual space checks
 pub async fn change_document_content(
     context: RequestContext<'_, ChangeDocumentContentRequest>,
 ) -> Result<ChangeDocumentContentResponse, ServerError<ChangeDocumentContentError>> {
     let (request, server_state) = (&context.request, context.server_state);
     let mut con = server_state.index_db_pool.get().await?;
+
+    check_ownership(&mut con, request.id, &context.public_key)
+        .await
+        .map_err(|err| match err {
+            ClientError(OwnershipCheck::FileMissing) => {
+                ClientError(ChangeDocumentContentError::DocumentNotFound)
+            }
+            ClientError(OwnershipCheck::NotOwned) => {
+                ClientError(ChangeDocumentContentError::NotPermissioned)
+            }
+            ServerError::InternalError(err) => InternalError(err),
+        })?;
 
     let watched_keys = &[file(request.id), size(request.id)];
     let new_version = get_time().0 as u64;
@@ -202,10 +244,37 @@ pub async fn change_document_content(
     Ok(ChangeDocumentContentResponse { new_content_version: new_version })
 }
 
+#[derive(Debug)]
+pub enum OwnershipCheck {
+    FileMissing,
+    NotOwned,
+}
+
+async fn check_ownership(
+    con: &mut Connection, id: Uuid, pk: &PublicKey,
+) -> Result<(), ServerError<OwnershipCheck>> {
+    con.maybe_json_get(file(id))
+        .await?
+        .map(|meta: EncryptedFileMetadata| meta.owner.0)
+        .map(|pk1| pk1 == *pk)
+        .map(|is_owner| if is_owner { Ok(()) } else { Err(ClientError(NotOwned)) })
+        .ok_or(ClientError(FileMissing))?
+}
+
 pub async fn get_document(
     context: RequestContext<'_, GetDocumentRequest>,
 ) -> Result<GetDocumentResponse, ServerError<GetDocumentError>> {
     let (request, server_state) = (&context.request, context.server_state);
+    let mut con = server_state.index_db_pool.get().await?;
+    check_ownership(&mut con, request.id, &context.public_key)
+        .await
+        .map_err(|err| match err {
+            ClientError(OwnershipCheck::FileMissing) => {
+                ClientError(GetDocumentError::DocumentNotFound)
+            }
+            ClientError(OwnershipCheck::NotOwned) => ClientError(GetDocumentError::NotPermissioned),
+            ServerError::InternalError(err) => InternalError(err),
+        })?;
     let content = document_service::get(server_state, request.id, request.content_version).await?;
     Ok(GetDocumentResponse { content })
 }
