@@ -49,7 +49,6 @@ struct FileListView: View {
             VStack {
                 List (files) { meta in
                     renderCell(meta: meta)
-                        .popover(item: $moving, content: renderMoveDialog)
                         .contextMenu(menuItems: {
                             Button(action: {
                                 handleDelete(meta: meta)
@@ -95,6 +94,7 @@ struct FileListView: View {
                 }, content: {
                     NewFileSheet(parent: currentFolder, showing: $creatingFile, selection: $newFile)
                 })
+                .sheet(item: $moving, content: renderMoveDialog)
                 .onChange(of: selection) {_ in
                     // When we return back to this screen, we have to change newFile back to nil regardless
                     // of it's present value, otherwise we won't be able to navigate to new, new files
