@@ -23,7 +23,7 @@ pub fn maybe_get(config: &Config) -> Result<Option<Uuid>, CoreError> {
     Ok(match maybe_value {
         None => None,
         Some(value) => Some(
-            Uuid::parse_str(&String::from_utf8(value.clone()).map_err(core_err_unexpected)?)
+            Uuid::parse_str(&String::from_utf8(value).map_err(core_err_unexpected)?)
                 .map_err(core_err_unexpected)?,
         ),
     })
