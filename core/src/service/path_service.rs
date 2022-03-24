@@ -15,8 +15,6 @@ use crate::CoreError;
 pub fn create_at_path(
     config: &Config, path_and_name: &str,
 ) -> Result<DecryptedFileMetadata, CoreError> {
-    info!("creating path at: {}", path_and_name);
-
     if path_and_name.contains("//") {
         return Err(CoreError::PathContainsEmptyFileName);
     }
@@ -80,7 +78,6 @@ pub fn get_by_path(config: &Config, path: &str) -> Result<DecryptedFileMetadata,
 pub fn get_by_path_using_files(
     files: &[DecryptedFileMetadata], path: &str,
 ) -> Result<DecryptedFileMetadata, CoreError> {
-    info!("getting metadata at path: {}", path);
     let paths = split_path(path);
 
     let mut current = files.find_root()?;
@@ -130,7 +127,6 @@ pub fn filter_from_str(input: &str) -> Result<Option<Filter>, CoreError> {
 }
 
 pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<String>, CoreError> {
-    info!("listing all paths with filter {:?}", filter);
     let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
 
     let mut filtered_files = files.clone();
@@ -173,7 +169,6 @@ pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, CoreError> {
 pub fn get_path_by_id_using_files(
     files: &[DecryptedFileMetadata], id: Uuid,
 ) -> Result<String, CoreError> {
-    info!("getting path by id: {}", id);
     let mut current_metadata = files.find(id)?;
     let mut path = String::from("");
 

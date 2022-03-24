@@ -15,32 +15,38 @@ fn namespace(source: RepoSource) -> &'static str {
     }
 }
 
+#[instrument(level = "debug", skip(config, digest), err(Debug))]
 pub fn insert(
     config: &Config, source: RepoSource, id: Uuid, digest: &[u8],
 ) -> Result<(), CoreError> {
     local_storage::write(config, namespace(source), id.to_string().as_str(), digest)
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn get(config: &Config, source: RepoSource, id: Uuid) -> Result<Vec<u8>, CoreError> {
     maybe_get(config, source, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn maybe_get(
     config: &Config, source: RepoSource, id: Uuid,
 ) -> Result<Option<Vec<u8>>, CoreError> {
     local_storage::read(config, namespace(source), id.to_string().as_str())
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn get_all(config: &Config, source: RepoSource) -> Result<Vec<Vec<u8>>, CoreError> {
     Ok(local_storage::dump::<_, Vec<u8>>(config, namespace(source))?
         .into_iter()
         .collect())
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn delete(config: &Config, source: RepoSource, id: Uuid) -> Result<(), CoreError> {
     local_storage::delete(config, namespace(source), id.to_string().as_str())
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn delete_all(config: &Config, source: RepoSource) -> Result<(), CoreError> {
     local_storage::delete_all(config, namespace(source))
 }
