@@ -5,6 +5,7 @@ use crate::CoreError;
 
 static DB_VERSION: &str = "DB_VERSION";
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn set(config: &Config, version: &str) -> Result<(), CoreError> {
     local_storage::write(
         config,
@@ -14,6 +15,7 @@ pub fn set(config: &Config, version: &str) -> Result<(), CoreError> {
     )
 }
 
+#[instrument(level = "debug", skip(config), ret(Debug))]
 pub fn maybe_get(config: &Config) -> Result<Option<String>, CoreError> {
     let maybe_value: Option<Vec<u8>> =
         local_storage::read(config, DB_VERSION, DB_VERSION.as_bytes())?;

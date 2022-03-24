@@ -18,7 +18,6 @@ pub fn create_account(
     config: &Config, username: &str, api_url: &str,
 ) -> Result<Account, CoreError> {
     let username = String::from(username).to_lowercase();
-    info!("creating with username {} against server {}", username, api_url);
     if account_repo::maybe_get(config)?.is_some() {
         return Err(CoreError::AccountExists);
     }
@@ -62,21 +61,15 @@ pub fn create_account(
         }
     };
 
-    debug!("{}", serde_json::to_string(&account).map_err(core_err_unexpected)?);
-
     account_repo::insert(config, &account)?;
     file_service::insert_metadatum(config, RepoSource::Base, &root_metadata)?;
     root_repo::set(config, root_metadata.id)?;
     last_updated_repo::set(config, get_time().0)?;
 
-    info!("account created successfully, root {}", root_metadata.id);
-
     Ok(account)
 }
 
 pub fn import_account(config: &Config, account_string: &str) -> Result<Account, CoreError> {
-    info!("importing account.");
-
     if account_repo::maybe_get(config)?.is_some() {
         warn!("tried to import an account, but account exists already.");
         return Err(CoreError::AccountExists);
@@ -88,7 +81,6 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<Account, 
             return Err(CoreError::AccountStringCorrupted);
         }
     };
-    debug!("key is valid base64 string");
 
     let account: Account = match bincode::deserialize(&decoded[..]) {
         Ok(a) => a,
@@ -96,7 +88,6 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<Account, 
             return Err(CoreError::AccountStringCorrupted);
         }
     };
-    debug!("key was valid bincode");
     let server_public_key = match api_service::request(
         &account,
         GetPublicKeyRequest { username: account.username.clone() },
@@ -122,12 +113,10 @@ pub fn import_account(config: &Config, account_string: &str) -> Result<Account, 
 
     account_repo::insert(config, &account)?;
 
-    info!("account imported successfully");
     Ok(account)
 }
 
 pub fn export_account(config: &Config) -> Result<String, CoreError> {
-    info!("exporting account");
     let account = account_repo::get(config)?;
     let encoded: Vec<u8> = bincode::serialize(&account).map_err(core_err_unexpected)?;
     Ok(base64::encode(&encoded))

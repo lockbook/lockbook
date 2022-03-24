@@ -18,6 +18,7 @@ fn namespace(source: RepoSource) -> &'static str {
     }
 }
 
+#[instrument(level = "debug", skip(config, file), err(Debug))]
 pub fn insert(
     config: &Config, source: RepoSource, file: &EncryptedFileMetadata,
 ) -> Result<(), CoreError> {
@@ -29,12 +30,14 @@ pub fn insert(
     )
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn get(
     config: &Config, source: RepoSource, id: Uuid,
 ) -> Result<EncryptedFileMetadata, CoreError> {
     maybe_get(config, source, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn maybe_get(
     config: &Config, source: RepoSource, id: Uuid,
 ) -> Result<Option<EncryptedFileMetadata>, CoreError> {
@@ -46,6 +49,7 @@ pub fn maybe_get(
     })
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn get_all(
     config: &Config, source: RepoSource,
 ) -> Result<Vec<EncryptedFileMetadata>, CoreError> {
@@ -57,10 +61,12 @@ pub fn get_all(
         .collect())
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn delete(config: &Config, source: RepoSource, id: Uuid) -> Result<(), CoreError> {
     local_storage::delete(config, namespace(source), id.to_string().as_str())
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn delete_all(config: &Config, source: RepoSource) -> Result<(), CoreError> {
     local_storage::delete_all(config, namespace(source))
 }

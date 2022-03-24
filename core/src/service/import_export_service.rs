@@ -24,8 +24,6 @@ pub enum ImportStatus {
 pub fn import_files<F: Fn(ImportStatus)>(
     config: &Config, sources: &[PathBuf], dest: Uuid, update_status: &F,
 ) -> Result<(), CoreError> {
-    info!("importing files {:?} to {}", sources, dest);
-
     let parent = file_service::get_not_deleted_metadata(config, RepoSource::Local, dest)?;
     if parent.file_type == FileType::Document {
         return Err(CoreError::FileNotFolder);
@@ -129,7 +127,6 @@ pub fn export_file(
     config: &Config, id: Uuid, destination: PathBuf, edit: bool,
     export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), CoreError> {
-    info!("exporting file {} to {:?}", id, destination);
     if destination.is_file() {
         return Err(CoreError::DiskPathInvalid);
     }

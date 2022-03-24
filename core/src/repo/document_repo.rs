@@ -18,6 +18,7 @@ fn namespace(source: RepoSource) -> &'static str {
     }
 }
 
+#[instrument(level = "debug", skip(config, document), err(Debug))]
 pub fn insert(
     config: &Config, source: RepoSource, id: Uuid, document: &EncryptedDocument,
 ) -> Result<(), CoreError> {
@@ -29,6 +30,7 @@ pub fn insert(
     )
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn get(config: &Config, source: RepoSource, id: Uuid) -> Result<EncryptedDocument, CoreError> {
     let maybe_data: Option<Vec<u8>> =
         local_storage::read(config, namespace(source), id.to_string().as_str())?;
@@ -38,6 +40,7 @@ pub fn get(config: &Config, source: RepoSource, id: Uuid) -> Result<EncryptedDoc
     }
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn maybe_get(
     config: &Config, source: RepoSource, id: Uuid,
 ) -> Result<Option<EncryptedDocument>, CoreError> {
@@ -51,6 +54,7 @@ pub fn maybe_get(
     }
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn get_all(config: &Config, source: RepoSource) -> Result<Vec<EncryptedDocument>, CoreError> {
     Ok(local_storage::dump::<_, Vec<u8>>(config, namespace(source))?
         .into_iter()
@@ -60,10 +64,12 @@ pub fn get_all(config: &Config, source: RepoSource) -> Result<Vec<EncryptedDocum
         .collect())
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn delete(config: &Config, source: RepoSource, id: Uuid) -> Result<(), CoreError> {
     local_storage::delete(config, namespace(source), id.to_string().as_str())
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn delete_all(config: &Config, source: RepoSource) -> Result<(), CoreError> {
     local_storage::delete_all(config, namespace(source))
 }
