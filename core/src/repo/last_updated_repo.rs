@@ -4,8 +4,8 @@ use crate::repo::local_storage;
 
 static LAST_UPDATED: &[u8; 12] = b"last_updated";
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn set(config: &Config, last_updated: i64) -> Result<(), CoreError> {
-    debug!("Setting last updated to: {}", last_updated);
     local_storage::write(
         config,
         LAST_UPDATED,
@@ -14,8 +14,8 @@ pub fn set(config: &Config, last_updated: i64) -> Result<(), CoreError> {
     )
 }
 
+#[instrument(level = "debug", skip(config), ret(Debug))]
 pub fn get(config: &Config) -> Result<i64, CoreError> {
-    info!("getting last synced");
     let maybe_value: Option<Vec<u8>> = local_storage::read(config, LAST_UPDATED, LAST_UPDATED)?;
     match maybe_value {
         None => Ok(0),
