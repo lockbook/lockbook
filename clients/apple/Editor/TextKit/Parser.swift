@@ -98,7 +98,7 @@ public class Parser: Visitor {
     }
 
     public func visit(thematicBreak node: ThematicBreak)  {
-        visitChildren(of: node)
+        let _ = visitChildren(of: node)
     }
 
     public func visit(text node: Text)  {

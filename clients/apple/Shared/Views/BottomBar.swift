@@ -6,11 +6,11 @@ struct BottomBar: View {
     @EnvironmentObject var sync: SyncService
     @EnvironmentObject var status: StatusService
     
-    #if os(iOS)
+#if os(iOS)
     var onCreating: () -> Void = {}
-    #endif
+#endif
     
-    #if os(iOS)
+#if os(iOS)
     var menu: AnyView {
         AnyView(Button(action: {
             onCreating()
@@ -21,9 +21,9 @@ struct BottomBar: View {
                 .frame(width: 40, height: 40, alignment: .center)
         })
     }
-    #endif
+#endif
     
-    #if os(iOS)
+#if os(iOS)
     var syncButton: AnyView {
         if sync.syncing {
             return AnyView(ProgressView())
@@ -39,7 +39,7 @@ struct BottomBar: View {
             })
         }
     }
-    #else
+#else
     var syncButton: AnyView {
         if sync.syncing {
             
@@ -61,7 +61,7 @@ struct BottomBar: View {
             })
         }
     }
-    #endif
+#endif
     
     var localChangeText: String {
         if status.work == 0 { // not shown in this situation
@@ -74,13 +74,16 @@ struct BottomBar: View {
     }
     
     var statusText: AnyView {
-        if sync.syncing {
+        if sync.upgrade {
+            return AnyView(Text("Update required")
+                .foregroundColor(.secondary))
+        } else if sync.syncing {
             return AnyView(Text("Syncing...")
-                            .foregroundColor(.secondary))
+                .foregroundColor(.secondary))
         } else {
             if sync.offline {
                 return AnyView(Text("Offline")
-                                .foregroundColor(.secondary)
+                    .foregroundColor(.secondary)
                 )
             } else {
                 return AnyView(
@@ -94,19 +97,19 @@ struct BottomBar: View {
     }
     
     var body: some View {
-        #if os(iOS)
+#if os(iOS)
         syncButton
         Spacer()
         statusText
         Spacer()
         menu
-        #else
+#else
         Divider()
         statusText
             .padding(4)
         syncButton
             .padding(.bottom, 7)
-        #endif
+#endif
     }
 }
 
@@ -131,7 +134,7 @@ struct SyncingPreview: PreviewProvider {
 }
 
 struct NonSyncingPreview: PreviewProvider {
-        
+    
     static var previews: some View {
         NavigationView {
             HStack {
@@ -151,7 +154,7 @@ struct NonSyncingPreview: PreviewProvider {
 }
 
 struct OfflinePreview: PreviewProvider {
-        
+    
     static var previews: some View {
         NavigationView {
             HStack {
@@ -171,7 +174,7 @@ struct OfflinePreview: PreviewProvider {
 }
 
 struct WorkItemsPreview: PreviewProvider {
-        
+    
     static var previews: some View {
         NavigationView {
             HStack {
