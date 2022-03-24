@@ -6,6 +6,7 @@ class SyncService: ObservableObject {
     
     @Published var syncing: Bool = false
     @Published var offline: Bool = false
+    @Published var upgrade: Bool = false
     
     private var syncTimer: Timer? = nil
     
@@ -61,7 +62,7 @@ class SyncService: ObservableObject {
                         case .NoAccount:
                             print("No account yet, but tried to sync, ignoring")
                         case .ClientUpdateRequired:
-                            print("Upgrade required but not shown to user, ignoring (TODO)") // TODO
+                            self.upgrade = true
                         }
                     default:
                         DI.errors.handleError(error)
