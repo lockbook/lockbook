@@ -38,8 +38,6 @@ pub struct SyncProgress {
 }
 
 pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CoreError> {
-    info!("Calculating Work");
-
     let account = account_repo::get(config)?;
     let base_metadata = file_service::get_all_metadata(config, RepoSource::Base)?;
     let base_max_metadata_version = base_metadata
@@ -108,7 +106,6 @@ fn calculate_work_from_updates(
         let metadata = file_service::get_metadata(config, RepoSource::Local, doc_id)?;
         work_units.push(WorkUnit::LocalChange { metadata });
     }
-    debug!("Work Calculated: {:#?}", work_units);
 
     Ok(WorkCalculated { work_units, most_recent_update_from_server: last_sync })
 }
@@ -356,6 +353,7 @@ impl fmt::Debug for ResolvedDocument {
 
 /// Gets a resolved document based on merge of local, base, and remote. Some document types are 3-way merged; others
 /// have old contents copied to a new file. Remote document is returned so that caller can update base.
+#[instrument(level = "debug", skip_all, err(Debug))]
 fn get_resolved_document(
     config: &Config, account: &Account, all_metadata_state: &[RepoState<DecryptedFileMetadata>],
     remote_metadatum: &DecryptedFileMetadata, merged_metadatum: &DecryptedFileMetadata,
@@ -440,6 +438,7 @@ fn should_pull_document(
 }
 
 /// Updates local files to 3-way merge of local, base, and remote; updates base files to remote.
+#[instrument(level = "debug", skip_all, err(Debug))]
 fn pull<F>(
     config: &Config, account: &Account, update_sync_progress: &mut F,
 ) -> Result<(), CoreError>
@@ -635,6 +634,7 @@ where
 }
 
 /// Updates remote and base metadata to local.
+#[instrument(level = "debug", skip_all, err(Debug))]
 fn push_metadata<F>(
     config: &Config, account: &Account, update_sync_progress: &mut F,
 ) -> Result<(), CoreError>
@@ -657,6 +657,7 @@ where
 }
 
 /// Updates remote and base files to local.
+#[instrument(level = "debug", skip_all, err(Debug))]
 fn push_documents<F>(
     config: &Config, account: &Account, update_sync_progress: &mut F,
 ) -> Result<(), CoreError>
@@ -705,10 +706,10 @@ enum SyncProgressOperation {
     StartWorkUnit(ClientWorkUnit),
 }
 
+#[instrument(level = "debug", skip(config, maybe_update_sync_progress), err(Debug))]
 pub fn sync(
     config: &Config, maybe_update_sync_progress: Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), CoreError> {
-    info!("sync called");
     let mut sync_progress_total = 4 + file_service::get_all_with_document_changes(config)?.len(); // 3 metadata pulls + 1 metadata push + doc pushes
     let mut sync_progress = 0;
     let mut update_sync_progress = |op: SyncProgressOperation| match op {

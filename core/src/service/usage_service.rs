@@ -55,7 +55,6 @@ pub fn server_usage(config: &Config) -> Result<GetUsageResponse, CoreError> {
 }
 
 pub fn get_usage(config: &Config) -> Result<UsageMetrics, CoreError> {
-    info!("getting usage");
     let server_usage_and_cap = server_usage(config)?;
 
     let server_usage = server_usage_and_cap.sum_server_usage();
@@ -72,7 +71,6 @@ pub fn get_usage(config: &Config) -> Result<UsageMetrics, CoreError> {
 }
 
 pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, CoreError> {
-    info!("getting uncompressed usage");
     let files = file_service::get_all_metadata(config, RepoSource::Local)?;
     let docs = files.filter_documents();
 

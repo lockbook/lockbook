@@ -6,6 +6,7 @@ use crate::repo::local_storage;
 
 static ACCOUNT: &str = "ACCOUNT";
 
+#[instrument(level = "debug", skip(config, account), err(Debug))]
 pub fn insert(config: &Config, account: &Account) -> Result<(), CoreError> {
     local_storage::write(
         config,
@@ -15,6 +16,7 @@ pub fn insert(config: &Config, account: &Account) -> Result<(), CoreError> {
     )
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn maybe_get(config: &Config) -> Result<Option<Account>, CoreError> {
     match get(config) {
         Ok(account) => Ok(Some(account)),
@@ -25,6 +27,7 @@ pub fn maybe_get(config: &Config) -> Result<Option<Account>, CoreError> {
     }
 }
 
+#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn get(config: &Config) -> Result<Account, CoreError> {
     let maybe_value: Option<Vec<u8>> = local_storage::read(config, ACCOUNT, ACCOUNT)?;
     match maybe_value {
