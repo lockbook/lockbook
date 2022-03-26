@@ -42,7 +42,6 @@
     <string name="dialog_file_name">File name</string>
     <string name="new_file_title">New File</string>
 
-    <string name="settings_sync_startup">Sync at startup</string>
     <string name="settings_sync_edit">Sync automatically in app</string>
     <string name="settings_preference_background_summary_sync_period">The time between each automatic sync.</string>
     <string name="settings_preference_background_title_sync_period">Background sync period</string>
@@ -54,9 +53,7 @@
     <string name="menu_list_files_sort_type">Sort by type</string>
     <string name="qr_code_content_description">QR code</string>
     <string name="file_image_content_description">File image</string>
-    <string name="overflow">Overflow</string>
 
-    <string name="list_files_offline_snackbar">You are offline</string>
     <string name="list_files_sync_snackbar">Syncing %s items…</string>
     <string name="list_files_sync_snackbar_default">Syncing…</string>
     <string name="list_files_sync_finished_snackbar">Up to date!</string>
@@ -67,33 +64,14 @@
     <string name="dialog_duration_days_label">Days</string>
     <string name="dialog_duration_error">Your duration cannot be less than 15 minutes.</string>
 
-    <string name="drawing_pallet_red">Red</string>
-    <string name="drawing_pallet_blue">Blue</string>
-    <string name="drawing_pallet_white">White</string>
-    <string name="drawing_pallet_yellow">Yellow</string>
-
-    <array name="drawing_pallet_colors">
-        <item>@string/drawing_pallet_white</item>
-        <item>@string/drawing_pallet_yellow</item>
-        <item>@string/drawing_pallet_red</item>
-        <item>@string/drawing_pallet_blue</item>
-    </array>
-
-    <string name="drawing_pen_1">1dp</string>
-    <string name="drawing_pen_2">5dp</string>
-    <string name="drawing_pen_3">15dp</string>
-    <string name="drawing_pen_4">20dp</string>
     <string name="list_files_create_folder">Create a new folder.</string>
     <string name="list_files_create_document">Create a new document.</string>
     <string name="list_files_create_file">Create a new file.</string>
     <string name="settings_preference_debug">Debug</string>
     <string name="settings_preference_usage">Usage</string>
-    <string name="settings_bytes_usage">Bytes used</string>
     <string name="settings_usage_current">Usage:</string>
     <string name="settings_usage_data_cap">Data Cap:</string>
     <string name="settings_usage_uncompressed_usage">Uncompressed Usage:</string>
-    <string name="settings_usage_info">"<b>Usage</b>: %s\n<b>Data Cap</b>: %s\n<b>Uncompressed Usage</b>: %s"</string>
-    <string name="drawing_erase">Erase</string>
     <string name="menu_list_files_rename">Rename file</string>
     <string name="menu_list_files_delete">Delete file</string>
     <string name="menu_list_files_info">File info</string>
@@ -112,10 +90,7 @@
     <string name="text_editor_hint">Type here</string>
     <string name="rename_file_rename">Rename</string>
     <string name="create_file_create">Create</string>
-    <string name="menu_list_files_linear_layout">List</string>
-    <string name="menu_list_files_grid_layout">Grid</string>
     <string name="dialog_file_extension">File Ext.</string>
-    <string name="dialog_file_folder">Folder Name</string>
     <string name="empty_folder">There are no files, please click the bottom right button to create a new file, folder, or drawing.</string>
     <string name="create_file_default_file_hint">ERROR, hint not correctly configured.</string>
     <string name="create_file_dialog_document_extension">.md</string>
@@ -133,13 +108,7 @@
     <string name="create_file_hint_document_extension">Document Ext.</string>
     <string name="create_file_hint_drawing_extension">Drawing Ext.</string>
 
-    <string name="drawing_fullscreen_description">Fullscreen</string>
-    <string name="drawing_exit_fullscreen_description">Exit Fullscreen</string>
     <string name="drawing_eraser_description">Eraser</string>
-    <string name="drawing_pen_description">Pen</string>
-    <string name="drawing_pen_small_description">Small</string>
-    <string name="drawing_pen_medium_description">Medium</string>
-    <string name="drawing_pen_large_description">Large</string>
     <string name="settings_open_new_document_automatically">Automatically open new documents</string>
 
     <string name="initial_figure_outer_migrate_data">Migrating your data…</string>
@@ -170,7 +139,6 @@
     <string name="folder_treated_as_drawing">A folder cannot be treated as a drawing.</string>
     <string name="invalid_drawing">That drawing is invalid.</string>
     <string name="cannot_rename_root">You cannot rename root.</string>
-    <string name="target_parent_does_not_exist">Your target parent does not exist.</string>
     <string name="target_parent_has_a_child_named_that">Your target parent already has a child named that.</string>
     <string name="folder_moved_into_itself">A folder cannot be moved into itself.</string>
     <string name="no_root">No root!</string>
@@ -184,13 +152,6 @@
     <string name="biometrics_title">Lockbook Biometric Verification</string>
     <string name="biometrics_subtitle">Verify your identity to access Lockbook.</string>
     <string name="biometrics_cancel">Cancel</string>
-
-    <array name="drawing_pen_size">
-        <item>@string/drawing_pen_1</item>
-        <item>@string/drawing_pen_2</item>
-        <item>@string/drawing_pen_3</item>
-        <item>@string/drawing_pen_4</item>
-    </array>
 
     <array name="settings_biometric_names">
         <item>@string/biometric_disabled</item>
@@ -229,10 +190,6 @@
 
     <string name="view_logs_key" translatable="false">view_logs</string>
     <string name="clear_logs_key" translatable="false">clear_logs</string>
-
-    <string name="file_layout_key" translatable="false">file_layout</string>
-    <string name="file_layout_grid_value" translatable="false">grid_layout</string>
-    <string name="file_layout_linear_value" translatable="false">linear_layout</string>
 
     <string name="open_new_doc_automatically_key" translatable="false">open_new_doc_automatically</string>
     <string name="learn_more"><a href="https://lockbook.net">Learn more…</a></string>

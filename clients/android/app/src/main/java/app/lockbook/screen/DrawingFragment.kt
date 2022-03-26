@@ -48,7 +48,7 @@ class DrawingFragment : Fragment() {
     private val model: DrawingViewModel by viewModels(
         factoryProducer = {
             object : ViewModelProvider.Factory {
-                override fun <T : ViewModel?> create(modelClass: Class<T>): T {
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(DrawingViewModel::class.java))
                         return DrawingViewModel(
                             requireActivity().application,

@@ -22,12 +22,8 @@ class NumberPickerPreference(context: Context, attributeSet: AttributeSet?) : Di
         persistInt(duration)
     }
 
-    override fun onGetDefaultValue(a: TypedArray?, index: Int): Any {
-        if (a != null) {
-            return a.getInt(index, 15)
-        }
-
-        return 15
+    override fun onGetDefaultValue(a: TypedArray, index: Int): Any? {
+        return a.getInt(index, 15)
     }
 
     override fun onSetInitialValue(defaultValue: Any?) {
