@@ -18,11 +18,11 @@ mod move_file;
 mod new;
 mod new_account;
 mod print;
-mod print_tree;
 mod remove;
 mod rename;
 mod status;
 mod sync;
+mod tree;
 mod utils;
 mod validate;
 mod whoami;
@@ -113,12 +113,6 @@ enum Lockbook {
         path: String,
     },
 
-    /// Print the file tree with a given file as the head
-    PrintTree {
-        /// Absolute path of a file !@#$%^&*I don't know what this is:(lockbook list-docs)
-        path: String,
-    },
-
     /// Delete a file
     Remove {
         /// Absolute path of a file (lockbook list-all)
@@ -143,6 +137,9 @@ enum Lockbook {
 
     /// Get updates, push changes
     Sync,
+
+    /// Print the file tree with a given file as the head
+    Tree,
 
     /// Display Lockbook username
     #[structopt(name = "whoami")]
@@ -180,6 +177,7 @@ fn main() {
         Lockbook::Rename { path, name } => rename::rename(&path, &name),
         Lockbook::Status => status::status(),
         Lockbook::Sync => sync::sync(),
+        Lockbook::Tree => tree::tree(),
         Lockbook::WhoAmI => whoami::whoami(),
         Lockbook::Validate => validate::validate(),
         Lockbook::Backup => backup::backup(),
