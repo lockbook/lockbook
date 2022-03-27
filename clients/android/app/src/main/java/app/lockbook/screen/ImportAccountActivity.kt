@@ -20,7 +20,7 @@ class ImportAccountActivity : AppCompatActivity() {
     private val model: ImportAccountViewModel by viewModels(
         factoryProducer = {
             object : ViewModelProvider.Factory {
-                override fun <T : ViewModel?> create(modelClass: Class<T>): T {
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(ImportAccountViewModel::class.java))
                         return ImportAccountViewModel(application) as T
                     throw IllegalArgumentException("Unknown ViewModel class")
