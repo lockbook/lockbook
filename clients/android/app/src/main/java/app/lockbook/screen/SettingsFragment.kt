@@ -64,7 +64,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
     }
 
-    override fun onDisplayPreferenceDialog(preference: Preference?) {
+    override fun onDisplayPreferenceDialog(preference: Preference) {
         if (preference is NumberPickerPreference) {
             val numberPickerPreferenceDialog =
                 NumberPickerPreferenceDialog.newInstance(preference.key)
@@ -76,8 +76,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
     }
 
-    override fun onPreferenceTreeClick(preference: Preference?): Boolean {
-        when (preference?.key) {
+    override fun onPreferenceTreeClick(preference: Preference): Boolean {
+        when (preference.key) {
             getString(R.string.export_account_qr_key) -> BiometricModel.verify(
                 requireActivity(),
                 VerificationItem.ViewPrivateKey,

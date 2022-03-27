@@ -33,7 +33,7 @@ class TextEditorFragment : Fragment() {
     private val model: TextEditorViewModel by viewModels(
         factoryProducer = {
             object : ViewModelProvider.Factory {
-                override fun <T : ViewModel?> create(modelClass: Class<T>): T {
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(TextEditorViewModel::class.java))
                         return TextEditorViewModel(requireActivity().application, activityModel.detailsScreen!!.fileMetadata.id, (activityModel.detailsScreen as DetailsScreen.TextEditor).text) as T
                     throw IllegalArgumentException("Unknown ViewModel class")
