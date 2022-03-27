@@ -9,7 +9,7 @@
         android:icon="@drawable/ic_baseline_sort_24"
         android:orderInCategory="2"
         android:title="@string/menu_sort"
-        app:showAsAction="always">
+        app:showAsAction="ifRoom">
         <menu>
             <group
                 android:id="@+id/sorting_options"
