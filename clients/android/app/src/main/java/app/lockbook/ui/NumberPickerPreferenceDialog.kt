@@ -36,10 +36,10 @@ class NumberPickerPreferenceDialog : PreferenceDialogFragmentCompat() {
         }
     }
 
-    override fun onBindDialogView(view: View?) {
-        dayNumberPicker = view?.findViewById(R.id.duration_days)
-        hourNumberPicker = view?.findViewById(R.id.duration_hours)
-        minuteNumberPicker = view?.findViewById(R.id.duration_minutes)
+    override fun onBindDialogView(view: View) {
+        dayNumberPicker = view.findViewById(R.id.duration_days)
+        hourNumberPicker = view.findViewById(R.id.duration_hours)
+        minuteNumberPicker = view.findViewById(R.id.duration_minutes)
         var durationInMinutes = 15
 
         val preference = preference
