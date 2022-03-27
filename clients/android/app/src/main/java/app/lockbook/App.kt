@@ -24,6 +24,7 @@ class App : Application() {
         loadLockbookCore()
         ProcessLifecycleOwner.get().lifecycle
             .addObserver(ForegroundBackgroundObserver(this))
+
         config = Config(this.filesDir.absolutePath)
 
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
@@ -42,18 +43,15 @@ class App : Application() {
     }
 }
 
-class ForegroundBackgroundObserver(val context: Context) : LifecycleObserver {
-
-    @OnLifecycleEvent(Lifecycle.Event.ON_START)
-    fun onMoveToForeground() {
+class ForegroundBackgroundObserver(val context: Context) : DefaultLifecycleObserver {
+    override fun onStart(owner: LifecycleOwner) {
         doIfLoggedIn {
             WorkManager.getInstance(context)
                 .cancelAllWorkByTag(PERIODIC_SYNC_TAG)
         }
     }
 
-    @OnLifecycleEvent(Lifecycle.Event.ON_STOP)
-    fun onMoveToBackground() {
+    override fun onStop(owner: LifecycleOwner) {
         doIfLoggedIn {
             val work = PeriodicWorkRequestBuilder<SyncWork>(
                 PreferenceManager.getDefaultSharedPreferences(context)

@@ -30,7 +30,7 @@ object CoreModel {
         }
     }
 
-    val setUpInitLoggerParser = Json {
+    private val setUpInitLoggerParser = Json {
         serializersModule = SerializersModule {
             createPolyRelation(Unit.serializer(), InitLoggerError.serializer())
         }

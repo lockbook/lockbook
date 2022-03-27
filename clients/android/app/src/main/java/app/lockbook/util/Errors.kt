@@ -282,7 +282,7 @@ enum class RenameFileError : UiCoreError {
         NewNameContainsSlash -> LbError.newUserError(getString(res, R.string.file_name_contains_slash))
         FileNameNotAvailable -> LbError.newUserError(getString(res, R.string.file_name_not_available))
         NewNameEmpty -> LbError.newUserError(getString(res, R.string.file_name_empty))
-        CannotRenameRoot -> TODO()
+        CannotRenameRoot -> LbError.newUserError(getString(res, R.string.cannot_rename_root))
     }
 }
 @Serializable

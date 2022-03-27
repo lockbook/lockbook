@@ -29,10 +29,10 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
         layoutResource = R.layout.preference_usage_bar
     }
 
-    override fun onBindViewHolder(holder: PreferenceViewHolder?) {
+    override fun onBindViewHolder(holder: PreferenceViewHolder) {
         super.onBindViewHolder(holder)
 
-        setUpUsagePreference(holder!!)
+        setUpUsagePreference(holder)
     }
 
     private fun setUpUsagePreference(holder: PreferenceViewHolder) {

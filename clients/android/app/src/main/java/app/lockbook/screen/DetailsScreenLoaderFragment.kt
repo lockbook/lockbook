@@ -21,7 +21,7 @@ class DetailsScreenLoaderFragment : Fragment() {
     private val model: DetailsScreenLoaderViewModel by viewModels(
         factoryProducer = {
             object : ViewModelProvider.Factory {
-                override fun <T : ViewModel?> create(modelClass: Class<T>): T {
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(DetailsScreenLoaderViewModel::class.java))
                         return DetailsScreenLoaderViewModel(
                             requireActivity().application,

@@ -30,7 +30,7 @@ data class Drawing(
     lateinit var model: DrawingViewModel
     @Transient
     var isDirty: Boolean = false
-    @Transient
+
     var uiMode by Delegates.notNull<Int>()
 
     fun justEdited() {

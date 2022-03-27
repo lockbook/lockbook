@@ -39,7 +39,7 @@ class FilesListFragment : Fragment(), FilesFragment {
     private val model: FilesListViewModel by viewModels(
         factoryProducer = {
             object : ViewModelProvider.Factory {
-                override fun <T : ViewModel?> create(modelClass: Class<T>): T {
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(FilesListViewModel::class.java))
                         return FilesListViewModel(requireActivity().application, (activity as MainScreenActivity).isThisANewAccount()) as T
                     throw IllegalArgumentException("Unknown ViewModel class")
@@ -111,7 +111,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         })
 
         when (
-            val optionValue = PreferenceManager.getDefaultSharedPreferences(context).getString(
+            val optionValue = PreferenceManager.getDefaultSharedPreferences(requireContext()).getString(
                 getString(R.string.sort_files_key),
                 getString(R.string.sort_files_a_z_value)
             )
