@@ -1,9 +1,9 @@
 use lockbook_core::model::state::Config;
 use lockbook_core::{
-    get_account, get_db_state, get_last_synced_human_string, init_logger, migrate_db,
+    get_account, get_db_state, get_last_synced_human_string, init_logger, list_metadatas, migrate_db,
     GetAccountError, MigrationError,
 };
-use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
+use lockbook_core::{write_document, Error as CoreError, UnexpectedError, WriteToDocumentError};
 use std::{env, fs};
 
 use crate::error::CliResult;
@@ -14,6 +14,7 @@ use lockbook_core::pure_functions::drawing::SupportedImageFormats;
 use lockbook_core::pure_functions::drawing::SupportedImageFormats::*;
 use lockbook_core::service::db_state_service::State;
 use lockbook_models::account::Account;
+use lockbook_models::file_metadata::DecryptedFileMetadata;
 use uuid::Uuid;
 
 #[macro_export]
@@ -175,6 +176,15 @@ pub fn edit_file_with_editor(file_location: &str) -> bool {
             .wait()
             .unwrap()
             .success()
+    }
+}
+
+pub fn metadatas() -> CliResult<Vec<DecryptedFileMetadata>> {
+    match list_metadatas(&config()?) {
+        Ok(metadatas) => Ok(metadatas),
+        Err(err) => match err {
+            UnexpectedError(msg) => Err(err_unexpected!("{}", msg)),
+        },
     }
 }
 

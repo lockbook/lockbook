@@ -1,8 +1,10 @@
 use crate::error::CliResult;
-use crate::utils::{account, config};
+use crate::utils::{account, config, metadatas};
 use lockbook_core::{get_children, get_root};
 use lockbook_models::file_metadata::DecryptedFileMetadata;
+use lockbook_models::tree::FileMetaExt;
 use lockbook_core::model::state::Config;
+
 
 fn get_sorted_children(cfg: &Config, node: &DecryptedFileMetadata) -> Vec<DecryptedFileMetadata> {
     let mut children = get_children(&cfg, node.id).unwrap_or_else(|err| {
@@ -48,6 +50,20 @@ pub fn tree() -> CliResult<()> {
     let children = get_sorted_children(&cfg, &root);
 
     println!("{}", print_branch(&cfg, &root, &children, "", "", ""));
-    
+
+    // let files = file_service::get_all_not_deleted_metadata(&cfg, RepoSource::Local)?;
+    let files = metadatas()?;
+
+    // let root = files.maybe_find_root();
+    match files.display() {//}.map_err(|err| match err {
+        Ok(tree) => println!("\n{}", tree),
+        Err(TreeError) => (),//I have no clue what to do here lol err_unexpected!("{}", "failed to create tree"), //match TreeError {
+        //     RootNonexistent => return ,
+        //     FileNonexistent => return ,
+        //     FileParentNonexistent => return ,
+        //     Unexpected(String) => return ,
+
+        // return Err("Failed to create tree: {}", msg)
+    };
     return Ok(())
 }
