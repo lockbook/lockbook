@@ -1,10 +1,8 @@
 ARG HASH
-FROM debian AS linux-build
+FROM manjarolinux/base AS linux-build
 
-RUN apt update -y
-RUN apt-get install -y build-essential curl libgtk-3-dev gtksourceview-3.0 libgspell-1-dev
+RUN pacman -S --noconfirm cairo gdk-pixbuf2 pango graphene gtk4 gtksourceview5
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
-RUN apt update -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 RUN rustup component add rustfmt
@@ -16,14 +14,17 @@ WORKDIR linux
 COPY core/Cargo.toml /core/Cargo.toml
 COPY core/libs/models/Cargo.toml /core/libs/models/Cargo.toml
 COPY core/libs/crypto/Cargo.toml /core/libs/crypto/Cargo.toml
+COPY clients/linux/lb-api/Cargo.toml /linux/lb-api/Cargo.toml
 
 # Required to get cargo to get and compile deps but not our source
 # https://blog.mgattozzi.dev/caching-rust-docker-builds/
 COPY containers/dummy.rs /core/src/lib.rs
 COPY containers/dummy.rs /core/libs/models/src/lib.rs
 COPY containers/dummy.rs /core/libs/crypto/src/lib.rs
+COPY containers/dummy.rs /linux/lb-api/src/lib.rs
 
 COPY containers/dummy.rs src/main.rs
+COPY containers/dummy.rs src/lib.rs
 COPY clients/linux/Cargo.toml .
 COPY rustfmt.toml .
 RUN cargo build --release
@@ -37,6 +38,7 @@ RUN touch src/main.rs
 RUN touch /core/src/lib.rs
 RUN touch /core/libs/models/src/lib.rs
 RUN touch /core/libs/crypto/src/lib.rs
+RUN touch /linux/lb-api/src/lib.rs
 RUN cargo build --release
 
 # Check the formatting of core

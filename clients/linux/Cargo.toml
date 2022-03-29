@@ -1,23 +1,20 @@
 [package]
 name = "lockbook-desktop"
-version = "0.3.17"
-edition = "2018"
+version = "0.3.19"
+edition = "2021"
+
+[lib]
+path = "./src/lib.rs"
+name = "lockbook_desktop_gtk"
 
 [dependencies]
-fuzzy-matcher = "*"
-lockbook-core = { path = "../../core" }
-lockbook-models = { path = "../../core/libs/models" }
-gdk = "0.13.2"
-gdk-pixbuf = "0.9.0"
-glib = "0.10"
-gtk = { version = "0.9.0", features = ["v3_22"] }
-gio = { version = "0.9.1", features = ["v2_44"] }
-gspell = "0.5.0"
-pango = "0.9.1"
-qrcode-generator = "*"
-regex = "1.5.4"
+lb = { package = "lb-api", path = "./lb-api" }
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.8"
-sourceview = "0.9.0"
-uuid = { version = "0.8.1", features = ["v4", "serde"] }
-base64 = "0.11.0"
+gtk = { package = "gtk4", version = "0.4.1", features = ["v4_6"] }
+gio = "0.15.1"
+sv5 = { package = "sourceview5", version = "0.4.1" }
+gdk-pixbuf = "0.15.4"
+qrcode-generator = "4.1.3"
+once_cell = "1.10.0"
+regex = "1.5.5"
