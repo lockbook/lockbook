@@ -1,5 +1,5 @@
 ARG HASH
-FROM rust:1.55 AS admin-cli-build
+FROM rust:1.59 AS admin-cli-build
 RUN rustup component add rustfmt
 RUN rustup component add clippy
 
@@ -47,4 +47,4 @@ RUN cargo fmt -- --check -l
 
 # Check lint
 FROM admin_cli:${HASH} AS admin-cli-lint
-RUN cargo clippy -- -D warnings -A clippy::redundant-field-names -A clippy::ptr-arg -A clippy::missing-safety-doc -A clippy::expect-fun-call -A clippy::too-many-arguments -A clippy::upper-case-acronyms
+RUN cargo clippy -- -D warnings
