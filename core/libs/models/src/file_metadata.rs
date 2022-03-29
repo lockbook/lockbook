@@ -90,7 +90,7 @@ pub struct Owner(pub PublicKey);
 
 impl From<&Account> for Owner {
     fn from(account: &Account) -> Self {
-        Self { 0: account.public_key() }
+        Self(account.public_key())
     }
 }
 
