@@ -173,7 +173,7 @@ impl Config {
 }
 
 fn env_or_panic(var_name: &str) -> String {
-    env::var(var_name).expect(&format!("Missing environment variable {}", var_name))
+    env::var(var_name).unwrap_or_else(|_| panic!("Missing environment variable {}", var_name))
 }
 
 fn env_or_empty(var_name: &str) -> Option<String> {

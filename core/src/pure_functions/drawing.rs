@@ -1,4 +1,3 @@
-use std::array::IntoIter;
 use std::collections::HashMap;
 use std::io::BufWriter;
 use std::iter::FromIterator;
@@ -53,7 +52,7 @@ pub fn export_drawing(
     let theme = match render_theme {
         Some(theme) => theme,
         None => match drawing.theme {
-            None => HashMap::<_, _>::from_iter(IntoIter::new([
+            None => HashMap::<_, _>::from_iter(IntoIterator::into_iter([
                 (ColorAlias::White, ColorRGB { r: 0xFF, g: 0xFF, b: 0xFF }),
                 (ColorAlias::Black, ColorRGB { r: 0x00, g: 0x00, b: 0x00 }),
                 (ColorAlias::Red, ColorRGB { r: 0xFF, g: 0x00, b: 0x00 }),
