@@ -85,7 +85,7 @@ impl fmt::Debug for EncryptedFileMetadata {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Serialize, Deserialize, Eq, Clone)]
 pub struct Owner(pub PublicKey);
 
 impl From<&Account> for Owner {
@@ -97,6 +97,12 @@ impl From<&Account> for Owner {
 impl Hash for Owner {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.serialize().hash(state)
+    }
+}
+
+impl PartialEq for Owner {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.serialize() == other.0.serialize()
     }
 }
 
