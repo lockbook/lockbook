@@ -47,6 +47,8 @@ unsafe fn filter_from_ptr(s: *const c_char) -> Option<Filter> {
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn release_pointer(s: *mut c_char) {
     if s.is_null() {
@@ -56,6 +58,8 @@ pub unsafe extern "C" fn release_pointer(s: *mut c_char) {
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn init_logger_safely(writeable_path: *const c_char) {
     if crate::init_logger(config_from_ptr(writeable_path).path()).is_ok() {
@@ -64,18 +68,24 @@ pub unsafe extern "C" fn init_logger_safely(writeable_path: *const c_char) {
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_db_state(writeable_path: *const c_char) -> *const c_char {
     c_string(translate(crate::get_db_state(&config_from_ptr(writeable_path))))
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn migrate_db(writeable_path: *const c_char) -> *const c_char {
     c_string(translate(crate::migrate_db(&config_from_ptr(writeable_path))))
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn create_account(
     writeable_path: *const c_char, username: *const c_char, api_url: *const c_char,
@@ -88,6 +98,8 @@ pub unsafe extern "C" fn create_account(
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn import_account(
     writeable_path: *const c_char, account_string: *const c_char,
@@ -99,6 +111,8 @@ pub unsafe extern "C" fn import_account(
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn export_account(writeable_path: *const c_char) -> *const c_char {
     c_string(translate(crate::export_account(&Config {
@@ -107,6 +121,8 @@ pub unsafe extern "C" fn export_account(writeable_path: *const c_char) -> *const
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_account(writeable_path: *const c_char) -> *const c_char {
     c_string(translate(crate::get_account(&Config {
@@ -115,6 +131,8 @@ pub unsafe extern "C" fn get_account(writeable_path: *const c_char) -> *const c_
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn create_file_at_path(
     writeable_path: *const c_char, path_and_name: *const c_char,
@@ -126,6 +144,8 @@ pub unsafe extern "C" fn create_file_at_path(
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn write_document(
     writeable_path: *const c_char, id: *const c_char, content: *const c_char,
@@ -138,6 +158,8 @@ pub unsafe extern "C" fn write_document(
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn create_file(
     writeable_path: *const c_char, name: *const c_char, parent: *const c_char,
@@ -152,12 +174,16 @@ pub unsafe extern "C" fn create_file(
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_root(writeable_path: *const c_char) -> *const c_char {
     c_string(translate(crate::get_root(&Config { writeable_path: str_from_ptr(writeable_path) })))
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_children(
     writeable_path: *const c_char, id: *const c_char,
@@ -166,6 +192,8 @@ pub unsafe extern "C" fn get_children(
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_file_by_path(
     writeable_path: *const c_char, path: *const c_char,
@@ -177,6 +205,8 @@ pub unsafe extern "C" fn get_file_by_path(
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn delete_file(
     writeable_path: *const c_char, id: *const c_char,
@@ -185,6 +215,8 @@ pub unsafe extern "C" fn delete_file(
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn read_document(
     writeable_path: *const c_char, id: *const c_char,
@@ -196,6 +228,8 @@ pub unsafe extern "C" fn read_document(
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn export_drawing(
     writeable_path: *const c_char, id: *const c_char,
@@ -209,6 +243,8 @@ pub unsafe extern "C" fn export_drawing(
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn list_paths(
     writeable_path: *const c_char, filter: *const c_char,
@@ -220,6 +256,8 @@ pub unsafe extern "C" fn list_paths(
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn rename_file(
     writeable_path: *const c_char, id: *const c_char, new_name: *const c_char,
@@ -232,12 +270,16 @@ pub unsafe extern "C" fn rename_file(
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn list_metadatas(writeable_path: *const c_char) -> *const c_char {
     c_string(translate(crate::list_metadatas(&config_from_ptr(writeable_path))))
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn move_file(
     writeable_path: *const c_char, id: *const c_char, new_parent: *const c_char,
@@ -250,6 +292,8 @@ pub unsafe extern "C" fn move_file(
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn calculate_work(writeable_path: *const c_char) -> *const c_char {
     c_string(translate(crate::calculate_work(&Config {
@@ -258,6 +302,8 @@ pub unsafe extern "C" fn calculate_work(writeable_path: *const c_char) -> *const
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn sync_all(writeable_path: *const c_char) -> *const c_char {
     let config = &config_from_ptr(writeable_path);
@@ -265,6 +311,8 @@ pub unsafe extern "C" fn sync_all(writeable_path: *const c_char) -> *const c_cha
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_last_synced(writeable_path: *const c_char) -> *const c_char {
     c_string(translate(crate::get_last_synced(&Config {
@@ -273,6 +321,8 @@ pub unsafe extern "C" fn get_last_synced(writeable_path: *const c_char) -> *cons
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_last_synced_human_string(
     writeable_path: *const c_char,
@@ -283,12 +333,16 @@ pub unsafe extern "C" fn get_last_synced_human_string(
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_usage(writeable_path: *const c_char) -> *const c_char {
     c_string(translate(crate::get_usage(&Config { writeable_path: str_from_ptr(writeable_path) })))
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_uncomressed_usage(writeable_path: *const c_char) -> *const c_char {
     c_string(translate(crate::get_uncompressed_usage(&Config {
@@ -297,6 +351,8 @@ pub unsafe extern "C" fn get_uncomressed_usage(writeable_path: *const c_char) ->
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_drawing(
     writeable_path: *const c_char, id: *const c_char,
@@ -305,6 +361,8 @@ pub unsafe extern "C" fn get_drawing(
 }
 
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_local_changes(writeable_path: *const c_char) -> *const c_char {
     c_string(translate(crate::get_local_changes(&Config {
@@ -314,6 +372,8 @@ pub unsafe extern "C" fn get_local_changes(writeable_path: *const c_char) -> *co
 
 // FOR INTEGRATION TESTS ONLY
 /// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_variants() -> *const c_char {
     json_c_string(get_all_error_variants())
