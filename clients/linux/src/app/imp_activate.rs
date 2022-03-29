@@ -19,6 +19,11 @@ impl super::App {
         let window = gtk::ApplicationWindow::new(a);
         window.set_title(Some("Lockbook"));
 
+        if let Err(err) = api.init_logger(Path::new(&writeable_path)) {
+            show_launch_error(&window, &err.0);
+            return;
+        }
+
         if let Err(err) = check_and_perform_migrations(&api) {
             let msg = format!("checking and performing migrations: {}", err);
             show_launch_error(&window, &msg);
