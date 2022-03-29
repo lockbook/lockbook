@@ -10,12 +10,6 @@ glib::wrapper! {
         @implements gtk::Accessible;
 }
 
-impl Default for TextEditor {
-    fn default() -> Self {
-        Self::new(lb::Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap())
-    }
-}
-
 impl TextEditor {
     pub fn new(id: lb::Uuid) -> Self {
         glib::Object::new(&[("id", &id.to_string())]).expect("failed to create TextEditor")

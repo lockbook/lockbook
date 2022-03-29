@@ -13,7 +13,7 @@ impl super::App {
             let data = b.text(&b.start_iter(), &b.end_iter(), true);
             match self.save_file_content(&id, &data) {
                 Ok(()) => self.update_sync_status(),
-                Err(err) => eprintln!("error saving: {}", err),
+                Err(err) => self.show_err_dialog(&format!("error saving: {}", err)),
             }
             self.bg_state.set_last_saved_now(id);
         }

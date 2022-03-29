@@ -21,7 +21,7 @@ impl super::App {
         let tree = build_tree(&files);
 
         let are_you_sure_lbl = gtk::Label::builder()
-            .label("Are you absolutely sure you want to delete the following files?")
+            .label("Are you sure you want to delete the following files?")
             .margin_top(16)
             .margin_start(16)
             .margin_end(16)
