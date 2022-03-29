@@ -2,6 +2,7 @@ package app.lockbook.model
 
 import app.lockbook.core.*
 import app.lockbook.util.*
+import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
@@ -30,6 +31,13 @@ object CoreModel {
         }
     }
 
+    inline fun <reified C, reified E> Json.tryParse(json: String): Result<C, CoreError<E>>
+    where E : Enum<E>, E : UiCoreError = try {
+        decodeFromString<IntermCoreResult<C, E>>(json).toResult()
+    } catch (e: Exception) {
+        Err(CoreError.Unexpected("Cannot parse json."))
+    }
+
     private val setUpInitLoggerParser = Json {
         serializersModule = SerializersModule {
             createPolyRelation(Unit.serializer(), InitLoggerError.serializer())
@@ -37,8 +45,7 @@ object CoreModel {
     }
 
     fun setUpInitLogger(path: String): Result<Unit, CoreError<InitLoggerError>> =
-        setUpInitLoggerParser.decodeFromString<IntermCoreResult<Unit, InitLoggerError>>(initLogger(path))
-            .toResult()
+        setUpInitLoggerParser.tryParse(initLogger(path))
 
     val getDBStateParser = Json {
         serializersModule = SerializersModule {
@@ -47,13 +54,11 @@ object CoreModel {
     }
 
     fun getDBState(config: Config): Result<State, CoreError<GetStateError>> =
-        getDBStateParser.decodeFromString<IntermCoreResult<State, GetStateError>>(
+        getDBStateParser.tryParse(
             getDBState(
-                getDBStateParser.encodeToString(
-                    config
-                )
+                getDBStateParser.encodeToString(config)
             )
-        ).toResult()
+        )
 
     val migrateDBParser = Json {
         serializersModule = SerializersModule {
@@ -62,13 +67,13 @@ object CoreModel {
     }
 
     fun migrateDB(config: Config): Result<Unit, CoreError<MigrationError>> =
-        migrateDBParser.decodeFromString<IntermCoreResult<Unit, MigrationError>>(
+        migrateDBParser.tryParse(
             migrateDB(
                 migrateDBParser.encodeToString(
                     config
                 )
             )
-        ).toResult()
+        )
 
     val createAccountParser = Json {
         serializersModule = SerializersModule {
@@ -79,13 +84,13 @@ object CoreModel {
     fun createAccount(
         config: Config,
         account: String
-    ): Result<Account, CoreError<CreateAccountError>> = createAccountParser.decodeFromString<IntermCoreResult<Account, CreateAccountError>>(
+    ): Result<Account, CoreError<CreateAccountError>> = createAccountParser.tryParse(
         createAccount(
             createAccountParser.encodeToString(config),
             account,
             getAPIURL()
         )
-    ).toResult()
+    )
 
     val importAccountParser = Json {
         serializersModule = SerializersModule {
@@ -93,19 +98,14 @@ object CoreModel {
         }
     }
 
-    fun importAccount(config: Config, account: String): Result<Account, CoreError<ImportError>> {
-        val a = importAccount(
+    fun importAccount(config: Config, account: String): Result<Account, CoreError<ImportError>> = importAccountParser.tryParse(
+        importAccount(
             importAccountParser.encodeToString(
                 config
             ),
             account
         )
-
-        print(a)
-        return importAccountParser.decodeFromString<IntermCoreResult<Account, ImportError>>(
-            a
-        ).toResult()
-    }
+    )
 
     val exportAccountParser = Json {
         serializersModule = SerializersModule {
@@ -114,11 +114,11 @@ object CoreModel {
     }
 
     fun exportAccount(config: Config): Result<String, CoreError<AccountExportError>> =
-        exportAccountParser.decodeFromString<IntermCoreResult<String, AccountExportError>>(
+        exportAccountParser.tryParse(
             exportAccount(
                 exportAccountParser.encodeToString(config)
             )
-        ).toResult()
+        )
 
     val syncAllParser = Json {
         serializersModule = SerializersModule {
@@ -127,13 +127,13 @@ object CoreModel {
     }
 
     fun syncAll(config: Config, syncModel: SyncModel?): Result<Unit, CoreError<SyncAllError>> =
-        syncAllParser.decodeFromString<IntermCoreResult<Unit, SyncAllError>>(
+        syncAllParser.tryParse(
             if (syncModel != null) {
                 syncAll(syncAllParser.encodeToString(config), syncModel)
             } else {
                 backgroundSync(syncAllParser.encodeToString(config))
             }
-        ).toResult()
+        )
 
     val writeToDocumentParser = Json {
         serializersModule = SerializersModule {
@@ -146,13 +146,13 @@ object CoreModel {
         id: String,
         content: String
     ): Result<Unit, CoreError<WriteToDocumentError>> =
-        writeToDocumentParser.decodeFromString<IntermCoreResult<Unit, WriteToDocumentError>>(
+        writeToDocumentParser.tryParse(
             writeDocument(
                 writeToDocumentParser.encodeToString(config),
                 id,
                 content
             )
-        ).toResult()
+        )
 
     val getRootParser = Json {
         serializersModule = SerializersModule {
@@ -161,11 +161,11 @@ object CoreModel {
     }
 
     fun getRoot(config: Config): Result<DecryptedFileMetadata, CoreError<GetRootError>> =
-        getRootParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, GetRootError>>(
+        getRootParser.tryParse(
             getRoot(
                 getRootParser.encodeToString(config)
             )
-        ).toResult()
+        )
 
     val getAccountParser = Json {
         serializersModule = SerializersModule {
@@ -174,11 +174,11 @@ object CoreModel {
     }
 
     fun getAccount(config: Config): Result<Account, CoreError<GetAccountError>> =
-        getAccountParser.decodeFromString<IntermCoreResult<Account, GetAccountError>>(
+        getAccountParser.tryParse(
             getAccount(
                 getAccountParser.encodeToString(config)
             )
-        ).toResult()
+        )
 
     fun convertToHumanDuration(
         metadataVersion: Long
@@ -193,11 +193,11 @@ object CoreModel {
     fun getUsage(
         config: Config
     ): Result<UsageMetrics, CoreError<GetUsageError>> =
-        getUsageParser.decodeFromString<IntermCoreResult<UsageMetrics, GetUsageError>>(
+        getUsageParser.tryParse(
             getUsage(
                 getUsageParser.encodeToString(config)
             )
-        ).toResult()
+        )
 
     val getUncompressedUsageParser = Json {
         serializersModule = SerializersModule {
@@ -208,9 +208,9 @@ object CoreModel {
     fun getUncompressedUsage(
         config: Config
     ): Result<UsageItemMetric, CoreError<GetUsageError>> =
-        getUncompressedUsageParser.decodeFromString<IntermCoreResult<UsageItemMetric, GetUsageError>>(
+        getUncompressedUsageParser.tryParse(
             getUncompressedUsage(getUncompressedUsageParser.encodeToString(config))
-        ).toResult()
+        )
 
     val getChildrenParser = Json {
         serializersModule = SerializersModule {
@@ -222,9 +222,9 @@ object CoreModel {
         config: Config,
         parentId: String
     ): Result<List<DecryptedFileMetadata>, CoreError<GetChildrenError>> =
-        getChildrenParser.decodeFromString<IntermCoreResult<List<DecryptedFileMetadata>, GetChildrenError>>(
+        getChildrenParser.tryParse(
             getChildren(getChildrenParser.encodeToString(config), parentId)
-        ).toResult()
+        )
 
     val getFileByIdParser = Json {
         serializersModule = SerializersModule {
@@ -236,9 +236,9 @@ object CoreModel {
         config: Config,
         id: String
     ): Result<DecryptedFileMetadata, CoreError<GetFileByIdError>> =
-        getFileByIdParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, GetFileByIdError>>(
+        getFileByIdParser.tryParse(
             getFileById(getFileByIdParser.encodeToString(config), id)
-        ).toResult()
+        )
 
     val readDocumentParser = Json {
         serializersModule = SerializersModule {
@@ -250,12 +250,12 @@ object CoreModel {
         config: Config,
         id: String
     ): Result<String, CoreError<ReadDocumentError>> =
-        readDocumentParser.decodeFromString<IntermCoreResult<String, ReadDocumentError>>(
+        readDocumentParser.tryParse(
             readDocument(
                 readDocumentParser.encodeToString(config),
                 id
             )
-        ).toResult()
+        )
 
     val saveDocumentToDiskParser = Json {
         serializersModule = SerializersModule {
@@ -268,9 +268,9 @@ object CoreModel {
         id: String,
         location: String
     ): Result<Unit, CoreError<SaveDocumentToDiskError>> =
-        saveDocumentToDiskParser.decodeFromString<IntermCoreResult<Unit, SaveDocumentToDiskError>>(
+        saveDocumentToDiskParser.tryParse(
             saveDocumentToDisk(saveDocumentToDiskParser.encodeToString(config), id, location)
-        ).toResult()
+        )
 
     val exportDrawingToDiskParser = Json {
         serializersModule = SerializersModule {
@@ -284,14 +284,14 @@ object CoreModel {
         format: SupportedImageFormats,
         location: String
     ): Result<Unit, CoreError<ExportDrawingToDiskError>> =
-        exportDrawingToDiskParser.decodeFromString<IntermCoreResult<Unit, ExportDrawingToDiskError>>(
+        exportDrawingToDiskParser.tryParse(
             exportDrawingToDisk(
                 exportDrawingToDiskParser.encodeToString(config),
                 id,
                 exportDrawingToDiskParser.encodeToString(format),
                 location
             )
-        ).toResult()
+        )
 
     val createFileParser = Json {
         serializersModule = SerializersModule {
@@ -305,14 +305,14 @@ object CoreModel {
         name: String,
         fileType: FileType
     ): Result<DecryptedFileMetadata, CoreError<CreateFileError>> =
-        createFileParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, CreateFileError>>(
+        createFileParser.tryParse(
             createFile(
                 createFileParser.encodeToString(config),
                 name,
                 parentId,
                 createFileParser.encodeToString(fileType)
             )
-        ).toResult()
+        )
 
     val deleteFileParser = Json {
         serializersModule = SerializersModule {
@@ -324,14 +324,14 @@ object CoreModel {
         config: Config,
         id: String
     ): Result<Unit, CoreError<FileDeleteError>> =
-        deleteFileParser.decodeFromString<IntermCoreResult<Unit, FileDeleteError>>(
+        deleteFileParser.tryParse(
             deleteFile(
                 deleteFileParser.encodeToString(
                     config
                 ),
                 id
             )
-        ).toResult()
+        )
 
     val renameFileParser = Json {
         serializersModule = SerializersModule {
@@ -344,14 +344,14 @@ object CoreModel {
         id: String,
         name: String
     ): Result<Unit, CoreError<RenameFileError>> =
-        renameFileParser.decodeFromString<IntermCoreResult<Unit, RenameFileError>>(
+        renameFileParser.tryParse(
             renameFile(
                 renameFileParser.encodeToString(
                     config
                 ),
                 id, name
             )
-        ).toResult()
+        )
 
     val moveFileParser = Json {
         serializersModule = SerializersModule {
@@ -364,14 +364,14 @@ object CoreModel {
         id: String,
         parentId: String
     ): Result<Unit, CoreError<MoveFileError>> =
-        moveFileParser.decodeFromString<IntermCoreResult<Unit, MoveFileError>>(
+        moveFileParser.tryParse(
             moveFile(
                 moveFileParser.encodeToString(
                     config
                 ),
                 id, parentId
             )
-        ).toResult()
+        )
 
     val calculateWorkParser = Json {
         serializersModule = SerializersModule {
@@ -380,7 +380,7 @@ object CoreModel {
     }
 
     fun calculateWork(config: Config): Result<WorkCalculated, CoreError<CalculateWorkError>> =
-        calculateWorkParser.decodeFromString<IntermCoreResult<WorkCalculated, CalculateWorkError>>(
+        calculateWorkParser.tryParse(
             calculateWork(calculateWorkParser.encodeToString(config))
-        ).toResult()
+        )
 }

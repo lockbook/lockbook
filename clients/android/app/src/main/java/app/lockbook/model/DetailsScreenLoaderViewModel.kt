@@ -5,7 +5,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import app.lockbook.App
+import app.lockbook.R
 import app.lockbook.getRes
+import app.lockbook.getString
 import app.lockbook.util.Drawing
 import app.lockbook.util.LbError
 import app.lockbook.util.SingleMutableLiveData
@@ -25,18 +27,20 @@ class DetailsScreenLoaderViewModel(application: Application, loadingInfo: Detail
     init {
         viewModelScope.launch(Dispatchers.IO) {
             val getContentsResults = CoreModel.readDocument(App.config, loadingInfo.fileMetadata.id)
-            updateDetailScreenLoaderUI(
+            _updateDetailScreenLoaderUI.postValue(
                 when (getContentsResults) {
                     is Ok -> {
                         when (loadingInfo.fileMetadata.decryptedName.endsWith(".draw")) {
                             true -> {
-                                val drawing = if (getContentsResults.value.isEmpty()) {
-                                    Drawing()
+                                if (getContentsResults.value.isEmpty()) {
+                                    UpdateDetailScreenLoaderUI.NotifyFinished(DetailsScreen.Drawing(loadingInfo.fileMetadata, Drawing()))
                                 } else {
-                                    Json.decodeFromString<Drawing>(getContentsResults.value)
+                                    try {
+                                        UpdateDetailScreenLoaderUI.NotifyFinished(DetailsScreen.Drawing(loadingInfo.fileMetadata, Json.decodeFromString(getContentsResults.value)))
+                                    } catch (e: Exception) {
+                                        UpdateDetailScreenLoaderUI.NotifyError(LbError.newUserError(getString(R.string.drawing_parse_error)))
+                                    }
                                 }
-
-                                UpdateDetailScreenLoaderUI.NotifyFinished(DetailsScreen.Drawing(loadingInfo.fileMetadata, drawing))
                             }
                             false -> UpdateDetailScreenLoaderUI.NotifyFinished(DetailsScreen.TextEditor(loadingInfo.fileMetadata, getContentsResults.value))
                         }
@@ -45,10 +49,6 @@ class DetailsScreenLoaderViewModel(application: Application, loadingInfo: Detail
                 }
             )
         }
-    }
-
-    private fun updateDetailScreenLoaderUI(update: UpdateDetailScreenLoaderUI) {
-        _updateDetailScreenLoaderUI.postValue(update)
     }
 }
 
