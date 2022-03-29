@@ -69,10 +69,9 @@ pub fn run(ops: &[Operation]) {
                     let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
                     crate::create_file_at_path(client, &path).map_err(err_to_string)
                 }()
-                .unwrap_or_else(|_| panic!(
-                    "Operation::Create error. client_num={:?}, path={:?}",
-                    client_num, path
-                ));
+                .unwrap_or_else(|_| {
+                    panic!("Operation::Create error. client_num={:?}, path={:?}", client_num, path)
+                });
             }
             Operation::Rename { client_num, path, new_name } => {
                 || -> Result<_, String> {
@@ -81,10 +80,12 @@ pub fn run(ops: &[Operation]) {
                     let target = crate::get_file_by_path(client, &path).map_err(err_to_string)?;
                     crate::rename_file(client, target.id, new_name).map_err(err_to_string)
                 }()
-                .unwrap_or_else(|_| panic!(
-                    "Operation::Rename error. client_num={:?}, path={:?}, new_name={:?}",
-                    client_num, path, new_name
-                ));
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Operation::Rename error. client_num={:?}, path={:?}, new_name={:?}",
+                        client_num, path, new_name
+                    )
+                });
             }
             Operation::Move { client_num, path, new_parent_path } => {
                 || -> Result<_, String> {
@@ -96,10 +97,12 @@ pub fn run(ops: &[Operation]) {
                         crate::get_file_by_path(client, &new_parent_path).map_err(err_to_string)?;
                     crate::move_file(client, target.id, new_parent.id).map_err(err_to_string)
                 }()
-                .unwrap_or_else(|_| panic!(
-                    "Operation::Move error. client_num={:?}, path={:?}, new_parent_path={:?}",
-                    client_num, path, new_parent_path
-                ));
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Operation::Move error. client_num={:?}, path={:?}, new_parent_path={:?}",
+                        client_num, path, new_parent_path
+                    )
+                });
             }
             Operation::Delete { client_num, path } => {
                 || -> Result<_, String> {
@@ -108,10 +111,9 @@ pub fn run(ops: &[Operation]) {
                     let target = crate::get_file_by_path(client, &path).map_err(err_to_string)?;
                     crate::delete_file(client, target.id).map_err(err_to_string)
                 }()
-                .unwrap_or_else(|_| panic!(
-                    "Operation::Delete error. client_num={:?}, path={:?}",
-                    client_num, path
-                ));
+                .unwrap_or_else(|_| {
+                    panic!("Operation::Delete error. client_num={:?}, path={:?}", client_num, path)
+                });
             }
             Operation::Edit { client_num, path, content } => {
                 || -> Result<_, String> {
@@ -120,10 +122,12 @@ pub fn run(ops: &[Operation]) {
                     let target = crate::get_file_by_path(client, &path).map_err(err_to_string)?;
                     crate::write_document(client, target.id, content).map_err(err_to_string)
                 }()
-                .unwrap_or_else(|_| panic!(
-                    "Operation::Edit error. client_num={:?}, path={:?}, content={:?}",
-                    client_num, path, content
-                ));
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Operation::Edit error. client_num={:?}, path={:?}, content={:?}",
+                        client_num, path, content
+                    )
+                });
             }
             Operation::Custom { f } => {
                 f(&clients, &root);
