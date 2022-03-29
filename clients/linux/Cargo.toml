@@ -1,0 +1,20 @@
+[package]
+name = "lockbook-desktop"
+version = "0.3.19"
+edition = "2021"
+
+[lib]
+path = "./src/lib.rs"
+name = "lockbook_desktop_gtk"
+
+[dependencies]
+lb = { package = "lb-api", path = "./lb-api" }
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.8"
+gtk = { package = "gtk4", version = "0.4.1", features = ["v4_6"] }
+gio = "0.15.1"
+sv5 = { package = "sourceview5", version = "0.4.1" }
+gdk-pixbuf = "0.15.4"
+qrcode-generator = "*"
+once_cell = "*"
+regex = "*"
