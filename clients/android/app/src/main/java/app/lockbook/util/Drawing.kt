@@ -7,7 +7,6 @@ import kotlinx.serialization.Required
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
-import java.util.LinkedHashMap
 import kotlin.properties.Delegates
 
 @Serializable
@@ -22,7 +21,6 @@ data class Drawing(
     var translationY: Float = 0f,
     @Required
     var strokes: MutableList<Stroke> = mutableListOf(),
-    @Required
     var theme: LinkedHashMap<String, ColorRGB>? = null,
 ) {
 
