@@ -305,19 +305,18 @@ where
             let num_children = children.len();
         
             for (count, child) in children.iter().enumerate() {
-                let mut next_crotch = "".to_string();
                 let next_children = tree.find_children(child.id());
         
                 let sub_children = next_children.len() > 0;
                 let last_child = count == num_children - 1;
         
-                if sub_children {
-                    next_crotch.push_str( if last_child {"    "} else {"│   "} );
-                }
+                let next_crotch = if !sub_children { "" } else{
+                    if last_child {"    "} else {"│   "}
+                };
         
                 let next_twig = if last_child {"└── "} else {"├── "};
         
-                sub_tree.push_str( &print_branch(tree, child, &next_children, &next_branch, &next_crotch, next_twig));
+                sub_tree.push_str( &print_branch(tree, child, &next_children, &next_branch, next_crotch, next_twig));
             };
         
             return sub_tree;
