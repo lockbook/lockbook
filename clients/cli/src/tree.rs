@@ -9,7 +9,7 @@ pub fn tree() -> CliResult<()> {
     match files.display() {
         Ok(tree) => {
             println!("\n{}", tree);
-            return Ok(());
+            Ok(())
         }
         Err(err) => {
             return match err {
