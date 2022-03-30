@@ -415,6 +415,23 @@ pub fn test_config() -> Config {
     Config { writeable_path: format!("/tmp/{}", Uuid::new_v4()) }
 }
 
+pub fn create_test_account() -> (Config, DecryptedFileMetadata) {
+    let db = test_config();
+    let generated_account = generate_account();
+    lockbook_core::create_account(&db, &generated_account.username, &generated_account.api_url).unwrap();
+
+    let root = lockbook_core::get_root(&db).unwrap();
+
+    (db, root)
+}
+
+pub const GEN_FILES_BENCH_SIZE_1: u64 = 10;
+pub const GEN_FILES_BENCH_SIZE_2: u64 = GEN_FILES_BENCH_SIZE_1 * 10;
+pub const GEN_FILES_BENCH_SIZE_3: u64 = GEN_FILES_BENCH_SIZE_1 * 20;
+pub const GEN_FILES_BENCH_SIZE_4: u64 = GEN_FILES_BENCH_SIZE_1 * 50;
+pub const GEN_FILES_BENCH_SIZE_5: u64 = GEN_FILES_BENCH_SIZE_1 * 100;
+pub const GEN_FILES_BENCH_SIZE_6: u64 = GEN_FILES_BENCH_SIZE_1 * 1000;
+
 pub fn random_username() -> String {
     Uuid::new_v4()
         .to_string()
