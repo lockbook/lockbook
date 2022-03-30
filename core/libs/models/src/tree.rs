@@ -1,7 +1,6 @@
 use crate::file_metadata::{FileType, Owner};
 use crate::tree::TreeError::{FileNonexistent, RootNonexistent};
 use std::collections::HashMap;
-use std::fs::File;
 use std::hash::Hash;
 use std::fmt::Display;
 use uuid::Uuid;
@@ -298,76 +297,35 @@ where
     }
 
     fn display(&self) -> Result<String, TreeError> {
-        // fn print_branch<Fm: Fm, FmExt: FileMetaExt<Fm>>(&self, tree: &FmExt, file_leaf: &Fm, children: &Vec<Fm>, branch: &str, crotch: &str, twig: &str ) -> String {
-        //     let mut sub_tree = format!("{}{}{}\n", branch, twig, file_leaf.name());
-        //     let mut next_branch = branch.to_string().clone();
-        //     next_branch.push_str(crotch);
+        fn print_branch<Fm: FileMetadata>( tree: &[Fm], file_leaf: &Fm, children: &Vec<Fm>, branch: &str, crotch: &str, twig: &str ) -> String {
+            let mut sub_tree = format!("{}{}{}\n", branch, twig, file_leaf.name());
+            let mut next_branch = branch.to_string().clone();
+            next_branch.push_str(crotch);
         
-        //     let num_children = children.len();
+            let num_children = children.len();
         
-        //     for (count, child) in children.iter().enumerate() {
-        //         let mut next_crotch = "".to_string();
-        //         let next_children = tree.find_children(child.id());
+            for (count, child) in children.iter().enumerate() {
+                let mut next_crotch = "".to_string();
+                let next_children = tree.find_children(child.id());
         
-        //         let sub_children = next_children.len() > 0;
-        //         let last_child = count == num_children - 1;
+                let sub_children = next_children.len() > 0;
+                let last_child = count == num_children - 1;
         
-        //         if sub_children {
-        //             next_crotch.push_str( if last_child {"    "} else {"│   "} );
-        //         }
+                if sub_children {
+                    next_crotch.push_str( if last_child {"    "} else {"│   "} );
+                }
         
-        //         let next_twig = if last_child {"└── "} else {"├── "};
+                let next_twig = if last_child {"└── "} else {"├── "};
         
-        //         sub_tree.push_str( &print_branch(tree, child, &next_children, &next_branch, &next_crotch, next_twig));
-        //     };
+                sub_tree.push_str( &print_branch(tree, child, &next_children, &next_branch, &next_crotch, next_twig));
+            };
         
-        //     return sub_tree;
-        // }
-
+            return sub_tree;
+        }
 
         let root = self.find_root()?;
-
         let result = print_branch(self, &root, &self.find_children(root.id()), "", "", "" );
         return Ok(result);
     }
 
-}
-
-// fn get_sorted_children<Fm: FileMetadata>(tree: &FileMetaExt<Fm>, node: Fm) -> Vec<Fm> {
-//     let mut children = tree.find_children(node.id());//.unwrap_or_else(|err| {
-//     //     println!("error while retrieving file's children: {:#?}", err);
-//     //     return Vec::new();
-//     // });
-    
-//     // Implement the following later
-//     // children.sort_by(|a, b| a.decrypted_name.to_lowercase().cmp(&b.decrypted_name.to_lowercase()));
-
-//     return children
-// }
-
-
-fn print_branch<Fm: FileMetadata, FmExt: FileMetaExt<Fm> + ?Sized>(tree: &FmExt, file_leaf: &Fm, children: &Vec<Fm>, branch: &str, crotch: &str, twig: &str ) -> String {
-    let mut sub_tree = format!("{}{}{}\n", branch, twig, file_leaf.name());
-    let mut next_branch = branch.to_string().clone();
-    next_branch.push_str(crotch);
-
-    let num_children = children.len();
-
-    for (count, child) in children.iter().enumerate() {
-        let mut next_crotch = "".to_string();
-        let next_children = tree.find_children(child.id());
-
-        let sub_children = next_children.len() > 0;
-        let last_child = count == num_children - 1;
-
-        if sub_children {
-            next_crotch.push_str( if last_child {"    "} else {"│   "} );
-        }
-
-        let next_twig = if last_child {"└── "} else {"├── "};
-
-        sub_tree.push_str( &print_branch(tree, child, &next_children, &next_branch, &next_crotch, next_twig));
-    };
-
-    return sub_tree;
 }
