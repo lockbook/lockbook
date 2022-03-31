@@ -33,11 +33,12 @@ use crate::pure_functions::drawing::SupportedImageFormats;
 use crate::repo::{account_repo, last_updated_repo};
 use crate::service::db_state_service::State;
 use crate::service::import_export_service::{self, ImportExportFileInfo, ImportStatus};
+use crate::service::search_service::SearchResultItem;
 use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 use crate::service::{
     account_service, billing_service, db_state_service, drawing_service, file_service,
-    path_service, sync_service, usage_service,
+    path_service, search_service, sync_service, usage_service,
 };
 use crate::sync_service::WorkCalculated;
 
@@ -689,6 +690,13 @@ pub fn get_credit_card(config: &Config) -> Result<CreditCardLast4Digits, Error<G
         CoreError::ClientUpdateRequired => UiError(GetCreditCard::ClientUpdateRequired),
         _ => unexpected!("{:#?}", e),
     })
+}
+
+#[instrument(skip(config), err(Debug))]
+pub fn search_file_paths(
+    config: &Config, input: &str,
+) -> Result<Vec<SearchResultItem>, UnexpectedError> {
+    search_service::search_file_paths(config, input).map_err(|e| unexpected_only!("{:#?}", e))
 }
 
 // This basically generates a function called `get_all_error_variants`,
