@@ -16,11 +16,11 @@ impl super::App {
         let writeable_path =
             env::var("LOCKBOOK_PATH").unwrap_or(format!("{}/.lockbook", env::var("HOME").unwrap()));
 
-        let header_bar = ui::LbHeaderBar::new();
+        let titlebar = ui::Titlebar::new();
 
         let window = gtk::ApplicationWindow::new(a);
         window.set_title(Some("Lockbook"));
-        window.set_titlebar(Some(&header_bar));
+        window.set_titlebar(Some(&titlebar));
 
         if let Err(err) = api.init_logger(Path::new(&writeable_path)) {
             show_launch_error(&window, &err.0);
@@ -64,7 +64,7 @@ impl super::App {
             &settings.read().unwrap().hidden_tree_cols,
         );
 
-        let app = Self { api, settings, window, header_bar, onboard, account, bg_state };
+        let app = Self { api, settings, window, titlebar, onboard, account, bg_state };
 
         app.add_app_actions(a);
 
@@ -186,8 +186,8 @@ impl super::App {
             use ui::AccountOp::*;
             match op {
                 TreeReceiveDrop(val, x, y) => self.tree_receive_drop(&val, x, y),
-                TabSwitched(tab) => self.window.set_title(Some(&tab.name())),
-                AllTabsClosed => self.window.set_title(Some("Lockbook")),
+                TabSwitched(tab) => self.titlebar.set_title(&tab.name()),
+                AllTabsClosed => self.titlebar.set_title("Lockbook"),
             }
             glib::Continue(true)
         });

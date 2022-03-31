@@ -5,6 +5,7 @@ mod filetree;
 mod menu_item;
 mod sync_panel;
 mod text_editor;
+mod titlebar;
 
 pub use account_screen::AccountOp;
 pub use account_screen::AccountScreen;
@@ -17,11 +18,9 @@ pub use menu_item::menu_separator;
 pub use menu_item::MenuItemBuilder;
 pub use sync_panel::SyncPanel;
 pub use text_editor::TextEditor;
+pub use titlebar::Titlebar;
 
 pub mod about_dialog;
-pub mod header_bar;
-
-pub use header_bar::LbHeaderBar;
 
 use gtk::glib;
 use gtk::prelude::*;

@@ -9,7 +9,7 @@ use crate::ui;
 pub struct App {
     pub api: Arc<dyn lb::Api>,
     pub settings: Arc<RwLock<Settings>>,
-    pub header_bar: ui::LbHeaderBar,
+    pub titlebar: ui::Titlebar,
     pub window: gtk::ApplicationWindow,
     pub onboard: ui::OnboardScreen,
     pub account: ui::AccountScreen,

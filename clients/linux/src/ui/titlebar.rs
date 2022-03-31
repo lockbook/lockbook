@@ -3,22 +3,26 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
 glib::wrapper! {
-    pub struct LbHeaderBar(ObjectSubclass<imp::LbHeaderBar>)
+    pub struct Titlebar(ObjectSubclass<imp::Titlebar>)
         @extends gtk::Widget, gtk::HeaderBar,
         @implements gtk::Accessible;
 }
 
-impl LbHeaderBar {
+impl Titlebar {
     pub fn new() -> Self {
-        glib::Object::new(&[]).expect("failed to create LbHeaderBar")
+        glib::Object::new(&[]).expect("failed to create custom Titlebar")
     }
 
     pub fn set_title(&self, title: &str) {
         self.imp().title.set_markup(&format!("<b>{}</b>", title));
     }
 
-    pub fn click_search_button(&self) {
-        self.imp().search_btn.emit_clicked();
+    pub fn toggle_search_on(&self) {
+        let btn = &self.imp().search_btn;
+        if !btn.is_active() {
+            btn.emit_clicked();
+        }
+        self.imp().search_box.grab_focus();
     }
 
     pub fn search_input(&self) -> String {
@@ -36,6 +40,7 @@ impl LbHeaderBar {
 }
 
 mod imp {
+    use gtk::gdk;
     use gtk::glib;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
@@ -44,7 +49,7 @@ mod imp {
     use crate::ui::icons;
 
     #[derive(Debug, Default)]
-    pub struct LbHeaderBar {
+    pub struct Titlebar {
         pub app_menu_btn: gtk::MenuButton,
         pub search_btn: gtk::ToggleButton,
 
@@ -57,9 +62,9 @@ mod imp {
     }
 
     #[glib::object_subclass]
-    impl ObjectSubclass for LbHeaderBar {
-        const NAME: &'static str = "LbHeaderBar";
-        type Type = super::LbHeaderBar;
+    impl ObjectSubclass for Titlebar {
+        const NAME: &'static str = "Titlebar";
+        type Type = super::Titlebar;
         type ParentType = gtk::Widget;
 
         fn class_init(c: &mut Self::Class) {
@@ -68,7 +73,7 @@ mod imp {
         }
     }
 
-    impl ObjectImpl for LbHeaderBar {
+    impl ObjectImpl for Titlebar {
         fn constructed(&self, obj: &Self::Type) {
             self.parent_constructed(obj);
 
@@ -99,31 +104,40 @@ mod imp {
 
             let model = gtk::ListStore::new(&[String::static_type(), String::static_type()]);
             self.search_cmpl.set_model(Some(&model));
+            self.search_cmpl.set_match_func(|_, _, _| true);
             self.search_cmpl.set_popup_completion(true);
             self.search_cmpl.set_inline_selection(true);
             self.search_cmpl.set_text_column(0);
-            self.search_cmpl.set_match_func(|_, _, _| true);
+            self.search_cmpl.connect_match_selected({
+                move |_, _model, _iter| {
+                    gtk::Inhibit(false)
+                }
+            });
 
             self.search_box.set_width_request(400);
             self.search_box.set_primary_icon_name(Some(icons::SEARCH));
             self.search_box.set_completion(Some(&self.search_cmpl));
 
-            self.search_box.connect_changed(|search_box| {
-                search_box
-                    .activate_action("app.update-search", None)
-                    .unwrap();
-            });
-
             let search_key_press = gtk::EventControllerKey::new();
+            search_key_press.set_propagation_phase(gtk::PropagationPhase::Capture);
             search_key_press.connect_key_pressed({
                 let search_box = self.search_box.clone();
                 let search_btn = self.search_btn.clone();
 
-                move |_, key, _, _| {
-                    if key == gtk::gdk::Key::Escape {
+                move |_, key, code, _| {
+                    const ARROW_UP: u32 = 111;
+                    const ARROW_DOWN: u32 = 116;
+
+                    if key == gdk::Key::Escape {
                         search_box.set_text("");
                         search_btn.emit_clicked();
+                    } else if code == ARROW_UP || code == ARROW_DOWN {
+                    } else {
+                        search_box
+                            .activate_action("app.update-search", None)
+                            .unwrap();
                     }
+
                     gtk::Inhibit(false)
                 }
             });
@@ -164,7 +178,7 @@ mod imp {
         }
     }
 
-    impl WidgetImpl for LbHeaderBar {}
+    impl WidgetImpl for Titlebar {}
 
     fn app_menu_popover() -> gtk::Popover {
         let p = gtk::Popover::new();
