@@ -16,8 +16,11 @@ impl super::App {
         let writeable_path =
             env::var("LOCKBOOK_PATH").unwrap_or(format!("{}/.lockbook", env::var("HOME").unwrap()));
 
+        let header_bar = ui::LbHeaderBar::new();
+
         let window = gtk::ApplicationWindow::new(a);
         window.set_title(Some("Lockbook"));
+        window.set_titlebar(Some(&header_bar));
 
         if let Err(err) = api.init_logger(Path::new(&writeable_path)) {
             show_launch_error(&window, &err.0);
@@ -61,7 +64,7 @@ impl super::App {
             &settings.read().unwrap().hidden_tree_cols,
         );
 
-        let app = Self { api, settings, window, onboard, account, bg_state };
+        let app = Self { api, settings, window, header_bar, onboard, account, bg_state };
 
         app.add_app_actions(a);
 
@@ -133,10 +136,17 @@ impl super::App {
             a.add_action(&exp_files);
         }
         {
+            let app = self.clone();
             let prompt_search = gio::SimpleAction::new("prompt-search", None);
-            prompt_search.connect_activate(move |_, _| {});
+            prompt_search.connect_activate(move |_, _| app.open_search());
             a.add_action(&prompt_search);
-            a.set_accels_for_action("app.prompt-search", &["<Ctrl>space"]);
+            a.set_accels_for_action("app.prompt-search", &["<Ctrl>space", "<Ctrl>L"]);
+        }
+        {
+            let app = self.clone();
+            let update_search = gio::SimpleAction::new("update-search", None);
+            update_search.connect_activate(move |_, _| app.update_search());
+            a.add_action(&update_search);
         }
         {
             let app = self.clone();
@@ -203,7 +213,6 @@ impl super::App {
             gtk::Inhibit(false)
         });
 
-        self.window.set_titlebar(Some(&ui::header_bar::new()));
         self.window.set_default_size(900, 700);
 
         if self.settings.read().unwrap().window_maximize {

@@ -21,6 +21,8 @@ pub use text_editor::TextEditor;
 pub mod about_dialog;
 pub mod header_bar;
 
+pub use header_bar::LbHeaderBar;
+
 use gtk::glib;
 use gtk::prelude::*;
 
@@ -89,7 +91,7 @@ pub mod icons {
     pub const NEW_DOC: &str = "document-new-symbolic";
     pub const NEW_FOLDER: &str = "folder-new-symbolic";
     pub const RENAME: &str = "go-jump-symbolic";
-    //pub const SEARCH: &str = "system-search-symbolic";
+    pub const SEARCH: &str = "system-search-symbolic";
     pub const SETTINGS: &str = "preferences-system-symbolic";
     pub const SYNC: &str = "emblem-synchronizing-symbolic";
     pub const USAGE: &str = "utilities-system-monitor-symbolic";

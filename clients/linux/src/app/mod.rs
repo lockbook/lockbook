@@ -9,6 +9,7 @@ use crate::ui;
 pub struct App {
     pub api: Arc<dyn lb::Api>,
     pub settings: Arc<RwLock<Settings>>,
+    pub header_bar: ui::LbHeaderBar,
     pub window: gtk::ApplicationWindow,
     pub onboard: ui::OnboardScreen,
     pub account: ui::AccountScreen,
@@ -27,6 +28,7 @@ mod imp_new_file;
 mod imp_open_file;
 mod imp_rename_file;
 mod imp_save_file;
+mod imp_search;
 mod imp_settings_dialog;
 mod imp_sview_ctrl_click;
 mod imp_sview_insert_files;
