@@ -2245,6 +2245,7 @@ dependencies = [
 name = "lockbook-desktop"
 version = "0.3.19"
 dependencies = [
+ "fuzzy-matcher",
  "gdk-pixbuf",
  "gio",
  "gtk4",
