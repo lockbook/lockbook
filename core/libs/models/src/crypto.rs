@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Formatter, Result, Display};
+use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
 
@@ -61,12 +61,6 @@ pub struct SecretFileName {
 impl PartialEq for SecretFileName {
     fn eq(&self, other: &Self) -> bool {
         self.hmac == other.hmac
-    }
-}
-
-impl Display for SecretFileName {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f, "{:?}", self.encrypted_value.value )
     }
 }
 

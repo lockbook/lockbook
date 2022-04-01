@@ -1,12 +1,12 @@
 use crate::file_metadata::{FileType, Owner};
 use crate::tree::TreeError::{FileNonexistent, RootNonexistent};
 use std::collections::HashMap;
-use std::hash::Hash;
 use std::fmt::Display;
+use std::hash::Hash;
 use uuid::Uuid;
 
-pub trait FileMetadata: Clone {
-    type Name: Hash + Eq + Display;
+pub trait FileMetadata: Clone + Display {
+    type Name: Hash + Eq;
 
     fn id(&self) -> Uuid;
     fn file_type(&self) -> FileType;
@@ -16,6 +16,7 @@ pub trait FileMetadata: Clone {
     fn metadata_version(&self) -> u64;
     fn content_version(&self) -> u64;
     fn deleted(&self) -> bool;
+    fn display(&self) -> String;
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -67,6 +68,13 @@ pub trait FileMetaExt<T: FileMetadata> {
     fn verify_integrity(&self) -> Result<(), TestFileTreeError>;
     fn display(&self) -> Result<String, TreeError>;
 }
+
+// Why cant get work :(
+// impl Display for FileMetadata {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         self.display()
+//     }
+// }
 
 impl<Fm> FileMetaExt<Fm> for [Fm]
 where
@@ -297,34 +305,48 @@ where
     }
 
     fn display(&self) -> Result<String, TreeError> {
-        fn print_branch<Fm: FileMetadata>( tree: &[Fm], file_leaf: &Fm, children: &Vec<Fm>, branch: &str, crotch: &str, twig: &str ) -> String {
-            let mut sub_tree = format!("{}{}{}\n", branch, twig, file_leaf.name());
+        fn print_branch<Fm: FileMetadata>(
+            tree: &[Fm], file_leaf: &Fm, children: &Vec<Fm>, branch: &str, crotch: &str, twig: &str,
+        ) -> String {
+            let mut sub_tree = format!("{}{}{}\n", branch, twig, file_leaf);
             let mut next_branch = branch.to_string().clone();
             next_branch.push_str(crotch);
-        
+
             let num_children = children.len();
-        
+
             for (count, child) in children.iter().enumerate() {
                 let next_children = tree.find_children(child.id());
-        
+
                 let sub_children = next_children.len() > 0;
                 let last_child = count == num_children - 1;
-        
-                let next_crotch = if !sub_children { "" } else{
-                    if last_child {"    "} else {"│   "}
+
+                let next_crotch = if !sub_children {
+                    ""
+                } else {
+                    if last_child {
+                        "    "
+                    } else {
+                        "│   "
+                    }
                 };
-        
-                let next_twig = if last_child {"└── "} else {"├── "};
-        
-                sub_tree.push_str( &print_branch(tree, child, &next_children, &next_branch, next_crotch, next_twig));
-            };
-        
+
+                let next_twig = if last_child { "└── " } else { "├── " };
+
+                sub_tree.push_str(&print_branch(
+                    tree,
+                    child,
+                    &next_children,
+                    &next_branch,
+                    next_crotch,
+                    next_twig,
+                ));
+            }
+
             return sub_tree;
         }
 
         let root = self.find_root()?;
-        let result = print_branch(self, &root, &self.find_children(root.id()), "", "", "" );
+        let result = print_branch(self, &root, &self.find_children(root.id()), "", "", "");
         return Ok(result);
     }
-
 }

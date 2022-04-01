@@ -8,7 +8,7 @@ pub fn tree() -> CliResult<()> {
 
     match files.display() {
         Ok(tree) => {
-            println!("\n{}", tree);
+            println!("{}", tree);
             Ok(())
         }
         Err(err) => {

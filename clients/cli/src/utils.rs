@@ -3,7 +3,7 @@ use lockbook_core::{
     get_account, get_db_state, get_last_synced_human_string, init_logger, list_metadatas,
     migrate_db, GetAccountError, MigrationError,
 };
-use lockbook_core::{write_document, Error as CoreError, UnexpectedError, WriteToDocumentError};
+use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 use std::{env, fs};
 
 use crate::error::CliResult;
@@ -180,12 +180,7 @@ pub fn edit_file_with_editor(file_location: &str) -> bool {
 }
 
 pub fn metadatas() -> CliResult<Vec<DecryptedFileMetadata>> {
-    match list_metadatas(&config()?) {
-        Ok(metadatas) => Ok(metadatas),
-        Err(err) => match err {
-            UnexpectedError(msg) => Err(err_unexpected!("{}", msg)),
-        },
-    }
+    list_metadatas(&config()?).map_err(|err| err_unexpected!("{}", err))
 }
 
 pub fn print_last_successful_sync() -> CliResult<()> {
