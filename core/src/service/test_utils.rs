@@ -415,12 +415,7 @@ pub fn test_config() -> Config {
     Config { writeable_path: format!("/tmp/{}", Uuid::new_v4()) }
 }
 
-pub const GEN_FILES_BENCH_SIZE_1: u64 = 1;
-pub const GEN_FILES_BENCH_SIZE_2: u64 = 2;
-pub const GEN_FILES_BENCH_SIZE_3: u64 = 3;
-pub const GEN_FILES_BENCH_SIZE_4: u64 = 4;
-pub const GEN_FILES_BENCH_SIZE_5: u64 = 5;
-pub const GEN_FILES_BENCH_SIZE_6: u64 = 6;
+pub const MAX_FILES_PER_BENCH: u64 = 6;
 
 pub fn random_username() -> String {
     Uuid::new_v4()

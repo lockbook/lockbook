@@ -1,9 +1,6 @@
 use criterion::{black_box, criterion_group, BenchmarkId, Criterion, Throughput};
 use lockbook_core::service::integrity_service;
-use lockbook_core::service::test_utils::{
-    create_account, test_config, GEN_FILES_BENCH_SIZE_1, GEN_FILES_BENCH_SIZE_2,
-    GEN_FILES_BENCH_SIZE_3, GEN_FILES_BENCH_SIZE_4, GEN_FILES_BENCH_SIZE_5, GEN_FILES_BENCH_SIZE_6,
-};
+use lockbook_core::service::test_utils::{create_account, test_config, MAX_FILES_PER_BENCH};
 use lockbook_models::file_metadata::FileType;
 use uuid::Uuid;
 
@@ -11,20 +8,11 @@ const BYTES_IN_EACH_FILE: u64 = 1000;
 
 fn test_repo_integrity_benchmark(c: &mut Criterion) {
     let mut test_repo_integrity_group = c.benchmark_group("test_repo_integrity");
-    for size in [
-        GEN_FILES_BENCH_SIZE_1,
-        GEN_FILES_BENCH_SIZE_2,
-        GEN_FILES_BENCH_SIZE_3,
-        GEN_FILES_BENCH_SIZE_4,
-        GEN_FILES_BENCH_SIZE_5,
-        GEN_FILES_BENCH_SIZE_6,
-    ]
-    .iter()
-    {
-        test_repo_integrity_group.throughput(Throughput::Elements(*size));
+    for size in 1..=MAX_FILES_PER_BENCH {
+        test_repo_integrity_group.throughput(Throughput::Elements(size));
         test_repo_integrity_group.bench_with_input(
             BenchmarkId::from_parameter(size),
-            size,
+            &size,
             |b, &size| {
                 let db = test_config();
                 let (_, root) = create_account(&db);

@@ -19,7 +19,7 @@ fn write_file_benchmark(c: &mut Criterion) {
         let (_, root) = create_account(&db);
 
         write_file_group.throughput(Throughput::Elements(*size));
-        write_file_group.bench_with_input(BenchmarkId::from_parameter(size), size, |b, &size| {
+        write_file_group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, &size| {
             b.iter(|| {
                 let id = lockbook_core::create_file(
                     black_box(&db),
@@ -30,7 +30,7 @@ fn write_file_benchmark(c: &mut Criterion) {
                 .unwrap()
                 .id;
 
-                let random_bytes: Vec<u8> = (0..size).map(|_| rand::random::<u8>()).collect();
+                let random_bytes: Vec<u8> = (0..*size).map(|_| rand::random::<u8>()).collect();
 
                 lockbook_core::write_document(
                     black_box(&db),
