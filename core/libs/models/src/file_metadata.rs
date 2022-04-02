@@ -72,8 +72,8 @@ impl FileMetadata for EncryptedFileMetadata {
     }
     fn display(&self) -> String {
         match self.file_type() {
-            FileType::Folder => format!("{}{}", self.id, "/"),
-            FileType::Document => format!("{}", self.id),
+            FileType::Folder => format!("id: {}/", self.id),
+            FileType::Document => format!("id: {}", self.id),
         }
     }
 }
@@ -154,7 +154,7 @@ impl FileMetadata for DecryptedFileMetadata {
     }
     fn display(&self) -> String {
         match self.file_type() {
-            FileType::Folder => format!("{}{}", self.decrypted_name, "/"),
+            FileType::Folder => format!("{}/", self.decrypted_name),
             FileType::Document => self.decrypted_name.clone(),
         }
     }

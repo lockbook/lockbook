@@ -66,15 +66,8 @@ pub trait FileMetaExt<T: FileMetadata> {
     fn get_invalid_cycles(&self, staged_changes: &[T]) -> Result<Vec<Uuid>, TreeError>;
     fn get_path_conflicts(&self, staged_changes: &[T]) -> Result<Vec<PathConflict>, TreeError>;
     fn verify_integrity(&self) -> Result<(), TestFileTreeError>;
-    fn display(&self) -> Result<String, TreeError>;
+    fn pretty_print(&self) -> String;
 }
-
-// Why cant get work :(
-// impl Display for FileMetadata {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         self.display()
-//     }
-// }
 
 impl<Fm> FileMetaExt<Fm> for [Fm]
 where
@@ -304,7 +297,7 @@ where
         Ok(())
     }
 
-    fn display(&self) -> Result<String, TreeError> {
+    fn pretty_print(&self) -> String {
         fn print_branch<Fm: FileMetadata>(
             tree: &[Fm], file_leaf: &Fm, children: &Vec<Fm>, branch: &str, crotch: &str, twig: &str,
         ) -> String {
@@ -345,8 +338,11 @@ where
             return sub_tree;
         }
 
-        let root = self.find_root()?;
+        let root = match self.find_root() {
+            Ok(root) => root,
+            Err(_) => return "Failed to find root".to_string(),
+        };
         let result = print_branch(self, &root, &self.find_children(root.id()), "", "", "");
-        return Ok(result);
+        return result;
     }
 }
