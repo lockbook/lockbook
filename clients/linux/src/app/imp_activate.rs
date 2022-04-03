@@ -16,11 +16,14 @@ impl super::App {
         let writeable_path =
             env::var("LOCKBOOK_PATH").unwrap_or(format!("{}/.lockbook", env::var("HOME").unwrap()));
 
+        let overlay = gtk::Overlay::new();
+
         let titlebar = ui::Titlebar::new();
+        titlebar.set_window_overlay(&overlay);
 
         let window = gtk::ApplicationWindow::new(a);
-        window.set_title(Some("Lockbook"));
         window.set_titlebar(Some(&titlebar));
+        window.set_child(Some(&overlay));
 
         if let Err(err) = api.init_logger(Path::new(&writeable_path)) {
             show_launch_error(&window, &err.0);
@@ -50,9 +53,6 @@ impl super::App {
                 return;
             }
         };
-
-        let overlay = gtk::Overlay::new();
-        window.set_child(Some(&overlay));
 
         let (bg_op_tx, bg_op_rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
         let bg_state = bg::State::new(bg_op_tx);

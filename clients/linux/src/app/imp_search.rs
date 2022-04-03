@@ -5,7 +5,6 @@ use crate::ui;
 
 impl super::App {
     pub fn open_search(&self) {
-        self.overlay.add_overlay(self.titlebar.search_result_area());
         self.titlebar.toggle_search_on();
     }
 
@@ -41,8 +40,6 @@ impl super::App {
                 .unwrap()
                 .id();
             self.titlebar.toggle_search_off();
-            self.overlay
-                .remove_overlay(self.titlebar.search_result_area());
             self.fill_search_results(&[]);
             self.open_file(id);
         } else {

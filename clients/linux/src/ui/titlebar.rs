@@ -21,13 +21,32 @@ impl Titlebar {
         let btn = &self.imp().search_btn;
         if !btn.is_active() {
             btn.emit_clicked();
+        } else {
+            self.imp().search_box.grab_focus();
         }
-        self.imp().search_box.grab_focus();
     }
 
     pub fn toggle_search_off(&self) {
+        let btn = &self.imp().search_btn;
+        if btn.is_active() {
+            btn.emit_clicked();
+        }
         self.imp().search_box.set_text("");
-        self.imp().search_btn.emit_clicked();
+    }
+
+    pub fn set_window_overlay(&self, overlay: &gtk::Overlay) {
+        let focus = gtk::EventControllerFocus::new();
+        focus.connect_enter({
+            let overlay = overlay.clone();
+            let result_area_wrap_2 = self.imp().result_area_wrap_2.clone();
+            move |_| overlay.add_overlay(&result_area_wrap_2)
+        });
+        focus.connect_leave({
+            let overlay = overlay.clone();
+            let result_area_wrap_2 = self.imp().result_area_wrap_2.clone();
+            move |_| overlay.remove_overlay(&result_area_wrap_2)
+        });
+        self.imp().search_box.add_controller(&focus);
     }
 
     pub fn search_result_list(&self) -> gtk::ListBox {
