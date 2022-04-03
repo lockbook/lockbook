@@ -51,6 +51,7 @@ impl super::App {
                 .unwrap()
                 .id();
             self.titlebar.toggle_search_off();
+            self.titlebar.clear_search_box();
             self.repopulate_search_results(&[]);
             self.open_file(id);
         } else {

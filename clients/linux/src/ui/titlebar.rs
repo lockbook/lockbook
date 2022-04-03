@@ -36,7 +36,11 @@ impl Titlebar {
         if btn.is_active() {
             btn.emit_clicked();
         }
+    }
+
+    pub fn clear_search_box(&self) {
         self.imp().search_box.set_text("");
+        *self.imp().real_input.borrow_mut() = "".to_string();
     }
 
     pub fn receive_search_ops<F: FnMut(SearchOp) -> glib::Continue + 'static>(&self, f: F) {
