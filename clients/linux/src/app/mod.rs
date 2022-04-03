@@ -11,6 +11,7 @@ pub struct App {
     pub settings: Arc<RwLock<Settings>>,
     pub titlebar: ui::Titlebar,
     pub window: gtk::ApplicationWindow,
+    pub overlay: gtk::Overlay,
     pub onboard: ui::OnboardScreen,
     pub account: ui::AccountScreen,
     pub bg_state: bg::State,

@@ -1,72 +1,66 @@
 use gtk::glib;
 use gtk::prelude::*;
 
-/*struct Possibility {
-    path: String,
-    id: lb::Uuid,
-    score: u32,
-}*/
+use crate::ui;
 
 impl super::App {
     pub fn open_search(&self) {
-        let username = self.api.root().unwrap().decrypted_name;
-
-        let files = self.api.list_metadatas().unwrap();
-
-        let sort_model = self.titlebar.search_completion_model();
-        let list_model = sort_model.model().downcast::<gtk::ListStore>().unwrap();
-
-        //let mut possibs = Vec::new();
-        for f in files {
-            let path = self.api.path_by_id(f.id).unwrap();
-            let path = path.strip_prefix(&username).unwrap_or(&path).to_string();
-            list_model.set(&list_model.append(), &[(0, &path), (1, &f.id.to_string()), (2, &0)]);
-            /*possibs.push(Possibility {
-                path: path.strip_prefix(&username).unwrap_or(&path).to_string(),
-                id: f.id,
-                score: 0,
-            });*/
-        }
-
+        self.overlay.add_overlay(self.titlebar.search_result_area());
         self.titlebar.toggle_search_on();
     }
 
     pub fn update_search(&self) {
-        let input = self.titlebar.search_input();
-        if input.is_empty() {
-            //self.titlebar.search_completion_model().clear();
-            return;
-        }
-
-        println!("updating search for input {}", input);
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
         // Do the work of getting the search results in a separate thread.
+        let input = self.titlebar.search_input();
         let api = self.api.clone();
         std::thread::spawn(move || {
             let result = api.search_file_paths(&input);
             tx.send(result).unwrap();
         });
 
-        // Act on the search results.
+        // Act on the search results when they arrive.
         let app = self.clone();
         rx.attach(None, move |result| {
             match result {
-                Ok(data) => app.process_search_result_data(&data),
+                Ok(data) => app.fill_search_results(&data),
                 Err(err) => app.show_err_dialog(&format!("{:?}", err)),
             }
             glib::Continue(false)
         });
     }
 
-    fn process_search_result_data(&self, data: &[lb::SearchResultItem]) {
-        // Re-populate completion list.
-        /*let model = self.titlebar.search_completion_model();
-        model.clear();
-        for res in data {
-            model.set(&model.append(), &[(0, &res.path), (1, &res.id.to_string())]);
-        }*/
+    pub fn exec_search(&self) {
+        let list = self.titlebar.search_result_list();
+        if let Some(row_choice) = list.selected_row().or_else(|| list.row_at_index(0)) {
+            let id = row_choice
+                .child()
+                .unwrap()
+                .downcast_ref::<ui::SearchRow>()
+                .unwrap()
+                .id();
+            self.titlebar.toggle_search_off();
+            self.overlay
+                .remove_overlay(self.titlebar.search_result_area());
+            self.fill_search_results(&[]);
+            self.open_file(id);
+        } else {
+            self.show_err_dialog("no file path matches your search!");
+        }
     }
 
-    //fn exec_search_field(&self, use_best_match: bool) {}
+    fn fill_search_results(&self, data: &[lb::SearchResultItem]) {
+        let list = self.titlebar.search_result_list();
+
+        while let Some(row) = list.row_at_index(0) {
+            list.remove(&row);
+        }
+
+        for res in data {
+            let row = ui::SearchRow::new();
+            row.set_data(res.id, &res.path);
+            list.append(&row);
+        }
+    }
 }

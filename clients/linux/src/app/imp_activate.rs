@@ -51,6 +51,9 @@ impl super::App {
             }
         };
 
+        let overlay = gtk::Overlay::new();
+        window.set_child(Some(&overlay));
+
         let (bg_op_tx, bg_op_rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
         let bg_state = bg::State::new(bg_op_tx);
 
@@ -64,7 +67,7 @@ impl super::App {
             &settings.read().unwrap().hidden_tree_cols,
         );
 
-        let app = Self { api, settings, window, titlebar, onboard, account, bg_state };
+        let app = Self { api, settings, window, overlay, titlebar, onboard, account, bg_state };
 
         app.add_app_actions(a);
 
@@ -137,16 +140,22 @@ impl super::App {
         }
         {
             let app = self.clone();
-            let prompt_search = gio::SimpleAction::new("prompt-search", None);
+            let prompt_search = gio::SimpleAction::new("open-search", None);
             prompt_search.connect_activate(move |_, _| app.open_search());
             a.add_action(&prompt_search);
-            a.set_accels_for_action("app.prompt-search", &["<Ctrl>space", "<Ctrl>L"]);
+            a.set_accels_for_action("app.open-search", &["<Ctrl>space", "<Ctrl>L"]);
         }
         {
             let app = self.clone();
             let update_search = gio::SimpleAction::new("update-search", None);
             update_search.connect_activate(move |_, _| app.update_search());
             a.add_action(&update_search);
+        }
+        {
+            let app = self.clone();
+            let exec_search = gio::SimpleAction::new("exec-search", None);
+            exec_search.connect_activate(move |_, _| app.exec_search());
+            a.add_action(&exec_search);
         }
         {
             let app = self.clone();
@@ -221,7 +230,7 @@ impl super::App {
 
         match self.api.account() {
             Ok(Some(_acct)) => self.init_account_screen(),
-            Ok(None) => self.window.set_child(Some(&self.onboard.cntr)),
+            Ok(None) => self.overlay.set_child(Some(&self.onboard.cntr)),
             Err(msg) => show_launch_error(&self.window, &msg),
         }
     }
@@ -234,7 +243,7 @@ impl super::App {
 
         self.update_sync_status();
         self.bg_state.begin_work(&self.api, &self.settings);
-        self.window.set_child(Some(&self.account.cntr))
+        self.overlay.set_child(Some(&self.account.cntr))
     }
 }
 

@@ -3,6 +3,7 @@ mod onboard_screen;
 
 mod filetree;
 mod menu_item;
+mod search_row;
 mod sync_panel;
 mod text_editor;
 mod titlebar;
@@ -16,6 +17,7 @@ pub use filetree::FileTree;
 pub use filetree::FileTreeCol;
 pub use menu_item::menu_separator;
 pub use menu_item::MenuItemBuilder;
+pub use search_row::SearchRow;
 pub use sync_panel::SyncPanel;
 pub use text_editor::TextEditor;
 pub use titlebar::Titlebar;
@@ -24,16 +26,6 @@ pub mod about_dialog;
 
 use gtk::glib;
 use gtk::prelude::*;
-
-pub fn id_from_tree_iter(
-    model: &impl IsA<gtk::TreeModel>, iter: &gtk::TreeIter, col: i32,
-) -> lb::Uuid {
-    let iter_id = model
-        .get_value(&iter, col)
-        .get::<String>()
-        .unwrap_or_else(|_| panic!("getting treeview string for uuid: column id {}", col));
-    lb::Uuid::parse_str(&iter_id).unwrap()
-}
 
 pub fn id_from_tpath(model: &impl IsA<gtk::TreeModel>, tpath: &gtk::TreePath) -> lb::Uuid {
     let col = filetree::FileTreeCol::Id.as_tree_store_index();
