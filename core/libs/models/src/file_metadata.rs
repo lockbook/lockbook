@@ -70,6 +70,18 @@ impl FileMetadata for EncryptedFileMetadata {
     fn deleted(&self) -> bool {
         self.deleted
     }
+    fn display(&self) -> String {
+        match self.file_type() {
+            FileType::Folder => format!("id: {}/", self.id),
+            FileType::Document => format!("id: {}", self.id),
+        }
+    }
+}
+
+impl fmt::Display for EncryptedFileMetadata {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.display())
+    }
 }
 
 impl fmt::Debug for EncryptedFileMetadata {
@@ -145,6 +157,18 @@ impl FileMetadata for DecryptedFileMetadata {
     }
     fn deleted(&self) -> bool {
         self.deleted
+    }
+    fn display(&self) -> String {
+        match self.file_type() {
+            FileType::Folder => format!("{}/", self.decrypted_name),
+            FileType::Document => self.decrypted_name.clone(),
+        }
+    }
+}
+
+impl fmt::Display for DecryptedFileMetadata {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.display())
     }
 }
 
