@@ -6,6 +6,6 @@ pub fn tree() -> CliResult<()> {
     let files = metadatas()?;
 
     println!("{}", files.pretty_print());
-    
-    return Ok(())
+
+    Ok(())
 }

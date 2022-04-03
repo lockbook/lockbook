@@ -299,10 +299,10 @@ where
 
     fn pretty_print(&self) -> String {
         fn print_branch<Fm: FileMetadata>(
-            tree: &[Fm], file_leaf: &Fm, children: &Vec<Fm>, branch: &str, crotch: &str, twig: &str,
+            tree: &[Fm], file_leaf: &Fm, children: &[Fm], branch: &str, crotch: &str, twig: &str,
         ) -> String {
             let mut sub_tree = format!("{}{}{}\n", branch, twig, file_leaf);
-            let mut next_branch = branch.to_string().clone();
+            let mut next_branch = branch.to_string();
             next_branch.push_str(crotch);
 
             let num_children = children.len();
@@ -310,17 +310,14 @@ where
             for (count, child) in children.iter().enumerate() {
                 let next_children = tree.find_children(child.id());
 
-                let sub_children = next_children.len() > 0;
                 let last_child = count == num_children - 1;
 
-                let next_crotch = if !sub_children {
+                let next_crotch = if next_children.is_empty() {
                     ""
+                } else if last_child {
+                    "    "
                 } else {
-                    if last_child {
-                        "    "
-                    } else {
-                        "│   "
-                    }
+                    "│   "
                 };
 
                 let next_twig = if last_child { "└── " } else { "├── " };
@@ -335,14 +332,13 @@ where
                 ));
             }
 
-            return sub_tree;
+            sub_tree
         }
 
         let root = match self.find_root() {
             Ok(root) => root,
             Err(_) => return "Failed to find root".to_string(),
         };
-        let result = print_branch(self, &root, &self.find_children(root.id()), "", "", "");
-        return result;
+        print_branch(self, &root, &self.find_children(root.id()), "", "", "")
     }
 }
