@@ -1,7 +1,7 @@
 use lockbook_core::model::state::Config;
 use lockbook_core::{
-    get_account, get_db_state, get_last_synced_human_string, init_logger, migrate_db,
-    GetAccountError, MigrationError,
+    get_account, get_db_state, get_last_synced_human_string, init_logger, list_metadatas,
+    migrate_db, GetAccountError, MigrationError,
 };
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 use std::{env, fs};
@@ -14,6 +14,7 @@ use lockbook_core::pure_functions::drawing::SupportedImageFormats;
 use lockbook_core::pure_functions::drawing::SupportedImageFormats::*;
 use lockbook_core::service::db_state_service::State;
 use lockbook_models::account::Account;
+use lockbook_models::file_metadata::DecryptedFileMetadata;
 use uuid::Uuid;
 
 #[macro_export]
@@ -172,6 +173,10 @@ pub fn edit_file_with_editor(file_location: &str) -> bool {
             .unwrap()
             .success()
     }
+}
+
+pub fn metadatas() -> CliResult<Vec<DecryptedFileMetadata>> {
+    list_metadatas(&config()?).map_err(|err| err_unexpected!("{}", err))
 }
 
 pub fn print_last_successful_sync() -> CliResult<()> {
