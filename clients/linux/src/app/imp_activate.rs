@@ -16,10 +16,10 @@ impl super::App {
         let writeable_path =
             env::var("LOCKBOOK_PATH").unwrap_or(format!("{}/.lockbook", env::var("HOME").unwrap()));
 
-        let overlay = gtk::Overlay::new();
-
         let titlebar = ui::Titlebar::new();
-        titlebar.set_window_overlay(&overlay);
+
+        let overlay = gtk::Overlay::new();
+        overlay.add_overlay(titlebar.search_result_area());
 
         let window = gtk::ApplicationWindow::new(a);
         window.set_titlebar(Some(&titlebar));
@@ -75,6 +75,7 @@ impl super::App {
         app.clone().listen_for_onboard_ops(onboard_op_rx);
         app.clone().listen_for_account_ops(account_op_rx);
         app.clone().listen_for_bg_ops(bg_op_rx);
+        app.listen_for_search_ops();
 
         app.setup_window();
         app.window.present();
@@ -144,18 +145,6 @@ impl super::App {
             prompt_search.connect_activate(move |_, _| app.open_search());
             a.add_action(&prompt_search);
             a.set_accels_for_action("app.open-search", &["<Ctrl>space", "<Ctrl>L"]);
-        }
-        {
-            let app = self.clone();
-            let update_search = gio::SimpleAction::new("update-search", None);
-            update_search.connect_activate(move |_, _| app.update_search());
-            a.add_action(&update_search);
-        }
-        {
-            let app = self.clone();
-            let exec_search = gio::SimpleAction::new("exec-search", None);
-            exec_search.connect_activate(move |_, _| app.exec_search());
-            a.add_action(&exec_search);
         }
         {
             let app = self.clone();

@@ -20,6 +20,7 @@ pub use menu_item::MenuItemBuilder;
 pub use search_row::SearchRow;
 pub use sync_panel::SyncPanel;
 pub use text_editor::TextEditor;
+pub use titlebar::SearchOp;
 pub use titlebar::Titlebar;
 
 pub mod about_dialog;

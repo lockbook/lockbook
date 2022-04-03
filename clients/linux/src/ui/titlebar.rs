@@ -2,6 +2,11 @@ use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
+pub enum SearchOp {
+    Update,
+    Exec,
+}
+
 glib::wrapper! {
     pub struct Titlebar(ObjectSubclass<imp::Titlebar>)
         @extends gtk::Widget, gtk::HeaderBar,
@@ -34,19 +39,8 @@ impl Titlebar {
         self.imp().search_box.set_text("");
     }
 
-    pub fn set_window_overlay(&self, overlay: &gtk::Overlay) {
-        let focus = gtk::EventControllerFocus::new();
-        focus.connect_enter({
-            let overlay = overlay.clone();
-            let result_area_wrap_2 = self.imp().result_area_wrap_2.clone();
-            move |_| overlay.add_overlay(&result_area_wrap_2)
-        });
-        focus.connect_leave({
-            let overlay = overlay.clone();
-            let result_area_wrap_2 = self.imp().result_area_wrap_2.clone();
-            move |_| overlay.remove_overlay(&result_area_wrap_2)
-        });
-        self.imp().search_box.add_controller(&focus);
+    pub fn receive_search_ops<F: FnMut(SearchOp) -> glib::Continue + 'static>(&self, f: F) {
+        self.imp().search_op_rx.take().unwrap().attach(None, f);
     }
 
     pub fn search_result_list(&self) -> gtk::ListBox {
@@ -54,7 +48,7 @@ impl Titlebar {
     }
 
     pub fn search_result_area(&self) -> &gtk::Box {
-        &self.imp().result_area_wrap_2
+        &self.imp().result_list_cntr
     }
 
     pub fn search_input(&self) -> String {
@@ -80,8 +74,13 @@ mod imp {
     use crate::ui;
     use crate::ui::icons;
 
+    use super::SearchOp;
+
     #[derive(Debug, Default)]
     pub struct Titlebar {
+        pub search_op_rx: RefCell<Option<glib::Receiver<ui::SearchOp>>>,
+        pub search_op_tx: RefCell<Option<glib::Sender<ui::SearchOp>>>,
+
         pub app_menu_btn: gtk::MenuButton,
         pub search_btn: gtk::ToggleButton,
 
@@ -89,7 +88,7 @@ mod imp {
 
         pub real_input: Rc<RefCell<String>>,
         pub search_box: gtk::Entry,
-        pub result_area_wrap_2: gtk::Box,
+        pub result_list_cntr: gtk::Box,
         pub result_list: gtk::ListBox,
 
         pub center: gtk::Stack,
@@ -111,6 +110,10 @@ mod imp {
     impl ObjectImpl for Titlebar {
         fn constructed(&self, obj: &Self::Type) {
             self.parent_constructed(obj);
+
+            let (search_op_tx, search_op_rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+            *self.search_op_tx.borrow_mut() = Some(search_op_tx.clone());
+            *self.search_op_rx.borrow_mut() = Some(search_op_rx);
 
             self.app_menu_btn.set_icon_name("open-menu-symbolic");
             self.app_menu_btn.set_popover(Some(&app_menu_popover()));
@@ -138,12 +141,10 @@ mod imp {
             });
 
             self.result_list.set_hexpand(true);
-            self.result_list
-                .connect_row_activated(move |result_list, _| {
-                    result_list
-                        .activate_action("app.exec-search", None)
-                        .unwrap();
-                });
+            self.result_list.connect_row_activated({
+                let search_op_tx = search_op_tx.clone();
+                move |_, _| search_op_tx.send(SearchOp::Exec).unwrap()
+            });
             self.result_list.connect_row_selected({
                 let search_box = self.search_box.clone();
                 let real_input = self.real_input.clone();
@@ -166,21 +167,32 @@ mod imp {
                 }
             });
 
-            let result_area_wrap_1 = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-            result_area_wrap_1.set_width_request(400);
-            result_area_wrap_1.add_css_class("contents");
-            result_area_wrap_1.append(&self.result_list);
+            let result_area_inner = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+            result_area_inner.set_width_request(400);
+            result_area_inner.add_css_class("contents");
+            result_area_inner.append(&self.result_list);
 
-            self.result_area_wrap_2
+            self.result_list_cntr
                 .set_orientation(gtk::Orientation::Vertical);
-            self.result_area_wrap_2.add_css_class("view");
-            self.result_area_wrap_2.set_width_request(400);
-            self.result_area_wrap_2.set_halign(gtk::Align::Center);
-            self.result_area_wrap_2.set_valign(gtk::Align::Start);
-            self.result_area_wrap_2.append(&result_area_wrap_1);
+            self.result_list_cntr.add_css_class("view");
+            self.result_list_cntr.set_width_request(400);
+            self.result_list_cntr.set_halign(gtk::Align::Center);
+            self.result_list_cntr.set_valign(gtk::Align::Start);
+            self.result_list_cntr.append(&result_area_inner);
 
             self.search_box.set_width_request(400);
             self.search_box.set_primary_icon_name(Some(icons::SEARCH));
+
+            let focus = gtk::EventControllerFocus::new();
+            focus.connect_enter({
+                let result_list_cntr = self.result_list_cntr.clone();
+                move |_| result_list_cntr.show()
+            });
+            focus.connect_leave({
+                let result_list_cntr = self.result_list_cntr.clone();
+                move |_| result_list_cntr.hide()
+            });
+            self.search_box.add_controller(&focus);
 
             let search_key_press = gtk::EventControllerKey::new();
             search_key_press.set_propagation_phase(gtk::PropagationPhase::Capture);
@@ -189,10 +201,11 @@ mod imp {
                 let search_btn = self.search_btn.clone();
                 let result_list = self.result_list.clone();
                 let real_input = self.real_input.clone();
+                let search_op_tx = search_op_tx.clone();
 
                 move |_, key, code, _| {
                     if key == gdk::Key::Escape {
-                        search_box.set_text("");
+                        search_btn.grab_focus();
                         search_btn.emit_clicked();
                     } else if code == ARROW_DOWN {
                         let next_index = result_list
@@ -214,19 +227,15 @@ mod imp {
                         }
                         result_list.select_row(result_list.row_at_index(prev_index).as_ref());
                     } else if code == ENTER {
-                        search_box.activate_action("app.exec-search", None).unwrap();
+                        search_op_tx.send(SearchOp::Exec).unwrap();
                     }
                     gtk::Inhibit(false)
                 }
             });
             search_key_press.connect_key_released({
-                let search_box = self.search_box.clone();
-
                 move |_, _, code, _| match code {
                     ALT_L | ALT_R | CTRL_L | CTRL_R | ARROW_DOWN | ARROW_UP | ENTER => {}
-                    _ => search_box
-                        .activate_action("app.update-search", None)
-                        .unwrap(),
+                    _ => search_op_tx.send(SearchOp::Update).unwrap(),
                 }
             });
             self.search_box.add_controller(&search_key_press);
@@ -295,11 +304,11 @@ mod imp {
         n as u32
     }
 
-    const ENTER: u32 = 36;
-    const CTRL_L: u32 = 37;
-    const CTRL_R: u32 = 105;
     const ALT_L: u32 = 64;
     const ALT_R: u32 = 108;
+    const CTRL_L: u32 = 37;
+    const CTRL_R: u32 = 105;
     const ARROW_UP: u32 = 111;
     const ARROW_DOWN: u32 = 116;
+    const ENTER: u32 = 36;
 }
