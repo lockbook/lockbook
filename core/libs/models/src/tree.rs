@@ -1,10 +1,11 @@
 use crate::file_metadata::{FileType, Owner};
 use crate::tree::TreeError::{FileNonexistent, RootNonexistent};
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::hash::Hash;
 use uuid::Uuid;
 
-pub trait FileMetadata: Clone {
+pub trait FileMetadata: Clone + Display {
     type Name: Hash + Eq;
 
     fn id(&self) -> Uuid;
@@ -15,6 +16,7 @@ pub trait FileMetadata: Clone {
     fn metadata_version(&self) -> u64;
     fn content_version(&self) -> u64;
     fn deleted(&self) -> bool;
+    fn display(&self) -> String;
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -64,6 +66,7 @@ pub trait FileMetaExt<T: FileMetadata> {
     fn get_invalid_cycles(&self, staged_changes: &[T]) -> Result<Vec<Uuid>, TreeError>;
     fn get_path_conflicts(&self, staged_changes: &[T]) -> Result<Vec<PathConflict>, TreeError>;
     fn verify_integrity(&self) -> Result<(), TestFileTreeError>;
+    fn pretty_print(&self) -> String;
 }
 
 impl<Fm> FileMetaExt<Fm> for [Fm]
@@ -292,5 +295,50 @@ where
         }
 
         Ok(())
+    }
+
+    fn pretty_print(&self) -> String {
+        fn print_branch<Fm: FileMetadata>(
+            tree: &[Fm], file_leaf: &Fm, children: &[Fm], branch: &str, crotch: &str, twig: &str,
+        ) -> String {
+            let mut sub_tree = format!("{}{}{}\n", branch, twig, file_leaf);
+            let mut next_branch = branch.to_string();
+            next_branch.push_str(crotch);
+
+            let num_children = children.len();
+
+            for (count, child) in children.iter().enumerate() {
+                let next_children = tree.find_children(child.id());
+
+                let last_child = count == num_children - 1;
+
+                let next_crotch = if next_children.is_empty() {
+                    ""
+                } else if last_child {
+                    "    "
+                } else {
+                    "│   "
+                };
+
+                let next_twig = if last_child { "└── " } else { "├── " };
+
+                sub_tree.push_str(&print_branch(
+                    tree,
+                    child,
+                    &next_children,
+                    &next_branch,
+                    next_crotch,
+                    next_twig,
+                ));
+            }
+
+            sub_tree
+        }
+
+        let root = match self.find_root() {
+            Ok(root) => root,
+            Err(_) => return "Failed to find root".to_string(),
+        };
+        print_branch(self, &root, &self.find_children(root.id()), "", "", "")
     }
 }

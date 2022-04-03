@@ -22,6 +22,7 @@ mod remove;
 mod rename;
 mod status;
 mod sync;
+mod tree;
 mod utils;
 mod validate;
 mod whoami;
@@ -137,6 +138,9 @@ enum Lockbook {
     /// Get updates, push changes
     Sync,
 
+    /// Print the file tree with a given file as the head
+    Tree,
+
     /// Display Lockbook username
     #[structopt(name = "whoami")]
     WhoAmI,
@@ -173,6 +177,7 @@ fn main() {
         Lockbook::Rename { path, name } => rename::rename(&path, &name),
         Lockbook::Status => status::status(),
         Lockbook::Sync => sync::sync(),
+        Lockbook::Tree => tree::tree(),
         Lockbook::WhoAmI => whoami::whoami(),
         Lockbook::Validate => validate::validate(),
         Lockbook::Backup => backup::backup(),
