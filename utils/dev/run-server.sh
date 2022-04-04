@@ -43,4 +43,4 @@ mc mb -p --region=$FILES_DB_REGION filesdb/$FILES_DB_BUCKET
 mc policy set public filesdb/$FILES_DB_BUCKET
 
 echo "Compiling and running lockbook server..."
-#cargo run
+cargo run
