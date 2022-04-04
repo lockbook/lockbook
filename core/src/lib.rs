@@ -100,7 +100,7 @@ pub enum ImportError {
     ClientUpdateRequired,
 }
 
-#[instrument(skip(config), err(Debug))]
+#[instrument(skip(config, account_string), err(Debug))]
 pub fn import_account(
     config: &Config, account_string: &str,
 ) -> Result<Account, Error<ImportError>> {
@@ -692,7 +692,7 @@ pub fn get_credit_card(config: &Config) -> Result<CreditCardLast4Digits, Error<G
     })
 }
 
-#[instrument(skip(config), err(Debug))]
+#[instrument(skip(config, input), err(Debug))]
 pub fn search_file_paths(
     config: &Config, input: &str,
 ) -> Result<Vec<SearchResultItem>, UnexpectedError> {
