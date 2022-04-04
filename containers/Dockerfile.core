@@ -14,6 +14,8 @@ COPY containers/dummy.rs libs/models/src/lib.rs
 COPY core/libs/models/Cargo.toml libs/models/.
 COPY containers/dummy.rs libs/crypto/src/lib.rs
 COPY core/libs/crypto/Cargo.toml libs/crypto/.
+RUN mkdir benches/
+RUN touch benches/bench_main.rs
 RUN cargo test --release
 
 # Build our source
