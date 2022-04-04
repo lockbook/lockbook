@@ -44,4 +44,12 @@ fn write_file_benchmark(c: &mut Criterion) {
     write_file_group.finish();
 }
 
-criterion_group!(benches, write_file_benchmark);
+fn benchmark_config() -> Criterion {
+    Criterion::default().sample_size(10)
+}
+
+criterion_group! {
+    name = benches;
+    config = benchmark_config();
+    targets = write_file_benchmark
+}
