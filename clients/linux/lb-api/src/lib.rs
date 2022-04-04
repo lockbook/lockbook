@@ -40,6 +40,7 @@ pub use lockbook_core::model::state::Config;
 pub use lockbook_core::service::db_state_service::State as DbState;
 pub use lockbook_core::service::import_export_service::ImportExportFileInfo;
 pub use lockbook_core::service::import_export_service::ImportStatus;
+pub use lockbook_core::service::search_service::SearchResultItem;
 pub use lockbook_core::service::sync_service::SyncProgress;
 pub use lockbook_core::service::sync_service::WorkCalculated;
 pub use lockbook_core::service::usage_service::UsageItemMetric;
@@ -96,6 +97,8 @@ pub trait Api: Send + Sync {
     fn usage(&self) -> Result<UsageMetrics, Error<GetUsageError>>;
     fn sync_all(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>>;
     fn is_syncing(&self) -> bool;
+
+    fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError>;
 }
 
 pub enum SyncProgressReport {
@@ -266,6 +269,10 @@ impl Api for DefaultApi {
 
     fn is_syncing(&self) -> bool {
         self.sync_lock.try_lock().is_err()
+    }
+
+    fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError> {
+        lockbook_core::search_file_paths(&self.cfg, input)
     }
 }
 

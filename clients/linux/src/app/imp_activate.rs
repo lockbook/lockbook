@@ -16,8 +16,14 @@ impl super::App {
         let writeable_path =
             env::var("LOCKBOOK_PATH").unwrap_or(format!("{}/.lockbook", env::var("HOME").unwrap()));
 
+        let titlebar = ui::Titlebar::new();
+
+        let overlay = gtk::Overlay::new();
+        overlay.add_overlay(titlebar.search_result_area());
+
         let window = gtk::ApplicationWindow::new(a);
-        window.set_title(Some("Lockbook"));
+        window.set_titlebar(Some(&titlebar));
+        window.set_child(Some(&overlay));
 
         if let Err(err) = api.init_logger(Path::new(&writeable_path)) {
             show_launch_error(&window, &err.0);
@@ -61,7 +67,7 @@ impl super::App {
             &settings.read().unwrap().hidden_tree_cols,
         );
 
-        let app = Self { api, settings, window, onboard, account, bg_state };
+        let app = Self { api, settings, window, overlay, titlebar, onboard, account, bg_state };
 
         app.add_app_actions(a);
 
@@ -69,6 +75,7 @@ impl super::App {
         app.clone().listen_for_onboard_ops(onboard_op_rx);
         app.clone().listen_for_account_ops(account_op_rx);
         app.clone().listen_for_bg_ops(bg_op_rx);
+        app.listen_for_search_ops();
 
         app.setup_window();
         app.window.present();
@@ -133,10 +140,11 @@ impl super::App {
             a.add_action(&exp_files);
         }
         {
-            let prompt_search = gio::SimpleAction::new("prompt-search", None);
-            prompt_search.connect_activate(move |_, _| {});
+            let app = self.clone();
+            let prompt_search = gio::SimpleAction::new("open-search", None);
+            prompt_search.connect_activate(move |_, _| app.open_search());
             a.add_action(&prompt_search);
-            a.set_accels_for_action("app.prompt-search", &["<Ctrl>space"]);
+            a.set_accels_for_action("app.open-search", &["<Ctrl>space", "<Ctrl>L"]);
         }
         {
             let app = self.clone();
@@ -176,8 +184,8 @@ impl super::App {
             use ui::AccountOp::*;
             match op {
                 TreeReceiveDrop(val, x, y) => self.tree_receive_drop(&val, x, y),
-                TabSwitched(tab) => self.window.set_title(Some(&tab.name())),
-                AllTabsClosed => self.window.set_title(Some("Lockbook")),
+                TabSwitched(tab) => self.titlebar.set_title(&tab.name()),
+                AllTabsClosed => self.titlebar.set_title("Lockbook"),
             }
             glib::Continue(true)
         });
@@ -203,7 +211,6 @@ impl super::App {
             gtk::Inhibit(false)
         });
 
-        self.window.set_titlebar(Some(&ui::header_bar::new()));
         self.window.set_default_size(900, 700);
 
         if self.settings.read().unwrap().window_maximize {
@@ -212,7 +219,7 @@ impl super::App {
 
         match self.api.account() {
             Ok(Some(_acct)) => self.init_account_screen(),
-            Ok(None) => self.window.set_child(Some(&self.onboard.cntr)),
+            Ok(None) => self.overlay.set_child(Some(&self.onboard.cntr)),
             Err(msg) => show_launch_error(&self.window, &msg),
         }
     }
@@ -225,7 +232,7 @@ impl super::App {
 
         self.update_sync_status();
         self.bg_state.begin_work(&self.api, &self.settings);
-        self.window.set_child(Some(&self.account.cntr))
+        self.overlay.set_child(Some(&self.account.cntr))
     }
 }
 
