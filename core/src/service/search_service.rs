@@ -22,22 +22,7 @@ impl Ord for SearchResultItem {
         match self.score.cmp(&other.score) {
             Ordering::Greater => Ordering::Less,
             Ordering::Less => Ordering::Greater,
-            Ordering::Equal => {
-                let chars1: Vec<char> = self.path.chars().collect();
-                let chars2: Vec<char> = other.path.chars().collect();
-
-                let n_chars1 = chars1.len();
-                let n_chars2 = chars2.len();
-
-                for i in 0..std::cmp::min(n_chars1, n_chars2) {
-                    let ord = chars1[i].cmp(&chars2[i]);
-                    if ord != Ordering::Equal {
-                        return ord;
-                    }
-                }
-
-                n_chars1.cmp(&n_chars2)
-            }
+            Ordering::Equal => self.path.cmp(&other.path),
         }
     }
 }
