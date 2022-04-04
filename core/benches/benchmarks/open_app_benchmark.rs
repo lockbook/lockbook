@@ -1,5 +1,8 @@
 use criterion::{black_box, criterion_group, Criterion};
-use lockbook_core::service::test_utils::{create_account, test_config, CREATE_FILES_BENCH_1, CREATE_FILES_BENCH_2, CREATE_FILES_BENCH_3, CREATE_FILES_BENCH_4, CREATE_FILES_BENCH_5, CREATE_FILES_BENCH_6};
+use lockbook_core::service::test_utils::{
+    create_account, test_config, CREATE_FILES_BENCH_1, CREATE_FILES_BENCH_2, CREATE_FILES_BENCH_3,
+    CREATE_FILES_BENCH_4, CREATE_FILES_BENCH_5, CREATE_FILES_BENCH_6,
+};
 use lockbook_models::file_metadata::FileType;
 use uuid::Uuid;
 
@@ -30,7 +33,16 @@ fn get_account_benchmark(c: &mut Criterion) {
 
 fn list_metadatas_benchmark(c: &mut Criterion) {
     let mut list_metadatas_group = c.benchmark_group("open_app_list_metadatas");
-    for size in [CREATE_FILES_BENCH_1, CREATE_FILES_BENCH_2, CREATE_FILES_BENCH_3, CREATE_FILES_BENCH_4, CREATE_FILES_BENCH_5, CREATE_FILES_BENCH_6].iter() {
+    for size in [
+        CREATE_FILES_BENCH_1,
+        CREATE_FILES_BENCH_2,
+        CREATE_FILES_BENCH_3,
+        CREATE_FILES_BENCH_4,
+        CREATE_FILES_BENCH_5,
+        CREATE_FILES_BENCH_6,
+    ]
+    .iter()
+    {
         let db = test_config();
         let (_, root) = create_account(&db);
 
@@ -53,7 +65,16 @@ fn list_metadatas_benchmark(c: &mut Criterion) {
 
 fn list_paths_benchmark(c: &mut Criterion) {
     let mut list_paths_group = c.benchmark_group("open_app_list_paths");
-    for size in [CREATE_FILES_BENCH_1, CREATE_FILES_BENCH_2, CREATE_FILES_BENCH_3, CREATE_FILES_BENCH_4, CREATE_FILES_BENCH_5, CREATE_FILES_BENCH_6].iter() {
+    for size in [
+        CREATE_FILES_BENCH_1,
+        CREATE_FILES_BENCH_2,
+        CREATE_FILES_BENCH_3,
+        CREATE_FILES_BENCH_4,
+        CREATE_FILES_BENCH_5,
+        CREATE_FILES_BENCH_6,
+    ]
+    .iter()
+    {
         let db = test_config();
         let (_, root) = create_account(&db);
 
