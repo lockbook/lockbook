@@ -3,8 +3,10 @@ mod onboard_screen;
 
 mod filetree;
 mod menu_item;
+mod search_row;
 mod sync_panel;
 mod text_editor;
+mod titlebar;
 
 pub use account_screen::AccountOp;
 pub use account_screen::AccountScreen;
@@ -15,11 +17,13 @@ pub use filetree::FileTree;
 pub use filetree::FileTreeCol;
 pub use menu_item::menu_separator;
 pub use menu_item::MenuItemBuilder;
+pub use search_row::SearchRow;
 pub use sync_panel::SyncPanel;
 pub use text_editor::TextEditor;
+pub use titlebar::SearchOp;
+pub use titlebar::Titlebar;
 
 pub mod about_dialog;
-pub mod header_bar;
 
 use gtk::glib;
 use gtk::prelude::*;
@@ -89,7 +93,7 @@ pub mod icons {
     pub const NEW_DOC: &str = "document-new-symbolic";
     pub const NEW_FOLDER: &str = "folder-new-symbolic";
     pub const RENAME: &str = "go-jump-symbolic";
-    //pub const SEARCH: &str = "system-search-symbolic";
+    pub const SEARCH: &str = "system-search-symbolic";
     pub const SETTINGS: &str = "preferences-system-symbolic";
     pub const SYNC: &str = "emblem-synchronizing-symbolic";
     pub const USAGE: &str = "utilities-system-monitor-symbolic";
