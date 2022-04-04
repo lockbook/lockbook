@@ -31,14 +31,11 @@ impl Titlebar {
         }
     }
 
-    pub fn toggle_search_off(&self) {
+    pub fn clear_search(&self) {
         let btn = &self.imp().search_btn;
         if btn.is_active() {
             btn.emit_clicked();
         }
-    }
-
-    pub fn clear_search_box(&self) {
         self.imp().search_box.set_text("");
         *self.imp().real_input.borrow_mut() = "".to_string();
     }
@@ -125,7 +122,6 @@ mod imp {
             self.title.set_markup("<b>Lockbook</b>");
 
             self.search_btn.set_icon_name(icons::SEARCH);
-            self.search_btn.set_active(false);
             self.search_btn.connect_clicked({
                 let center = self.center.clone();
                 let search_box = self.search_box.clone();

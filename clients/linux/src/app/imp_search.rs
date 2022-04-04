@@ -50,8 +50,7 @@ impl super::App {
                 .downcast_ref::<ui::SearchRow>()
                 .unwrap()
                 .id();
-            self.titlebar.toggle_search_off();
-            self.titlebar.clear_search_box();
+            self.titlebar.clear_search();
             self.repopulate_search_results(&[]);
             self.open_file(id);
         } else {
