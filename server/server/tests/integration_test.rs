@@ -6,7 +6,7 @@ use std::env;
 use uuid::Uuid;
 
 pub fn test_config() -> Config {
-    Config { writeable_path: format!("/tmp/{}", Uuid::new_v4().to_string()) }
+    Config { writeable_path: format!("/tmp/{}", Uuid::new_v4()) }
 }
 
 pub fn api_url() -> String {

@@ -46,3 +46,4 @@ RUN cargo fmt -- --check -l
 # Check lint
 FROM server:${HASH} AS server-lint
 RUN cargo clippy -- -D warnings
+RUN cargo clippy --tests -- -D warnings

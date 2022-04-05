@@ -492,9 +492,7 @@ mod unit_tests {
         let folder1 = files::create(FileType::Folder, root.id, "folder", &account.public_key());
         let folder2 = files::create(FileType::Folder, root.id, "folder2", &account.public_key());
 
-        let path_conflicts = &[root, folder1.clone()]
-            .get_path_conflicts(&[folder2.clone()])
-            .unwrap();
+        let path_conflicts = &[root, folder1].get_path_conflicts(&[folder2]).unwrap();
 
         assert_eq!(path_conflicts.len(), 0);
     }

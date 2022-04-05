@@ -112,7 +112,7 @@ mod sync_fuzzer {
                     let client = Self::random_client(clients, rng);
                     if let Some(file) = Self::pick_random_document(&client, rng) {
                         let new_content = Self::random_utf8(rng);
-                        write_document(&client, file.id, &new_content.as_bytes()).unwrap();
+                        write_document(&client, file.id, new_content.as_bytes()).unwrap();
                         print!("[{:?}]\t{:?}", file.id, get_path_by_id(&client, file.id).unwrap());
                     }
                 }
@@ -200,7 +200,7 @@ mod sync_fuzzer {
         }
 
         fn pick_random_file(config: &Config, rng: &mut StdRng) -> Option<DecryptedFileMetadata> {
-            let mut possible_files = list_metadatas(&config).unwrap();
+            let mut possible_files = list_metadatas(config).unwrap();
             possible_files.retain(|meta| meta.parent != meta.id);
             possible_files.sort_by(Self::deterministic_sort());
 
@@ -225,7 +225,7 @@ mod sync_fuzzer {
         }
 
         fn pick_random_parent(config: &Config, rng: &mut StdRng) -> DecryptedFileMetadata {
-            let mut possible_parents = list_metadatas(&config).unwrap();
+            let mut possible_parents = list_metadatas(config).unwrap();
             possible_parents.retain(|meta| meta.file_type == Folder);
             possible_parents.sort_by(Self::deterministic_sort());
 
@@ -236,7 +236,7 @@ mod sync_fuzzer {
         fn pick_random_document(
             config: &Config, rng: &mut StdRng,
         ) -> Option<DecryptedFileMetadata> {
-            let mut possible_documents = list_metadatas(&config).unwrap();
+            let mut possible_documents = list_metadatas(config).unwrap();
             possible_documents.retain(|meta| meta.file_type == Document);
             possible_documents.sort_by(Self::deterministic_sort());
 
@@ -260,8 +260,8 @@ mod sync_fuzzer {
         let account_string = export_account(&configs[0]).unwrap();
 
         for client in &configs[1..] {
-            import_account(&client, &account_string).unwrap();
-            sync(&client, None).unwrap();
+            import_account(client, &account_string).unwrap();
+            sync(client, None).unwrap();
         }
         configs
     }

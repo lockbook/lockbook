@@ -37,6 +37,7 @@ RUN cargo fmt -- --check -l
 # Check the lint of core
 FROM core:${HASH} AS core-lint
 RUN cargo clippy -- -D warnings
+RUN cargo clippy --tests -- -D warnings
 
 # Set up for integration tests
 FROM core:${HASH} AS core-server-tests
