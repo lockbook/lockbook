@@ -79,9 +79,8 @@ impl Trial {
         let account_string = export_account(&self.clients[0]).unwrap();
 
         for client in &self.clients[1..] {
-            import_account(&client, &account_string)
-                .map_err(|err| Failed(format!("{:#?}", err)))?;
-            sync_all(&client, None).map_err(|err| Failed(format!("{:#?}", err)))?;
+            import_account(client, &account_string).map_err(|err| Failed(format!("{:#?}", err)))?;
+            sync_all(client, None).map_err(|err| Failed(format!("{:#?}", err)))?;
         }
 
         Ok(())
@@ -168,7 +167,7 @@ impl Trial {
                 Action::SyncAndCheck => {
                     for _ in 0..2 {
                         for client in &self.clients {
-                            if let Err(err) = sync_all(&client, None) {
+                            if let Err(err) = sync_all(client, None) {
                                 self.status = Failed(format!("{:#?}", err));
                                 break 'steps;
                             }
@@ -403,9 +402,6 @@ impl Drop for Trial {
 
 impl Trial {
     pub fn failed(&self) -> bool {
-        match self.status {
-            Failed(_) => true,
-            _ => false,
-        }
+        matches!(self.status, Failed(_))
     }
 }

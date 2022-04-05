@@ -187,7 +187,7 @@ mod unit_tests {
             (id_4, document_4),
             (id_5, document_5),
         ];
-        expectation.sort_by(|(a, _), (b, _)| a.cmp(&b));
+        expectation.sort_by(|(a, _), (b, _)| a.cmp(b));
         let expectation = expectation
             .into_iter()
             .map(|(_, d)| d)
