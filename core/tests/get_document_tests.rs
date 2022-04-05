@@ -37,8 +37,7 @@ mod get_document_tests {
         .unwrap()
         .file_metadata
         .iter()
-        .filter(|&f| f.id == doc.id)
-        .next()
+        .find(|&f| f.id == doc.id)
         .unwrap()
         .metadata_version;
 
@@ -65,8 +64,7 @@ mod get_document_tests {
         .unwrap()
         .file_metadata
         .iter()
-        .filter(|&f| f.id == doc.id)
-        .next()
+        .find(|&f| f.id == doc.id)
         .unwrap()
         .content_version;
 

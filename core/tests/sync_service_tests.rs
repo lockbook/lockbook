@@ -18,10 +18,10 @@ mod sync_tests {
             vec![Operation::Custom {
                 f: &|dbs, root| {
                     let db = &dbs[0].1;
-                    test_utils::assert_all_paths(&db, &root, &["/"]);
-                    test_utils::assert_all_document_contents(&db, &root, &[]);
-                    test_utils::assert_local_work_paths(&db, &root, &[]);
-                    test_utils::assert_server_work_paths(&db, &root, &[]);
+                    test_utils::assert_all_paths(db, root, &["/"]);
+                    test_utils::assert_all_document_contents(db, root, &[]);
+                    test_utils::assert_local_work_paths(db, root, &[]);
+                    test_utils::assert_server_work_paths(db, root, &[]);
                 },
             }],
             // new_file
@@ -30,10 +30,10 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
-                        test_utils::assert_local_work_paths(&db, &root, &["/document"]);
-                        test_utils::assert_server_work_paths(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document", b"")]);
+                        test_utils::assert_local_work_paths(db, root, &["/document"]);
+                        test_utils::assert_server_work_paths(db, root, &[]);
                     },
                 },
             ],
@@ -44,17 +44,17 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[("/a/b/c/d", b"")]);
+                        test_utils::assert_all_document_contents(db, root, &[("/a/b/c/d", b"")]);
                         test_utils::assert_local_work_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
                         );
-                        test_utils::assert_server_work_paths(&db, &root, &[]);
+                        test_utils::assert_server_work_paths(db, root, &[]);
                     },
                 },
             ],
@@ -65,14 +65,14 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document"]);
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/document", b"document content")],
                         );
-                        test_utils::assert_local_work_paths(&db, &root, &["/document"]);
-                        test_utils::assert_server_work_paths(&db, &root, &[]);
+                        test_utils::assert_local_work_paths(db, root, &["/document"]);
+                        test_utils::assert_server_work_paths(db, root, &[]);
                     },
                 },
             ],
@@ -85,21 +85,21 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/folder/", "/folder/document"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/folder/document", b"")],
                         );
                         test_utils::assert_local_work_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/folder/", "/folder/document"],
                         );
-                        test_utils::assert_server_work_paths(&db, &root, &[]);
+                        test_utils::assert_server_work_paths(db, root, &[]);
                     },
                 },
             ],
@@ -110,14 +110,10 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
-                        test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
-                            &[("/document2", b"")],
-                        );
-                        test_utils::assert_local_work_paths(&db, &root, &["/document2"]);
-                        test_utils::assert_server_work_paths(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document2"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document2", b"")]);
+                        test_utils::assert_local_work_paths(db, root, &["/document2"]);
+                        test_utils::assert_server_work_paths(db, root, &[]);
                     },
                 },
             ],
@@ -128,10 +124,10 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
-                        test_utils::assert_local_work_paths(&db, &root, &[]);
-                        test_utils::assert_server_work_paths(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
+                        test_utils::assert_local_work_paths(db, root, &[]);
+                        test_utils::assert_server_work_paths(db, root, &[]);
                     },
                 },
             ],
@@ -142,10 +138,10 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
-                        test_utils::assert_local_work_paths(&db, &root, &[]);
-                        test_utils::assert_server_work_paths(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
+                        test_utils::assert_local_work_paths(db, root, &[]);
+                        test_utils::assert_server_work_paths(db, root, &[]);
                     },
                 },
             ],
@@ -156,10 +152,10 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
-                        test_utils::assert_local_work_paths(&db, &root, &[]);
-                        test_utils::assert_server_work_paths(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
+                        test_utils::assert_local_work_paths(db, root, &[]);
+                        test_utils::assert_server_work_paths(db, root, &[]);
                     },
                 },
             ],
@@ -167,7 +163,7 @@ mod sync_tests {
             ops.push(Operation::Custom {
                 f: &|dbs, _| {
                     let db = &dbs[0].1;
-                    test_utils::assert_repo_integrity(&db);
+                    test_utils::assert_repo_integrity(db);
                 },
             });
             test_utils::run(&ops);
@@ -188,8 +184,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -200,8 +196,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document", b"")]);
                     },
                 },
             ],
@@ -210,22 +206,22 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        let account = lockbook_core::get_account(&db).unwrap();
+                        let account = lockbook_core::get_account(db).unwrap();
                         let document_path =
-                            test_utils::path(&root, &format!("/{}", account.username));
-                        lockbook_core::create_file_at_path(&db, &document_path).unwrap();
+                            test_utils::path(root, &format!("/{}", account.username));
+                        lockbook_core::create_file_at_path(db, &document_path).unwrap();
                     },
                 },
                 Operation::Sync { client_num: 0 },
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        let account = lockbook_core::get_account(&db).unwrap();
+                        let account = lockbook_core::get_account(db).unwrap();
                         let document_path = format!("/{}", account.username);
-                        test_utils::assert_all_paths(&db, &root, &["/", &document_path]);
+                        test_utils::assert_all_paths(db, root, &["/", &document_path]);
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[(&document_path, b"")],
                         );
                     },
@@ -239,11 +235,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[("/a/b/c/d", b"")]);
+                        test_utils::assert_all_document_contents(db, root, &[("/a/b/c/d", b"")]);
                     },
                 },
             ],
@@ -255,10 +251,10 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document"]);
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/document", b"document content")],
                         );
                     },
@@ -274,13 +270,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/folder/", "/folder/document"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/folder/document", b"")],
                         );
                     },
@@ -294,12 +290,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
-                        test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
-                            &[("/document2", b"")],
-                        );
+                        test_utils::assert_all_paths(db, root, &["/", "/document2"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document2", b"")]);
                     },
                 },
             ],
@@ -311,8 +303,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -324,8 +316,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -337,8 +329,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -346,11 +338,11 @@ mod sync_tests {
             ops.push(Operation::Custom {
                 f: &|dbs, root| {
                     let db = &dbs[0].1;
-                    test_utils::assert_repo_integrity(&db);
-                    test_utils::assert_local_work_paths(&db, &root, &[]);
-                    test_utils::assert_server_work_paths(&db, &root, &[]);
-                    test_utils::assert_deleted_files_pruned(&db);
-                    test_utils::assert_new_synced_client_dbs_eq(&db);
+                    test_utils::assert_repo_integrity(db);
+                    test_utils::assert_local_work_paths(db, root, &[]);
+                    test_utils::assert_server_work_paths(db, root, &[]);
+                    test_utils::assert_deleted_files_pruned(db);
+                    test_utils::assert_new_synced_client_dbs_eq(db);
                 },
             });
             test_utils::run(&ops);
@@ -371,9 +363,9 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
-                        test_utils::assert_local_work_paths(&db, root, &["/document"]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document", b"")]);
+                        test_utils::assert_local_work_paths(db, root, &["/document"]);
                     },
                 },
             ],
@@ -385,13 +377,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[("/a/b/c/d", b"")]);
+                        test_utils::assert_all_document_contents(db, root, &[("/a/b/c/d", b"")]);
                         test_utils::assert_local_work_paths(
-                            &db,
+                            db,
                             root,
                             &["/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
                         );
@@ -406,13 +398,13 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document"]);
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/document", b"document content")],
                         );
-                        test_utils::assert_local_work_paths(&db, root, &["/document"]);
+                        test_utils::assert_local_work_paths(db, root, &["/document"]);
                     },
                 },
             ],
@@ -425,9 +417,9 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
-                        test_utils::assert_local_work_paths(&db, root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document", b"")]);
+                        test_utils::assert_local_work_paths(db, root, &[]);
                     },
                 },
             ],
@@ -441,16 +433,16 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/folder/", "/folder/document"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/folder/document", b"")],
                         );
-                        test_utils::assert_local_work_paths(&db, root, &["/folder/document"]);
+                        test_utils::assert_local_work_paths(db, root, &["/folder/document"]);
                     },
                 },
             ],
@@ -464,9 +456,9 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
-                        test_utils::assert_local_work_paths(&db, root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/folder/", "/document"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document", b"")]);
+                        test_utils::assert_local_work_paths(db, root, &[]);
                     },
                 },
             ],
@@ -478,13 +470,9 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
-                        test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
-                            &[("/document2", b"")],
-                        );
-                        test_utils::assert_local_work_paths(&db, root, &["/document2"]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document2"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document2", b"")]);
+                        test_utils::assert_local_work_paths(db, root, &["/document2"]);
                     },
                 },
             ],
@@ -497,9 +485,9 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
-                        test_utils::assert_local_work_paths(&db, root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document", b"")]);
+                        test_utils::assert_local_work_paths(db, root, &[]);
                     },
                 },
             ],
@@ -511,9 +499,9 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
-                        test_utils::assert_local_work_paths(&db, root, &["/document"]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
+                        test_utils::assert_local_work_paths(db, root, &["/document"]);
                     },
                 },
             ],
@@ -525,9 +513,9 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
-                        test_utils::assert_local_work_paths(&db, root, &["/parent/"]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
+                        test_utils::assert_local_work_paths(db, root, &["/parent/"]);
                     },
                 },
             ],
@@ -539,9 +527,9 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
-                        test_utils::assert_local_work_paths(&db, root, &["/grandparent/"]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
+                        test_utils::assert_local_work_paths(db, root, &["/grandparent/"]);
                     },
                 },
             ],
@@ -549,8 +537,8 @@ mod sync_tests {
             ops.push(Operation::Custom {
                 f: &|dbs, root| {
                     let db = &dbs[0].1;
-                    test_utils::assert_repo_integrity(&db);
-                    test_utils::assert_server_work_paths(&db, &root, &[]);
+                    test_utils::assert_repo_integrity(db);
+                    test_utils::assert_server_work_paths(db, root, &[]);
                 },
             });
             test_utils::run(&ops);
@@ -572,7 +560,7 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_server_work_paths(&db, &root, &["/"]);
+                        test_utils::assert_server_work_paths(db, root, &["/"]);
                     },
                 },
             ],
@@ -584,7 +572,7 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_server_work_paths(&db, &root, &["/", "/document"]);
+                        test_utils::assert_server_work_paths(db, root, &["/", "/document"]);
                     },
                 },
             ],
@@ -597,8 +585,8 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_server_work_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
                         );
                     },
@@ -613,7 +601,7 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_server_work_paths(&db, &root, &["/", "/document"]);
+                        test_utils::assert_server_work_paths(db, root, &["/", "/document"]);
                     },
                 },
             ],
@@ -628,8 +616,8 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_server_work_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/folder/", "/folder/document"],
                         );
                     },
@@ -644,7 +632,7 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_server_work_paths(&db, &root, &["/", "/document2"]);
+                        test_utils::assert_server_work_paths(db, root, &["/", "/document2"]);
                     },
                 },
             ],
@@ -657,7 +645,7 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_server_work_paths(&db, &root, &["/"]);
+                        test_utils::assert_server_work_paths(db, root, &["/"]);
                     },
                 },
             ],
@@ -670,7 +658,7 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_server_work_paths(&db, &root, &["/"]);
+                        test_utils::assert_server_work_paths(db, root, &["/"]);
                     },
                 },
             ],
@@ -683,7 +671,7 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_server_work_paths(&db, &root, &["/"]);
+                        test_utils::assert_server_work_paths(db, root, &["/"]);
                     },
                 },
             ],
@@ -691,10 +679,10 @@ mod sync_tests {
             ops.push(Operation::Custom {
                 f: &|dbs, root| {
                     let db = &dbs[1].1;
-                    test_utils::assert_repo_integrity(&db);
-                    test_utils::assert_all_paths(&db, &root, &[]);
-                    test_utils::assert_all_document_contents(&db, &root, &[]);
-                    test_utils::assert_local_work_paths(&db, root, &[]);
+                    test_utils::assert_repo_integrity(db);
+                    test_utils::assert_all_paths(db, root, &[]);
+                    test_utils::assert_all_document_contents(db, root, &[]);
+                    test_utils::assert_local_work_paths(db, root, &[]);
                 },
             });
             test_utils::run(&ops);
@@ -716,8 +704,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -729,8 +717,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document", b"")]);
                     },
                 },
             ],
@@ -743,11 +731,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[("/a/b/c/d", b"")]);
+                        test_utils::assert_all_document_contents(db, root, &[("/a/b/c/d", b"")]);
                     },
                 },
             ],
@@ -760,10 +748,10 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document"]);
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/document", b"document content")],
                         );
                     },
@@ -780,13 +768,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/folder/", "/folder/document"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/folder/document", b"")],
                         );
                     },
@@ -801,12 +789,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
-                        test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
-                            &[("/document2", b"")],
-                        );
+                        test_utils::assert_all_paths(db, root, &["/", "/document2"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document2", b"")]);
                     },
                 },
             ],
@@ -819,8 +803,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -833,8 +817,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -847,8 +831,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -857,12 +841,12 @@ mod sync_tests {
                 f: &|dbs, root| {
                     let db = &dbs[0].1;
                     let db2 = &dbs[1].1;
-                    test_utils::assert_repo_integrity(&db);
-                    test_utils::assert_dbs_eq(&db, &db2);
-                    test_utils::assert_local_work_paths(&db, &root, &[]);
-                    test_utils::assert_server_work_paths(&db, &root, &[]);
-                    test_utils::assert_deleted_files_pruned(&db);
-                    test_utils::assert_new_synced_client_dbs_eq(&db);
+                    test_utils::assert_repo_integrity(db);
+                    test_utils::assert_dbs_eq(db, db2);
+                    test_utils::assert_local_work_paths(db, root, &[]);
+                    test_utils::assert_server_work_paths(db, root, &[]);
+                    test_utils::assert_deleted_files_pruned(db);
+                    test_utils::assert_new_synced_client_dbs_eq(db);
                 },
             });
             test_utils::run(&ops);
@@ -883,9 +867,9 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
-                        test_utils::assert_server_work_paths(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
+                        test_utils::assert_server_work_paths(db, root, &[]);
                     },
                 },
             ],
@@ -897,9 +881,9 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
-                        test_utils::assert_server_work_paths(&db, &root, &["/document"]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
+                        test_utils::assert_server_work_paths(db, root, &["/document"]);
                     },
                 },
             ],
@@ -911,11 +895,11 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                         test_utils::assert_server_work_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
                         );
                     },
@@ -931,9 +915,9 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
-                        test_utils::assert_server_work_paths(&db, &root, &["/document"]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document", b"")]);
+                        test_utils::assert_server_work_paths(db, root, &["/document"]);
                     },
                 },
             ],
@@ -948,9 +932,9 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/folder/", "/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
-                        test_utils::assert_server_work_paths(&db, &root, &["/document"]);
+                        test_utils::assert_all_paths(db, root, &["/", "/folder/", "/document"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document", b"")]);
+                        test_utils::assert_server_work_paths(db, root, &["/document"]);
                     },
                 },
             ],
@@ -964,9 +948,9 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
-                        test_utils::assert_server_work_paths(&db, &root, &["/document"]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document", b"")]);
+                        test_utils::assert_server_work_paths(db, root, &["/document"]);
                     },
                 },
             ],
@@ -980,9 +964,9 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
-                        test_utils::assert_server_work_paths(&db, &root, &["/document"]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document", b"")]);
+                        test_utils::assert_server_work_paths(db, root, &["/document"]);
                     },
                 },
             ],
@@ -997,18 +981,18 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/parent/", "/parent/document"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/parent/document", b"")],
                         );
                         test_utils::assert_server_work_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/parent/", "/parent/document"],
                         );
                     },
@@ -1025,8 +1009,8 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[
                                 "/",
                                 "/grandparent/",
@@ -1035,13 +1019,13 @@ mod sync_tests {
                             ],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/grandparent/parent/document", b"")],
                         );
                         test_utils::assert_server_work_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[
                                 "/grandparent/",
                                 "/grandparent/parent/",
@@ -1055,8 +1039,8 @@ mod sync_tests {
             ops.push(Operation::Custom {
                 f: &|dbs, root| {
                     let db = &dbs[1].1;
-                    test_utils::assert_repo_integrity(&db);
-                    test_utils::assert_local_work_paths(&db, &root, &[]);
+                    test_utils::assert_repo_integrity(db);
+                    test_utils::assert_local_work_paths(db, root, &[]);
                 },
             });
             test_utils::run(&ops);
@@ -1079,8 +1063,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1093,8 +1077,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document", b"")]);
                     },
                 },
             ],
@@ -1108,11 +1092,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[("/a/b/c/d", b"")]);
+                        test_utils::assert_all_document_contents(db, root, &[("/a/b/c/d", b"")]);
                     },
                 },
             ],
@@ -1127,10 +1111,10 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document"]);
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/document", b"document content")],
                         );
                     },
@@ -1149,13 +1133,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/folder/", "/folder/document"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/folder/document", b"")],
                         );
                     },
@@ -1172,12 +1156,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
-                        test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
-                            &[("/document2", b"")],
-                        );
+                        test_utils::assert_all_paths(db, root, &["/", "/document2"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document2", b"")]);
                     },
                 },
             ],
@@ -1192,8 +1172,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1208,8 +1188,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1224,8 +1204,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1234,11 +1214,11 @@ mod sync_tests {
                 f: &|dbs, root| {
                     let db = &dbs[0].1;
                     let db2 = &dbs[1].1;
-                    test_utils::assert_repo_integrity(&db);
-                    test_utils::assert_dbs_eq(&db, &db2);
-                    test_utils::assert_local_work_paths(&db, &root, &[]);
-                    test_utils::assert_server_work_paths(&db, &root, &[]);
-                    test_utils::assert_deleted_files_pruned(&db);
+                    test_utils::assert_repo_integrity(db);
+                    test_utils::assert_dbs_eq(db, db2);
+                    test_utils::assert_local_work_paths(db, root, &[]);
+                    test_utils::assert_server_work_paths(db, root, &[]);
+                    test_utils::assert_deleted_files_pruned(db);
                 },
             });
             test_utils::run(&ops);
@@ -1265,13 +1245,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/parent/", "/parent/document"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/parent/document", b"")],
                         );
                     },
@@ -1290,13 +1270,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/parent/", "/parent2/", "/parent/document"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/parent/document", b"")],
                         );
                     },
@@ -1312,12 +1292,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
-                        test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
-                            &[("/document2", b"")],
-                        );
+                        test_utils::assert_all_paths(db, root, &["/", "/document2"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document2", b"")]);
                     },
                 },
             ],
@@ -1331,12 +1307,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document2"]);
-                        test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
-                            &[("/document2", b"")],
-                        );
+                        test_utils::assert_all_paths(db, root, &["/", "/document2"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document2", b"")]);
                     },
                 },
             ],
@@ -1352,13 +1324,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/parent/", "/parent/document2"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/parent/document2", b"")],
                         );
                     },
@@ -1376,13 +1348,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/parent/", "/parent/document2"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/parent/document2", b"")],
                         );
                     },
@@ -1398,8 +1370,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1413,8 +1385,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1428,8 +1400,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1443,8 +1415,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1458,8 +1430,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1473,8 +1445,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1488,8 +1460,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1503,8 +1475,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1518,8 +1490,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1534,8 +1506,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/parent/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/parent/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1550,8 +1522,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/parent/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/parent/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1566,8 +1538,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1582,8 +1554,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1597,8 +1569,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/document", b"")]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/document", b"")]);
                     },
                 },
             ],
@@ -1612,8 +1584,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1627,8 +1599,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1642,8 +1614,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1659,13 +1631,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/parent2/", "/parent2/parent/", "/parent2/parent/document"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/parent2/parent/document", b"")],
                         );
                     },
@@ -1683,13 +1655,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/parent2/", "/parent2/parent/", "/parent2/parent/document"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/parent2/parent/document", b"")],
                         );
                     },
@@ -1706,13 +1678,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/parent2/", "/parent2/document"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/parent2/document", b"")],
                         );
                     },
@@ -1729,13 +1701,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/parent2/", "/parent2/document"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/parent2/document", b"")],
                         );
                     },
@@ -1751,8 +1723,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1766,8 +1738,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1781,8 +1753,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1796,8 +1768,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -1825,13 +1797,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/document.draw", "/document-1.draw"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[
                                 ("/document.draw", b"document content 2"),
                                 ("/document-1.draw", b"document content 2"),
@@ -1863,10 +1835,10 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document.md"]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document.md"]);
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/document.md", b"document content 2")],
                         );
                     },
@@ -1896,13 +1868,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/document.draw", "/document-1.draw"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[
                                 ("/document.draw", b"document 2\n\ncontent\n"),
                                 ("/document-1.draw", b"document\n\ncontent 2\n"),
@@ -1934,10 +1906,10 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document.md"]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document.md"]);
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/document.md", b"document 2\n\ncontent 2\n")],
                         );
                     },
@@ -1973,13 +1945,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/parent/", "/parent/document.md"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/parent/document.md", b"document 2\n\ncontent 2\n")],
                         );
                     },
@@ -2015,13 +1987,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/parent/", "/parent/document.md"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/parent/document.md", b"document 2\n\ncontent 2\n")],
                         );
                     },
@@ -2052,13 +2024,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/parent/", "/parent/document.md"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/parent/document.md", b"document content 2")],
                         );
                     },
@@ -2089,13 +2061,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/parent/", "/parent/document.md"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/parent/document.md", b"document content 2")],
                         );
                     },
@@ -2120,10 +2092,10 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document2.md"]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document2.md"]);
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/document2.md", b"document content 2")],
                         );
                     },
@@ -2148,10 +2120,10 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/document2.md"]);
+                        test_utils::assert_all_paths(db, root, &["/", "/document2.md"]);
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/document2.md", b"document content 2")],
                         );
                     },
@@ -2176,8 +2148,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2200,8 +2172,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2224,8 +2196,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2248,8 +2220,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2272,8 +2244,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2296,8 +2268,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2312,11 +2284,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
                         let db2 = &dbs[1].1;
-                        test_utils::assert_repo_integrity(&db);
-                        test_utils::assert_dbs_eq(&db, &db2);
-                        test_utils::assert_local_work_paths(&db, &root, &[]);
-                        test_utils::assert_server_work_paths(&db, &root, &[]);
-                        test_utils::assert_deleted_files_pruned(&db);
+                        test_utils::assert_repo_integrity(db);
+                        test_utils::assert_dbs_eq(db, db2);
+                        test_utils::assert_local_work_paths(db, root, &[]);
+                        test_utils::assert_server_work_paths(db, root, &[]);
+                        test_utils::assert_deleted_files_pruned(db);
                     },
                 },
                 checks,
@@ -2345,8 +2317,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/b/", "/b/a/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/b/", "/b/a/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2363,8 +2335,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/c/", "/c/b/", "/c/b/a/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/c/", "/c/b/", "/c/b/a/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2381,8 +2353,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/b/", "/b/a/", "/c/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/b/", "/b/a/", "/c/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2402,11 +2374,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/d/", "/d/c/", "/d/c/b/", "/d/c/b/a/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2426,11 +2398,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/c/", "/c/b/", "/c/b/a/", "/d/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2450,11 +2422,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/b/", "/b/a/", "/d/", "/d/c/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2474,11 +2446,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/b/", "/b/a/", "/c/", "/d/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2495,8 +2467,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/b2/", "/b2/a2/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/b2/", "/b2/a2/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2517,11 +2489,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2541,8 +2513,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/b2/", "/b2/a2/", "/c2/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/b2/", "/b2/a2/", "/c2/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2566,11 +2538,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/d2/", "/d2/c2/", "/d2/c2/b2/", "/d2/c2/b2/a2/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2594,11 +2566,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/", "/d2/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2622,11 +2594,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/b2/", "/b2/a2/", "/d2/", "/d2/c2/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2650,11 +2622,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/b2/", "/b2/a2/", "/c2/", "/d2/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2671,8 +2643,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/b2/", "/b2/a2/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/b2/", "/b2/a2/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2693,11 +2665,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2717,8 +2689,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/b2/", "/b2/a2/", "/c2/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/b2/", "/b2/a2/", "/c2/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2742,11 +2714,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/d2/", "/d2/c2/", "/d2/c2/b2/", "/d2/c2/b2/a2/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2770,11 +2742,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/", "/d2/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2798,11 +2770,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/b2/", "/b2/a2/", "/d2/", "/d2/c2/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2826,11 +2798,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/b2/", "/b2/a2/", "/c2/", "/d2/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2846,8 +2818,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2865,8 +2837,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2885,8 +2857,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2906,8 +2878,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2928,8 +2900,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2950,8 +2922,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2973,8 +2945,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -2990,8 +2962,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/b/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/b/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3010,8 +2982,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/c/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/c/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3029,8 +3001,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/b/", "/c/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/b/", "/c/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3052,8 +3024,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/d/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/d/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3074,8 +3046,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/c/", "/d/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/c/", "/d/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3096,8 +3068,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/b/", "/d/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/b/", "/d/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3117,8 +3089,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/b/", "/c/", "/d/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/b/", "/c/", "/d/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3134,11 +3106,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/b/", "/b/a/", "/b/child/", "/b/a/child/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3156,8 +3128,8 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[
                                 "/",
                                 "/c/",
@@ -3168,7 +3140,7 @@ mod sync_tests {
                                 "/c/b/a/child/",
                             ],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3186,11 +3158,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/b/", "/b/a/", "/c/", "/b/child/", "/b/a/child/", "/c/child/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3210,8 +3182,8 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[
                                 "/",
                                 "/d/",
@@ -3224,7 +3196,7 @@ mod sync_tests {
                                 "/d/c/b/a/child/",
                             ],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3244,8 +3216,8 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[
                                 "/",
                                 "/c/",
@@ -3258,7 +3230,7 @@ mod sync_tests {
                                 "/d/child/",
                             ],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3278,8 +3250,8 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[
                                 "/",
                                 "/b/",
@@ -3292,7 +3264,7 @@ mod sync_tests {
                                 "/d/c/child/",
                             ],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3312,8 +3284,8 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[
                                 "/",
                                 "/b/",
@@ -3326,7 +3298,7 @@ mod sync_tests {
                                 "/d/child/",
                             ],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3341,11 +3313,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
                         let db2 = &dbs[1].1;
-                        test_utils::assert_repo_integrity(&db);
-                        test_utils::assert_dbs_eq(&db, &db2);
-                        test_utils::assert_local_work_paths(&db, &root, &[]);
-                        test_utils::assert_server_work_paths(&db, &root, &[]);
-                        test_utils::assert_deleted_files_pruned(&db);
+                        test_utils::assert_repo_integrity(db);
+                        test_utils::assert_dbs_eq(db, db2);
+                        test_utils::assert_local_work_paths(db, root, &[]);
+                        test_utils::assert_server_work_paths(db, root, &[]);
+                        test_utils::assert_deleted_files_pruned(db);
                     },
                 },
                 checks,
@@ -3371,10 +3343,10 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/a.md", "/a-1.md"]);
+                        test_utils::assert_all_paths(db, root, &["/", "/a.md", "/a-1.md"]);
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/a.md", b""), ("/a-1.md", b"")],
                         );
                     },
@@ -3388,8 +3360,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/a/", "/a-1/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_paths(db, root, &["/", "/a/", "/a-1/"]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3402,11 +3374,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/a/", "/a-1/", "/a/child/", "/a-1/child/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3418,8 +3390,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/a.md", "/a-1.md/"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/a.md", b"")]);
+                        test_utils::assert_all_paths(db, root, &["/", "/a.md", "/a-1.md/"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/a.md", b"")]);
                     },
                 },
             ],
@@ -3431,8 +3403,8 @@ mod sync_tests {
                 Operation::Custom {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
-                        test_utils::assert_all_paths(&db, &root, &["/", "/a.md/", "/a-1.md"]);
-                        test_utils::assert_all_document_contents(&db, &root, &[("/a-1.md", b"")]);
+                        test_utils::assert_all_paths(db, root, &["/", "/a.md/", "/a-1.md"]);
+                        test_utils::assert_all_document_contents(db, root, &[("/a-1.md", b"")]);
                     },
                 },
             ],
@@ -3445,11 +3417,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/a.md", "/a-1.md/", "/a-1.md/child/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[("/a.md", b"")]);
+                        test_utils::assert_all_document_contents(db, root, &[("/a.md", b"")]);
                     },
                 },
             ],
@@ -3462,11 +3434,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/a.md/", "/a.md/child/", "/a-1.md"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[("/a-1.md", b"")]);
+                        test_utils::assert_all_document_contents(db, root, &[("/a-1.md", b"")]);
                     },
                 },
             ],
@@ -3481,13 +3453,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/folder/", "/a.md", "/a-1.md"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/a.md", b""), ("/a-1.md", b"")],
                         );
                     },
@@ -3504,13 +3476,13 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/folder/", "/a.md", "/a-1.md"],
                         );
                         test_utils::assert_all_document_contents(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[("/a.md", b""), ("/a-1.md", b"")],
                         );
                     },
@@ -3527,11 +3499,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/folder/", "/a.md/", "/a-1.md/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3546,11 +3518,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &["/", "/folder/", "/a.md/", "/a-1.md/"],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3565,8 +3537,8 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[
                                 "/",
                                 "/folder/",
@@ -3576,7 +3548,7 @@ mod sync_tests {
                                 "/a-1.md/child/",
                             ],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3591,8 +3563,8 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[1].1;
                         test_utils::assert_all_paths(
-                            &db,
-                            &root,
+                            db,
+                            root,
                             &[
                                 "/",
                                 "/folder/",
@@ -3602,7 +3574,7 @@ mod sync_tests {
                                 "/a-1.md/child/",
                             ],
                         );
-                        test_utils::assert_all_document_contents(&db, &root, &[]);
+                        test_utils::assert_all_document_contents(db, root, &[]);
                     },
                 },
             ],
@@ -3617,11 +3589,11 @@ mod sync_tests {
                     f: &|dbs, root| {
                         let db = &dbs[0].1;
                         let db2 = &dbs[1].1;
-                        test_utils::assert_repo_integrity(&db);
-                        test_utils::assert_dbs_eq(&db, &db2);
-                        test_utils::assert_local_work_paths(&db, &root, &[]);
-                        test_utils::assert_server_work_paths(&db, &root, &[]);
-                        test_utils::assert_deleted_files_pruned(&db);
+                        test_utils::assert_repo_integrity(db);
+                        test_utils::assert_dbs_eq(db, db2);
+                        test_utils::assert_local_work_paths(db, root, &[]);
+                        test_utils::assert_server_work_paths(db, root, &[]);
+                        test_utils::assert_deleted_files_pruned(db);
                     },
                 },
                 checks,
