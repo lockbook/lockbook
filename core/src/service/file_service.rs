@@ -1750,7 +1750,7 @@ mod unit_tests {
         assert_document_count!(config, RepoSource::Base, 1);
         assert_document_count!(config, RepoSource::Local, 1);
 
-        let mut folder_deleted = folder.clone();
+        let mut folder_deleted = folder;
         folder_deleted.deleted = true;
         let mut document_moved = document.clone();
         document_moved.parent = root.id;
@@ -1863,7 +1863,7 @@ mod unit_tests {
         let mut deleted_folder =
             files::create(FileType::Folder, root.id, "folder", &account.public_key());
         deleted_folder.deleted = true;
-        let mut document_moved_and_deleted = document.clone();
+        let mut document_moved_and_deleted = document;
         document_moved_and_deleted.parent = deleted_folder.id;
         document_moved_and_deleted.deleted = true;
         file_service::insert_metadatum(config, RepoSource::Local, &deleted_folder).unwrap();

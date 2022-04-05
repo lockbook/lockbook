@@ -119,7 +119,7 @@ mod import_export_file_tests {
             child.parent,
             tmp_path.clone(),
             false,
-            Some(Box::new(export_progress.clone())),
+            Some(Box::new(export_progress)),
         )
         .unwrap();
 
