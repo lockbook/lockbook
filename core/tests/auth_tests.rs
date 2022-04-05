@@ -25,8 +25,7 @@ mod auth_tests {
                 .unwrap()
                 .file_metadata
                 .iter()
-                .filter(|&f| f.id == id)
-                .next()
+                .find(|&f| f.id == id)
                 .unwrap()
                 .clone()
         };
@@ -62,8 +61,7 @@ mod auth_tests {
                 .unwrap()
                 .file_metadata
                 .iter()
-                .filter(|&f| f.id == id)
-                .next()
+                .find(|&f| f.id == id)
                 .unwrap()
                 .clone()
         };

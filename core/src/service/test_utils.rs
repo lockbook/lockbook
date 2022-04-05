@@ -565,13 +565,13 @@ pub fn slices_equal_ignore_order<T: Hash + Eq>(a: &[T], b: &[T]) -> bool {
 mod unit_tests {
     use super::super::test_utils;
 
-    use std::array::IntoIter;
     use std::collections::HashMap;
     use std::iter::FromIterator;
 
     #[test]
     fn test_get_frequencies() {
-        let expected = HashMap::<&i32, i32>::from_iter(IntoIter::new([(&0, 1), (&1, 3), (&2, 2)]));
+        let expected =
+            HashMap::<&i32, i32>::from_iter(IntoIterator::into_iter([(&0, 1), (&1, 3), (&2, 2)]));
         let result = test_utils::get_frequencies(&[0, 1, 1, 1, 2, 2]);
         assert_eq!(expected, result);
     }
