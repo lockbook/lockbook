@@ -11,7 +11,7 @@ impl super::App {
             let id = tab.id();
             let b = tab.editor().buffer();
             let data = b.text(&b.start_iter(), &b.end_iter(), true);
-            match self.save_file_content(&id, &data) {
+            match self.save_file_content(id, &data) {
                 Ok(()) => self.update_sync_status(),
                 Err(err) => self.show_err_dialog(&format!("error saving: {}", err)),
             }
@@ -19,10 +19,10 @@ impl super::App {
         }
     }
 
-    fn save_file_content(&self, id: &lb::Uuid, data: &str) -> Result<(), String> {
+    fn save_file_content(&self, id: lb::Uuid, data: &str) -> Result<(), String> {
         use lb::WriteDocumentError::*;
         self.api
-            .write_document(*id, data.as_bytes())
+            .write_document(id, data.as_bytes())
             .map_err(|err| match err {
                 lb::Error::UiError(err) => match err {
                     NoAccount => "no account",
