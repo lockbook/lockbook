@@ -30,6 +30,7 @@ pub use lockbook_core::GetUsageError;
 pub use lockbook_core::ImportError as ImportAccountError;
 pub use lockbook_core::ImportFileError;
 pub use lockbook_core::MigrationError;
+pub use lockbook_core::MoveFileError;
 pub use lockbook_core::ReadDocumentError;
 pub use lockbook_core::RenameFileError;
 pub use lockbook_core::SyncAllError;
@@ -78,6 +79,7 @@ pub trait Api: Send + Sync {
         &self, name: &str, parent: Uuid, ftype: FileType,
     ) -> Result<FileMetadata, Error<CreateFileError>>;
     fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), Error<RenameFileError>>;
+    fn move_file(&self, id: Uuid, dest: Uuid) -> Result<(), Error<MoveFileError>>;
     fn delete_file(&self, id: Uuid) -> Result<(), Error<FileDeleteError>>;
 
     fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, Error<ReadDocumentError>>;
@@ -219,6 +221,10 @@ impl Api for DefaultApi {
 
     fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), Error<RenameFileError>> {
         lockbook_core::rename_file(&self.cfg, id, new_name)
+    }
+
+    fn move_file(&self, id: Uuid, dest: Uuid) -> Result<(), Error<MoveFileError>> {
+        lockbook_core::move_file(&self.cfg, id, dest)
     }
 
     fn delete_file(&self, id: Uuid) -> Result<(), Error<FileDeleteError>> {
