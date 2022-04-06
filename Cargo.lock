@@ -1685,6 +1685,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "hmdb"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3c12e24579b541561d53760a05b1c87357822c3eabe60bace48a0b9b22e93bb"
+dependencies = [
+ "bincode",
+ "serde",
+]
+
+[[package]]
 name = "hotwatch"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2200,6 +2210,7 @@ dependencies = [
  "diffy",
  "flate2",
  "fuzzy-matcher",
+ "hmdb",
  "image 0.23.14",
  "indicatif 0.17.0-rc.6",
  "itertools",
