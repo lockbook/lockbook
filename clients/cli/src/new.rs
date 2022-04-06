@@ -1,4 +1,6 @@
-use lockbook_core::{create_file_at_path, CreateFileAtPathError, Error as CoreError};
+use lockbook_core::{
+    create_file_at_path, delete_file, CreateFileAtPathError, Error::*, FileDeleteError,
+};
 use lockbook_models::file_metadata::FileType::Folder;
 use std::fs;
 use std::fs::File;
@@ -16,7 +18,7 @@ pub fn new(file_name: &str) -> CliResult<()> {
     let cfg = config()?;
 
     let file_metadata = create_file_at_path(&cfg, file_name).map_err(|err| match err {
-        CoreError::UiError(err) => match err {
+        UiError(err) => match err {
             CreateFileAtPathError::FileAlreadyExists => {
                 err!(FileAlreadyExists(file_name.to_string()))
             }
@@ -32,7 +34,7 @@ pub fn new(file_name: &str) -> CliResult<()> {
                 err!(DocTreatedAsFolder(file_name.to_string()))
             }
         },
-        CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
+        Unexpected(msg) => err_unexpected!("{}", msg),
     })?;
 
     let file_location = format!("{}/{}", get_directory_location()?, file_metadata.decrypted_name);
@@ -60,6 +62,11 @@ pub fn new(file_name: &str) -> CliResult<()> {
         }
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
+        delete_file(&cfg, file_metadata.id).map_err(|err| match err {
+            UiError(FileDeleteError::FileDoesNotExist) => err!(FileNotFound(file_name.to_string())),
+            UiError(FileDeleteError::CannotDeleteRoot) => err!(NoRootOps("delete")),
+            Unexpected(msg) => err_unexpected!("{}", msg),
+        })?;
     }
 
     fs::remove_file(&temp_file_path)
