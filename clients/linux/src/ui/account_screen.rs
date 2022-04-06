@@ -7,8 +7,14 @@ use gtk::prelude::*;
 use crate::ui;
 
 pub enum AccountOp {
-    CutSelectedFile,
-    PasteIntoSelectedFile,
+    NewDocument,
+    NewFolder,
+    OpenFile(lb::Uuid),
+    RenameFile,
+    DeleteFiles,
+    ExportFiles,
+    CutFile,
+    PasteFile,
     TreeReceiveDrop(glib::Value, f64, f64),
     TabSwitched(ui::TextEditor),
     AllTabsClosed,
@@ -32,33 +38,36 @@ impl AccountScreen {
         let stack = gtk::Stack::new();
 
         let tabs = gtk::Notebook::new();
-        {
+        tabs.connect_page_added({
             let stack = stack.clone();
-            tabs.connect_page_added(move |tabs, _, i| {
+
+            move |tabs, _, i| {
                 tabs.set_show_tabs(tabs.n_pages() > 1);
                 tabs.set_page(i as i32);
                 stack.set_visible_child_name("tabs");
-            });
-        }
-        {
+            }
+        });
+        tabs.connect_page_removed({
             let account_op_tx = account_op_tx.clone();
             let stack = stack.clone();
-            tabs.connect_page_removed(move |tabs, _, _| {
+
+            move |tabs, _, _| {
                 let n_tabs = tabs.n_pages();
                 tabs.set_show_tabs(n_tabs > 1);
                 if n_tabs == 0 {
                     account_op_tx.send(AccountOp::AllTabsClosed).unwrap();
                     stack.set_visible_child_name("logo");
                 }
-            });
-        }
-        {
+            }
+        });
+        tabs.connect_switch_page({
             let account_op_tx = account_op_tx.clone();
-            tabs.connect_switch_page(move |_, w, _| {
+
+            move |_, w, _| {
                 let tab = w.downcast_ref::<ui::TextEditor>().unwrap().clone();
                 account_op_tx.send(AccountOp::TabSwitched(tab)).unwrap();
-            });
-        }
+            }
+        });
 
         let tree = ui::FileTree::new(account_op_tx, hidden_cols);
         let tree_scroll = gtk::ScrolledWindow::new();
