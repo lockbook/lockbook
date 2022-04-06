@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use gtk::glib;
 use gtk::prelude::*;
 
+use crate::ui;
 use crate::ui::icons;
 
 impl super::App {
@@ -69,9 +70,9 @@ impl super::App {
             .window
             .titlebar()
             .expect("app window should have a titlebar")
-            .downcast::<gtk::HeaderBar>()
-            .expect("app window titlebar should be a header bar");
-        titlebar.pack_start(&menu_btn);
+            .downcast::<ui::Titlebar>()
+            .expect("app window titlebar should be a `ui::Titlebar`");
+        titlebar.base().pack_start(&menu_btn);
 
         let total = match self.api.file_and_all_children(lb_file) {
             Ok(children) => children.len(),
@@ -117,7 +118,7 @@ impl super::App {
                         p.connect_closed({
                             let titlebar = titlebar.clone();
                             let menu_btn = menu_btn.clone();
-                            move |_| titlebar.remove(&menu_btn)
+                            move |_| titlebar.base().remove(&menu_btn)
                         });
                     }
                     Err(err) => {

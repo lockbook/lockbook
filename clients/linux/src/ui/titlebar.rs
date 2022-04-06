@@ -55,6 +55,10 @@ impl Titlebar {
     pub fn search_input(&self) -> String {
         self.imp().search_box.text().to_string()
     }
+
+    pub fn base(&self) -> &gtk::HeaderBar {
+        &self.imp().base
+    }
 }
 
 impl Default for Titlebar {
@@ -207,6 +211,10 @@ mod imp {
                     if key == gdk::Key::Escape {
                         search_btn.grab_focus();
                         search_btn.emit_clicked();
+                        search_box.set_text("");
+                        while let Some(row) = result_list.row_at_index(0) {
+                            result_list.remove(&row);
+                        }
                     } else if code == ARROW_DOWN {
                         let next_index = result_list
                             .selected_row()
