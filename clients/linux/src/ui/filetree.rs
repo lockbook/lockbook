@@ -42,18 +42,36 @@ impl FileTree {
             .vexpand(true)
             .build();
         view.connect_columns_changed(|t| t.set_headers_visible(t.columns().len() > 1));
-        tree_connect_row_activated(&view);
+        view.connect_row_activated({
+            let tx = account_op_tx.clone();
+
+            move |tview, tpath, _| {
+                if tview.row_expanded(tpath) {
+                    tview.collapse_row(tpath);
+                    return;
+                }
+
+                tview.expand_to_path(tpath);
+                let model = tview.model().unwrap();
+                let iter = model.iter(tpath).unwrap();
+
+                if iter_is_document(&model, &iter) {
+                    let id = ui::id_from_tpath(&model, tpath);
+                    tx.send(ui::AccountOp::OpenFile(id)).unwrap();
+                }
+            }
+        });
 
         // Controller for right clicks.
-        view.add_controller(&{
-            let g = gtk::GestureClick::new();
-            g.set_button(gtk::gdk::ffi::GDK_BUTTON_SECONDARY as u32);
-            g.set_propagation_phase(gtk::PropagationPhase::Capture);
-
+        let rclick = gtk::GestureClick::new();
+        rclick.set_button(gtk::gdk::ffi::GDK_BUTTON_SECONDARY as u32);
+        rclick.set_propagation_phase(gtk::PropagationPhase::Capture);
+        rclick.connect_pressed({
             let view = view.clone();
             let menu = menu.clone();
             let clipboard = clipboard.clone();
-            g.connect_pressed(move |_, _, x, y| {
+
+            move |_, _, x, y| {
                 if let Some((Some(tpath), _, _, _)) = view.path_at_pos(x as i32, y as i32) {
                     let sel = view.selection();
                     let (selected_rows, _) = sel.selected_rows();
@@ -64,36 +82,34 @@ impl FileTree {
                 }
                 menu.update(&view, &clipboard);
                 menu.popup_at(x, y);
-            });
-
-            g
+            }
         });
+        view.add_controller(&rclick);
 
         // Controller for key presses.
-        view.add_controller(&{
-            let view = view.clone();
-            let key_ctlr = gtk::EventControllerKey::new();
-            key_ctlr.connect_key_pressed(move |_, key, _, _| {
+        let key_ctlr = gtk::EventControllerKey::new();
+        key_ctlr.connect_key_pressed({
+            let tx = account_op_tx.clone();
+
+            move |_, key, _, _| {
                 if key == gtk::gdk::Key::Delete {
-                    view.activate_action("app.delete-files", None).unwrap();
+                    tx.send(ui::AccountOp::DeleteFiles).unwrap();
                 }
                 gtk::Inhibit(false)
-            });
-            key_ctlr
+            }
         });
+        view.add_controller(&key_ctlr);
 
         // Controller for receiving drops.
-        view.add_controller(&{
-            let drop = gtk::DropTarget::new(glib::types::Type::STRING, gtk::gdk::DragAction::COPY);
-            drop.connect_motion(|_, _x, _y| gtk::gdk::DragAction::COPY);
-            drop.connect_drop(move |_, val, x, y| {
-                account_op_tx
-                    .send(ui::AccountOp::TreeReceiveDrop(val.clone(), x, y))
-                    .expect("sending receive-drop account op");
-                true
-            });
-            drop
+        let drop = gtk::DropTarget::new(glib::types::Type::STRING, gtk::gdk::DragAction::COPY);
+        drop.connect_motion(|_, _x, _y| gtk::gdk::DragAction::COPY);
+        drop.connect_drop(move |_, val, x, y| {
+            account_op_tx
+                .send(ui::AccountOp::TreeReceiveDrop(val.clone(), x, y))
+                .expect("sending receive-drop account op");
+            true
         });
+        view.add_controller(&drop);
 
         let cntr = gtk::Box::new(gtk::Orientation::Vertical, 0);
         cntr.append(&view);
@@ -118,21 +134,21 @@ impl FileTree {
             None => panic!("unable to find root in metadata list"),
         };
         let root_iter = self.append(None, &root);
-        self.append_any_children(&root.id, &root_iter, metas);
+        self.append_any_children(root.id, &root_iter, metas);
         self.view.expand_row(&self.model.path(&root_iter), false);
     }
 
     pub fn append_any_children(
-        &self, parent_id: &lb::Uuid, parent_iter: &gtk::TreeIter, metas: &[lb::FileMetadata],
+        &self, parent_id: lb::Uuid, parent_iter: &gtk::TreeIter, metas: &[lb::FileMetadata],
     ) {
         let children: Vec<&lb::FileMetadata> =
-            metas.iter().filter(|fm| fm.parent == *parent_id).collect();
+            metas.iter().filter(|fm| fm.parent == parent_id).collect();
 
         for child in children {
             let item_iter = self.append(Some(parent_iter), child);
 
             if child.file_type == lb::FileType::Folder {
-                self.append_any_children(&child.id, &item_iter, metas);
+                self.append_any_children(child.id, &item_iter, metas);
             }
         }
     }
@@ -157,17 +173,17 @@ impl FileTree {
     }
 
     pub fn add_file(&self, fm: &lb::FileMetadata) -> Result<(), String> {
-        match self.search(&fm.parent) {
+        match self.search(fm.parent) {
             Some(parent_iter) => {
                 self.append(Some(&parent_iter), fm);
-                self.select(&fm.id);
+                self.select(fm.id);
                 Ok(())
             }
             None => Err(format!("no parent found for file with id '{}'", fm.id)),
         }
     }
 
-    pub fn select(&self, id: &lb::Uuid) {
+    pub fn select(&self, id: lb::Uuid) {
         if let Some(iter) = self.search(id) {
             let p = self.model.path(&iter);
             self.view.expand_to_path(&p);
@@ -178,11 +194,11 @@ impl FileTree {
         }
     }
 
-    pub fn search(&self, id: &lb::Uuid) -> Option<gtk::TreeIter> {
+    pub fn search(&self, id: lb::Uuid) -> Option<gtk::TreeIter> {
         let mut result: Option<gtk::TreeIter> = None;
         self.model.foreach(|model, tpath, iter| -> bool {
             let item_id = ui::id_from_tpath(model, tpath);
-            if item_id.eq(id) {
+            if item_id.eq(&id) {
                 result = Some(*iter);
                 true
             } else {
@@ -199,29 +215,6 @@ fn iter_is_document(model: &gtk::TreeModel, iter: &gtk::TreeIter) -> bool {
         .get::<String>()
         .unwrap_or_else(|_| panic!("getting treeview value: column id {}", 3))
         .eq(&format!("{:?}", lb::FileType::Document))
-}
-
-fn tree_connect_row_activated(tview: &gtk::TreeView) {
-    tview.connect_row_activated(move |tview, path, _| {
-        if tview.row_expanded(path) {
-            tview.collapse_row(path);
-            return;
-        }
-
-        tview.expand_to_path(path);
-        let model = tview.model().unwrap();
-        let iter = model.iter(path).unwrap();
-
-        if iter_is_document(&model, &iter) {
-            let iter_id_str = model
-                .get_value(&iter, 2)
-                .get::<String>()
-                .unwrap_or_else(|_| panic!("getting treeview value: column id {}", 2));
-            tview
-                .activate_action("app.open-file", Some(&iter_id_str.to_variant()))
-                .expect("couldn't activate 'app.open-file' action");
-        }
-    });
 }
 
 impl FileTreeCol {
@@ -290,18 +283,24 @@ impl FileTreeMenu {
         let popover = gtk::Popover::builder().halign(gtk::Align::Start).build();
 
         let new_document = ui::MenuItemBuilder::new()
-            .action("app.new-document")
             .icon(icons::NEW_DOC)
             .label("New Document")
             .popsdown(&popover)
             .build();
+        new_document.connect_clicked({
+            let tx = account_op_tx.clone();
+            move |_| tx.send(ui::AccountOp::NewDocument).unwrap()
+        });
 
         let new_folder = ui::MenuItemBuilder::new()
-            .action("app.new-folder")
             .icon(icons::NEW_FOLDER)
             .label("New Folder")
             .popsdown(&popover)
             .build();
+        new_folder.connect_clicked({
+            let tx = account_op_tx.clone();
+            move |_| tx.send(ui::AccountOp::NewFolder).unwrap()
+        });
 
         let cut = ui::MenuItemBuilder::new()
             .icon(icons::CUT)
@@ -310,7 +309,7 @@ impl FileTreeMenu {
             .build();
         cut.connect_clicked({
             let tx = account_op_tx.clone();
-            move |_| tx.send(ui::AccountOp::CutSelectedFile).unwrap()
+            move |_| tx.send(ui::AccountOp::CutFile).unwrap()
         });
 
         let paste = ui::MenuItemBuilder::new()
@@ -320,29 +319,38 @@ impl FileTreeMenu {
             .build();
         paste.connect_clicked({
             let tx = account_op_tx.clone();
-            move |_| tx.send(ui::AccountOp::PasteIntoSelectedFile).unwrap()
+            move |_| tx.send(ui::AccountOp::PasteFile).unwrap()
         });
 
         let rename = ui::MenuItemBuilder::new()
-            .action("app.rename-file")
             .icon(icons::RENAME)
             .label("Rename")
             .popsdown(&popover)
             .build();
+        rename.connect_clicked({
+            let tx = account_op_tx.clone();
+            move |_| tx.send(ui::AccountOp::RenameFile).unwrap()
+        });
 
         let delete = ui::MenuItemBuilder::new()
-            .action("app.delete-files")
             .icon(icons::DELETE)
             .label("Delete")
             .popsdown(&popover)
             .build();
+        delete.connect_clicked({
+            let tx = account_op_tx.clone();
+            move |_| tx.send(ui::AccountOp::DeleteFiles).unwrap()
+        });
 
         let export = ui::MenuItemBuilder::new()
-            .action("app.export-files")
             .icon(icons::EXPORT)
             .label("Export")
             .popsdown(&popover)
             .build();
+        export.connect_clicked({
+            let tx = account_op_tx.clone();
+            move |_| tx.send(ui::AccountOp::ExportFiles).unwrap()
+        });
 
         let menu_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
         menu_box.append(&new_document);

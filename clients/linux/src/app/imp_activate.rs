@@ -84,31 +84,6 @@ impl super::App {
     fn add_app_actions(&self, a: &gtk::Application) {
         {
             let app = self.clone();
-            let new_doc = gio::SimpleAction::new("new-document", None);
-            new_doc.connect_activate(move |_, _| app.new_file(lb::FileType::Document));
-            a.add_action(&new_doc);
-        }
-        {
-            let app = self.clone();
-            let new_folder = gio::SimpleAction::new("new-folder", None);
-            new_folder.connect_activate(move |_, _| app.new_file(lb::FileType::Folder));
-            a.add_action(&new_folder);
-        }
-        {
-            let app = self.clone();
-            let open_file = gio::SimpleAction::new("open-file", Some(glib::VariantTy::STRING));
-            open_file.connect_activate(move |_, param| {
-                let param = param
-                    .expect("there must be a uuid string for 'app.open-file'")
-                    .get::<String>()
-                    .expect("the 'app.open-file' parameter must be type String");
-                let id = lb::Uuid::parse_str(&param).unwrap();
-                app.open_file(id);
-            });
-            a.add_action(&open_file);
-        }
-        {
-            let app = self.clone();
             let save_file = gio::SimpleAction::new("save-file", None);
             save_file.connect_activate(move |_, _| app.save_file(None));
             a.add_action(&save_file);
@@ -120,24 +95,6 @@ impl super::App {
             close_file.connect_activate(move |_, _| app.close_file());
             a.add_action(&close_file);
             a.set_accels_for_action("app.close-file", &["<Ctrl>W"]);
-        }
-        {
-            let app = self.clone();
-            let rename_file = gio::SimpleAction::new("rename-file", None);
-            rename_file.connect_activate(move |_, _| app.rename_file());
-            a.add_action(&rename_file);
-        }
-        {
-            let app = self.clone();
-            let del_files = gio::SimpleAction::new("delete-files", None);
-            del_files.connect_activate(move |_, _| app.delete_files());
-            a.add_action(&del_files);
-        }
-        {
-            let app = self.clone();
-            let exp_files = gio::SimpleAction::new("export-files", None);
-            exp_files.connect_activate(move |_, _| app.export_files());
-            a.add_action(&exp_files);
         }
         {
             let app = self.clone();
@@ -183,8 +140,14 @@ impl super::App {
         account_op_rx.attach(None, move |op| {
             use ui::AccountOp::*;
             match op {
-                CutSelectedFile => self.cut_selected_file(),
-                PasteIntoSelectedFile => self.paste_into_selected_file(),
+                NewDocument => self.new_file(lb::FileType::Document),
+                NewFolder => self.new_file(lb::FileType::Folder),
+                OpenFile(id) => self.open_file(id),
+                RenameFile => self.rename_file(),
+                DeleteFiles => self.delete_files(),
+                ExportFiles => self.export_files(),
+                CutFile => self.cut_selected_file(),
+                PasteFile => self.paste_into_selected_file(),
                 TreeReceiveDrop(val, x, y) => self.tree_receive_drop(&val, x, y),
                 TabSwitched(tab) => self.titlebar.set_title(&tab.name()),
                 AllTabsClosed => self.titlebar.set_title("Lockbook"),
