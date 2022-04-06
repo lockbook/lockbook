@@ -37,12 +37,12 @@ impl super::App {
 
         match self.api.move_file(id, dest_id) {
             Ok(_) => {
-                let iter = t.search(&id).unwrap();
+                let iter = t.search(id).unwrap();
                 t.model.remove(&iter);
 
                 let children = self.api.file_and_all_children(id).unwrap();
-                let parent_iter = t.search(&dest_id).unwrap();
-                t.append_any_children(&dest_id, &parent_iter, &children);
+                let parent_iter = t.search(dest_id).unwrap();
+                t.append_any_children(dest_id, &parent_iter, &children);
             }
             Err(err) => self.show_err_dialog(&format!("{:?}", err)),
         }

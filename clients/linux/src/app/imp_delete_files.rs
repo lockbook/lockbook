@@ -59,7 +59,7 @@ impl super::App {
                 }
 
                 // Remove the file from the file tree.
-                if let Some(iter) = app.account.tree.search(&info.id) {
+                if let Some(iter) = app.account.tree.search(info.id) {
                     app.account.tree.model.remove(&iter);
                 }
 

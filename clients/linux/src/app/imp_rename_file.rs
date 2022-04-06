@@ -63,8 +63,8 @@ impl super::App {
             // Update the name (and icon if necessary) in the filetree.
             let tree = &app.account.tree;
             let iter = tree
-                .search(&id)
-                .unwrap_or_else(|| panic!("renaming file tree entry: none found for id '{}'", &id));
+                .search(id)
+                .unwrap_or_else(|| panic!("renaming file tree entry: none found for id '{}'", id));
             if meta.file_type == lb::FileType::Document {
                 tree.model
                     .set_value(&iter, 0, &ui::document_icon_from_name(&new_name).to_value());
