@@ -87,11 +87,13 @@ pub mod icons {
     pub const ACCOUNT: &str = "avatar-default-symbolic";
     pub const APP: &str = "video-display-symbolic";
     pub const CHECK_MARK: &str = "emblem-ok-symbolic";
+    pub const CUT: &str = "edit-cut-symbolic";
     pub const DELETE: &str = "edit-delete-symbolic";
     pub const ERROR_RED: &str = "dialog-error-symbolic";
     pub const EXPORT: &str = "document-save-symbolic";
     pub const NEW_DOC: &str = "document-new-symbolic";
     pub const NEW_FOLDER: &str = "folder-new-symbolic";
+    pub const PASTE: &str = "edit-paste-symbolic";
     pub const RENAME: &str = "go-jump-symbolic";
     pub const SEARCH: &str = "system-search-symbolic";
     pub const SETTINGS: &str = "preferences-system-symbolic";

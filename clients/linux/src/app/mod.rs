@@ -24,6 +24,7 @@ mod imp_close_file;
 mod imp_delete_files;
 mod imp_errors;
 mod imp_export_files;
+mod imp_file_copy_paste;
 mod imp_import_files;
 mod imp_new_file;
 mod imp_open_file;
