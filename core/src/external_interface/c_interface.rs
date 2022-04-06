@@ -9,6 +9,7 @@ use uuid::Uuid;
 use lockbook_models::file_metadata::FileType;
 
 use crate::external_interface::json_interface::translate;
+use crate::external_interface::static_state;
 use crate::model::state::Config;
 use crate::service::path_service::{filter_from_str, Filter};
 use crate::{get_all_error_variants, SupportedImageFormats};
@@ -71,6 +72,14 @@ pub unsafe extern "C" fn init_logger_safely(writeable_path: *const c_char) {
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
+pub unsafe extern "C" fn init(writeable_path: *const c_char) -> *const c_char {
+    c_string(translate(static_state::init(&config_from_ptr(writeable_path))))
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
 pub unsafe extern "C" fn get_db_state(writeable_path: *const c_char) -> *const c_char {
     c_string(translate(crate::get_db_state(&config_from_ptr(writeable_path))))
 }
@@ -88,13 +97,12 @@ pub unsafe extern "C" fn migrate_db(writeable_path: *const c_char) -> *const c_c
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn create_account(
-    writeable_path: *const c_char, username: *const c_char, api_url: *const c_char,
+    username: *const c_char, api_url: *const c_char,
 ) -> *const c_char {
-    c_string(translate(crate::create_account(
-        &config_from_ptr(writeable_path),
-        &str_from_ptr(username),
-        &str_from_ptr(api_url),
-    )))
+    c_string(translate(
+        static_state::get()
+            .map(|core| core.create_account(&str_from_ptr(username), &str_from_ptr(api_url))),
+    ))
 }
 
 /// # Safety

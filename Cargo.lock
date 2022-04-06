@@ -1686,9 +1686,9 @@ dependencies = [
 
 [[package]]
 name = "hmdb"
-version = "0.1.4"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3c12e24579b541561d53760a05b1c87357822c3eabe60bace48a0b9b22e93bb"
+checksum = "57087e2d902eca67a70f5d4e94021209fd653664fe14b24ed63783bec43334a3"
 dependencies = [
  "bincode",
  "serde",
@@ -2215,6 +2215,7 @@ dependencies = [
  "indicatif 0.17.0-rc.6",
  "itertools",
  "jni",
+ "lazy_static",
  "libsecp256k1",
  "lockbook-crypto",
  "lockbook-models",

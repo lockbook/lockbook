@@ -32,7 +32,10 @@ pub fn encrypt_metadatum(
     })
 }
 
-/// Converts a set of DecryptedFileMetadata's to FileMetadata's. All parents of files must be included in files. Sharing is not supported; user access keys are encrypted for the provided account. This is a pure function.
+/// Converts a set of DecryptedFileMetadata's to FileMetadata's. All parents of files must be
+/// included in files. Sharing is not supported; user access keys are encrypted for the provided
+/// account. This is a pure function.
+/// TODO perf n2
 pub fn encrypt_metadata(
     account: &Account, files: &[DecryptedFileMetadata],
 ) -> Result<Vec<EncryptedFileMetadata>, CoreError> {

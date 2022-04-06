@@ -16,10 +16,11 @@ use lockbook_models::file_metadata::FileType;
 use lockbook_models::work_unit::ClientWorkUnit;
 
 use crate::external_interface::json_interface::translate;
+use crate::external_interface::static_state;
 use crate::model::state::Config;
 use crate::service::sync_service::SyncProgress;
 use crate::{
-    calculate_work, create_account, create_file, delete_file, export_account, export_drawing,
+    calculate_work, create_file, delete_file, export_account, export_drawing,
     export_drawing_to_disk, get_account, get_all_error_variants, get_children, get_db_state,
     get_file_by_id, get_root, get_uncompressed_usage, get_usage, import_account, init_logger,
     migrate_db, move_file, read_document, rename_file, save_document_to_disk, sync_all,
@@ -83,6 +84,18 @@ fn deserialize<U: DeserializeOwned>(env: &JNIEnv, json: JString, name: &str) -> 
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_init(
+    env: JNIEnv, _: JClass, jconfig: JString,
+) -> jstring {
+    let config = match deserialize::<Config>(&env, jconfig, "config") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    string_to_jstring(&env, translate(static_state::init(&config)))
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
     env: JNIEnv, _: JClass, jpath: JString,
 ) -> jstring {
@@ -121,7 +134,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_migrateDB(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
-    env: JNIEnv, _: JClass, jconfig: JString, jusername: JString, japi_url: JString,
+    env: JNIEnv, _: JClass, jusername: JString, japi_url: JString,
 ) -> jstring {
     let username = match jstring_to_string(&env, jusername, "username") {
         Ok(ok) => ok,
@@ -131,12 +144,11 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let config = match deserialize::<Config>(&env, jconfig, "config") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
 
-    string_to_jstring(&env, translate(create_account(&config, &username, &api_url)))
+    string_to_jstring(
+        &env,
+        translate(static_state::get().map(|core| core.create_account(&username, &api_url))),
+    )
 }
 
 #[no_mangle]

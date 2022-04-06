@@ -3,7 +3,7 @@ use lockbook_models::file_metadata::EncryptedFileMetadata;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OneKey;
 
 hmdb::schema! {

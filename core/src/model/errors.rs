@@ -1,11 +1,14 @@
 use std::fmt::{Display, Formatter};
 use std::io::ErrorKind;
 
+use lockbook_models::api::{GetPublicKeyError, NewAccountError};
 use lockbook_models::tree::TreeError;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
+use strum_macros::EnumIter;
 
 use crate::service::api_service::ApiError;
+use crate::UiError;
 
 #[derive(Debug)]
 pub struct UnexpectedError(pub String);
@@ -105,6 +108,18 @@ pub fn core_err_unexpected<T: std::fmt::Debug>(err: T) -> CoreError {
     CoreError::Unexpected(format!("{:#?}", err))
 }
 
+impl From<hmdb::errors::Error> for CoreError {
+    fn from(err: hmdb::errors::Error) -> Self {
+        core_err_unexpected(err)
+    }
+}
+
+impl<E: Serialize> From<hmdb::errors::Error> for Error<E> {
+    fn from(err: hmdb::errors::Error) -> Self {
+        Self::Unexpected(format!("{:#?}", err))
+    }
+}
+
 impl From<TreeError> for CoreError {
     fn from(tree: TreeError) -> Self {
         match tree {
@@ -134,6 +149,96 @@ impl<T: std::fmt::Debug> From<ApiError<T>> for CoreError {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
             e => core_err_unexpected(e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum CreateAccountError {
+    UsernameTaken,
+    InvalidUsername,
+    CouldNotReachServer,
+    AccountExistsAlready,
+    ClientUpdateRequired,
+    ServerDisabled,
+}
+
+impl From<CoreError> for Error<CreateAccountError> {
+    fn from(err: CoreError) -> Self {
+        match err {
+            CoreError::AccountExists => UiError(CreateAccountError::AccountExistsAlready),
+            CoreError::UsernameTaken => UiError(CreateAccountError::UsernameTaken),
+            CoreError::UsernameInvalid => UiError(CreateAccountError::InvalidUsername),
+            CoreError::ServerUnreachable => UiError(CreateAccountError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(CreateAccountError::ClientUpdateRequired),
+            CoreError::ServerDisabled => UiError(CreateAccountError::ServerDisabled),
+            _ => unexpected!("{:#?}", err),
+        }
+    }
+}
+
+impl From<ApiError<NewAccountError>> for Error<CreateAccountError> {
+    fn from(err: ApiError<NewAccountError>) -> Self {
+        match err {
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable.into(),
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired.into(),
+            ApiError::Endpoint(NewAccountError::UsernameTaken) => CoreError::UsernameTaken.into(),
+            ApiError::Endpoint(NewAccountError::InvalidUsername) => {
+                CoreError::UsernameInvalid.into()
+            }
+            ApiError::Endpoint(NewAccountError::Disabled) => CoreError::ServerDisabled.into(),
+            e => core_err_unexpected(e).into(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum ImportError {
+    AccountStringCorrupted,
+    AccountExistsAlready,
+    AccountDoesNotExist,
+    UsernamePKMismatch,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<ApiError<GetPublicKeyError>> for Error<ImportError> {
+    fn from(err: ApiError<GetPublicKeyError>) -> Self {
+        match err {
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable.into(),
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired.into(),
+            ApiError::Endpoint(GetPublicKeyError::UserNotFound) => {
+                CoreError::AccountNonexistent.into()
+            }
+            e => core_err_unexpected(e).into(),
+        }
+    }
+}
+
+impl From<CoreError> for Error<ImportError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::AccountStringCorrupted => UiError(ImportError::AccountStringCorrupted),
+            CoreError::AccountExists => UiError(ImportError::AccountExistsAlready),
+            CoreError::UsernamePublicKeyMismatch => UiError(ImportError::UsernamePKMismatch),
+            CoreError::ServerUnreachable => UiError(ImportError::CouldNotReachServer),
+            CoreError::AccountNonexistent => UiError(ImportError::AccountDoesNotExist),
+            CoreError::ClientUpdateRequired => UiError(ImportError::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum AccountExportError {
+    NoAccount,
+}
+
+impl From<CoreError> for Error<AccountExportError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::AccountNonexistent => UiError(AccountExportError::NoAccount),
+            _ => unexpected!("{:#?}", e),
         }
     }
 }

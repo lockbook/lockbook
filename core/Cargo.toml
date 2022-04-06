@@ -47,7 +47,8 @@ libsecp256k1 = "0.7.0"
 tracing = "0.1.5"
 tracing-subscriber = "0.3.9"
 tracing-appender = "0.2"
-hmdb = "0.1.4"
+hmdb = "0.1.6"
+lazy_static = "1.4.0"
 
 [profile.release]
 debug = true

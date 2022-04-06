@@ -1,8 +1,8 @@
-use lockbook_core::{import_account, Error as CoreError, ImportError};
-
 use crate::error::CliResult;
 use crate::utils::config;
 use crate::{err, err_extra, err_unexpected};
+use lockbook_core::model::errors::ImportError;
+use lockbook_core::{import_account, Error as CoreError};
 
 pub fn import_private_key() -> CliResult<()> {
     if atty::is(atty::Stream::Stdin) {

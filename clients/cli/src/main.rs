@@ -1,8 +1,10 @@
 use std::path::PathBuf;
 
+use lockbook_core::LbCore;
 use structopt::StructOpt;
 
-use crate::utils::{check_and_perform_migrations, init_logger_or_print};
+use crate::error::CliResult;
+use crate::utils::{check_and_perform_migrations, config, init_logger_or_print};
 use lockbook_core::service::path_service::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 
 mod backup;
@@ -149,23 +151,22 @@ enum Lockbook {
     Validate,
 }
 
-fn main() {
-    if let Err(err) = init_logger_or_print() {
-        err.exit()
-    }
+fn parse_and_run() -> CliResult<()> {
+    init_logger_or_print()?;
 
     let args = Lockbook::from_args();
+    let core = LbCore::init(&config()?)?;
 
     if let Err(err) = check_and_perform_migrations() {
         err.exit()
     }
 
-    if let Err(err) = match args {
+    match args {
         Lockbook::Copy { disk_files: files, destination } => copy::copy(&files, &destination),
         Lockbook::Edit { path } => edit::edit(path.trim()),
         Lockbook::ExportPrivateKey => export_private_key::export_private_key(),
         Lockbook::ImportPrivateKey => import_private_key::import_private_key(),
-        Lockbook::NewAccount => new_account::new_account(),
+        Lockbook::NewAccount => new_account::new_account(&core),
         Lockbook::List => list::list(Some(LeafNodesOnly)),
         Lockbook::ListAll => list::list(None),
         Lockbook::ListDocs => list::list(Some(DocumentsOnly)),
@@ -184,7 +185,11 @@ fn main() {
         Lockbook::GetUsage { exact } => calculate_usage::calculate_usage(exact),
         Lockbook::ExportDrawing { path, format } => export_drawing::export_drawing(&path, &format),
         Lockbook::Errors => error::ErrorKind::print_table(),
-    } {
+    }
+}
+
+fn main() {
+    if let Err(err) = parse_and_run() {
         err.exit()
     }
 }

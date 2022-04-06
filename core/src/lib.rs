@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
+use hmdb::log::Reader;
 
 use serde::Serialize;
 use serde_json::{json, value::Value};
@@ -27,9 +28,11 @@ pub use model::errors::{CoreError, Error, UnexpectedError};
 use service::log_service;
 
 use crate::billing_service::CreditCardLast4Digits;
+use crate::model::errors::{AccountExportError, CreateAccountError, ImportError};
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::pure_functions::drawing::SupportedImageFormats;
+use crate::repo::schema;
 use crate::repo::{account_repo, last_updated_repo};
 use crate::service::db_state_service::State;
 use crate::service::import_export_service::{self, ImportExportFileInfo, ImportStatus};
@@ -41,6 +44,22 @@ use crate::service::{
     path_service, search_service, sync_service, usage_service,
 };
 use crate::sync_service::WorkCalculated;
+
+#[derive(Clone, Debug)]
+pub struct LbCore {
+    pub config: Config,
+    pub db: schema::CoreV1,
+}
+
+impl LbCore {
+    pub fn init(config: &Config) -> Result<Self, UnexpectedError> {
+        let db = schema::CoreV1::init(&config.writeable_path)
+            .map_err(|err| unexpected_only!("{:#?}", err))?;
+        let config = config.clone();
+
+        Ok(Self { config, db })
+    }
+}
 
 #[instrument(skip(log_path), err(Debug))]
 pub fn init_logger(log_path: &Path) -> Result<(), UnexpectedError> {
@@ -65,16 +84,6 @@ pub fn migrate_db(config: &Config) -> Result<(), Error<MigrationError>> {
     })
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum CreateAccountError {
-    UsernameTaken,
-    InvalidUsername,
-    CouldNotReachServer,
-    AccountExistsAlready,
-    ClientUpdateRequired,
-    ServerDisabled,
-}
-
 #[instrument(skip(config), err(Debug))]
 pub fn create_account(
     config: &Config, username: &str, api_url: &str,
@@ -90,16 +99,6 @@ pub fn create_account(
     })
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum ImportError {
-    AccountStringCorrupted,
-    AccountExistsAlready,
-    AccountDoesNotExist,
-    UsernamePKMismatch,
-    CouldNotReachServer,
-    ClientUpdateRequired,
-}
-
 #[instrument(skip(config, account_string), err(Debug))]
 pub fn import_account(
     config: &Config, account_string: &str,
@@ -113,11 +112,6 @@ pub fn import_account(
         CoreError::ClientUpdateRequired => UiError(ImportError::ClientUpdateRequired),
         _ => unexpected!("{:#?}", e),
     })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum AccountExportError {
-    NoAccount,
 }
 
 #[instrument(skip(config), err(Debug))]

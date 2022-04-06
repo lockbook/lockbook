@@ -14,6 +14,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use uuid::Uuid;
 
+use crate::LbCore;
 use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
 use lockbook_models::api::{AccountTier, PaymentMethod};
@@ -413,6 +414,10 @@ pub fn create_account(db: &Config) -> (Account, DecryptedFileMetadata) {
 
 pub fn test_config() -> Config {
     Config { writeable_path: format!("/tmp/{}", Uuid::new_v4()) }
+}
+
+pub fn test_core() -> LbCore {
+    LbCore::init(&test_config()).unwrap()
 }
 
 pub const MAX_FILES_PER_BENCH: u64 = 6;
