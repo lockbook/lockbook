@@ -28,35 +28,38 @@ impl State {
         let edit_data = Arc::new(RwLock::new(HashMap::<lb::Uuid, FileEditInfo>::new()));
 
         let (edit_alert_tx, edit_alert_rx) = mpsc::channel();
-        {
+        thread::spawn({
             let edit_data = edit_data.clone();
-            thread::spawn(move || listen_for_edit_alerts(&edit_data, edit_alert_rx));
-        }
+
+            move || listen_for_edit_alerts(&edit_data, edit_alert_rx)
+        });
 
         Self { bg_op_tx, edit_data, edit_alert_tx }
     }
 
     pub fn begin_work(&self, api: &Arc<dyn lb::Api>, settings: &Arc<RwLock<Settings>>) {
         // Start auto saving.
-        {
+        thread::spawn({
             let edit_data = self.edit_data.clone();
             let bg_op_tx = self.bg_op_tx.clone();
             let settings = settings.clone();
-            thread::spawn(move || loop {
+
+            move || loop {
                 thread::sleep(Duration::from_millis(AUTO_SAVE_CHECK_FREQ));
                 scan_for_dirty_files(&edit_data, &bg_op_tx, &settings);
-            });
-        }
+            }
+        });
         // Start auto syncing.
-        {
+        thread::spawn({
             let bg_op_tx = self.bg_op_tx.clone();
             let settings = settings.clone();
             let api = api.clone();
-            thread::spawn(move || loop {
+
+            move || loop {
                 sync_if_ready(&bg_op_tx, &settings, &api);
                 thread::sleep(Duration::from_millis(AUTO_SYNC_CHECK_FREQ));
-            });
-        }
+            }
+        });
     }
 
     pub fn track(&self, id: lb::Uuid) -> mpsc::Sender<lb::Uuid> {
