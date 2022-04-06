@@ -183,6 +183,8 @@ impl super::App {
         account_op_rx.attach(None, move |op| {
             use ui::AccountOp::*;
             match op {
+                CutSelectedFile => self.cut_selected_file(),
+                PasteIntoSelectedFile => self.paste_into_selected_file(),
                 TreeReceiveDrop(val, x, y) => self.tree_receive_drop(&val, x, y),
                 TabSwitched(tab) => self.titlebar.set_title(&tab.name()),
                 AllTabsClosed => self.titlebar.set_title("Lockbook"),

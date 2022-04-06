@@ -44,7 +44,7 @@ impl MenuItemBuilder {
         if let Some(icon_name) = self.icon {
             let icon = gtk::Image::builder()
                 .icon_name(&icon_name)
-                .pixel_size(18)
+                .pixel_size(16)
                 .build();
             content.append(&icon);
         }
@@ -81,7 +81,7 @@ impl MenuItemBuilder {
 pub fn menu_separator() -> gtk::Separator {
     gtk::Separator::builder()
         .orientation(gtk::Orientation::Horizontal)
-        .margin_bottom(4)
-        .margin_top(4)
+        .margin_bottom(2)
+        .margin_top(2)
         .build()
 }

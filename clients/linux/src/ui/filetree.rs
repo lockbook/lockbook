@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use gtk::glib;
 use gtk::prelude::*;
 
@@ -6,6 +9,7 @@ use crate::ui::icons;
 
 #[derive(Clone)]
 pub struct FileTree {
+    pub clipboard: Rc<RefCell<Option<lb::Uuid>>>,
     pub cols: Vec<FileTreeCol>,
     pub model: gtk::TreeStore,
     pub view: gtk::TreeView,
@@ -21,7 +25,9 @@ pub enum FileTreeCol {
 
 impl FileTree {
     pub fn new(account_op_tx: glib::Sender<ui::AccountOp>, hidden_cols: &[String]) -> Self {
-        let menu = FileTreeMenu::new();
+        let menu = FileTreeMenu::new(&account_op_tx);
+
+        let clipboard = Rc::new(RefCell::new(None));
 
         let mut column_types = FileTreeCol::all()
             .iter()
@@ -46,6 +52,7 @@ impl FileTree {
 
             let view = view.clone();
             let menu = menu.clone();
+            let clipboard = clipboard.clone();
             g.connect_pressed(move |_, _, x, y| {
                 if let Some((Some(tpath), _, _, _)) = view.path_at_pos(x as i32, y as i32) {
                     let sel = view.selection();
@@ -55,7 +62,7 @@ impl FileTree {
                         sel.select_path(&tpath);
                     }
                 }
-                menu.update(&view);
+                menu.update(&view, &clipboard);
                 menu.popup_at(x, y);
             });
 
@@ -102,7 +109,7 @@ impl FileTree {
             }
         }
 
-        Self { cols, model, view, cntr }
+        Self { clipboard, cols, model, view, cntr }
     }
 
     pub fn populate(&self, metas: &mut Vec<lb::FileMetadata>) {
@@ -270,6 +277,8 @@ fn get_icon_name(fname: &str, ftype: &lb::FileType) -> String {
 struct FileTreeMenu {
     new_document: gtk::Button,
     new_folder: gtk::Button,
+    cut: gtk::Button,
+    paste: gtk::Button,
     rename: gtk::Button,
     delete: gtk::Button,
     export: gtk::Button,
@@ -277,7 +286,7 @@ struct FileTreeMenu {
 }
 
 impl FileTreeMenu {
-    fn new() -> Self {
+    fn new(account_op_tx: &glib::Sender<ui::AccountOp>) -> Self {
         let popover = gtk::Popover::builder().halign(gtk::Align::Start).build();
 
         let new_document = ui::MenuItemBuilder::new()
@@ -293,6 +302,26 @@ impl FileTreeMenu {
             .label("New Folder")
             .popsdown(&popover)
             .build();
+
+        let cut = ui::MenuItemBuilder::new()
+            .icon(icons::CUT)
+            .label("Cut")
+            .popsdown(&popover)
+            .build();
+        cut.connect_clicked({
+            let tx = account_op_tx.clone();
+            move |_| tx.send(ui::AccountOp::CutSelectedFile).unwrap()
+        });
+
+        let paste = ui::MenuItemBuilder::new()
+            .icon(icons::PASTE)
+            .label("Paste")
+            .popsdown(&popover)
+            .build();
+        paste.connect_clicked({
+            let tx = account_op_tx.clone();
+            move |_| tx.send(ui::AccountOp::PasteIntoSelectedFile).unwrap()
+        });
 
         let rename = ui::MenuItemBuilder::new()
             .action("app.rename-file")
@@ -319,15 +348,18 @@ impl FileTreeMenu {
         menu_box.append(&new_document);
         menu_box.append(&new_folder);
         menu_box.append(&ui::menu_separator());
+        menu_box.append(&cut);
+        menu_box.append(&paste);
+        menu_box.append(&ui::menu_separator());
         menu_box.append(&rename);
         menu_box.append(&delete);
         menu_box.append(&export);
         popover.set_child(Some(&menu_box));
 
-        Self { new_document, new_folder, rename, delete, export, popover }
+        Self { new_document, new_folder, cut, paste, rename, delete, export, popover }
     }
 
-    fn update(&self, t: &gtk::TreeView) {
+    fn update(&self, t: &gtk::TreeView, cb: &Rc<RefCell<Option<lb::Uuid>>>) {
         let sel = t.selection();
         let model = t.model().unwrap();
 
@@ -341,6 +373,8 @@ impl FileTreeMenu {
 
         self.new_document.set_sensitive(only_1);
         self.new_folder.set_sensitive(only_1);
+        self.cut.set_sensitive(only_1 && !is_root_selected);
+        self.paste.set_sensitive(only_1 && cb.borrow().is_some());
         self.rename.set_sensitive(only_1 && !is_root_selected);
         self.delete.set_sensitive(at_least_1 && !is_root_selected);
         self.export.set_sensitive(only_1);
