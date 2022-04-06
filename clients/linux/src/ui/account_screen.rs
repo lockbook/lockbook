@@ -7,6 +7,8 @@ use gtk::prelude::*;
 use crate::ui;
 
 pub enum AccountOp {
+    CutSelectedFile,
+    PasteIntoSelectedFile,
     TreeReceiveDrop(glib::Value, f64, f64),
     TabSwitched(ui::TextEditor),
     AllTabsClosed,
