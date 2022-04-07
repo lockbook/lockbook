@@ -29,12 +29,13 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".screen.OnBoardingActvity" />
+            android:name=".screen.OnBoardingActivity" />
         <activity
             android:name=".screen.ImportAccountActivity" />
         <activity android:name=".screen.MainScreenActivity" />
         <activity android:name=".screen.SettingsActivity" />
         <activity android:name=".screen.LogActivity" />
+        <activity android:name=".screen.UpgradeAccountActivity" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

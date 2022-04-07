@@ -11,7 +11,7 @@ fn get_credit_card() {
     // switch account tier to premium
     api_service::request(
         &account,
-        SwitchAccountTierRequest {
+        SwitchAccountTierStripeRequest {
             account_tier: generate_premium_account_tier(test_credit_cards::GOOD, None, None, None),
         },
     )

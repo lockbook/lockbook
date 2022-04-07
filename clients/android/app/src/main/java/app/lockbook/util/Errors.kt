@@ -6,10 +6,8 @@ import app.lockbook.R
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
-import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonClassDiscriminator
+import kotlinx.serialization.*
+import kotlinx.serialization.json.*
 
 @OptIn(ExperimentalSerializationApi::class)
 @JsonClassDiscriminator("tag")
@@ -160,6 +158,7 @@ enum class GetAccountError : UiCoreError {
         NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
     }
 }
+
 @Serializable
 enum class GetRootError : UiCoreError {
     NoRoot;
@@ -212,6 +211,7 @@ enum class GetFileByIdError : UiCoreError {
         NoFileWithThatId -> LbError.newUserError(getString(res, R.string.no_file_with_that_id))
     }
 }
+
 @Serializable
 enum class FileDeleteError : UiCoreError {
     FileDoesNotExist,
@@ -333,6 +333,15 @@ enum class CalculateWorkError : UiCoreError {
         NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
         ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
+    }
+}
+
+@Serializable
+enum class IsUserPremiumError : UiCoreError {
+    NoAccount;
+
+    override fun toLbError(res: Resources): LbError = when (this) {
+        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
     }
 }
 

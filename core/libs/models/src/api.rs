@@ -280,6 +280,26 @@ impl Request for DeleteAccountRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct IsUserPremiumRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct IsUserPremiumResponse {
+    pub is_user_premium: bool
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum IsUserPremiumError {
+    UserNotFound
+}
+
+impl Request for IsUserPremiumRequest {
+    type Response = IsUserPremiumResponse;
+    type Error = IsUserPremiumError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/is-user-premium";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetCreditCardRequest {}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -312,15 +332,15 @@ pub enum AccountTier {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct SwitchAccountTierRequest {
+pub struct SwitchAccountTierStripeRequest {
     pub account_tier: AccountTier,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct SwitchAccountTierResponse {}
+pub struct SwitchAccountTierStripeResponse {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum SwitchAccountTierError {
+pub enum SwitchAccountTierStripeError {
     OldCardDoesNotExist,
     NewTierIsOldTier,
     CardDecline,
@@ -337,9 +357,9 @@ pub enum SwitchAccountTierError {
     UserNotFound,
 }
 
-impl Request for SwitchAccountTierRequest {
-    type Response = SwitchAccountTierResponse;
-    type Error = SwitchAccountTierError;
+impl Request for SwitchAccountTierStripeRequest {
+    type Response = SwitchAccountTierStripeResponse;
+    type Error = SwitchAccountTierStripeError;
     const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/switch-account-tier";
+    const ROUTE: &'static str = "/switch-account-tier-stripe";
 }

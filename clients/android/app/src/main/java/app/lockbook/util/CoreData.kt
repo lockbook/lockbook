@@ -65,7 +65,7 @@ data class UsageMetrics(
 
 @Serializable
 data class UsageItemMetric(
-    val exact: Int,
+    val exact: Long,
     val readable: String,
 )
 

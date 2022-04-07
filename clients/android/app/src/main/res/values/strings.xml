@@ -195,4 +195,14 @@
     <string name="before_you_start">Before you start…</string>
     <string name="before_you_start_description">Lockbook <a href="https://en.wikipedia.org/wiki/End-to-end_encryption">encrypts</a> your notes with a key that stays on your Lockbook devices. This makes your notes unreadable to anyone but you. If you lose the key, your notes are not recoverable, so we recommend you make a backup in case something happens to this device.</string>
     <string name="drawing_parse_error">Could not open drawing.</string>
+    <string name="premium_usage_tier">Premium Tier</string>
+    <string name="update_to_premium">Upgrade</string>
+    <string name="choose_your_plan">Choose your plan</string>
+    <string name="yearly_plan">Yearly</string>
+    <string name="monthly_plan">Monthly</string>
+    <string name="exit">Exit</string>
+    <string name="premium_space">50 GB of space</string>
+    <string name="monthly_premium_cost">$2.50 a month</string>
+    <string name="yearly_premium_pay_up_front">Pay a year up front ($30)</string>
+    <string name="checkmark">Check</string>
 </resources>

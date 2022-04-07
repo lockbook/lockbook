@@ -1,7 +1,10 @@
 package app.lockbook.ui
 
 import android.content.Context
+import android.content.Intent
 import android.util.AttributeSet
+import android.view.View
+import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.preference.Preference
@@ -10,10 +13,9 @@ import app.lockbook.R
 import app.lockbook.model.CoreModel
 import app.lockbook.screen.SettingsActivity
 import app.lockbook.screen.SettingsFragment
+import app.lockbook.screen.UpgradeAccountActivity
 import app.lockbook.util.*
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.andThen
-import com.github.michaelbull.result.map
+import com.github.michaelbull.result.getOrElse
 import kotlinx.coroutines.*
 
 class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Preference(context, attributeSet) {
@@ -28,6 +30,11 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
         layoutResource = R.layout.preference_usage_bar
     }
 
+    companion object {
+        const val PAID_TIER_USAGE_BYTES: Long = 50000000000
+        const val ROUND_DECIMAL_PLACES: Long = 10000
+    }
+
     override fun onBindViewHolder(holder: PreferenceViewHolder) {
         super.onBindViewHolder(holder)
 
@@ -39,40 +46,62 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
             withContext(Dispatchers.IO) {
                 val usageInfo = holder.itemView.findViewById<TextView>(R.id.usage_info)
 
-                val getUsageResult = CoreModel.getUsage().andThen { usage ->
-                    val resources = holder.itemView.resources
-
-                    val usageBar = holder.itemView.findViewById<ProgressBar>(R.id.usage_bar)
-
-                    usageBar.max = usage.dataCap.exact
-                    usageBar.progress = usage.serverUsage.exact
-
-                    CoreModel.getUncompressedUsage().map { uncompressedUsage ->
-                        withContext(Dispatchers.Main) {
-                            usageInfo.text = spannable {
-                                resources.getString(R.string.settings_usage_current)
-                                    .bold() + " " + usage.serverUsage.readable + "\n" + resources.getString(
-                                    R.string.settings_usage_data_cap
-                                )
-                                    .bold() + " " + usage.dataCap.readable + "\n" + resources.getString(
-                                    R.string.settings_usage_uncompressed_usage
-                                ).bold() + " " + uncompressedUsage.readable
-                            }
-                        }
-                    }
+                val usage = CoreModel.getUsage().getOrElse { error ->
+                    showError(error.toLbError(context.resources), usageInfo)
+                    return@withContext
                 }
 
-                if (getUsageResult is Err) {
-                    val lbError = getUsageResult.error.toLbError(context.resources)
-                    alertModel.notifyError(lbError)
-                    withContext(Dispatchers.Main) {
-                        usageInfo.text = if (lbError.kind == LbErrorKind.User) {
-                            lbError.msg
-                        } else {
-                            getString(context.resources, R.string.basic_error)
-                        }
+                val resources = holder.itemView.resources
+                val usageBar = holder.itemView.findViewById<ProgressBar>(R.id.usage_bar)
+
+                usageBar.max = (usage.dataCap.exact / ROUND_DECIMAL_PLACES).toInt()
+                usageBar.progress = (usage.serverUsage.exact / ROUND_DECIMAL_PLACES).toInt()
+
+                val premiumUsageBar = holder.itemView.findViewById<ProgressBar>(R.id.premium_usage_bar)
+                val premiumUsageInfo = holder.itemView.findViewById<TextView>(R.id.premium_usage_info)
+
+                if(usage.dataCap.exact != PAID_TIER_USAGE_BYTES) {
+                    premiumUsageBar.max = (PAID_TIER_USAGE_BYTES / ROUND_DECIMAL_PLACES).toInt()
+                    premiumUsageBar.progress = (usage.serverUsage.exact / ROUND_DECIMAL_PLACES).toInt()
+
+                    holder.itemView.findViewById<Button>(R.id.upgrade_account).setOnClickListener {
+                        context.startActivity(Intent(context, UpgradeAccountActivity::class.java))
+                    }
+                } else {
+                    premiumUsageBar.visibility = View.GONE
+                    premiumUsageInfo.visibility = View.GONE
+                }
+
+                val uncompressedUsage = CoreModel.getUncompressedUsage().getOrElse { error ->
+                    showError(error.toLbError(context.resources), usageInfo)
+                    return@withContext
+                }
+
+                withContext(Dispatchers.Main) {
+                    usageInfo.text = spannable {
+                        resources.getString(R.string.settings_usage_current)
+                            .bold() + " " + usage.serverUsage.readable + "\n" + resources.getString(
+                            R.string.settings_usage_data_cap
+                        )
+                            .bold() + " " + usage.dataCap.readable + "\n" + resources.getString(
+                            R.string.settings_usage_uncompressed_usage
+                        ).bold() + " " + uncompressedUsage.readable
                     }
                 }
+            }
+        }
+    }
+
+    private suspend fun showError(
+        lbError: LbError,
+        usageInfo: TextView
+    ) {
+        alertModel.notifyError(lbError)
+        withContext(Dispatchers.Main) {
+            usageInfo.text = if (lbError.kind == LbErrorKind.User) {
+                lbError.msg
+            } else {
+                getString(context.resources, R.string.basic_error)
             }
         }
     }

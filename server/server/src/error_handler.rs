@@ -3,7 +3,7 @@ use crate::{
     StripeWebhookError,
 };
 use deadpool_redis::PoolError;
-use lockbook_models::api::{GetUsageError, SwitchAccountTierError};
+use lockbook_models::api::{GetUsageError, SwitchAccountTierStripeError};
 use redis::RedisError;
 use redis_utils::converters::{JsonGetError, JsonSetError};
 use std::fmt::Debug;
@@ -59,29 +59,29 @@ impl From<GetUsageHelperError> for ServerError<GetUsageError> {
     }
 }
 
-impl From<SimplifiedStripeError> for ServerError<SwitchAccountTierError> {
+impl From<SimplifiedStripeError> for ServerError<SwitchAccountTierStripeError> {
     fn from(e: SimplifiedStripeError) -> Self {
         match e {
-            SimplifiedStripeError::CardDecline => ClientError(SwitchAccountTierError::CardDecline),
+            SimplifiedStripeError::CardDecline => ClientError(SwitchAccountTierStripeError::CardDecline),
             SimplifiedStripeError::InsufficientFunds => {
-                ClientError(SwitchAccountTierError::InsufficientFunds)
+                ClientError(SwitchAccountTierStripeError::InsufficientFunds)
             }
-            SimplifiedStripeError::TryAgain => ClientError(SwitchAccountTierError::TryAgain),
+            SimplifiedStripeError::TryAgain => ClientError(SwitchAccountTierStripeError::TryAgain),
             SimplifiedStripeError::CardNotSupported => {
-                ClientError(SwitchAccountTierError::CardNotSupported)
+                ClientError(SwitchAccountTierStripeError::CardNotSupported)
             }
-            SimplifiedStripeError::ExpiredCard => ClientError(SwitchAccountTierError::ExpiredCard),
+            SimplifiedStripeError::ExpiredCard => ClientError(SwitchAccountTierStripeError::ExpiredCard),
             SimplifiedStripeError::InvalidCardNumber => {
-                ClientError(SwitchAccountTierError::InvalidCardNumber)
+                ClientError(SwitchAccountTierStripeError::InvalidCardNumber)
             }
             SimplifiedStripeError::InvalidCardExpYear => {
-                ClientError(SwitchAccountTierError::InvalidCardExpYear)
+                ClientError(SwitchAccountTierStripeError::InvalidCardExpYear)
             }
             SimplifiedStripeError::InvalidCardExpMonth => {
-                ClientError(SwitchAccountTierError::InvalidCardExpMonth)
+                ClientError(SwitchAccountTierStripeError::InvalidCardExpMonth)
             }
             SimplifiedStripeError::InvalidCardCvc => {
-                ClientError(SwitchAccountTierError::InvalidCardCvc)
+                ClientError(SwitchAccountTierStripeError::InvalidCardCvc)
             }
             SimplifiedStripeError::Other(msg) => internal!("{}", msg),
         }

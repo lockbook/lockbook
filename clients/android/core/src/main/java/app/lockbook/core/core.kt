@@ -25,3 +25,4 @@ external fun syncAll(fragment: Any): String
 external fun backgroundSync(): String
 external fun calculateWork(): String
 external fun getAllErrorVariants(): String
+external fun isUserPremium(): String

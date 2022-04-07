@@ -54,7 +54,7 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 
-    val onShare =
+    private val onShare =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             val filesFragment =
                 (supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment)
@@ -137,11 +137,10 @@ class MainScreenActivity : AppCompatActivity() {
         }
 
         model.updateMainScreenUI.observe(
-            this,
-            { update ->
-                updateMainScreenUI(update)
-            }
-        )
+            this
+        ) { update ->
+            updateMainScreenUI(update)
+        }
     }
 
     private fun updateMainScreenUI(update: UpdateMainScreenUI) {

@@ -29,7 +29,7 @@ import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.*
 import java.lang.ref.WeakReference
 
-class OnBoardingActvity : AppCompatActivity() {
+class OnBoardingActivity : AppCompatActivity() {
     private var _binding: ActivityOnBoardingBinding? = null
 
     // This property is only valid between onCreateView and
@@ -148,7 +148,7 @@ class ImportFragment : Fragment() {
     }
 
     private fun importAccount(account: String) {
-        val onBoardingActivity = (requireActivity() as OnBoardingActvity)
+        val onBoardingActivity = (requireActivity() as OnBoardingActivity)
 
         onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
 
@@ -204,7 +204,7 @@ class CreateFragment : Fragment() {
     }
 
     private fun createAccount(username: String) {
-        val onBoardingActivity = (requireActivity() as OnBoardingActvity)
+        val onBoardingActivity = (requireActivity() as OnBoardingActivity)
 
         onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
 

@@ -13,10 +13,7 @@ use deadpool_redis::redis::AsyncCommands;
 use deadpool_redis::Connection;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
-use lockbook_models::api::{
-    AccountTier, GetCreditCardError, GetCreditCardRequest, GetCreditCardResponse, PaymentMethod,
-    SwitchAccountTierError, SwitchAccountTierRequest, SwitchAccountTierResponse,
-};
+use lockbook_models::api::{AccountTier, GetCreditCardError, GetCreditCardRequest, GetCreditCardResponse, IsUserPremiumError, IsUserPremiumRequest, IsUserPremiumResponse, PaymentMethod, SwitchAccountTierStripeError, SwitchAccountTierStripeRequest, SwitchAccountTierStripeResponse};
 use log::info;
 use redis_utils::converters::{JsonGet, JsonSet, PipelineJsonSet};
 use redis_utils::tx;
@@ -27,9 +24,32 @@ use std::sync::Arc;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
 
+
+pub async fn is_user_premium(
+    context: RequestContext<'_, IsUserPremiumRequest>
+) -> Result<IsUserPremiumResponse, ServerError<IsUserPremiumError>> {
+    let mut con = context.server_state.index_db_pool.get().await?;
+
+    let data_cap: Option<u64> = con.get(data_cap(&context.public_key)).await?;
+
+    match data_cap.ok_or(ClientError(IsUserPremiumError::UserNotFound))? {
+        FREE_TIER_USAGE_SIZE => Ok(IsUserPremiumResponse {
+            is_user_premium: false
+        }),
+        PREMIUM_TIER_USAGE_SIZE => Ok(IsUserPremiumResponse {
+            is_user_premium: true
+        }),
+        _ => Err(internal!(
+                "Unrecognized data cap: {:?}, public_key: {:?}",
+                data_cap,
+                context.public_key
+            ))
+    }
+}
+
 pub async fn switch_account_tier(
-    context: RequestContext<'_, SwitchAccountTierRequest>,
-) -> Result<SwitchAccountTierResponse, ServerError<SwitchAccountTierError>> {
+    context: RequestContext<'_, SwitchAccountTierStripeRequest>,
+) -> Result<SwitchAccountTierStripeResponse, ServerError<SwitchAccountTierStripeError>> {
     let (request, server_state) = (&context.request, context.server_state);
 
     let fmt_public_key = keys::stringify_public_key(&context.public_key);
@@ -63,7 +83,7 @@ pub async fn switch_account_tier(
         }
         (FREE_TIER_USAGE_SIZE, AccountTier::Free)
         | (PREMIUM_TIER_USAGE_SIZE, AccountTier::Premium(_)) => {
-            return Err(ClientError(SwitchAccountTierError::NewTierIsOldTier));
+            return Err(ClientError(SwitchAccountTierStripeError::NewTierIsOldTier));
         }
         (PREMIUM_TIER_USAGE_SIZE, AccountTier::Free) => {
             info!("Switching account tier to free. public_key: {}", fmt_public_key);
@@ -72,7 +92,7 @@ pub async fn switch_account_tier(
                 .await
                 .map_err(|e| match e {
                     GetUsageHelperError::UserNotFound => {
-                        ClientError(SwitchAccountTierError::UserNotFound)
+                        ClientError(SwitchAccountTierStripeError::UserNotFound)
                     }
                     GetUsageHelperError::Internal(e) => ServerError::from(e),
                 })?
@@ -85,7 +105,7 @@ pub async fn switch_account_tier(
                     "Cannot downgrade user to free since they are over the data cap. public_key: {}",
                     fmt_public_key
                 );
-                return Err(ClientError(SwitchAccountTierError::CurrentUsageIsMoreThanNewTier));
+                return Err(ClientError(SwitchAccountTierStripeError::CurrentUsageIsMoreThanNewTier));
             }
 
             let pos = get_active_subscription_index(&user_info.subscriptions)?;
@@ -130,7 +150,7 @@ pub async fn switch_account_tier(
         fmt_new_tier
     );
 
-    Ok(SwitchAccountTierResponse {})
+    Ok(SwitchAccountTierStripeResponse {})
 }
 
 fn get_active_subscription_index<U: Debug>(
@@ -147,7 +167,7 @@ fn get_active_subscription_index<U: Debug>(
 async fn lock_payment_workflow(
     public_key: &PublicKey, con: &mut deadpool_redis::Connection,
     millis_between_payment_flows: Timestamp,
-) -> Result<StripeUserInfo, ServerError<SwitchAccountTierError>> {
+) -> Result<StripeUserInfo, ServerError<SwitchAccountTierStripeError>> {
     let mut user_info = StripeUserInfo::default();
 
     let tx_result = tx!(con, pipe, &[stripe_user_info(public_key)], {
@@ -163,7 +183,7 @@ async fn lock_payment_workflow(
                 "User is already in payment flow, or this request is too soon after a failed one. public_key: {}",
                 keys::stringify_public_key(public_key)
             );
-            return Err(Abort(ClientError(SwitchAccountTierError::ConcurrentRequestsAreTooSoon)));
+            return Err(Abort(ClientError(SwitchAccountTierStripeError::ConcurrentRequestsAreTooSoon)));
         }
 
         user_info.last_in_payment_flow = current_time;
@@ -185,7 +205,7 @@ async fn lock_payment_workflow(
 async fn create_subscription(
     server_state: &ServerState, con: &mut deadpool_redis::Connection, public_key: &PublicKey,
     fmt_public_key: &str, payment_method: &PaymentMethod, user_info: &mut StripeUserInfo,
-) -> Result<u64, ServerError<SwitchAccountTierError>> {
+) -> Result<u64, ServerError<SwitchAccountTierStripeError>> {
     let (customer_id, payment_method_id) = match payment_method {
         PaymentMethod::NewCard { number, exp_year, exp_month, cvc } => {
             info!("Creating a new card for public_key: {}", fmt_public_key);
@@ -299,7 +319,7 @@ async fn create_subscription(
                 .payment_methods
                 .iter()
                 .max_by_key(|info| info.created_at)
-                .ok_or(ClientError(SwitchAccountTierError::OldCardDoesNotExist))?;
+                .ok_or(ClientError(SwitchAccountTierStripeError::OldCardDoesNotExist))?;
 
             match &user_info.customer_id {
                 Some(customer_id) => (stripe::CustomerId::from_str(customer_id)?, payment_method.id.clone()),

@@ -17,7 +17,7 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
     var detailsScreen: DetailsScreen? = null
     var transientScreen: TransientScreen? = null
 
-    val _launchDetailsScreen = SingleMutableLiveData<DetailsScreen?>()
+    private val _launchDetailsScreen = SingleMutableLiveData<DetailsScreen?>()
     private val _launchTransientScreen = SingleMutableLiveData<TransientScreen>()
     private val _updateMainScreenUI = SingleMutableLiveData<UpdateMainScreenUI>()
 

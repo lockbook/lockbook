@@ -523,3 +523,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getAllErrorVariants(
 ) -> jstring {
     serialize_to_jstring(&env, get_all_error_variants())
 }
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_isUserPremium(
+    env: JNIEnv, _: JClass
+) -> jstring {
+    string_to_jstring(&env, translate(is_user_premium()))
+}

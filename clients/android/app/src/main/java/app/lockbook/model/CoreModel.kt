@@ -309,4 +309,16 @@ object CoreModel {
         calculateWorkParser.tryParse(
             app.lockbook.core.calculateWork()
         )
+
+    private val isUserPremiumParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Boolean.serializer(), CalculateWorkError.serializer())
+        }
+    }
+
+    fun isUserPremium(config: Config): Result<Boolean, CoreError<IsUserPremiumError>> =
+        isUserPremiumParser.tryParse(
+            app.lockbook.core.isUserPremium()
+        )
+
 }

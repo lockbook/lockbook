@@ -22,4 +22,36 @@
         android:layout_height="wrap_content"
         android:text="@string/default_value"/>
 
+    <ProgressBar
+        android:id="@+id/premium_usage_bar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_marginVertical="15dp"
+        android:layout_marginHorizontal="30dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:background="@color/transparent"/>
+
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:id="@+id/premium_usage_info"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="20dp"
+            android:layout_marginBottom="15dp"
+            android:text="@string/premium_usage_tier"
+            android:layout_weight="1"/>
+
+        <Button
+            android:id="@+id/upgrade_account"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            style="@style/Main.Button.Borderless.Colored"
+            android:text="@string/update_to_premium"/>
+
+    </LinearLayout>
 </LinearLayout>
