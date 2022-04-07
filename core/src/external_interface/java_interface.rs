@@ -22,9 +22,9 @@ use crate::service::sync_service::SyncProgress;
 use crate::{
     calculate_work, create_file, delete_file, export_account, export_drawing,
     export_drawing_to_disk, get_account, get_all_error_variants, get_children, get_db_state,
-    get_file_by_id, get_root, get_uncompressed_usage, get_usage, import_account, init_logger,
-    migrate_db, move_file, read_document, rename_file, save_document_to_disk, sync_all,
-    unexpected_only, write_document, Error, SupportedImageFormats, UnexpectedError,
+    get_file_by_id, get_root, get_uncompressed_usage, get_usage, init_logger, migrate_db,
+    move_file, read_document, rename_file, save_document_to_disk, sync_all, unexpected_only,
+    write_document, Error, SupportedImageFormats, UnexpectedError,
 };
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
@@ -153,18 +153,17 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
-    env: JNIEnv, _: JClass, jconfig: JString, jaccount: JString,
+    env: JNIEnv, _: JClass, jaccount: JString,
 ) -> jstring {
     let account = match jstring_to_string(&env, jaccount, "account") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    let config = match deserialize::<Config>(&env, jconfig, "config") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
 
-    string_to_jstring(&env, translate(import_account(&config, account.as_str())))
+    string_to_jstring(
+        &env,
+        translate(static_state::get().map(|core| core.import_account(account.as_str()))),
+    )
 }
 
 #[no_mangle]
@@ -180,15 +179,8 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportAccount(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_getAccount(
-    env: JNIEnv, _: JClass, jconfig: JString,
-) -> jstring {
-    let config = match deserialize::<Config>(&env, jconfig, "config") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    string_to_jstring(&env, translate(get_account(&config)))
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getAccount(env: JNIEnv, _: JClass) -> jstring {
+    string_to_jstring(&env, translate(static_state::get().map(|core| core.get_account())))
 }
 
 #[no_mangle]

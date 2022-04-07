@@ -109,33 +109,26 @@ pub unsafe extern "C" fn create_account(
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn import_account(
-    writeable_path: *const c_char, account_string: *const c_char,
-) -> *const c_char {
-    c_string(translate(crate::import_account(
-        &config_from_ptr(writeable_path),
-        &str_from_ptr(account_string),
-    )))
+pub unsafe extern "C" fn import_account(account_string: *const c_char) -> *const c_char {
+    c_string(translate(
+        static_state::get().map(|core| core.import_account(&str_from_ptr(account_string))),
+    ))
 }
 
 /// # Safety
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn export_account(writeable_path: *const c_char) -> *const c_char {
-    c_string(translate(crate::export_account(&Config {
-        writeable_path: str_from_ptr(writeable_path),
-    })))
+pub unsafe extern "C" fn export_account() -> *const c_char {
+    c_string(translate(static_state::get().map(|core| core.export_account())))
 }
 
 /// # Safety
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn get_account(writeable_path: *const c_char) -> *const c_char {
-    c_string(translate(crate::get_account(&Config {
-        writeable_path: str_from_ptr(writeable_path),
-    })))
+pub unsafe extern "C" fn get_account() -> *const c_char {
+    c_string(translate(static_state::get().map(|core| core.get_account())))
 }
 
 /// # Safety

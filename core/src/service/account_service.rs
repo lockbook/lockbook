@@ -1,4 +1,5 @@
 use hmdb::transaction::Transaction;
+
 use lockbook_crypto::clock_service::get_time;
 use lockbook_crypto::pubkey;
 use lockbook_models::account::Account;
@@ -7,11 +8,9 @@ use lockbook_models::api::{GetPublicKeyRequest, NewAccountRequest};
 use crate::model::errors::{core_err_unexpected, CreateAccountError};
 use crate::model::state::Config;
 use crate::pure_functions::files;
-
 use crate::schema::OneKey;
-
 use crate::service::{api_service, file_encryption_service};
-use crate::{AccountExportError, CoreError, Error, ImportError, LbCore};
+use crate::{AccountExportError, CoreError, Error, GetAccountError, ImportError, LbCore, UiError};
 
 impl LbCore {
     pub fn create_account(
@@ -97,6 +96,13 @@ impl LbCore {
             .ok_or(CoreError::AccountNonexistent)?;
         let encoded: Vec<u8> = bincode::serialize(&account).map_err(core_err_unexpected)?;
         Ok(base64::encode(&encoded))
+    }
+
+    pub fn get_account(&self) -> Result<Account, Error<GetAccountError>> {
+        self.db
+            .account
+            .get(&OneKey {})?
+            .ok_or(UiError(GetAccountError::NoAccount))
     }
 }
 
