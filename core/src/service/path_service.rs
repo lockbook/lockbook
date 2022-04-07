@@ -1,73 +1,92 @@
+use hmdb::transaction::Transaction;
 use uuid::Uuid;
 
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use lockbook_models::tree::FileMetaExt;
 
+use crate::model::errors::CreateFileAtPathError;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::pure_functions::files;
 use crate::repo::account_repo;
-
 use crate::service::file_service;
-use crate::CoreError;
+use crate::{CoreError, Error, LbCore};
+
+impl LbCore {
+    pub fn create_at_path(
+        &self, path_and_name: &str,
+    ) -> Result<DecryptedFileMetadata, Error<CreateFileAtPathError>> {
+        let val = self.db.transaction(|tx| {
+            if path_and_name.contains("//") {
+                return Err(CoreError::PathContainsEmptyFileName);
+            }
+
+            let path_components = split_path(path_and_name);
+
+            let is_folder = path_and_name.ends_with('/');
+
+            let mut files = tx.get_all_non_deleted_metadata(RepoSource::Local)?;
+
+            let mut current = files.find_root()?;
+            let root_id = current.id;
+            let account = tx.get_account()?;
+
+            if current.decrypted_name != path_components[0] {
+                return Err(CoreError::PathStartsWithNonRoot);
+            }
+
+            if path_components.len() == 1 {
+                return Err(CoreError::PathTaken);
+            }
+
+            // We're going to look ahead, and find or create the right child
+            'path: for index in 0..path_components.len() - 1 {
+                let children = files.find_children(current.id);
+
+                let next_name = path_components[index + 1];
+
+                for child in children {
+                    if child.decrypted_name == next_name {
+                        // If we're at the end and we find this child, that means this path already exists
+                        if child.id != root_id && index == path_components.len() - 2 {
+                            return Err(CoreError::PathTaken);
+                        }
+
+                        if child.file_type == Folder {
+                            current = child;
+                            continue 'path; // Child exists, onto the next one
+                        } else {
+                            return Err(CoreError::FileNotFolder);
+                        }
+                    }
+                }
+
+                // Child does not exist, create it
+                let file_type =
+                    if is_folder || index != path_components.len() - 2 { Folder } else { Document };
+
+                current = files::apply_create(
+                    &files,
+                    file_type,
+                    current.id,
+                    next_name,
+                    &account.public_key(),
+                )?;
+                files.push(current.clone());
+                tx.insert_metadatum(&self.config, RepoSource::Local, &current)?;
+            }
+            Ok(current)
+        })?;
+
+        todo!()
+    }
+}
 
 pub fn create_at_path(
     config: &Config, path_and_name: &str,
 ) -> Result<DecryptedFileMetadata, CoreError> {
-    if path_and_name.contains("//") {
-        return Err(CoreError::PathContainsEmptyFileName);
-    }
-    let path_components = split_path(path_and_name);
-
-    let is_folder = path_and_name.ends_with('/');
-
-    let mut files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let mut current = files.find_root()?;
-    let root_id = current.id;
-    let account = account_repo::get(config)?;
-
-    if current.decrypted_name != path_components[0] {
-        return Err(CoreError::PathStartsWithNonRoot);
-    }
-
-    if path_components.len() == 1 {
-        return Err(CoreError::PathTaken);
-    }
-
-    // We're going to look ahead, and find or create the right child
-    'path: for index in 0..path_components.len() - 1 {
-        let children = files.find_children(current.id);
-
-        let next_name = path_components[index + 1];
-
-        for child in children {
-            if child.decrypted_name == next_name {
-                // If we're at the end and we find this child, that means this path already exists
-                if child.id != root_id && index == path_components.len() - 2 {
-                    return Err(CoreError::PathTaken);
-                }
-
-                if child.file_type == Folder {
-                    current = child;
-                    continue 'path; // Child exists, onto the next one
-                } else {
-                    return Err(CoreError::FileNotFolder);
-                }
-            }
-        }
-
-        // Child does not exist, create it
-        let file_type =
-            if is_folder || index != path_components.len() - 2 { Folder } else { Document };
-
-        current =
-            files::apply_create(&files, file_type, current.id, next_name, &account.public_key())?;
-        files.push(current.clone());
-        file_service::insert_metadatum(config, RepoSource::Local, &current)?;
-    }
-
-    Ok(current)
+    todo!()
 }
 
 pub fn get_by_path(config: &Config, path: &str) -> Result<DecryptedFileMetadata, CoreError> {

@@ -9,7 +9,8 @@ use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadat
 
 use crate::model::errors::{core_err_unexpected, CoreError};
 
-/// Converts a DecryptedFileMetadata to a FileMetadata using its decrypted parent key. Sharing is not supported; user access keys are encrypted for the provided account. This is a pure function.
+/// Converts a DecryptedFileMetadata to a FileMetadata using its decrypted parent key. Sharing is
+/// not supported; user access keys are encrypted for the provided account. This is a pure function.
 pub fn encrypt_metadatum(
     account: &Account, parent_key: &AESKey, target: &DecryptedFileMetadata,
 ) -> Result<EncryptedFileMetadata, CoreError> {
@@ -86,7 +87,8 @@ fn encrypt_folder_access_keys(
     symkey::encrypt(parent_key, target_key).map_err(core_err_unexpected)
 }
 
-/// Converts a FileMetadata to a DecryptedFileMetadata using its decrypted parent key. Sharing is not supported; user access keys not for the provided account are ignored. This is a pure function.
+/// Converts a FileMetadata to a DecryptedFileMetadata using its decrypted parent key. Sharing is
+/// not supported; user access keys not for the provided account are ignored. This is a pure function.
 pub fn decrypt_metadatum(
     parent_key: &AESKey, target: &EncryptedFileMetadata,
 ) -> Result<DecryptedFileMetadata, CoreError> {
@@ -103,7 +105,9 @@ pub fn decrypt_metadatum(
     })
 }
 
-/// Converts a set of FileMetadata's to DecryptedFileMetadata's. All parents of files must be included in files. Sharing is not supported; user access keys not for the provided account are ignored. This is a pure function.
+/// Converts a set of FileMetadata's to DecryptedFileMetadata's. All parents of files must be
+/// included in files. Sharing is not supported; user access keys not for the provided account are
+/// ignored. This is a pure function.
 pub fn decrypt_metadata(
     account: &Account, files: &[EncryptedFileMetadata],
 ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
@@ -117,7 +121,8 @@ pub fn decrypt_metadata(
     Ok(result)
 }
 
-/// Decrypts the file key given a target and its ancestors. All ancestors of target, as well as target itself, must be included in target_with_ancestors.
+/// Decrypts the file key given a target and its ancestors. All ancestors of target, as well as
+/// target itself, must be included in target_with_ancestors.
 fn decrypt_file_key(
     account: &Account, target_id: Uuid, target_with_ancestors: &[EncryptedFileMetadata],
     key_cache: &mut HashMap<Uuid, AESKey>,

@@ -1,8 +1,8 @@
 #![recursion_limit = "256"]
 
+extern crate reqwest;
 #[macro_use]
 extern crate tracing;
-extern crate reqwest;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -10,7 +10,6 @@ use std::path::{Path, PathBuf};
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use hmdb::log::Reader;
-
 use serde::Serialize;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
@@ -28,7 +27,9 @@ pub use model::errors::{CoreError, Error, UnexpectedError};
 use service::log_service;
 
 use crate::billing_service::CreditCardLast4Digits;
-use crate::model::errors::{AccountExportError, CreateAccountError, ImportError};
+use crate::model::errors::{
+    AccountExportError, CreateAccountError, CreateFileAtPathError, GetAccountError, ImportError,
+};
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::pure_functions::drawing::SupportedImageFormats;
@@ -88,78 +89,31 @@ pub fn migrate_db(config: &Config) -> Result<(), Error<MigrationError>> {
 pub fn create_account(
     config: &Config, username: &str, api_url: &str,
 ) -> Result<Account, Error<CreateAccountError>> {
-    account_service::create_account(config, username, api_url).map_err(|e| match e {
-        CoreError::AccountExists => UiError(CreateAccountError::AccountExistsAlready),
-        CoreError::UsernameTaken => UiError(CreateAccountError::UsernameTaken),
-        CoreError::UsernameInvalid => UiError(CreateAccountError::InvalidUsername),
-        CoreError::ServerUnreachable => UiError(CreateAccountError::CouldNotReachServer),
-        CoreError::ClientUpdateRequired => UiError(CreateAccountError::ClientUpdateRequired),
-        CoreError::ServerDisabled => UiError(CreateAccountError::ServerDisabled),
-        _ => unexpected!("{:#?}", e),
-    })
+    todo!()
 }
 
 #[instrument(skip(config, account_string), err(Debug))]
 pub fn import_account(
     config: &Config, account_string: &str,
 ) -> Result<Account, Error<ImportError>> {
-    account_service::import_account(config, account_string).map_err(|e| match e {
-        CoreError::AccountStringCorrupted => UiError(ImportError::AccountStringCorrupted),
-        CoreError::AccountExists => UiError(ImportError::AccountExistsAlready),
-        CoreError::UsernamePublicKeyMismatch => UiError(ImportError::UsernamePKMismatch),
-        CoreError::ServerUnreachable => UiError(ImportError::CouldNotReachServer),
-        CoreError::AccountNonexistent => UiError(ImportError::AccountDoesNotExist),
-        CoreError::ClientUpdateRequired => UiError(ImportError::ClientUpdateRequired),
-        _ => unexpected!("{:#?}", e),
-    })
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]
 pub fn export_account(config: &Config) -> Result<String, Error<AccountExportError>> {
-    account_service::export_account(config).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(AccountExportError::NoAccount),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetAccountError {
-    NoAccount,
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]
 pub fn get_account(config: &Config) -> Result<Account, Error<GetAccountError>> {
-    account_repo::get(config).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(GetAccountError::NoAccount),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum CreateFileAtPathError {
-    FileAlreadyExists,
-    NoAccount,
-    NoRoot,
-    PathDoesntStartWithRoot,
-    PathContainsEmptyFile,
-    DocumentTreatedAsFolder,
+    todo!()
 }
 
 #[instrument(skip(config, path_and_name), err(Debug))]
 pub fn create_file_at_path(
     config: &Config, path_and_name: &str,
 ) -> Result<DecryptedFileMetadata, Error<CreateFileAtPathError>> {
-    path_service::create_at_path(config, path_and_name).map_err(|e| match e {
-        CoreError::PathStartsWithNonRoot => UiError(CreateFileAtPathError::PathDoesntStartWithRoot),
-        CoreError::PathContainsEmptyFileName => {
-            UiError(CreateFileAtPathError::PathContainsEmptyFile)
-        }
-        CoreError::RootNonexistent => UiError(CreateFileAtPathError::NoRoot),
-        CoreError::AccountNonexistent => UiError(CreateFileAtPathError::NoAccount),
-        CoreError::PathTaken => UiError(CreateFileAtPathError::FileAlreadyExists),
-        CoreError::FileNotFolder => UiError(CreateFileAtPathError::DocumentTreatedAsFolder),
-        _ => unexpected!("{:#?}", e),
-    })
+    todo!()
 }
 
 #[derive(Debug, Serialize, EnumIter)]

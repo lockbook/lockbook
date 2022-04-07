@@ -1,11 +1,12 @@
 use std::fmt::{Display, Formatter};
 use std::io::ErrorKind;
 
-use lockbook_models::api::{GetPublicKeyError, NewAccountError};
-use lockbook_models::tree::TreeError;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use strum_macros::EnumIter;
+
+use lockbook_models::api::{GetPublicKeyError, NewAccountError};
+use lockbook_models::tree::TreeError;
 
 use crate::service::api_service::ApiError;
 use crate::UiError;
@@ -238,6 +239,48 @@ impl From<CoreError> for Error<AccountExportError> {
     fn from(e: CoreError) -> Self {
         match e {
             CoreError::AccountNonexistent => UiError(AccountExportError::NoAccount),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum GetAccountError {
+    NoAccount,
+}
+
+impl From<CoreError> for Error<GetAccountError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::AccountNonexistent => UiError(GetAccountError::NoAccount),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum CreateFileAtPathError {
+    FileAlreadyExists,
+    NoAccount,
+    NoRoot,
+    PathDoesntStartWithRoot,
+    PathContainsEmptyFile,
+    DocumentTreatedAsFolder,
+}
+
+impl From<CoreError> for Error<CreateFileAtPathError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::PathStartsWithNonRoot => {
+                UiError(CreateFileAtPathError::PathDoesntStartWithRoot)
+            }
+            CoreError::PathContainsEmptyFileName => {
+                UiError(CreateFileAtPathError::PathContainsEmptyFile)
+            }
+            CoreError::RootNonexistent => UiError(CreateFileAtPathError::NoRoot),
+            CoreError::AccountNonexistent => UiError(CreateFileAtPathError::NoAccount),
+            CoreError::PathTaken => UiError(CreateFileAtPathError::FileAlreadyExists),
+            CoreError::FileNotFolder => UiError(CreateFileAtPathError::DocumentTreatedAsFolder),
             _ => unexpected!("{:#?}", e),
         }
     }

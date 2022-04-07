@@ -1,7 +1,6 @@
-use itertools::Itertools;
-use lockbook_models::utils;
 use std::collections::HashSet;
 
+use itertools::Itertools;
 use sha2::Digest;
 use sha2::Sha256;
 use uuid::Uuid;
@@ -13,6 +12,7 @@ use lockbook_models::file_metadata::EncryptedFileMetadata;
 use lockbook_models::file_metadata::FileMetadataDiff;
 use lockbook_models::file_metadata::FileType;
 use lockbook_models::tree::FileMetaExt;
+use lockbook_models::utils;
 
 use crate::model::repo::RepoSource;
 use crate::model::repo::RepoState;
@@ -23,12 +23,12 @@ use crate::repo::account_repo;
 use crate::repo::digest_repo;
 use crate::repo::document_repo;
 use crate::repo::metadata_repo;
+use crate::repo::root_repo;
+use crate::schema::{OneKey, Tx};
 use crate::service::file_encryption_service;
 use crate::service::{file_compression_service, file_service};
-use crate::CoreError;
 use crate::CoreError::RootNonexistent;
-
-use crate::repo::root_repo;
+use crate::{CoreError, LbCore};
 
 pub fn write_document(config: &Config, id: Uuid, content: &[u8]) -> Result<(), CoreError> {
     let metadata = file_service::get_not_deleted_metadata(config, RepoSource::Local, id)?;
@@ -260,6 +260,181 @@ pub fn get_all_not_deleted_metadata(
     config: &Config, source: RepoSource,
 ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
     Ok(get_all_metadata(config, source)?.filter_not_deleted()?)
+}
+
+impl Tx<'_> {
+    /// Adds or updates the metadata of a file on disk.
+    pub fn insert_metadatum(
+        &mut self, config: &Config, source: RepoSource, metadata: &DecryptedFileMetadata,
+    ) -> Result<(), CoreError> {
+        self.insert_metadata(config, source, &[metadata.clone()])
+    }
+
+    pub fn insert_metadata(
+        &mut self, config: &Config, source: RepoSource, metadata_changes: &[DecryptedFileMetadata],
+    ) -> Result<(), CoreError> {
+        let all_metadata = self.get_all_metadata(source)?;
+        self.insert_metadata_given_decrypted_metadata(
+            config,
+            source,
+            &all_metadata,
+            metadata_changes,
+        )
+    }
+
+    pub fn get_metadata(
+        &self, source: RepoSource, id: Uuid,
+    ) -> Result<DecryptedFileMetadata, CoreError> {
+        self.maybe_get_metadata(source, id)
+            .and_then(|f| f.ok_or(CoreError::FileNonexistent))
+    }
+
+    pub fn get_all_non_deleted_metadata(
+        &self, source: RepoSource,
+    ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
+        Ok(self.get_all_metadata(source)?.filter_not_deleted()?)
+    }
+
+    // TODO: should this even exist? Could impl get on a tx with a source and it will do the lookup
+    //       at that point in time
+    pub fn get_all_metadata(
+        &self, source: RepoSource,
+    ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
+        let account = self.get_account()?;
+        let base: Vec<EncryptedFileMetadata> = self.base_metadata.get_all().into_values().collect();
+        match source {
+            RepoSource::Base => file_encryption_service::decrypt_metadata(&account, &base),
+            RepoSource::Local => {
+                let local: Vec<EncryptedFileMetadata> =
+                    self.local_metadata.get_all().into_values().collect();
+                let staged = base
+                    .stage(&local)
+                    .into_iter()
+                    .map(|(f, _)| f)
+                    .collect::<Vec<EncryptedFileMetadata>>();
+                file_encryption_service::decrypt_metadata(&account, &staged)
+            }
+        }
+    }
+
+    /// Adds or updates the content of a document on disk.
+    /// Disk optimization opportunity: this function needlessly writes to disk when setting local content = base content.
+    /// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
+    pub fn insert_document(
+        &mut self, config: &Config, source: RepoSource, metadata: &DecryptedFileMetadata,
+        document: &[u8],
+    ) -> Result<(), CoreError> {
+        // check that document exists and is a document
+        self.get_metadata(RepoSource::Local, metadata.id)?;
+        if metadata.file_type == FileType::Folder {
+            return Err(CoreError::FileNotDocument);
+        }
+
+        // encrypt document and compute digest
+        let digest = Sha256::digest(document);
+        let compressed_document = file_compression_service::compress(document)?;
+        let encrypted_document =
+            file_encryption_service::encrypt_document(&compressed_document, metadata)?;
+
+        // perform insertions
+        document_repo::insert(config, source, metadata.id, &encrypted_document)?;
+        match source {
+            RepoSource::Local => {
+                self.local_digest.insert(metadata.id, digest.to_vec());
+            }
+            RepoSource::Base => {
+                self.base_digest.insert(metadata.id, digest.to_vec());
+            }
+        }
+
+        let opposite_digest = match source.opposite() {
+            RepoSource::Local => self.local_digest.get(&metadata.id),
+            RepoSource::Base => self.base_digest.get(&metadata.id),
+        };
+
+        // remove local if local == base
+        if let Some(opposite) = opposite_digest {
+            if utils::slices_equal(&opposite, &digest) {
+                self.local_digest.delete(metadata.id);
+                document_repo::delete(config, RepoSource::Local, metadata.id)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Adds or updates the metadata of files on disk.
+    /// Disk optimization opportunity: this function needlessly writes to disk when setting local metadata = base metadata.
+    /// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
+    fn insert_metadata_given_decrypted_metadata(
+        &mut self, config: &Config, source: RepoSource, all_metadata: &[DecryptedFileMetadata],
+        metadata_changes: &[DecryptedFileMetadata],
+    ) -> Result<(), CoreError> {
+        // encrypt metadata
+        let account = self.get_account()?;
+        let all_metadata_with_changes_staged = all_metadata
+            .stage(metadata_changes)
+            .into_iter()
+            .map(|(f, _)| f)
+            .collect::<Vec<DecryptedFileMetadata>>();
+        let all_metadata_encrypted =
+            file_encryption_service::encrypt_metadata(&account, &all_metadata_with_changes_staged)?;
+
+        for metadatum in metadata_changes {
+            let encrypted_metadata = all_metadata_encrypted.find(metadatum.id)?;
+
+            // perform insertion
+            let new_doc = source == RepoSource::Local
+                && metadatum.file_type == FileType::Document
+                && self
+                    .maybe_get_metadata(RepoSource::Local, metadatum.id)?
+                    .is_none();
+
+            match source {
+                RepoSource::Local => {
+                    self.local_metadata
+                        .insert(encrypted_metadata.id, encrypted_metadata.clone());
+                }
+                RepoSource::Base => {
+                    self.base_metadata
+                        .insert(encrypted_metadata.id, encrypted_metadata.clone());
+                }
+            }
+
+            if new_doc {
+                self.insert_document(config, RepoSource::Local, metadatum, &[])?;
+            }
+
+            let opposite_metadata = match source.opposite() {
+                RepoSource::Local => self.local_metadata.get(&encrypted_metadata.id),
+                RepoSource::Base => self.base_metadata.get(&encrypted_metadata.id),
+            };
+
+            // remove local if local == base
+            if let Some(opposite) = opposite_metadata {
+                if utils::slices_equal(&opposite.name.hmac, &encrypted_metadata.name.hmac)
+                    && opposite.parent == metadatum.parent
+                    && opposite.deleted == metadatum.deleted
+                {
+                    self.local_metadata.delete(metadatum.id);
+                }
+            }
+
+            // update root
+            if metadatum.parent == metadatum.id {
+                self.root.insert(OneKey {}, metadatum.id);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn maybe_get_metadata(
+        &self, source: RepoSource, id: Uuid,
+    ) -> Result<Option<DecryptedFileMetadata>, CoreError> {
+        let all_metadata = self.get_all_metadata(source)?;
+        Ok(all_metadata.maybe_find(id))
+    }
 }
 
 pub fn get_all_metadata(

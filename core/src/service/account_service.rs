@@ -8,7 +8,7 @@ use lockbook_models::api::{GetPublicKeyRequest, NewAccountRequest};
 use crate::model::errors::{core_err_unexpected, CreateAccountError};
 use crate::model::state::Config;
 use crate::pure_functions::files;
-use crate::schema::OneKey;
+use crate::schema::{OneKey, Tx};
 use crate::service::{api_service, file_encryption_service};
 use crate::{AccountExportError, CoreError, Error, GetAccountError, ImportError, LbCore, UiError};
 
@@ -99,10 +99,16 @@ impl LbCore {
     }
 
     pub fn get_account(&self) -> Result<Account, Error<GetAccountError>> {
-        self.db
-            .account
-            .get(&OneKey {})?
-            .ok_or(UiError(GetAccountError::NoAccount))
+        let account = self.db.transaction(|tx| tx.get_account())??;
+        Ok(account)
+    }
+}
+
+impl Tx<'_> {
+    pub fn get_account(&self) -> Result<Account, CoreError> {
+        self.account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)
     }
 }
 
