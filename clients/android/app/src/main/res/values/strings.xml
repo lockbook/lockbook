@@ -205,4 +205,5 @@
     <string name="monthly_premium_cost">$2.50 a month</string>
     <string name="yearly_premium_pay_up_front">Pay a year up front ($30)</string>
     <string name="checkmark">Check</string>
+    <string name="subscribe">Subscribe</string>
 </resources>

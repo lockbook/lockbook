@@ -24,30 +24,91 @@
         android:paddingBottom="20dp"
         android:layout_gravity="center_horizontal"/>
 
-    <com.google.android.material.tabs.TabLayout
-        android:id="@+id/switch_account_tier_tab_layout"
-        android:layout_width="match_parent"
-        android:layout_height="50dp"
-        android:background="#00000000"
-        app:tabTextAppearance="@android:style/TextAppearance.Widget.TabWidget">
 
-        <com.google.android.material.tabs.TabItem
+    <androidx.cardview.widget.CardView
+        android:id="@+id/switch_account_tier_free"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:backgroundTint="?attr/colorPrimaryDark"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?android:attr/selectableItemBackground"
+        android:layout_marginHorizontal="20dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@drawable/ic_baseline_check_24_blue"
+                android:contentDescription="@string/checkmark"
+                android:layout_marginVertical="10dp"
+                android:layout_marginEnd="20dp"/>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+
+
+                <TextView
+                    style="@style/Main.Text.Medium"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/premium_space"
+                    android:layout_marginVertical="10dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Free (current)"
+                    style="@style/Main.Text.Medium"
+                    android:textColor="@color/colorPrimary"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    style="@style/Main.Text.Medium"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/monthly_premium_cost"
+                    android:layout_marginVertical="10dp"/>
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </androidx.cardview.widget.CardView>
+
+    <androidx.cardview.widget.CardView
+        android:id="@+id/switch_account_tier_premium_yearly"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:backgroundTint="?attr/colorPrimaryDark"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?android:attr/selectableItemBackground">
+
+        <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/yearly_plan"/>
+            android:text="TITLE"/>
 
-        <com.google.android.material.tabs.TabItem
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/monthly_plan"/>
+    </androidx.cardview.widget.CardView>
 
-    </com.google.android.material.tabs.TabLayout>
+    <androidx.cardview.widget.CardView
+        android:id="@+id/switch_account_tier_premium_monthly"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:backgroundTint="?attr/colorPrimaryDark"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?android:attr/selectableItemBackground">
 
-    <androidx.viewpager2.widget.ViewPager2
-        android:id="@+id/upgrade_account_viewpager"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
+    </androidx.cardview.widget.CardView>
 
     <View
         android:layout_width="match_parent"
@@ -60,6 +121,6 @@
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
         android:layout_marginVertical="20dp"
-        android:text="Subscribe" />
+        android:text="@string/subscribe" />
 
 </LinearLayout>
