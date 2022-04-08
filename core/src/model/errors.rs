@@ -368,3 +368,385 @@ impl From<CoreError> for Error<GetRootError> {
         }
     }
 }
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum GetAndGetChildrenError {
+    FileDoesNotExist,
+    DocumentTreatedAsFolder,
+}
+
+impl From<CoreError> for Error<GetAndGetChildrenError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::FileNonexistent => UiError(GetAndGetChildrenError::FileDoesNotExist),
+            CoreError::FileNotFolder => UiError(GetAndGetChildrenError::DocumentTreatedAsFolder),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum GetFileByIdError {
+    NoFileWithThatId,
+}
+
+impl From<CoreError> for Error<GetFileByIdError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::FileNonexistent => UiError(GetFileByIdError::NoFileWithThatId),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum FileDeleteError {
+    CannotDeleteRoot,
+    FileDoesNotExist,
+}
+
+impl From<CoreError> for Error<FileDeleteError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::RootModificationInvalid => UiError(FileDeleteError::CannotDeleteRoot),
+            CoreError::FileNonexistent => UiError(FileDeleteError::FileDoesNotExist),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum ReadDocumentError {
+    TreatedFolderAsDocument,
+    NoAccount,
+    FileDoesNotExist,
+}
+
+impl From<CoreError> for Error<ReadDocumentError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::FileNotDocument => UiError(ReadDocumentError::TreatedFolderAsDocument),
+            CoreError::AccountNonexistent => UiError(ReadDocumentError::NoAccount),
+            CoreError::FileNonexistent => UiError(ReadDocumentError::FileDoesNotExist),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum SaveDocumentToDiskError {
+    TreatedFolderAsDocument,
+    NoAccount,
+    FileDoesNotExist,
+    BadPath,
+    FileAlreadyExistsInDisk,
+}
+
+impl From<CoreError> for Error<SaveDocumentToDiskError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::FileNotDocument => UiError(SaveDocumentToDiskError::TreatedFolderAsDocument),
+            CoreError::AccountNonexistent => UiError(SaveDocumentToDiskError::NoAccount),
+            CoreError::FileNonexistent => UiError(SaveDocumentToDiskError::FileDoesNotExist),
+            CoreError::DiskPathInvalid => UiError(SaveDocumentToDiskError::BadPath),
+            CoreError::DiskPathTaken => UiError(SaveDocumentToDiskError::FileAlreadyExistsInDisk),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum RenameFileError {
+    FileDoesNotExist,
+    NewNameEmpty,
+    NewNameContainsSlash,
+    FileNameNotAvailable,
+    CannotRenameRoot,
+}
+
+impl From<CoreError> for Error<RenameFileError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::FileNonexistent => UiError(RenameFileError::FileDoesNotExist),
+            CoreError::FileNameEmpty => UiError(RenameFileError::NewNameEmpty),
+            CoreError::FileNameContainsSlash => UiError(RenameFileError::NewNameContainsSlash),
+            CoreError::PathTaken => UiError(RenameFileError::FileNameNotAvailable),
+            CoreError::RootModificationInvalid => UiError(RenameFileError::CannotRenameRoot),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum MoveFileError {
+    CannotMoveRoot,
+    DocumentTreatedAsFolder,
+    FileDoesNotExist,
+    FolderMovedIntoItself,
+    NoAccount,
+    TargetParentDoesNotExist,
+    TargetParentHasChildNamedThat,
+}
+
+impl From<CoreError> for Error<MoveFileError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::RootModificationInvalid => UiError(MoveFileError::CannotMoveRoot),
+            CoreError::FileNotFolder => UiError(MoveFileError::DocumentTreatedAsFolder),
+            CoreError::FileNonexistent => UiError(MoveFileError::FileDoesNotExist),
+            CoreError::FolderMovedIntoSelf => UiError(MoveFileError::FolderMovedIntoItself),
+            CoreError::AccountNonexistent => UiError(MoveFileError::NoAccount),
+            CoreError::FileParentNonexistent => UiError(MoveFileError::TargetParentDoesNotExist),
+            CoreError::PathTaken => UiError(MoveFileError::TargetParentHasChildNamedThat),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum SyncAllError {
+    NoAccount,
+    ClientUpdateRequired,
+    CouldNotReachServer,
+}
+
+impl From<CoreError> for Error<SyncAllError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::AccountNonexistent => UiError(SyncAllError::NoAccount),
+            CoreError::ServerUnreachable => UiError(SyncAllError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(SyncAllError::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum CalculateWorkError {
+    NoAccount,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<CalculateWorkError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::AccountNonexistent => UiError(CalculateWorkError::NoAccount),
+            CoreError::ServerUnreachable => UiError(CalculateWorkError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(CalculateWorkError::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum GetUsageError {
+    NoAccount,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<GetUsageError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::AccountNonexistent => UiError(GetUsageError::NoAccount),
+            CoreError::ServerUnreachable => UiError(GetUsageError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum GetDrawingError {
+    NoAccount,
+    FolderTreatedAsDrawing,
+    InvalidDrawing,
+    FileDoesNotExist,
+}
+
+impl From<CoreError> for Error<GetDrawingError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::DrawingInvalid => UiError(GetDrawingError::InvalidDrawing),
+            CoreError::FileNotDocument => UiError(GetDrawingError::FolderTreatedAsDrawing),
+            CoreError::AccountNonexistent => UiError(GetDrawingError::NoAccount),
+            CoreError::FileNonexistent => UiError(GetDrawingError::FileDoesNotExist),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum SaveDrawingError {
+    NoAccount,
+    FileDoesNotExist,
+    FolderTreatedAsDrawing,
+    InvalidDrawing,
+}
+
+impl From<CoreError> for Error<SaveDrawingError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::DrawingInvalid => UiError(SaveDrawingError::InvalidDrawing),
+            CoreError::AccountNonexistent => UiError(SaveDrawingError::NoAccount),
+            CoreError::FileNonexistent => UiError(SaveDrawingError::FileDoesNotExist),
+            CoreError::FileNotDocument => UiError(SaveDrawingError::FolderTreatedAsDrawing),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum ExportDrawingError {
+    FolderTreatedAsDrawing,
+    FileDoesNotExist,
+    NoAccount,
+    InvalidDrawing,
+}
+
+impl From<CoreError> for Error<ExportDrawingError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::DrawingInvalid => UiError(ExportDrawingError::InvalidDrawing),
+            CoreError::AccountNonexistent => UiError(ExportDrawingError::NoAccount),
+            CoreError::FileNonexistent => UiError(ExportDrawingError::FileDoesNotExist),
+            CoreError::FileNotDocument => UiError(ExportDrawingError::FolderTreatedAsDrawing),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum ExportDrawingToDiskError {
+    FolderTreatedAsDrawing,
+    FileDoesNotExist,
+    NoAccount,
+    InvalidDrawing,
+    BadPath,
+    FileAlreadyExistsInDisk,
+}
+
+impl From<CoreError> for Error<ExportDrawingToDiskError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::DrawingInvalid => UiError(ExportDrawingToDiskError::InvalidDrawing),
+            CoreError::AccountNonexistent => UiError(ExportDrawingToDiskError::NoAccount),
+            CoreError::FileNonexistent => UiError(ExportDrawingToDiskError::FileDoesNotExist),
+            CoreError::FileNotDocument => UiError(ExportDrawingToDiskError::FolderTreatedAsDrawing),
+            CoreError::DiskPathInvalid => UiError(ExportDrawingToDiskError::BadPath),
+            CoreError::DiskPathTaken => UiError(ExportDrawingToDiskError::FileAlreadyExistsInDisk),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum ImportFileError {
+    NoAccount,
+    ParentDoesNotExist,
+    DocumentTreatedAsFolder,
+}
+
+impl From<CoreError> for Error<ImportFileError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::AccountNonexistent => UiError(ImportFileError::NoAccount),
+            CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
+            CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum ExportFileError {
+    NoAccount,
+    ParentDoesNotExist,
+    DiskPathTaken,
+    DiskPathInvalid,
+}
+
+impl From<CoreError> for Error<ExportFileError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::AccountNonexistent => UiError(ExportFileError::NoAccount),
+            CoreError::FileNonexistent => UiError(ExportFileError::ParentDoesNotExist),
+            CoreError::DiskPathInvalid => UiError(ExportFileError::DiskPathInvalid),
+            CoreError::DiskPathTaken => UiError(ExportFileError::DiskPathTaken),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum SwitchAccountTierError {
+    NoAccount,
+    CouldNotReachServer,
+    OldCardDoesNotExist,
+    NewTierIsOldTier,
+    InvalidCardNumber,
+    InvalidCardCvc,
+    InvalidCardExpYear,
+    InvalidCardExpMonth,
+    CardDecline,
+    CardHasInsufficientFunds,
+    TryAgain,
+    CardNotSupported,
+    ExpiredCard,
+    ClientUpdateRequired,
+    CurrentUsageIsMoreThanNewTier,
+    ConcurrentRequestsAreTooSoon,
+}
+
+impl From<CoreError> for Error<SwitchAccountTierError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::OldCardDoesNotExist => UiError(SwitchAccountTierError::OldCardDoesNotExist),
+            CoreError::InvalidCardNumber => UiError(SwitchAccountTierError::InvalidCardNumber),
+            CoreError::InvalidCardExpYear => UiError(SwitchAccountTierError::InvalidCardExpYear),
+            CoreError::InvalidCardExpMonth => UiError(SwitchAccountTierError::InvalidCardExpMonth),
+            CoreError::InvalidCardCvc => UiError(SwitchAccountTierError::InvalidCardCvc),
+            CoreError::NewTierIsOldTier => UiError(SwitchAccountTierError::NewTierIsOldTier),
+            CoreError::ServerUnreachable => UiError(SwitchAccountTierError::CouldNotReachServer),
+            CoreError::CardDecline => UiError(SwitchAccountTierError::CardDecline),
+            CoreError::CardHasInsufficientFunds => {
+                UiError(SwitchAccountTierError::CardHasInsufficientFunds)
+            }
+            CoreError::TryAgain => UiError(SwitchAccountTierError::TryAgain),
+            CoreError::CardNotSupported => UiError(SwitchAccountTierError::CardNotSupported),
+            CoreError::ExpiredCard => UiError(SwitchAccountTierError::ExpiredCard),
+            CoreError::CurrentUsageIsMoreThanNewTier => {
+                UiError(SwitchAccountTierError::CurrentUsageIsMoreThanNewTier)
+            }
+            CoreError::AccountNonexistent => UiError(SwitchAccountTierError::NoAccount),
+            CoreError::ConcurrentRequestsAreTooSoon => {
+                UiError(SwitchAccountTierError::ConcurrentRequestsAreTooSoon)
+            }
+            CoreError::ClientUpdateRequired => {
+                UiError(SwitchAccountTierError::ClientUpdateRequired)
+            }
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum GetCreditCard {
+    NoAccount,
+    CouldNotReachServer,
+    NotAStripeCustomer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<GetCreditCard> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::AccountNonexistent => UiError(GetCreditCard::NoAccount),
+            CoreError::ServerUnreachable => UiError(GetCreditCard::CouldNotReachServer),
+            CoreError::NotAStripeCustomer => UiError(GetCreditCard::NotAStripeCustomer),
+            CoreError::ClientUpdateRequired => UiError(GetCreditCard::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}

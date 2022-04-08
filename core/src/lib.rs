@@ -28,8 +28,12 @@ use service::log_service;
 
 use crate::billing_service::CreditCardLast4Digits;
 use crate::model::errors::{
-    AccountExportError, CreateAccountError, CreateFileAtPathError, CreateFileError,
-    GetAccountError, GetFileByPathError, GetRootError, ImportError, WriteToDocumentError,
+    AccountExportError, CalculateWorkError, CreateAccountError, CreateFileAtPathError,
+    CreateFileError, ExportDrawingError, ExportDrawingToDiskError, ExportFileError,
+    FileDeleteError, GetAccountError, GetAndGetChildrenError, GetCreditCard, GetDrawingError,
+    GetFileByIdError, GetFileByPathError, GetRootError, GetUsageError, ImportError,
+    ImportFileError, MoveFileError, ReadDocumentError, RenameFileError, SaveDocumentToDiskError,
+    SaveDrawingError, SwitchAccountTierError, SyncAllError, WriteToDocumentError,
 };
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
@@ -139,36 +143,18 @@ pub fn get_children(
     todo!()
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetAndGetChildrenError {
-    FileDoesNotExist,
-    DocumentTreatedAsFolder,
-}
-
 #[instrument(skip(config), err(Debug))]
 pub fn get_and_get_children_recursively(
     config: &Config, id: Uuid,
 ) -> Result<Vec<DecryptedFileMetadata>, Error<GetAndGetChildrenError>> {
-    file_service::get_and_get_children_recursively(config, id).map_err(|e| match e {
-        CoreError::FileNonexistent => UiError(GetAndGetChildrenError::FileDoesNotExist),
-        CoreError::FileNotFolder => UiError(GetAndGetChildrenError::DocumentTreatedAsFolder),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetFileByIdError {
-    NoFileWithThatId,
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]
 pub fn get_file_by_id(
     config: &Config, id: Uuid,
 ) -> Result<DecryptedFileMetadata, Error<GetFileByIdError>> {
-    file_service::get_not_deleted_metadata(config, RepoSource::Local, id).map_err(|e| match e {
-        CoreError::FileNonexistent => UiError(GetFileByIdError::NoFileWithThatId),
-        _ => unexpected!("{:#?}", e),
-    })
+    todo!()
 }
 
 #[instrument(skip(config, path), err(Debug))]
@@ -178,61 +164,23 @@ pub fn get_file_by_path(
     todo!()
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum FileDeleteError {
-    CannotDeleteRoot,
-    FileDoesNotExist,
-}
-
 #[instrument(skip(config), err(Debug))]
 pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteError>> {
-    file_service::delete_file(config, id).map_err(|e| match e {
-        CoreError::RootModificationInvalid => UiError(FileDeleteError::CannotDeleteRoot),
-        CoreError::FileNonexistent => UiError(FileDeleteError::FileDoesNotExist),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum ReadDocumentError {
-    TreatedFolderAsDocument,
-    NoAccount,
-    FileDoesNotExist,
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]
 pub fn read_document(
     config: &Config, id: Uuid,
 ) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
-    file_service::read_document(config, id).map_err(|e| match e {
-        CoreError::FileNotDocument => UiError(ReadDocumentError::TreatedFolderAsDocument),
-        CoreError::AccountNonexistent => UiError(ReadDocumentError::NoAccount),
-        CoreError::FileNonexistent => UiError(ReadDocumentError::FileDoesNotExist),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum SaveDocumentToDiskError {
-    TreatedFolderAsDocument,
-    NoAccount,
-    FileDoesNotExist,
-    BadPath,
-    FileAlreadyExistsInDisk,
+    todo!()
 }
 
 #[instrument(skip(config, location), err(Debug))]
 pub fn save_document_to_disk(
     config: &Config, id: Uuid, location: &str,
 ) -> Result<(), Error<SaveDocumentToDiskError>> {
-    file_service::save_document_to_disk(config, id, location).map_err(|e| match e {
-        CoreError::FileNotDocument => UiError(SaveDocumentToDiskError::TreatedFolderAsDocument),
-        CoreError::AccountNonexistent => UiError(SaveDocumentToDiskError::NoAccount),
-        CoreError::FileNonexistent => UiError(SaveDocumentToDiskError::FileDoesNotExist),
-        CoreError::DiskPathInvalid => UiError(SaveDocumentToDiskError::BadPath),
-        CoreError::DiskPathTaken => UiError(SaveDocumentToDiskError::FileAlreadyExistsInDisk),
-        _ => unexpected!("{:#?}", e),
-    })
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]
@@ -252,59 +200,18 @@ pub fn list_metadatas(config: &Config) -> Result<Vec<DecryptedFileMetadata>, Une
     todo!()
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum RenameFileError {
-    FileDoesNotExist,
-    NewNameEmpty,
-    NewNameContainsSlash,
-    FileNameNotAvailable,
-    CannotRenameRoot,
-}
-
 #[instrument(skip(config, new_name), err(Debug))]
 pub fn rename_file(
     config: &Config, id: Uuid, new_name: &str,
 ) -> Result<(), Error<RenameFileError>> {
-    file_service::rename_file(config, id, new_name).map_err(|e| match e {
-        CoreError::FileNonexistent => UiError(RenameFileError::FileDoesNotExist),
-        CoreError::FileNameEmpty => UiError(RenameFileError::NewNameEmpty),
-        CoreError::FileNameContainsSlash => UiError(RenameFileError::NewNameContainsSlash),
-        CoreError::PathTaken => UiError(RenameFileError::FileNameNotAvailable),
-        CoreError::RootModificationInvalid => UiError(RenameFileError::CannotRenameRoot),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum MoveFileError {
-    CannotMoveRoot,
-    DocumentTreatedAsFolder,
-    FileDoesNotExist,
-    FolderMovedIntoItself,
-    NoAccount,
-    TargetParentDoesNotExist,
-    TargetParentHasChildNamedThat,
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]
-pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
-    file_service::move_file(config, id, new_parent).map_err(|e| match e {
-        CoreError::RootModificationInvalid => UiError(MoveFileError::CannotMoveRoot),
-        CoreError::FileNotFolder => UiError(MoveFileError::DocumentTreatedAsFolder),
-        CoreError::FileNonexistent => UiError(MoveFileError::FileDoesNotExist),
-        CoreError::FolderMovedIntoSelf => UiError(MoveFileError::FolderMovedIntoItself),
-        CoreError::AccountNonexistent => UiError(MoveFileError::NoAccount),
-        CoreError::FileParentNonexistent => UiError(MoveFileError::TargetParentDoesNotExist),
-        CoreError::PathTaken => UiError(MoveFileError::TargetParentHasChildNamedThat),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum SyncAllError {
-    NoAccount,
-    ClientUpdateRequired,
-    CouldNotReachServer,
+pub fn move_file(
+    config: &Config, id: Uuid, new_parent: Uuid,
+) -> Result<(), Error<crate::model::errors::MoveFileError>> {
+    todo!()
 }
 
 #[instrument(skip(config, f), err(Debug))]
@@ -322,13 +229,6 @@ pub fn sync_all(
 #[instrument(skip(config), err(Debug))]
 pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, UnexpectedError> {
     file_service::get_local_changes(config).map_err(|e| unexpected_only!("{:#?}", e))
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum CalculateWorkError {
-    NoAccount,
-    CouldNotReachServer,
-    ClientUpdateRequired,
 }
 
 #[instrument(skip(config), err(Debug))]
@@ -359,13 +259,6 @@ pub fn get_last_synced_human_string(config: &Config) -> Result<String, Unexpecte
     })
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetUsageError {
-    NoAccount,
-    CouldNotReachServer,
-    ClientUpdateRequired,
-}
-
 #[instrument(skip(config), err(Debug))]
 pub fn get_usage(config: &Config) -> Result<UsageMetrics, Error<GetUsageError>> {
     usage_service::get_usage(config).map_err(|e| match e {
@@ -386,14 +279,6 @@ pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, Error<
     })
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetDrawingError {
-    NoAccount,
-    FolderTreatedAsDrawing,
-    InvalidDrawing,
-    FileDoesNotExist,
-}
-
 #[instrument(skip(config), err(Debug))]
 pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
     drawing_service::get_drawing(config, id).map_err(|e| match e {
@@ -403,14 +288,6 @@ pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawin
         CoreError::FileNonexistent => UiError(GetDrawingError::FileDoesNotExist),
         _ => unexpected!("{:#?}", e),
     })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum SaveDrawingError {
-    NoAccount,
-    FileDoesNotExist,
-    FolderTreatedAsDrawing,
-    InvalidDrawing,
 }
 
 #[instrument(skip(config, drawing_bytes), err(Debug))]
@@ -426,14 +303,6 @@ pub fn save_drawing(
     })
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum ExportDrawingError {
-    FolderTreatedAsDrawing,
-    FileDoesNotExist,
-    NoAccount,
-    InvalidDrawing,
-}
-
 #[instrument(skip(config), err(Debug))]
 pub fn export_drawing(
     config: &Config, id: Uuid, format: SupportedImageFormats,
@@ -446,16 +315,6 @@ pub fn export_drawing(
         CoreError::FileNotDocument => UiError(ExportDrawingError::FolderTreatedAsDrawing),
         _ => unexpected!("{:#?}", e),
     })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum ExportDrawingToDiskError {
-    FolderTreatedAsDrawing,
-    FileDoesNotExist,
-    NoAccount,
-    InvalidDrawing,
-    BadPath,
-    FileAlreadyExistsInDisk,
 }
 
 #[instrument(skip(config), err(Debug))]
@@ -476,13 +335,6 @@ pub fn export_drawing_to_disk(
     )
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum ImportFileError {
-    NoAccount,
-    ParentDoesNotExist,
-    DocumentTreatedAsFolder,
-}
-
 #[instrument(skip(config, sources, update_status), err(Debug))]
 pub fn import_files<F: Fn(ImportStatus)>(
     config: &Config, sources: &[PathBuf], dest: Uuid, update_status: &F,
@@ -493,14 +345,6 @@ pub fn import_files<F: Fn(ImportStatus)>(
         CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
         _ => unexpected!("{:#?}", e),
     })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum ExportFileError {
-    NoAccount,
-    ParentDoesNotExist,
-    DiskPathTaken,
-    DiskPathInvalid,
 }
 
 #[instrument(skip(config, destination, export_progress), err(Debug))]
@@ -517,26 +361,6 @@ pub fn export_file(
             _ => unexpected!("{:#?}", e),
         },
     )
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum SwitchAccountTierError {
-    NoAccount,
-    CouldNotReachServer,
-    OldCardDoesNotExist,
-    NewTierIsOldTier,
-    InvalidCardNumber,
-    InvalidCardCvc,
-    InvalidCardExpYear,
-    InvalidCardExpMonth,
-    CardDecline,
-    CardHasInsufficientFunds,
-    TryAgain,
-    CardNotSupported,
-    ExpiredCard,
-    ClientUpdateRequired,
-    CurrentUsageIsMoreThanNewTier,
-    ConcurrentRequestsAreTooSoon,
 }
 
 #[instrument(skip(config), err(Debug))]
@@ -568,14 +392,6 @@ pub fn switch_account_tier(
         CoreError::ClientUpdateRequired => UiError(SwitchAccountTierError::ClientUpdateRequired),
         _ => unexpected!("{:#?}", e),
     })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetCreditCard {
-    NoAccount,
-    CouldNotReachServer,
-    NotAStripeCustomer,
-    ClientUpdateRequired,
 }
 
 #[instrument(skip(config), err(Debug))]

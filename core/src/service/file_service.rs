@@ -15,7 +15,7 @@ use lockbook_models::file_metadata::FileType;
 use lockbook_models::tree::FileMetaExt;
 use lockbook_models::utils;
 
-use crate::model::errors::GetRootError;
+use crate::model::errors::{GetRootError, RenameFileError, SaveDocumentToDiskError};
 use crate::model::repo::RepoSource;
 use crate::model::repo::RepoState;
 use crate::model::state::Config;
@@ -30,7 +30,10 @@ use crate::schema::{OneKey, Tx};
 use crate::service::file_encryption_service;
 use crate::service::{file_compression_service, file_service};
 use crate::CoreError::RootNonexistent;
-use crate::{CoreError, CreateFileError, Error, LbCore, UnexpectedError, WriteToDocumentError};
+use crate::{
+    CoreError, CreateFileError, Error, FileDeleteError, GetAndGetChildrenError, GetFileByIdError,
+    LbCore, ReadDocumentError, UnexpectedError, WriteToDocumentError,
+};
 
 impl LbCore {
     pub fn create_file(
@@ -65,6 +68,63 @@ impl LbCore {
 
     pub fn get_children(&self, id: Uuid) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
         let val = self.db.transaction(|tx| tx.get_children(id))?;
+        Ok(val?)
+    }
+
+    pub fn get_and_get_children_recursively(
+        &self, id: Uuid,
+    ) -> Result<Vec<DecryptedFileMetadata>, Error<GetAndGetChildrenError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.get_and_get_children_recursively(id))?;
+
+        Ok(val?)
+    }
+
+    pub fn get_file_by_id(
+        &self, id: Uuid,
+    ) -> Result<DecryptedFileMetadata, Error<GetFileByIdError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.get_not_deleted_metadata(RepoSource::Local, id))?;
+
+        Ok(val?)
+    }
+
+    pub fn delete_file(&self, config: &Config, id: Uuid) -> Result<(), Error<FileDeleteError>> {
+        let val = self.db.transaction(|tx| tx.delete_file(config, id))?;
+        Ok(val?)
+    }
+
+    pub fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.read_document(&self.config, id))?;
+        Ok(val?)
+    }
+
+    pub fn save_document_to_disk(
+        &self, id: Uuid, location: &str,
+    ) -> Result<(), Error<SaveDocumentToDiskError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.save_document_to_disk(&self.config, id, location))?;
+
+        Ok(val?)
+    }
+
+    pub fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), Error<RenameFileError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.rename_file(&self.config, id, new_name))?;
+
+        Ok(val?)
+    }
+
+    pub fn move_file(&self, id: Uuid, new_parent: Uuid) -> Result<(), CoreError> {
+        let val = self
+            .db
+            .transaction(|tx| tx.move_file(&self.config, id, new_parent))?;
         Ok(val?)
     }
 }
@@ -270,6 +330,150 @@ impl Tx<'_> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
         Ok(files.find_children(id))
     }
+
+    pub fn get_and_get_children_recursively(
+        &self, id: Uuid,
+    ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
+        let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
+        let file_and_descendants = files::find_with_descendants(&files, id)?;
+        Ok(file_and_descendants)
+    }
+
+    pub fn delete_file(&mut self, config: &Config, id: Uuid) -> Result<(), CoreError> {
+        let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
+        let file = files::apply_delete(&files, id)?;
+        self.insert_metadatum(&config, RepoSource::Local, &file)?;
+        self.prune_deleted(config)
+    }
+
+    /// Removes deleted files which are safe to delete. Call this function after a set of operations rather than in-between
+    /// each operation because otherwise you'll prune e.g. a file that was moved out of a folder that was deleted.
+    pub fn prune_deleted(&mut self, config: &Config) -> Result<(), CoreError> {
+        // If a file is deleted or has a deleted ancestor, we say that it is deleted. Whether a file is deleted is specific
+        // to the source (base or local). We cannot prune (delete from disk) a file in one source and not in the other in
+        // order to preserve the semantics of having a file present on one, the other, or both (unmodified/new/modified).
+        // For a file to be pruned, it must be deleted on both sources but also have no non-deleted descendants on either
+        // source - otherwise, the metadata for those descendants can no longer be decrypted. For an example of a situation
+        // where this is important, see the test prune_deleted_document_moved_from_deleted_folder_local_only.
+
+        // find files deleted on base and local; new deleted local files are also eligible
+        let all_base_metadata = self.get_all_metadata(RepoSource::Base)?;
+        let deleted_base_metadata = all_base_metadata.filter_deleted()?;
+        let all_local_metadata = self.get_all_metadata(RepoSource::Local)?;
+        let deleted_local_metadata = all_local_metadata.filter_deleted()?;
+        let deleted_both_metadata = deleted_base_metadata
+            .into_iter()
+            .filter(|f| deleted_local_metadata.maybe_find(f.id).is_some());
+        let prune_eligible_metadata = deleted_local_metadata
+            .iter()
+            .filter_map(|f| {
+                if all_base_metadata.maybe_find(f.id).is_none() {
+                    Some(f.clone())
+                } else {
+                    None
+                }
+            })
+            .chain(deleted_both_metadata)
+            .collect::<Vec<DecryptedFileMetadata>>();
+
+        // exclude files with not deleted descendants i.e. exclude files that are the ancestors of not deleted files
+        let all_ids = all_base_metadata
+            .iter()
+            .chain(all_local_metadata.iter())
+            .map(|f| f.id)
+            .collect::<HashSet<Uuid>>();
+        let not_deleted_either_ids = all_ids
+            .into_iter()
+            .filter(|&id| prune_eligible_metadata.maybe_find(id).is_none())
+            .collect::<HashSet<Uuid>>();
+        let ancestors_of_not_deleted_base_ids = not_deleted_either_ids
+            .iter()
+            .flat_map(|&id| files::find_ancestors(&all_base_metadata, id))
+            .map(|f| f.id)
+            .collect::<HashSet<Uuid>>();
+        let ancestors_of_not_deleted_local_ids = not_deleted_either_ids
+            .iter()
+            .flat_map(|&id| files::find_ancestors(&all_local_metadata, id))
+            .map(|f| f.id)
+            .collect::<HashSet<Uuid>>();
+        let deleted_both_without_deleted_descendants_ids =
+            prune_eligible_metadata.into_iter().filter(|f| {
+                !ancestors_of_not_deleted_base_ids.contains(&f.id)
+                    && !ancestors_of_not_deleted_local_ids.contains(&f.id)
+            });
+
+        // remove files from disk
+        for file in deleted_both_without_deleted_descendants_ids {
+            self.delete_metadata(file.id);
+            if file.file_type == FileType::Document {
+                self.delete_document(config, file.id)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn delete_metadata(&mut self, id: Uuid) {
+        self.base_metadata.delete(id);
+        self.base_metadata.delete(id);
+    }
+
+    fn delete_document(&mut self, config: &Config, id: Uuid) -> Result<(), CoreError> {
+        document_repo::delete(config, RepoSource::Local, id)?;
+        document_repo::delete(config, RepoSource::Base, id)?;
+        self.local_digest.delete(id);
+        self.base_digest.delete(id);
+
+        Ok(())
+    }
+
+    pub fn read_document(&self, config: &Config, id: Uuid) -> Result<DecryptedDocument, CoreError> {
+        let all_metadata = self.get_all_metadata(RepoSource::Local)?;
+        self.get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)
+    }
+
+    pub fn get_not_deleted_document(
+        &self, config: &Config, source: RepoSource, metadata: &[DecryptedFileMetadata], id: Uuid,
+    ) -> Result<DecryptedDocument, CoreError> {
+        self.maybe_get_not_deleted_document(config, source, metadata, id)
+            .and_then(|f| f.ok_or(CoreError::FileNonexistent))
+    }
+
+    pub fn maybe_get_not_deleted_document(
+        &self, config: &Config, source: RepoSource, metadata: &[DecryptedFileMetadata], id: Uuid,
+    ) -> Result<Option<DecryptedDocument>, CoreError> {
+        if let Some(metadata) = metadata.filter_not_deleted()?.maybe_find(id) {
+            maybe_get_document(config, source, &metadata)
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn save_document_to_disk(
+        &self, config: &Config, id: Uuid, location: &str,
+    ) -> Result<(), CoreError> {
+        let all_metadata = self.get_all_metadata(RepoSource::Local)?;
+        let document =
+            self.get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
+        files::save_document_to_disk(&document, location.to_string())
+    }
+
+    pub fn rename_file(
+        &mut self, config: &Config, id: Uuid, new_name: &str,
+    ) -> Result<(), CoreError> {
+        let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
+        let files = files.filter_not_deleted()?;
+        let file = files::apply_rename(&files, id, new_name)?;
+        self.insert_metadatum(config, RepoSource::Local, &file)
+    }
+
+    pub fn move_file(
+        &mut self, config: &Config, id: Uuid, new_parent: Uuid,
+    ) -> Result<(), CoreError> {
+        let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
+        let files = files.filter_not_deleted()?;
+        let file = files::apply_move(&files, id, new_parent)?;
+        self.insert_metadatum(config, RepoSource::Local, &file)
+    }
 }
 
 pub fn create_file(
@@ -289,43 +493,7 @@ pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<DecryptedFileMetada
 pub fn get_and_get_children_recursively(
     config: &Config, id: Uuid,
 ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
-    let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let files = files.filter_not_deleted()?;
-    let file_and_descendants = files::find_with_descendants(&files, id)?;
-    Ok(file_and_descendants)
-}
-
-pub fn delete_file(config: &Config, id: Uuid) -> Result<(), CoreError> {
-    let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let file = files::apply_delete(&files, id)?;
-    file_service::insert_metadatum(config, RepoSource::Local, &file)?;
-    file_service::prune_deleted(config)
-}
-
-pub fn read_document(config: &Config, id: Uuid) -> Result<DecryptedDocument, CoreError> {
-    let all_metadata = file_service::get_all_metadata(config, RepoSource::Local)?;
-    file_service::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)
-}
-
-pub fn save_document_to_disk(config: &Config, id: Uuid, location: &str) -> Result<(), CoreError> {
-    let all_metadata = file_service::get_all_metadata(config, RepoSource::Local)?;
-    let document =
-        file_service::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
-    files::save_document_to_disk(&document, location.to_string())
-}
-
-pub fn rename_file(config: &Config, id: Uuid, new_name: &str) -> Result<(), CoreError> {
-    let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let files = files.filter_not_deleted()?;
-    let file = files::apply_rename(&files, id, new_name)?;
-    file_service::insert_metadatum(config, RepoSource::Local, &file)
-}
-
-pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), CoreError> {
-    let files = file_service::get_all_not_deleted_metadata(config, RepoSource::Local)?;
-    let files = files.filter_not_deleted()?;
-    let file = files::apply_move(&files, id, new_parent)?;
-    file_service::insert_metadatum(config, RepoSource::Local, &file)
+    todo!()
 }
 
 pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, CoreError> {
@@ -784,71 +952,9 @@ pub fn promote_documents(config: &Config) -> Result<(), CoreError> {
     digest_repo::delete_all(config, RepoSource::Local)
 }
 
-/// Removes deleted files which are safe to delete. Call this function after a set of operations rather than in-between
-/// each operation because otherwise you'll prune e.g. a file that was moved out of a folder that was deleted.
 #[instrument(level = "debug", skip_all, err(Debug))]
 pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
-    // If a file is deleted or has a deleted ancestor, we say that it is deleted. Whether a file is deleted is specific
-    // to the source (base or local). We cannot prune (delete from disk) a file in one source and not in the other in
-    // order to preserve the semantics of having a file present on one, the other, or both (unmodified/new/modified).
-    // For a file to be pruned, it must be deleted on both sources but also have no non-deleted descendants on either
-    // source - otherwise, the metadata for those descendants can no longer be decrypted. For an example of a situation
-    // where this is important, see the test prune_deleted_document_moved_from_deleted_folder_local_only.
-
-    // find files deleted on base and local; new deleted local files are also eligible
-    let all_base_metadata = get_all_metadata(config, RepoSource::Base)?;
-    let deleted_base_metadata = all_base_metadata.filter_deleted()?;
-    let all_local_metadata = get_all_metadata(config, RepoSource::Local)?;
-    let deleted_local_metadata = all_local_metadata.filter_deleted()?;
-    let deleted_both_metadata = deleted_base_metadata
-        .into_iter()
-        .filter(|f| deleted_local_metadata.maybe_find(f.id).is_some());
-    let prune_eligible_metadata = deleted_local_metadata
-        .iter()
-        .filter_map(|f| {
-            if all_base_metadata.maybe_find(f.id).is_none() {
-                Some(f.clone())
-            } else {
-                None
-            }
-        })
-        .chain(deleted_both_metadata)
-        .collect::<Vec<DecryptedFileMetadata>>();
-
-    // exclude files with not deleted descendants i.e. exclude files that are the ancestors of not deleted files
-    let all_ids = all_base_metadata
-        .iter()
-        .chain(all_local_metadata.iter())
-        .map(|f| f.id)
-        .collect::<HashSet<Uuid>>();
-    let not_deleted_either_ids = all_ids
-        .into_iter()
-        .filter(|&id| prune_eligible_metadata.maybe_find(id).is_none())
-        .collect::<HashSet<Uuid>>();
-    let ancestors_of_not_deleted_base_ids = not_deleted_either_ids
-        .iter()
-        .flat_map(|&id| files::find_ancestors(&all_base_metadata, id))
-        .map(|f| f.id)
-        .collect::<HashSet<Uuid>>();
-    let ancestors_of_not_deleted_local_ids = not_deleted_either_ids
-        .iter()
-        .flat_map(|&id| files::find_ancestors(&all_local_metadata, id))
-        .map(|f| f.id)
-        .collect::<HashSet<Uuid>>();
-    let deleted_both_without_deleted_descendants_ids =
-        prune_eligible_metadata.into_iter().filter(|f| {
-            !ancestors_of_not_deleted_base_ids.contains(&f.id)
-                && !ancestors_of_not_deleted_local_ids.contains(&f.id)
-        });
-
-    // remove files from disk
-    for file in deleted_both_without_deleted_descendants_ids {
-        delete_metadata(config, file.id)?;
-        if file.file_type == FileType::Document {
-            delete_document(config, file.id)?;
-        }
-    }
-    Ok(())
+    todo!()
 }
 
 fn delete_metadata(config: &Config, id: Uuid) -> Result<(), CoreError> {
@@ -857,10 +963,7 @@ fn delete_metadata(config: &Config, id: Uuid) -> Result<(), CoreError> {
 }
 
 fn delete_document(config: &Config, id: Uuid) -> Result<(), CoreError> {
-    document_repo::delete(config, RepoSource::Local, id)?;
-    document_repo::delete(config, RepoSource::Base, id)?;
-    digest_repo::delete(config, RepoSource::Local, id)?;
-    digest_repo::delete(config, RepoSource::Base, id)
+    todo!()
 }
 
 #[cfg(test)]

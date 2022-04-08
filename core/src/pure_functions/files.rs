@@ -176,6 +176,7 @@ pub fn suggest_non_conflicting_filename(
     }
 }
 
+// TODO this is not a pure function and should be relocated
 pub fn save_document_to_disk(document: &[u8], location: String) -> Result<(), CoreError> {
     OpenOptions::new()
         .write(true)
