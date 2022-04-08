@@ -135,13 +135,10 @@ pub unsafe extern "C" fn get_account() -> *const c_char {
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn create_file_at_path(
-    writeable_path: *const c_char, path_and_name: *const c_char,
-) -> *const c_char {
-    c_string(translate(crate::create_file_at_path(
-        &config_from_ptr(writeable_path),
-        &str_from_ptr(path_and_name),
-    )))
+pub unsafe extern "C" fn create_file_at_path(path_and_name: *const c_char) -> *const c_char {
+    c_string(translate(
+        static_state::get().map(|core| core.create_at_path(&str_from_ptr(path_and_name))),
+    ))
 }
 
 /// # Safety
@@ -196,13 +193,8 @@ pub unsafe extern "C" fn get_children(
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn get_file_by_path(
-    writeable_path: *const c_char, path: *const c_char,
-) -> *const c_char {
-    c_string(translate(crate::get_file_by_path(
-        &config_from_ptr(writeable_path),
-        &str_from_ptr(path),
-    )))
+pub unsafe extern "C" fn get_file_by_path(path: *const c_char) -> *const c_char {
+    c_string(translate(static_state::get().map(|core| core.get_by_path(&str_from_ptr(path)))))
 }
 
 /// # Safety
@@ -247,13 +239,8 @@ pub unsafe extern "C" fn export_drawing(
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn list_paths(
-    writeable_path: *const c_char, filter: *const c_char,
-) -> *const c_char {
-    c_string(translate(crate::list_paths(
-        &config_from_ptr(writeable_path),
-        filter_from_ptr(filter),
-    )))
+pub unsafe extern "C" fn list_paths(filter: *const c_char) -> *const c_char {
+    c_string(translate(static_state::get().map(|core| core.list_paths(filter_from_ptr(filter)))))
 }
 
 /// # Safety

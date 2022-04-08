@@ -20,6 +20,18 @@ impl Display for UnexpectedError {
     }
 }
 
+impl From<CoreError> for UnexpectedError {
+    fn from(e: CoreError) -> Self {
+        UnexpectedError(format!("{:?}", e))
+    }
+}
+
+impl From<hmdb::errors::Error> for UnexpectedError {
+    fn from(err: hmdb::errors::Error) -> Self {
+        UnexpectedError(format!("{:#?}", err))
+    }
+}
+
 impl Serialize for UnexpectedError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -281,6 +293,20 @@ impl From<CoreError> for Error<CreateFileAtPathError> {
             CoreError::AccountNonexistent => UiError(CreateFileAtPathError::NoAccount),
             CoreError::PathTaken => UiError(CreateFileAtPathError::FileAlreadyExists),
             CoreError::FileNotFolder => UiError(CreateFileAtPathError::DocumentTreatedAsFolder),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum GetFileByPathError {
+    NoFileAtThatPath,
+}
+
+impl From<CoreError> for Error<GetFileByPathError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::FileNonexistent => UiError(GetFileByPathError::NoFileAtThatPath),
             _ => unexpected!("{:#?}", e),
         }
     }

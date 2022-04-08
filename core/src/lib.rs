@@ -28,7 +28,8 @@ use service::log_service;
 
 use crate::billing_service::CreditCardLast4Digits;
 use crate::model::errors::{
-    AccountExportError, CreateAccountError, CreateFileAtPathError, GetAccountError, ImportError,
+    AccountExportError, CreateAccountError, CreateFileAtPathError, GetAccountError,
+    GetFileByPathError, ImportError,
 };
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
@@ -213,19 +214,11 @@ pub fn get_file_by_id(
     })
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetFileByPathError {
-    NoFileAtThatPath,
-}
-
 #[instrument(skip(config, path), err(Debug))]
 pub fn get_file_by_path(
     config: &Config, path: &str,
 ) -> Result<DecryptedFileMetadata, Error<GetFileByPathError>> {
-    path_service::get_by_path(config, path).map_err(|e| match e {
-        CoreError::FileNonexistent => UiError(GetFileByPathError::NoFileAtThatPath),
-        _ => unexpected!("{:#?}", e),
-    })
+    todo!()
 }
 
 #[derive(Debug, Serialize, EnumIter)]
@@ -289,18 +282,17 @@ pub fn save_document_to_disk(
 pub fn list_paths(
     config: &Config, filter: Option<path_service::Filter>,
 ) -> Result<Vec<String>, UnexpectedError> {
-    path_service::get_all_paths(config, filter).map_err(|e| unexpected_only!("{:#?}", e))
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]
 pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, UnexpectedError> {
-    path_service::get_path_by_id(config, id).map_err(|e| unexpected_only!("{:#?}", e))
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]
 pub fn list_metadatas(config: &Config) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
-    file_service::get_all_not_deleted_metadata(config, RepoSource::Local)
-        .map_err(|e| unexpected_only!("{:#?}", e))
+    todo!()
 }
 
 #[derive(Debug, Serialize, EnumIter)]
