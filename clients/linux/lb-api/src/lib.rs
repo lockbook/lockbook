@@ -52,8 +52,6 @@ pub use lockbook_core::DEFAULT_API_LOCATION;
 use lockbook_core::model::filename::NameComponents;
 
 pub trait Api: Send + Sync {
-    fn init_logger(&self, log_path: &Path) -> Result<(), UnexpectedError>;
-
     fn db_state(&self) -> Result<DbState, UnexpectedError>;
     fn migrate_db(&self) -> Result<(), Error<MigrationError>>;
 
@@ -147,10 +145,6 @@ impl Default for DefaultApi {
 }
 
 impl Api for DefaultApi {
-    fn init_logger(&self, log_path: &Path) -> Result<(), UnexpectedError> {
-        lockbook_core::init_logger(log_path)
-    }
-
     fn db_state(&self) -> Result<DbState, UnexpectedError> {
         lockbook_core::get_db_state(&self.cfg)
     }

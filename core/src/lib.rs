@@ -28,8 +28,8 @@ use service::log_service;
 
 use crate::billing_service::CreditCardLast4Digits;
 use crate::model::errors::{
-    AccountExportError, CreateAccountError, CreateFileAtPathError, GetAccountError,
-    GetFileByPathError, ImportError,
+    AccountExportError, CreateAccountError, CreateFileAtPathError, CreateFileError,
+    GetAccountError, GetFileByPathError, GetRootError, ImportError, WriteToDocumentError,
 };
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
@@ -55,17 +55,13 @@ pub struct LbCore {
 
 impl LbCore {
     pub fn init(config: &Config) -> Result<Self, UnexpectedError> {
+        log_service::init(&config.writeable_path)?;
         let db = schema::CoreV1::init(&config.writeable_path)
             .map_err(|err| unexpected_only!("{:#?}", err))?;
         let config = config.clone();
 
         Ok(Self { config, db })
     }
-}
-
-#[instrument(skip(log_path), err(Debug))]
-pub fn init_logger(log_path: &Path) -> Result<(), UnexpectedError> {
-    log_service::init(log_path).map_err(|err| unexpected_only!("{:#?}", err))
 }
 
 #[instrument(skip(config), err(Debug))]
@@ -117,69 +113,30 @@ pub fn create_file_at_path(
     todo!()
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum WriteToDocumentError {
-    NoAccount,
-    FileDoesNotExist,
-    FolderTreatedAsDocument,
-}
-
 #[instrument(skip(config, content), err(Debug))]
 pub fn write_document(
     config: &Config, id: Uuid, content: &[u8],
 ) -> Result<(), Error<WriteToDocumentError>> {
-    file_service::write_document(config, id, content).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(WriteToDocumentError::NoAccount),
-        CoreError::FileNonexistent => UiError(WriteToDocumentError::FileDoesNotExist),
-        CoreError::FileNotDocument => UiError(WriteToDocumentError::FolderTreatedAsDocument),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum CreateFileError {
-    NoAccount,
-    DocumentTreatedAsFolder,
-    CouldNotFindAParent,
-    FileNameNotAvailable,
-    FileNameEmpty,
-    FileNameContainsSlash,
+    todo!()
 }
 
 #[instrument(skip(config, name), err(Debug))]
 pub fn create_file(
     config: &Config, name: &str, parent: Uuid, file_type: FileType,
 ) -> Result<DecryptedFileMetadata, Error<CreateFileError>> {
-    file_service::create_file(config, name, parent, file_type).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(CreateFileError::NoAccount),
-        CoreError::FileNonexistent => UiError(CreateFileError::CouldNotFindAParent),
-        CoreError::PathTaken => UiError(CreateFileError::FileNameNotAvailable),
-        CoreError::FileNotFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
-        CoreError::FileParentNonexistent => UiError(CreateFileError::CouldNotFindAParent),
-        CoreError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
-        CoreError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetRootError {
-    NoRoot,
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]
 pub fn get_root(config: &Config) -> Result<DecryptedFileMetadata, Error<GetRootError>> {
-    file_service::get_root(config).map_err(|err| match err {
-        CoreError::RootNonexistent => UiError(GetRootError::NoRoot),
-        _ => unexpected!("{:#?}", err),
-    })
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]
 pub fn get_children(
     config: &Config, id: Uuid,
 ) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
-    file_service::get_children(config, id).map_err(|e| unexpected_only!("{:#?}", e))
+    todo!()
 }
 
 #[derive(Debug, Serialize, EnumIter)]

@@ -6,8 +6,7 @@ mod get_usage_tests {
     use lockbook_core::repo::document_repo;
     use lockbook_core::service::test_utils::{generate_account, random_username, test_config};
     use lockbook_core::{
-        create_account, create_file, delete_file, get_root, get_usage, init_logger, sync_all,
-        write_document,
+        create_account, create_file, delete_file, get_root, get_usage, sync_all, write_document,
     };
     use lockbook_models::file_metadata::FileType;
     use lockbook_models::file_metadata::FileType::Folder;
@@ -66,7 +65,6 @@ mod get_usage_tests {
     #[test]
     fn usage_go_back_down_after_delete_folder() {
         let config = test_config();
-        init_logger(Path::new("/tmp/logs")).unwrap();
         let generated_account = generate_account();
         create_account(&config, &generated_account.username, &generated_account.api_url).unwrap();
         let root = get_root(&config).unwrap();

@@ -62,16 +62,6 @@ pub unsafe extern "C" fn release_pointer(s: *mut c_char) {
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn init_logger_safely(writeable_path: *const c_char) {
-    if crate::init_logger(config_from_ptr(writeable_path).path()).is_ok() {
-        debug!("Logger initialized!");
-    }
-}
-
-/// # Safety
-///
-/// Be sure to call `release_pointer` on the result of this function to free the data.
-#[no_mangle]
 pub unsafe extern "C" fn init(writeable_path: *const c_char) -> *const c_char {
     c_string(translate(static_state::init(&config_from_ptr(writeable_path))))
 }
@@ -176,7 +166,7 @@ pub unsafe extern "C" fn create_file(
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_root(writeable_path: *const c_char) -> *const c_char {
-    c_string(translate(crate::get_root(&Config { writeable_path: str_from_ptr(writeable_path) })))
+    c_string(translate(static_state::get().map(|core| core.get_root())))
 }
 
 /// # Safety

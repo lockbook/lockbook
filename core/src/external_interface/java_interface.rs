@@ -22,9 +22,9 @@ use crate::service::sync_service::SyncProgress;
 use crate::{
     calculate_work, create_file, delete_file, export_account, export_drawing,
     export_drawing_to_disk, get_account, get_all_error_variants, get_children, get_db_state,
-    get_file_by_id, get_root, get_uncompressed_usage, get_usage, init_logger, migrate_db,
-    move_file, read_document, rename_file, save_document_to_disk, sync_all, unexpected_only,
-    write_document, Error, SupportedImageFormats, UnexpectedError,
+    get_file_by_id, get_root, get_uncompressed_usage, get_usage, migrate_db, move_file,
+    read_document, rename_file, save_document_to_disk, sync_all, unexpected_only, write_document,
+    Error, SupportedImageFormats, UnexpectedError,
 };
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
@@ -93,19 +93,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_init(
     };
 
     string_to_jstring(&env, translate(static_state::init(&config)))
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_initLogger(
-    env: JNIEnv, _: JClass, jpath: JString,
-) -> jstring {
-    let absolute_path = match jstring_to_string(&env, jpath, "path") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-    let path = Path::new(&absolute_path);
-
-    string_to_jstring(&env, translate(init_logger(path)))
 }
 
 #[no_mangle]

@@ -11,7 +11,7 @@ use crate::CoreError;
 
 static LOG_FILE: &str = "lockbook.log";
 
-pub fn init(log_path: &Path) -> Result<(), CoreError> {
+pub fn init<P: AsRef<Path>>(log_path: P) -> Result<(), CoreError> {
     let lockbook_log_level = env::var("LOG_LEVEL")
         .ok()
         .and_then(|s| LevelFilter::from_str(s.as_str()).ok())

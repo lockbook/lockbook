@@ -1,7 +1,7 @@
 use lockbook_core::model::state::Config;
 use lockbook_core::{
-    get_account, get_db_state, get_last_synced_human_string, init_logger, list_metadatas,
-    migrate_db, GetAccountError, MigrationError,
+    get_account, get_db_state, get_last_synced_human_string, list_metadatas, migrate_db,
+    GetAccountError, MigrationError,
 };
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 use std::{env, fs};
@@ -22,10 +22,6 @@ macro_rules! path_string {
     ($pb:expr) => {
         $pb.to_string_lossy().to_string()
     };
-}
-
-pub fn init_logger_or_print() -> CliResult<()> {
-    Ok(init_logger(config()?.path())?)
 }
 
 pub fn account() -> CliResult<Account> {

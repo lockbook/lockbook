@@ -26,7 +26,7 @@ impl LbCore {
 
             let is_folder = path_and_name.ends_with('/');
 
-            let mut files = tx.get_all_non_deleted_metadata(RepoSource::Local)?;
+            let mut files = tx.get_all_not_deleted_metadata(RepoSource::Local)?;
 
             let mut current = files.find_root()?;
             let root_id = current.id;
@@ -86,7 +86,7 @@ impl LbCore {
         &self, path: &str,
     ) -> Result<DecryptedFileMetadata, Error<GetFileByPathError>> {
         let val = self.db.transaction(|tx| {
-            let files = tx.get_all_non_deleted_metadata(RepoSource::Local)?;
+            let files = tx.get_all_not_deleted_metadata(RepoSource::Local)?;
             let paths = split_path(path);
 
             let mut current = files.find_root()?;
@@ -123,7 +123,7 @@ impl LbCore {
 
     pub fn get_path_by_id(&self, id: Uuid) -> Result<String, UnexpectedError> {
         let val: Result<_, CoreError> = self.db.transaction(|tx| {
-            let files = tx.get_all_non_deleted_metadata(RepoSource::Local)?;
+            let files = tx.get_all_not_deleted_metadata(RepoSource::Local)?;
             let mut current_metadata = files.find(id)?;
             let mut path = String::from("");
 
@@ -149,7 +149,7 @@ impl LbCore {
 
     pub fn list_paths(&self, filter: Option<Filter>) -> Result<Vec<String>, UnexpectedError> {
         let val: Result<_, CoreError> = self.db.transaction(|tx| {
-            let files = tx.get_all_non_deleted_metadata(RepoSource::Local)?;
+            let files = tx.get_all_not_deleted_metadata(RepoSource::Local)?;
 
             let mut filtered_files = files.clone();
 

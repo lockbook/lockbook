@@ -4,7 +4,7 @@ use lockbook_core::LbCore;
 use structopt::StructOpt;
 
 use crate::error::CliResult;
-use crate::utils::{check_and_perform_migrations, config, init_logger_or_print};
+use crate::utils::{check_and_perform_migrations, config};
 use lockbook_core::service::path_service::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 
 mod backup;
@@ -152,8 +152,6 @@ enum Lockbook {
 }
 
 fn parse_and_run() -> CliResult<()> {
-    init_logger_or_print()?;
-
     let args = Lockbook::from_args();
     let core = LbCore::init(&config()?)?;
 

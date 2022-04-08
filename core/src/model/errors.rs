@@ -311,3 +311,60 @@ impl From<CoreError> for Error<GetFileByPathError> {
         }
     }
 }
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum CreateFileError {
+    NoAccount,
+    DocumentTreatedAsFolder,
+    CouldNotFindAParent,
+    FileNameNotAvailable,
+    FileNameEmpty,
+    FileNameContainsSlash,
+}
+
+impl From<CoreError> for Error<CreateFileError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::AccountNonexistent => UiError(CreateFileError::NoAccount),
+            CoreError::FileNonexistent => UiError(CreateFileError::CouldNotFindAParent),
+            CoreError::PathTaken => UiError(CreateFileError::FileNameNotAvailable),
+            CoreError::FileNotFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
+            CoreError::FileParentNonexistent => UiError(CreateFileError::CouldNotFindAParent),
+            CoreError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
+            CoreError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum WriteToDocumentError {
+    NoAccount,
+    FileDoesNotExist,
+    FolderTreatedAsDocument,
+}
+
+impl From<CoreError> for Error<WriteToDocumentError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::AccountNonexistent => UiError(WriteToDocumentError::NoAccount),
+            CoreError::FileNonexistent => UiError(WriteToDocumentError::FileDoesNotExist),
+            CoreError::FileNotDocument => UiError(WriteToDocumentError::FolderTreatedAsDocument),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum GetRootError {
+    NoRoot,
+}
+
+impl From<CoreError> for Error<GetRootError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::RootNonexistent => UiError(GetRootError::NoRoot),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
