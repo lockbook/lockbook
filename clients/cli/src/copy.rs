@@ -2,11 +2,11 @@ use std::cell::Cell;
 use std::io::Write;
 use std::path::PathBuf;
 
+use lockbook_core::model::errors::CreateFileAtPathError;
+use lockbook_core::model::errors::GetFileByPathError;
+use lockbook_core::model::errors::ImportFileError;
 use lockbook_core::service::import_export_service::ImportStatus;
-use lockbook_core::{
-    create_file_at_path, get_file_by_path, import_files, CoreError, CreateFileAtPathError,
-    GetFileByPathError, ImportFileError,
-};
+use lockbook_core::{create_file_at_path, get_file_by_path, import_files, CoreError};
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 
 use crate::error::CliResult;

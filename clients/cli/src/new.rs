@@ -1,6 +1,5 @@
-use lockbook_core::{
-    create_file_at_path, delete_file, CreateFileAtPathError, Error::*, FileDeleteError,
-};
+use lockbook_core::model::errors::CreateFileAtPathError;
+use lockbook_core::{create_file_at_path, Error as CoreError};
 use lockbook_models::file_metadata::FileType::Folder;
 use std::fs;
 use std::fs::File;

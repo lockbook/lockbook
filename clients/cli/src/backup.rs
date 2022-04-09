@@ -4,10 +4,10 @@ use std::{env, fs};
 
 use chrono::{DateTime, Utc};
 
+use lockbook_core::model::errors::ExportFileError;
+use lockbook_core::model::errors::GetRootError;
 use lockbook_core::service::path_service::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
-use lockbook_core::{
-    export_file, get_root, list_paths, Error as CoreError, ExportFileError, GetRootError,
-};
+use lockbook_core::{export_file, get_root, list_paths, Error as CoreError};
 
 use crate::error::CliResult;
 use crate::utils::{account, config};

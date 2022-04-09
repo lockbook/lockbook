@@ -1,10 +1,12 @@
 use std::io;
 use std::io::Write;
 
+use lockbook_core::model::errors::FileDeleteError;
+use lockbook_core::model::errors::GetAndGetChildrenError;
+use lockbook_core::model::errors::GetFileByPathError;
 use lockbook_core::{
     delete_file, get_and_get_children_recursively, get_file_by_path, Error::UiError,
-    Error::Unexpected as UnexpectedError, FileDeleteError, GetAndGetChildrenError,
-    GetFileByPathError,
+    Error::Unexpected as UnexpectedError,
 };
 use lockbook_models::file_metadata::FileType;
 

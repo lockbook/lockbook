@@ -1,4 +1,5 @@
-use lockbook_core::{calculate_work, CalculateWorkError, Error as CoreError};
+use lockbook_core::model::errors::CalculateWorkError;
+use lockbook_core::{calculate_work, Error as CoreError};
 use lockbook_models::work_unit::WorkUnit;
 
 use crate::error::CliResult;

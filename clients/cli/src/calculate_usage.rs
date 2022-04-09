@@ -1,7 +1,8 @@
 use crate::error::CliResult;
 use crate::utils::{account, config};
 use crate::{err, err_unexpected};
-use lockbook_core::{Error as CoreError, GetUsageError};
+use lockbook_core::model::errors::GetUsageError;
+use lockbook_core::Error as CoreError;
 
 pub fn calculate_usage(exact: bool) -> CliResult<()> {
     account()?;

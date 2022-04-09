@@ -1,7 +1,8 @@
 use crate::error::CliResult;
 use crate::utils::{account, config};
 use crate::{err, err_unexpected};
-use lockbook_core::{get_file_by_path, read_document, Error as CoreError, GetFileByPathError};
+use lockbook_core::model::errors::GetFileByPathError;
+use lockbook_core::{get_file_by_path, read_document, Error as CoreError};
 use std::io;
 use std::io::Write;
 

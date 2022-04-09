@@ -1,7 +1,9 @@
 use crate::error::CliResult;
 use crate::utils::{config, get_image_format};
 use crate::{err, err_unexpected};
-use lockbook_core::{get_file_by_path, Error as CoreError, ExportDrawingError, GetFileByPathError};
+use lockbook_core::model::errors::ExportDrawingError;
+use lockbook_core::model::errors::GetFileByPathError;
+use lockbook_core::{get_file_by_path, Error as CoreError};
 use std::io::{stdout, Write};
 
 pub fn export_drawing(lb_path: &str, format: &str) -> CliResult<()> {

@@ -2,9 +2,9 @@ use std::fs;
 use std::io::Write;
 use std::path::Path;
 
-use lockbook_core::{
-    get_file_by_path, read_document, Error as CoreError, GetFileByPathError, ReadDocumentError,
-};
+use lockbook_core::model::errors::GetFileByPathError;
+use lockbook_core::model::errors::ReadDocumentError;
+use lockbook_core::{get_file_by_path, read_document, Error as CoreError};
 
 use crate::error::CliResult;
 use crate::utils::{

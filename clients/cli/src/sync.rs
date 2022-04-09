@@ -1,5 +1,6 @@
+use lockbook_core::model::errors::SyncAllError;
 use lockbook_core::service::sync_service::SyncProgress;
-use lockbook_core::{sync_all, Error, SyncAllError};
+use lockbook_core::{sync_all, Error};
 use lockbook_models::work_unit::ClientWorkUnit;
 
 use crate::error::CliResult;

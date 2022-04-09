@@ -1,9 +1,9 @@
 use crate::error::CliResult;
 use crate::utils::{account, config};
 use crate::{err, err_unexpected};
-use lockbook_core::{
-    get_file_by_path, rename_file, Error as CoreError, GetFileByPathError, RenameFileError,
-};
+use lockbook_core::model::errors::GetFileByPathError;
+use lockbook_core::model::errors::RenameFileError;
+use lockbook_core::{get_file_by_path, rename_file, Error as CoreError};
 
 pub fn rename(path: &str, new_name: &str) -> CliResult<()> {
     account()?;

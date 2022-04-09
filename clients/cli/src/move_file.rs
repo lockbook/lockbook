@@ -1,4 +1,6 @@
-use lockbook_core::{get_file_by_path, Error as CoreError, GetFileByPathError, MoveFileError};
+use lockbook_core::model::errors::GetFileByPathError;
+use lockbook_core::model::errors::MoveFileError;
+use lockbook_core::{get_file_by_path, Error as CoreError};
 
 use crate::error::CliResult;
 use crate::utils::{account, config};

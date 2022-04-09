@@ -1,9 +1,11 @@
+use lockbook_core::model::errors::GetAccountError;
+use lockbook_core::model::errors::WriteToDocumentError;
 use lockbook_core::model::state::Config;
 use lockbook_core::{
     get_account, get_db_state, get_last_synced_human_string, list_metadatas, migrate_db,
-    GetAccountError, MigrationError,
+    MigrationError,
 };
-use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
+use lockbook_core::{write_document, Error as CoreError};
 use std::{env, fs};
 
 use crate::error::CliResult;
