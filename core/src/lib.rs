@@ -111,7 +111,7 @@ impl LbCore {
     }
 
     pub fn write_document(
-        &self, config: &Config, id: Uuid, content: &[u8],
+        &self, id: Uuid, content: &[u8],
     ) -> Result<(), Error<WriteToDocumentError>> {
         let val: Result<_, CoreError> = self.db.transaction(|tx| {
             let metadata = tx.get_not_deleted_metadata(RepoSource::Local, id)?;
@@ -226,13 +226,11 @@ impl LbCore {
 
     pub fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>> {
         let val = self.db.transaction(|tx| tx.calculate_work(&self.config))?;
-
         Ok(val?)
     }
 
     pub fn sync<F: Fn(SyncProgress)>(&self, f: Option<F>) -> Result<(), Error<SyncAllError>> {
         let val = self.db.transaction(|tx| tx.sync(&self.config, f))?;
-
         Ok(val?)
     }
 }
