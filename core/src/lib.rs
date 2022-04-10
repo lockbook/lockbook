@@ -219,7 +219,7 @@ pub fn sync_all(
 
 #[instrument(skip(config), err(Debug))]
 pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, UnexpectedError> {
-    file_service::get_local_changes(config).map_err(|e| unexpected_only!("{:#?}", e))
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]

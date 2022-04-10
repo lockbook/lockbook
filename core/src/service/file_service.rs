@@ -32,7 +32,7 @@ use crate::service::{file_compression_service, file_service};
 use crate::CoreError::RootNonexistent;
 use crate::{
     CoreError, CreateFileError, Error, FileDeleteError, GetAndGetChildrenError, GetFileByIdError,
-    LbCore, ReadDocumentError, UnexpectedError, WriteToDocumentError,
+    LbCore, MoveFileError, ReadDocumentError, UnexpectedError, WriteToDocumentError,
 };
 
 impl LbCore {
@@ -121,10 +121,17 @@ impl LbCore {
         Ok(val?)
     }
 
-    pub fn move_file(&self, id: Uuid, new_parent: Uuid) -> Result<(), CoreError> {
+    pub fn move_file(&self, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
         let val = self
             .db
             .transaction(|tx| tx.move_file(&self.config, id, new_parent))?;
+        Ok(val?)
+    }
+
+    pub fn get_local_changes(&self) -> Result<Vec<Uuid>, UnexpectedError> {
+        let val = self
+            .db
+            .transaction(|tx| tx.get_local_changes(&self.config))?;
         Ok(val?)
     }
 }
@@ -653,6 +660,16 @@ impl Tx<'_> {
 
         Ok(())
     }
+
+    pub fn get_local_changes(&self, config: &Config) -> Result<Vec<Uuid>, CoreError> {
+        Ok(self
+            .get_all_metadata_changes()?
+            .into_iter()
+            .map(|f| f.id)
+            .chain(self.get_all_with_document_changes(config)?.into_iter())
+            .unique()
+            .collect())
+    }
 }
 
 pub fn create_file(
@@ -673,15 +690,6 @@ pub fn get_and_get_children_recursively(
     config: &Config, id: Uuid,
 ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
     todo!()
-}
-
-pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, CoreError> {
-    Ok(get_all_metadata_changes(config)?
-        .into_iter()
-        .map(|f| f.id)
-        .chain(get_all_with_document_changes(config)?.into_iter())
-        .unique()
-        .collect())
 }
 
 pub fn get_all_metadata_changes(config: &Config) -> Result<Vec<FileMetadataDiff>, CoreError> {
