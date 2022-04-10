@@ -224,12 +224,7 @@ pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, UnexpectedError> 
 
 #[instrument(skip(config), err(Debug))]
 pub fn calculate_work(config: &Config) -> Result<WorkCalculated, Error<CalculateWorkError>> {
-    sync_service::calculate_work(config).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(CalculateWorkError::NoAccount),
-        CoreError::ServerUnreachable => UiError(CalculateWorkError::CouldNotReachServer),
-        CoreError::ClientUpdateRequired => UiError(CalculateWorkError::ClientUpdateRequired),
-        _ => unexpected!("{:#?}", e),
-    })
+    todo!()
 }
 
 #[instrument(skip(config), ret(Debug))]

@@ -1,5 +1,6 @@
 use std::fmt;
 
+use hmdb::transaction::Transaction;
 use serde::Serialize;
 
 use lockbook_crypto::clock_service::get_time;
@@ -21,7 +22,7 @@ use crate::repo::account_repo;
 use crate::repo::last_updated_repo;
 use crate::schema::{OneKey, Tx};
 use crate::service::{api_service, file_encryption_service, file_service};
-use crate::CoreError;
+use crate::{CalculateWorkError, CoreError, Error, LbCore, SyncAllError};
 
 use super::file_compression_service;
 
@@ -38,76 +39,7 @@ pub struct SyncProgress {
 }
 
 pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CoreError> {
-    let account = account_repo::get(config)?;
-    let base_metadata = file_service::get_all_metadata(config, RepoSource::Base)?;
-    let base_max_metadata_version = base_metadata
-        .iter()
-        .map(|f| f.metadata_version)
-        .max()
-        .unwrap_or(0);
-
-    let server_updates = api_service::request(
-        &account,
-        GetUpdatesRequest { since_metadata_version: base_max_metadata_version },
-    )
-    .map_err(CoreError::from)?
-    .file_metadata;
-
-    calculate_work_from_updates(config, &server_updates, base_max_metadata_version)
-}
-
-fn calculate_work_from_updates(
-    config: &Config, server_updates: &[EncryptedFileMetadata], mut last_sync: u64,
-) -> Result<WorkCalculated, CoreError> {
-    let mut work_units: Vec<WorkUnit> = vec![];
-    let (all_metadata, _) = file_service::get_all_metadata_with_encrypted_changes(
-        config,
-        RepoSource::Local,
-        server_updates,
-    )?;
-    for metadata in server_updates {
-        // skip filtered changes
-        if all_metadata.maybe_find(metadata.id).is_none() {
-            continue;
-        }
-
-        if metadata.metadata_version > last_sync {
-            last_sync = metadata.metadata_version;
-        }
-
-        match file_service::maybe_get_metadata(config, RepoSource::Local, metadata.id)? {
-            None => {
-                if !metadata.deleted {
-                    // no work for files we don't have that have been deleted
-                    work_units
-                        .push(WorkUnit::ServerChange { metadata: all_metadata.find(metadata.id)? })
-                }
-            }
-            Some(local_metadata) => {
-                if metadata.metadata_version != local_metadata.metadata_version {
-                    work_units
-                        .push(WorkUnit::ServerChange { metadata: all_metadata.find(metadata.id)? })
-                }
-            }
-        };
-    }
-
-    work_units.sort_by(|f1, f2| {
-        f1.get_metadata()
-            .metadata_version
-            .cmp(&f2.get_metadata().metadata_version)
-    });
-
-    for file_diff in file_service::get_all_metadata_changes(config)? {
-        let metadata = file_service::get_metadata(config, RepoSource::Local, file_diff.id)?;
-        work_units.push(WorkUnit::LocalChange { metadata });
-    }
-    for doc_id in file_service::get_all_with_document_changes(config)? {
-        let metadata = file_service::get_metadata(config, RepoSource::Local, doc_id)?;
-        work_units.push(WorkUnit::LocalChange { metadata });
-    }
-
-    Ok(WorkCalculated { work_units, most_recent_update_from_server: last_sync })
+    todo!()
 }
 
 #[derive(PartialEq, Debug)]
@@ -115,6 +47,20 @@ pub enum MaybeMergeResult<T> {
     Resolved(T),
     Conflict { base: T, local: T, remote: T },
     BaselessConflict { local: T, remote: T },
+}
+
+impl LbCore {
+    pub fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>> {
+        let val = self.db.transaction(|tx| tx.calculate_work(&self.config))?;
+
+        Ok(val?)
+    }
+
+    pub fn sync<F: Fn(SyncProgress)>(&self, f: Option<F>) -> Result<(), Error<SyncAllError>> {
+        let val = self.db.transaction(|tx| tx.sync(&self.config, f))?;
+
+        Ok(val?)
+    }
 }
 
 fn merge_maybe<T>(
@@ -451,8 +397,8 @@ pub fn sync(
 
 impl Tx<'_> {
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn sync(
-        &mut self, config: &Config, maybe_update_sync_progress: Option<Box<dyn Fn(SyncProgress)>>,
+    pub fn sync<F: Fn(SyncProgress)>(
+        &mut self, config: &Config, maybe_update_sync_progress: Option<F>,
     ) -> Result<(), CoreError> {
         let mut sync_progress_total = 4 + self.get_all_with_document_changes(config)?.len(); // 3 metadata pulls + 1 metadata push + doc pushes
         let mut sync_progress = 0;
@@ -746,6 +692,78 @@ impl Tx<'_> {
         self.promote_documents(config)?;
 
         Ok(())
+    }
+
+    pub fn calculate_work(&self, config: &Config) -> Result<WorkCalculated, CoreError> {
+        let account = &self.get_account()?;
+        let base_metadata = self.get_all_metadata(RepoSource::Base)?;
+        let base_max_metadata_version = base_metadata
+            .iter()
+            .map(|f| f.metadata_version)
+            .max()
+            .unwrap_or(0);
+
+        let server_updates = api_service::request(
+            &account,
+            GetUpdatesRequest { since_metadata_version: base_max_metadata_version },
+        )
+        .map_err(CoreError::from)?
+        .file_metadata;
+
+        self.calculate_work_from_updates(config, &server_updates, base_max_metadata_version)
+    }
+
+    fn calculate_work_from_updates(
+        &self, config: &Config, server_updates: &[EncryptedFileMetadata], mut last_sync: u64,
+    ) -> Result<WorkCalculated, CoreError> {
+        let mut work_units: Vec<WorkUnit> = vec![];
+        let (all_metadata, _) =
+            self.get_all_metadata_with_encrypted_changes(RepoSource::Local, server_updates)?;
+        for metadata in server_updates {
+            // skip filtered changes
+            if all_metadata.maybe_find(metadata.id).is_none() {
+                continue;
+            }
+
+            if metadata.metadata_version > last_sync {
+                last_sync = metadata.metadata_version;
+            }
+
+            match self.maybe_get_metadata(RepoSource::Local, metadata.id)? {
+                None => {
+                    if !metadata.deleted {
+                        // no work for files we don't have that have been deleted
+                        work_units.push(WorkUnit::ServerChange {
+                            metadata: all_metadata.find(metadata.id)?,
+                        })
+                    }
+                }
+                Some(local_metadata) => {
+                    if metadata.metadata_version != local_metadata.metadata_version {
+                        work_units.push(WorkUnit::ServerChange {
+                            metadata: all_metadata.find(metadata.id)?,
+                        })
+                    }
+                }
+            };
+        }
+
+        work_units.sort_by(|f1, f2| {
+            f1.get_metadata()
+                .metadata_version
+                .cmp(&f2.get_metadata().metadata_version)
+        });
+
+        for file_diff in self.get_all_metadata_changes()? {
+            let metadata = self.get_metadata(RepoSource::Local, file_diff.id)?;
+            work_units.push(WorkUnit::LocalChange { metadata });
+        }
+        for doc_id in self.get_all_with_document_changes(config)? {
+            let metadata = self.get_metadata(RepoSource::Local, doc_id)?;
+            work_units.push(WorkUnit::LocalChange { metadata });
+        }
+
+        Ok(WorkCalculated { work_units, most_recent_update_from_server: last_sync })
     }
 }
 
