@@ -115,7 +115,7 @@ impl LbCore {
     ) -> Result<(), Error<WriteToDocumentError>> {
         let val: Result<_, CoreError> = self.db.transaction(|tx| {
             let metadata = tx.get_not_deleted_metadata(RepoSource::Local, id)?;
-            tx.insert_document(config, RepoSource::Local, &metadata, content)?;
+            tx.insert_document(&self.config, RepoSource::Local, &metadata, content)?;
             Ok(())
         })?;
         Ok(val?)
