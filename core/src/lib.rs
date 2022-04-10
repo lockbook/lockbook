@@ -32,8 +32,9 @@ use crate::model::errors::{
     CreateFileError, ExportDrawingError, ExportDrawingToDiskError, ExportFileError,
     FileDeleteError, GetAccountError, GetAndGetChildrenError, GetCreditCard, GetDrawingError,
     GetFileByIdError, GetFileByPathError, GetRootError, GetUsageError, ImportError,
-    ImportFileError, MoveFileError, ReadDocumentError, RenameFileError, SaveDocumentToDiskError,
-    SaveDrawingError, SwitchAccountTierError, SyncAllError, WriteToDocumentError,
+    ImportFileError, MigrationError, MoveFileError, ReadDocumentError, RenameFileError,
+    SaveDocumentToDiskError, SaveDrawingError, SwitchAccountTierError, SyncAllError,
+    WriteToDocumentError,
 };
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
@@ -71,11 +72,6 @@ impl LbCore {
 #[instrument(skip(config), err(Debug))]
 pub fn get_db_state(config: &Config) -> Result<State, UnexpectedError> {
     db_state_service::get_state(config).map_err(|e| unexpected_only!("{:#?}", e))
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum MigrationError {
-    StateRequiresCleaning,
 }
 
 #[instrument(skip(config), err(Debug))]
@@ -218,12 +214,7 @@ pub fn move_file(
 pub fn sync_all(
     config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), Error<SyncAllError>> {
-    sync_service::sync(config, f).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(SyncAllError::NoAccount),
-        CoreError::ServerUnreachable => UiError(SyncAllError::CouldNotReachServer),
-        CoreError::ClientUpdateRequired => UiError(SyncAllError::ClientUpdateRequired),
-        _ => unexpected!("{:#?}", e),
-    })
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]

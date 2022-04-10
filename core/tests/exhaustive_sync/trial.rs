@@ -5,6 +5,7 @@ use uuid::Uuid;
 use variant_count::VariantCount;
 
 use crate::exhaustive_sync::experiment::ThreadID;
+use lockbook_core::model::errors::MoveFileError;
 use lockbook_core::model::state::Config;
 use lockbook_core::service::api_service;
 use lockbook_core::service::integrity_service::test_repo_integrity;
@@ -12,7 +13,7 @@ use lockbook_core::service::test_utils::{dbs_equal, random_username, test_config
 use lockbook_core::Error::UiError;
 use lockbook_core::{
     calculate_work, create_account, delete_file, export_account, get_account, import_account,
-    move_file, rename_file, sync_all, write_document, MoveFileError,
+    move_file, rename_file, sync_all, write_document,
 };
 use lockbook_core::{create_file, list_metadatas};
 use lockbook_models::api::DeleteAccountRequest;

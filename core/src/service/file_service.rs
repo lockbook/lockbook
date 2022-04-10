@@ -1,6 +1,6 @@
-use hmdb::transaction::Transaction;
 use std::collections::HashSet;
 
+use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use sha2::Digest;
 use sha2::Sha256;
@@ -91,8 +91,8 @@ impl LbCore {
         Ok(val?)
     }
 
-    pub fn delete_file(&self, config: &Config, id: Uuid) -> Result<(), Error<FileDeleteError>> {
-        let val = self.db.transaction(|tx| tx.delete_file(config, id))?;
+    pub fn delete_file(&self, id: Uuid) -> Result<(), Error<FileDeleteError>> {
+        let val = self.db.transaction(|tx| tx.delete_file(&self.config, id))?;
         Ok(val?)
     }
 
@@ -474,6 +474,185 @@ impl Tx<'_> {
         let file = files::apply_move(&files, id, new_parent)?;
         self.insert_metadatum(config, RepoSource::Local, &file)
     }
+
+    pub fn get_all_with_document_changes(&self, config: &Config) -> Result<Vec<Uuid>, CoreError> {
+        let all = self.get_all_metadata(RepoSource::Local)?;
+        let not_deleted = all.filter_not_deleted()?;
+        let not_deleted_with_document_changes = not_deleted
+            .into_iter()
+            .map(|f| {
+                document_repo::maybe_get(config, RepoSource::Local, f.id).map(|r| r.map(|_| f.id))
+            })
+            .collect::<Result<Vec<Option<Uuid>>, CoreError>>()?
+            .into_iter()
+            .flatten()
+            .collect();
+        Ok(not_deleted_with_document_changes)
+    }
+
+    pub fn get_all_metadata_with_encrypted_changes(
+        &self, source: RepoSource, changes: &[EncryptedFileMetadata],
+    ) -> Result<(Vec<DecryptedFileMetadata>, Vec<EncryptedFileMetadata>), CoreError> {
+        let account = self.get_account()?;
+        let base = self.base_metadata.get_all().values().cloned().collect_vec();
+        let sourced = match source {
+            RepoSource::Local => {
+                let local = self
+                    .local_metadata
+                    .get_all()
+                    .values()
+                    .cloned()
+                    .collect_vec();
+                base.stage(&local).into_iter().map(|(f, _)| f).collect()
+            }
+            RepoSource::Base => base,
+        };
+
+        let staged = sourced
+            .stage(changes)
+            .into_iter()
+            .map(|(f, _)| f)
+            .collect::<Vec<EncryptedFileMetadata>>();
+
+        let root = staged.find_root()?;
+        let non_orphans = files::find_with_descendants(&staged, root.id)?;
+        let mut staged_non_orphans = Vec::new();
+        let mut encrypted_orphans = Vec::new();
+        for f in staged {
+            if non_orphans.maybe_find(f.id).is_some() {
+                // only decrypt non-orphans
+                staged_non_orphans.push(f)
+            } else {
+                // deleted orphaned files
+                encrypted_orphans.push(f)
+            }
+        }
+
+        Ok((
+            file_encryption_service::decrypt_metadata(&account, &staged_non_orphans)?,
+            encrypted_orphans,
+        ))
+    }
+
+    pub fn get_all_metadata_state(
+        &self,
+    ) -> Result<Vec<RepoState<DecryptedFileMetadata>>, CoreError> {
+        let account = self.get_account()?;
+        let base_encrypted = self.base_metadata.get_all().values().cloned().collect_vec();
+        let base = file_encryption_service::decrypt_metadata(&account, &base_encrypted)?;
+        let local = {
+            let local_encrypted = self
+                .local_metadata
+                .get_all()
+                .values()
+                .cloned()
+                .collect_vec();
+            let staged = base_encrypted
+                .stage(&local_encrypted)
+                .into_iter()
+                .map(|(f, _)| f)
+                .collect::<Vec<EncryptedFileMetadata>>();
+            let decrypted = file_encryption_service::decrypt_metadata(&account, &staged)?;
+            decrypted
+                .into_iter()
+                .filter(|d| local_encrypted.iter().any(|l| l.id == d.id))
+                .collect::<Vec<DecryptedFileMetadata>>()
+        };
+
+        let new = local
+            .iter()
+            .filter(|&l| !base.iter().any(|b| l.id == b.id))
+            .map(|l| RepoState::New(l.clone()));
+        let unmodified = base
+            .iter()
+            .filter(|&b| !local.iter().any(|l| l.id == b.id))
+            .map(|b| RepoState::Unmodified(b.clone()));
+        let modified = base.iter().filter_map(|b| {
+            local
+                .maybe_find(b.id)
+                .map(|l| RepoState::Modified { base: b.clone(), local: l })
+        });
+
+        Ok(new.chain(unmodified).chain(modified).collect())
+    }
+
+    /// Updates base metadata to match local metadata.
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn promote_metadata(&mut self) -> Result<(), CoreError> {
+        let base_metadata = self.base_metadata.get_all().into_values().collect_vec();
+        let local_metadata = self.local_metadata.get_all().into_values().collect_vec();
+        let staged_metadata = base_metadata.stage(&local_metadata);
+
+        self.base_metadata.clear();
+
+        for (metadata, _) in staged_metadata {
+            self.base_metadata.insert(metadata.id, metadata.clone());
+        }
+
+        self.local_metadata.clear();
+
+        Ok(())
+    }
+
+    pub fn get_all_metadata_changes(&self) -> Result<Vec<FileMetadataDiff>, CoreError> {
+        let local = self.local_metadata.get_all().into_values().collect_vec();
+        let base = self.base_metadata.get_all().into_values().collect_vec();
+
+        let new = local
+            .iter()
+            .filter(|l| !base.iter().any(|r| r.id == l.id))
+            .map(FileMetadataDiff::new);
+        let changed = local
+            .iter()
+            .filter_map(|l| base.iter().find(|r| r.id == l.id).map(|r| (l, r)))
+            .map(|(l, r)| FileMetadataDiff::new_diff(r.parent, &r.name, l));
+
+        Ok(new.chain(changed).collect())
+    }
+
+    /// Updates base documents to match local documents.
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn promote_documents(&mut self, config: &Config) -> Result<(), CoreError> {
+        let base_metadata = self.base_metadata.get_all().into_values().collect_vec();
+        let local_metadata = self.local_metadata.get_all().into_values().collect_vec();
+        let staged_metadata = base_metadata.stage(&local_metadata);
+        let staged_everything = staged_metadata
+            .into_iter()
+            .map(|(f, _)| {
+                Ok((
+                    f.clone(),
+                    match document_repo::maybe_get(config, RepoSource::Local, f.id)? {
+                        Some(document) => Some(document),
+                        None => document_repo::maybe_get(config, RepoSource::Base, f.id)?,
+                    },
+                    match self.local_digest.get(&f.id) {
+                        Some(digest) => Some(digest),
+                        None => digest_repo::maybe_get(config, RepoSource::Base, f.id)?,
+                    },
+                ))
+            })
+            .collect::<Result<
+                Vec<(EncryptedFileMetadata, Option<EncryptedDocument>, Option<Vec<u8>>)>,
+                CoreError,
+            >>()?;
+
+        document_repo::delete_all(config, RepoSource::Base)?;
+        self.base_digest.clear();
+
+        for (metadata, maybe_document, maybe_digest) in staged_everything {
+            if let Some(document) = maybe_document {
+                document_repo::insert(config, RepoSource::Base, metadata.id, &document)?;
+            }
+            if let Some(digest) = maybe_digest {
+                self.base_digest.insert(metadata.id, digest);
+            }
+        }
+
+        document_repo::delete_all(config, RepoSource::Local)?;
+        self.local_digest.clear();
+
+        Ok(())
+    }
 }
 
 pub fn create_file(
@@ -506,32 +685,11 @@ pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, CoreError> {
 }
 
 pub fn get_all_metadata_changes(config: &Config) -> Result<Vec<FileMetadataDiff>, CoreError> {
-    let local = metadata_repo::get_all(config, RepoSource::Local)?;
-    let base = metadata_repo::get_all(config, RepoSource::Base)?;
-
-    let new = local
-        .iter()
-        .filter(|l| !base.iter().any(|r| r.id == l.id))
-        .map(FileMetadataDiff::new);
-    let changed = local
-        .iter()
-        .filter_map(|l| base.iter().find(|r| r.id == l.id).map(|r| (l, r)))
-        .map(|(l, r)| FileMetadataDiff::new_diff(r.parent, &r.name, l));
-
-    Ok(new.chain(changed).collect())
+    todo!()
 }
 
 pub fn get_all_with_document_changes(config: &Config) -> Result<Vec<Uuid>, CoreError> {
-    let all = get_all_metadata(config, RepoSource::Local)?;
-    let not_deleted = all.filter_not_deleted()?;
-    let not_deleted_with_document_changes = not_deleted
-        .into_iter()
-        .map(|f| document_repo::maybe_get(config, RepoSource::Local, f.id).map(|r| r.map(|_| f.id)))
-        .collect::<Result<Vec<Option<Uuid>>, CoreError>>()?
-        .into_iter()
-        .flatten()
-        .collect();
-    Ok(not_deleted_with_document_changes)
+    todo!()
 }
 
 /// Adds or updates the metadata of a file on disk.
@@ -687,77 +845,13 @@ pub fn maybe_get_metadata_state(
 pub fn get_all_metadata_state(
     config: &Config,
 ) -> Result<Vec<RepoState<DecryptedFileMetadata>>, CoreError> {
-    let account = account_repo::get(config)?;
-    let base_encrypted = metadata_repo::get_all(config, RepoSource::Base)?;
-    let base = file_encryption_service::decrypt_metadata(&account, &base_encrypted)?;
-    let local = {
-        let local_encrypted = metadata_repo::get_all(config, RepoSource::Local)?;
-        let staged = base_encrypted
-            .stage(&local_encrypted)
-            .into_iter()
-            .map(|(f, _)| f)
-            .collect::<Vec<EncryptedFileMetadata>>();
-        let decrypted = file_encryption_service::decrypt_metadata(&account, &staged)?;
-        decrypted
-            .into_iter()
-            .filter(|d| local_encrypted.iter().any(|l| l.id == d.id))
-            .collect::<Vec<DecryptedFileMetadata>>()
-    };
-
-    let new = local
-        .iter()
-        .filter(|&l| !base.iter().any(|b| l.id == b.id))
-        .map(|l| RepoState::New(l.clone()));
-    let unmodified = base
-        .iter()
-        .filter(|&b| !local.iter().any(|l| l.id == b.id))
-        .map(|b| RepoState::Unmodified(b.clone()));
-    let modified = base.iter().filter_map(|b| {
-        local
-            .maybe_find(b.id)
-            .map(|l| RepoState::Modified { base: b.clone(), local: l })
-    });
-
-    Ok(new.chain(unmodified).chain(modified).collect())
+    todo!()
 }
 
 pub fn get_all_metadata_with_encrypted_changes(
     config: &Config, source: RepoSource, changes: &[EncryptedFileMetadata],
 ) -> Result<(Vec<DecryptedFileMetadata>, Vec<EncryptedFileMetadata>), CoreError> {
-    let account = account_repo::get(config)?;
-    let base = metadata_repo::get_all(config, RepoSource::Base)?;
-    let sourced = match source {
-        RepoSource::Local => {
-            let local = metadata_repo::get_all(config, RepoSource::Local)?;
-            base.stage(&local).into_iter().map(|(f, _)| f).collect()
-        }
-        RepoSource::Base => base,
-    };
-
-    let staged = sourced
-        .stage(changes)
-        .into_iter()
-        .map(|(f, _)| f)
-        .collect::<Vec<EncryptedFileMetadata>>();
-
-    let root = staged.find_root()?;
-    let non_orphans = files::find_with_descendants(&staged, root.id)?;
-    let mut staged_non_orphans = Vec::new();
-    let mut encrypted_orphans = Vec::new();
-    for f in staged {
-        if non_orphans.maybe_find(f.id).is_some() {
-            // only decrypt non-orphans
-            staged_non_orphans.push(f)
-        } else {
-            // deleted orphaned files
-            encrypted_orphans.push(f)
-        }
-    }
-
-    Ok((
-        file_encryption_service::decrypt_metadata(&account, &staged_non_orphans)?,
-        encrypted_orphans,
-    ))
+    todo!()
 }
 
 /// Adds or updates the content of a document on disk.
@@ -892,22 +986,6 @@ pub fn maybe_get_document_state(
         }
     };
     Ok(RepoState::from_local_and_base(local, base))
-}
-
-/// Updates base metadata to match local metadata.
-#[instrument(level = "debug", skip_all, err(Debug))]
-pub fn promote_metadata(config: &Config) -> Result<(), CoreError> {
-    let base_metadata = metadata_repo::get_all(config, RepoSource::Base)?;
-    let local_metadata = metadata_repo::get_all(config, RepoSource::Local)?;
-    let staged_metadata = base_metadata.stage(&local_metadata);
-
-    metadata_repo::delete_all(config, RepoSource::Base)?;
-
-    for (metadata, _) in staged_metadata {
-        metadata_repo::insert(config, RepoSource::Base, &metadata)?;
-    }
-
-    metadata_repo::delete_all(config, RepoSource::Local)
 }
 
 /// Updates base documents to match local documents.

@@ -1686,9 +1686,9 @@ dependencies = [
 
 [[package]]
 name = "hmdb"
-version = "0.1.9"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48673b7cd6782bd20ce3df30f30cc5e5b6ec7ab74b7a5f34b190cbf0356f7c8b"
+checksum = "b189c81feb022e8c405a9079e4c0f8855dddbef07a5dd6c0527500b2e4a302b7"
 dependencies = [
  "bincode",
  "serde",

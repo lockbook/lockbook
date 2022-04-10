@@ -10,7 +10,6 @@ use lockbook_models::api::{
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
 use lockbook_models::tree::FileMetaExt;
-
 use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 
 use crate::model::filename::DocumentType;
@@ -20,6 +19,7 @@ use crate::model::state::Config;
 use crate::pure_functions::files;
 use crate::repo::account_repo;
 use crate::repo::last_updated_repo;
+use crate::schema::{OneKey, Tx};
 use crate::service::{api_service, file_encryption_service, file_service};
 use crate::CoreError;
 
@@ -437,270 +437,6 @@ fn should_pull_document(
     }
 }
 
-/// Updates local files to 3-way merge of local, base, and remote; updates base files to remote.
-#[instrument(level = "debug", skip_all, err(Debug))]
-fn pull<F>(
-    config: &Config, account: &Account, update_sync_progress: &mut F,
-) -> Result<(), CoreError>
-where
-    F: FnMut(SyncProgressOperation),
-{
-    let base_metadata = file_service::get_all_metadata(config, RepoSource::Base)?;
-    let base_max_metadata_version = base_metadata
-        .iter()
-        .map(|f| f.metadata_version)
-        .max()
-        .unwrap_or(0);
-
-    update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PullMetadata));
-
-    let remote_metadata_changes = api_service::request(
-        account,
-        GetUpdatesRequest { since_metadata_version: base_max_metadata_version },
-    )
-    .map_err(CoreError::from)?
-    .file_metadata;
-
-    let local_metadata = file_service::get_all_metadata(config, RepoSource::Local)?;
-    let (remote_metadata, remote_orphans) = file_service::get_all_metadata_with_encrypted_changes(
-        config,
-        RepoSource::Base,
-        &remote_metadata_changes,
-    )?;
-    let all_metadata_state = file_service::get_all_metadata_state(config)?;
-
-    let num_documents_to_pull = remote_metadata_changes
-        .iter()
-        .filter(|&f| {
-            let maybe_remote_metadatum = remote_metadata.maybe_find(f.id);
-            let maybe_base_metadatum = base_metadata.maybe_find(f.id);
-            let maybe_local_metadatum = local_metadata.maybe_find(f.id);
-            should_pull_document(
-                &maybe_base_metadatum,
-                &maybe_local_metadatum,
-                &maybe_remote_metadatum,
-            )
-        })
-        .count();
-    update_sync_progress(SyncProgressOperation::IncrementTotalWork(num_documents_to_pull));
-
-    let mut base_metadata_updates = Vec::new();
-    let mut base_document_updates = Vec::new();
-    let mut local_metadata_updates = Vec::new();
-    let mut local_document_updates = Vec::new();
-
-    // iterate changes
-    for encrypted_remote_metadatum in remote_metadata_changes {
-        // skip filtered changes
-        if remote_metadata
-            .maybe_find(encrypted_remote_metadatum.id)
-            .is_none()
-        {
-            continue;
-        }
-
-        // merge metadata
-        let remote_metadatum = remote_metadata.find(encrypted_remote_metadatum.id)?;
-        let maybe_base_metadatum = base_metadata.maybe_find(encrypted_remote_metadatum.id);
-        let maybe_local_metadatum = local_metadata.maybe_find(encrypted_remote_metadatum.id);
-
-        let merged_metadatum = merge_maybe_metadata(
-            maybe_base_metadatum.clone(),
-            maybe_local_metadatum.clone(),
-            Some(remote_metadatum.clone()),
-        )?;
-        base_metadata_updates.push(remote_metadatum.clone()); // update base to remote
-        local_metadata_updates.push(merged_metadatum.clone()); // update local to merged
-
-        // merge document content
-        if should_pull_document(
-            &maybe_base_metadatum,
-            &maybe_local_metadatum,
-            &Some(remote_metadatum.clone()),
-        ) {
-            update_sync_progress(SyncProgressOperation::StartWorkUnit(
-                ClientWorkUnit::PullDocument(remote_metadatum.decrypted_name.clone()),
-            ));
-
-            match get_resolved_document(
-                config,
-                account,
-                &all_metadata_state,
-                &remote_metadatum,
-                &merged_metadatum,
-            )? {
-                ResolvedDocument::Merged {
-                    remote_metadata,
-                    remote_document,
-                    merged_metadata,
-                    merged_document,
-                } => {
-                    // update base to remote
-                    base_document_updates.push((remote_metadata, remote_document));
-                    // update local to merged
-                    local_document_updates.push((merged_metadata, merged_document));
-                }
-                ResolvedDocument::Copied {
-                    remote_metadata,
-                    remote_document,
-                    copied_local_metadata,
-                    copied_local_document,
-                } => {
-                    base_document_updates.push((remote_metadata.clone(), remote_document.clone())); // update base to remote
-                    local_metadata_updates.push(remote_metadata.clone()); // reset conflicted local
-                    local_document_updates.push((remote_metadata.clone(), remote_document)); // reset conflicted local
-                    local_metadata_updates.push(copied_local_metadata.clone()); // new local metadata from merge
-                    local_document_updates
-                        .push((copied_local_metadata.clone(), copied_local_document));
-                    // new local document from merge
-                }
-            }
-        }
-    }
-
-    // deleted orphaned updates
-    for orphan in remote_orphans {
-        if let Some(mut metadatum) = base_metadata.maybe_find(orphan.id) {
-            if let Some(mut metadatum_update) = base_metadata_updates.maybe_find_mut(orphan.id) {
-                metadatum_update.deleted = true;
-            } else {
-                metadatum.deleted = true;
-                base_metadata_updates.push(metadatum);
-            }
-        }
-        if let Some(mut metadatum) = local_metadata.maybe_find(orphan.id) {
-            if let Some(mut metadatum_update) = local_metadata_updates.maybe_find_mut(orphan.id) {
-                metadatum_update.deleted = true;
-            } else {
-                metadatum.deleted = true;
-                local_metadata_updates.push(metadatum);
-            }
-        }
-    }
-
-    // resolve cycles
-    for self_descendant in local_metadata.get_invalid_cycles(&local_metadata_updates)? {
-        if let Some(RepoState::Modified { mut local, base }) =
-            file_service::maybe_get_metadata_state(config, self_descendant)?
-        {
-            if local.parent != base.parent {
-                if let Some(existing_update) =
-                    local_metadata_updates.maybe_find_mut(self_descendant)
-                {
-                    existing_update.parent = base.parent;
-                } else {
-                    local.parent = base.parent;
-                    local_metadata_updates.push(local);
-                }
-            }
-        }
-    }
-
-    // resolve path conflicts
-    for path_conflict in local_metadata.get_path_conflicts(&local_metadata_updates)? {
-        let local_meta_updates_copy = local_metadata_updates.clone();
-
-        let conflict_name = files::suggest_non_conflicting_filename(
-            path_conflict.existing,
-            &local_metadata,
-            &local_meta_updates_copy,
-        )?;
-        if let Some(existing_update) = local_metadata_updates.maybe_find_mut(path_conflict.existing)
-        {
-            existing_update.decrypted_name = conflict_name;
-        } else {
-            let mut new_metadatum_update = local_metadata.find(path_conflict.existing)?;
-            new_metadatum_update.decrypted_name = conflict_name;
-            local_metadata_updates.push(new_metadatum_update);
-        }
-    }
-
-    // update metadata
-    file_service::insert_metadata_both_repos(
-        config,
-        &base_metadata_updates,
-        &local_metadata_updates,
-    )?;
-
-    // update document content
-    for (metadata, document_update) in base_document_updates {
-        file_service::insert_document(config, RepoSource::Base, &metadata, &document_update)?;
-    }
-    for (metadata, document_update) in local_document_updates {
-        file_service::insert_document(config, RepoSource::Local, &metadata, &document_update)?;
-    }
-
-    Ok(())
-}
-
-/// Updates remote and base metadata to local.
-#[instrument(level = "debug", skip_all, err(Debug))]
-fn push_metadata<F>(
-    config: &Config, account: &Account, update_sync_progress: &mut F,
-) -> Result<(), CoreError>
-where
-    F: FnMut(SyncProgressOperation),
-{
-    update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PushMetadata));
-
-    // update remote to local (metadata)
-    let metadata_changes = file_service::get_all_metadata_changes(config)?;
-    if !metadata_changes.is_empty() {
-        api_service::request(account, FileMetadataUpsertsRequest { updates: metadata_changes })
-            .map_err(CoreError::from)?;
-    }
-
-    // update base to local
-    file_service::promote_metadata(config)?;
-
-    Ok(())
-}
-
-/// Updates remote and base files to local.
-#[instrument(level = "debug", skip_all, err(Debug))]
-fn push_documents<F>(
-    config: &Config, account: &Account, update_sync_progress: &mut F,
-) -> Result<(), CoreError>
-where
-    F: FnMut(SyncProgressOperation),
-{
-    for id in file_service::get_all_with_document_changes(config)? {
-        let mut local_metadata = file_service::get_metadata(config, RepoSource::Local, id)?;
-        let local_content = file_service::get_document(config, RepoSource::Local, &local_metadata)?;
-        let encrypted_content = file_encryption_service::encrypt_document(
-            &file_compression_service::compress(&local_content)?,
-            &local_metadata,
-        )?;
-
-        update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PushDocument(
-            local_metadata.decrypted_name.clone(),
-        )));
-
-        // update remote to local (document)
-        local_metadata.content_version = api_service::request(
-            account,
-            ChangeDocumentContentRequest {
-                id,
-                old_metadata_version: local_metadata.metadata_version,
-                new_content: encrypted_content,
-            },
-        )
-        .map_err(CoreError::from)?
-        .new_content_version;
-
-        // save content version change
-        let mut base_metadata = file_service::get_metadata(config, RepoSource::Base, id)?;
-        base_metadata.content_version = local_metadata.content_version;
-        file_service::insert_metadatum(config, RepoSource::Local, &local_metadata)?;
-        file_service::insert_metadatum(config, RepoSource::Base, &base_metadata)?;
-    }
-
-    // update base to local
-    file_service::promote_documents(config)?;
-
-    Ok(())
-}
-
 enum SyncProgressOperation {
     IncrementTotalWork(usize),
     StartWorkUnit(ClientWorkUnit),
@@ -710,32 +446,307 @@ enum SyncProgressOperation {
 pub fn sync(
     config: &Config, maybe_update_sync_progress: Option<Box<dyn Fn(SyncProgress)>>,
 ) -> Result<(), CoreError> {
-    let mut sync_progress_total = 4 + file_service::get_all_with_document_changes(config)?.len(); // 3 metadata pulls + 1 metadata push + doc pushes
-    let mut sync_progress = 0;
-    let mut update_sync_progress = |op: SyncProgressOperation| match op {
-        SyncProgressOperation::IncrementTotalWork(inc) => sync_progress_total += inc,
-        SyncProgressOperation::StartWorkUnit(work_unit) => {
-            if let Some(ref update_sync_progress) = maybe_update_sync_progress {
-                update_sync_progress(SyncProgress {
-                    total: sync_progress_total,
-                    progress: sync_progress,
-                    current_work_unit: work_unit,
-                })
-            }
-            sync_progress += 1;
-        }
-    };
+    todo!()
+}
 
-    let account = &account_repo::get(config)?;
-    pull(config, account, &mut update_sync_progress)?;
-    file_service::prune_deleted(config)?;
-    push_metadata(config, account, &mut update_sync_progress)?;
-    pull(config, account, &mut update_sync_progress)?;
-    push_documents(config, account, &mut update_sync_progress)?;
-    pull(config, account, &mut update_sync_progress)?;
-    file_service::prune_deleted(config)?;
-    last_updated_repo::set(config, get_time().0)?;
-    Ok(())
+impl Tx<'_> {
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn sync(
+        &mut self, config: &Config, maybe_update_sync_progress: Option<Box<dyn Fn(SyncProgress)>>,
+    ) -> Result<(), CoreError> {
+        let mut sync_progress_total = 4 + self.get_all_with_document_changes(config)?.len(); // 3 metadata pulls + 1 metadata push + doc pushes
+        let mut sync_progress = 0;
+        let mut update_sync_progress = |op: SyncProgressOperation| match op {
+            SyncProgressOperation::IncrementTotalWork(inc) => sync_progress_total += inc,
+            SyncProgressOperation::StartWorkUnit(work_unit) => {
+                if let Some(ref update_sync_progress) = maybe_update_sync_progress {
+                    update_sync_progress(SyncProgress {
+                        total: sync_progress_total,
+                        progress: sync_progress,
+                        current_work_unit: work_unit,
+                    })
+                }
+                sync_progress += 1;
+            }
+        };
+
+        self.pull(config, &mut update_sync_progress)?;
+        self.prune_deleted(config)?;
+        self.push_metadata(config, &mut update_sync_progress)?;
+        self.pull(config, &mut update_sync_progress)?;
+        self.push_documents(config, &mut update_sync_progress)?;
+        self.pull(config, &mut update_sync_progress)?;
+        self.prune_deleted(config)?;
+        self.last_synced.insert(OneKey {}, get_time().0);
+        Ok(())
+    }
+
+    /// Updates local files to 3-way merge of local, base, and remote; updates base files to remote.
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    fn pull<F>(&self, config: &Config, update_sync_progress: &mut F) -> Result<(), CoreError>
+    where
+        F: FnMut(SyncProgressOperation),
+    {
+        let account = &self.get_account()?;
+        let base_metadata = self.get_all_metadata(RepoSource::Base)?;
+        let base_max_metadata_version = base_metadata
+            .iter()
+            .map(|f| f.metadata_version)
+            .max()
+            .unwrap_or(0);
+
+        update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PullMetadata));
+
+        let remote_metadata_changes = api_service::request(
+            account,
+            GetUpdatesRequest { since_metadata_version: base_max_metadata_version },
+        )
+        .map_err(CoreError::from)?
+        .file_metadata;
+
+        let local_metadata = self.get_all_metadata(RepoSource::Local)?;
+        let (remote_metadata, remote_orphans) = self
+            .get_all_metadata_with_encrypted_changes(RepoSource::Base, &remote_metadata_changes)?;
+        let all_metadata_state = self.get_all_metadata_state()?;
+
+        let num_documents_to_pull = remote_metadata_changes
+            .iter()
+            .filter(|&f| {
+                let maybe_remote_metadatum = remote_metadata.maybe_find(f.id);
+                let maybe_base_metadatum = base_metadata.maybe_find(f.id);
+                let maybe_local_metadatum = local_metadata.maybe_find(f.id);
+                should_pull_document(
+                    &maybe_base_metadatum,
+                    &maybe_local_metadatum,
+                    &maybe_remote_metadatum,
+                )
+            })
+            .count();
+        update_sync_progress(SyncProgressOperation::IncrementTotalWork(num_documents_to_pull));
+
+        let mut base_metadata_updates = Vec::new();
+        let mut base_document_updates = Vec::new();
+        let mut local_metadata_updates = Vec::new();
+        let mut local_document_updates = Vec::new();
+
+        // iterate changes
+        for encrypted_remote_metadatum in remote_metadata_changes {
+            // skip filtered changes
+            if remote_metadata
+                .maybe_find(encrypted_remote_metadatum.id)
+                .is_none()
+            {
+                continue;
+            }
+
+            // merge metadata
+            let remote_metadatum = remote_metadata.find(encrypted_remote_metadatum.id)?;
+            let maybe_base_metadatum = base_metadata.maybe_find(encrypted_remote_metadatum.id);
+            let maybe_local_metadatum = local_metadata.maybe_find(encrypted_remote_metadatum.id);
+
+            let merged_metadatum = merge_maybe_metadata(
+                maybe_base_metadatum.clone(),
+                maybe_local_metadatum.clone(),
+                Some(remote_metadatum.clone()),
+            )?;
+            base_metadata_updates.push(remote_metadatum.clone()); // update base to remote
+            local_metadata_updates.push(merged_metadatum.clone()); // update local to merged
+
+            // merge document content
+            if should_pull_document(
+                &maybe_base_metadatum,
+                &maybe_local_metadatum,
+                &Some(remote_metadatum.clone()),
+            ) {
+                update_sync_progress(SyncProgressOperation::StartWorkUnit(
+                    ClientWorkUnit::PullDocument(remote_metadatum.decrypted_name.clone()),
+                ));
+
+                match get_resolved_document(
+                    config,
+                    account,
+                    &all_metadata_state,
+                    &remote_metadatum,
+                    &merged_metadatum,
+                )? {
+                    ResolvedDocument::Merged {
+                        remote_metadata,
+                        remote_document,
+                        merged_metadata,
+                        merged_document,
+                    } => {
+                        // update base to remote
+                        base_document_updates.push((remote_metadata, remote_document));
+                        // update local to merged
+                        local_document_updates.push((merged_metadata, merged_document));
+                    }
+                    ResolvedDocument::Copied {
+                        remote_metadata,
+                        remote_document,
+                        copied_local_metadata,
+                        copied_local_document,
+                    } => {
+                        base_document_updates
+                            .push((remote_metadata.clone(), remote_document.clone())); // update base to remote
+                        local_metadata_updates.push(remote_metadata.clone()); // reset conflicted local
+                        local_document_updates.push((remote_metadata.clone(), remote_document)); // reset conflicted local
+                        local_metadata_updates.push(copied_local_metadata.clone()); // new local metadata from merge
+                        local_document_updates
+                            .push((copied_local_metadata.clone(), copied_local_document));
+                        // new local document from merge
+                    }
+                }
+            }
+        }
+
+        // deleted orphaned updates
+        for orphan in remote_orphans {
+            if let Some(mut metadatum) = base_metadata.maybe_find(orphan.id) {
+                if let Some(mut metadatum_update) = base_metadata_updates.maybe_find_mut(orphan.id)
+                {
+                    metadatum_update.deleted = true;
+                } else {
+                    metadatum.deleted = true;
+                    base_metadata_updates.push(metadatum);
+                }
+            }
+            if let Some(mut metadatum) = local_metadata.maybe_find(orphan.id) {
+                if let Some(mut metadatum_update) = local_metadata_updates.maybe_find_mut(orphan.id)
+                {
+                    metadatum_update.deleted = true;
+                } else {
+                    metadatum.deleted = true;
+                    local_metadata_updates.push(metadatum);
+                }
+            }
+        }
+
+        // resolve cycles
+        for self_descendant in local_metadata.get_invalid_cycles(&local_metadata_updates)? {
+            if let Some(RepoState::Modified { mut local, base }) =
+                file_service::maybe_get_metadata_state(config, self_descendant)?
+            {
+                if local.parent != base.parent {
+                    if let Some(existing_update) =
+                        local_metadata_updates.maybe_find_mut(self_descendant)
+                    {
+                        existing_update.parent = base.parent;
+                    } else {
+                        local.parent = base.parent;
+                        local_metadata_updates.push(local);
+                    }
+                }
+            }
+        }
+
+        // resolve path conflicts
+        for path_conflict in local_metadata.get_path_conflicts(&local_metadata_updates)? {
+            let local_meta_updates_copy = local_metadata_updates.clone();
+
+            let conflict_name = files::suggest_non_conflicting_filename(
+                path_conflict.existing,
+                &local_metadata,
+                &local_meta_updates_copy,
+            )?;
+            if let Some(existing_update) =
+                local_metadata_updates.maybe_find_mut(path_conflict.existing)
+            {
+                existing_update.decrypted_name = conflict_name;
+            } else {
+                let mut new_metadatum_update = local_metadata.find(path_conflict.existing)?;
+                new_metadatum_update.decrypted_name = conflict_name;
+                local_metadata_updates.push(new_metadatum_update);
+            }
+        }
+
+        // update metadata
+        file_service::insert_metadata_both_repos(
+            config,
+            &base_metadata_updates,
+            &local_metadata_updates,
+        )?;
+
+        // update document content
+        for (metadata, document_update) in base_document_updates {
+            file_service::insert_document(config, RepoSource::Base, &metadata, &document_update)?;
+        }
+        for (metadata, document_update) in local_document_updates {
+            file_service::insert_document(config, RepoSource::Local, &metadata, &document_update)?;
+        }
+
+        Ok(())
+    }
+
+    /// Updates remote and base metadata to local.
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    fn push_metadata<F>(
+        &mut self, config: &Config, update_sync_progress: &mut F,
+    ) -> Result<(), CoreError>
+    where
+        F: FnMut(SyncProgressOperation),
+    {
+        let account = &self.get_account()?;
+        update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PushMetadata));
+
+        // update remote to local (metadata)
+        let metadata_changes = self.get_all_metadata_changes()?;
+        if !metadata_changes.is_empty() {
+            api_service::request(account, FileMetadataUpsertsRequest { updates: metadata_changes })
+                .map_err(CoreError::from)?;
+        }
+
+        // update base to local
+        self.promote_metadata()?;
+
+        Ok(())
+    }
+
+    /// Updates remote and base files to local.
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    fn push_documents<F>(
+        &mut self, config: &Config, update_sync_progress: &mut F,
+    ) -> Result<(), CoreError>
+    where
+        F: FnMut(SyncProgressOperation),
+    {
+        let account = &self.get_account()?;
+        for id in self.get_all_with_document_changes(config)? {
+            let mut local_metadata = self.get_metadata(RepoSource::Local, id)?;
+            let local_content =
+                file_service::get_document(config, RepoSource::Local, &local_metadata)?;
+            let encrypted_content = file_encryption_service::encrypt_document(
+                &file_compression_service::compress(&local_content)?,
+                &local_metadata,
+            )?;
+
+            update_sync_progress(SyncProgressOperation::StartWorkUnit(
+                ClientWorkUnit::PushDocument(local_metadata.decrypted_name.clone()),
+            ));
+
+            // update remote to local (document)
+            local_metadata.content_version = api_service::request(
+                account,
+                ChangeDocumentContentRequest {
+                    id,
+                    old_metadata_version: local_metadata.metadata_version,
+                    new_content: encrypted_content,
+                },
+            )
+            .map_err(CoreError::from)?
+            .new_content_version;
+
+            // save content version change
+            let mut base_metadata = self.get_metadata(RepoSource::Base, id)?;
+            base_metadata.content_version = local_metadata.content_version;
+            self.insert_metadatum(config, RepoSource::Local, &local_metadata)?;
+            self.insert_metadatum(config, RepoSource::Base, &base_metadata)?;
+        }
+
+        // update base to local
+        self.promote_documents(config)?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

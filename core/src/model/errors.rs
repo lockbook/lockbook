@@ -750,3 +750,14 @@ impl From<CoreError> for Error<GetCreditCard> {
         }
     }
 }
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum MigrationError {
+    StateRequiresCleaning,
+}
+
+impl From<CoreError> for Error<MigrationError> {
+    fn from(e: CoreError) -> Self {
+        todo!()
+    }
+}
