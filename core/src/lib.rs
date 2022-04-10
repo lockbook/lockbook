@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use hmdb::log::Reader;
+use hmdb::transaction::Transaction;
 use serde::Serialize;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
@@ -28,18 +29,19 @@ use service::log_service;
 
 use crate::billing_service::CreditCardLast4Digits;
 use crate::model::errors::{
-    AccountExportError, CalculateWorkError, CreateAccountError, CreateFileAtPathError,
-    CreateFileError, ExportDrawingError, ExportDrawingToDiskError, ExportFileError,
-    FileDeleteError, GetAccountError, GetAndGetChildrenError, GetCreditCard, GetDrawingError,
-    GetFileByIdError, GetFileByPathError, GetRootError, GetUsageError, ImportError,
-    ImportFileError, MigrationError, MoveFileError, ReadDocumentError, RenameFileError,
-    SaveDocumentToDiskError, SaveDrawingError, SwitchAccountTierError, SyncAllError,
-    WriteToDocumentError,
+    core_err_unexpected, AccountExportError, CalculateWorkError, CreateAccountError,
+    CreateFileAtPathError, CreateFileError, ExportDrawingError, ExportDrawingToDiskError,
+    ExportFileError, FileDeleteError, GetAccountError, GetAndGetChildrenError, GetCreditCard,
+    GetDrawingError, GetFileByIdError, GetFileByPathError, GetRootError, GetUsageError,
+    ImportError, ImportFileError, MigrationError, MoveFileError, ReadDocumentError,
+    RenameFileError, SaveDocumentToDiskError, SaveDrawingError, SwitchAccountTierError,
+    SyncAllError, WriteToDocumentError,
 };
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
+use crate::path_service::Filter;
 use crate::pure_functions::drawing::SupportedImageFormats;
-use crate::repo::schema;
+use crate::repo::schema::{CoreV1, OneKey, Tx};
 use crate::repo::{account_repo, last_updated_repo};
 use crate::service::db_state_service::State;
 use crate::service::import_export_service::{self, ImportExportFileInfo, ImportStatus};
@@ -55,17 +57,183 @@ use crate::sync_service::WorkCalculated;
 #[derive(Clone, Debug)]
 pub struct LbCore {
     pub config: Config,
-    pub db: schema::CoreV1,
+    pub db: CoreV1,
 }
 
 impl LbCore {
     pub fn init(config: &Config) -> Result<Self, UnexpectedError> {
         log_service::init(&config.writeable_path)?;
-        let db = schema::CoreV1::init(&config.writeable_path)
-            .map_err(|err| unexpected_only!("{:#?}", err))?;
+        let db =
+            CoreV1::init(&config.writeable_path).map_err(|err| unexpected_only!("{:#?}", err))?;
         let config = config.clone();
 
         Ok(Self { config, db })
+    }
+
+    pub fn create_account(
+        &self, username: &str, api_url: &str,
+    ) -> Result<Account, Error<CreateAccountError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.create_account(username, api_url))?;
+        Ok(val?)
+    }
+
+    pub fn import_account(&self, account_string: &str) -> Result<Account, Error<ImportError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.import_account(account_string))?;
+        Ok(val?)
+    }
+
+    pub fn export_account(&self) -> Result<String, Error<AccountExportError>> {
+        let account = self
+            .db
+            .account
+            .get(&OneKey {})?
+            .ok_or(CoreError::AccountNonexistent)?;
+        let encoded: Vec<u8> = bincode::serialize(&account).map_err(core_err_unexpected)?;
+        Ok(base64::encode(&encoded))
+    }
+
+    pub fn get_account(&self) -> Result<Account, Error<GetAccountError>> {
+        let account = self.db.transaction(|tx| tx.get_account())??;
+        Ok(account)
+    }
+
+    pub fn create_file(
+        &self, name: &str, parent: Uuid, file_type: FileType,
+    ) -> Result<DecryptedFileMetadata, Error<CreateFileError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.create_file(&self.config, name, parent, file_type))?;
+        Ok(val?)
+    }
+
+    pub fn write_document(
+        &self, config: &Config, id: Uuid, content: &[u8],
+    ) -> Result<(), Error<WriteToDocumentError>> {
+        let val: Result<_, CoreError> = self.db.transaction(|tx| {
+            let metadata = tx.get_not_deleted_metadata(RepoSource::Local, id)?;
+            tx.insert_document(config, RepoSource::Local, &metadata, content)?;
+            Ok(())
+        })?;
+        Ok(val?)
+    }
+
+    pub fn get_root(&self) -> Result<DecryptedFileMetadata, Error<GetRootError>> {
+        let val = self.db.transaction(|tx| tx.root())?;
+        Ok(val?)
+    }
+
+    pub fn get_children(&self, id: Uuid) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
+        let val = self.db.transaction(|tx| tx.get_children(id))?;
+        Ok(val?)
+    }
+
+    pub fn get_and_get_children_recursively(
+        &self, id: Uuid,
+    ) -> Result<Vec<DecryptedFileMetadata>, Error<GetAndGetChildrenError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.get_and_get_children_recursively(id))?;
+
+        Ok(val?)
+    }
+
+    pub fn get_file_by_id(
+        &self, id: Uuid,
+    ) -> Result<DecryptedFileMetadata, Error<GetFileByIdError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.get_not_deleted_metadata(RepoSource::Local, id))?;
+
+        Ok(val?)
+    }
+
+    pub fn delete_file(&self, id: Uuid) -> Result<(), Error<FileDeleteError>> {
+        let val = self.db.transaction(|tx| tx.delete_file(&self.config, id))?;
+        Ok(val?)
+    }
+
+    pub fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.read_document(&self.config, id))?;
+        Ok(val?)
+    }
+
+    pub fn save_document_to_disk(
+        &self, id: Uuid, location: &str,
+    ) -> Result<(), Error<SaveDocumentToDiskError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.save_document_to_disk(&self.config, id, location))?;
+
+        Ok(val?)
+    }
+
+    pub fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), Error<RenameFileError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.rename_file(&self.config, id, new_name))?;
+
+        Ok(val?)
+    }
+
+    pub fn move_file(&self, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.move_file(&self.config, id, new_parent))?;
+        Ok(val?)
+    }
+
+    pub fn create_at_path(
+        &self, path_and_name: &str,
+    ) -> Result<DecryptedFileMetadata, Error<CreateFileAtPathError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.create_at_path(&self.config, path_and_name))??;
+
+        Ok(val)
+    }
+
+    pub fn get_by_path(
+        &self, path: &str,
+    ) -> Result<DecryptedFileMetadata, Error<GetFileByPathError>> {
+        let val = self.db.transaction(|tx| tx.get_by_path(path))??;
+
+        Ok(val)
+    }
+
+    pub fn get_path_by_id(&self, id: Uuid) -> Result<String, UnexpectedError> {
+        let val: Result<_, CoreError> = self.db.transaction(|tx| tx.get_path_by_id(id))?;
+        Ok(val?)
+    }
+
+    pub fn list_paths(&self, filter: Option<Filter>) -> Result<Vec<String>, UnexpectedError> {
+        let val: Result<_, CoreError> = self.db.transaction(|tx| tx.list_paths(filter))?;
+
+        Ok(val?)
+    }
+
+    pub fn get_local_changes(&self) -> Result<Vec<Uuid>, UnexpectedError> {
+        let val = self
+            .db
+            .transaction(|tx| tx.get_local_changes(&self.config))?;
+        Ok(val?)
+    }
+
+    pub fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>> {
+        let val = self.db.transaction(|tx| tx.calculate_work(&self.config))?;
+
+        Ok(val?)
+    }
+
+    pub fn sync<F: Fn(SyncProgress)>(&self, f: Option<F>) -> Result<(), Error<SyncAllError>> {
+        let val = self.db.transaction(|tx| tx.sync(&self.config, f))?;
+
+        Ok(val?)
     }
 }
 

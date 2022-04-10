@@ -26,7 +26,7 @@ use crate::repo::digest_repo;
 use crate::repo::document_repo;
 use crate::repo::metadata_repo;
 use crate::repo::root_repo;
-use crate::schema::{OneKey, Tx};
+use crate::repo::schema::{OneKey, Tx};
 use crate::service::file_encryption_service;
 use crate::service::{file_compression_service, file_service};
 use crate::CoreError::RootNonexistent;
@@ -35,108 +35,18 @@ use crate::{
     LbCore, MoveFileError, ReadDocumentError, UnexpectedError, WriteToDocumentError,
 };
 
-impl LbCore {
-    pub fn create_file(
-        &self, name: &str, parent: Uuid, file_type: FileType,
-    ) -> Result<DecryptedFileMetadata, Error<CreateFileError>> {
-        self.db.transaction(|tx| {
-            let account = tx.get_account()?;
-            tx.get_not_deleted_metadata(RepoSource::Local, parent)?;
-            let all_metadata = tx.get_all_metadata(RepoSource::Local)?;
-            let metadata =
-                files::apply_create(&all_metadata, file_type, parent, name, &account.public_key())?;
-            tx.insert_metadatum(&self.config, RepoSource::Local, &metadata)?;
-            Ok(metadata)
-        })?
-    }
-
-    pub fn write_document(
-        &self, config: &Config, id: Uuid, content: &[u8],
-    ) -> Result<(), Error<WriteToDocumentError>> {
-        let val: Result<_, CoreError> = self.db.transaction(|tx| {
-            let metadata = tx.get_not_deleted_metadata(RepoSource::Local, id)?;
-            tx.insert_document(config, RepoSource::Local, &metadata, content)?;
-            Ok(())
-        })?;
-        Ok(val?)
-    }
-
-    pub fn get_root(&self) -> Result<DecryptedFileMetadata, Error<GetRootError>> {
-        let val = self.db.transaction(|tx| tx.root())?;
-        Ok(val?)
-    }
-
-    pub fn get_children(&self, id: Uuid) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
-        let val = self.db.transaction(|tx| tx.get_children(id))?;
-        Ok(val?)
-    }
-
-    pub fn get_and_get_children_recursively(
-        &self, id: Uuid,
-    ) -> Result<Vec<DecryptedFileMetadata>, Error<GetAndGetChildrenError>> {
-        let val = self
-            .db
-            .transaction(|tx| tx.get_and_get_children_recursively(id))?;
-
-        Ok(val?)
-    }
-
-    pub fn get_file_by_id(
-        &self, id: Uuid,
-    ) -> Result<DecryptedFileMetadata, Error<GetFileByIdError>> {
-        let val = self
-            .db
-            .transaction(|tx| tx.get_not_deleted_metadata(RepoSource::Local, id))?;
-
-        Ok(val?)
-    }
-
-    pub fn delete_file(&self, id: Uuid) -> Result<(), Error<FileDeleteError>> {
-        let val = self.db.transaction(|tx| tx.delete_file(&self.config, id))?;
-        Ok(val?)
-    }
-
-    pub fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
-        let val = self
-            .db
-            .transaction(|tx| tx.read_document(&self.config, id))?;
-        Ok(val?)
-    }
-
-    pub fn save_document_to_disk(
-        &self, id: Uuid, location: &str,
-    ) -> Result<(), Error<SaveDocumentToDiskError>> {
-        let val = self
-            .db
-            .transaction(|tx| tx.save_document_to_disk(&self.config, id, location))?;
-
-        Ok(val?)
-    }
-
-    pub fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), Error<RenameFileError>> {
-        let val = self
-            .db
-            .transaction(|tx| tx.rename_file(&self.config, id, new_name))?;
-
-        Ok(val?)
-    }
-
-    pub fn move_file(&self, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
-        let val = self
-            .db
-            .transaction(|tx| tx.move_file(&self.config, id, new_parent))?;
-        Ok(val?)
-    }
-
-    pub fn get_local_changes(&self) -> Result<Vec<Uuid>, UnexpectedError> {
-        let val = self
-            .db
-            .transaction(|tx| tx.get_local_changes(&self.config))?;
-        Ok(val?)
-    }
-}
-
 impl Tx<'_> {
+    pub fn create_file(
+        &mut self, config: &Config, name: &str, parent: Uuid, file_type: FileType,
+    ) -> Result<DecryptedFileMetadata, CoreError> {
+        let account = self.get_account()?;
+        self.get_not_deleted_metadata(RepoSource::Local, parent)?;
+        let all_metadata = self.get_all_metadata(RepoSource::Local)?;
+        let metadata =
+            files::apply_create(&all_metadata, file_type, parent, name, &account.public_key())?;
+        self.insert_metadatum(&config, RepoSource::Local, &metadata)?;
+        Ok(metadata)
+    }
     pub fn root(&self) -> Result<DecryptedFileMetadata, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
 

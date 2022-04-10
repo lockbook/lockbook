@@ -20,7 +20,7 @@ use crate::model::state::Config;
 use crate::pure_functions::files;
 use crate::repo::account_repo;
 use crate::repo::last_updated_repo;
-use crate::schema::{OneKey, Tx};
+use crate::repo::schema::{OneKey, Tx};
 use crate::service::{api_service, file_encryption_service, file_service};
 use crate::{CalculateWorkError, CoreError, Error, LbCore, SyncAllError};
 
@@ -47,20 +47,6 @@ pub enum MaybeMergeResult<T> {
     Resolved(T),
     Conflict { base: T, local: T, remote: T },
     BaselessConflict { local: T, remote: T },
-}
-
-impl LbCore {
-    pub fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>> {
-        let val = self.db.transaction(|tx| tx.calculate_work(&self.config))?;
-
-        Ok(val?)
-    }
-
-    pub fn sync<F: Fn(SyncProgress)>(&self, f: Option<F>) -> Result<(), Error<SyncAllError>> {
-        let val = self.db.transaction(|tx| tx.sync(&self.config, f))?;
-
-        Ok(val?)
-    }
 }
 
 fn merge_maybe<T>(
