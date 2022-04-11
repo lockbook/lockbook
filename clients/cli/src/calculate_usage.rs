@@ -1,28 +1,28 @@
-use crate::error::CliResult;
-use crate::utils::{account, config};
-use crate::{err, err_unexpected};
 use lockbook_core::model::errors::GetUsageError;
-use lockbook_core::Error as CoreError;
+use lockbook_core::Error as LbError;
+use lockbook_core::LbCore;
 
-pub fn calculate_usage(exact: bool) -> CliResult<()> {
-    account()?;
+use crate::error::CliError;
+use crate::utils::config;
 
-    let usage = lockbook_core::get_usage(&config()?).map_err(|err| match err {
-        CoreError::UiError(GetUsageError::CouldNotReachServer) => err!(NetworkIssue),
-        CoreError::UiError(GetUsageError::ClientUpdateRequired) => err!(UpdateRequired),
-        CoreError::UiError(GetUsageError::NoAccount) | CoreError::Unexpected(_) => {
-            err_unexpected!("{:?}", err)
+impl From<LbError<GetUsageError>> for CliError {
+    fn from(e: LbError<GetUsageError>) -> Self {
+        match e {
+            LbError::UiError(err) => match err {
+                GetUsageError::NoAccount => CliError::no_account(),
+                GetUsageError::CouldNotReachServer => CliError::network_issue(),
+                GetUsageError::ClientUpdateRequired => CliError::update_required(),
+            },
+            LbError::Unexpected(msg) => CliError::unexpected(msg),
         }
-    })?;
+    }
+}
 
-    let uncompressed_usage =
-        lockbook_core::get_uncompressed_usage(&config()?).map_err(|err| match err {
-            CoreError::UiError(GetUsageError::CouldNotReachServer) => err!(NetworkIssue),
-            CoreError::UiError(GetUsageError::ClientUpdateRequired) => err!(UpdateRequired),
-            CoreError::UiError(GetUsageError::NoAccount) | CoreError::Unexpected(_) => {
-                err_unexpected!("{:?}", err)
-            }
-        })?;
+pub fn calculate_usage(core: &LbCore, exact: bool) -> Result<(), CliError> {
+    core.get_account()?;
+
+    let usage = lockbook_core::get_usage(&config()?)?;
+    let uncompressed_usage = lockbook_core::get_uncompressed_usage(&config()?)?;
 
     let (uncompressed, server_usage, data_cap) = if exact {
         (

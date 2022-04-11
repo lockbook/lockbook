@@ -1,16 +1,14 @@
 use lockbook_core::model::errors::SyncAllError;
 use lockbook_core::service::sync_service::SyncProgress;
-use lockbook_core::{sync_all, Error};
+use lockbook_core::Error as LbError;
+use lockbook_core::LbCore;
 use lockbook_models::work_unit::ClientWorkUnit;
 
-use crate::error::CliResult;
-use crate::utils::{account, config};
-use crate::{err, err_unexpected};
+use crate::error::CliError;
 
-pub fn sync() -> CliResult<()> {
-    account()?;
+pub fn sync(core: &LbCore) -> Result<(), CliError> {
+    core.get_account()?;
 
-    let config = config()?;
     let closure = |sync_progress: SyncProgress| {
         match sync_progress.current_work_unit {
             ClientWorkUnit::PullMetadata => println!("Pulling file tree updates"),
@@ -20,14 +18,15 @@ pub fn sync() -> CliResult<()> {
         };
     };
 
-    sync_all(&config, Some(Box::new(closure))).map_err(|err| match err {
-        Error::UiError(err) => match err {
-            SyncAllError::NoAccount => err!(NoAccount),
-            SyncAllError::ClientUpdateRequired => err!(UpdateRequired),
-            SyncAllError::CouldNotReachServer => err!(NetworkIssue),
-        },
-        Error::Unexpected(msg) => err_unexpected!("{}", msg),
-    })?;
+    core.sync(Some(Box::new(closure)))
+        .map_err(|err| match err {
+            LbError::UiError(err) => match err {
+                SyncAllError::NoAccount => CliError::no_account(),
+                SyncAllError::ClientUpdateRequired => CliError::update_required(),
+                SyncAllError::CouldNotReachServer => CliError::network_issue(),
+            },
+            LbError::Unexpected(msg) => CliError::unexpected(msg),
+        })?;
 
     println!("Sync complete.");
 

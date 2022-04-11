@@ -1,19 +1,21 @@
 use lockbook_core::model::errors::CalculateWorkError;
-use lockbook_core::{calculate_work, Error as CoreError};
+use lockbook_core::LbCore;
+use lockbook_core::{calculate_work, Error as LbError};
 use lockbook_models::work_unit::WorkUnit;
 
-use crate::error::CliResult;
-use crate::utils::{account, config, print_last_successful_sync};
-use crate::{err, err_unexpected};
+use crate::error::CliError;
+use crate::utils::{config, print_last_successful_sync};
 
-pub fn status() -> CliResult<()> {
-    account()?;
+pub fn status(core: &LbCore) -> Result<(), CliError> {
+    core.get_account()?;
 
     let work = calculate_work(&config()?).map_err(|err| match err {
-        CoreError::UiError(CalculateWorkError::NoAccount) => err!(NoAccount),
-        CoreError::UiError(CalculateWorkError::CouldNotReachServer) => err!(NetworkIssue),
-        CoreError::UiError(CalculateWorkError::ClientUpdateRequired) => err!(UpdateRequired),
-        CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
+        LbError::UiError(err) => match err {
+            CalculateWorkError::NoAccount => CliError::no_account(),
+            CalculateWorkError::CouldNotReachServer => CliError::network_issue(),
+            CalculateWorkError::ClientUpdateRequired => CliError::update_required(),
+        },
+        LbError::Unexpected(msg) => CliError::unexpected(msg),
     })?;
 
     work.work_units.into_iter().for_each(|work_unit| {

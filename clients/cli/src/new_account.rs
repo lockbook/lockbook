@@ -2,12 +2,12 @@ use std::io::Write;
 use std::{env, io};
 
 use lockbook_core::model::errors::CreateAccountError;
-use lockbook_core::{Error as CoreError, LbCore};
+use lockbook_core::Error as LbError;
+use lockbook_core::LbCore;
 
-use crate::error::CliResult;
-use crate::{err, err_unexpected};
+use crate::error::CliError;
 
-pub fn new_account(core: &LbCore) -> CliResult<()> {
+pub fn new_account(core: &LbCore) -> Result<(), CliError> {
     print!("Enter a Username: ");
     io::stdout().flush().unwrap();
 
@@ -24,15 +24,15 @@ pub fn new_account(core: &LbCore) -> CliResult<()> {
 
     core.create_account(&username, &api_location)
         .map_err(|err| match err {
-            CoreError::UiError(err) => match err {
-                CreateAccountError::UsernameTaken => err!(UsernameTaken(username)),
-                CreateAccountError::InvalidUsername => err!(UsernameInvalid(username)),
-                CreateAccountError::AccountExistsAlready => err!(AccountAlreadyExists),
-                CreateAccountError::CouldNotReachServer => err!(NetworkIssue),
-                CreateAccountError::ClientUpdateRequired => err!(UpdateRequired),
-                CreateAccountError::ServerDisabled => err!(ServerDisabled),
+            LbError::UiError(err) => match err {
+                CreateAccountError::UsernameTaken => CliError::username_taken(&username),
+                CreateAccountError::InvalidUsername => CliError::username_invalid(&username),
+                CreateAccountError::AccountExistsAlready => CliError::account_exists(),
+                CreateAccountError::CouldNotReachServer => CliError::network_issue(),
+                CreateAccountError::ClientUpdateRequired => CliError::update_required(),
+                CreateAccountError::ServerDisabled => CliError::server_disabled(),
             },
-            CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
+            LbError::Unexpected(msg) => CliError::unexpected(msg),
         })?;
 
     println!("Account created successfully.");

@@ -1,18 +1,18 @@
-use crate::error::CliResult;
-use crate::utils::config;
-use crate::{err, err_unexpected};
 use lockbook_core::model::errors::AccountExportError;
-use lockbook_core::{export_account, Error as CoreError};
+use lockbook_core::Error as LbError;
+use lockbook_core::LbCore;
 
-pub fn export_private_key() -> CliResult<()> {
-    let account_string = export_account(&config()?).map_err(|err| match err {
-        CoreError::UiError(AccountExportError::NoAccount) => err!(NoAccount),
-        CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
+use crate::error::CliError;
+
+pub fn export_private_key(core: &LbCore) -> Result<(), CliError> {
+    let account_string = core.export_account().map_err(|err| match err {
+        LbError::UiError(AccountExportError::NoAccount) => CliError::no_account(),
+        LbError::Unexpected(msg) => CliError::unexpected(msg),
     })?;
 
     if atty::is(atty::Stream::Stdout) {
         qr2term::print_qr(&account_string)
-            .map_err(|qr_err| err_unexpected!("generating qr code: {}", qr_err))?;
+            .map_err(|qr_err| CliError::unexpected(format!("generating qr code: {}", qr_err)))?;
     } else {
         println!("{}", account_string);
     }

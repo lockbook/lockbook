@@ -1,43 +1,21 @@
-use lockbook_core::model::errors::GetAccountError;
-use lockbook_core::model::errors::WriteToDocumentError;
-use lockbook_core::model::state::Config;
-use lockbook_core::{
-    get_account, get_db_state, get_last_synced_human_string, list_metadatas, migrate_db,
-    MigrationError,
-};
-use lockbook_core::{write_document, Error as CoreError};
 use std::{env, fs};
 
-use crate::error::CliResult;
-use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
-use crate::{err, err_extra, err_unexpected};
 use hotwatch::{Event, Hotwatch};
-use lockbook_core::pure_functions::drawing::SupportedImageFormats;
-use lockbook_core::pure_functions::drawing::SupportedImageFormats::*;
-use lockbook_core::service::db_state_service::State;
-use lockbook_models::account::Account;
-use lockbook_models::file_metadata::DecryptedFileMetadata;
 use uuid::Uuid;
 
-#[macro_export]
-macro_rules! path_string {
-    ($pb:expr) => {
-        $pb.to_string_lossy().to_string()
-    };
-}
+use lockbook_core::model::errors::MigrationError;
+use lockbook_core::model::errors::WriteToDocumentError;
+use lockbook_core::model::state::Config;
+use lockbook_core::pure_functions::drawing::SupportedImageFormats;
+use lockbook_core::service::db_state_service::State;
+use lockbook_core::Error as LbError;
+use lockbook_core::LbCore;
+use lockbook_core::{get_db_state, get_last_synced_human_string, migrate_db};
 
-pub fn account() -> CliResult<Account> {
-    match get_account(&config()?) {
-        Ok(account) => Ok(account),
-        Err(err) => match err {
-            CoreError::UiError(GetAccountError::NoAccount) => Err(err!(NoAccount)),
-            CoreError::Unexpected(msg) => Err(err_unexpected!("{}", msg)),
-        },
-    }
-}
+use crate::error::CliError;
 
-pub fn check_and_perform_migrations() -> CliResult<()> {
-    let state = get_db_state(&config()?).map_err(|err| err_unexpected!("{}", err))?;
+pub fn check_and_perform_migrations() -> Result<(), CliError> {
+    let state = get_db_state(&config()?).map_err(|err| CliError::unexpected(err.0))?;
 
     match state {
         State::ReadyToUse => {}
@@ -47,31 +25,29 @@ pub fn check_and_perform_migrations() -> CliResult<()> {
                 println!("Local state requires migration! Performing migration now...");
             }
             migrate_db(&config()?).map_err(|err| match err {
-                CoreError::UiError(MigrationError::StateRequiresCleaning) => {
-                    err!(UninstallRequired)
-                }
-                CoreError::Unexpected(msg) => err_extra!(
-                    Unexpected(msg),
-                    "It's possible you need to clear your local state and resync."
-                ),
+                LbError::UiError(err) => match err {
+                    MigrationError::StateRequiresCleaning => CliError::uninstall_required(),
+                },
+                LbError::Unexpected(msg) => CliError::unexpected(msg)
+                    .with_extra("It's possible you need to clear your local state and resync."),
             })?;
 
             if atty::is(atty::Stream::Stdout) {
                 println!("Migration Successful!");
             }
         }
-        State::StateRequiresClearing => return Err(err!(UninstallRequired)),
+        State::StateRequiresClearing => return Err(CliError::uninstall_required()),
     }
 
     Ok(())
 }
 
-pub fn config() -> CliResult<Config> {
+pub fn config() -> Result<Config, CliError> {
     let path = match (env::var("LOCKBOOK_CLI_LOCATION"), env::var("HOME"), env::var("HOMEPATH")) {
         (Ok(s), _, _) => Ok(s),
         (Err(_), Ok(s), _) => Ok(format!("{}/.lockbook", s)),
         (Err(_), Err(_), Ok(s)) => Ok(format!("{}/.lockbook", s)),
-        _ => Err(err!(NoCliLocation)),
+        _ => Err(CliError::no_cli_location()),
     };
 
     Ok(Config { writeable_path: path? })
@@ -87,6 +63,7 @@ pub enum SupportedEditors {
 }
 
 pub fn get_editor() -> SupportedEditors {
+    use SupportedEditors::*;
     match env::var("LOCKBOOK_EDITOR") {
         Ok(editor) => match editor.to_lowercase().as_str() {
             "vim" => Vim,
@@ -109,14 +86,17 @@ pub fn get_editor() -> SupportedEditors {
     }
 }
 
-pub fn get_directory_location() -> CliResult<String> {
+pub fn get_directory_location() -> Result<String, CliError> {
     let result = format!("{}/{}", env::temp_dir().to_str().unwrap_or("/tmp"), Uuid::new_v4());
-    fs::create_dir(&result)
-        .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
+    fs::create_dir(&result).map_err(|err| {
+        CliError::unexpected(format!("couldn't open temporary file for writing: {:#?}", err))
+    })?;
     Ok(result)
 }
 
 pub fn get_image_format(image_format: &str) -> SupportedImageFormats {
+    use SupportedImageFormats::*;
+
     match image_format.to_lowercase().as_str() {
         "png" => Png,
         "jpeg" | "jpg" => Jpeg,
@@ -135,6 +115,8 @@ pub fn get_image_format(image_format: &str) -> SupportedImageFormats {
 }
 
 pub fn edit_file_with_editor(file_location: &str) -> bool {
+    use SupportedEditors::*;
+
     if cfg!(target_os = "windows") {
         let command = match get_editor() {
             Vim | Emacs | Nano => {
@@ -173,27 +155,25 @@ pub fn edit_file_with_editor(file_location: &str) -> bool {
     }
 }
 
-pub fn metadatas() -> CliResult<Vec<DecryptedFileMetadata>> {
-    list_metadatas(&config()?).map_err(|err| err_unexpected!("{}", err))
-}
-
-pub fn print_last_successful_sync() -> CliResult<()> {
+pub fn print_last_successful_sync() -> Result<(), CliError> {
     if atty::is(atty::Stream::Stdout) {
-        let last_updated = get_last_synced_human_string(&config()?)
-            .map_err(|err| err_unexpected!("attempting to retrieve usage: {:#?}", err))?;
+        let last_updated = get_last_synced_human_string(&config()?).map_err(|err| {
+            CliError::unexpected(format!("attempting to retrieve usage: {:#?}", err))
+        })?;
 
         println!("Last successful sync: {}", last_updated);
     }
     Ok(())
 }
 
-pub fn set_up_auto_save(id: Uuid, location: String) -> Option<Hotwatch> {
+pub fn set_up_auto_save(core: &LbCore, id: Uuid, location: String) -> Option<Hotwatch> {
+    let core = core.clone();
     match Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5)) {
         Ok(mut watcher) => {
             watcher
                 .watch(location.clone(), move |event: Event| match event {
                     Event::NoticeWrite(_) | Event::Write(_) | Event::Create(_) => {
-                        if let Err(err) = save_temp_file_contents(id, &location) {
+                        if let Err(err) = save_temp_file_contents(&core, id, &location) {
                             err.print();
                         }
                     }
@@ -218,27 +198,26 @@ pub fn stop_auto_save(mut watcher: Hotwatch, file_location: String) {
         .unwrap_or_else(|err| eprintln!("file watcher failed to unwatch: {:#?}", err))
 }
 
-pub fn save_temp_file_contents(id: Uuid, location: &str) -> CliResult<()> {
+pub fn save_temp_file_contents(core: &LbCore, id: Uuid, location: &str) -> Result<(), CliError> {
     let secret = fs::read_to_string(&location)
         .map_err(|err| {
-            err_unexpected!(
+            CliError::unexpected(format!(
                 "could not read from temporary file, not deleting {}, err: {:#?}",
-                location,
-                err
-            )
+                location, err
+            ))
         })?
         .into_bytes();
 
-    write_document(&config()?, id, &secret).map_err(|err| match err {
-        CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
-        CoreError::UiError(WriteToDocumentError::NoAccount) => {
-            err_unexpected!("No account! Run 'new-account' or 'import-private-key' to get started!")
-        }
-        CoreError::UiError(WriteToDocumentError::FileDoesNotExist) => {
-            err_unexpected!("FileDoesNotExist")
-        }
-        CoreError::UiError(WriteToDocumentError::FolderTreatedAsDocument) => {
-            err_unexpected!("CannotWriteToFolder")
-        }
+    core.write_document(id, &secret).map_err(|err| match err {
+        LbError::UiError(err) => match err {
+            WriteToDocumentError::NoAccount => CliError::unexpected(
+                "No account! Run 'new-account' or 'import-private-key' to get started!",
+            ),
+            WriteToDocumentError::FileDoesNotExist => CliError::unexpected("FileDoesNotExist"),
+            WriteToDocumentError::FolderTreatedAsDocument => {
+                CliError::unexpected("CannotWriteToFolder")
+            }
+        },
+        LbError::Unexpected(msg) => CliError::unexpected(msg),
     })
 }

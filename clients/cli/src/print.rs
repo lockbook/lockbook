@@ -1,27 +1,26 @@
-use crate::error::CliResult;
-use crate::utils::{account, config};
-use crate::{err, err_unexpected};
-use lockbook_core::model::errors::GetFileByPathError;
-use lockbook_core::{get_file_by_path, read_document, Error as CoreError};
 use std::io;
 use std::io::Write;
 
-pub fn print(file_name: &str) -> CliResult<()> {
-    account()?;
-    let cfg = config()?;
+use lockbook_core::model::errors::GetFileByPathError;
+use lockbook_core::Error as LbError;
+use lockbook_core::LbCore;
 
-    let file_metadata = get_file_by_path(&cfg, file_name).map_err(|err| match err {
-        CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
-            err!(FileNotFound(file_name.to_string()))
-        }
-        CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
+use crate::error::CliError;
+
+pub fn print(core: &LbCore, lb_path: &str) -> Result<(), CliError> {
+    core.get_account()?;
+
+    let file_metadata = core.get_by_path(lb_path).map_err(|err| match err {
+        LbError::UiError(GetFileByPathError::NoFileAtThatPath) => CliError::file_not_found(lb_path),
+        LbError::Unexpected(msg) => CliError::unexpected(msg),
     })?;
 
-    let content =
-        read_document(&cfg, file_metadata.id).map_err(|err| err_unexpected!("{:?}", err))?;
+    let content = core
+        .read_document(file_metadata.id)
+        .map_err(|err| CliError::unexpected(format!("{:?}", err)))?;
     print!("{}", String::from_utf8_lossy(&content));
 
     io::stdout()
         .flush()
-        .map_err(|err| err_unexpected!("flushing stdin: {:#?}", err))
+        .map_err(|err| CliError::unexpected(format!("flushing stdin: {:#?}", err)))
 }
