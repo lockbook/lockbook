@@ -43,7 +43,6 @@ use crate::path_service::Filter;
 use crate::pure_functions::drawing::SupportedImageFormats;
 use crate::repo::schema::{CoreV1, OneKey, Tx};
 use crate::repo::{account_repo, last_updated_repo};
-use crate::service::db_state_service::State;
 use crate::service::import_export_service::{self, ImportExportFileInfo, ImportStatus};
 use crate::service::search_service::SearchResultItem;
 use crate::service::sync_service::SyncProgress;
@@ -87,13 +86,8 @@ impl LbCore {
     }
 
     pub fn export_account(&self) -> Result<String, Error<AccountExportError>> {
-        let account = self
-            .db
-            .account
-            .get(&OneKey {})?
-            .ok_or(CoreError::AccountNonexistent)?;
-        let encoded: Vec<u8> = bincode::serialize(&account).map_err(core_err_unexpected)?;
-        Ok(base64::encode(&encoded))
+        let val = self.db.transaction(|tx| tx.export_account())?;
+        Ok(val?)
     }
 
     pub fn get_account(&self) -> Result<Account, Error<GetAccountError>> {
@@ -236,7 +230,7 @@ impl LbCore {
         Ok(val?)
     }
 
-    pub fn sync<F: Fn(SyncProgress)>(&self, f: Option<F>) -> Result<(), Error<SyncAllError>> {
+    pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>> {
         let val = self.db.transaction(|tx| tx.sync(&self.config, f))?;
         Ok(val?)
     }
@@ -340,19 +334,6 @@ impl LbCore {
         let val = self.db.transaction(|tx| tx.search_file_paths(input))?;
         Ok(val?)
     }
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn get_db_state(config: &Config) -> Result<State, UnexpectedError> {
-    db_state_service::get_state(config).map_err(|e| unexpected_only!("{:#?}", e))
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn migrate_db(config: &Config) -> Result<(), Error<MigrationError>> {
-    db_state_service::perform_migration(config).map_err(|e| match e {
-        CoreError::ClientWipeRequired => UiError(MigrationError::StateRequiresCleaning),
-        _ => unexpected!("{:#?}", e),
-    })
 }
 
 #[instrument(skip(config), err(Debug))]

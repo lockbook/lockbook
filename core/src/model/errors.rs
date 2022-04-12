@@ -4,6 +4,7 @@ use std::io::ErrorKind;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use strum_macros::EnumIter;
+use uuid::Uuid;
 
 use lockbook_models::api::{GetPublicKeyError, NewAccountError};
 use lockbook_models::tree::TreeError;
@@ -760,4 +761,32 @@ impl From<CoreError> for Error<MigrationError> {
     fn from(e: CoreError) -> Self {
         todo!()
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum TestRepoError {
+    NoAccount,
+    NoRootFolder,
+    DocumentTreatedAsFolder(Uuid),
+    FileOrphaned(Uuid),
+    CycleDetected(Uuid),
+    FileNameEmpty(Uuid),
+    FileNameContainsSlash(Uuid),
+    NameConflictDetected(Uuid),
+    DocumentReadError(Uuid, CoreError),
+    Tree(TreeError),
+    Core(CoreError),
+}
+
+impl From<CoreError> for TestRepoError {
+    fn from(e: CoreError) -> Self {
+        Self::Core(e)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Warning {
+    EmptyFile(Uuid),
+    InvalidUTF8(Uuid),
+    UnreadableDrawing(Uuid),
 }

@@ -84,6 +84,15 @@ impl Tx<'_> {
         Ok(account)
     }
 
+    pub fn export_account(&self) -> Result<String, CoreError> {
+        let account = self
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
+        let encoded: Vec<u8> = bincode::serialize(&account).map_err(core_err_unexpected)?;
+        Ok(base64::encode(&encoded))
+    }
+
     pub fn get_account(&self) -> Result<Account, CoreError> {
         self.account
             .get(&OneKey {})

@@ -415,7 +415,7 @@ impl Tx<'_> {
 
     /// Updates local files to 3-way merge of local, base, and remote; updates base files to remote.
     #[instrument(level = "debug", skip_all, err(Debug))]
-    fn pull<F>(&self, config: &Config, update_sync_progress: &mut F) -> Result<(), CoreError>
+    fn pull<F>(&mut self, config: &Config, update_sync_progress: &mut F) -> Result<(), CoreError>
     where
         F: FnMut(SyncProgressOperation),
     {
@@ -556,7 +556,7 @@ impl Tx<'_> {
         // resolve cycles
         for self_descendant in local_metadata.get_invalid_cycles(&local_metadata_updates)? {
             if let Some(RepoState::Modified { mut local, base }) =
-                file_service::maybe_get_metadata_state(config, self_descendant)?
+                self.maybe_get_metadata_state(self_descendant)?
             {
                 if local.parent != base.parent {
                     if let Some(existing_update) =
@@ -592,18 +592,14 @@ impl Tx<'_> {
         }
 
         // update metadata
-        file_service::insert_metadata_both_repos(
-            config,
-            &base_metadata_updates,
-            &local_metadata_updates,
-        )?;
+        self.insert_metadata_both_repos(config, &base_metadata_updates, &local_metadata_updates)?;
 
         // update document content
         for (metadata, document_update) in base_document_updates {
-            file_service::insert_document(config, RepoSource::Base, &metadata, &document_update)?;
+            self.insert_document(config, RepoSource::Base, &metadata, &document_update)?;
         }
         for (metadata, document_update) in local_document_updates {
-            file_service::insert_document(config, RepoSource::Local, &metadata, &document_update)?;
+            self.insert_document(config, RepoSource::Local, &metadata, &document_update)?;
         }
 
         Ok(())

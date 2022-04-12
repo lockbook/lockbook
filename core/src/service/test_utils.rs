@@ -3,6 +3,7 @@
 use chrono::Datelike;
 use core::fmt::Debug;
 
+use hmdb::transaction::Transaction;
 use std::collections::HashMap;
 use std::env;
 use std::hash::Hash;
@@ -14,7 +15,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::LbCore;
+use crate::{LbCore, OneKey, Tx};
 use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
 use lockbook_models::api::{AccountTier, PaymentMethod};
@@ -237,10 +238,6 @@ pub fn assert_server_work_paths(
     }
 }
 
-pub fn assert_repo_integrity(db: &Config) {
-    integrity_service::test_repo_integrity(db).unwrap();
-}
-
 pub fn assert_all_paths(db: &Config, root: &DecryptedFileMetadata, expected_paths: &[&str]) {
     if expected_paths.iter().any(|&path| !path.starts_with('/')) {
         panic!(
@@ -299,16 +296,63 @@ pub fn assert_all_document_contents(
     }
 }
 
-pub fn assert_deleted_files_pruned(db: &Config) {
-    for source in [RepoSource::Local, RepoSource::Base] {
-        let all_metadata = file_service::get_all_metadata(db, source).unwrap();
-        let not_deleted_metadata = file_service::get_all_not_deleted_metadata(db, source).unwrap();
-        if !slices_equal_ignore_order(&all_metadata, &not_deleted_metadata) {
-            panic!(
-                "some deleted files are not pruned. not_deleted_metadata={:?}; all_metadata={:?}",
-                not_deleted_metadata, all_metadata
-            );
+impl Tx<'_> {
+    pub fn assert_deleted_files_pruned(&self) {
+        for source in [RepoSource::Local, RepoSource::Base] {
+            let all_metadata = self.get_all_metadata(source).unwrap();
+            let not_deleted_metadata = self.get_all_not_deleted_metadata(source).unwrap();
+            if !slices_equal_ignore_order(&all_metadata, &not_deleted_metadata) {
+                panic!(
+                    "some deleted files are not pruned. not_deleted_metadata={:?}; all_metadata={:?}",
+                    not_deleted_metadata, all_metadata
+                );
+            }
         }
+    }
+
+    pub fn assert_dbs_eq(&self, other: &Self) {
+        assert_eq!(self.account.get_all(), other.account.get_all());
+        assert_eq!(self.last_synced.get_all(), other.last_synced.get_all());
+        assert_eq!(self.root.get_all(), other.root.get_all());
+        assert_eq!(self.local_digest.get_all(), other.local_digest.get_all());
+        assert_eq!(self.base_digest.get_all(), other.base_digest.get_all());
+        assert_eq!(self.local_metadata.get_all(), other.local_metadata.get_all());
+        assert_eq!(self.base_metadata.get_all(), other.base_metadata.get_all());
+    }
+
+    pub fn dbs_equal(&self, other: &Self) -> bool {
+        self.account.get_all() == other.account.get_all()
+            && self.last_synced.get_all() == other.last_synced.get_all()
+            && self.root.get_all() == other.root.get_all()
+            && self.local_digest.get_all() == other.local_digest.get_all()
+            && self.base_digest.get_all() == other.base_digest.get_all()
+            && self.local_metadata.get_all() == other.local_metadata.get_all()
+            && self.base_metadata.get_all() == other.base_metadata.get_all()
+    }
+
+    pub fn assert_new_synced_client_dbs_eq(&self, db: &Config) {
+        let new_client = self.make_and_sync_new_client();
+        new_client
+            .db
+            .transaction(|tx| {
+                tx.assert_repo_integrity(&new_client.config);
+                tx.assert_dbs_eq(&self);
+            })
+            .unwrap();
+    }
+
+    pub fn make_and_sync_new_client(&self) -> LbCore {
+        let new_client = test_config();
+        let account_string = self.export_account().unwrap();
+
+        let new_db = LbCore::init(&new_client).unwrap();
+        new_db.import_account(&account_string).unwrap();
+        new_db.sync(None).unwrap();
+        new_db
+    }
+
+    pub fn assert_repo_integrity(&self, config: &Config) {
+        self.test_repo_integrity(config).unwrap();
     }
 }
 
@@ -316,19 +360,6 @@ pub fn make_new_client(db: &Config) -> Config {
     let new_client = test_config();
     crate::import_account(&new_client, &crate::export_account(db).unwrap()).unwrap();
     new_client
-}
-
-pub fn make_and_sync_new_client(db: &Config) -> Config {
-    let new_client = test_config();
-    crate::import_account(&new_client, &crate::export_account(db).unwrap()).unwrap();
-    crate::sync_all(&new_client, None).unwrap();
-    new_client
-}
-
-pub fn assert_new_synced_client_dbs_eq(db: &Config) {
-    let new_client = make_and_sync_new_client(db);
-    assert_repo_integrity(&new_client);
-    assert_dbs_eq(db, &new_client);
 }
 
 pub mod test_credit_cards {
@@ -520,34 +551,6 @@ pub fn aes_decrypt<T: Serialize + DeserializeOwned>(
     key: &AESKey, to_decrypt: &AESEncrypted<T>,
 ) -> T {
     symkey::decrypt(key, to_decrypt).unwrap()
-}
-
-pub fn assert_dbs_eq(db1: &Config, db2: &Config) {
-    assert_eq!(account_repo::get(db1).unwrap(), account_repo::get(db2).unwrap());
-
-    assert_eq!(db_version_repo::maybe_get(db1).unwrap(), db_version_repo::maybe_get(db2).unwrap());
-
-    assert_eq!(root_repo::maybe_get(db1).unwrap(), root_repo::maybe_get(db2).unwrap());
-
-    assert_eq!(
-        file_service::get_all_metadata_state(db1).unwrap(),
-        file_service::get_all_metadata_state(db2).unwrap()
-    );
-
-    assert_eq!(
-        file_service::get_all_document_state(db1).unwrap(),
-        file_service::get_all_document_state(db2).unwrap()
-    );
-}
-
-pub fn dbs_equal(db1: &Config, db2: &Config) -> bool {
-    account_repo::get(db1).unwrap() == account_repo::get(db2).unwrap()
-        && db_version_repo::maybe_get(db1).unwrap() == db_version_repo::maybe_get(db2).unwrap()
-        && root_repo::maybe_get(db1).unwrap() == root_repo::maybe_get(db2).unwrap()
-        && file_service::get_all_metadata_state(db1).unwrap()
-            == file_service::get_all_metadata_state(db2).unwrap()
-        && file_service::get_all_document_state(db1).unwrap()
-            == file_service::get_all_document_state(db2).unwrap()
 }
 
 fn get_frequencies<T: Hash + Eq>(a: &[T]) -> HashMap<&T, i32> {

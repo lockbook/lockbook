@@ -580,146 +580,57 @@ impl Tx<'_> {
             .unique()
             .collect())
     }
-}
 
-pub fn create_file(
-    config: &Config, name: &str, parent: Uuid, file_type: FileType,
-) -> Result<DecryptedFileMetadata, CoreError> {
-    todo!()
-}
-
-pub fn get_root(config: &Config) -> Result<DecryptedFileMetadata, CoreError> {
-    todo!()
-}
-
-pub fn get_children(config: &Config, id: Uuid) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
-    todo!()
-}
-
-pub fn get_and_get_children_recursively(
-    config: &Config, id: Uuid,
-) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
-    todo!()
-}
-
-pub fn get_all_metadata_changes(config: &Config) -> Result<Vec<FileMetadataDiff>, CoreError> {
-    todo!()
-}
-
-pub fn get_all_with_document_changes(config: &Config) -> Result<Vec<Uuid>, CoreError> {
-    todo!()
-}
-
-/// Adds or updates the metadata of a file on disk.
-pub fn insert_metadatum(
-    config: &Config, source: RepoSource, metadata: &DecryptedFileMetadata,
-) -> Result<(), CoreError> {
-    insert_metadata(config, source, &[metadata.clone()])
-}
-
-pub fn insert_metadata_both_repos(
-    config: &Config, base_metadata_changes: &[DecryptedFileMetadata],
-    local_metadata_changes: &[DecryptedFileMetadata],
-) -> Result<(), CoreError> {
-    let base_metadata = get_all_metadata(config, RepoSource::Base)?;
-    let local_metadata = get_all_metadata(config, RepoSource::Local)?;
-    insert_metadata_given_decrypted_metadata(
-        config,
-        RepoSource::Base,
-        &base_metadata,
-        base_metadata_changes,
-    )?;
-    insert_metadata_given_decrypted_metadata(
-        config,
-        RepoSource::Local,
-        &local_metadata,
-        local_metadata_changes,
-    )
-}
-
-pub fn insert_metadata(
-    config: &Config, source: RepoSource, metadata_changes: &[DecryptedFileMetadata],
-) -> Result<(), CoreError> {
-    let all_metadata = get_all_metadata(config, source)?;
-    insert_metadata_given_decrypted_metadata(config, source, &all_metadata, metadata_changes)
-}
-
-/// Adds or updates the metadata of files on disk.
-/// Disk optimization opportunity: this function needlessly writes to disk when setting local metadata = base metadata.
-/// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
-fn insert_metadata_given_decrypted_metadata(
-    config: &Config, source: RepoSource, all_metadata: &[DecryptedFileMetadata],
-    metadata_changes: &[DecryptedFileMetadata],
-) -> Result<(), CoreError> {
-    // encrypt metadata
-    let account = account_repo::get(config)?;
-    let all_metadata_with_changes_staged = all_metadata
-        .stage(metadata_changes)
-        .into_iter()
-        .map(|(f, _)| f)
-        .collect::<Vec<DecryptedFileMetadata>>();
-    let all_metadata_encrypted =
-        file_encryption_service::encrypt_metadata(&account, &all_metadata_with_changes_staged)?;
-
-    for metadatum in metadata_changes {
-        let encrypted_metadata = all_metadata_encrypted.find(metadatum.id)?;
-
-        // perform insertion
-        let new_doc = source == RepoSource::Local
-            && metadatum.file_type == FileType::Document
-            && file_service::maybe_get_metadata(config, RepoSource::Local, metadatum.id)?.is_none();
-
-        metadata_repo::insert(config, source, &encrypted_metadata)?;
-
-        if new_doc {
-            file_service::insert_document(config, RepoSource::Local, metadatum, &[])?;
-        }
-
-        // remove local if local == base
-        if let Some(opposite) =
-            metadata_repo::maybe_get(config, source.opposite(), encrypted_metadata.id)?
-        {
-            if utils::slices_equal(&opposite.name.hmac, &encrypted_metadata.name.hmac)
-                && opposite.parent == metadatum.parent
-                && opposite.deleted == metadatum.deleted
-            {
-                metadata_repo::delete(config, RepoSource::Local, metadatum.id)?;
-            }
-        }
-
-        // update root
-        if metadatum.parent == metadatum.id {
-            root_repo::set(config, metadatum.id)?;
-        }
+    pub fn insert_metadata_both_repos(
+        &mut self, config: &Config, base_metadata_changes: &[DecryptedFileMetadata],
+        local_metadata_changes: &[DecryptedFileMetadata],
+    ) -> Result<(), CoreError> {
+        let base_metadata = self.get_all_metadata(RepoSource::Base)?;
+        let local_metadata = self.get_all_metadata(RepoSource::Local)?;
+        self.insert_metadata_given_decrypted_metadata(
+            config,
+            RepoSource::Base,
+            &base_metadata,
+            base_metadata_changes,
+        )?;
+        self.insert_metadata_given_decrypted_metadata(
+            config,
+            RepoSource::Local,
+            &local_metadata,
+            local_metadata_changes,
+        )
     }
 
-    Ok(())
-}
+    pub fn get_metadata_state(
+        &self, id: Uuid,
+    ) -> Result<RepoState<DecryptedFileMetadata>, CoreError> {
+        self.maybe_get_metadata_state(id)
+            .and_then(|f| f.ok_or(CoreError::FileNonexistent))
+    }
 
-pub fn get_not_deleted_metadata(
-    config: &Config, source: RepoSource, id: Uuid,
-) -> Result<DecryptedFileMetadata, CoreError> {
-    todo!()
-}
+    pub fn maybe_get_metadata_state(
+        &self, id: Uuid,
+    ) -> Result<Option<RepoState<DecryptedFileMetadata>>, CoreError> {
+        let all_metadata = self.get_all_metadata_state()?;
+        Ok(files::maybe_find_state(&all_metadata, id))
+    }
 
-pub fn maybe_get_not_deleted_metadata(
-    config: &Config, source: RepoSource, id: Uuid,
-) -> Result<Option<DecryptedFileMetadata>, CoreError> {
-    let all_not_deleted_metadata = get_all_not_deleted_metadata(config, source)?;
-    Ok(all_not_deleted_metadata.maybe_find(id))
-}
-
-pub fn get_metadata(
-    config: &Config, source: RepoSource, id: Uuid,
-) -> Result<DecryptedFileMetadata, CoreError> {
-    maybe_get_metadata(config, source, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
-}
-
-pub fn maybe_get_metadata(
-    config: &Config, source: RepoSource, id: Uuid,
-) -> Result<Option<DecryptedFileMetadata>, CoreError> {
-    let all_metadata = get_all_metadata(config, source)?;
-    Ok(all_metadata.maybe_find(id))
+    pub fn get_all_document_state(
+        &self, config: &Config,
+    ) -> Result<Vec<RepoState<DecryptedDocument>>, CoreError> {
+        let doc_metadata: Vec<RepoState<DecryptedFileMetadata>> = self
+            .get_all_metadata_state()?
+            .into_iter()
+            .filter(|r| r.clone().local().file_type == FileType::Document)
+            .collect();
+        let mut result = Vec::new();
+        for doc_metadatum in doc_metadata {
+            if let Some(doc_state) = maybe_get_document_state(config, &doc_metadatum)? {
+                result.push(doc_state);
+            }
+        }
+        Ok(result)
+    }
 }
 
 pub fn get_all_not_deleted_metadata(
@@ -745,37 +656,6 @@ pub fn get_all_metadata(
         }
         RepoSource::Base => file_encryption_service::decrypt_metadata(&account, &base),
     }
-}
-
-pub fn get_metadata_state(
-    config: &Config, id: Uuid,
-) -> Result<RepoState<DecryptedFileMetadata>, CoreError> {
-    maybe_get_metadata_state(config, id).and_then(|f| f.ok_or(CoreError::FileNonexistent))
-}
-
-pub fn maybe_get_metadata_state(
-    config: &Config, id: Uuid,
-) -> Result<Option<RepoState<DecryptedFileMetadata>>, CoreError> {
-    let all_metadata = get_all_metadata_state(config)?;
-    Ok(maybe_find_state(&all_metadata, id))
-}
-
-pub fn get_all_metadata_state(
-    config: &Config,
-) -> Result<Vec<RepoState<DecryptedFileMetadata>>, CoreError> {
-    todo!()
-}
-
-pub fn get_all_metadata_with_encrypted_changes(
-    config: &Config, source: RepoSource, changes: &[EncryptedFileMetadata],
-) -> Result<(Vec<DecryptedFileMetadata>, Vec<EncryptedFileMetadata>), CoreError> {
-    todo!()
-}
-
-pub fn insert_document(
-    config: &Config, source: RepoSource, metadata: &DecryptedFileMetadata, document: &[u8],
-) -> Result<(), CoreError> {
-    todo!()
 }
 
 pub fn get_not_deleted_document(
@@ -828,22 +708,6 @@ pub fn maybe_get_document(
     })
 }
 
-pub fn get_all_document_state(
-    config: &Config,
-) -> Result<Vec<RepoState<DecryptedDocument>>, CoreError> {
-    let doc_metadata: Vec<RepoState<DecryptedFileMetadata>> = get_all_metadata_state(config)?
-        .into_iter()
-        .filter(|r| r.clone().local().file_type == FileType::Document)
-        .collect();
-    let mut result = Vec::new();
-    for doc_metadatum in doc_metadata {
-        if let Some(doc_state) = maybe_get_document_state(config, &doc_metadatum)? {
-            result.push(doc_state);
-        }
-    }
-    Ok(result)
-}
-
 pub fn maybe_get_document_state(
     config: &Config, metadata: &RepoState<DecryptedFileMetadata>,
 ) -> Result<Option<RepoState<DecryptedDocument>>, CoreError> {
@@ -877,62 +741,6 @@ pub fn maybe_get_document_state(
         }
     };
     Ok(RepoState::from_local_and_base(local, base))
-}
-
-/// Updates base documents to match local documents.
-#[instrument(level = "debug", skip_all, err(Debug))]
-pub fn promote_documents(config: &Config) -> Result<(), CoreError> {
-    let base_metadata = metadata_repo::get_all(config, RepoSource::Base)?;
-    let local_metadata = metadata_repo::get_all(config, RepoSource::Local)?;
-    let staged_metadata = base_metadata.stage(&local_metadata);
-    let staged_everything = staged_metadata
-        .into_iter()
-        .map(|(f, _)| {
-            Ok((
-                f.clone(),
-                match document_repo::maybe_get(config, RepoSource::Local, f.id)? {
-                    Some(document) => Some(document),
-                    None => document_repo::maybe_get(config, RepoSource::Base, f.id)?,
-                },
-                match digest_repo::maybe_get(config, RepoSource::Local, f.id)? {
-                    Some(digest) => Some(digest),
-                    None => digest_repo::maybe_get(config, RepoSource::Base, f.id)?,
-                },
-            ))
-        })
-        .collect::<Result<
-            Vec<(EncryptedFileMetadata, Option<EncryptedDocument>, Option<Vec<u8>>)>,
-            CoreError,
-        >>()?;
-
-    document_repo::delete_all(config, RepoSource::Base)?;
-    digest_repo::delete_all(config, RepoSource::Base)?;
-
-    for (metadata, maybe_document, maybe_digest) in staged_everything {
-        if let Some(document) = maybe_document {
-            document_repo::insert(config, RepoSource::Base, metadata.id, &document)?;
-        }
-        if let Some(digest) = maybe_digest {
-            digest_repo::insert(config, RepoSource::Base, metadata.id, &digest)?;
-        }
-    }
-
-    document_repo::delete_all(config, RepoSource::Local)?;
-    digest_repo::delete_all(config, RepoSource::Local)
-}
-
-#[instrument(level = "debug", skip_all, err(Debug))]
-pub fn prune_deleted(config: &Config) -> Result<(), CoreError> {
-    todo!()
-}
-
-fn delete_metadata(config: &Config, id: Uuid) -> Result<(), CoreError> {
-    metadata_repo::delete(config, RepoSource::Local, id)?;
-    metadata_repo::delete(config, RepoSource::Base, id)
-}
-
-fn delete_document(config: &Config, id: Uuid) -> Result<(), CoreError> {
-    todo!()
 }
 
 #[cfg(test)]
