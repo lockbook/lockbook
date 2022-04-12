@@ -235,6 +235,13 @@ impl LbCore {
         Ok(val?)
     }
 
+    pub fn get_last_synced(&self) -> Result<i64, UnexpectedError> {
+        self.db
+            .last_synced
+            .get(&OneKey {})?
+            .ok_or_else(|| unexpected_only!("No prior sync time found"))
+    }
+
     pub fn get_last_synced_human_string(&self) -> Result<String, UnexpectedError> {
         let last_synced = self
             .db
