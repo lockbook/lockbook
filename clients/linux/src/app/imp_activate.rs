@@ -25,11 +25,6 @@ impl super::App {
         window.set_titlebar(Some(&titlebar));
         window.set_child(Some(&overlay));
 
-        if let Err(err) = api.init_logger(Path::new(&writeable_path)) {
-            show_launch_error(&window, &err.0);
-            return;
-        }
-
         if let Err(err) = check_and_perform_migrations(&api) {
             let msg = format!("checking and performing migrations: {}", err);
             show_launch_error(&window, &msg);
