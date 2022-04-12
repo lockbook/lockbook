@@ -6,12 +6,10 @@ use chrono::{DateTime, Utc};
 use lockbook_core::model::errors::ExportFileError;
 use lockbook_core::model::errors::GetRootError;
 use lockbook_core::service::path_service::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
+use lockbook_core::Error as LbError;
 use lockbook_core::LbCore;
-use lockbook_core::{export_file, Error as LbError};
 
 use crate::error::CliError;
-
-use crate::utils::config;
 
 pub fn backup(core: &LbCore) -> Result<(), CliError> {
     core.get_account()?;
@@ -52,13 +50,17 @@ pub fn backup(core: &LbCore) -> Result<(), CliError> {
         LbError::Unexpected(msg) => CliError::unexpected(msg),
     })?;
 
-    let config = config()?;
-    export_file(&config, root.id, backup_dir.clone(), false, None).map_err(|err| match err {
-        LbError::UiError(ExportFileError::NoAccount) => CliError::no_account(),
-        LbError::UiError(ExportFileError::DiskPathTaken) => CliError::os_file_collision(backup_dir),
-        LbError::UiError(ExportFileError::DiskPathInvalid) => CliError::os_invalid_path(backup_dir),
-        LbError::UiError(ExportFileError::ParentDoesNotExist) | LbError::Unexpected(_) => {
-            CliError::unexpected(format!("{:#?}", err))
-        }
-    })
+    core.export_file(root.id, backup_dir.clone(), false, None)
+        .map_err(|err| match err {
+            LbError::UiError(ExportFileError::NoAccount) => CliError::no_account(),
+            LbError::UiError(ExportFileError::DiskPathTaken) => {
+                CliError::os_file_collision(backup_dir)
+            }
+            LbError::UiError(ExportFileError::DiskPathInvalid) => {
+                CliError::os_invalid_path(backup_dir)
+            }
+            LbError::UiError(ExportFileError::ParentDoesNotExist) | LbError::Unexpected(_) => {
+                CliError::unexpected(format!("{:#?}", err))
+            }
+        })
 }

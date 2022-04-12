@@ -10,7 +10,7 @@ use lockbook_core::pure_functions::drawing::SupportedImageFormats;
 use lockbook_core::service::db_state_service::State;
 use lockbook_core::Error as LbError;
 use lockbook_core::LbCore;
-use lockbook_core::{get_db_state, get_last_synced_human_string, migrate_db};
+use lockbook_core::{get_db_state, migrate_db};
 
 use crate::error::CliError;
 
@@ -155,9 +155,9 @@ pub fn edit_file_with_editor(file_location: &str) -> bool {
     }
 }
 
-pub fn print_last_successful_sync() -> Result<(), CliError> {
+pub fn print_last_successful_sync(core: &LbCore) -> Result<(), CliError> {
     if atty::is(atty::Stream::Stdout) {
-        let last_updated = get_last_synced_human_string(&config()?).map_err(|err| {
+        let last_updated = core.get_last_synced_human_string().map_err(|err| {
             CliError::unexpected(format!("attempting to retrieve usage: {:#?}", err))
         })?;
 

@@ -239,14 +239,14 @@ impl Api for DefaultApi {
     fn import_files(
         &self, sources: &[PathBuf], dest: Uuid, update_status: Box<dyn Fn(ImportStatus)>,
     ) -> Result<(), Error<ImportFileError>> {
-        lockbook_core::import_files(&self.cfg, sources, dest, &update_status)
+        self.core.import_files(sources, dest, &update_status)
     }
 
     fn export_file(
         &self, id: Uuid, dest: PathBuf, edit: bool,
         export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> Result<(), Error<ExportFileError>> {
-        lockbook_core::export_file(&self.cfg, id, dest, edit, export_progress)
+        self.core.export_file(id, dest, edit, export_progress)
     }
 
     fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>> {
@@ -258,11 +258,11 @@ impl Api for DefaultApi {
     }
 
     fn uncompressed_usage(&self) -> Result<UsageItemMetric, Error<GetUsageError>> {
-        lockbook_core::get_uncompressed_usage(&self.cfg)
+        self.core.get_uncompressed_usage()
     }
 
     fn usage(&self) -> Result<UsageMetrics, Error<GetUsageError>> {
-        lockbook_core::get_usage(&self.cfg)
+        self.core.get_usage()
     }
 
     fn sync_all(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>> {

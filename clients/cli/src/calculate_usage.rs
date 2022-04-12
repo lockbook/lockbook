@@ -3,26 +3,12 @@ use lockbook_core::Error as LbError;
 use lockbook_core::LbCore;
 
 use crate::error::CliError;
-use crate::utils::config;
-
-impl From<LbError<GetUsageError>> for CliError {
-    fn from(e: LbError<GetUsageError>) -> Self {
-        match e {
-            LbError::UiError(err) => match err {
-                GetUsageError::NoAccount => CliError::no_account(),
-                GetUsageError::CouldNotReachServer => CliError::network_issue(),
-                GetUsageError::ClientUpdateRequired => CliError::update_required(),
-            },
-            LbError::Unexpected(msg) => CliError::unexpected(msg),
-        }
-    }
-}
 
 pub fn calculate_usage(core: &LbCore, exact: bool) -> Result<(), CliError> {
     core.get_account()?;
 
-    let usage = lockbook_core::get_usage(&config()?)?;
-    let uncompressed_usage = lockbook_core::get_uncompressed_usage(&config()?)?;
+    let usage = core.get_usage()?;
+    let uncompressed_usage = core.get_uncompressed_usage()?;
 
     let (uncompressed, server_usage, data_cap) = if exact {
         (
@@ -38,4 +24,17 @@ pub fn calculate_usage(core: &LbCore, exact: bool) -> Result<(), CliError> {
     println!("Server Utilization: {}", server_usage);
     println!("Server Data Cap: {}", data_cap);
     Ok(())
+}
+
+impl From<LbError<GetUsageError>> for CliError {
+    fn from(e: LbError<GetUsageError>) -> Self {
+        match e {
+            LbError::UiError(err) => match err {
+                GetUsageError::NoAccount => Self::no_account(),
+                GetUsageError::CouldNotReachServer => Self::network_issue(),
+                GetUsageError::ClientUpdateRequired => Self::update_required(),
+            },
+            LbError::Unexpected(msg) => Self::unexpected(msg),
+        }
+    }
 }

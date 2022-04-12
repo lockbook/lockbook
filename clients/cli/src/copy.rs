@@ -6,13 +6,12 @@ use lockbook_core::model::errors::CreateFileAtPathError;
 use lockbook_core::model::errors::GetFileByPathError;
 use lockbook_core::model::errors::ImportFileError;
 use lockbook_core::service::import_export_service::ImportStatus;
+use lockbook_core::CoreError;
 use lockbook_core::Error as LbError;
 use lockbook_core::LbCore;
-use lockbook_core::{import_files, CoreError};
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 
 use crate::error::CliError;
-use crate::utils::config;
 
 pub fn copy(core: &LbCore, disk_paths: &[PathBuf], lb_path: &str) -> Result<(), CliError> {
     core.get_account()?;
@@ -35,14 +34,15 @@ pub fn copy(core: &LbCore, disk_paths: &[PathBuf], lb_path: &str) -> Result<(), 
 
     let dest = get_or_create_file(core, lb_path)?;
 
-    import_files(&config()?, disk_paths, dest.id, &update_status).map_err(|err| match err {
-        LbError::UiError(err) => match err {
-            ImportFileError::NoAccount => CliError::no_account(),
-            ImportFileError::ParentDoesNotExist => CliError::file_not_found(lb_path),
-            ImportFileError::DocumentTreatedAsFolder => CliError::doc_treated_as_dir(lb_path),
-        },
-        LbError::Unexpected(msg) => CliError::unexpected(msg),
-    })
+    core.import_files(disk_paths, dest.id, &update_status)
+        .map_err(|err| match err {
+            LbError::UiError(err) => match err {
+                ImportFileError::NoAccount => CliError::no_account(),
+                ImportFileError::ParentDoesNotExist => CliError::file_not_found(lb_path),
+                ImportFileError::DocumentTreatedAsFolder => CliError::doc_treated_as_dir(lb_path),
+            },
+            LbError::Unexpected(msg) => CliError::unexpected(msg),
+        })
 }
 
 fn get_or_create_file(core: &LbCore, lb_path: &str) -> Result<DecryptedFileMetadata, CliError> {

@@ -12,5 +12,5 @@ pub fn list(core: &LbCore, file_filter: Option<Filter>) -> Result<(), CliError> 
         .into_iter()
         .for_each(|path| println!("{}", path));
 
-    print_last_successful_sync()
+    print_last_successful_sync(core)
 }

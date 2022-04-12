@@ -27,5 +27,5 @@ pub fn status(core: &LbCore) -> Result<(), CliError> {
         println!("{} needs to be {}", work_unit.get_metadata().decrypted_name, action)
     });
 
-    print_last_successful_sync()
+    print_last_successful_sync(core)
 }
