@@ -335,6 +335,11 @@ impl LbCore {
         let val = self.db.transaction(|tx| tx.get_credit_card())?;
         Ok(val?)
     }
+
+    pub fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError> {
+        let val = self.db.transaction(|tx| tx.search_file_paths(input))?;
+        Ok(val?)
+    }
 }
 
 #[instrument(skip(config), err(Debug))]
@@ -574,7 +579,7 @@ pub fn get_credit_card(config: &Config) -> Result<CreditCardLast4Digits, Error<G
 pub fn search_file_paths(
     config: &Config, input: &str,
 ) -> Result<Vec<SearchResultItem>, UnexpectedError> {
-    search_service::search_file_paths(config, input).map_err(|e| unexpected_only!("{:#?}", e))
+    todo!()
 }
 
 // This basically generates a function called `get_all_error_variants`,
