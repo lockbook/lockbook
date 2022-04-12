@@ -7,7 +7,7 @@ use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::repo::account_repo;
 use crate::service::{api_service, file_service};
-use crate::CoreError;
+use crate::{CoreError, Tx};
 
 pub const BYTE: u64 = 1;
 pub const KILOBYTE: u64 = BYTE * 1000;
@@ -33,6 +33,44 @@ pub struct UsageItemMetric {
     pub readable: String,
 }
 
+impl Tx<'_> {
+    fn server_usage(&self) -> Result<GetUsageResponse, CoreError> {
+        let acc = &self.get_account()?;
+
+        api_service::request(&acc, GetUsageRequest {}).map_err(CoreError::from)
+    }
+
+    pub fn get_usage(&self) -> Result<UsageMetrics, CoreError> {
+        let server_usage_and_cap = self.server_usage()?;
+
+        let server_usage = server_usage_and_cap.sum_server_usage();
+        let cap = server_usage_and_cap.cap;
+
+        let readable_usage = bytes_to_human(server_usage);
+        let readable_cap = bytes_to_human(cap);
+
+        Ok(UsageMetrics {
+            usages: server_usage_and_cap.usages,
+            server_usage: UsageItemMetric { exact: server_usage, readable: readable_usage },
+            data_cap: UsageItemMetric { exact: cap, readable: readable_cap },
+        })
+    }
+
+    pub fn get_uncompressed_usage(&self, config: &Config) -> Result<UsageItemMetric, CoreError> {
+        let files = self.get_all_metadata(RepoSource::Local)?;
+        let docs = files.filter_documents();
+
+        let mut local_usage: u64 = 0;
+        for doc in docs {
+            local_usage += file_service::get_document(config, RepoSource::Local, &doc)?.len() as u64
+        }
+
+        let readable = bytes_to_human(local_usage);
+
+        Ok(UsageItemMetric { exact: local_usage, readable })
+    }
+}
+
 pub fn bytes_to_human(size: u64) -> String {
     let (unit, abbr) = match size {
         0..=KILOBYTE_MINUS_ONE => (BYTE, "B"),
@@ -46,42 +84,6 @@ pub fn bytes_to_human(size: u64) -> String {
     let dec = f64::trunc(size_in_unit.fract() * 100.0) / 100.0;
 
     format!("{} {}", size_in_unit.trunc() + dec, abbr)
-}
-
-pub fn server_usage(config: &Config) -> Result<GetUsageResponse, CoreError> {
-    let acc = account_repo::get(config)?;
-
-    api_service::request(&acc, GetUsageRequest {}).map_err(CoreError::from)
-}
-
-pub fn get_usage(config: &Config) -> Result<UsageMetrics, CoreError> {
-    let server_usage_and_cap = server_usage(config)?;
-
-    let server_usage = server_usage_and_cap.sum_server_usage();
-    let cap = server_usage_and_cap.cap;
-
-    let readable_usage = bytes_to_human(server_usage);
-    let readable_cap = bytes_to_human(cap);
-
-    Ok(UsageMetrics {
-        usages: server_usage_and_cap.usages,
-        server_usage: UsageItemMetric { exact: server_usage, readable: readable_usage },
-        data_cap: UsageItemMetric { exact: cap, readable: readable_cap },
-    })
-}
-
-pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, CoreError> {
-    let files = file_service::get_all_metadata(config, RepoSource::Local)?;
-    let docs = files.filter_documents();
-
-    let mut local_usage: u64 = 0;
-    for doc in docs {
-        local_usage += file_service::get_document(config, RepoSource::Local, &doc)?.len() as u64
-    }
-
-    let readable = bytes_to_human(local_usage);
-
-    Ok(UsageItemMetric { exact: local_usage, readable })
 }
 
 #[cfg(test)]

@@ -772,37 +772,10 @@ pub fn get_all_metadata_with_encrypted_changes(
     todo!()
 }
 
-/// Adds or updates the content of a document on disk.
-/// Disk optimization opportunity: this function needlessly writes to disk when setting local content = base content.
-/// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
 pub fn insert_document(
     config: &Config, source: RepoSource, metadata: &DecryptedFileMetadata, document: &[u8],
 ) -> Result<(), CoreError> {
-    // check that document exists and is a document
-    get_metadata(config, RepoSource::Local, metadata.id)?;
-    if metadata.file_type == FileType::Folder {
-        return Err(CoreError::FileNotDocument);
-    }
-
-    // encrypt document and compute digest
-    let digest = Sha256::digest(document);
-    let compressed_document = file_compression_service::compress(document)?;
-    let encrypted_document =
-        file_encryption_service::encrypt_document(&compressed_document, metadata)?;
-
-    // perform insertions
-    document_repo::insert(config, source, metadata.id, &encrypted_document)?;
-    digest_repo::insert(config, source, metadata.id, &digest)?;
-
-    // remove local if local == base
-    if let Some(opposite) = digest_repo::maybe_get(config, source.opposite(), metadata.id)? {
-        if utils::slices_equal(&opposite, &digest) {
-            document_repo::delete(config, RepoSource::Local, metadata.id)?;
-            digest_repo::delete(config, RepoSource::Local, metadata.id)?;
-        }
-    }
-
-    Ok(())
+    todo!()
 }
 
 pub fn get_not_deleted_document(

@@ -240,6 +240,101 @@ impl LbCore {
         let val = self.db.transaction(|tx| tx.sync(&self.config, f))?;
         Ok(val?)
     }
+
+    pub fn get_last_synced_human_string(&self) -> Result<String, UnexpectedError> {
+        let last_synced = self
+            .db
+            .last_synced
+            .get(&OneKey {})?
+            .ok_or_else(|| unexpected_only!("No prior sync time found"))?;
+
+        Ok(if last_synced != 0 {
+            Duration::milliseconds(clock_service::get_time().0 - last_synced)
+                .format_human()
+                .to_string()
+        } else {
+            "never".to_string()
+        })
+    }
+
+    pub fn get_usage(&self) -> Result<UsageMetrics, Error<GetUsageError>> {
+        let val = self.db.transaction(|tx| tx.get_usage())?;
+        Ok(val?)
+    }
+
+    pub fn get_uncompressed_usage(&self) -> Result<UsageItemMetric, Error<GetUsageError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.get_uncompressed_usage(&self.config))?;
+        Ok(val?)
+    }
+
+    pub fn get_drawing(&self, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
+        let val = self.db.transaction(|tx| tx.get_drawing(&self.config, id))?;
+        Ok(val?)
+    }
+
+    pub fn save_drawing(
+        &self, id: Uuid, drawing_bytes: &[u8],
+    ) -> Result<(), Error<SaveDrawingError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.save_drawing(&self.config, id, drawing_bytes))?;
+        Ok(val?)
+    }
+
+    pub fn export_drawing(
+        &self, id: Uuid, format: SupportedImageFormats,
+        render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
+    ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.export_drawing(&self.config, id, format, render_theme))?;
+        Ok(val?)
+    }
+
+    pub fn export_drawing_to_disk(
+        &self, id: Uuid, format: SupportedImageFormats,
+        render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
+    ) -> Result<(), Error<ExportDrawingToDiskError>> {
+        let val = self.db.transaction(|tx| {
+            tx.export_drawing_to_disk(&self.config, id, format, render_theme, location)
+        })?;
+        Ok(val?)
+    }
+
+    pub fn import_files<F: Fn(ImportStatus)>(
+        &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
+    ) -> Result<(), Error<ImportFileError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.import_files(&self.config, sources, dest, update_status))?;
+        Ok(val?)
+    }
+
+    pub fn export_file(
+        &self, id: Uuid, destination: PathBuf, edit: bool,
+        export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+    ) -> Result<(), Error<ExportFileError>> {
+        let val = self.db.transaction(|tx| {
+            tx.export_file(&self.config, id, destination, edit, export_progress)
+        })?;
+        Ok(val?)
+    }
+
+    pub fn switch_account_tier(
+        &self, new_account_tier: AccountTier,
+    ) -> Result<(), Error<SwitchAccountTierError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.switch_account_tier(new_account_tier))?;
+        Ok(val?)
+    }
+
+    pub fn get_credit_card(&self) -> Result<CreditCardLast4Digits, Error<GetCreditCard>> {
+        let val = self.db.transaction(|tx| tx.get_credit_card())?;
+        Ok(val?)
+    }
 }
 
 #[instrument(skip(config), err(Debug))]
@@ -407,59 +502,29 @@ pub fn get_last_synced(config: &Config) -> Result<i64, UnexpectedError> {
 
 #[instrument(skip(config), ret(Debug))]
 pub fn get_last_synced_human_string(config: &Config) -> Result<String, UnexpectedError> {
-    let last_synced = last_updated_repo::get(config).map_err(|e| unexpected_only!("{:#?}", e))?;
-
-    Ok(if last_synced != 0 {
-        Duration::milliseconds(clock_service::get_time().0 - last_synced)
-            .format_human()
-            .to_string()
-    } else {
-        "never".to_string()
-    })
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]
 pub fn get_usage(config: &Config) -> Result<UsageMetrics, Error<GetUsageError>> {
-    usage_service::get_usage(config).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(GetUsageError::NoAccount),
-        CoreError::ServerUnreachable => UiError(GetUsageError::CouldNotReachServer),
-        CoreError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
-        _ => unexpected!("{:#?}", e),
-    })
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]
 pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, Error<GetUsageError>> {
-    usage_service::get_uncompressed_usage(config).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(GetUsageError::NoAccount),
-        CoreError::ServerUnreachable => UiError(GetUsageError::CouldNotReachServer),
-        CoreError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
-        _ => unexpected!("{:#?}", e),
-    })
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]
 pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
-    drawing_service::get_drawing(config, id).map_err(|e| match e {
-        CoreError::DrawingInvalid => UiError(GetDrawingError::InvalidDrawing),
-        CoreError::FileNotDocument => UiError(GetDrawingError::FolderTreatedAsDrawing),
-        CoreError::AccountNonexistent => UiError(GetDrawingError::NoAccount),
-        CoreError::FileNonexistent => UiError(GetDrawingError::FileDoesNotExist),
-        _ => unexpected!("{:#?}", e),
-    })
+    todo!()
 }
 
 #[instrument(skip(config, drawing_bytes), err(Debug))]
 pub fn save_drawing(
     config: &Config, id: Uuid, drawing_bytes: &[u8],
 ) -> Result<(), Error<SaveDrawingError>> {
-    drawing_service::save_drawing(config, id, drawing_bytes).map_err(|e| match e {
-        CoreError::DrawingInvalid => UiError(SaveDrawingError::InvalidDrawing),
-        CoreError::AccountNonexistent => UiError(SaveDrawingError::NoAccount),
-        CoreError::FileNonexistent => UiError(SaveDrawingError::FileDoesNotExist),
-        CoreError::FileNotDocument => UiError(SaveDrawingError::FolderTreatedAsDrawing),
-        _ => unexpected!("{:#?}", e),
-    })
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]
@@ -467,13 +532,7 @@ pub fn export_drawing(
     config: &Config, id: Uuid, format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
 ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
-    drawing_service::export_drawing(config, id, format, render_theme).map_err(|e| match e {
-        CoreError::DrawingInvalid => UiError(ExportDrawingError::InvalidDrawing),
-        CoreError::AccountNonexistent => UiError(ExportDrawingError::NoAccount),
-        CoreError::FileNonexistent => UiError(ExportDrawingError::FileDoesNotExist),
-        CoreError::FileNotDocument => UiError(ExportDrawingError::FolderTreatedAsDrawing),
-        _ => unexpected!("{:#?}", e),
-    })
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]
@@ -481,29 +540,14 @@ pub fn export_drawing_to_disk(
     config: &Config, id: Uuid, format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
 ) -> Result<(), Error<ExportDrawingToDiskError>> {
-    drawing_service::export_drawing_to_disk(config, id, format, render_theme, location).map_err(
-        |e| match e {
-            CoreError::DrawingInvalid => UiError(ExportDrawingToDiskError::InvalidDrawing),
-            CoreError::AccountNonexistent => UiError(ExportDrawingToDiskError::NoAccount),
-            CoreError::FileNonexistent => UiError(ExportDrawingToDiskError::FileDoesNotExist),
-            CoreError::FileNotDocument => UiError(ExportDrawingToDiskError::FolderTreatedAsDrawing),
-            CoreError::DiskPathInvalid => UiError(ExportDrawingToDiskError::BadPath),
-            CoreError::DiskPathTaken => UiError(ExportDrawingToDiskError::FileAlreadyExistsInDisk),
-            _ => unexpected!("{:#?}", e),
-        },
-    )
+    todo!()
 }
 
 #[instrument(skip(config, sources, update_status), err(Debug))]
 pub fn import_files<F: Fn(ImportStatus)>(
     config: &Config, sources: &[PathBuf], dest: Uuid, update_status: &F,
 ) -> Result<(), Error<ImportFileError>> {
-    import_export_service::import_files(config, sources, dest, update_status).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(ImportFileError::NoAccount),
-        CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
-        CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
-        _ => unexpected!("{:#?}", e),
-    })
+    todo!()
 }
 
 #[instrument(skip(config, destination, export_progress), err(Debug))]
@@ -511,57 +555,19 @@ pub fn export_file(
     config: &Config, id: Uuid, destination: PathBuf, edit: bool,
     export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
 ) -> Result<(), Error<ExportFileError>> {
-    import_export_service::export_file(config, id, destination, edit, export_progress).map_err(
-        |e| match e {
-            CoreError::AccountNonexistent => UiError(ExportFileError::NoAccount),
-            CoreError::FileNonexistent => UiError(ExportFileError::ParentDoesNotExist),
-            CoreError::DiskPathInvalid => UiError(ExportFileError::DiskPathInvalid),
-            CoreError::DiskPathTaken => UiError(ExportFileError::DiskPathTaken),
-            _ => unexpected!("{:#?}", e),
-        },
-    )
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]
 pub fn switch_account_tier(
     config: &Config, new_account_tier: AccountTier,
 ) -> Result<(), Error<SwitchAccountTierError>> {
-    billing_service::switch_account_tier(config, new_account_tier).map_err(|e| match e {
-        CoreError::OldCardDoesNotExist => UiError(SwitchAccountTierError::OldCardDoesNotExist),
-        CoreError::InvalidCardNumber => UiError(SwitchAccountTierError::InvalidCardNumber),
-        CoreError::InvalidCardExpYear => UiError(SwitchAccountTierError::InvalidCardExpYear),
-        CoreError::InvalidCardExpMonth => UiError(SwitchAccountTierError::InvalidCardExpMonth),
-        CoreError::InvalidCardCvc => UiError(SwitchAccountTierError::InvalidCardCvc),
-        CoreError::NewTierIsOldTier => UiError(SwitchAccountTierError::NewTierIsOldTier),
-        CoreError::ServerUnreachable => UiError(SwitchAccountTierError::CouldNotReachServer),
-        CoreError::CardDecline => UiError(SwitchAccountTierError::CardDecline),
-        CoreError::CardHasInsufficientFunds => {
-            UiError(SwitchAccountTierError::CardHasInsufficientFunds)
-        }
-        CoreError::TryAgain => UiError(SwitchAccountTierError::TryAgain),
-        CoreError::CardNotSupported => UiError(SwitchAccountTierError::CardNotSupported),
-        CoreError::ExpiredCard => UiError(SwitchAccountTierError::ExpiredCard),
-        CoreError::CurrentUsageIsMoreThanNewTier => {
-            UiError(SwitchAccountTierError::CurrentUsageIsMoreThanNewTier)
-        }
-        CoreError::AccountNonexistent => UiError(SwitchAccountTierError::NoAccount),
-        CoreError::ConcurrentRequestsAreTooSoon => {
-            UiError(SwitchAccountTierError::ConcurrentRequestsAreTooSoon)
-        }
-        CoreError::ClientUpdateRequired => UiError(SwitchAccountTierError::ClientUpdateRequired),
-        _ => unexpected!("{:#?}", e),
-    })
+    todo!()
 }
 
 #[instrument(skip(config), err(Debug))]
 pub fn get_credit_card(config: &Config) -> Result<CreditCardLast4Digits, Error<GetCreditCard>> {
-    billing_service::get_credit_card(config).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(GetCreditCard::NoAccount),
-        CoreError::ServerUnreachable => UiError(GetCreditCard::CouldNotReachServer),
-        CoreError::NotAStripeCustomer => UiError(GetCreditCard::NotAStripeCustomer),
-        CoreError::ClientUpdateRequired => UiError(GetCreditCard::ClientUpdateRequired),
-        _ => unexpected!("{:#?}", e),
-    })
+    todo!()
 }
 
 #[instrument(skip(config, input), err(Debug))]

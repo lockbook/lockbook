@@ -11,37 +11,42 @@ use crate::pure_functions::{drawing, files};
 
 use crate::pure_functions::drawing::SupportedImageFormats;
 use crate::service::file_service;
+use crate::Tx;
 
-pub fn save_drawing(config: &Config, id: Uuid, drawing_bytes: &[u8]) -> Result<(), CoreError> {
-    drawing::parse_drawing(drawing_bytes)?; // validate drawing
-    let metadata = file_service::get_not_deleted_metadata(config, RepoSource::Local, id)?;
-    file_service::insert_document(config, RepoSource::Local, &metadata, drawing_bytes)
-}
+impl Tx<'_> {
+    pub fn get_drawing(&self, config: &Config, id: Uuid) -> Result<Drawing, CoreError> {
+        let all_metadata = self.get_all_metadata(RepoSource::Local)?;
+        let drawing_bytes =
+            file_service::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
+        drawing::parse_drawing(&drawing_bytes)
+    }
 
-pub fn export_drawing(
-    config: &Config, id: Uuid, format: SupportedImageFormats,
-    render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-) -> Result<Vec<u8>, CoreError> {
-    let all_metadata = file_service::get_all_metadata(config, RepoSource::Local)?;
-    let drawing_bytes =
-        file_service::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
-    drawing::export_drawing(&drawing_bytes, format, render_theme)
-}
+    pub fn save_drawing(
+        &mut self, config: &Config, id: Uuid, drawing_bytes: &[u8],
+    ) -> Result<(), CoreError> {
+        drawing::parse_drawing(drawing_bytes)?; // validate drawing
+        let metadata = self.get_not_deleted_metadata(RepoSource::Local, id)?;
+        self.insert_document(config, RepoSource::Local, &metadata, drawing_bytes)
+    }
 
-pub fn export_drawing_to_disk(
-    config: &Config, id: Uuid, format: SupportedImageFormats,
-    render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
-) -> Result<(), CoreError> {
-    let all_metadata = file_service::get_all_metadata(config, RepoSource::Local)?;
-    let drawing_bytes =
-        file_service::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
-    let exported_drawing_bytes = drawing::export_drawing(&drawing_bytes, format, render_theme)?;
-    files::save_document_to_disk(&exported_drawing_bytes, location.to_string())
-}
+    pub fn export_drawing(
+        &self, config: &Config, id: Uuid, format: SupportedImageFormats,
+        render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
+    ) -> Result<Vec<u8>, CoreError> {
+        let all_metadata = self.get_all_metadata(RepoSource::Local)?;
+        let drawing_bytes =
+            file_service::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
+        drawing::export_drawing(&drawing_bytes, format, render_theme)
+    }
 
-pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, CoreError> {
-    let all_metadata = file_service::get_all_metadata(config, RepoSource::Local)?;
-    let drawing_bytes =
-        file_service::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
-    drawing::parse_drawing(&drawing_bytes)
+    pub fn export_drawing_to_disk(
+        &self, config: &Config, id: Uuid, format: SupportedImageFormats,
+        render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
+    ) -> Result<(), CoreError> {
+        let all_metadata = self.get_all_metadata(RepoSource::Local)?;
+        let drawing_bytes =
+            file_service::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
+        let exported_drawing_bytes = drawing::export_drawing(&drawing_bytes, format, render_theme)?;
+        files::save_document_to_disk(&exported_drawing_bytes, location.to_string())
+    }
 }
