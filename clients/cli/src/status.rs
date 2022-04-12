@@ -1,15 +1,15 @@
 use lockbook_core::model::errors::CalculateWorkError;
+use lockbook_core::Error as LbError;
 use lockbook_core::LbCore;
-use lockbook_core::{calculate_work, Error as LbError};
 use lockbook_models::work_unit::WorkUnit;
 
 use crate::error::CliError;
-use crate::utils::{config, print_last_successful_sync};
+use crate::utils::print_last_successful_sync;
 
 pub fn status(core: &LbCore) -> Result<(), CliError> {
     core.get_account()?;
 
-    let work = calculate_work(&config()?).map_err(|err| match err {
+    let work = core.calculate_work().map_err(|err| match err {
         LbError::UiError(err) => match err {
             CalculateWorkError::NoAccount => CliError::no_account(),
             CalculateWorkError::CouldNotReachServer => CliError::network_issue(),

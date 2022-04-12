@@ -24,7 +24,10 @@ impl CliError {
     }
 
     pub fn print(&self) {
-        eprintln!("error: {}", self.msg);
+        match self.code {
+            ErrCode::Unexpected => eprintln!("unexpected error: {}", self.msg),
+            _ => eprintln!("error: {}", self.msg),
+        }
     }
 
     pub fn unexpected<S: ToString>(msg: S) -> Self {

@@ -185,7 +185,7 @@ impl Api for DefaultApi {
     }
 
     fn list_metadatas(&self) -> Result<Vec<FileMetadata>, UnexpectedError> {
-        lockbook_core::list_metadatas(&self.cfg)
+        self.core.list_metadatas()
     }
 
     fn file_by_id(&self, id: Uuid) -> Result<FileMetadata, Error<GetFileByIdError>> {
