@@ -35,7 +35,9 @@
         <activity android:name=".screen.MainScreenActivity" />
         <activity android:name=".screen.SettingsActivity" />
         <activity android:name=".screen.LogActivity" />
-        <activity android:name=".screen.UpgradeAccountActivity" />
+        <activity android:name=".screen.UpgradeAccountActivity"
+            android:screenOrientation="portrait"
+            tools:ignore="LockedOrientationActivity" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -18,6 +18,7 @@ import app.lockbook.util.*
 import com.github.michaelbull.result.getOrElse
 import kotlinx.coroutines.*
 
+
 class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Preference(context, attributeSet) {
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
@@ -66,6 +67,7 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
 
                     holder.itemView.findViewById<Button>(R.id.upgrade_account).setOnClickListener {
                         context.startActivity(Intent(context, UpgradeAccountActivity::class.java))
+//                        (context as SettingsActivity).overridePendingTransition(R.anim.slide_in, R.anim.slide_out)
                     }
                 } else {
                     premiumUsageBar.visibility = View.GONE

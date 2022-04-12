@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
+    android:padding="20dp"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <ImageButton
+        android:id="@+id/exit_billing"
         android:layout_width="30dp"
         android:layout_height="30dp"
         style="@style/Main.Widget.RegularImageButton"
@@ -20,39 +23,47 @@
         android:layout_height="wrap_content"
         style="@style/Main.Text.BillingTitle"
         android:text="@string/choose_your_plan"
-        android:paddingTop="50dp"
-        android:paddingBottom="20dp"
-        android:layout_gravity="center_horizontal"/>
+        android:paddingTop="10dp"
+        android:paddingBottom="40dp"/>
 
-
-    <androidx.cardview.widget.CardView
-        android:id="@+id/switch_account_tier_free"
+    <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:backgroundTint="?attr/colorPrimaryDark"
+        android:layout_height="120dp"
         android:clickable="true"
         android:focusable="true"
         android:foreground="?android:attr/selectableItemBackground"
-        android:layout_marginHorizontal="20dp">
+        app:strokeColor="@color/borderColor"
+        app:strokeWidth="1dp">
 
         <LinearLayout
+            android:id="@+id/switch_account_tier_free"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:orientation="horizontal">
+            android:padding="10dp"
+            android:orientation="vertical">
 
-            <ImageView
+            <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:src="@drawable/ic_baseline_check_24_blue"
-                android:contentDescription="@string/checkmark"
-                android:layout_marginVertical="10dp"
-                android:layout_marginEnd="20dp"/>
+                android:text="@string/free_tier_current"
+                style="@style/Main.Text.Medium"
+                android:textColor="@color/colorPrimary"
+                android:textStyle="bold"/>
 
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="horizontal"
+                android:layout_marginVertical="10dp"  >
 
+                <TextView
+                    style="@style/Main.Text.Medium"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/one_mb"
+                    android:textStyle="bold"
+                    android:paddingEnd="30dp"
+                    tools:ignore="RtlSymmetry" />
 
 
                 <TextView
@@ -60,67 +71,177 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/premium_space"
-                    android:layout_marginVertical="10dp" />
+                    />
+
+            </LinearLayout>
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?android:attr/selectableItemBackground"
+        app:strokeColor="@color/borderColor"
+        app:strokeWidth="1dp"
+        android:layout_marginVertical="30dp">
+
+        <LinearLayout
+            android:id="@+id/switch_account_tier_premium_monthly"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="10dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/monthly_plan"
+                style="@style/Main.Text.Medium"
+                android:textColor="@color/colorPrimary"
+                android:textStyle="bold"/>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginVertical="10dp"  >
 
                 <TextView
+                    style="@style/Main.Text.Medium"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Free (current)"
-                    style="@style/Main.Text.Medium"
-                    android:textColor="@color/colorPrimary"
-                    android:textStyle="bold"/>
+                    android:text="@string/fifty_gb"
+                    android:textStyle="bold"
+                    android:paddingEnd="30dp"
+                    tools:ignore="RtlSymmetry" />
 
                 <TextView
                     style="@style/Main.Text.Medium"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/monthly_premium_cost"
-                    android:layout_marginVertical="10dp"/>
+                    android:text="@string/premium_space"
+                    />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"  >
+
+                <TextView
+                    style="@style/Main.Text.Billing.Small"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/two_fifty"
+                    android:textStyle="bold"
+                    android:paddingEnd="5dp"
+                    tools:ignore="RtlSymmetry" />
+
+                <TextView
+                    style="@style/Main.Text.Billing.Small"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/per_month"
+                    />
 
             </LinearLayout>
 
         </LinearLayout>
 
-    </androidx.cardview.widget.CardView>
+    </com.google.android.material.card.MaterialCardView>
 
-    <androidx.cardview.widget.CardView
-        android:id="@+id/switch_account_tier_premium_yearly"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:backgroundTint="?attr/colorPrimaryDark"
-        android:clickable="true"
-        android:focusable="true"
-        android:foreground="?android:attr/selectableItemBackground">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="TITLE"/>
-
-    </androidx.cardview.widget.CardView>
-
-    <androidx.cardview.widget.CardView
-        android:id="@+id/switch_account_tier_premium_monthly"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:backgroundTint="?attr/colorPrimaryDark"
-        android:clickable="true"
-        android:focusable="true"
-        android:foreground="?android:attr/selectableItemBackground">
-
-    </androidx.cardview.widget.CardView>
-
-    <View
+    <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
-        android:layout_height="2dp"
-        android:background="@color/colorAccent"
-        android:layout_marginHorizontal="10dp"/>
+        android:layout_height="120dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?android:attr/selectableItemBackground"
+        app:strokeColor="@color/borderColor"
+        app:strokeWidth="1dp">
 
-    <Button
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginVertical="20dp"
-        android:text="@string/subscribe" />
+        <LinearLayout
+            android:id="@+id/switch_account_tier_premium_yearly"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="10dp"
+            android:orientation="vertical">
 
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/yearly_plan"
+                style="@style/Main.Text.Medium"
+                android:textColor="@color/colorPrimary"
+                android:textStyle="bold"/>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginVertical="10dp"  >
+
+                <TextView
+                    style="@style/Main.Text.Medium"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/fifty_gb"
+                    android:textStyle="bold"
+                    android:paddingEnd="30dp"
+                    tools:ignore="RtlSymmetry" />
+
+
+                <TextView
+                    style="@style/Main.Text.Medium"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/premium_space"
+                    />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"  >
+
+                <TextView
+                    style="@style/Main.Text.Billing.Small"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/twenty_five"
+                    android:paddingEnd="5dp"
+                    android:textStyle="bold"
+                    tools:ignore="RtlSymmetry" />
+
+                <TextView
+                    style="@style/Main.Text.Billing.Small"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/per_year"
+                    />
+
+            </LinearLayout>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:orientation="vertical"
+        android:layout_weight="1"
+        android:gravity="center_vertical">
+
+        <Button
+            android:id="@+id/subscribe_to_plan"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginVertical="20dp"
+            android:layout_marginHorizontal="40dp"
+            android:text="@string/subscribe" />
+    </LinearLayout>
 </LinearLayout>

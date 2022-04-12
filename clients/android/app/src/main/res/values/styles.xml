@@ -130,6 +130,16 @@
         <item name="android:fontFamily">sans-serif</item>
     </style>
 
+    <style name="Main.Text.Billing.Small" parent="TextAppearance.AppCompat.Small">
+        <item name="android:textColor">@color/textColor</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+
+    <style name="Main.Text.Billing.Medium" parent="TextAppearance.AppCompat.Medium">
+        <item name="android:textColor">@color/textColor</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+
     <style name="Main.File.Title" parent="TextAppearance.AppCompat">
         <item name="android:textColor">@color/textColor</item>
         <item name="android:textSize">14sp</item>
