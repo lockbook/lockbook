@@ -173,13 +173,6 @@ impl LbCore {
         Ok(val?)
     }
 
-    pub fn list_metadatas(&self) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
-        let val = self
-            .db
-            .transaction(|tx| tx.get_all_not_deleted_metadata(RepoSource::Local))?;
-        Ok(val?)
-    }
-
     pub fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), Error<RenameFileError>> {
         let val = self
             .db
