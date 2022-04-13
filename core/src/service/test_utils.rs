@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-
 use chrono::Datelike;
 use core::fmt::Debug;
 
@@ -198,69 +197,6 @@ pub fn assert_local_work_ids(db: &Config, ids: &[Uuid]) {
 pub fn assert_server_work_ids(db: &Config, ids: &[Uuid]) {
     assert!(slices_equal_ignore_order(&get_dirty_ids(db, true), ids));
 }
-//
-// pub fn assert_server_work_paths(
-//     db: &Config, root: &DecryptedFileMetadata, expected_paths: &[&'static str],
-// ) {
-//     let all_local_files = file_service::get_all_metadata(db, RepoSource::Local).unwrap();
-//     let new_server_files = sync_service::calculate_work(db)
-//         .unwrap()
-//         .work_units
-//         .into_iter()
-//         .filter_map(|wu| match wu {
-//             WorkUnit::ServerChange { metadata } => Some(metadata),
-//             _ => None,
-//         })
-//         .filter(|f| all_local_files.maybe_find(f.id).is_none())
-//         .collect::<Vec<DecryptedFileMetadata>>();
-//     let staged = all_local_files
-//         .stage(&new_server_files)
-//         .into_iter()
-//         .map(|s| s.0)
-//         .collect::<Vec<DecryptedFileMetadata>>();
-//
-//     let mut expected_paths = expected_paths.to_vec();
-//
-//     let mut actual_paths: Vec<String> = get_dirty_ids(db, true)
-//         .iter()
-//         .map(|&id| path_service::get_path_by_id_using_files(&staged, id).unwrap())
-//         .map(|path| String::from(&path[root.decrypted_name.len()..]))
-//         .collect();
-//     actual_paths.sort_unstable();
-//     expected_paths.sort_unstable();
-//     if actual_paths != expected_paths {
-//         panic!(
-//             "paths did not match expectation. expected={:?}; actual={:?}",
-//             expected_paths, actual_paths
-//         );
-//     }
-// }
-//
-// pub fn assert_all_paths(db: &Config, root: &DecryptedFileMetadata, expected_paths: &[&str]) {
-//     if expected_paths.iter().any(|&path| !path.starts_with('/')) {
-//         panic!(
-//             "improper call to test_utils::assert_all_paths; all paths in expected_paths must begin with '/'. expected_paths={:?}",
-//             expected_paths
-//         );
-//     }
-//     let mut expected_paths: Vec<String> = expected_paths
-//         .iter()
-//         .map(|&path| String::from(path))
-//         .collect();
-//     let mut actual_paths: Vec<String> = crate::list_paths(db, None)
-//         .unwrap()
-//         .iter()
-//         .map(|path| String::from(&path[root.decrypted_name.len()..]))
-//         .collect();
-//     actual_paths.sort();
-//     expected_paths.sort();
-//     if actual_paths != expected_paths {
-//         panic!(
-//             "paths did not match expectation. expected={:?}; actual={:?}",
-//             expected_paths, actual_paths
-//         );
-//     }
-// }
 
 pub fn assert_all_document_contents(
     db: &Config, root: &DecryptedFileMetadata, expected_contents_by_path: &[(&str, &[u8])],
@@ -432,14 +368,14 @@ macro_rules! path {
 pub fn path(root: &DecryptedFileMetadata, path: &str) -> String {
     root.decrypted_name.clone() + path
 }
-
-pub fn create_account(db: &Config) -> (Account, DecryptedFileMetadata) {
-    let generated_account = generate_account();
-    (
-        crate::create_account(db, &generated_account.username, &generated_account.api_url).unwrap(),
-        crate::get_root(db).unwrap(),
-    )
-}
+//
+// pub fn create_account(db: &Config) -> (Account, DecryptedFileMetadata) {
+//     let generated_account = generate_account();
+//     (
+//         crate::create_account(db, &generated_account.username, &generated_account.api_url).unwrap(),
+//         crate::get_root(db).unwrap(),
+//     )
+// }
 
 pub fn test_config() -> Config {
     Config { writeable_path: format!("/tmp/{}", Uuid::new_v4()) }

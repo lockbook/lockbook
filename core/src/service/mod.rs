@@ -12,5 +12,7 @@ pub mod log_service;
 pub mod path_service;
 pub mod search_service;
 pub mod sync_service;
-pub mod test_utils;
 pub mod usage_service;
+
+#[cfg(test)]
+pub mod test_utils;
