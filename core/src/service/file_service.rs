@@ -21,11 +21,7 @@ use crate::model::repo::RepoState;
 use crate::model::state::Config;
 use crate::pure_functions::files;
 use crate::pure_functions::files::maybe_find_state;
-use crate::repo::account_repo;
-use crate::repo::digest_repo;
 use crate::repo::document_repo;
-use crate::repo::metadata_repo;
-use crate::repo::root_repo;
 use crate::repo::schema::{OneKey, Tx};
 use crate::service::file_encryption_service;
 use crate::service::{file_compression_service, file_service};
@@ -544,7 +540,7 @@ impl Tx<'_> {
                     },
                     match self.local_digest.get(&f.id) {
                         Some(digest) => Some(digest),
-                        None => digest_repo::maybe_get(config, RepoSource::Base, f.id)?,
+                        None => self.base_digest.get(&f.id),
                     },
                 ))
             })
@@ -630,31 +626,6 @@ impl Tx<'_> {
             }
         }
         Ok(result)
-    }
-}
-
-pub fn get_all_not_deleted_metadata(
-    config: &Config, source: RepoSource,
-) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
-    Ok(get_all_metadata(config, source)?.filter_not_deleted()?)
-}
-
-pub fn get_all_metadata(
-    config: &Config, source: RepoSource,
-) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
-    let account = account_repo::get(config)?;
-    let base = metadata_repo::get_all(config, RepoSource::Base)?;
-    match source {
-        RepoSource::Local => {
-            let local = metadata_repo::get_all(config, RepoSource::Local)?;
-            let staged = base
-                .stage(&local)
-                .into_iter()
-                .map(|(f, _)| f)
-                .collect::<Vec<EncryptedFileMetadata>>();
-            file_encryption_service::decrypt_metadata(&account, &staged)
-        }
-        RepoSource::Base => file_encryption_service::decrypt_metadata(&account, &base),
     }
 }
 
@@ -752,7 +723,7 @@ mod unit_tests {
     use crate::model::repo::RepoSource;
     use crate::model::state::temp_config;
     use crate::pure_functions::files;
-    use crate::repo::{account_repo, document_repo};
+    use crate::repo::document_repo;
     use crate::service::{file_service, test_utils};
 
     macro_rules! assert_metadata_changes_count (

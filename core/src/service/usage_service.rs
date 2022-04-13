@@ -5,7 +5,6 @@ use lockbook_models::tree::FileMetaExt;
 
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
-use crate::repo::account_repo;
 use crate::service::{api_service, file_service};
 use crate::{CoreError, Tx};
 

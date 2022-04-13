@@ -9,7 +9,6 @@ use crate::model::errors::CreateFileAtPathError;
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::pure_functions::files;
-use crate::repo::account_repo;
 use crate::service::file_service;
 use crate::{CoreError, Error, GetFileByPathError, LbCore, Tx, UnexpectedError};
 

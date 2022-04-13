@@ -18,8 +18,6 @@ use crate::model::repo::RepoSource;
 use crate::model::repo::RepoState;
 use crate::model::state::Config;
 use crate::pure_functions::files;
-use crate::repo::account_repo;
-use crate::repo::last_updated_repo;
 use crate::repo::schema::{OneKey, Tx};
 use crate::service::{api_service, file_encryption_service, file_service};
 use crate::{CalculateWorkError, CoreError, Error, LbCore, SyncAllError};

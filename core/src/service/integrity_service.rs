@@ -10,7 +10,6 @@ use crate::model::errors::{TestRepoError, Warning};
 use crate::model::repo::RepoSource;
 use crate::model::state::Config;
 use crate::pure_functions::drawing;
-use crate::repo::{account_repo, last_updated_repo, metadata_repo};
 use crate::service::integrity_service::TestRepoError::DocumentReadError;
 use crate::service::{file_service, path_service};
 use crate::{CoreError, OneKey, Tx};

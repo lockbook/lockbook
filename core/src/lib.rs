@@ -42,7 +42,6 @@ use crate::model::state::Config;
 use crate::path_service::Filter;
 use crate::pure_functions::drawing::SupportedImageFormats;
 use crate::repo::schema::{CoreV1, OneKey, Tx};
-use crate::repo::{account_repo, last_updated_repo};
 use crate::service::import_export_service::{self, ImportExportFileInfo, ImportStatus};
 use crate::service::search_service::SearchResultItem;
 use crate::service::sync_service::SyncProgress;
@@ -490,7 +489,7 @@ pub fn calculate_work(config: &Config) -> Result<WorkCalculated, Error<Calculate
 
 #[instrument(skip(config), ret(Debug))]
 pub fn get_last_synced(config: &Config) -> Result<i64, UnexpectedError> {
-    last_updated_repo::get(config).map_err(|e| unexpected_only!("{:#?}", e))
+    todo!()
 }
 
 #[instrument(skip(config), ret(Debug))]
