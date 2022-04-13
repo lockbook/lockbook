@@ -5,7 +5,7 @@ mod account_tests {
     use lockbook_core::repo::schema::OneKey;
 
     use lockbook_core::service::test_utils::{
-        generate_account, random_username, test_config, test_core,
+        generate_account, random_name, test_config, test_core,
     };
     use lockbook_core::{Error, LbCore};
     use lockbook_models::account::Account;
@@ -155,7 +155,7 @@ mod account_tests {
         {
             let account = Account {
                 api_url: generated_account.api_url,
-                username: random_username(),
+                username: random_name(),
                 private_key: generated_account.private_key,
             };
             core2.db.account.insert(OneKey {}, account).unwrap();

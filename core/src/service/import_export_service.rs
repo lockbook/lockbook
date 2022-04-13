@@ -10,9 +10,8 @@ use lockbook_models::tree::FileMetaExt;
 
 use crate::model::filename::NameComponents;
 use crate::model::repo::RepoSource;
-use crate::model::state::Config;
 use crate::service::file_service;
-use crate::{CoreError, Tx};
+use crate::{Config, CoreError, Tx};
 
 pub enum ImportStatus {
     CalculatedTotal(usize),

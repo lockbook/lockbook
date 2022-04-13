@@ -6,12 +6,11 @@ use uuid::Uuid;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 
 use crate::model::repo::RepoSource;
-use crate::model::state::Config;
 use crate::pure_functions::{drawing, files};
 
 use crate::pure_functions::drawing::SupportedImageFormats;
 use crate::service::file_service;
-use crate::Tx;
+use crate::{Config, Tx};
 
 impl Tx<'_> {
     pub fn get_drawing(&self, config: &Config, id: Uuid) -> Result<Drawing, CoreError> {

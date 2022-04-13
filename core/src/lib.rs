@@ -11,7 +11,7 @@ use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
-use serde::Serialize;
+use serde::Deserialize;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
@@ -38,7 +38,6 @@ use crate::model::errors::{
     SyncAllError, WriteToDocumentError,
 };
 use crate::model::repo::RepoSource;
-use crate::model::state::Config;
 use crate::path_service::Filter;
 use crate::pure_functions::drawing::SupportedImageFormats;
 use crate::repo::schema::{CoreV1, OneKey, Tx};
@@ -47,10 +46,15 @@ use crate::service::search_service::SearchResultItem;
 use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 use crate::service::{
-    account_service, billing_service, db_state_service, drawing_service, file_service,
-    path_service, search_service, sync_service, usage_service,
+    account_service, billing_service, drawing_service, file_service, path_service, search_service,
+    sync_service, usage_service,
 };
 use crate::sync_service::WorkCalculated;
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Config {
+    pub writeable_path: String,
+}
 
 #[derive(Clone, Debug)]
 pub struct LbCore {
@@ -235,18 +239,11 @@ impl LbCore {
     }
 
     pub fn get_last_synced(&self) -> Result<i64, UnexpectedError> {
-        self.db
-            .last_synced
-            .get(&OneKey {})?
-            .ok_or_else(|| unexpected_only!("No prior sync time found"))
+        Ok(self.db.last_synced.get(&OneKey {})?.unwrap_or(0))
     }
 
     pub fn get_last_synced_human_string(&self) -> Result<String, UnexpectedError> {
-        let last_synced = self
-            .db
-            .last_synced
-            .get(&OneKey {})?
-            .ok_or_else(|| unexpected_only!("No prior sync time found"))?;
+        let last_synced = self.db.last_synced.get(&OneKey {})?.unwrap_or(0);
 
         Ok(if last_synced != 0 {
             Duration::milliseconds(clock_service::get_time().0 - last_synced)
@@ -340,6 +337,10 @@ impl LbCore {
         let val = self.db.transaction(|tx| tx.search_file_paths(input))?;
         Ok(val?)
     }
+}
+
+pub fn get_code_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
 }
 
 // This basically generates a function called `get_all_error_variants`,

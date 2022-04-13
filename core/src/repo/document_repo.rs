@@ -4,9 +4,8 @@ use lockbook_models::crypto::*;
 
 use crate::model::errors::core_err_unexpected;
 use crate::model::repo::RepoSource;
-use crate::model::state::Config;
 use crate::repo::local_storage;
-use crate::CoreError;
+use crate::{Config, CoreError};
 
 const NAMESPACE_LOCAL: &str = "changed_local_documents";
 const NAMESPACE_BASE: &str = "all_base_documents";

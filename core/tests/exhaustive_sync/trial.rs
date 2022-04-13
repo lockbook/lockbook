@@ -9,7 +9,7 @@ use lockbook_core::model::errors::MoveFileError;
 use lockbook_core::model::state::Config;
 use lockbook_core::service::api_service;
 use lockbook_core::service::integrity_service::test_repo_integrity;
-use lockbook_core::service::test_utils::{dbs_equal, random_username, test_config, url};
+use lockbook_core::service::test_utils::{dbs_equal, random_name, test_config, url};
 use lockbook_core::Error::UiError;
 use lockbook_core::{
     calculate_work, create_account, delete_file, export_account, get_account, import_account,
@@ -75,7 +75,7 @@ impl Trial {
             self.clients.push(test_config());
         }
 
-        create_account(&self.clients[0], &random_username(), &url())
+        create_account(&self.clients[0], &random_name(), &url())
             .map_err(|err| Failed(format!("failed to create account: {:#?}", err)))?;
         let account_string = export_account(&self.clients[0]).unwrap();
 

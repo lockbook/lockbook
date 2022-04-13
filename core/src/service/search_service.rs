@@ -5,7 +5,6 @@ use fuzzy_matcher::FuzzyMatcher;
 use uuid::Uuid;
 
 use crate::model::repo::RepoSource;
-use crate::model::state::Config;
 use crate::path_service;
 use crate::CoreError;
 use crate::{file_service, Tx};

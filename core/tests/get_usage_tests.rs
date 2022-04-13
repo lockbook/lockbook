@@ -4,7 +4,7 @@ mod get_usage_tests {
 
     use lockbook_core::model::repo::RepoSource;
     use lockbook_core::repo::document_repo;
-    use lockbook_core::service::test_utils::{generate_account, random_username, test_config};
+    use lockbook_core::service::test_utils::{generate_account, random_name, test_config};
     use lockbook_core::{
         create_account, create_file, delete_file, get_root, get_usage, sync_all, write_document,
     };
@@ -29,7 +29,7 @@ mod get_usage_tests {
         create_account(&config, &generated_account.username, &generated_account.api_url).unwrap();
         let root = get_root(&config).unwrap();
 
-        let file = create_file(&config, &random_username(), root.id, FileType::Document).unwrap();
+        let file = create_file(&config, &random_name(), root.id, FileType::Document).unwrap();
         write_document(&config, file.id, "0000000000".as_bytes()).unwrap();
 
         assert!(get_usage(&config).unwrap().usages.is_empty(), "Returned non-empty usage!");
@@ -52,7 +52,7 @@ mod get_usage_tests {
         create_account(&config, &generated_account.username, &generated_account.api_url).unwrap();
         let root = get_root(&config).unwrap();
 
-        let file = create_file(&config, &random_username(), root.id, FileType::Document).unwrap();
+        let file = create_file(&config, &random_name(), root.id, FileType::Document).unwrap();
         write_document(&config, file.id, &String::from("0000000000").into_bytes()).unwrap();
 
         sync_all!(&config).unwrap();
@@ -70,13 +70,11 @@ mod get_usage_tests {
         let root = get_root(&config).unwrap();
 
         let folder = create_file(&config, "folder", root.id, Folder).unwrap();
-        let file = create_file(&config, &random_username(), root.id, FileType::Document).unwrap();
+        let file = create_file(&config, &random_name(), root.id, FileType::Document).unwrap();
         write_document(&config, file.id, &String::from("0000000000").into_bytes()).unwrap();
-        let file2 =
-            create_file(&config, &random_username(), folder.id, FileType::Document).unwrap();
+        let file2 = create_file(&config, &random_name(), folder.id, FileType::Document).unwrap();
         write_document(&config, file2.id, &String::from("0000000000").into_bytes()).unwrap();
-        let file3 =
-            create_file(&config, &random_username(), folder.id, FileType::Document).unwrap();
+        let file3 = create_file(&config, &random_name(), folder.id, FileType::Document).unwrap();
         write_document(&config, file3.id, &String::from("0000000000").into_bytes()).unwrap();
 
         sync_all!(&config).unwrap();
@@ -103,7 +101,7 @@ mod get_usage_tests {
         create_account(&config, &generated_account.username, &generated_account.api_url).unwrap();
         let root = get_root(&config).unwrap();
 
-        create_file(&config, &random_username(), root.id, FileType::Document).unwrap();
+        create_file(&config, &random_name(), root.id, FileType::Document).unwrap();
 
         assert!(get_usage(&config).unwrap().usages.is_empty(), "Returned non-empty usage!");
 

@@ -10,7 +10,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::{
-    get_all_error_variants, unexpected_only, Error, SupportedImageFormats, UnexpectedError,
+    get_all_error_variants, unexpected_only, Config, Error, SupportedImageFormats, UnexpectedError,
 };
 use lockbook_crypto::clock_service;
 use lockbook_models::file_metadata::FileType;
@@ -18,7 +18,6 @@ use lockbook_models::work_unit::ClientWorkUnit;
 
 use crate::external_interface::json_interface::translate;
 use crate::external_interface::static_state;
-use crate::model::state::Config;
 use crate::service::sync_service::SyncProgress;
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {

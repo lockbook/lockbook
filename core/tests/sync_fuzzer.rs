@@ -12,7 +12,7 @@ mod sync_fuzzer {
     use lockbook_core::service::account_service::{create_account, export_account, import_account};
     use lockbook_core::service::integrity_service::test_repo_integrity;
     use lockbook_core::service::sync_service::sync;
-    use lockbook_core::service::test_utils::{assert_dbs_eq, random_username, test_config, url};
+    use lockbook_core::service::test_utils::{assert_dbs_eq, random_name, test_config, url};
     use lockbook_core::Error::UiError;
     use lockbook_core::{
         calculate_work, create_file, delete_file, get_path_by_id, list_metadatas, move_file,
@@ -256,7 +256,7 @@ mod sync_fuzzer {
             configs.push(test_config());
         }
 
-        create_account(&configs[0], &random_username(), &url()).unwrap();
+        create_account(&configs[0], &random_name(), &url()).unwrap();
         let account_string = export_account(&configs[0]).unwrap();
 
         for client in &configs[1..] {

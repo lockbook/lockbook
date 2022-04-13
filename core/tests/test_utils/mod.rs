@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use chrono::Datelike;
 use core::fmt::Debug;
 
@@ -14,7 +13,11 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::{LbCore, OneKey, Tx};
+use crate::model::repo::RepoSource;
+use crate::service::test_utils::integration_tests::*;
+use crate::service::test_utils::unit_tests::*;
+use crate::service::{file_service, integrity_service, path_service, sync_service};
+use crate::{Config, LbCore, OneKey, Tx};
 use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
 use lockbook_models::api::{AccountTier, PaymentMethod};
@@ -24,9 +27,43 @@ use lockbook_models::file_metadata::{
     DecryptedFileMetadata, EncryptedFileMetadata, FileType, Owner,
 };
 
-use crate::model::repo::RepoSource;
-use crate::model::state::Config;
-use crate::service::{file_service, integrity_service, path_service, sync_service};
+mod unit_tests {
+    use super::*;
+
+    pub fn url() -> String {
+        env::var("API_URL").expect("API_URL must be defined!")
+    }
+
+    pub fn test_config() -> Config {
+        Config { writeable_path: format!("/tmp/{}", Uuid::new_v4()) }
+    }
+
+    pub fn test_core() -> LbCore {
+        LbCore::init(&test_config()).unwrap()
+    }
+
+    pub fn random_name() -> String {
+        Uuid::new_v4()
+            .to_string()
+            .chars()
+            .filter(|c| c.is_alphanumeric())
+            .collect()
+    }
+
+    pub fn account() -> Account {
+        Account { username: random_name(), api_url: url(), private_key: pubkey::generate_key() }
+    }
+}
+
+mod integration_tests {
+    use super::*;
+    use crate::service::test_utils::unit_tests::*;
+
+    pub fn account(core: &LbCore) -> Account {
+        core.create_account(&random_name(), &url()).unwrap();
+        core.get_account().unwrap()
+    }
+}
 
 pub enum Operation<'a> {
     Client { client_num: usize },
@@ -40,8 +77,8 @@ pub enum Operation<'a> {
 }
 
 pub fn run(ops: &[Operation]) {
-    let mut clients = vec![(0, test_config())];
-    let (_account, root) = create_account(&clients[0].1);
+    let mut clients = vec![test_core()];
+    create_account(&clients[0].1);
 
     let ensure_client_exists = |clients: &mut Vec<(usize, Config)>, client_num: &usize| {
         if !clients.iter().any(|(c, _)| c == client_num) {
@@ -377,14 +414,6 @@ pub fn path(root: &DecryptedFileMetadata, path: &str) -> String {
 //     )
 // }
 
-pub fn test_config() -> Config {
-    Config { writeable_path: format!("/tmp/{}", Uuid::new_v4()) }
-}
-
-pub fn test_core() -> LbCore {
-    LbCore::init(&test_config()).unwrap()
-}
-
 pub const MAX_FILES_PER_BENCH: u64 = 6;
 
 pub const CREATE_FILES_BENCH_1: u64 = 1;
@@ -394,14 +423,6 @@ pub const CREATE_FILES_BENCH_4: u64 = 500;
 pub const CREATE_FILES_BENCH_5: u64 = 1000;
 pub const CREATE_FILES_BENCH_6: u64 = 2000;
 
-pub fn random_username() -> String {
-    Uuid::new_v4()
-        .to_string()
-        .chars()
-        .filter(|c| c.is_alphanumeric())
-        .collect()
-}
-
 pub fn random_filename() -> SecretFileName {
     let name: String = Uuid::new_v4()
         .to_string()
@@ -410,14 +431,6 @@ pub fn random_filename() -> SecretFileName {
         .collect();
 
     symkey::encrypt_and_hmac(&symkey::generate_key(), &name).unwrap()
-}
-
-pub fn url() -> String {
-    env::var("API_URL").expect("API_URL must be defined!")
-}
-
-pub fn generate_account() -> Account {
-    Account { username: random_username(), api_url: url(), private_key: pubkey::generate_key() }
 }
 
 pub fn generate_root_metadata(account: &Account) -> (EncryptedFileMetadata, AESKey) {
@@ -502,67 +515,67 @@ fn get_frequencies<T: Hash + Eq>(a: &[T]) -> HashMap<&T, i32> {
 pub fn slices_equal_ignore_order<T: Hash + Eq>(a: &[T], b: &[T]) -> bool {
     get_frequencies(a) == get_frequencies(b)
 }
-
-#[cfg(test)]
-mod unit_tests {
-    use super::super::test_utils;
-
-    use std::collections::HashMap;
-    use std::iter::FromIterator;
-
-    #[test]
-    fn test_get_frequencies() {
-        let expected =
-            HashMap::<&i32, i32>::from_iter(IntoIterator::into_iter([(&0, 1), (&1, 3), (&2, 2)]));
-        let result = test_utils::get_frequencies(&[0, 1, 1, 1, 2, 2]);
-        assert_eq!(expected, result);
-    }
-
-    #[test]
-    fn slices_equal_ignore_order_empty() {
-        assert!(test_utils::slices_equal_ignore_order::<i32>(&[], &[]));
-    }
-
-    #[test]
-    fn slices_equal_ignore_order_single() {
-        assert!(test_utils::slices_equal_ignore_order::<i32>(&[69], &[69]));
-    }
-
-    #[test]
-    fn slices_equal_ignore_order_single_nonequal() {
-        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69], &[420]));
-    }
-
-    #[test]
-    fn slices_equal_ignore_order_distinct() {
-        assert!(test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 69420], &[69420, 69, 420]));
-    }
-
-    #[test]
-    fn slices_equal_ignore_order_distinct_nonequal() {
-        assert!(!test_utils::slices_equal_ignore_order::<i32>(
-            &[69, 420, 69420],
-            &[42069, 69, 420]
-        ));
-    }
-
-    #[test]
-    fn slices_equal_ignore_order_distinct_subset() {
-        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 69420], &[69, 420]));
-    }
-
-    #[test]
-    fn slices_equal_ignore_order_repeats() {
-        assert!(test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 420], &[420, 69, 420]));
-    }
-
-    #[test]
-    fn slices_equal_ignore_order_different_repeats() {
-        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 420], &[420, 69, 69]));
-    }
-
-    #[test]
-    fn slices_equal_ignore_order_repeats_subset() {
-        assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 420], &[420, 69]));
-    }
-}
+//
+// #[cfg(test)]
+// mod unit_tests {
+//     use super::super::test_utils;
+//
+//     use std::collections::HashMap;
+//     use std::iter::FromIterator;
+//
+//     #[test]
+//     fn test_get_frequencies() {
+//         let expected =
+//             HashMap::<&i32, i32>::from_iter(IntoIterator::into_iter([(&0, 1), (&1, 3), (&2, 2)]));
+//         let result = test_utils::get_frequencies(&[0, 1, 1, 1, 2, 2]);
+//         assert_eq!(expected, result);
+//     }
+//
+//     #[test]
+//     fn slices_equal_ignore_order_empty() {
+//         assert!(test_utils::slices_equal_ignore_order::<i32>(&[], &[]));
+//     }
+//
+//     #[test]
+//     fn slices_equal_ignore_order_single() {
+//         assert!(test_utils::slices_equal_ignore_order::<i32>(&[69], &[69]));
+//     }
+//
+//     #[test]
+//     fn slices_equal_ignore_order_single_nonequal() {
+//         assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69], &[420]));
+//     }
+//
+//     #[test]
+//     fn slices_equal_ignore_order_distinct() {
+//         assert!(test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 69420], &[69420, 69, 420]));
+//     }
+//
+//     #[test]
+//     fn slices_equal_ignore_order_distinct_nonequal() {
+//         assert!(!test_utils::slices_equal_ignore_order::<i32>(
+//             &[69, 420, 69420],
+//             &[42069, 69, 420]
+//         ));
+//     }
+//
+//     #[test]
+//     fn slices_equal_ignore_order_distinct_subset() {
+//         assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 69420], &[69, 420]));
+//     }
+//
+//     #[test]
+//     fn slices_equal_ignore_order_repeats() {
+//         assert!(test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 420], &[420, 69, 420]));
+//     }
+//
+//     #[test]
+//     fn slices_equal_ignore_order_different_repeats() {
+//         assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 420], &[420, 69, 69]));
+//     }
+//
+//     #[test]
+//     fn slices_equal_ignore_order_repeats_subset() {
+//         assert!(!test_utils::slices_equal_ignore_order::<i32>(&[69, 420, 420], &[420, 69]));
+//     }
+// }

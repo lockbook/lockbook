@@ -6,11 +6,12 @@ use lockbook_models::account::Account;
 use lockbook_models::api::{GetPublicKeyRequest, NewAccountRequest};
 
 use crate::model::errors::{core_err_unexpected, CreateAccountError};
-use crate::model::state::Config;
 use crate::pure_functions::files;
 use crate::repo::schema::{OneKey, Tx};
 use crate::service::{api_service, file_encryption_service};
-use crate::{AccountExportError, CoreError, Error, GetAccountError, ImportError, LbCore, UiError};
+use crate::{
+    AccountExportError, Config, CoreError, Error, GetAccountError, ImportError, LbCore, UiError,
+};
 
 impl Tx<'_> {
     pub fn create_account(&mut self, username: &str, api_url: &str) -> Result<Account, CoreError> {
@@ -98,18 +99,4 @@ impl Tx<'_> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)
     }
-}
-
-pub fn create_account(
-    _config: &Config, _username: &str, _api_url: &str,
-) -> Result<Account, CoreError> {
-    todo!()
-}
-
-pub fn import_account(_config: &Config, _account_string: &str) -> Result<Account, CoreError> {
-    todo!()
-}
-
-pub fn export_account(_config: &Config) -> Result<String, CoreError> {
-    todo!()
 }

@@ -10,9 +10,8 @@ use lockbook_models::file_metadata::FileType;
 
 use crate::external_interface::json_interface::translate;
 use crate::external_interface::static_state;
-use crate::model::state::Config;
 use crate::service::path_service::{filter_from_str, Filter};
-use crate::{get_all_error_variants, SupportedImageFormats};
+use crate::{get_all_error_variants, Config, SupportedImageFormats};
 
 fn c_string(value: String) -> *const c_char {
     CString::new(value)

@@ -16,11 +16,10 @@ use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 use crate::model::filename::DocumentType;
 use crate::model::repo::RepoSource;
 use crate::model::repo::RepoState;
-use crate::model::state::Config;
 use crate::pure_functions::files;
 use crate::repo::schema::{OneKey, Tx};
 use crate::service::{api_service, file_encryption_service, file_service};
-use crate::{CalculateWorkError, CoreError, Error, LbCore, SyncAllError};
+use crate::{CalculateWorkError, Config, CoreError, Error, LbCore, SyncAllError};
 
 use super::file_compression_service;
 
@@ -34,10 +33,6 @@ pub struct SyncProgress {
     pub total: usize,
     pub progress: usize,
     pub current_work_unit: ClientWorkUnit,
-}
-
-pub fn calculate_work(config: &Config) -> Result<WorkCalculated, CoreError> {
-    todo!()
 }
 
 #[derive(PartialEq, Debug)]
@@ -744,213 +739,5 @@ impl Tx<'_> {
         }
 
         Ok(WorkCalculated { work_units, most_recent_update_from_server: last_sync })
-    }
-}
-
-#[cfg(test)]
-mod unit_tests {
-    use std::str::FromStr;
-
-    use uuid::Uuid;
-
-    use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType, Owner};
-
-    use crate::service::sync_service::{self, MaybeMergeResult};
-    use crate::service::test_utils::generate_account;
-
-    #[test]
-    fn merge_maybe_resolved_base() {
-        let base = Some(0);
-        let local = None;
-        let remote = None;
-
-        let result = sync_service::merge_maybe(base, local, remote).unwrap();
-
-        assert_eq!(result, MaybeMergeResult::Resolved(0));
-    }
-
-    #[test]
-    fn merge_maybe_resolved_local() {
-        let base = None;
-        let local = Some(1);
-        let remote = None;
-
-        let result = sync_service::merge_maybe(base, local, remote).unwrap();
-
-        assert_eq!(result, MaybeMergeResult::Resolved(1));
-    }
-
-    #[test]
-    fn merge_maybe_resolved_local_with_base() {
-        let base = Some(0);
-        let local = Some(1);
-        let remote = None;
-
-        let result = sync_service::merge_maybe(base, local, remote).unwrap();
-
-        assert_eq!(result, MaybeMergeResult::Resolved(1));
-    }
-
-    #[test]
-    fn merge_maybe_resolved_remote() {
-        let base = None;
-        let local = None;
-        let remote = Some(2);
-
-        let result = sync_service::merge_maybe(base, local, remote).unwrap();
-
-        assert_eq!(result, MaybeMergeResult::Resolved(2));
-    }
-
-    #[test]
-    fn merge_maybe_resolved_remote_with_base() {
-        let base = Some(0);
-        let local = None;
-        let remote = Some(2);
-
-        let result = sync_service::merge_maybe(base, local, remote).unwrap();
-
-        assert_eq!(result, MaybeMergeResult::Resolved(2));
-    }
-
-    #[test]
-    fn merge_maybe_resolved_conflict() {
-        let base = Some(0);
-        let local = Some(1);
-        let remote = Some(2);
-
-        let result = sync_service::merge_maybe(base, local, remote).unwrap();
-
-        assert_eq!(result, MaybeMergeResult::Conflict { base: 0, local: 1, remote: 2 });
-    }
-
-    #[test]
-    fn merge_maybe_resolved_baseless_conflict() {
-        let base = None;
-        let local = Some(1);
-        let remote = Some(2);
-
-        let result = sync_service::merge_maybe(base, local, remote).unwrap();
-
-        assert_eq!(result, MaybeMergeResult::BaselessConflict { local: 1, remote: 2 });
-    }
-
-    #[test]
-    fn merge_maybe_none() {
-        let base = None;
-        let local = None;
-        let remote = None;
-
-        sync_service::merge_maybe::<i32>(base, local, remote).unwrap_err();
-    }
-
-    #[test]
-    fn merge_metadata_local_and_remote_moved() {
-        let account = &generate_account();
-        let base = DecryptedFileMetadata {
-            id: Uuid::from_str("db63957b-3e52-410c-8e5e-66db2619fb33").unwrap(),
-            file_type: FileType::Document,
-            parent: Uuid::from_str("a33b99e8-140d-4a74-b564-f72efdcb5b3a").unwrap(),
-            decrypted_name: String::from("test.txt"),
-            metadata_version: 1634693786444,
-            content_version: 1634693786444,
-            deleted: false,
-            owner: Owner::from(account),
-            decrypted_access_key: Default::default(),
-        };
-        let local = DecryptedFileMetadata {
-            id: Uuid::from_str("db63957b-3e52-410c-8e5e-66db2619fb33").unwrap(),
-            file_type: FileType::Document,
-            parent: Uuid::from_str("c13f10f7-9360-4dd2-8b3a-0891a81c8bf8").unwrap(),
-            decrypted_name: String::from("test.txt"),
-            metadata_version: 1634693786444,
-            content_version: 1634693786444,
-            deleted: false,
-            owner: Owner::from(account),
-            decrypted_access_key: Default::default(),
-        };
-        let remote = DecryptedFileMetadata {
-            id: Uuid::from_str("db63957b-3e52-410c-8e5e-66db2619fb33").unwrap(),
-            file_type: FileType::Document,
-            parent: Uuid::from_str("c52d8737-0a89-45aa-8411-b74e0dd71470").unwrap(),
-            decrypted_name: String::from("test.txt"),
-            metadata_version: 1634693786756,
-            content_version: 1634693786556,
-            deleted: false,
-            owner: Owner::from(account),
-            decrypted_access_key: Default::default(),
-        };
-
-        let result = sync_service::merge_metadata(base, local, remote);
-
-        assert_eq!(
-            result,
-            DecryptedFileMetadata {
-                id: Uuid::from_str("db63957b-3e52-410c-8e5e-66db2619fb33").unwrap(),
-                file_type: FileType::Document,
-                parent: Uuid::from_str("c52d8737-0a89-45aa-8411-b74e0dd71470").unwrap(),
-                decrypted_name: String::from("test.txt"),
-                metadata_version: 1634693786756,
-                content_version: 1634693786556,
-                deleted: false,
-                owner: Owner::from(account),
-                decrypted_access_key: Default::default(),
-            }
-        );
-    }
-
-    #[test]
-    fn merge_maybe_metadata_local_and_remote_moved() {
-        let account = &generate_account();
-        let base = Some(DecryptedFileMetadata {
-            id: Uuid::from_str("db63957b-3e52-410c-8e5e-66db2619fb33").unwrap(),
-            file_type: FileType::Document,
-            parent: Uuid::from_str("a33b99e8-140d-4a74-b564-f72efdcb5b3a").unwrap(),
-            decrypted_name: String::from("test.txt"),
-            metadata_version: 1634693786444,
-            content_version: 1634693786444,
-            deleted: false,
-            owner: Owner::from(account),
-            decrypted_access_key: Default::default(),
-        });
-        let local = Some(DecryptedFileMetadata {
-            id: Uuid::from_str("db63957b-3e52-410c-8e5e-66db2619fb33").unwrap(),
-            file_type: FileType::Document,
-            parent: Uuid::from_str("c13f10f7-9360-4dd2-8b3a-0891a81c8bf8").unwrap(),
-            decrypted_name: String::from("test.txt"),
-            metadata_version: 1634693786444,
-            content_version: 1634693786444,
-            deleted: false,
-            owner: Owner::from(account),
-            decrypted_access_key: Default::default(),
-        });
-        let remote = Some(DecryptedFileMetadata {
-            id: Uuid::from_str("db63957b-3e52-410c-8e5e-66db2619fb33").unwrap(),
-            file_type: FileType::Document,
-            parent: Uuid::from_str("c52d8737-0a89-45aa-8411-b74e0dd71470").unwrap(),
-            decrypted_name: String::from("test.txt"),
-            metadata_version: 1634693786756,
-            content_version: 1634693786556,
-            deleted: false,
-            owner: Owner::from(account),
-            decrypted_access_key: Default::default(),
-        });
-
-        let result = sync_service::merge_maybe_metadata(base, local, remote).unwrap();
-
-        assert_eq!(
-            result,
-            DecryptedFileMetadata {
-                id: Uuid::from_str("db63957b-3e52-410c-8e5e-66db2619fb33").unwrap(),
-                file_type: FileType::Document,
-                parent: Uuid::from_str("c52d8737-0a89-45aa-8411-b74e0dd71470").unwrap(),
-                decrypted_name: String::from("test.txt"),
-                metadata_version: 1634693786756,
-                content_version: 1634693786556,
-                deleted: false,
-                owner: Owner::from(account),
-                decrypted_access_key: Default::default(),
-            }
-        );
     }
 }
