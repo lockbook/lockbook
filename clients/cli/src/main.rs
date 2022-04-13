@@ -6,7 +6,7 @@ use lockbook_core::service::path_service::Filter::{DocumentsOnly, FoldersOnly, L
 use lockbook_core::LbCore;
 
 use crate::error::CliError;
-use crate::utils::{check_and_perform_migrations, config};
+use crate::utils::config;
 
 mod backup;
 mod calculate_usage;
@@ -160,10 +160,6 @@ fn exit_with(err: CliError) -> ! {
 fn parse_and_run() -> Result<(), CliError> {
     let args = Lockbook::from_args();
     let core = LbCore::init(&config()?)?;
-
-    if let Err(err) = check_and_perform_migrations() {
-        exit_with(err);
-    }
 
     match args {
         Lockbook::Copy { disk_files: files, destination } => {

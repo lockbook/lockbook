@@ -3,44 +3,13 @@ use std::{env, fs};
 use hotwatch::{Event, Hotwatch};
 use uuid::Uuid;
 
-use lockbook_core::model::errors::MigrationError;
 use lockbook_core::model::errors::WriteToDocumentError;
 use lockbook_core::model::state::Config;
 use lockbook_core::pure_functions::drawing::SupportedImageFormats;
-use lockbook_core::service::db_state_service::State;
 use lockbook_core::Error as LbError;
 use lockbook_core::LbCore;
-use lockbook_core::{get_db_state, migrate_db};
 
 use crate::error::CliError;
-
-pub fn check_and_perform_migrations() -> Result<(), CliError> {
-    let state = get_db_state(&config()?).map_err(|err| CliError::unexpected(err.0))?;
-
-    match state {
-        State::ReadyToUse => {}
-        State::Empty => {}
-        State::MigrationRequired => {
-            if atty::is(atty::Stream::Stdout) {
-                println!("Local state requires migration! Performing migration now...");
-            }
-            migrate_db(&config()?).map_err(|err| match err {
-                LbError::UiError(err) => match err {
-                    MigrationError::StateRequiresCleaning => CliError::uninstall_required(),
-                },
-                LbError::Unexpected(msg) => CliError::unexpected(msg)
-                    .with_extra("It's possible you need to clear your local state and resync."),
-            })?;
-
-            if atty::is(atty::Stream::Stdout) {
-                println!("Migration Successful!");
-            }
-        }
-        State::StateRequiresClearing => return Err(CliError::uninstall_required()),
-    }
-
-    Ok(())
-}
 
 pub fn config() -> Result<Config, CliError> {
     let path = match (env::var("LOCKBOOK_CLI_LOCATION"), env::var("HOME"), env::var("HOMEPATH")) {

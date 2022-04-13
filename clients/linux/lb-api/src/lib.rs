@@ -36,7 +36,6 @@ pub use lockbook_core::model::errors::WriteToDocumentError as WriteDocumentError
 
 pub use lockbook_core::model::state::Config;
 
-pub use lockbook_core::service::db_state_service::State as DbState;
 pub use lockbook_core::service::import_export_service::ImportExportFileInfo;
 pub use lockbook_core::service::import_export_service::ImportStatus;
 pub use lockbook_core::service::search_service::SearchResultItem;
@@ -52,9 +51,6 @@ use lockbook_core::LbCore;
 use lockbook_core::model::filename::NameComponents;
 
 pub trait Api: Send + Sync {
-    fn db_state(&self) -> Result<DbState, UnexpectedError>;
-    fn migrate_db(&self) -> Result<(), Error<MigrationError>>;
-
     fn create_account(
         &self, username: &str, api_url: &str,
     ) -> Result<Account, Error<CreateAccountError>>;
@@ -148,14 +144,6 @@ impl DefaultApi {
 }
 
 impl Api for DefaultApi {
-    fn db_state(&self) -> Result<DbState, UnexpectedError> {
-        lockbook_core::get_db_state(&self.cfg)
-    }
-
-    fn migrate_db(&self) -> Result<(), Error<MigrationError>> {
-        lockbook_core::migrate_db(&self.cfg)
-    }
-
     fn create_account(
         &self, username: &str, api_url: &str,
     ) -> Result<Account, Error<CreateAccountError>> {
@@ -275,7 +263,7 @@ impl Api for DefaultApi {
     }
 
     fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError> {
-        lockbook_core::search_file_paths(&self.cfg, input)
+        self.core.search_file_paths(input)
     }
 }
 
