@@ -166,16 +166,6 @@ impl Tx<'_> {
     }
 }
 
-pub fn create_at_path(
-    config: &Config, path_and_name: &str,
-) -> Result<DecryptedFileMetadata, CoreError> {
-    todo!()
-}
-
-pub fn get_by_path(config: &Config, path: &str) -> Result<DecryptedFileMetadata, CoreError> {
-    todo!()
-}
-
 #[derive(Debug)]
 pub enum Filter {
     DocumentsOnly,

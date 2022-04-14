@@ -2,6 +2,7 @@ use std::env;
 
 use lockbook_core::{Config, LbCore};
 use uuid::Uuid;
+use lockbook_models::tree::FileMetadata;
 
 pub fn url() -> String {
     env::var("API_URL").unwrap_or_else(|_| "http://localhost:8000".to_string())
@@ -27,6 +28,11 @@ pub fn test_core_with_account() -> LbCore {
     let core = test_core();
     core.create_account(&random_name(), &url()).unwrap();
     core
+}
+
+pub fn path(core: &LbCore, path: &str) -> String {
+    let root = core.get_root().unwrap().name();
+    format!("{}/{}", root, path)
 }
 
 //
@@ -366,12 +372,6 @@ macro_rules! assert_matches (
 //     };
 // }
 //
-// #[macro_export]
-// macro_rules! path {
-//     ($account:expr, $path:expr) => {{
-//         &format!("{}/{}", $account.username, $path)
-//     }};
-// }
 //
 // pub fn path(root: &DecryptedFileMetadata, path: &str) -> String {
 //     root.decrypted_name.clone() + path

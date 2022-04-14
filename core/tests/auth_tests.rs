@@ -1,27 +1,25 @@
+mod test_utils;
+
 #[cfg(test)]
 mod auth_tests {
     use lockbook_core::service::api_service;
     use lockbook_core::service::api_service::ApiError;
-    use lockbook_core::service::path_service::create_at_path;
-    use lockbook_core::service::test_utils::{create_account, test_config};
-    use lockbook_core::{assert_matches, get_file_by_path, path, sync_all};
     use lockbook_models::api::*;
     use lockbook_models::crypto::AESEncrypted;
     use lockbook_models::file_metadata::FileMetadataDiff;
+    use crate::test_utils::{test_core_with_account, path};
+    use crate::assert_matches;
 
     #[test]
     fn upsert_id_takeover() {
-        let db1 = &test_config();
-        let db2 = &test_config();
-
-        let account1 = create_account(db1).0;
-        let (account2, account2_root) = create_account(db2);
+        let core1 = test_core_with_account();
+        let core2 = test_core_with_account();
 
         let mut file1 = {
-            let path = path!(account1, "test.md");
-            let id = create_at_path(db1, path).unwrap().id;
-            sync_all(db1, None).unwrap();
-            api_service::request(&account1, GetUpdatesRequest { since_metadata_version: 0 })
+            let path = &path(&core1, "test.md");
+            let id = core1.create_at_path(path).unwrap().id;
+            core1.sync(None).unwrap();
+            api_service::request(&core1.get_account().unwrap(), GetUpdatesRequest { since_metadata_version: 0 })
                 .unwrap()
                 .file_metadata
                 .iter()
@@ -30,11 +28,11 @@ mod auth_tests {
                 .clone()
         };
 
-        file1.parent = account2_root.id;
+        file1.parent = core2.get_root().unwrap().id;
 
         // If this succeeded account2 would be able to control file1
         let result = api_service::request(
-            &account2,
+            &core2.get_account().unwrap(),
             FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&file1)] },
         );
         assert_matches!(
@@ -47,16 +45,15 @@ mod auth_tests {
 
     #[test]
     fn upsert_id_takeover_change_parent() {
-        let db1 = &test_config();
-        let db2 = &test_config();
-
-        let account1 = create_account(db1).0;
-        let account2 = create_account(db2).0;
+        let core1 = test_core_with_account();
+        let core2 = test_core_with_account();
+        let account1 = core1.get_account().unwrap();
+        let account2 = core2.get_account().unwrap();
 
         let file1 = {
-            let path = path!(account1, "test.md");
-            let id = create_at_path(db1, path).unwrap().id;
-            sync_all(db1, None).unwrap();
+            let path = &path(&core1, "test.md");
+            let id = core1.create_at_path(path).unwrap().id;
+            core1.sync(None).unwrap();
             api_service::request(&account1, GetUpdatesRequest { since_metadata_version: 0 })
                 .unwrap()
                 .file_metadata
@@ -81,21 +78,18 @@ mod auth_tests {
 
     #[test]
     fn change_document_content() {
-        let db1 = &test_config();
-        let db2 = &test_config();
-
-        let account1 = create_account(db1).0;
-        let account2 = create_account(db2).0;
+        let core1 = test_core_with_account();
+        let core2 = test_core_with_account();
 
         let file = {
-            let path = path!(account1, "test.md");
-            create_at_path(db1, path).unwrap();
-            sync_all(db1, None).unwrap();
-            get_file_by_path(db1, path).unwrap()
+            let path = &path(&core1, "test.md");
+            core1.create_at_path(path).unwrap();
+            core1.sync(None).unwrap();
+            core1.get_by_path(path).unwrap()
         };
 
         let result = api_service::request(
-            &account2,
+            &core2.get_account().unwrap(),
             ChangeDocumentContentRequest {
                 id: file.id,
                 old_metadata_version: file.metadata_version,
@@ -116,20 +110,17 @@ mod auth_tests {
 
     #[test]
     fn get_someone_else_document() {
-        let db1 = &test_config();
-        let db2 = &test_config();
-
-        let account1 = create_account(db1).0;
-        let account2 = create_account(db2).0;
+        let core1 = test_core_with_account();
+        let core2 = test_core_with_account();
 
         let file = {
-            let path = path!(account1, "test.md");
-            create_at_path(db1, path).unwrap();
-            sync_all(db1, None).unwrap();
-            get_file_by_path(db1, path).unwrap()
+            let path = &path(&core1, "test.md");
+            core1.create_at_path(path).unwrap();
+            core1.sync(None).unwrap();
+            core1.get_by_path(path).unwrap()
         };
 
-        let result = api_service::request(&account2, GetDocumentRequest::from(&file));
+        let result = api_service::request(&core2.get_account().unwrap(), GetDocumentRequest::from(&file));
         assert_matches!(
             result,
             Err(ApiError::<GetDocumentError>::Endpoint(GetDocumentError::NotPermissioned))
