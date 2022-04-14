@@ -35,7 +35,7 @@ impl Tx<'_> {
     fn server_usage(&self) -> Result<GetUsageResponse, CoreError> {
         let acc = &self.get_account()?;
 
-        api_service::request(&acc, GetUsageRequest {}).map_err(CoreError::from)
+        Ok(api_service::request(&acc, GetUsageRequest {})?)
     }
 
     pub fn get_usage(&self) -> Result<UsageMetrics, CoreError> {

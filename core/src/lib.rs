@@ -53,6 +53,7 @@ use crate::sync_service::WorkCalculated;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
+    pub logs: bool,
     pub writeable_path: String,
 }
 
@@ -64,7 +65,9 @@ pub struct LbCore {
 
 impl LbCore {
     pub fn init(config: &Config) -> Result<Self, UnexpectedError> {
-        log_service::init(&config.writeable_path)?;
+        if config.logs {
+            log_service::init(&config.writeable_path)?;
+        }
         let db =
             CoreV1::init(&config.writeable_path).map_err(|err| unexpected_only!("{:#?}", err))?;
         let config = config.clone();

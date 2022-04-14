@@ -31,7 +31,7 @@ unsafe fn str_from_ptr(s: *const c_char) -> String {
 }
 
 unsafe fn config_from_ptr(s: *const c_char) -> Config {
-    Config { writeable_path: str_from_ptr(s) }
+    Config { writeable_path: str_from_ptr(s), logs: true }
 }
 
 unsafe fn uuid_from_ptr(s: *const c_char) -> Uuid {

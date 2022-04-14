@@ -1,13 +1,16 @@
 use std::env;
+use std::ops::Deref;
 use std::path::Path;
 use std::str::FromStr;
+use std::sync::atomic::AtomicBool;
 
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::{filter, fmt, prelude::*};
 
+use crate::external_interface::static_state::LOG_INITED;
 use crate::model::errors::core_err_unexpected;
-use crate::CoreError;
+use crate::{unexpected_only, CoreError};
 
 static LOG_FILE: &str = "lockbook.log";
 

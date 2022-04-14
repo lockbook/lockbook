@@ -1,41 +1,35 @@
 #[cfg(test)]
+mod test_utils;
+
+#[cfg(test)]
 mod account_tests {
+    use crate::test_utils::{random_name, test_core, url};
     use lockbook_core::model::errors::{CreateAccountError, ImportError};
-
     use lockbook_core::repo::schema::OneKey;
-
-    use lockbook_core::service::test_utils::{
-        generate_account, random_name, test_config, test_core,
-    };
-    use lockbook_core::{Error, LbCore};
+    use lockbook_core::Error;
+    use lockbook_crypto::pubkey;
     use lockbook_models::account::Account;
 
     #[test]
     fn create_account_success() {
-        let core = LbCore::init(&test_config()).unwrap();
-        let generated_account = generate_account();
-        core.create_account(&generated_account.username, &generated_account.api_url)
-            .unwrap();
+        let core = test_core();
+        core.create_account(&random_name(), &url()).unwrap();
     }
 
     #[test]
     fn create_account_username_taken() {
         let core1 = test_core();
         let core2 = test_core();
-        let generated_account = generate_account();
+        let name = random_name();
 
-        core1
-            .create_account(&generated_account.username, &generated_account.api_url)
-            .unwrap();
+        core1.create_account(&name, &url()).unwrap();
 
-        let err = core2
-            .create_account(&generated_account.username, &generated_account.api_url)
-            .unwrap_err();
+        let err = core2.create_account(&name, &url()).unwrap_err();
 
         assert!(
             matches!(err, Error::UiError(CreateAccountError::UsernameTaken)),
             "Username \"{}\" should have caused a UsernameTaken error but instead was {:?}",
-            &generated_account.username,
+            &name,
             err
         )
     }
@@ -47,12 +41,10 @@ mod account_tests {
         let invalid_unames = ["", "i/o", "@me", "###", "+1", "💩"];
 
         for &uname in &invalid_unames {
-            let err = core
-                .create_account(uname, &generate_account().api_url)
-                .unwrap_err();
+            let err = core.create_account(uname, &url()).unwrap_err();
 
             assert!(
-                matches!(err, Error::UiError(CreateAccountError::UsernameTaken)),
+                matches!(err, Error::UiError(CreateAccountError::InvalidUsername)),
                 "Username \"{}\" should have been InvalidUsername but instead was {:?}",
                 uname,
                 err
@@ -63,14 +55,12 @@ mod account_tests {
     #[test]
     fn create_account_account_exists() {
         let core = &test_core();
-        let generated_account = generate_account();
 
-        core.create_account(&generated_account.username, &generated_account.api_url)
-            .unwrap();
+        core.create_account(&random_name(), &url()).unwrap();
 
         assert!(
             matches!(
-                core.create_account(&generated_account.username, &generated_account.api_url),
+                core.create_account(&random_name(), &url()),
                 Err(Error::UiError(CreateAccountError::AccountExistsAlready))
             ),
             "This action should have failed with AccountAlreadyExists!",
@@ -80,103 +70,60 @@ mod account_tests {
     #[test]
     fn create_account_account_exists_case() {
         let core = test_core();
-        let generated_account = generate_account();
+        let name = random_name();
 
-        core.create_account(&generated_account.username, &generated_account.api_url)
-            .unwrap();
+        core.create_account(&name, &url()).unwrap();
 
         let core = test_core();
-        assert!(
-            matches!(
-                core.create_account(
-                    &(generated_account.username.to_uppercase()),
-                    &generated_account.api_url
-                ),
-                Err(Error::UiError(CreateAccountError::UsernameTaken))
-            ),
-            "This action should have failed with AccountAlreadyExists!",
-        );
-        println!("{} {}", &generated_account.username, &(generated_account.username.to_uppercase()))
+        assert!(matches!(
+            core.create_account(&(name.to_uppercase()), &url()),
+            Err(Error::UiError(CreateAccountError::UsernameTaken))
+        ));
     }
 
     #[test]
     fn import_account_account_exists() {
         let core = test_core();
-        let generated_account = generate_account();
 
-        core.create_account(&generated_account.username, &generated_account.api_url)
-            .unwrap();
+        core.create_account(&random_name(), &url()).unwrap();
         let account_string = core.export_account().unwrap();
 
-        match core.import_account(&account_string) {
-            Ok(_) => panic!(
-                "This should not have allowed this account to be imported as one exists already"
-            ),
-            Err(err) => match err {
-                Error::UiError(ImportError::AccountExistsAlready) => {}
-                Error::UiError(ImportError::AccountStringCorrupted)
-                | Error::UiError(ImportError::AccountDoesNotExist)
-                | Error::UiError(ImportError::UsernamePKMismatch)
-                | Error::UiError(ImportError::ClientUpdateRequired)
-                | Error::UiError(ImportError::CouldNotReachServer)
-                | Error::Unexpected(_) => panic!("Wrong Error: {:#?}", err),
-            },
-        }
+        assert!(matches!(
+            core.import_account(&account_string),
+            Err(Error::UiError(ImportError::AccountExistsAlready))
+        ));
     }
 
     #[test]
     fn import_account_corrupted() {
         let core = test_core();
 
-        match core.import_account("clearly a bad account string") {
-            Ok(_) => panic!("This should not be a valid account string"),
-            Err(err) => match err {
-                Error::UiError(ImportError::AccountStringCorrupted) => {}
-                Error::UiError(ImportError::AccountExistsAlready)
-                | Error::UiError(ImportError::AccountDoesNotExist)
-                | Error::UiError(ImportError::UsernamePKMismatch)
-                | Error::UiError(ImportError::ClientUpdateRequired)
-                | Error::UiError(ImportError::CouldNotReachServer)
-                | Error::Unexpected(_) => panic!("Wrong Error: {:#?}", err),
-            },
-        }
+        assert!(matches!(
+            core.import_account("clearly a bad account string"),
+            Err(Error::UiError(ImportError::AccountStringCorrupted))
+        ));
     }
 
     #[test]
     fn import_account_nonexistent() {
         let core1 = test_core();
-        let generated_account = generate_account();
 
-        core1
-            .create_account(&generated_account.username, &generated_account.api_url)
-            .unwrap();
+        core1.create_account(&random_name(), &url()).unwrap();
 
         let core2 = test_core();
-        {
-            let account = Account {
-                api_url: generated_account.api_url,
-                username: random_name(),
-                private_key: generated_account.private_key,
-            };
-            core2.db.account.insert(OneKey {}, account).unwrap();
-        } // release lock on db
-
+        let account = Account {
+            api_url: url(),
+            username: random_name(),
+            private_key: pubkey::generate_key(),
+        };
+        core2.db.account.insert(OneKey {}, account).unwrap();
         let account_string = core2.export_account().unwrap();
 
         let core3 = test_core();
-
-        match core3.import_account(&account_string) {
-            Ok(_) => panic!("Should not have passed"),
-            Err(err) => match err {
-                Error::UiError(ImportError::AccountDoesNotExist) => {}
-                Error::UiError(ImportError::AccountStringCorrupted)
-                | Error::UiError(ImportError::AccountExistsAlready)
-                | Error::UiError(ImportError::ClientUpdateRequired)
-                | Error::UiError(ImportError::UsernamePKMismatch)
-                | Error::UiError(ImportError::CouldNotReachServer)
-                | Error::Unexpected(_) => panic!("Wrong error: {:#?}", err),
-            },
-        }
+        assert!(matches!(
+            core3.import_account(&account_string),
+            Err(Error::UiError(ImportError::AccountDoesNotExist))
+        ));
     }
 
     #[test]
@@ -184,14 +131,8 @@ mod account_tests {
         let bad_account_string = {
             let core1 = test_core();
             let core2 = test_core();
-            let generated_account1 = generate_account();
-            let generated_account2 = generate_account();
-            let account1 = core1
-                .create_account(&generated_account1.username, &generated_account1.api_url)
-                .unwrap();
-            let mut account2 = core2
-                .create_account(&generated_account2.username, &generated_account2.api_url)
-                .unwrap();
+            let account1 = core1.create_account(&random_name(), &url()).unwrap();
+            let mut account2 = core2.create_account(&random_name(), &url()).unwrap();
             account2.username = account1.username;
             core2.db.account.insert(OneKey {}, account2).unwrap();
             core2.export_account().unwrap()
@@ -199,17 +140,9 @@ mod account_tests {
 
         let core3 = test_core();
 
-        match core3.import_account(&bad_account_string) {
-            Ok(_) => panic!("Should have failed"),
-            Err(err) => match err {
-                Error::UiError(ImportError::UsernamePKMismatch) => {}
-                Error::UiError(ImportError::AccountStringCorrupted)
-                | Error::UiError(ImportError::AccountExistsAlready)
-                | Error::UiError(ImportError::ClientUpdateRequired)
-                | Error::UiError(ImportError::AccountDoesNotExist)
-                | Error::UiError(ImportError::CouldNotReachServer)
-                | Error::Unexpected(_) => panic! {"Wrong error: {:#?}", err},
-            },
-        }
+        assert!(matches!(
+            core3.import_account(&bad_account_string),
+            Err(Error::UiError(ImportError::UsernamePKMismatch))
+        ));
     }
 }

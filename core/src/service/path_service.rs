@@ -193,20 +193,6 @@ pub fn filter_from_str(input: &str) -> Result<Option<Filter>, CoreError> {
     }
 }
 
-pub fn get_all_paths(config: &Config, filter: Option<Filter>) -> Result<Vec<String>, CoreError> {
-    todo!()
-}
-
-pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, CoreError> {
-    todo!()
-}
-
-pub fn get_path_by_id_using_files(
-    files: &[DecryptedFileMetadata], id: Uuid,
-) -> Result<String, CoreError> {
-    todo!()
-}
-
 fn split_path(path: &str) -> Vec<&str> {
     path.split('/')
         .collect::<Vec<&str>>()

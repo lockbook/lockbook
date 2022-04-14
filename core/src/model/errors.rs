@@ -1,12 +1,13 @@
 use std::fmt::{Display, Formatter};
 use std::io::ErrorKind;
 
+use lockbook_models::api;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use strum_macros::EnumIter;
 use uuid::Uuid;
 
-use lockbook_models::api::{GetPublicKeyError, NewAccountError};
+use lockbook_models::api::{GetPublicKeyError, GetUpdatesError, NewAccountError};
 use lockbook_models::tree::TreeError;
 
 use crate::service::api_service::ApiError;
@@ -157,16 +158,6 @@ impl From<std::io::Error> for CoreError {
     }
 }
 
-impl<T: std::fmt::Debug> From<ApiError<T>> for CoreError {
-    fn from(e: ApiError<T>) -> Self {
-        match e {
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            e => core_err_unexpected(e),
-        }
-    }
-}
-
 #[derive(Debug, Serialize, EnumIter)]
 pub enum CreateAccountError {
     UsernameTaken,
@@ -191,17 +182,15 @@ impl From<CoreError> for Error<CreateAccountError> {
     }
 }
 
-impl From<ApiError<NewAccountError>> for Error<CreateAccountError> {
+impl From<ApiError<NewAccountError>> for CoreError {
     fn from(err: ApiError<NewAccountError>) -> Self {
         match err {
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable.into(),
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired.into(),
-            ApiError::Endpoint(NewAccountError::UsernameTaken) => CoreError::UsernameTaken.into(),
-            ApiError::Endpoint(NewAccountError::InvalidUsername) => {
-                CoreError::UsernameInvalid.into()
-            }
-            ApiError::Endpoint(NewAccountError::Disabled) => CoreError::ServerDisabled.into(),
-            e => core_err_unexpected(e).into(),
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            ApiError::Endpoint(NewAccountError::UsernameTaken) => CoreError::UsernameTaken,
+            ApiError::Endpoint(NewAccountError::InvalidUsername) => CoreError::UsernameInvalid,
+            ApiError::Endpoint(NewAccountError::Disabled) => CoreError::ServerDisabled,
+            e => core_err_unexpected(e),
         }
     }
 }
@@ -216,15 +205,13 @@ pub enum ImportError {
     ClientUpdateRequired,
 }
 
-impl From<ApiError<GetPublicKeyError>> for Error<ImportError> {
+impl From<ApiError<GetPublicKeyError>> for CoreError {
     fn from(err: ApiError<GetPublicKeyError>) -> Self {
         match err {
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable.into(),
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired.into(),
-            ApiError::Endpoint(GetPublicKeyError::UserNotFound) => {
-                CoreError::AccountNonexistent.into()
-            }
-            e => core_err_unexpected(e).into(),
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            ApiError::Endpoint(GetPublicKeyError::UserNotFound) => CoreError::AccountNonexistent,
+            e => core_err_unexpected(e),
         }
     }
 }
@@ -522,6 +509,46 @@ impl From<CoreError> for Error<SyncAllError> {
     }
 }
 
+impl From<ApiError<GetUpdatesError>> for CoreError {
+    fn from(e: ApiError<GetUpdatesError>) -> Self {
+        match e {
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            e => core_err_unexpected(e),
+        }
+    }
+}
+
+impl From<ApiError<api::GetDocumentError>> for CoreError {
+    fn from(e: ApiError<api::GetDocumentError>) -> Self {
+        match e {
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            e => core_err_unexpected(e),
+        }
+    }
+}
+
+impl From<ApiError<api::FileMetadataUpsertsError>> for CoreError {
+    fn from(e: ApiError<api::FileMetadataUpsertsError>) -> Self {
+        match e {
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            e => core_err_unexpected(e),
+        }
+    }
+}
+
+impl From<ApiError<api::ChangeDocumentContentError>> for CoreError {
+    fn from(e: ApiError<api::ChangeDocumentContentError>) -> Self {
+        match e {
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            e => core_err_unexpected(e),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, EnumIter)]
 pub enum CalculateWorkError {
     NoAccount,
@@ -554,6 +581,16 @@ impl From<CoreError> for Error<GetUsageError> {
             CoreError::ServerUnreachable => UiError(GetUsageError::CouldNotReachServer),
             CoreError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+impl From<ApiError<api::GetUsageError>> for CoreError {
+    fn from(e: ApiError<api::GetUsageError>) -> Self {
+        match e {
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            e => core_err_unexpected(e),
         }
     }
 }
