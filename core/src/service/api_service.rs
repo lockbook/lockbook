@@ -46,7 +46,7 @@ pub fn request<
     request_helper(account, request, get_code_version, get_time)
 }
 
-fn request_helper<
+pub fn request_helper<
     T: Request<Response = impl DeserializeOwned, Error = impl DeserializeOwned> + Serialize,
 >(
     account: &Account, request: T, get_code_version: fn() -> &'static str,

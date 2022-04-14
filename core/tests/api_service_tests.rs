@@ -1,3 +1,5 @@
+mod test_utils;
+
 #[cfg(test)]
 mod request_common_tests {
     use libsecp256k1::PublicKey;
@@ -7,22 +9,17 @@ mod request_common_tests {
         GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, NewAccountError,
         NewAccountRequest,
     };
-
     use crate::assert_matches;
-    use crate::model::state::temp_config;
-    use crate::service::api_service::{request_helper, ApiError};
-    use crate::service::db_state_service::get_code_version;
-    use crate::service::test_utils;
-    use crate::{create_account, get_account};
+    use lockbook_core::service::api_service::{request_helper, ApiError};
+    use crate::test_utils::test_core_with_account;
+    use lockbook_core::get_code_version;
 
     static CODE_VERSION: fn() -> &'static str = || "0.0.0";
 
     #[test]
     fn forced_upgrade() {
-        let cfg = temp_config();
-        let generated_account = test_utils::generate_account();
-        create_account(&cfg, &generated_account.username, &generated_account.api_url).unwrap();
-        let account = get_account(&cfg).unwrap();
+        let core = test_core_with_account();
+        let account = core.get_account().unwrap();
 
         let result: Result<PublicKey, ApiError<GetPublicKeyError>> = request_helper(
             &account,
@@ -30,7 +27,7 @@ mod request_common_tests {
             CODE_VERSION,
             get_time,
         )
-        .map(|r: GetPublicKeyResponse| r.key);
+            .map(|r: GetPublicKeyResponse| r.key);
 
         assert_matches!(result, Err(ApiError::<GetPublicKeyError>::ClientUpdateRequired));
     }
@@ -39,18 +36,17 @@ mod request_common_tests {
 
     #[test]
     fn expired_request() {
-        let account = test_utils::generate_account();
-        let (root, _) = test_utils::generate_root_metadata(&account);
+        let core = test_core_with_account();
+        let account = core.get_account().unwrap();
 
         let result = request_helper(
             &account,
-            NewAccountRequest::new(&account, &root),
+            GetPublicKeyRequest { username: account.username.clone() },
             get_code_version,
             EARLY_CLOCK,
         );
-        assert_matches!(result, Err(ApiError::<NewAccountError>::ExpiredAuth));
+        assert_matches!(result, Err(ApiError::<GetPublicKeyError>::ExpiredAuth));
     }
 
-    // todo: these are actually integration tests
     // todo: test for invalid signature, signature mismatch during create account request
 }

@@ -22,6 +22,13 @@ pub fn random_name() -> String {
         .filter(|c| c.is_alphanumeric())
         .collect()
 }
+
+pub fn test_core_with_account() -> LbCore {
+    let core = test_core();
+    core.create_account(&random_name(), &url()).unwrap();
+    core
+}
+
 //
 // pub fn new_account(core: &LbCore) -> Account {
 //     core.create_account(&random_name(), &url()).unwrap();
@@ -334,18 +341,19 @@ pub fn random_name() -> String {
 //     })
 // }
 //
-// #[macro_export]
-// macro_rules! assert_matches (
-//     ($actual:expr, $expected:pat) => {
-//         // Only compute actual once
-//         let actual_value = $actual;
-//         match actual_value {
-//             $expected => {},
-//             _ => panic!("assertion failed: {:?} did not match expectation", actual_value)
-//         }
-//     }
-// );
-//
+
+#[macro_export]
+macro_rules! assert_matches (
+    ($actual:expr, $expected:pat) => {
+        // Only compute actual once
+        let actual_value = $actual;
+        match actual_value {
+            $expected => {},
+            _ => panic!("assertion failed: {:?} did not match expectation", actual_value)
+        }
+    }
+);
+
 // #[macro_export]
 // macro_rules! assert_get_updates_required {
 //     ($actual:expr) => {
