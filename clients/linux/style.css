@@ -8,3 +8,8 @@
 #err {
 	color: red;
 }
+.tree-msg {
+	padding-top: 8px;
+	padding-bottom: 8px;
+	background: rgba(10, 10, 10, .15);
+}
