@@ -42,7 +42,7 @@ pub enum MaybeMergeResult<T> {
     BaselessConflict { local: T, remote: T },
 }
 
-fn merge_maybe<T>(
+pub fn merge_maybe<T>(
     maybe_base: Option<T>, maybe_local: Option<T>, maybe_remote: Option<T>,
 ) -> Result<MaybeMergeResult<T>, CoreError> {
     Ok(MaybeMergeResult::Resolved(match (maybe_base, maybe_local, maybe_remote) {
@@ -87,7 +87,7 @@ fn merge_maybe<T>(
     }))
 }
 
-fn merge_metadata(
+pub fn merge_metadata(
     base: DecryptedFileMetadata, local: DecryptedFileMetadata, remote: DecryptedFileMetadata,
 ) -> DecryptedFileMetadata {
     let local_renamed = local.decrypted_name != base.decrypted_name;
@@ -121,7 +121,7 @@ fn merge_metadata(
     }
 }
 
-fn merge_maybe_metadata(
+pub fn merge_maybe_metadata(
     maybe_base: Option<DecryptedFileMetadata>, maybe_local: Option<DecryptedFileMetadata>,
     maybe_remote: Option<DecryptedFileMetadata>,
 ) -> Result<DecryptedFileMetadata, CoreError> {

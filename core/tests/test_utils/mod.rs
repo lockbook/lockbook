@@ -1,8 +1,10 @@
 use std::env;
 
+use hmdb::transaction::Transaction;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_core::{Config, LbCore};
 use lockbook_models::api::FileMetadataUpsertsError;
+use lockbook_models::file_metadata::EncryptedFileMetadata;
 use lockbook_models::tree::FileMetadata;
 use uuid::Uuid;
 
@@ -41,6 +43,15 @@ pub const UPDATES_REQ: Result<(), ApiError<FileMetadataUpsertsError>> =
     Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
         FileMetadataUpsertsError::GetUpdatesRequired,
     ));
+
+// pub fn enc_root(core: &LbCore) -> EncryptedFileMetadata {
+//     core.db
+//         .transaction(|tx| {
+//             let id = tx.root().unwrap().id;
+//             tx.base_metadata.get(&id).unwrap()
+//         })
+//         .unwrap()
+// }
 
 // pub enum Operation<'a> {
 //     Client { client_num: usize },
