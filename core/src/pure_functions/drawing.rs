@@ -220,7 +220,7 @@ fn u32_byte_to_u8_bytes(u32_byte: u32) -> (u8, u8, u8, u8) {
     (byte_1 as u8, byte_2 as u8, byte_3 as u8, byte_4 as u8)
 }
 
-fn get_drawing_bounds(strokes: &[Stroke]) -> (u32, u32) {
+pub fn get_drawing_bounds(strokes: &[Stroke]) -> (u32, u32) {
     let stroke_to_max_x = |stroke: &Stroke| {
         stroke
             .points_x
