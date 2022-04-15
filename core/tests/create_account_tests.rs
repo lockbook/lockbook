@@ -1,32 +1,31 @@
+mod test_utils;
+
 #[cfg(test)]
 mod change_document_content_tests {
-    use lockbook_core::service::api_service;
+    use crate::assert_matches;
+    use crate::test_utils::test_core_with_account;
+    use lockbook_core::pure_functions::files;
     use lockbook_core::service::api_service::ApiError;
-    use lockbook_core::service::test_utils::{generate_account, generate_root_metadata};
+    use lockbook_core::service::{api_service, file_encryption_service};
+    use lockbook_crypto::pubkey;
     use lockbook_models::api::*;
 
-    #[test]
-    fn create_account() {
-        // new account
-        let account = generate_account();
-        let (root, _root_key) = generate_root_metadata(&account);
-        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
-    }
-
+    // In addition to core, server should enforce username case-insensitivity
     #[test]
     fn create_account_username_case() {
-        // new account
-        let account = generate_account();
-        let (root, _root_key) = generate_root_metadata(&account);
-        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
-        let old_username = account.username;
-        let mut account = generate_account();
-        account.username = old_username.to_uppercase();
-        let (root, _root_key) = generate_root_metadata(&account);
-        let operation = api_service::request(&account, NewAccountRequest::new(&account, &root));
-        match operation {
-            Err(ApiError::Endpoint(NewAccountError::UsernameTaken)) => {} // Test pass
-            _ => panic!("Usernames must be case sensitive {:?}", operation),
-        }
+        let core = test_core_with_account();
+        let mut account = core.get_account().unwrap();
+
+        account.username = account.username.to_uppercase();
+        account.private_key = pubkey::generate_key();
+
+        let root =
+            &file_encryption_service::encrypt_metadata(&account, &[files::create_root(&account)])
+                .unwrap()[0];
+
+        assert_matches!(
+            api_service::request(&account, NewAccountRequest::new(&account, &root)),
+            Err(ApiError::Endpoint(NewAccountError::UsernameTaken))
+        );
     }
 }
