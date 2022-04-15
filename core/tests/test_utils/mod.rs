@@ -1,8 +1,12 @@
 use std::env;
 
 use lockbook_core::{Config, LbCore};
-use uuid::Uuid;
+use lockbook_crypto::symkey;
+use lockbook_models::account::Account;
+use lockbook_models::crypto::AESKey;
+use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
 use lockbook_models::tree::FileMetadata;
+use uuid::Uuid;
 
 pub fn url() -> String {
     env::var("API_URL").unwrap_or_else(|_| "http://localhost:8000".to_string())
@@ -35,12 +39,6 @@ pub fn path(core: &LbCore, path: &str) -> String {
     format!("{}/{}", root, path)
 }
 
-//
-// pub fn new_account(core: &LbCore) -> Account {
-//     core.create_account(&random_name(), &url()).unwrap();
-//     core.get_account().unwrap()
-// }
-//
 // pub enum Operation<'a> {
 //     Client { client_num: usize },
 //     Sync { client_num: usize },
@@ -372,19 +370,6 @@ macro_rules! assert_matches (
 //     };
 // }
 //
-//
-// pub fn path(root: &DecryptedFileMetadata, path: &str) -> String {
-//     root.decrypted_name.clone() + path
-// }
-// //
-// // pub fn create_account(db: &Config) -> (Account, DecryptedFileMetadata) {
-// //     let generated_account = generate_account();
-// //     (
-// //         crate::create_account(db, &generated_account.username, &generated_account.api_url).unwrap(),
-// //         crate::get_root(db).unwrap(),
-// //     )
-// // }
-//
 // pub const MAX_FILES_PER_BENCH: u64 = 6;
 //
 // pub const CREATE_FILES_BENCH_1: u64 = 1;
@@ -402,73 +387,6 @@ macro_rules! assert_matches (
 //         .collect();
 //
 //     symkey::encrypt_and_hmac(&symkey::generate_key(), &name).unwrap()
-// }
-//
-// pub fn generate_root_metadata(account: &Account) -> (EncryptedFileMetadata, AESKey) {
-//     let id = Uuid::new_v4();
-//     let key = symkey::generate_key();
-//     let name = symkey::encrypt_and_hmac(&key, &account.username.clone()).unwrap();
-//     let key_encryption_key =
-//         pubkey::get_aes_key(&account.private_key, &account.public_key()).unwrap();
-//     let encrypted_access_key = symkey::encrypt(&key_encryption_key, &key).unwrap();
-//     let use_access_key = UserAccessInfo {
-//         username: account.username.clone(),
-//         encrypted_by: account.public_key(),
-//         access_key: encrypted_access_key,
-//     };
-//
-//     let mut user_access_keys = HashMap::new();
-//     user_access_keys.insert(account.username.clone(), use_access_key);
-//
-//     (
-//         EncryptedFileMetadata {
-//             file_type: Folder,
-//             id,
-//             name,
-//             owner: Owner::from(account),
-//             parent: id,
-//             content_version: 0,
-//             metadata_version: 0,
-//             deleted: false,
-//             user_access_keys,
-//             folder_access_keys: symkey::encrypt(&symkey::generate_key(), &key).unwrap(),
-//         },
-//         key,
-//     )
-// }
-//
-// pub fn generate_file_metadata(
-//     account: &Account, parent: &EncryptedFileMetadata, parent_key: &AESKey, file_type: FileType,
-// ) -> (EncryptedFileMetadata, AESKey) {
-//     let id = Uuid::new_v4();
-//     let file_key = symkey::generate_key();
-//     (
-//         EncryptedFileMetadata {
-//             file_type,
-//             id,
-//             name: random_filename(),
-//             owner: Owner::from(account),
-//             parent: parent.id,
-//             content_version: 0,
-//             metadata_version: 0,
-//             deleted: false,
-//             user_access_keys: Default::default(),
-//             folder_access_keys: aes_encrypt(parent_key, &file_key),
-//         },
-//         file_key,
-//     )
-// }
-//
-// pub fn aes_encrypt<T: Serialize + DeserializeOwned>(
-//     key: &AESKey, to_encrypt: &T,
-// ) -> AESEncrypted<T> {
-//     symkey::encrypt(key, to_encrypt).unwrap()
-// }
-//
-// pub fn aes_decrypt<T: Serialize + DeserializeOwned>(
-//     key: &AESKey, to_decrypt: &AESEncrypted<T>,
-// ) -> T {
-//     symkey::decrypt(key, to_decrypt).unwrap()
 // }
 //
 // fn get_frequencies<T: Hash + Eq>(a: &[T]) -> HashMap<&T, i32> {

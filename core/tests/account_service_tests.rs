@@ -145,4 +145,6 @@ mod account_tests {
             Err(Error::UiError(ImportError::UsernamePKMismatch))
         ));
     }
+
+    // TODO add a test for asserting metadata version of root is non zero
 }
