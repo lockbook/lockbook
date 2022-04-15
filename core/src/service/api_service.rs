@@ -23,7 +23,7 @@ impl<E> From<ErrorWrapper<E>> for ApiError<E> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum ApiError<E> {
     Endpoint(E),
     ClientUpdateRequired,
@@ -32,10 +32,10 @@ pub enum ApiError<E> {
     InternalError,
     BadRequest,
     Sign(ECSignError),
-    Serialize(serde_json::error::Error),
-    SendFailed(ReqwestError),
-    ReceiveFailed(ReqwestError),
-    Deserialize(serde_json::error::Error),
+    Serialize(String),
+    SendFailed(String),
+    ReceiveFailed(String),
+    Deserialize(String),
 }
 
 pub fn request<
@@ -59,15 +59,16 @@ pub fn request_helper<
         signed_request,
         client_version: String::from(get_code_version()),
     })
-    .map_err(ApiError::Serialize)?;
+    .map_err(|err| ApiError::Serialize(err.to_string()))?;
     let serialized_response = client
         .request(T::METHOD, format!("{}{}", account.api_url, T::ROUTE).as_str())
         .body(serialized_request)
         .send()
-        .map_err(ApiError::SendFailed)?
+        .map_err(|err| ApiError::SendFailed(err.to_string()))?
         .bytes()
-        .map_err(ApiError::ReceiveFailed)?;
+        .map_err(|err| ApiError::ReceiveFailed(err.to_string()))?;
     let response: Result<T::Response, ErrorWrapper<T::Error>> =
-        serde_json::from_slice(&serialized_response).map_err(ApiError::Deserialize)?;
+        serde_json::from_slice(&serialized_response)
+            .map_err(|err| ApiError::Deserialize(err.to_string()))?;
     response.map_err(ApiError::from)
 }

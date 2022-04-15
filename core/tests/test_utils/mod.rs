@@ -1,10 +1,8 @@
 use std::env;
 
+use lockbook_core::service::api_service::ApiError;
 use lockbook_core::{Config, LbCore};
-use lockbook_crypto::symkey;
-use lockbook_models::account::Account;
-use lockbook_models::crypto::AESKey;
-use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
+use lockbook_models::api::FileMetadataUpsertsError;
 use lockbook_models::tree::FileMetadata;
 use uuid::Uuid;
 
@@ -38,6 +36,11 @@ pub fn path(core: &LbCore, path: &str) -> String {
     let root = core.get_root().unwrap().name();
     format!("{}/{}", root, path)
 }
+
+pub const UPDATES_REQ: Result<(), ApiError<FileMetadataUpsertsError>> =
+    Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+        FileMetadataUpsertsError::GetUpdatesRequired,
+    ));
 
 // pub enum Operation<'a> {
 //     Client { client_num: usize },
@@ -358,18 +361,6 @@ macro_rules! assert_matches (
     }
 );
 
-// #[macro_export]
-// macro_rules! assert_get_updates_required {
-//     ($actual:expr) => {
-//         assert_matches!(
-//             $actual,
-//             Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-//                 FileMetadataUpsertsError::GetUpdatesRequired
-//             ))
-//         );
-//     };
-// }
-//
 // pub const MAX_FILES_PER_BENCH: u64 = 6;
 //
 // pub const CREATE_FILES_BENCH_1: u64 = 1;

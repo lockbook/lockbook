@@ -1,7 +1,5 @@
 mod test_utils;
 
-#[cfg(test)]
-mod request_common_tests {
     use libsecp256k1::PublicKey;
 
     use lockbook_crypto::clock_service::{get_time, Timestamp};

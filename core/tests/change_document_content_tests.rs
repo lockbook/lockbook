@@ -1,74 +1,71 @@
 mod test_utils;
 
-#[cfg(test)]
-mod change_document_content_tests {
-    use crate::assert_matches;
-    use crate::test_utils::{path, test_core_with_account};
-    use lockbook_core::model::repo::RepoSource;
-    use lockbook_core::repo::document_repo;
-    use lockbook_core::service::api_service;
-    use lockbook_core::service::api_service::ApiError;
-    use lockbook_models::api::*;
-    use lockbook_models::file_metadata::FileMetadataDiff;
+use crate::assert_matches;
+use crate::test_utils::{path, test_core_with_account};
+use lockbook_core::model::repo::RepoSource;
+use lockbook_core::repo::document_repo;
+use lockbook_core::service::api_service;
+use lockbook_core::service::api_service::ApiError;
+use lockbook_models::api::*;
+use lockbook_models::file_metadata::FileMetadataDiff;
 
-    #[test]
-    fn change_document_content() {
-        let core = test_core_with_account();
-        let account = core.get_account().unwrap();
-        let root = core.get_root().unwrap();
-        let mut doc = core.create_at_path(&path(&core, "test.md")).unwrap();
-        let doc_enc = core.db.local_metadata.get(&doc.id).unwrap().unwrap();
+#[test]
+fn change_document_content() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let mut doc = core.create_at_path(&path(&core, "test.md")).unwrap();
+    let doc_enc = core.db.local_metadata.get(&doc.id).unwrap().unwrap();
 
-        // create document
-        api_service::request(
-            &account,
-            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc_enc)] },
-        )
+    // create document
+    api_service::request(
+        &account,
+        FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc_enc)] },
+    )
+    .unwrap();
+
+    // get document metadata version
+    doc.metadata_version = api_service::request(
+        &account,
+        GetUpdatesRequest { since_metadata_version: root.metadata_version },
+    )
+    .unwrap()
+    .file_metadata[0]
+        .metadata_version;
+
+    core.write_document(doc.id, "new doc content".as_bytes())
         .unwrap();
+    let new_content = document_repo::get(&core.config, RepoSource::Local, doc.id).unwrap();
 
-        // get document metadata version
-        doc.metadata_version = api_service::request(
-            &account,
-            GetUpdatesRequest { since_metadata_version: root.metadata_version },
-        )
-        .unwrap()
-        .file_metadata[0]
-            .metadata_version;
+    // change document content
+    api_service::request(
+        &account,
+        ChangeDocumentContentRequest {
+            id: doc.id,
+            old_metadata_version: doc.metadata_version,
+            new_content,
+        },
+    )
+    .unwrap();
+}
 
-        core.write_document(doc.id, "new doc content".as_bytes())
-            .unwrap();
-        let new_content = document_repo::get(&core.config, RepoSource::Local, doc.id).unwrap();
+#[test]
+fn change_document_content_not_found() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let doc = core.create_at_path(&path(&core, "test.md")).unwrap();
+    core.write_document(doc.id, "content".as_bytes()).unwrap();
+    let new_content = document_repo::get(&core.config, RepoSource::Local, doc.id).unwrap();
 
-        // change document content
-        api_service::request(
-            &account,
-            ChangeDocumentContentRequest {
-                id: doc.id,
-                old_metadata_version: doc.metadata_version,
-                new_content,
-            },
-        )
-        .unwrap();
-    }
-
-    #[test]
-    fn change_document_content_not_found() {
-        let core = test_core_with_account();
-        let account = core.get_account().unwrap();
-        let doc = core.create_at_path(&path(&core, "test.md")).unwrap();
-        core.write_document(doc.id, "content".as_bytes()).unwrap();
-        let new_content = document_repo::get(&core.config, RepoSource::Local, doc.id).unwrap();
-
-        // change content of document we never created
-        let result = api_service::request(
-            &account,
-            ChangeDocumentContentRequest { id: doc.id, old_metadata_version: 0, new_content },
-        );
-        assert_matches!(
-            result,
-            Err(ApiError::<ChangeDocumentContentError>::Endpoint(
-                ChangeDocumentContentError::DocumentNotFound
-            ))
-        );
-    }
+    // change content of document we never created
+    let result = api_service::request(
+        &account,
+        ChangeDocumentContentRequest { id: doc.id, old_metadata_version: 0, new_content },
+    );
+    assert_matches!(
+        result,
+        Err(ApiError::<ChangeDocumentContentError>::Endpoint(
+            ChangeDocumentContentError::DocumentNotFound
+        ))
+    );
 }
