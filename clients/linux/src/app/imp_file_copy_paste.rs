@@ -79,14 +79,13 @@ impl super::App {
                 {
                     let app = self.clone();
 
-                    move |res| {
-                        if let Ok(value) = res {
+                    move |res| match res {
+                        Ok(value) => {
                             if let Ok(flist) = value.get::<gdk::FileList>() {
                                 app.import_file_list(flist, dest_id);
                             }
-                            return;
                         }
-                        app.try_pasting_uris(dest_id);
+                        Err(_) => app.try_pasting_uris(dest_id),
                     }
                 },
             );
@@ -100,7 +99,10 @@ impl super::App {
                 let app = self.clone();
 
                 move |res| match res {
-                    Ok(maybe_str) => app.parse_clipboard_content(dest_id, maybe_str),
+                    Ok(maybe_str) => app.parse_clipboard_text(
+                        dest_id,
+                        maybe_str.map(|gstr| gstr.to_string()).unwrap_or_default(),
+                    ),
                     Err(err) => app.show_err_dialog(&format!("Failed to read clipboard: {}", err)),
                 }
             });
@@ -115,10 +117,9 @@ impl super::App {
             }
         };
 
-        // Insert the new file entry in the tree and insert the markdown link at the cursor.
+        // Insert the new file entry in the tree.
         if let Err(err) = self.account.tree.add_file(&png_meta) {
             self.show_err_dialog(&format!("{:?}", err));
-            return;
         }
     }
 
@@ -204,10 +205,9 @@ impl super::App {
         });
     }
 
-    fn parse_clipboard_content(&self, dest_id: lb::Uuid, maybe_gstr: Option<glib::GString>) {
+    fn parse_clipboard_text(&self, dest_id: lb::Uuid, clipboard_text: String) {
         let t = &self.account.tree;
 
-        let clipboard_text = maybe_gstr.unwrap_or_else(|| "".into()).to_string();
         if clipboard_text.is_empty() {
             t.show_msg("Clipboard is empty, nothing to paste!");
             return;
@@ -234,30 +234,20 @@ impl super::App {
             }
         }
 
-        self.move_lb_files(&uris, dest_id);
+        if let Err(err) = self.move_lb_files(&uris, dest_id) {
+            self.show_err_dialog(&err);
+        }
     }
 
-    fn move_lb_files(&self, uris: &[String], dest_id: lb::Uuid) {
+    fn move_lb_files(&self, uris: &[String], dest_id: lb::Uuid) -> Result<(), String> {
         let mut ids = Vec::new();
         for uri in uris {
             let id_str = &uri[5..];
-            let id = match lb::Uuid::parse_str(id_str) {
-                Ok(id) => id,
-                Err(err) => {
-                    self.show_err_dialog(&format!("Unable to parse ID '{}': {:?}", id_str, err));
-                    return;
-                }
-            };
-            match self.api.file_by_id(id) {
-                Ok(_) => ids.push(id),
-                Err(err) => {
-                    self.show_err_dialog(&format!(
-                        "Unable to load file with ID '{}': {:?}",
-                        id, err
-                    ));
-                    return;
-                }
-            }
+
+            let id = lb::Uuid::parse_str(id_str)
+                .map_err(|err| format!("Unable to parse ID '{}': {:?}", id_str, err))?;
+
+            ids.push(id);
         }
 
         let t = &self.account.tree;
@@ -271,8 +261,10 @@ impl super::App {
                     let parent_iter = t.search(dest_id).unwrap();
                     t.append_any_children(dest_id, &parent_iter, &children);
                 }
-                Err(err) => self.show_err_dialog(&format!("{:?}", err)),
+                Err(err) => return Err(format!("{:?}", err)),
             }
         }
+
+        Ok(())
     }
 }
