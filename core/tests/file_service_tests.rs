@@ -40,27 +40,30 @@ macro_rules! assert_document_changes_count (
 );
 
 macro_rules! assert_metadata_nonexistent (
-    ($db:expr, $source:expr, $id:expr) => {
-        assert_eq!(
-            file_service::maybe_get_metadata($db, $source, $id).unwrap(),
-            None,
+    ($core:expr, $source:expr, $id:expr) => {
+        assert!(
+            $core.db
+                .transaction(|tx| tx.maybe_get_metadata($source, $id))
+                .unwrap()
+                .unwrap()
+                .is_none()
         );
     }
 );
 
 macro_rules! assert_metadata_eq (
-    ($db:expr, $source:expr, $id:expr, $metadata:expr) => {
+    ($core:expr, $source:expr, $id:expr, $metadata:expr) => {
         assert_eq!(
-            file_service::maybe_get_metadata($db, $source, $id).unwrap(),
+            $core.db.transaction(|tx| tx.maybe_get_metadata($source, $id)).unwrap().unwrap(),
             Some($metadata.clone()),
         );
     }
 );
 
 macro_rules! assert_document_eq (
-($db:expr, $source:expr, $id:expr, $document:literal) => {
+($core:expr, $source:expr, $id:expr, $document:literal) => {
     assert_eq!(
-        file_service::maybe_get_document($db, $source, $id).unwrap(),
+        file_service::maybe_get_document(&$core.config, $source, $id).unwrap(),
             Some($document.to_vec()),
         );
     }
@@ -629,7 +632,7 @@ fn matching_local_and_base() {
     let core = test_core_with_account();
     let account = &core.get_account().unwrap();
     let root = core.get_root().unwrap();
-    let document = files::create(FileType::Document, root.id, "document", &account.public_key());
+    let document = files::create(FileType::Folder, root.id, "dir", &account.public_key());
 
     core.db
         .transaction(|tx| {
@@ -645,583 +648,759 @@ fn matching_local_and_base() {
     assert_metadata_count!(core, RepoSource::Base, 2);
     assert_metadata_count!(core, RepoSource::Local, 2);
     assert_document_count!(core, RepoSource::Base, 0);
-    assert_document_count!(core, RepoSource::Local, 1Z);
+    assert_document_count!(core, RepoSource::Local, 0);
 }
 
-// #[test]
-// fn move_unmove() {
-//     let core = test_core_with_account();
-//     let account = &core.get_account().unwrap();
-//     let root = core.get_root().unwrap();
-//     let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-//     let mut document =
-//         files::create(FileType::Document, root.id, "document", &account.public_key());
-//
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &folder).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &folder).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &document).unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_count!(core, RepoSource::Base, 3);
-//     assert_metadata_count!(core, RepoSource::Local, 3);
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 0);
-//
-//     document.parent = folder.id;
-//     file_service::insert_metadatum(core, RepoSource::Local, &document).unwrap();
-//
-//     assert_metadata_changes_count!(core, 1);
-//     assert_document_changes_count!(core, 0);
-//     assert!(file_service::get_all_metadata_changes(core).unwrap()[0]
-//         .old_parent_and_name
-//         .is_some());
-//     assert_metadata_count!(core, RepoSource::Base, 3);
-//     assert_metadata_count!(core, RepoSource::Local, 3);
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 0);
-//
-//     document.parent = root.id;
-//     file_service::insert_metadatum(core, RepoSource::Local, &document).unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_count!(core, RepoSource::Base, 3);
-//     assert_metadata_count!(core, RepoSource::Local, 3);
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 0);
-// }
-//
-// #[test]
-// fn rename_unrename() {
-//     let core = test_core_with_account();
-//     let account = &core.get_account().unwrap();
-//     let root = core.get_root().unwrap();
-//     let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-//     let mut document =
-//         files::create(FileType::Document, root.id, "document", &account.public_key());
-//
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &folder).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &folder).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &document).unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_count!(core, RepoSource::Base, 3);
-//     assert_metadata_count!(core, RepoSource::Local, 3);
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 0);
-//
-//     document.decrypted_name = String::from("document 2");
-//     file_service::insert_metadatum(core, RepoSource::Local, &document).unwrap();
-//
-//     assert_metadata_changes_count!(core, 1);
-//     assert_document_changes_count!(core, 0);
-//     assert!(file_service::get_all_metadata_changes(core).unwrap()[0]
-//         .old_parent_and_name
-//         .is_some());
-//     assert_metadata_count!(core, RepoSource::Base, 3);
-//     assert_metadata_count!(core, RepoSource::Local, 3);
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 0);
-//
-//     document.decrypted_name = String::from("document");
-//     file_service::insert_metadatum(core, RepoSource::Local, &document).unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_count!(core, RepoSource::Base, 3);
-//     assert_metadata_count!(core, RepoSource::Local, 3);
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 0);
-// }
-//
-// #[test]
-// fn delete() {
-//     let core = test_core_with_account();
-//     let account = &core.get_account().unwrap();
-//     let root = core.get_root().unwrap();
-//     let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-//     let mut document =
-//         files::create(FileType::Document, root.id, "document", &account.public_key());
-//
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &folder).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &folder).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &document).unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_count!(core, RepoSource::Base, 3);
-//     assert_metadata_count!(core, RepoSource::Local, 3);
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 0);
-//
-//     document.deleted = true;
-//     file_service::insert_metadatum(core, RepoSource::Local, &document).unwrap();
-//
-//     assert_metadata_changes_count!(core, 1);
-//     assert_document_changes_count!(core, 0);
-//     assert!(file_service::get_all_metadata_changes(core).unwrap()[0]
-//         .old_parent_and_name
-//         .is_some());
-//     assert_metadata_count!(core, RepoSource::Base, 3);
-//     assert_metadata_count!(core, RepoSource::Local, 3);
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 0);
-//
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//     file_service::prune_deleted(core).unwrap();
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 0);
-// }
-//
-// #[test]
-// fn multiple_metadata_edits() {
-//     let core = test_core_with_account();
-//     let account = &core.get_account().unwrap();
-//     let mut root = files::create_root(&account);
-//     let mut folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-//     let mut document =
-//         files::create(FileType::Document, root.id, "document", &account.public_key());
-//
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &folder).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &folder).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &document).unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_count!(core, RepoSource::Base, 3);
-//     assert_metadata_count!(core, RepoSource::Local, 3);
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 0);
-//
-//     root.decrypted_name = String::from("root 2");
-//     folder.deleted = true;
-//     document.parent = folder.id;
-//     let document2 = files::create(FileType::Document, root.id, "document 2", &account.public_key());
-//     file_service::insert_metadatum(core, RepoSource::Local, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &folder).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &document).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &document2).unwrap();
-//
-//     assert_metadata_changes_count!(core, 4);
-//     assert_document_changes_count!(core, 1);
-//     assert_metadata_count!(core, RepoSource::Base, 3);
-//     assert_metadata_count!(core, RepoSource::Local, 4);
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 1);
-// }
-//
-// #[test]
-// fn document_edit() {
-//     let core = test_core_with_account();
-//     let account = &core.get_account().unwrap();
-//     let root = core.get_root().unwrap();
-//     let document = files::create(FileType::Document, root.id, "document", &account.public_key());
-//
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_count!(core, RepoSource::Base, 2);
-//     assert_metadata_count!(core, RepoSource::Local, 2);
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 0);
-//
-//     file_service::insert_document(core, RepoSource::Local, &document, b"document content").unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 1);
-//     assert_eq!(file_service::get_all_with_document_changes(core).unwrap()[0], document.id);
-//     assert_metadata_count!(core, RepoSource::Base, 2);
-//     assert_metadata_count!(core, RepoSource::Local, 2);
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 1);
-// }
-//
-// #[test]
-// fn document_edit_idempotent() {
-//     let core = test_core_with_account();
-//     let account = &core.get_account().unwrap();
-//     let root = core.get_root().unwrap();
-//     let document = files::create(FileType::Document, root.id, "document", &account.public_key());
-//
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_count!(core, RepoSource::Base, 2);
-//     assert_metadata_count!(core, RepoSource::Local, 2);
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 0);
-//
-//     file_service::insert_document(core, RepoSource::Local, &document, b"document content").unwrap();
-//     file_service::insert_document(core, RepoSource::Local, &document, b"document content").unwrap();
-//     file_service::insert_document(core, RepoSource::Local, &document, b"document content").unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 1);
-//     assert_eq!(file_service::get_all_with_document_changes(core).unwrap()[0], document.id);
-//     assert_metadata_count!(core, RepoSource::Base, 2);
-//     assert_metadata_count!(core, RepoSource::Local, 2);
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 1);
-// }
-//
-// #[test]
-// fn document_edit_revert() {
-//     let core = test_core_with_account();
-//     let account = &core.get_account().unwrap();
-//     let root = core.get_root().unwrap();
-//     let document = files::create(FileType::Document, root.id, "document", &account.public_key());
-//
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//     file_service::insert_document(core, RepoSource::Base, &document, b"document content").unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_count!(core, RepoSource::Base, 2);
-//     assert_metadata_count!(core, RepoSource::Local, 2);
-//     assert_document_count!(core, RepoSource::Base, 1);
-//     assert_document_count!(core, RepoSource::Local, 1);
-//
-//     file_service::insert_document(core, RepoSource::Local, &document, b"document content 2")
-//         .unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 1);
-//     assert_eq!(file_service::get_all_with_document_changes(core).unwrap()[0], document.id);
-//     assert_metadata_count!(core, RepoSource::Base, 2);
-//     assert_metadata_count!(core, RepoSource::Local, 2);
-//     assert_document_count!(core, RepoSource::Base, 1);
-//     assert_document_count!(core, RepoSource::Local, 1);
-//
-//     file_service::insert_document(core, RepoSource::Local, &document, b"document content").unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_count!(core, RepoSource::Base, 2);
-//     assert_metadata_count!(core, RepoSource::Local, 2);
-//     assert_document_count!(core, RepoSource::Base, 1);
-//     assert_document_count!(core, RepoSource::Local, 1);
-// }
-//
-// #[test]
-// fn document_edit_manual_promote() {
-//     let core = test_core_with_account();
-//     let account = &core.get_account().unwrap();
-//     let root = core.get_root().unwrap();
-//     let document = files::create(FileType::Document, root.id, "document", &account.public_key());
-//
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//     file_service::insert_document(core, RepoSource::Base, &document, b"document content").unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_count!(core, RepoSource::Base, 2);
-//     assert_metadata_count!(core, RepoSource::Local, 2);
-//     assert_document_count!(core, RepoSource::Base, 1);
-//     assert_document_count!(core, RepoSource::Local, 1);
-//
-//     file_service::insert_document(core, RepoSource::Local, &document, b"document content 2")
-//         .unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 1);
-//     assert_eq!(file_service::get_all_with_document_changes(core).unwrap()[0], document.id);
-//     assert_metadata_count!(core, RepoSource::Base, 2);
-//     assert_metadata_count!(core, RepoSource::Local, 2);
-//     assert_document_count!(core, RepoSource::Base, 1);
-//     assert_document_count!(core, RepoSource::Local, 1);
-//
-//     file_service::insert_document(core, RepoSource::Base, &document, b"document content 2")
-//         .unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_count!(core, RepoSource::Base, 2);
-//     assert_metadata_count!(core, RepoSource::Local, 2);
-//     assert_document_count!(core, RepoSource::Base, 1);
-//     assert_document_count!(core, RepoSource::Local, 1);
-// }
-//
-// #[test]
-// fn promote() {
-//     let core = test_core_with_account();
-//     let account = &core.get_account().unwrap();
-//     let mut root = files::create_root(&account);
-//     let mut folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-//     let mut document =
-//         files::create(FileType::Document, folder.id, "document", &account.public_key());
-//     let document2 =
-//         files::create(FileType::Document, folder.id, "document 2", &account.public_key());
-//
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &folder).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &document2).unwrap();
-//     file_service::insert_document(core, RepoSource::Base, &document, b"document content").unwrap();
-//     file_service::insert_document(core, RepoSource::Base, &document2, b"document 2 content")
-//         .unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_count!(core, RepoSource::Base, 4);
-//     assert_metadata_count!(core, RepoSource::Local, 4);
-//     assert_document_count!(core, RepoSource::Base, 2);
-//     assert_document_count!(core, RepoSource::Local, 2);
-//
-//     root.decrypted_name = String::from("root 2");
-//     folder.deleted = true;
-//     document.parent = root.id;
-//     let document3 = files::create(FileType::Document, root.id, "document 3", &account.public_key());
-//     file_service::insert_metadatum(core, RepoSource::Local, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &folder).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &document).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &document3).unwrap();
-//     file_service::insert_document(core, RepoSource::Local, &document, b"document content 2")
-//         .unwrap();
-//     file_service::insert_document(core, RepoSource::Local, &document3, b"document 3 content")
-//         .unwrap();
-//
-//     assert_metadata_changes_count!(core, 4);
-//     assert_document_changes_count!(core, 2);
-//     assert_metadata_count!(core, RepoSource::Base, 4);
-//     assert_metadata_count!(core, RepoSource::Local, 5);
-//     assert_document_count!(core, RepoSource::Base, 2);
-//     assert_document_count!(core, RepoSource::Local, 3);
-//
-//     file_service::promote_metadata(core).unwrap();
-//     file_service::promote_documents(core).unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_eq!(core, RepoSource::Base, root.id, root);
-//     assert_metadata_eq!(core, RepoSource::Base, folder.id, folder);
-//     assert_metadata_eq!(core, RepoSource::Base, document.id, document);
-//     assert_metadata_eq!(core, RepoSource::Base, document2.id, document2);
-//     assert_metadata_eq!(core, RepoSource::Base, document3.id, document3);
-//     assert_document_eq!(core, RepoSource::Base, &document, b"document content 2");
-//     assert_document_eq!(core, RepoSource::Base, &document2, b"document 2 content");
-//     assert_document_eq!(core, RepoSource::Base, &document3, b"document 3 content");
-//     assert_metadata_count!(core, RepoSource::Base, 5);
-//     assert_metadata_count!(core, RepoSource::Local, 5);
-//     assert_document_count!(core, RepoSource::Base, 3);
-//     assert_document_count!(core, RepoSource::Local, 3);
-// }
-//
-// #[test]
-// fn prune_deleted() {
-//     let core = test_core_with_account();
-//     let account = &core.get_account().unwrap();
-//     let root = core.get_root().unwrap();
-//     let mut document =
-//         files::create(FileType::Document, root.id, "document", &account.public_key());
-//
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_count!(core, RepoSource::Base, 2);
-//     assert_metadata_count!(core, RepoSource::Local, 2);
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 0);
-//
-//     document.deleted = true;
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &document).unwrap();
-//     file_service::prune_deleted(core).unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_nonexistent!(core, RepoSource::Base, document.id);
-//     assert_metadata_nonexistent!(core, RepoSource::Local, document.id);
-//     assert_metadata_count!(core, RepoSource::Base, 1);
-//     assert_metadata_count!(core, RepoSource::Local, 1);
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 0);
-// }
-//
-// #[test]
-// fn prune_deleted_document_edit() {
-//     let core = test_core_with_account();
-//     let account = &core.get_account().unwrap();
-//     let root = core.get_root().unwrap();
-//     let mut document =
-//         files::create(FileType::Document, root.id, "document", &account.public_key());
-//
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//     file_service::insert_document(core, RepoSource::Base, &document, b"document content").unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_count!(core, RepoSource::Base, 2);
-//     assert_metadata_count!(core, RepoSource::Local, 2);
-//     assert_document_count!(core, RepoSource::Base, 1);
-//     assert_document_count!(core, RepoSource::Local, 1);
-//
-//     document.deleted = true;
-//     file_service::insert_document(core, RepoSource::Local, &document, b"document content 2")
-//         .unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &document).unwrap();
-//     file_service::prune_deleted(core).unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_nonexistent!(core, RepoSource::Base, document.id);
-//     assert_metadata_nonexistent!(core, RepoSource::Local, document.id);
-//     assert_metadata_count!(core, RepoSource::Base, 1);
-//     assert_metadata_count!(core, RepoSource::Local, 1);
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 0);
-// }
-//
-// #[test]
-// fn prune_deleted_document_in_deleted_folder() {
-//     let core = test_core_with_account();
-//     let account = &core.get_account().unwrap();
-//     let root = core.get_root().unwrap();
-//     let mut folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-//     let document = files::create(FileType::Document, folder.id, "document", &account.public_key());
-//
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &folder).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//     file_service::insert_document(core, RepoSource::Base, &document, b"document content").unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_count!(core, RepoSource::Base, 3);
-//     assert_metadata_count!(core, RepoSource::Local, 3);
-//     assert_document_count!(core, RepoSource::Base, 1);
-//     assert_document_count!(core, RepoSource::Local, 1);
-//
-//     folder.deleted = true;
-//     file_service::insert_metadatum(core, RepoSource::Base, &folder).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &folder).unwrap();
-//     file_service::prune_deleted(core).unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_nonexistent!(core, RepoSource::Base, folder.id);
-//     assert_metadata_nonexistent!(core, RepoSource::Local, folder.id);
-//     assert_metadata_nonexistent!(core, RepoSource::Base, document.id);
-//     assert_metadata_nonexistent!(core, RepoSource::Local, document.id);
-//     assert_metadata_count!(core, RepoSource::Base, 1);
-//     assert_metadata_count!(core, RepoSource::Local, 1);
-//     assert_document_count!(core, RepoSource::Base, 0);
-//     assert_document_count!(core, RepoSource::Local, 0);
-// }
-//
-// #[test]
-// fn prune_deleted_document_moved_from_deleted_folder() {
-//     let core = test_core_with_account();
-//     let account = &core.get_account().unwrap();
-//     let root = core.get_root().unwrap();
-//     let mut folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-//     let mut document =
-//         files::create(FileType::Document, folder.id, "document", &account.public_key());
-//
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &folder).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//     file_service::insert_document(core, RepoSource::Base, &document, b"document content").unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_count!(core, RepoSource::Base, 3);
-//     assert_metadata_count!(core, RepoSource::Local, 3);
-//     assert_document_count!(core, RepoSource::Base, 1);
-//     assert_document_count!(core, RepoSource::Local, 1);
-//
-//     folder.deleted = true;
-//     document.parent = root.id;
-//     file_service::insert_metadatum(core, RepoSource::Base, &folder).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &folder).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Local, &document).unwrap();
-//     file_service::prune_deleted(core).unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_nonexistent!(core, RepoSource::Base, folder.id);
-//     assert_metadata_nonexistent!(core, RepoSource::Local, folder.id);
-//     assert_metadata_eq!(core, RepoSource::Base, document.id, document);
-//     assert_metadata_eq!(core, RepoSource::Local, document.id, document);
-//     assert_metadata_count!(core, RepoSource::Base, 2);
-//     assert_metadata_count!(core, RepoSource::Local, 2);
-//     assert_document_count!(core, RepoSource::Base, 1);
-//     assert_document_count!(core, RepoSource::Local, 1);
-// }
-//
-// #[test]
-// fn prune_deleted_base_only() {
-//     let core = test_core_with_account();
-//     let account = &core.get_account().unwrap();
-//     let root = core.get_root().unwrap();
-//     let mut document =
-//         files::create(FileType::Document, root.id, "document", &account.public_key());
-//
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//     file_service::insert_document(core, RepoSource::Base, &document, b"document content").unwrap();
-//
-//     assert_metadata_changes_count!(core, 0);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_count!(core, RepoSource::Base, 2);
-//     assert_metadata_count!(core, RepoSource::Local, 2);
-//     assert_document_count!(core, RepoSource::Base, 1);
-//     assert_document_count!(core, RepoSource::Local, 1);
-//
-//     let mut document_local = document.clone();
-//     document_local.decrypted_name = String::from("renamed document");
-//     file_service::insert_metadatum(core, RepoSource::Local, &document_local).unwrap();
-//     document.deleted = true;
-//     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
-//     file_service::prune_deleted(core).unwrap();
-//
-//     assert_metadata_changes_count!(core, 1);
-//     assert_document_changes_count!(core, 0);
-//     assert_metadata_eq!(core, RepoSource::Base, document.id, document);
-//     assert_metadata_eq!(core, RepoSource::Local, document.id, document_local);
-//     assert_metadata_count!(core, RepoSource::Base, 2);
-//     assert_metadata_count!(core, RepoSource::Local, 2);
-//     assert_document_count!(core, RepoSource::Base, 1);
-//     assert_document_count!(core, RepoSource::Local, 1);
-// }
+#[test]
+fn move_unmove() {
+    let core = test_core_with_account();
+    let account = &core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+    let mut document =
+        files::create(FileType::Document, root.id, "document", &account.public_key());
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &folder)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &document)
+                .unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_count!(core, RepoSource::Base, 3);
+    assert_metadata_count!(core, RepoSource::Local, 3);
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 0);
+
+    document.parent = folder.id;
+    core.db
+        .transaction(|tx| tx.insert_metadatum(&core.config, RepoSource::Local, &document))
+        .unwrap()
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 1);
+    assert_document_changes_count!(core, 0);
+    assert!(core
+        .db
+        .transaction(|tx| tx.get_all_metadata_changes().unwrap())
+        .unwrap()[0]
+        .old_parent_and_name
+        .is_some());
+    assert_metadata_count!(core, RepoSource::Base, 3);
+    assert_metadata_count!(core, RepoSource::Local, 3);
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 0);
+
+    document.parent = root.id;
+    core.db
+        .transaction(|tx| tx.insert_metadatum(&core.config, RepoSource::Local, &document))
+        .unwrap()
+        .unwrap();
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_count!(core, RepoSource::Base, 3);
+    assert_metadata_count!(core, RepoSource::Local, 3);
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 0);
+}
+
+#[test]
+fn rename_unrename() {
+    let core = test_core_with_account();
+    let account = &core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+    let mut document =
+        files::create(FileType::Document, root.id, "document", &account.public_key());
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &folder)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &document)
+                .unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_count!(core, RepoSource::Base, 3);
+    assert_metadata_count!(core, RepoSource::Local, 3);
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 0);
+
+    document.decrypted_name = String::from("document 2");
+    core.db
+        .transaction(|tx| tx.insert_metadatum(&core.config, RepoSource::Local, &document))
+        .unwrap()
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 1);
+    assert_document_changes_count!(core, 0);
+    assert!(core
+        .db
+        .transaction(|tx| tx.get_all_metadata_changes().unwrap())
+        .unwrap()[0]
+        .old_parent_and_name
+        .is_some());
+    assert_metadata_count!(core, RepoSource::Base, 3);
+    assert_metadata_count!(core, RepoSource::Local, 3);
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 0);
+
+    document.decrypted_name = String::from("document");
+    core.db
+        .transaction(|tx| tx.insert_metadatum(&core.config, RepoSource::Local, &document))
+        .unwrap()
+        .unwrap();
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_count!(core, RepoSource::Base, 3);
+    assert_metadata_count!(core, RepoSource::Local, 3);
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 0);
+}
+
+#[test]
+fn delete() {
+    let core = test_core_with_account();
+    let account = &core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+    let mut document =
+        files::create(FileType::Document, root.id, "document", &account.public_key());
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &folder)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &document)
+                .unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_count!(core, RepoSource::Base, 3);
+    assert_metadata_count!(core, RepoSource::Local, 3);
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 0);
+
+    document.deleted = true;
+    core.db
+        .transaction(|tx| tx.insert_metadatum(&core.config, RepoSource::Local, &document))
+        .unwrap()
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 1);
+    assert_document_changes_count!(core, 0);
+    assert!(core
+        .db
+        .transaction(|tx| tx.get_all_metadata_changes().unwrap())
+        .unwrap()[0]
+        .old_parent_and_name
+        .is_some());
+    assert_metadata_count!(core, RepoSource::Base, 3);
+    assert_metadata_count!(core, RepoSource::Local, 3);
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 0);
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document)
+                .unwrap();
+            tx.prune_deleted(&core.config).unwrap();
+        })
+        .unwrap();
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 0);
+}
+
+#[test]
+fn multiple_metadata_edits() {
+    let core = test_core_with_account();
+    let account = &core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let mut folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+    let mut document =
+        files::create(FileType::Document, root.id, "document", &account.public_key());
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &folder)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &document)
+                .unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_count!(core, RepoSource::Base, 3);
+    assert_metadata_count!(core, RepoSource::Local, 3);
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 0);
+
+    folder.deleted = true;
+    document.parent = folder.id;
+    let document2 = files::create(FileType::Document, root.id, "document 2", &account.public_key());
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Local, &folder)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &document)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &document2)
+                .unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 3);
+    assert_document_changes_count!(core, 1);
+    assert_metadata_count!(core, RepoSource::Base, 3);
+    assert_metadata_count!(core, RepoSource::Local, 4);
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 1);
+}
+
+#[test]
+fn document_edit() {
+    let core = test_core_with_account();
+    let account = &core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let document = files::create(FileType::Document, root.id, "document", &account.public_key());
+
+    core.db
+        .transaction(|tx| tx.insert_metadatum(&core.config, RepoSource::Base, &document))
+        .unwrap()
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_count!(core, RepoSource::Base, 2);
+    assert_metadata_count!(core, RepoSource::Local, 2);
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 0);
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_document(&core.config, RepoSource::Local, &document, b"document content")
+        })
+        .unwrap()
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 1);
+    assert_eq!(
+        core.db
+            .transaction(|tx| tx.get_all_with_document_changes(&core.config).unwrap())
+            .unwrap()[0],
+        document.id
+    );
+    assert_metadata_count!(core, RepoSource::Base, 2);
+    assert_metadata_count!(core, RepoSource::Local, 2);
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 1);
+}
+
+#[test]
+fn document_edit_idempotent() {
+    let core = test_core_with_account();
+    let account = &core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let document = files::create(FileType::Document, root.id, "document", &account.public_key());
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document)
+                .unwrap()
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_count!(core, RepoSource::Base, 2);
+    assert_metadata_count!(core, RepoSource::Local, 2);
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 0);
+    core.db
+        .transaction(|tx| {
+            tx.insert_document(&core.config, RepoSource::Local, &document, b"document content")
+                .unwrap();
+            tx.insert_document(&core.config, RepoSource::Local, &document, b"document content")
+                .unwrap();
+            tx.insert_document(&core.config, RepoSource::Local, &document, b"document content")
+                .unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 1);
+    assert_eq!(
+        core.db
+            .transaction(|tx| tx.get_all_with_document_changes(&core.config).unwrap())
+            .unwrap()[0],
+        document.id
+    );
+    assert_metadata_count!(core, RepoSource::Base, 2);
+    assert_metadata_count!(core, RepoSource::Local, 2);
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 1);
+}
+
+#[test]
+fn document_edit_revert() {
+    let core = test_core_with_account();
+    let account = &core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let document = files::create(FileType::Document, root.id, "document", &account.public_key());
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document)
+                .unwrap();
+            tx.insert_document(&core.config, RepoSource::Base, &document, b"document content")
+                .unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_count!(core, RepoSource::Base, 2);
+    assert_metadata_count!(core, RepoSource::Local, 2);
+    assert_document_count!(core, RepoSource::Base, 1);
+    assert_document_count!(core, RepoSource::Local, 1);
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_document(&core.config, RepoSource::Local, &document, b"document content 2")
+        })
+        .unwrap()
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 1);
+    assert_eq!(
+        core.db
+            .transaction(|tx| tx.get_all_with_document_changes(&core.config).unwrap())
+            .unwrap()[0],
+        document.id
+    );
+    assert_metadata_count!(core, RepoSource::Base, 2);
+    assert_metadata_count!(core, RepoSource::Local, 2);
+    assert_document_count!(core, RepoSource::Base, 1);
+    assert_document_count!(core, RepoSource::Local, 1);
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_document(&core.config, RepoSource::Local, &document, b"document content")
+        })
+        .unwrap()
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_count!(core, RepoSource::Base, 2);
+    assert_metadata_count!(core, RepoSource::Local, 2);
+    assert_document_count!(core, RepoSource::Base, 1);
+    assert_document_count!(core, RepoSource::Local, 1);
+}
+
+#[test]
+fn document_edit_manual_promote() {
+    let core = test_core_with_account();
+    let account = &core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let document = files::create(FileType::Document, root.id, "document", &account.public_key());
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document)
+                .unwrap();
+            tx.insert_document(&core.config, RepoSource::Base, &document, b"document content")
+                .unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_count!(core, RepoSource::Base, 2);
+    assert_metadata_count!(core, RepoSource::Local, 2);
+    assert_document_count!(core, RepoSource::Base, 1);
+    assert_document_count!(core, RepoSource::Local, 1);
+    core.db
+        .transaction(|tx| {
+            tx.insert_document(&core.config, RepoSource::Local, &document, b"document content 2")
+                .unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 1);
+    assert_eq!(
+        core.db
+            .transaction(|tx| tx.get_all_with_document_changes(&core.config).unwrap())
+            .unwrap()[0],
+        document.id
+    );
+    assert_metadata_count!(core, RepoSource::Base, 2);
+    assert_metadata_count!(core, RepoSource::Local, 2);
+    assert_document_count!(core, RepoSource::Base, 1);
+    assert_document_count!(core, RepoSource::Local, 1);
+    core.db
+        .transaction(|tx| {
+            tx.insert_document(&core.config, RepoSource::Base, &document, b"document content 2")
+                .unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_count!(core, RepoSource::Base, 2);
+    assert_metadata_count!(core, RepoSource::Local, 2);
+    assert_document_count!(core, RepoSource::Base, 1);
+    assert_document_count!(core, RepoSource::Local, 1);
+}
+
+#[test]
+fn promote() {
+    let core = test_core_with_account();
+    let account = &core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let mut folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+    let mut document =
+        files::create(FileType::Document, folder.id, "document", &account.public_key());
+    let document2 =
+        files::create(FileType::Document, folder.id, "document 2", &account.public_key());
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document2)
+                .unwrap();
+            tx.insert_document(&core.config, RepoSource::Base, &document, b"document content")
+                .unwrap();
+            tx.insert_document(&core.config, RepoSource::Base, &document2, b"document 2 content")
+                .unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_count!(core, RepoSource::Base, 4);
+    assert_metadata_count!(core, RepoSource::Local, 4);
+    assert_document_count!(core, RepoSource::Base, 2);
+    assert_document_count!(core, RepoSource::Local, 2);
+
+    folder.deleted = true;
+    document.parent = root.id;
+    let document3 = files::create(FileType::Document, root.id, "document 3", &account.public_key());
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Local, &folder)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &document)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &document3)
+                .unwrap();
+            tx.insert_document(&core.config, RepoSource::Local, &document, b"document content 2")
+                .unwrap();
+            tx.insert_document(&core.config, RepoSource::Local, &document3, b"document 3 content")
+                .unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 3);
+    assert_document_changes_count!(core, 2);
+    assert_metadata_count!(core, RepoSource::Base, 4);
+    assert_metadata_count!(core, RepoSource::Local, 5);
+    assert_document_count!(core, RepoSource::Base, 2);
+    assert_document_count!(core, RepoSource::Local, 3);
+
+    core.db
+        .transaction(|tx| {
+            tx.promote_metadata().unwrap();
+            tx.promote_documents(&core.config).unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_eq!(core, RepoSource::Base, root.id, root);
+    assert_metadata_eq!(core, RepoSource::Base, folder.id, folder);
+    assert_metadata_eq!(core, RepoSource::Base, document.id, document);
+    assert_metadata_eq!(core, RepoSource::Base, document2.id, document2);
+    assert_metadata_eq!(core, RepoSource::Base, document3.id, document3);
+    assert_document_eq!(core, RepoSource::Base, &document, b"document content 2");
+    assert_document_eq!(core, RepoSource::Base, &document2, b"document 2 content");
+    assert_document_eq!(core, RepoSource::Base, &document3, b"document 3 content");
+    assert_metadata_count!(core, RepoSource::Base, 5);
+    assert_metadata_count!(core, RepoSource::Local, 5);
+    assert_document_count!(core, RepoSource::Base, 3);
+    assert_document_count!(core, RepoSource::Local, 3);
+}
+
+#[test]
+fn prune_deleted() {
+    let core = test_core_with_account();
+    let account = &core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let mut document =
+        files::create(FileType::Document, root.id, "document", &account.public_key());
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document)
+                .unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_count!(core, RepoSource::Base, 2);
+    assert_metadata_count!(core, RepoSource::Local, 2);
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 0);
+
+    document.deleted = true;
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &document)
+                .unwrap();
+            tx.prune_deleted(&core.config).unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_nonexistent!(core, RepoSource::Base, document.id);
+    assert_metadata_nonexistent!(core, RepoSource::Local, document.id);
+    assert_metadata_count!(core, RepoSource::Base, 1);
+    assert_metadata_count!(core, RepoSource::Local, 1);
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 0);
+}
+
+#[test]
+fn prune_deleted_document_edit() {
+    let core = test_core_with_account();
+    let account = &core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let mut document =
+        files::create(FileType::Document, root.id, "document", &account.public_key());
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document)
+                .unwrap();
+            tx.insert_document(&core.config, RepoSource::Base, &document, b"document content")
+                .unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_count!(core, RepoSource::Base, 2);
+    assert_metadata_count!(core, RepoSource::Local, 2);
+    assert_document_count!(core, RepoSource::Base, 1);
+    assert_document_count!(core, RepoSource::Local, 1);
+
+    document.deleted = true;
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_document(&core.config, RepoSource::Local, &document, b"document content 2")
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &document)
+                .unwrap();
+            tx.prune_deleted(&core.config).unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_nonexistent!(core, RepoSource::Base, document.id);
+    assert_metadata_nonexistent!(core, RepoSource::Local, document.id);
+    assert_metadata_count!(core, RepoSource::Base, 1);
+    assert_metadata_count!(core, RepoSource::Local, 1);
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 0);
+}
+
+#[test]
+fn prune_deleted_document_in_deleted_folder() {
+    let core = test_core_with_account();
+    let account = &core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let mut folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+    let document = files::create(FileType::Document, folder.id, "document", &account.public_key());
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document)
+                .unwrap();
+            tx.insert_document(&core.config, RepoSource::Base, &document, b"document content")
+                .unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_count!(core, RepoSource::Base, 3);
+    assert_metadata_count!(core, RepoSource::Local, 3);
+    assert_document_count!(core, RepoSource::Base, 1);
+    assert_document_count!(core, RepoSource::Local, 1);
+
+    folder.deleted = true;
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &folder)
+                .unwrap();
+            tx.prune_deleted(&core.config).unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_nonexistent!(core, RepoSource::Base, folder.id);
+    assert_metadata_nonexistent!(core, RepoSource::Local, folder.id);
+    assert_metadata_nonexistent!(core, RepoSource::Base, document.id);
+    assert_metadata_nonexistent!(core, RepoSource::Local, document.id);
+    assert_metadata_count!(core, RepoSource::Base, 1);
+    assert_metadata_count!(core, RepoSource::Local, 1);
+    assert_document_count!(core, RepoSource::Base, 0);
+    assert_document_count!(core, RepoSource::Local, 0);
+}
+
+#[test]
+fn prune_deleted_document_moved_from_deleted_folder() {
+    let core = test_core_with_account();
+    let account = &core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let mut folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+    let mut document =
+        files::create(FileType::Document, folder.id, "document", &account.public_key());
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document)
+                .unwrap();
+            tx.insert_document(&core.config, RepoSource::Base, &document, b"document content")
+                .unwrap();
+        })
+        .unwrap();
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_count!(core, RepoSource::Base, 3);
+    assert_metadata_count!(core, RepoSource::Local, 3);
+    assert_document_count!(core, RepoSource::Base, 1);
+    assert_document_count!(core, RepoSource::Local, 1);
+
+    folder.deleted = true;
+    document.parent = root.id;
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &folder)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document)
+                .unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &document)
+                .unwrap();
+            tx.prune_deleted(&core.config).unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_nonexistent!(core, RepoSource::Base, folder.id);
+    assert_metadata_nonexistent!(core, RepoSource::Local, folder.id);
+    assert_metadata_eq!(core, RepoSource::Base, document.id, document);
+    assert_metadata_eq!(core, RepoSource::Local, document.id, document);
+    assert_metadata_count!(core, RepoSource::Base, 2);
+    assert_metadata_count!(core, RepoSource::Local, 2);
+    assert_document_count!(core, RepoSource::Base, 1);
+    assert_document_count!(core, RepoSource::Local, 1);
+}
+
+#[test]
+fn prune_deleted_base_only() {
+    let core = test_core_with_account();
+    let account = &core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let mut document =
+        files::create(FileType::Document, root.id, "document", &account.public_key());
+
+    core.db
+        .transaction(|tx| {
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document)
+                .unwrap();
+            tx.insert_document(&core.config, RepoSource::Base, &document, b"document content")
+                .unwrap();
+        })
+        .unwrap();
+
+    assert_metadata_changes_count!(core, 0);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_count!(core, RepoSource::Base, 2);
+    assert_metadata_count!(core, RepoSource::Local, 2);
+    assert_document_count!(core, RepoSource::Base, 1);
+    assert_document_count!(core, RepoSource::Local, 1);
+
+    let mut document_local = document.clone();
+    document_local.decrypted_name = String::from("renamed document");
+
+    core.db.transaction(|tx| tx.insert_metadatum())
+    file_service::insert_metadatum(core, RepoSource::Local, &document_local).unwrap();
+    document.deleted = true;
+    file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
+    file_service::prune_deleted(core).unwrap();
+
+    assert_metadata_changes_count!(core, 1);
+    assert_document_changes_count!(core, 0);
+    assert_metadata_eq!(core, RepoSource::Base, document.id, document);
+    assert_metadata_eq!(core, RepoSource::Local, document.id, document_local);
+    assert_metadata_count!(core, RepoSource::Base, 2);
+    assert_metadata_count!(core, RepoSource::Local, 2);
+    assert_document_count!(core, RepoSource::Base, 1);
+    assert_document_count!(core, RepoSource::Local, 1);
+}
 //
 // #[test]
 // fn prune_deleted_local_only() {
@@ -1230,8 +1409,8 @@ fn matching_local_and_base() {
 //     let root = core.get_root().unwrap();
 //     let document = files::create(FileType::Document, root.id, "document", &account.public_key());
 //
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
+//
+//
 //     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
 //     file_service::insert_document(core, RepoSource::Base, &document, b"document content").unwrap();
 //
@@ -1265,8 +1444,8 @@ fn matching_local_and_base() {
 //     let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
 //     let document = files::create(FileType::Document, folder.id, "document", &account.public_key());
 //
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
+//
+//
 //     file_service::insert_metadatum(core, RepoSource::Base, &folder).unwrap();
 //     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
 //     file_service::insert_document(core, RepoSource::Base, &document, b"document content").unwrap();
@@ -1303,8 +1482,8 @@ fn matching_local_and_base() {
 //     let account = &core.get_account().unwrap();
 //     let root = core.get_root().unwrap();
 //
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
+//
+//
 //
 //     assert_metadata_changes_count!(core, 0);
 //     assert_document_changes_count!(core, 0);
@@ -1334,8 +1513,8 @@ fn matching_local_and_base() {
 //     let root = core.get_root().unwrap();
 //     let document = files::create(FileType::Document, root.id, "document", &account.public_key());
 //
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
+//
+//
 //     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
 //     file_service::insert_document(core, RepoSource::Base, &document, b"document content").unwrap();
 //
@@ -1372,8 +1551,8 @@ fn matching_local_and_base() {
 //     let root = core.get_root().unwrap();
 //     let document = files::create(FileType::Document, root.id, "document", &account.public_key());
 //
-//     account_repo::insert(core, &account).unwrap();
-//     file_service::insert_metadatum(core, RepoSource::Base, &root).unwrap();
+//
+//
 //     file_service::insert_metadatum(core, RepoSource::Base, &document).unwrap();
 //     file_service::insert_document(core, RepoSource::Base, &document, b"document content").unwrap();
 //
