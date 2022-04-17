@@ -35,7 +35,7 @@ use crate::model::errors::{
     GetDrawingError, GetFileByIdError, GetFileByPathError, GetRootError, GetUsageError,
     ImportError, ImportFileError, MigrationError, MoveFileError, ReadDocumentError,
     RenameFileError, SaveDocumentToDiskError, SaveDrawingError, SwitchAccountTierError,
-    SyncAllError, WriteToDocumentError,
+    SyncAllError, TestRepoError, Warning, WriteToDocumentError,
 };
 use crate::model::repo::RepoSource;
 use crate::path_service::Filter;
@@ -339,6 +339,13 @@ impl LbCore {
     pub fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError> {
         let val = self.db.transaction(|tx| tx.search_file_paths(input))?;
         Ok(val?)
+    }
+
+    pub fn validate(&self) -> Result<Vec<Warning>, TestRepoError> {
+        self.db
+            .transaction(|tx| tx.test_repo_integrity(&self.config))
+            .map_err(|err| CoreError::from(err))
+            .map_err(TestRepoError::Core)?
     }
 }
 
