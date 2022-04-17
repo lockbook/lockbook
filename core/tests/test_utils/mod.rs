@@ -1,9 +1,10 @@
+use chrono::Datelike;
 use std::env;
 
 use hmdb::transaction::Transaction;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_core::{Config, LbCore};
-use lockbook_models::api::FileMetadataUpsertsError;
+use lockbook_models::api::{AccountTier, FileMetadataUpsertsError, PaymentMethod};
 use lockbook_models::file_metadata::EncryptedFileMetadata;
 use lockbook_models::tree::FileMetadata;
 use uuid::Uuid;
@@ -315,50 +316,43 @@ pub const UPDATES_REQ: Result<(), ApiError<FileMetadataUpsertsError>> =
 //     }
 // }
 //
-// pub fn make_new_client(db: &Config) -> Config {
-//     let new_client = test_config();
-//     crate::import_account(&new_client, &crate::export_account(db).unwrap()).unwrap();
-//     new_client
-// }
-//
-// pub mod test_credit_cards {
-//     pub const GOOD: &str = "4242424242424242";
-//     pub const GOOD_LAST_4: &str = "4242";
-//
-//     pub const INVALID_NUMBER: &str = "11111";
-//
-//     pub mod decline {
-//         pub const GENERIC: &str = "4000000000000002";
-//         pub const INSUFFICIENT_FUNDS: &str = "4000000000009995";
-//         pub const LOST_CARD: &str = "4000000000009987";
-//         pub const EXPIRED_CARD: &str = "4000000000000069";
-//         pub const INCORRECT_CVC: &str = "4000000000000127";
-//         pub const PROCESSING_ERROR: &str = "4000000000000119";
-//         pub const INCORRECT_NUMBER: &str = "4242424242424241";
-//     }
-// }
-//
-// pub mod test_card_info {
-//     pub const GENERIC_CVC: &str = "314";
-//     pub const GENERIC_EXP_MONTH: i32 = 8;
-// }
-//
-// fn get_next_year() -> i32 {
-//     chrono::Utc::now().year() + 1
-// }
-//
-// pub fn generate_premium_account_tier(
-//     card_number: &str, maybe_exp_year: Option<i32>, maybe_exp_month: Option<i32>,
-//     maybe_cvc: Option<&str>,
-// ) -> AccountTier {
-//     AccountTier::Premium(PaymentMethod::NewCard {
-//         number: card_number.to_string(),
-//         exp_year: maybe_exp_year.unwrap_or_else(get_next_year),
-//         exp_month: maybe_exp_month.unwrap_or(test_card_info::GENERIC_EXP_MONTH),
-//         cvc: maybe_cvc.unwrap_or(test_card_info::GENERIC_CVC).to_string(),
-//     })
-// }
-//
+pub mod test_credit_cards {
+    pub const GOOD: &str = "4242424242424242";
+    pub const GOOD_LAST_4: &str = "4242";
+
+    pub const INVALID_NUMBER: &str = "11111";
+
+    pub mod decline {
+        pub const GENERIC: &str = "4000000000000002";
+        pub const INSUFFICIENT_FUNDS: &str = "4000000000009995";
+        pub const LOST_CARD: &str = "4000000000009987";
+        pub const EXPIRED_CARD: &str = "4000000000000069";
+        pub const INCORRECT_CVC: &str = "4000000000000127";
+        pub const PROCESSING_ERROR: &str = "4000000000000119";
+        pub const INCORRECT_NUMBER: &str = "4242424242424241";
+    }
+}
+
+pub mod test_card_info {
+    pub const GENERIC_CVC: &str = "314";
+    pub const GENERIC_EXP_MONTH: i32 = 8;
+}
+
+fn get_next_year() -> i32 {
+    chrono::Utc::now().year() + 1
+}
+
+pub fn generate_premium_account_tier(
+    card_number: &str, maybe_exp_year: Option<i32>, maybe_exp_month: Option<i32>,
+    maybe_cvc: Option<&str>,
+) -> AccountTier {
+    AccountTier::Premium(PaymentMethod::NewCard {
+        number: card_number.to_string(),
+        exp_year: maybe_exp_year.unwrap_or_else(get_next_year),
+        exp_month: maybe_exp_month.unwrap_or(test_card_info::GENERIC_EXP_MONTH),
+        cvc: maybe_cvc.unwrap_or(test_card_info::GENERIC_CVC).to_string(),
+    })
+}
 
 #[macro_export]
 macro_rules! assert_matches (
