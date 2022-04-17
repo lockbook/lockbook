@@ -129,6 +129,7 @@ impl FileTree {
             .orientation(gtk::Orientation::Vertical)
             .valign(gtk::Align::End)
             .vexpand(false)
+            .margin_bottom(2)
             .build();
 
         let overlay = gtk::Overlay::new();

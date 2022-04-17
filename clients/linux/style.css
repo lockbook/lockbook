@@ -11,5 +11,7 @@
 .tree-msg {
 	padding-top: 8px;
 	padding-bottom: 8px;
-	background: rgba(10, 10, 10, .15);
+	background: rgba(0, 0, 0, .2);
+	margin-left: 2px;
+	margin-right: 2px;
 }
