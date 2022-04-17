@@ -328,7 +328,7 @@ impl Tx<'_> {
     }
 
     fn delete_metadata(&mut self, id: Uuid) {
-        self.base_metadata.delete(id);
+        self.local_metadata.delete(id);
         self.base_metadata.delete(id);
     }
 
