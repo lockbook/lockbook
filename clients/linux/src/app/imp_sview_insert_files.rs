@@ -72,8 +72,7 @@ impl super::App {
             };
             // Import each top-level file (with any children).
             for path in paths {
-                let result =
-                    lbutil::import_file_without_progress(&api, &path, parent_id, &new_file_tx);
+                let result = lbutil::import_file(&api, &path, parent_id, &new_file_tx);
                 tx.send(Some(result)).unwrap();
             }
             tx.send(None).unwrap();

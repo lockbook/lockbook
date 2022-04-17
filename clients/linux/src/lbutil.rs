@@ -29,7 +29,7 @@ pub fn save_texture_to_png(
     Ok(png_meta)
 }
 
-pub fn import_file_without_progress(
+pub fn import_file(
     api: &Arc<dyn lb::Api>, disk_path: &Path, dest: lb::Uuid,
     new_file_tx: &glib::Sender<lb::FileMetadata>,
 ) -> Result<lb::FileMetadata, String> {
@@ -55,6 +55,7 @@ pub fn import_file_without_progress(
     let file_meta = api
         .create_file(&file_name, dest, file_type)
         .map_err(|e| format!("{:?}", e))?;
+
     new_file_tx.send(file_meta.clone()).unwrap();
 
     if file_type == lb::FileType::Document {
@@ -65,7 +66,7 @@ pub fn import_file_without_progress(
         let entries = fs::read_dir(disk_path).map_err(|e| format!("{:?}", e))?;
         for entry in entries {
             let child_path = entry.map_err(|e| format!("{:?}", e))?.path();
-            import_file_without_progress(api, &child_path, file_meta.id, new_file_tx)
+            import_file(api, &child_path, file_meta.id, new_file_tx)
                 .map_err(|e| format!("{:?}", e))?;
         }
     }
