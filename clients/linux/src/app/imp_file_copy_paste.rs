@@ -20,7 +20,7 @@ impl super::App {
 
         let selected_id = *entries.get(0).unwrap();
         let lb_uri = format!("lb://{}", selected_id);
-        gtk::gdk::Display::default()
+        gdk::Display::default()
             .unwrap()
             .clipboard()
             .set_text(&lb_uri);
@@ -55,57 +55,48 @@ impl super::App {
         };
 
         // First, check if there's an image being pasted.
-        gdk::Display::default()
-            .unwrap()
-            .clipboard()
-            .read_texture_async(None::<gio::Cancellable>.as_ref(), {
-                let app = self.clone();
+        clipboard().read_texture_async(None::<gio::Cancellable>.as_ref(), {
+            let app = self.clone();
 
-                move |res| match res {
-                    Ok(Some(texture)) => app.import_texture(dest_id, texture),
-                    _ => app.try_pasting_file_list(dest_id),
-                }
-            });
+            move |res| match res {
+                Ok(Some(texture)) => app.import_texture(dest_id, texture),
+                _ => app.try_pasting_file_list(dest_id),
+            }
+        });
     }
 
     fn try_pasting_file_list(&self, dest_id: lb::Uuid) {
-        gdk::Display::default()
-            .unwrap()
-            .clipboard()
-            .read_value_async(
-                gdk::FileList::static_type(),
-                glib::PRIORITY_DEFAULT,
-                None::<gio::Cancellable>.as_ref(),
-                {
-                    let app = self.clone();
-
-                    move |res| match res {
-                        Ok(value) => {
-                            if let Ok(flist) = value.get::<gdk::FileList>() {
-                                app.import_file_list(flist, dest_id);
-                            }
-                        }
-                        Err(_) => app.try_pasting_uris(dest_id),
-                    }
-                },
-            );
-    }
-
-    fn try_pasting_uris(&self, dest_id: lb::Uuid) {
-        gdk::Display::default()
-            .unwrap()
-            .clipboard()
-            .read_text_async(None::<gio::Cancellable>.as_ref(), {
+        clipboard().read_value_async(
+            gdk::FileList::static_type(),
+            glib::PRIORITY_DEFAULT,
+            None::<gio::Cancellable>.as_ref(),
+            {
                 let app = self.clone();
 
                 move |res| match res {
-                    Ok(maybe_str) => app.parse_clipboard_text(
-                        dest_id,
-                        maybe_str.map(|gstr| gstr.to_string()).unwrap_or_default(),
-                    ),
-                    Err(err) => app.show_err_dialog(&format!("Failed to read clipboard: {}", err)),
+                    Ok(value) => {
+                        if let Ok(flist) = value.get::<gdk::FileList>() {
+                            app.import_file_list(flist, dest_id);
+                        }
+                    }
+                    Err(_) => app.try_pasting_uris(dest_id),
                 }
-            });
+            },
+        );
+    }
+
+    fn try_pasting_uris(&self, dest_id: lb::Uuid) {
+        clipboard().read_text_async(None::<gio::Cancellable>.as_ref(), {
+            let app = self.clone();
+
+            move |res| match res {
+                Ok(maybe_str) => app.parse_clipboard_text(
+                    dest_id,
+                    maybe_str.map(|gstr| gstr.to_string()).unwrap_or_default(),
+                ),
+                Err(err) => app.show_err_dialog(&format!("Failed to read clipboard: {}", err)),
+            }
+        });
     }
 
     fn import_texture(&self, dest_id: lb::Uuid, texture: gdk::Texture) {
@@ -267,4 +258,8 @@ impl super::App {
 
         Ok(())
     }
+}
+
+fn clipboard() -> gdk::Clipboard {
+    gdk::Display::default().unwrap().clipboard()
 }
