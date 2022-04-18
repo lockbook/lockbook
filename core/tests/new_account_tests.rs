@@ -1,61 +1,79 @@
-#[cfg(test)]
-mod new_account_tests {
-    use lockbook_core::assert_matches;
-    use lockbook_core::service::api_service;
-    use lockbook_core::service::api_service::ApiError;
-    use lockbook_core::service::test_utils::{generate_account, generate_root_metadata};
-    use lockbook_models::api::*;
+mod test_utils;
 
-    #[test]
-    fn new_account() {
-        let account = generate_account();
-        let (root, _) = generate_root_metadata(&account);
-        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
-    }
+use crate::test_utils::{random_name, test_core_with_account, url};
+use lockbook_core::pure_functions::files;
+use lockbook_core::repo::schema::helper_log::account;
+use lockbook_core::service::api_service::ApiError;
+use lockbook_core::service::{api_service, file_encryption_service};
+use lockbook_crypto::pubkey;
+use lockbook_models::account::Account;
+use lockbook_models::api::*;
 
-    #[test]
-    fn new_account_duplicate_pk() {
-        let first = generate_account();
-        let (root, _) = generate_root_metadata(&first);
-        api_service::request(&first, NewAccountRequest::new(&first, &root)).unwrap();
+fn random_account() -> Account {
+    Account { username: random_name(), api_url: url(), private_key: pubkey::generate_key() }
+}
 
-        let mut second = generate_account();
-        second.private_key = first.private_key;
-        let (root, _) = generate_root_metadata(&first);
+fn test_account(account: &Account) -> Result<NewAccountResponse, ApiError<NewAccountError>> {
+    let root = files::create_root(&account);
+    let root =
+        file_encryption_service::encrypt_metadatum(&account, &root.decrypted_access_key, &root)
+            .unwrap();
+    api_service::request(&account, NewAccountRequest::new(&account, &root))
+}
+#[test]
+fn new_account() {
+    test_account(&random_account()).unwrap();
+}
 
-        let result = api_service::request(&second, NewAccountRequest::new(&second, &root));
-        assert_matches!(
-            result,
-            Err(ApiError::<NewAccountError>::Endpoint(NewAccountError::PublicKeyTaken))
-        );
-    }
+#[test]
+fn new_account_duplicate_pk() {
+    let first = random_account();
+    test_account(&first);
 
-    #[test]
-    fn new_account_duplicate_username() {
-        let account = generate_account();
-        let (root, _) = generate_root_metadata(&account);
-        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+    let mut second = random_account();
+    second.private_key = first.private_key;
 
-        let mut account2 = generate_account();
-        account2.username = account.username;
-        let (root2, _) = generate_root_metadata(&account2);
-        let result = api_service::request(&account2, NewAccountRequest::new(&account2, &root2));
-        assert_matches!(
-            result,
-            Err(ApiError::<NewAccountError>::Endpoint(NewAccountError::UsernameTaken))
-        );
-    }
+    let result = test_account(&second);
+    assert_matches!(
+        result,
+        Err(ApiError::<NewAccountError>::Endpoint(NewAccountError::PublicKeyTaken))
+    );
+}
 
-    #[test]
-    fn new_account_invalid_username() {
-        let mut account = generate_account();
-        account.username += " ";
-        let (root, _) = generate_root_metadata(&account);
+#[test]
+fn new_account_duplicate_username() {
+    let account = random_account();
+    test_account(&account).unwrap();
 
-        let result = api_service::request(&account, NewAccountRequest::new(&account, &root));
-        assert_matches!(
-            result,
-            Err(ApiError::<NewAccountError>::Endpoint(NewAccountError::InvalidUsername))
-        );
-    }
+    let mut account2 = random_account();
+    account2.username = account.username;
+    assert_matches!(
+        test_account(&account2),
+        Err(ApiError::<NewAccountError>::Endpoint(NewAccountError::UsernameTaken))
+    );
+}
+
+#[test]
+fn new_account_invalid_username() {
+    let mut account = random_account();
+    account.username += " ";
+
+    assert_matches!(
+        test_account(&account),
+        Err(ApiError::<NewAccountError>::Endpoint(NewAccountError::InvalidUsername))
+    );
+}
+
+#[test]
+fn create_account_username_case() {
+    let core = test_core_with_account();
+    let mut account = core.get_account().unwrap();
+
+    account.username = account.username.to_uppercase();
+    account.private_key = pubkey::generate_key();
+
+    assert_matches!(
+        test_account(&account),
+        Err(ApiError::Endpoint(NewAccountError::UsernameTaken))
+    );
 }

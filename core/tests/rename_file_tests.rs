@@ -118,7 +118,7 @@ mod rename_document_tests {
                 updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
             },
         );
-        assert_get_updates_required!(result);
+        assert_matches!(result, UPDATES_REQ);
     }
 
     #[test]
@@ -150,7 +150,7 @@ mod rename_document_tests {
                 updates: vec![FileMetadataDiff::new_diff(root.id, &old_name, &doc)],
             },
         );
-        assert_get_updates_required!(result);
+        assert_matches!(result, UPDATES_REQ);
     }
 
     #[test]

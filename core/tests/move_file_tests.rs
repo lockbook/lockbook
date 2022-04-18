@@ -1,314 +1,313 @@
-#[cfg(test)]
-mod move_document_tests {
-    use lockbook_core::service::api_service;
-    use lockbook_core::service::api_service::ApiError;
-    use lockbook_core::service::test_utils::{
-        generate_account, generate_file_metadata, generate_root_metadata,
-    };
-    use lockbook_core::{assert_get_updates_required, assert_matches};
-    use lockbook_models::api::*;
-    use lockbook_models::file_metadata::FileMetadataDiff;
-    use lockbook_models::file_metadata::FileType;
+mod test_utils;
 
-    #[test]
-    fn move_document() {
-        // new account
-        let account = generate_account();
-        let (root, root_key) = generate_root_metadata(&account);
-        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+use crate::test_utils::{path, test_core_with_account, UPDATES_REQ};
+use lockbook_core::pure_functions::files;
+use lockbook_core::service::api_service;
+use lockbook_core::service::api_service::ApiError;
 
-        // create document and folder
-        let (mut doc, _doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let (folder, _folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        api_service::request(
-            &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&folder)],
-            },
-        )
-        .unwrap();
+use lockbook_models::api::*;
+use lockbook_models::file_metadata::FileMetadataDiff;
+use lockbook_models::file_metadata::FileType;
 
-        // move document
-        doc.parent = folder.id;
-        api_service::request(
-            &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
-            },
-        )
-        .unwrap();
-    }
+#[test]
+fn move_document() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let doc = core.create_at_path(&path(&core, "doc.md")).unwrap().id;
+    let folder = core.create_at_path(&path(&core, "folder/")).unwrap().id;
+    core.sync(None).unwrap();
 
-    #[test]
-    fn move_document_not_found() {
-        // new account
-        let account = generate_account();
-        let (root, root_key) = generate_root_metadata(&account);
-        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+    let mut doc = core.db.base_metadata.get(&doc).unwrap().unwrap();
 
-        // create document and folder
-        let (folder, _folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        let (doc, _doc_key) =
-            generate_file_metadata(&account, &folder, &root_key, FileType::Document);
-        let result = api_service::request(
-            &account,
-            FileMetadataUpsertsRequest {
-                // create document as if moving an existing document
-                updates: vec![
-                    FileMetadataDiff::new_diff(root.id, &doc.name, &doc),
-                    FileMetadataDiff::new(&folder),
-                ],
-            },
-        );
-        assert_matches!(
-            result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::NewFileHasOldParentAndName
-            ))
-        );
-    }
+    // move document
+    doc.parent = folder;
+    api_service::request(
+        &account,
+        FileMetadataUpsertsRequest {
+            updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
+        },
+    )
+    .unwrap();
+}
 
-    #[test]
-    fn move_document_parent_not_found() {
-        // new account
-        let account = generate_account();
-        let (root, root_key) = generate_root_metadata(&account);
-        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+#[test]
+fn move_document_not_found() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = core.get_root().unwrap();
 
-        // create document and folder, but don't send folder to server
-        let (folder, _folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        let (doc, _doc_key) =
-            generate_file_metadata(&account, &folder, &root_key, FileType::Document);
-        let result = api_service::request(
-            &account,
-            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
-        );
-        assert_get_updates_required!(result);
-    }
+    // create document and folder
+    let folder = core.create_at_path(&path(&core, "folder/")).unwrap().id;
+    let folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
+    let doc = core
+        .create_at_path(&path(&core, "folder/doc.md"))
+        .unwrap()
+        .id;
+    let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
-    #[test]
-    fn move_document_deleted() {
-        // new account
-        let account = generate_account();
-        let (root, root_key) = generate_root_metadata(&account);
-        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+    let result = api_service::request(
+        &account,
+        FileMetadataUpsertsRequest {
+            // create document as if moving an existing document
+            updates: vec![
+                FileMetadataDiff::new_diff(root.id, &doc.name, &doc),
+                FileMetadataDiff::new(&folder),
+            ],
+        },
+    );
+    assert_matches!(
+        result,
+        Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+            FileMetadataUpsertsError::NewFileHasOldParentAndName
+        ))
+    );
+}
 
-        let (mut doc, _doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let (folder, _folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        api_service::request(
-            &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&folder)],
-            },
-        )
-        .unwrap();
+#[test]
+fn move_document_parent_not_found() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
 
-        // move & delete document
-        doc.deleted = true;
-        doc.parent = folder.id;
-        api_service::request(
-            &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
-            },
-        )
-        .unwrap();
-    }
+    // create document and folder, but don't send folder to server
+    let doc = core
+        .create_at_path(&path(&core, "folder/doc.md"))
+        .unwrap()
+        .id;
+    let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
-    #[test]
-    fn move_document_conflict() {
-        // new account
-        let account = generate_account();
-        let (root, root_key) = generate_root_metadata(&account);
-        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+    let result = api_service::request(
+        &account,
+        FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
+    );
+    assert_matches!(result, UPDATES_REQ);
+}
 
-        // create document and folder
-        let (mut doc, _doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let (folder, _folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        api_service::request(
-            &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&folder)],
-            },
-        )
-        .unwrap();
+#[test]
+fn move_document_deleted() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = core.get_root().unwrap();
 
-        // move document
-        doc.parent = folder.id;
-        let result = api_service::request(
-            &account,
-            FileMetadataUpsertsRequest {
-                // use incorrect previous parent
-                updates: vec![FileMetadataDiff::new_diff(folder.id, &doc.name, &doc)],
-            },
-        );
-        assert_get_updates_required!(result);
-    }
+    let doc = core.create_at_path(&path(&core, "doc.md")).unwrap().id;
+    let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
-    #[test]
-    fn move_document_path_taken() {
-        // new account
-        let account = generate_account();
-        let (root, root_key) = generate_root_metadata(&account);
-        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+    let folder = core.create_at_path(&path(&core, "folder/")).unwrap().id;
+    let folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
 
-        // create documents and folder
-        let (folder, _folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        let (mut doc, _doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let (mut doc2, _doc_key2) =
-            generate_file_metadata(&account, &folder, &root_key, FileType::Document);
-        doc2.name = doc.name.clone();
-        api_service::request(
-            &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![
-                    FileMetadataDiff::new(&doc),
-                    FileMetadataDiff::new(&doc2),
-                    FileMetadataDiff::new(&folder),
-                ],
-            },
-        )
-        .unwrap();
+    api_service::request(
+        &account,
+        FileMetadataUpsertsRequest {
+            updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&folder)],
+        },
+    )
+    .unwrap();
 
-        // move document
-        doc.parent = folder.id;
-        let result = api_service::request(
-            &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
-            },
-        );
-        assert_get_updates_required!(result);
-    }
+    // move & delete document
+    doc.deleted = true;
+    doc.parent = folder.id;
+    api_service::request(
+        &account,
+        FileMetadataUpsertsRequest {
+            updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
+        },
+    )
+    .unwrap();
+}
 
-    #[test]
-    fn move_folder_cannot_move_root() {
-        // new account
-        let account = generate_account();
-        let (mut root, root_key) = generate_root_metadata(&account);
-        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+#[test]
+fn move_document_conflict() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = core.get_root().unwrap();
 
-        // create folder
-        let (folder, _folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        api_service::request(
-            &account,
-            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&folder)] },
-        )
-        .unwrap();
+    let doc = core.create_at_path(&path(&core, "doc.md")).unwrap().id;
+    let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
-        // move root
-        root.parent = folder.id;
-        let result = api_service::request(
-            &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)],
-            },
-        );
-        assert_matches!(
-            result,
-            Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-                FileMetadataUpsertsError::RootImmutable
-            ))
-        );
-    }
+    let folder = core.create_at_path(&path(&core, "folder/")).unwrap().id;
+    let folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
 
-    #[test]
-    fn move_folder_into_itself() {
-        // new account
-        let account = generate_account();
-        let (root, root_key) = generate_root_metadata(&account);
-        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+    api_service::request(
+        &account,
+        FileMetadataUpsertsRequest {
+            updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&folder)],
+        },
+    )
+    .unwrap();
 
-        // create folder
-        let (mut folder, _folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        api_service::request(
-            &account,
-            FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&folder)] },
-        )
-        .unwrap();
+    // move document
+    doc.parent = folder.id;
+    let result = api_service::request(
+        &account,
+        FileMetadataUpsertsRequest {
+            // use incorrect previous parent
+            updates: vec![FileMetadataDiff::new_diff(folder.id, &doc.name, &doc)],
+        },
+    );
+    assert_matches!(result, UPDATES_REQ);
+}
 
-        // move folder into self
-        folder.parent = folder.id;
-        let result = api_service::request(
-            &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &folder.name, &folder)],
-            },
-        );
-        assert_get_updates_required!(result);
-    }
+#[test]
+fn move_document_path_taken() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = core.get_root().unwrap();
 
-    #[test]
-    fn move_folder_into_descendants() {
-        // new account
-        let account = generate_account();
-        let (root, root_key) = generate_root_metadata(&account);
-        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+    let folder = core.create_at_path(&path(&core, "folder/")).unwrap().id;
+    let folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
 
-        // create folders
-        let (mut folder, _folder_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Folder);
-        let (folder2, _folder_key2) =
-            generate_file_metadata(&account, &folder, &root_key, FileType::Folder);
-        api_service::request(
-            &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&folder), FileMetadataDiff::new(&folder2)],
-            },
-        )
-        .unwrap();
+    let doc = core.create_at_path(&path(&core, "doc.md")).unwrap().id;
+    let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
-        // move folder into itself
-        folder.parent = folder2.id;
-        let result = api_service::request(
-            &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &folder.name, &folder)],
-            },
-        );
-        assert_get_updates_required!(result);
-    }
+    let doc2 = core
+        .create_at_path(&path(&core, "folder/doc.md"))
+        .unwrap()
+        .id;
+    let mut doc2 = core.db.local_metadata.get(&doc2).unwrap().unwrap();
+    doc2.name = doc.name.clone();
 
-    #[test]
-    fn move_document_into_document() {
-        // new account
-        let account = generate_account();
-        let (root, root_key) = generate_root_metadata(&account);
-        api_service::request(&account, NewAccountRequest::new(&account, &root)).unwrap();
+    api_service::request(
+        &account,
+        FileMetadataUpsertsRequest {
+            updates: vec![
+                FileMetadataDiff::new(&doc),
+                FileMetadataDiff::new(&doc2),
+                FileMetadataDiff::new(&folder),
+            ],
+        },
+    )
+    .unwrap();
 
-        // create documents
-        let (mut doc, _doc_key) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        let (doc2, _doc_key2) =
-            generate_file_metadata(&account, &root, &root_key, FileType::Document);
-        api_service::request(
-            &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&doc2)],
-            },
-        )
-        .unwrap();
+    // move document
+    doc.parent = folder.id;
+    let result = api_service::request(
+        &account,
+        FileMetadataUpsertsRequest {
+            updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
+        },
+    );
+    assert_matches!(result, UPDATES_REQ);
+}
 
-        // move folder into itself
-        doc.parent = doc2.id;
-        let result = api_service::request(
-            &account,
-            FileMetadataUpsertsRequest {
-                updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
-            },
-        );
-        assert_get_updates_required!(result);
-    }
+#[test]
+fn move_folder_cannot_move_root() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let mut root = core.db.base_metadata.get(&root.id).unwrap().unwrap();
+
+    let folder = core.create_at_path(&path(&core, "folder/")).unwrap().id;
+    let folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
+
+    api_service::request(
+        &account,
+        FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&folder)] },
+    )
+    .unwrap();
+
+    // move root
+    root.parent = folder.id;
+    let result = api_service::request(
+        &account,
+        FileMetadataUpsertsRequest {
+            updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)],
+        },
+    );
+    assert_matches!(
+        result,
+        Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
+            FileMetadataUpsertsError::RootImmutable
+        ))
+    );
+}
+
+#[test]
+fn move_folder_into_itself() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+
+    let folder = core.create_at_path(&path(&core, "folder/")).unwrap().id;
+    let mut folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
+
+    api_service::request(
+        &account,
+        FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&folder)] },
+    )
+    .unwrap();
+
+    folder.parent = folder.id;
+    let result = api_service::request(
+        &account,
+        FileMetadataUpsertsRequest {
+            updates: vec![FileMetadataDiff::new_diff(root.id, &folder.name, &folder)],
+        },
+    );
+    assert_matches!(result, UPDATES_REQ);
+}
+
+#[test]
+fn move_folder_into_descendants() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+
+    let folder = core.create_at_path(&path(&core, "folder1/")).unwrap().id;
+    let mut folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
+
+    let folder2 = core
+        .create_at_path(&path(&core, "folder1/folder2/"))
+        .unwrap()
+        .id;
+    let mut folder2 = core.db.local_metadata.get(&folder2).unwrap().unwrap();
+
+    api_service::request(
+        &account,
+        FileMetadataUpsertsRequest {
+            updates: vec![FileMetadataDiff::new(&folder), FileMetadataDiff::new(&folder2)],
+        },
+    )
+    .unwrap();
+
+    // move folder into itself
+    folder.parent = folder2.id;
+    let result = api_service::request(
+        &account,
+        FileMetadataUpsertsRequest {
+            updates: vec![FileMetadataDiff::new_diff(root.id, &folder.name, &folder)],
+        },
+    );
+    assert_matches!(result, UPDATES_REQ);
+}
+
+#[test]
+fn move_document_into_document() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+
+    // create documents
+    let doc = core.create_at_path(&path(&core, "doc1.md")).unwrap().id;
+    let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
+
+    let doc2 = core.create_at_path(&path(&core, "doc2.md")).unwrap().id;
+    let mut doc2 = core.db.local_metadata.get(&doc2).unwrap().unwrap();
+
+    api_service::request(
+        &account,
+        FileMetadataUpsertsRequest {
+            updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&doc2)],
+        },
+    )
+    .unwrap();
+
+    // move folder into itself
+    doc.parent = doc2.id;
+    let result = api_service::request(
+        &account,
+        FileMetadataUpsertsRequest {
+            updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
+        },
+    );
+    assert_matches!(result, UPDATES_REQ);
 }
