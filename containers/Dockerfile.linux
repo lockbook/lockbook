@@ -2,6 +2,8 @@ ARG HASH
 FROM ubuntu:jammy AS linux-build
 
 #RUN pacman -Sy --noconfirm base-devel icu cairo gdk-pixbuf2 pango graphene gtk4 gtksourceview5
+RUN apt update
+RUN apt install -y curl
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
