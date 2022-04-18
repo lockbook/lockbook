@@ -344,7 +344,7 @@ impl LbCore {
     pub fn validate(&self) -> Result<Vec<Warning>, TestRepoError> {
         self.db
             .transaction(|tx| tx.test_repo_integrity(&self.config))
-            .map_err(|err| CoreError::from(err))
+            .map_err(CoreError::from)
             .map_err(TestRepoError::Core)?
     }
 }

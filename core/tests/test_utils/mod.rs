@@ -9,10 +9,6 @@ use lockbook_models::file_metadata::EncryptedFileMetadata;
 use lockbook_models::tree::FileMetadata;
 use uuid::Uuid;
 
-pub fn url() -> String {
-    env::var("API_URL").unwrap_or_else(|_| "http://localhost:8000".to_string())
-}
-
 pub fn test_config() -> Config {
     Config { writeable_path: format!("/tmp/{}", Uuid::new_v4()), logs: false }
 }
@@ -21,18 +17,22 @@ pub fn test_core() -> LbCore {
     LbCore::init(&test_config()).unwrap()
 }
 
+pub fn test_core_with_account() -> LbCore {
+    let core = test_core();
+    core.create_account(&random_name(), &url()).unwrap();
+    core
+}
+
+pub fn url() -> String {
+    env::var("API_URL").unwrap_or_else(|_| "http://localhost:8000".to_string())
+}
+
 pub fn random_name() -> String {
     Uuid::new_v4()
         .to_string()
         .chars()
         .filter(|c| c.is_alphanumeric())
         .collect()
-}
-
-pub fn test_core_with_account() -> LbCore {
-    let core = test_core();
-    core.create_account(&random_name(), &url()).unwrap();
-    core
 }
 
 pub fn path(core: &LbCore, path: &str) -> String {
