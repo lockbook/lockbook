@@ -90,7 +90,7 @@ impl CliError {
 
     pub fn account_not_on_server() -> Self {
         Self::new(
-            ErrCode::AccountDoesNotExistOnServer,
+            ErrCode::AccountNotOnServer,
             "An account with this username was not found on the server.",
         )
     }
@@ -247,7 +247,7 @@ impl CliError {
     }
 }
 
-macro_rules! make_errkind_enum {
+macro_rules! make_errcode_enum {
     ($( $codes:literal => $variants:ident $( ( $( $types:ty ),* ) )? ,)*) => {
         pub enum ErrCode {
             $( $variants = $codes , )*
@@ -261,7 +261,7 @@ macro_rules! make_errkind_enum {
 }
 
 // Error Codes, respect: http://www.tldp.org/LDP/abs/html/exitcodes.html
-make_errkind_enum!(
+make_errcode_enum!(
     // Miscellaneous (3-19)
     3 => Unexpected,
     4 => NetworkIssue,
@@ -275,7 +275,7 @@ make_errkind_enum!(
     // Account (20s)
     20 => NoAccount,
     21 => AccountAlreadyExists,
-    22 => AccountDoesNotExistOnServer,
+    22 => AccountNotOnServer,
     23 => AccountStringCorrupted,
     24 => UsernameTaken,
     25 => UsernameInvalid,
@@ -321,8 +321,8 @@ impl From<UnexpectedError> for CliError {
 impl From<LbError<GetAccountError>> for CliError {
     fn from(e: LbError<GetAccountError>) -> Self {
         match e {
-            LbError::UiError(GetAccountError::NoAccount) => CliError::no_account(),
-            LbError::Unexpected(msg) => CliError::unexpected(msg),
+            LbError::UiError(GetAccountError::NoAccount) => Self::no_account(),
+            LbError::Unexpected(msg) => Self::unexpected(msg),
         }
     }
 }

@@ -14,9 +14,7 @@ pub fn move_file(core: &LbCore, path1: &str, path2: &str) -> Result<(), CliError
     })?;
 
     let target_file_metadata = core.get_by_path(path2).map_err(|err| match err {
-        LbError::UiError(GetFileByPathError::NoFileAtThatPath) => {
-            CliError::unexpected(format!("No file at {}", path2))
-        }
+        LbError::UiError(GetFileByPathError::NoFileAtThatPath) => CliError::file_not_found(path2),
         LbError::Unexpected(msg) => CliError::unexpected(msg),
     })?;
 

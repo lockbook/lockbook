@@ -4,23 +4,11 @@ use hotwatch::{Event, Hotwatch};
 use uuid::Uuid;
 
 use lockbook_core::model::errors::WriteToDocumentError;
-use lockbook_core::model::state::Config;
 use lockbook_core::pure_functions::drawing::SupportedImageFormats;
 use lockbook_core::Error as LbError;
 use lockbook_core::LbCore;
 
 use crate::error::CliError;
-
-pub fn config() -> Result<Config, CliError> {
-    let path = match (env::var("LOCKBOOK_CLI_LOCATION"), env::var("HOME"), env::var("HOMEPATH")) {
-        (Ok(s), _, _) => Ok(s),
-        (Err(_), Ok(s), _) => Ok(format!("{}/.lockbook", s)),
-        (Err(_), Err(_), Ok(s)) => Ok(format!("{}/.lockbook", s)),
-        _ => Err(CliError::no_cli_location()),
-    };
-
-    Ok(Config { writeable_path: path? })
-}
 
 // In ascending order of superiority
 pub enum SupportedEditors {
@@ -179,12 +167,10 @@ pub fn save_temp_file_contents(core: &LbCore, id: Uuid, location: &str) -> Resul
 
     core.write_document(id, &secret).map_err(|err| match err {
         LbError::UiError(err) => match err {
-            WriteToDocumentError::NoAccount => CliError::unexpected(
-                "No account! Run 'new-account' or 'import-private-key' to get started!",
-            ),
-            WriteToDocumentError::FileDoesNotExist => CliError::unexpected("FileDoesNotExist"),
+            WriteToDocumentError::NoAccount => CliError::no_account(),
+            WriteToDocumentError::FileDoesNotExist => CliError::unexpected("file doesn't exist"),
             WriteToDocumentError::FolderTreatedAsDocument => {
-                CliError::unexpected("CannotWriteToFolder")
+                CliError::unexpected("can't write to folder")
             }
         },
         LbError::Unexpected(msg) => CliError::unexpected(msg),

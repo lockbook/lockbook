@@ -1,12 +1,13 @@
+use std::env;
 use std::path::PathBuf;
 
 use structopt::StructOpt;
 
 use lockbook_core::service::path_service::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
+use lockbook_core::Config;
 use lockbook_core::LbCore;
 
 use crate::error::CliError;
-use crate::utils::config;
 
 mod backup;
 mod calculate_usage;
@@ -150,6 +151,17 @@ enum Lockbook {
 
     /// Find lockbook file structure problems, corrupted or missing files.
     Validate,
+}
+
+fn config() -> Result<Config, CliError> {
+    let path = match (env::var("LOCKBOOK_CLI_LOCATION"), env::var("HOME"), env::var("HOMEPATH")) {
+        (Ok(s), _, _) => Ok(s),
+        (Err(_), Ok(s), _) => Ok(format!("{}/.lockbook", s)),
+        (Err(_), Err(_), Ok(s)) => Ok(format!("{}/.lockbook", s)),
+        _ => Err(CliError::no_cli_location()),
+    };
+
+    Ok(Config { logs: true, writeable_path: path? })
 }
 
 fn exit_with(err: CliError) -> ! {

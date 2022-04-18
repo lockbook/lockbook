@@ -1,17 +1,14 @@
 use uuid::Uuid;
 
-use lockbook_core::service::integrity_service::{test_repo_integrity, TestRepoError, Warning};
+use lockbook_core::model::errors::{TestRepoError, Warning};
 use lockbook_core::LbCore;
 
 use crate::error::CliError;
-use crate::utils::config;
 
 pub fn validate(core: &LbCore) -> Result<(), CliError> {
     core.get_account()?;
 
-    let config = config()?;
-
-    let err = match test_repo_integrity(&config) {
+    let err = match core.validate() {
         Ok(warnings) => {
             if warnings.is_empty() {
                 return Ok(());
