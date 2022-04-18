@@ -1,7 +1,7 @@
 ARG HASH
-FROM archlinux AS linux-build
+FROM ubuntu:jammy AS linux-build
 
-RUN pacman -Sy --noconfirm base-devel icu cairo gdk-pixbuf2 pango graphene gtk4 gtksourceview5
+#RUN pacman -Sy --noconfirm base-devel icu cairo gdk-pixbuf2 pango graphene gtk4 gtksourceview5
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
