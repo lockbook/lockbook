@@ -39,14 +39,14 @@ impl Tx<'_> {
             api_service::request(&account, NewAccountRequest::new(&account, &encrypted_metadatum))?
                 .folder_metadata_version;
 
-        let account = account.clone();
-        let root = file_encryption_service::encrypt_metadata(&account, &[root_metadata.clone()])?
+        let root = file_encryption_service::encrypt_metadata(&account, &[root_metadata])?
             .first()
             .ok_or_else(|| CoreError::Unexpected("Failed to encrypt root".to_string()))?
             .clone();
         self.account.insert(OneKey {}, account.clone());
-        self.base_metadata.insert(root.id, root);
+        self.base_metadata.insert(root.id, root.clone());
         self.last_synced.insert(OneKey {}, get_time().0);
+        self.root.insert(OneKey {}, root.id);
         Ok(account)
     }
 
