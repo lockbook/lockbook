@@ -150,13 +150,18 @@ impl FileTree {
     }
 
     pub fn show_msg(&self, msg: &str) {
+        while let Some(child) = self.messages.first_child() {
+            self.messages.remove(&child);
+        }
         let lbl = gtk::Label::new(Some(msg));
         lbl.add_css_class("tree-msg");
         self.messages.append(&lbl);
         glib::timeout_add_seconds_local(3, {
             let messages = self.messages.clone();
             move || {
-                messages.remove(&lbl);
+                if lbl.is_ancestor(&messages) {
+                    messages.remove(&lbl);
+                }
                 glib::Continue(false)
             }
         });
