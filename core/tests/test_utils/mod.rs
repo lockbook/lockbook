@@ -270,15 +270,18 @@ pub const UPDATES_REQ: Result<(), ApiError<FileMetadataUpsertsError>> =
 //         }
 //     }
 //
-//     pub fn assert_dbs_eq(&self, other: &Self) {
-//         assert_eq!(self.account.get_all(), other.account.get_all());
-//         assert_eq!(self.last_synced.get_all(), other.last_synced.get_all());
-//         assert_eq!(self.root.get_all(), other.root.get_all());
-//         assert_eq!(self.local_digest.get_all(), other.local_digest.get_all());
-//         assert_eq!(self.base_digest.get_all(), other.base_digest.get_all());
-//         assert_eq!(self.local_metadata.get_all(), other.local_metadata.get_all());
-//         assert_eq!(self.base_metadata.get_all(), other.base_metadata.get_all());
-//     }
+pub fn assert_dbs_eq(left: &LbCore, right: &LbCore) {
+    assert_eq!(left.db.account.get_all().unwrap(), right.db.account.get_all().unwrap());
+    assert_eq!(left.db.last_synced.get_all().unwrap(), right.db.last_synced.get_all().unwrap());
+    assert_eq!(left.db.root.get_all().unwrap(), right.db.root.get_all().unwrap());
+    assert_eq!(left.db.local_digest.get_all().unwrap(), right.db.local_digest.get_all().unwrap());
+    assert_eq!(left.db.base_digest.get_all().unwrap(), right.db.base_digest.get_all().unwrap());
+    assert_eq!(
+        left.db.local_metadata.get_all().unwrap(),
+        right.db.local_metadata.get_all().unwrap()
+    );
+    assert_eq!(left.db.base_metadata.get_all().unwrap(), right.db.base_metadata.get_all().unwrap());
+}
 //
 //     pub fn dbs_equal(&self, other: &Self) -> bool {
 //         self.account.get_all() == other.account.get_all()
