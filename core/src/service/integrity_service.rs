@@ -34,8 +34,9 @@ impl Tx<'_> {
             .map(|(f, _)| f)
             .collect::<Vec<EncryptedFileMetadata>>();
 
-        if let Some(0) = self.last_synced.get(&OneKey {}) {
-        } else if files_encrypted.maybe_find_root().is_none() {
+        if self.last_synced.get(&OneKey {}).unwrap_or(0) != 0
+            && files_encrypted.maybe_find_root().is_none()
+        {
             return Err(TestRepoError::NoRootFolder);
         }
 

@@ -190,9 +190,7 @@ impl Tx<'_> {
                 }
             }
 
-            println!("did it?");
             if new_doc {
-                println!("This happened");
                 self.insert_document(config, RepoSource::Local, metadatum, &[])?;
             }
 
