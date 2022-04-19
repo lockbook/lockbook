@@ -40,7 +40,7 @@ impl super::App {
             .autohide(true)
             .build();
 
-        let tree_cntr = self.account.tree.cntr.clone();
+        let tree_cntr = self.account.tree.view_wrapper.clone();
         tree_cntr.append(&popover);
         popover.connect_closed(move |p| tree_cntr.remove(p));
 

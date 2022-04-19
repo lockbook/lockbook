@@ -1,5 +1,6 @@
 mod app;
 mod bg;
+mod lbutil;
 mod settings;
 mod ui;
 

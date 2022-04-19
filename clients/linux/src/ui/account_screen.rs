@@ -13,8 +13,9 @@ pub enum AccountOp {
     RenameFile,
     DeleteFiles,
     ExportFiles,
-    CutFile,
-    PasteFile,
+    CutFiles,
+    CopyFiles,
+    PasteFiles,
     TreeReceiveDrop(glib::Value, f64, f64),
     TabSwitched(ui::TextEditor),
     AllTabsClosed,
@@ -71,7 +72,7 @@ impl AccountScreen {
 
         let tree = ui::FileTree::new(account_op_tx, hidden_cols);
         let tree_scroll = gtk::ScrolledWindow::new();
-        tree_scroll.set_child(Some(&tree.cntr));
+        tree_scroll.set_child(Some(&tree.overlay));
 
         let sync = ui::SyncPanel::new();
 
