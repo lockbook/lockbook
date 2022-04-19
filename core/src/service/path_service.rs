@@ -111,6 +111,12 @@ impl Tx<'_> {
 
     pub fn get_path_by_id(&self, id: Uuid) -> Result<String, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
+        Self::path_by_id_helper(&files, id)
+    }
+
+    pub fn path_by_id_helper(
+        files: &[DecryptedFileMetadata], id: Uuid,
+    ) -> Result<String, CoreError> {
         let mut current_metadata = files.find(id)?;
         let mut path = String::from("");
 

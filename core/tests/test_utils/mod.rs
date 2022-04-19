@@ -2,11 +2,19 @@ use chrono::Datelike;
 use std::env;
 
 use hmdb::transaction::Transaction;
+use itertools::Itertools;
+use lockbook_core::model::repo::RepoSource;
+use lockbook_core::repo::schema::Tx;
 use lockbook_core::service::api_service::ApiError;
+use lockbook_core::service::path_service::Filter::DocumentsOnly;
 use lockbook_core::{Config, LbCore};
 use lockbook_models::api::{AccountTier, FileMetadataUpsertsError, PaymentMethod};
-use lockbook_models::file_metadata::EncryptedFileMetadata;
-use lockbook_models::tree::FileMetadata;
+use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata};
+use lockbook_models::tree::{FileMetaExt, FileMetadata};
+use lockbook_models::work_unit::WorkUnit;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::hash::Hash;
 use uuid::Uuid;
 
 pub fn test_config() -> Config {
@@ -15,6 +23,14 @@ pub fn test_config() -> Config {
 
 pub fn test_core() -> LbCore {
     LbCore::init(&test_config()).unwrap()
+}
+
+pub fn test_core_from(core: &LbCore) -> LbCore {
+    let account_string = core.export_account().unwrap();
+    let core = test_core();
+    core.import_account(&account_string).unwrap();
+    core.sync(None).unwrap();
+    core
 }
 
 pub fn test_core_with_account() -> LbCore {
@@ -45,125 +61,144 @@ pub const UPDATES_REQ: Result<(), ApiError<FileMetadataUpsertsError>> =
         FileMetadataUpsertsError::GetUpdatesRequired,
     ));
 
-// pub fn enc_root(core: &LbCore) -> EncryptedFileMetadata {
-//     core.db
-//         .transaction(|tx| {
-//             let id = tx.root().unwrap().id;
-//             tx.base_metadata.get(&id).unwrap()
-//         })
-//         .unwrap()
-// }
+pub enum Operation<'a> {
+    Client { client_num: usize },
+    Sync { client_num: usize },
+    Create { client_num: usize, path: &'a str },
+    Rename { client_num: usize, path: &'a str, new_name: &'a str },
+    Move { client_num: usize, path: &'a str, new_parent_path: &'a str },
+    Delete { client_num: usize, path: &'a str },
+    Edit { client_num: usize, path: &'a str, content: &'a [u8] },
+    Custom { f: &'a dyn Fn(&[LbCore], &DecryptedFileMetadata) },
+}
 
-// pub enum Operation<'a> {
-//     Client { client_num: usize },
-//     Sync { client_num: usize },
-//     Create { client_num: usize, path: &'a str },
-//     Rename { client_num: usize, path: &'a str, new_name: &'a str },
-//     Move { client_num: usize, path: &'a str, new_parent_path: &'a str },
-//     Delete { client_num: usize, path: &'a str },
-//     Edit { client_num: usize, path: &'a str, content: &'a [u8] },
-//     Custom { f: &'a dyn Fn(&[(usize, Config)], &DecryptedFileMetadata) },
-// }
-//
-// pub fn run(ops: &[Operation]) {
-//     let mut clients = vec![test_core()];
-//     create_account(&clients[0].1);
-//
-//     let ensure_client_exists = |clients: &mut Vec<(usize, Config)>, client_num: &usize| {
-//         if !clients.iter().any(|(c, _)| c == client_num) {
-//             clients.push((*client_num, make_new_client(&clients[0].1)))
-//         }
-//     };
-//
-//     for op in ops {
-//         match op {
-//             Operation::Client { client_num } => {
-//                 ensure_client_exists(&mut clients, client_num);
-//             }
-//             Operation::Sync { client_num } => {
-//                 || -> Result<_, String> {
-//                     ensure_client_exists(&mut clients, client_num);
-//                     let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
-//                     crate::sync_all(client, None).map_err(err_to_string)
-//                 }()
-//                 .unwrap_or_else(|_| panic!("Operation::Sync error. client_num={:?}", client_num));
-//             }
-//             Operation::Create { client_num, path } => {
-//                 || -> Result<_, String> {
-//                     let path = root.decrypted_name.clone() + path;
-//                     let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
-//                     crate::create_file_at_path(client, &path).map_err(err_to_string)
-//                 }()
-//                 .unwrap_or_else(|_| {
-//                     panic!("Operation::Create error. client_num={:?}, path={:?}", client_num, path)
-//                 });
-//             }
-//             Operation::Rename { client_num, path, new_name } => {
-//                 || -> Result<_, String> {
-//                     let path = root.decrypted_name.clone() + path;
-//                     let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
-//                     let target = crate::get_file_by_path(client, &path).map_err(err_to_string)?;
-//                     crate::rename_file(client, target.id, new_name).map_err(err_to_string)
-//                 }()
-//                 .unwrap_or_else(|_| {
-//                     panic!(
-//                         "Operation::Rename error. client_num={:?}, path={:?}, new_name={:?}",
-//                         client_num, path, new_name
-//                     )
-//                 });
-//             }
-//             Operation::Move { client_num, path, new_parent_path } => {
-//                 || -> Result<_, String> {
-//                     let path = root.decrypted_name.clone() + path;
-//                     let new_parent_path = root.decrypted_name.clone() + new_parent_path;
-//                     let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
-//                     let target = crate::get_file_by_path(client, &path).map_err(err_to_string)?;
-//                     let new_parent =
-//                         crate::get_file_by_path(client, &new_parent_path).map_err(err_to_string)?;
-//                     crate::move_file(client, target.id, new_parent.id).map_err(err_to_string)
-//                 }()
-//                 .unwrap_or_else(|_| {
-//                     panic!(
-//                         "Operation::Move error. client_num={:?}, path={:?}, new_parent_path={:?}",
-//                         client_num, path, new_parent_path
-//                     )
-//                 });
-//             }
-//             Operation::Delete { client_num, path } => {
-//                 || -> Result<_, String> {
-//                     let path = root.decrypted_name.clone() + path;
-//                     let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
-//                     let target = crate::get_file_by_path(client, &path).map_err(err_to_string)?;
-//                     crate::delete_file(client, target.id).map_err(err_to_string)
-//                 }()
-//                 .unwrap_or_else(|_| {
-//                     panic!("Operation::Delete error. client_num={:?}, path={:?}", client_num, path)
-//                 });
-//             }
-//             Operation::Edit { client_num, path, content } => {
-//                 || -> Result<_, String> {
-//                     let path = root.decrypted_name.clone() + path;
-//                     let client = &clients.iter().find(|(c, _)| c == client_num).unwrap().1;
-//                     let target = crate::get_file_by_path(client, &path).map_err(err_to_string)?;
-//                     crate::write_document(client, target.id, content).map_err(err_to_string)
-//                 }()
-//                 .unwrap_or_else(|_| {
-//                     panic!(
-//                         "Operation::Edit error. client_num={:?}, path={:?}, content={:?}",
-//                         client_num, path, content
-//                     )
-//                 });
-//             }
-//             Operation::Custom { f } => {
-//                 f(&clients, &root);
-//             }
-//         }
-//     }
-// }
-//
-// fn err_to_string<E: Debug>(e: E) -> String {
-//     format!("{}: {:?}", std::any::type_name::<E>(), e)
-// }
+pub fn run(ops: &[Operation]) {
+    let mut cores = vec![test_core()];
+    cores[0].create_account(&random_name(), &url());
+    let root = cores[0].get_root().unwrap();
+
+    let ensure_client_exists = |clients: &mut Vec<LbCore>, client_num: &usize| {
+        if *client_num > clients.len() - 1 {
+            clients.push(test_core_from(&cores[0]))
+        }
+    };
+
+    for op in ops {
+        match op {
+            Operation::Client { client_num } => {
+                ensure_client_exists(&mut cores, client_num);
+            }
+            Operation::Sync { client_num } => {
+                || -> Result<_, String> {
+                    ensure_client_exists(&mut cores, client_num);
+                    cores[*client_num].sync(None).map_err(err_to_string)
+                }()
+                .unwrap_or_else(|_| panic!("Operation::Sync error. client_num={:?}", client_num));
+            }
+            Operation::Create { client_num, path } => {
+                || -> Result<_, String> {
+                    let core = cores[*client_num];
+                    let path = root.decrypted_name.clone() + path;
+                    core.create_at_path(&path).map_err(err_to_string)
+                }()
+                .unwrap_or_else(|_| {
+                    panic!("Operation::Create error. client_num={:?}, path={:?}", client_num, path)
+                });
+            }
+            Operation::Rename { client_num, path, new_name } => {
+                || -> Result<_, String> {
+                    let core = cores[*client_num];
+                    let path = root.decrypted_name.clone() + path;
+                    let target = core.get_by_path(&path).map_err(err_to_string)?;
+                    core.rename_file(target.id, new_name).map_err(err_to_string)
+                }()
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Operation::Rename error. client_num={:?}, path={:?}, new_name={:?}",
+                        client_num, path, new_name
+                    )
+                });
+            }
+            Operation::Move { client_num, path, new_parent_path } => {
+                || -> Result<_, String> {
+                    let core = cores[*client_num];
+                    let path = core.get_root().unwrap().decrypted_name.clone() + path;
+                    let new_parent_path = root.decrypted_name.clone() + new_parent_path;
+                    let target = core.get_by_path(&path).map_err(err_to_string)?;
+                    let new_parent = core.get_by_path(&new_parent_path).map_err(err_to_string)?;
+                    core.move_file(target.id, new_parent.id)
+                        .map_err(err_to_string)
+                }()
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Operation::Move error. client_num={:?}, path={:?}, new_parent_path={:?}",
+                        client_num, path, new_parent_path
+                    )
+                });
+            }
+            Operation::Delete { client_num, path } => {
+                || -> Result<_, String> {
+                    let core = cores[*client_num];
+                    let path = root.decrypted_name.clone() + path;
+                    let target = core.get_by_path(&path).map_err(err_to_string)?;
+                    core.delete_file(target.id).map_err(err_to_string)
+                }()
+                .unwrap_or_else(|_| {
+                    panic!("Operation::Delete error. client_num={:?}, path={:?}", client_num, path)
+                });
+            }
+            Operation::Edit { client_num, path, content } => {
+                || -> Result<_, String> {
+                    let core = cores[*client_num];
+                    let path = root.decrypted_name.clone() + path;
+                    let target = core.get_by_path(&path).map_err(err_to_string)?;
+                    core.write_document(target.id, content)
+                        .map_err(err_to_string)
+                }()
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Operation::Edit error. client_num={:?}, path={:?}, content={:?}",
+                        client_num, path, content
+                    )
+                });
+            }
+            Operation::Custom { f } => {
+                f(&cores, &root);
+            }
+        }
+    }
+}
+
+pub fn assert_all_paths(core: &LbCore, root: &DecryptedFileMetadata, expected_paths: &[&str]) {
+    if expected_paths.iter().any(|&path| !path.starts_with('/')) {
+        panic!(
+            "improper call to test_utils::assert_all_paths; all paths in expected_paths must begin with '/'. expected_paths={:?}",
+            expected_paths
+        );
+    }
+    let mut expected_paths: Vec<String> = expected_paths
+        .iter()
+        .map(|&path| String::from(path))
+        .collect();
+    let mut actual_paths: Vec<String> = core
+        .list_paths(None)
+        .unwrap()
+        .iter()
+        .map(|path| String::from(&path[root.decrypted_name.len()..]))
+        .collect();
+    actual_paths.sort();
+    expected_paths.sort();
+    if actual_paths != expected_paths {
+        panic!(
+            "paths did not match expectation. expected={:?}; actual={:?}",
+            expected_paths, actual_paths
+        );
+    }
+}
+
+fn err_to_string<E: Debug>(e: E) -> String {
+    format!("{}: {:?}", std::any::type_name::<E>(), e)
+}
 //
 // #[macro_export]
 // macro_rules! assert_dirty_ids {
@@ -181,80 +216,125 @@ pub const UPDATES_REQ: Result<(), ApiError<FileMetadataUpsertsError>> =
 //     };
 // }
 //
-// pub fn get_dirty_ids(db: &Config, server: bool) -> Vec<Uuid> {
-//     sync_service::calculate_work(db)
-//         .unwrap()
-//         .work_units
-//         .into_iter()
-//         .filter_map(|wu| match wu {
-//             WorkUnit::LocalChange { metadata } if !server => Some(metadata.id),
-//             WorkUnit::ServerChange { metadata } if server => Some(metadata.id),
-//             _ => None,
-//         })
-//         .unique()
-//         .collect()
-// }
-//
-// pub fn assert_local_work_ids(db: &Config, ids: &[Uuid]) {
-//     assert!(slices_equal_ignore_order(&get_dirty_ids(db, false), ids));
-// }
-//
-// // pub fn assert_local_work_paths(
-// //     db: &Config, root: &DecryptedFileMetadata, expected_paths: &[&'static str],
-// // ) {
-// //     let all_local_files = file_service::get_all_metadata(db, RepoSource::Local).unwrap();
-// //
-// //     let mut expected_paths = expected_paths.to_vec();
-// //     let mut actual_paths: Vec<String> = get_dirty_ids(db, false)
-// //         .iter()
-// //         .map(|&id| path_service::get_path_by_id_using_files(&all_local_files, id).unwrap())
-// //         .map(|path| String::from(&path[root.decrypted_name.len()..]))
-// //         .collect();
-// //     actual_paths.sort_unstable();
-// //     expected_paths.sort_unstable();
-// //     if actual_paths != expected_paths {
-// //         panic!(
-// //             "paths did not match expectation. expected={:?}; actual={:?}",
-// //             expected_paths, actual_paths
-// //         );
-// //     }
-// // }
-//
-// pub fn assert_server_work_ids(db: &Config, ids: &[Uuid]) {
-//     assert!(slices_equal_ignore_order(&get_dirty_ids(db, true), ids));
-// }
-//
-// pub fn assert_all_document_contents(
-//     db: &Config, root: &DecryptedFileMetadata, expected_contents_by_path: &[(&str, &[u8])],
-// ) {
-//     let expected_contents_by_path = expected_contents_by_path
-//         .iter()
-//         .map(|&(path, contents)| (root.decrypted_name.clone() + path, contents.to_vec()))
-//         .collect::<Vec<(String, Vec<u8>)>>();
-//     let actual_contents_by_path = crate::list_paths(db, Some(path_service::Filter::DocumentsOnly))
-//         .unwrap()
-//         .iter()
-//         .map(|path| {
-//             (
-//                 path.clone(),
-//                 crate::read_document(db, crate::get_file_by_path(db, path).unwrap().id).unwrap(),
-//             )
-//         })
-//         .collect::<Vec<(String, Vec<u8>)>>();
-//     if !slices_equal_ignore_order(&actual_contents_by_path, &expected_contents_by_path) {
-//         panic!(
-//             "document contents did not match expectation. expected={:?}; actual={:?}",
-//             expected_contents_by_path
-//                 .into_iter()
-//                 .map(|(path, contents)| (path, String::from_utf8_lossy(&contents).to_string()))
-//                 .collect::<Vec<(String, String)>>(),
-//             actual_contents_by_path
-//                 .into_iter()
-//                 .map(|(path, contents)| (path, String::from_utf8_lossy(&contents).to_string()))
-//                 .collect::<Vec<(String, String)>>(),
-//         );
-//     }
-// }
+pub fn get_dirty_ids(db: &LbCore, server: bool) -> Vec<Uuid> {
+    db.calculate_work()
+        .unwrap()
+        .work_units
+        .into_iter()
+        .filter_map(|wu| match wu {
+            WorkUnit::LocalChange { metadata } if !server => Some(metadata.id),
+            WorkUnit::ServerChange { metadata } if server => Some(metadata.id),
+            _ => None,
+        })
+        .unique()
+        .collect()
+}
+
+pub fn assert_local_work_ids(db: &LbCore, ids: &[Uuid]) {
+    assert!(slices_equal_ignore_order(&get_dirty_ids(db, false), ids));
+}
+
+pub fn assert_local_work_paths(
+    db: &LbCore, root: &DecryptedFileMetadata, expected_paths: &[&'static str],
+) {
+    let all_local_files = db
+        .db
+        .transaction(|tx| tx.get_all_metadata(RepoSource::Local))
+        .unwrap()
+        .unwrap();
+
+    let mut expected_paths = expected_paths.to_vec();
+    let mut actual_paths: Vec<String> = get_dirty_ids(db, false)
+        .iter()
+        .map(|&id| {
+            db.db
+                .transaction(|tx| Tx::path_by_id_helper(&all_local_files, id))
+                .unwrap()
+                .unwrap()
+        })
+        .map(|path| String::from(&path[root.decrypted_name.len()..]))
+        .collect();
+    actual_paths.sort_unstable();
+    expected_paths.sort_unstable();
+    if actual_paths != expected_paths {
+        panic!(
+            "paths did not match expectation. expected={:?}; actual={:?}",
+            expected_paths, actual_paths
+        );
+    }
+}
+
+pub fn assert_server_work_paths(
+    db: &LbCore, root: &DecryptedFileMetadata, expected_paths: &[&'static str],
+) {
+    db.db
+        .transaction(|tx| {
+            let all_local_files = tx.get_all_metadata(RepoSource::Local).unwrap();
+            let new_server_files = tx
+                .calculate_work(&db.config)
+                .unwrap()
+                .work_units
+                .into_iter()
+                .filter_map(|wu| match wu {
+                    WorkUnit::ServerChange { metadata } => Some(metadata),
+                    _ => None,
+                })
+                .filter(|f| all_local_files.maybe_find(f.id).is_none())
+                .collect::<Vec<DecryptedFileMetadata>>();
+            let staged = all_local_files
+                .stage(&new_server_files)
+                .into_iter()
+                .map(|s| s.0)
+                .collect::<Vec<DecryptedFileMetadata>>();
+            let mut expected_paths = expected_paths.to_vec();
+            let mut actual_paths: Vec<String> = get_dirty_ids(db, true)
+                .iter()
+                .map(|&id| Tx::path_by_id_helper(&staged, id).unwrap())
+                .map(|path| String::from(&path[root.decrypted_name.len()..]))
+                .collect();
+            actual_paths.sort_unstable();
+            expected_paths.sort_unstable();
+            if actual_paths != expected_paths {
+                panic!(
+                    "paths did not match expectation. expected={:?}; actual={:?}",
+                    expected_paths, actual_paths
+                );
+            }
+        })
+        .unwrap();
+}
+
+pub fn assert_server_work_ids(db: &LbCore, ids: &[Uuid]) {
+    assert!(slices_equal_ignore_order(&get_dirty_ids(db, true), ids));
+}
+
+pub fn assert_all_document_contents(
+    db: &LbCore, root: &DecryptedFileMetadata, expected_contents_by_path: &[(&str, &[u8])],
+) {
+    let expected_contents_by_path = expected_contents_by_path
+        .iter()
+        .map(|&(path, contents)| (root.decrypted_name.clone() + path, contents.to_vec()))
+        .collect::<Vec<(String, Vec<u8>)>>();
+    let actual_contents_by_path = db
+        .list_paths(Some(DocumentsOnly))
+        .unwrap()
+        .iter()
+        .map(|path| (path.clone(), db.read_document(db.get_by_path(path).unwrap().id).unwrap()))
+        .collect::<Vec<(String, Vec<u8>)>>();
+    if !slices_equal_ignore_order(&actual_contents_by_path, &expected_contents_by_path) {
+        panic!(
+            "document contents did not match expectation. expected={:?}; actual={:?}",
+            expected_contents_by_path
+                .into_iter()
+                .map(|(path, contents)| (path, String::from_utf8_lossy(&contents).to_string()))
+                .collect::<Vec<(String, String)>>(),
+            actual_contents_by_path
+                .into_iter()
+                .map(|(path, contents)| (path, String::from_utf8_lossy(&contents).to_string()))
+                .collect::<Vec<(String, String)>>(),
+        );
+    }
+}
 //
 // impl Tx<'_> {
 //     pub fn assert_deleted_files_pruned(&self) {
@@ -314,9 +394,9 @@ pub fn assert_dbs_eq(left: &LbCore, right: &LbCore) {
 //         new_db
 //     }
 //
-//     pub fn assert_repo_integrity(&self, config: &Config) {
-//         self.test_repo_integrity(config).unwrap();
-//     }
+pub fn assert_repo_integrity(&self, config: &Config) {
+    self.test_repo_integrity(config).unwrap();
+}
 // }
 //
 pub mod test_credit_cards {
@@ -378,31 +458,22 @@ macro_rules! assert_matches (
 // pub const CREATE_FILES_BENCH_5: u64 = 1000;
 // pub const CREATE_FILES_BENCH_6: u64 = 2000;
 //
-// pub fn random_filename() -> SecretFileName {
-//     let name: String = Uuid::new_v4()
-//         .to_string()
-//         .chars()
-//         .filter(|c| c.is_alphanumeric())
-//         .collect();
-//
-//     symkey::encrypt_and_hmac(&symkey::generate_key(), &name).unwrap()
-// }
-//
-// fn get_frequencies<T: Hash + Eq>(a: &[T]) -> HashMap<&T, i32> {
-//     let mut result = HashMap::new();
-//     for element in a {
-//         if let Some(count) = result.get_mut(element) {
-//             *count += 1;
-//         } else {
-//             result.insert(element, 1);
-//         }
-//     }
-//     result
-// }
-//
-// pub fn slices_equal_ignore_order<T: Hash + Eq>(a: &[T], b: &[T]) -> bool {
-//     get_frequencies(a) == get_frequencies(b)
-// }
+
+fn get_frequencies<T: Hash + Eq>(a: &[T]) -> HashMap<&T, i32> {
+    let mut result = HashMap::new();
+    for element in a {
+        if let Some(count) = result.get_mut(element) {
+            *count += 1;
+        } else {
+            result.insert(element, 1);
+        }
+    }
+    result
+}
+
+pub fn slices_equal_ignore_order<T: Hash + Eq>(a: &[T], b: &[T]) -> bool {
+    get_frequencies(a) == get_frequencies(b)
+}
 //
 // #[cfg(test)]
 // mod unit_tests {
