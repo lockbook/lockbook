@@ -45,7 +45,7 @@ impl super::App {
         // Use root if no file is selected.
         let selected_id = match entries.get(0) {
             Some(id) => *id,
-            None => self.account.tree.root_id()
+            None => self.account.tree.root_id(),
         };
 
         let dest_id = match self.api.file_by_id(selected_id) {
