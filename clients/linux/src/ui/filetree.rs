@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use gtk::gdk;
 use gtk::glib;
 use gtk::prelude::*;
 
@@ -9,11 +10,13 @@ use crate::ui::icons;
 
 #[derive(Clone)]
 pub struct FileTree {
-    pub clipboard: Rc<RefCell<Option<lb::Uuid>>>,
+    pub cut_files: Rc<RefCell<Option<lb::Uuid>>>,
     pub cols: Vec<FileTreeCol>,
     pub model: gtk::TreeStore,
     pub view: gtk::TreeView,
-    pub cntr: gtk::Box,
+    pub view_wrapper: gtk::Box,
+    pub messages: gtk::Box,
+    pub overlay: gtk::Overlay,
 }
 
 #[derive(PartialEq, Debug, Clone, Copy)]
@@ -27,7 +30,7 @@ impl FileTree {
     pub fn new(account_op_tx: glib::Sender<ui::AccountOp>, hidden_cols: &[String]) -> Self {
         let menu = FileTreeMenu::new(&account_op_tx);
 
-        let clipboard = Rc::new(RefCell::new(None));
+        let cut_files = Rc::new(RefCell::new(None));
 
         let mut column_types = FileTreeCol::all()
             .iter()
@@ -64,12 +67,12 @@ impl FileTree {
 
         // Controller for right clicks.
         let rclick = gtk::GestureClick::new();
-        rclick.set_button(gtk::gdk::ffi::GDK_BUTTON_SECONDARY as u32);
+        rclick.set_button(gdk::ffi::GDK_BUTTON_SECONDARY as u32);
         rclick.set_propagation_phase(gtk::PropagationPhase::Capture);
         rclick.connect_pressed({
             let view = view.clone();
             let menu = menu.clone();
-            let clipboard = clipboard.clone();
+            let cut_files = cut_files.clone();
 
             move |_, _, x, y| {
                 if let Some((Some(tpath), _, _, _)) = view.path_at_pos(x as i32, y as i32) {
@@ -80,7 +83,7 @@ impl FileTree {
                         sel.select_path(&tpath);
                     }
                 }
-                menu.update(&view, &clipboard);
+                menu.update(&view, &cut_files);
                 menu.popup_at(x, y);
             }
         });
@@ -91,8 +94,15 @@ impl FileTree {
         key_ctlr.connect_key_pressed({
             let tx = account_op_tx.clone();
 
-            move |_, key, _, _| {
-                if key == gtk::gdk::Key::Delete {
+            move |_, key, _, modif| {
+                if modif == gdk::ModifierType::CONTROL_MASK {
+                    match key {
+                        gdk::Key::c => tx.send(ui::AccountOp::CopyFiles).unwrap(),
+                        gdk::Key::x => tx.send(ui::AccountOp::CutFiles).unwrap(),
+                        gdk::Key::v => tx.send(ui::AccountOp::PasteFiles).unwrap(),
+                        _ => {}
+                    }
+                } else if key == gdk::Key::Delete {
                     tx.send(ui::AccountOp::DeleteFiles).unwrap();
                 }
                 gtk::Inhibit(false)
@@ -101,8 +111,8 @@ impl FileTree {
         view.add_controller(&key_ctlr);
 
         // Controller for receiving drops.
-        let drop = gtk::DropTarget::new(glib::types::Type::STRING, gtk::gdk::DragAction::COPY);
-        drop.connect_motion(|_, _x, _y| gtk::gdk::DragAction::COPY);
+        let drop = gtk::DropTarget::new(glib::types::Type::STRING, gdk::DragAction::COPY);
+        drop.connect_motion(|_, _x, _y| gdk::DragAction::COPY);
         drop.connect_drop(move |_, val, x, y| {
             account_op_tx
                 .send(ui::AccountOp::TreeReceiveDrop(val.clone(), x, y))
@@ -111,9 +121,20 @@ impl FileTree {
         });
         view.add_controller(&drop);
 
-        let cntr = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        cntr.append(&view);
-        cntr.append(&menu.popover);
+        let view_wrapper = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        view_wrapper.append(&view);
+        view_wrapper.append(&menu.popover);
+
+        let messages = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .valign(gtk::Align::End)
+            .vexpand(false)
+            .margin_bottom(2)
+            .build();
+
+        let overlay = gtk::Overlay::new();
+        overlay.set_child(Some(&view_wrapper));
+        overlay.add_overlay(&messages);
 
         let sel = view.selection();
         sel.set_mode(gtk::SelectionMode::Multiple);
@@ -125,7 +146,25 @@ impl FileTree {
             }
         }
 
-        Self { clipboard, cols, model, view, cntr }
+        Self { cut_files, cols, model, view, view_wrapper, messages, overlay }
+    }
+
+    pub fn show_msg(&self, msg: &str) {
+        while let Some(child) = self.messages.first_child() {
+            self.messages.remove(&child);
+        }
+        let lbl = gtk::Label::new(Some(msg));
+        lbl.add_css_class("tree-msg");
+        self.messages.append(&lbl);
+        glib::timeout_add_seconds_local(3, {
+            let messages = self.messages.clone();
+            move || {
+                if lbl.is_ancestor(&messages) {
+                    messages.remove(&lbl);
+                }
+                glib::Continue(false)
+            }
+        });
     }
 
     pub fn populate(&self, metas: &mut Vec<lb::FileMetadata>) {
@@ -170,6 +209,19 @@ impl FileTree {
     pub fn get_selected_uuid(&self) -> Option<lb::Uuid> {
         let (rows, model) = self.view.selection().selected_rows();
         rows.get(0).map(|tpath| ui::id_from_tpath(&model, tpath))
+    }
+
+    pub fn get_selected_ids(&self) -> Vec<lb::Uuid> {
+        let (rows, model) = self.view.selection().selected_rows();
+        rows.iter()
+            .map(|tpath| ui::id_from_tpath(&model, tpath))
+            .collect()
+    }
+
+    pub fn root_id(&self) -> lb::Uuid {
+        let iter = self.model.iter_first().unwrap();
+        let tpath = self.model.path(&iter);
+        ui::id_from_tpath(&self.model, &tpath)
     }
 
     pub fn add_file(&self, fm: &lb::FileMetadata) -> Result<(), String> {
@@ -309,7 +361,7 @@ impl FileTreeMenu {
             .build();
         cut.connect_clicked({
             let tx = account_op_tx.clone();
-            move |_| tx.send(ui::AccountOp::CutFile).unwrap()
+            move |_| tx.send(ui::AccountOp::CutFiles).unwrap()
         });
 
         let paste = ui::MenuItemBuilder::new()
@@ -319,7 +371,7 @@ impl FileTreeMenu {
             .build();
         paste.connect_clicked({
             let tx = account_op_tx.clone();
-            move |_| tx.send(ui::AccountOp::PasteFile).unwrap()
+            move |_| tx.send(ui::AccountOp::PasteFiles).unwrap()
         });
 
         let rename = ui::MenuItemBuilder::new()
@@ -389,7 +441,7 @@ impl FileTreeMenu {
     }
 
     fn popup_at(&self, x: f64, y: f64) {
-        let rect = gtk::gdk::Rectangle::new(x as i32, y as i32, 1, 1);
+        let rect = gdk::Rectangle::new(x as i32, y as i32, 1, 1);
         self.popover.set_pointing_to(Some(&rect));
         self.popover.popup();
     }
