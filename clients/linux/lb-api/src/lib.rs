@@ -34,7 +34,7 @@ pub use lockbook_core::model::errors::RenameFileError;
 pub use lockbook_core::model::errors::SyncAllError;
 pub use lockbook_core::model::errors::WriteToDocumentError as WriteDocumentError;
 
-pub use lockbook_core::model::state::Config;
+pub use lockbook_core::Config;
 
 pub use lockbook_core::service::import_export_service::ImportExportFileInfo;
 pub use lockbook_core::service::import_export_service::ImportStatus;
@@ -124,7 +124,6 @@ impl From<Error<SyncAllError>> for SyncError {
 }
 
 pub struct DefaultApi {
-    cfg: Config,
     core: LbCore,
     sync_lock: Mutex<u8>,
 }
@@ -133,13 +132,13 @@ impl DefaultApi {
     pub fn new() -> Result<Self, String> {
         let writeable_path = std::env::var("LOCKBOOK_PATH")
             .unwrap_or(format!("{}/.lockbook", std::env::var("HOME").unwrap()));
-        let cfg = Config { writeable_path };
+        let cfg = Config { logs: true, writeable_path };
 
         let core = LbCore::init(&cfg).map_err(|e| e.0)?;
 
         let sync_lock = Mutex::new(0);
 
-        Ok(Self { cfg, core, sync_lock })
+        Ok(Self { core, sync_lock })
     }
 }
 
@@ -242,7 +241,7 @@ impl Api for DefaultApi {
     }
 
     fn last_synced(&self) -> Result<i64, UnexpectedError> {
-        lockbook_core::get_last_synced(&self.cfg)
+        self.core.get_last_synced()
     }
 
     fn uncompressed_usage(&self) -> Result<UsageItemMetric, Error<GetUsageError>> {
