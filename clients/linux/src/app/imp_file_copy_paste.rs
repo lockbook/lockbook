@@ -37,12 +37,17 @@ impl super::App {
         let t = &self.account.tree;
 
         let entries = t.get_selected_ids();
-        if entries.len() != 1 {
-            t.show_msg("A single file must be selected in order to paste.");
+        if entries.len() > 1 {
+            t.show_msg("Only one file can be selected in order to paste.");
             return;
         }
 
-        let selected_id = *entries.get(0).unwrap();
+        // Use root if no file is selected.
+        let selected_id = match entries.get(0) {
+            Some(id) => *id,
+            None => self.account.tree.root_id()
+        };
+
         let dest_id = match self.api.file_by_id(selected_id) {
             Ok(meta) => match meta.file_type {
                 lb::FileType::Document => meta.parent,

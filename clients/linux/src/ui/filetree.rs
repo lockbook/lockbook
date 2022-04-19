@@ -213,6 +213,12 @@ impl FileTree {
             .collect()
     }
 
+    pub fn root_id(&self) -> lb::Uuid {
+        let iter = self.model.iter_first().unwrap();
+        let tpath = self.model.path(&iter);
+        ui::id_from_tpath(&self.model, &tpath)
+    }
+
     pub fn add_file(&self, fm: &lb::FileMetadata) -> Result<(), String> {
         match self.search(fm.parent) {
             Some(parent_iter) => {
