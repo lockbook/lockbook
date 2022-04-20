@@ -1,5 +1,5 @@
 use lockbook_core::service::api_service;
-use lockbook_models::api::{GetUpdatesRequest, NewAccountRequest};
+use lockbook_models::api::GetUpdatesRequest;
 use test_utils::test_core_with_account;
 
 #[test]

@@ -1,6 +1,5 @@
 use crate::*;
 use criterion::{black_box, criterion_group, BenchmarkId, Criterion, Throughput};
-use lockbook_core::service::integrity_service;
 use lockbook_models::file_metadata::FileType;
 use test_utils::*;
 use uuid::Uuid;

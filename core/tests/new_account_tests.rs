@@ -1,5 +1,4 @@
 use lockbook_core::pure_functions::files;
-use lockbook_core::repo::schema::helper_log::account;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_core::service::{api_service, file_encryption_service};
 use lockbook_crypto::pubkey;
@@ -26,7 +25,7 @@ fn new_account() {
 #[test]
 fn new_account_duplicate_pk() {
     let first = random_account();
-    test_account(&first);
+    test_account(&first).unwrap();
 
     let mut second = random_account();
     second.private_key = first.private_key;

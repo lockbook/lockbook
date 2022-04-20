@@ -1,7 +1,7 @@
 use lockbook_core::service::import_export_service::{ImportExportFileInfo, ImportStatus};
 use lockbook_models::file_metadata::FileType;
 use rand::Rng;
-use std::ops::Deref;
+
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use test_utils::test_core_with_account;

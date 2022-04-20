@@ -251,4 +251,3 @@ pub fn is_deleted<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Result<boo
         .into_iter()
         .any(|f| f.id() == target_id))
 }
-

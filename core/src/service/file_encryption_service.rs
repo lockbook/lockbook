@@ -183,4 +183,3 @@ pub fn decrypt_document(
 ) -> Result<DecryptedDocument, CoreError> {
     symkey::decrypt(&metadata.decrypted_access_key, document).map_err(core_err_unexpected)
 }
-

@@ -1,12 +1,4 @@
-use hmdb::transaction::Transaction;
-use lockbook_models::file_metadata::FileType;
-
-use lockbook_core::pure_functions::files;
-use lockbook_core::service::file_service;
-use lockbook_core::{
-    model::repo::RepoSource,
-    service::usage_service::{self, UsageItemMetric},
-};
+use lockbook_core::service::usage_service::{self, UsageItemMetric};
 use test_utils::*;
 
 #[test]
@@ -27,7 +19,6 @@ fn bytes_to_human_gb() {
 #[test]
 fn get_uncompressed_usage_no_documents() {
     let core = &test_core_with_account();
-    let account = core.get_account().unwrap();
 
     assert_eq!(
         core.get_uncompressed_usage().unwrap(),

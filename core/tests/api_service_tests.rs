@@ -3,10 +3,7 @@ use libsecp256k1::PublicKey;
 use lockbook_core::get_code_version;
 use lockbook_core::service::api_service::{request_helper, ApiError};
 use lockbook_crypto::clock_service::{get_time, Timestamp};
-use lockbook_models::api::{
-    GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, NewAccountError,
-    NewAccountRequest,
-};
+use lockbook_models::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
 use test_utils::assert_matches;
 use test_utils::test_core_with_account;
 

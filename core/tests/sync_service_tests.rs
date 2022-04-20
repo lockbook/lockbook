@@ -2,7 +2,6 @@ use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use lockbook_core::model::repo::RepoSource;
 use lockbook_core::pure_functions::files;
-use lockbook_core::service::file_service;
 use test_utils::Operation::*;
 use test_utils::*;
 
@@ -191,7 +190,7 @@ fn synced_device() {
         // new_file_name_same_as_username
         vec![
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs, _| {
                     let db = &dbs[0];
                     let account = db.get_account().unwrap();
                     db.create_at_path(&path(db, &account.username)).unwrap();
@@ -3263,8 +3262,6 @@ fn path_conflict_resolution() {
 #[test]
 fn test_path_conflict() {
     let db1 = test_core_with_account();
-
-    let root = db1.get_root().unwrap();
     let db2 = test_core_from(&db1);
 
     db1.create_at_path(&path(&db1, "new.md")).unwrap();
@@ -3287,8 +3284,6 @@ fn test_path_conflict() {
 #[test]
 fn test_path_conflict2() {
     let db1 = test_core_with_account();
-
-    let root = db1.get_root().unwrap();
     let db2 = test_core_from(&db1);
 
     db1.create_at_path(&path(&db1, "new-1.md")).unwrap();
@@ -3311,8 +3306,6 @@ fn test_path_conflict2() {
 #[test]
 fn deleted_path_is_released() {
     let db1 = test_core_with_account();
-    let root = db1.get_root().unwrap();
-
     let file1 = db1.create_at_path(&path(&db1, "file1.md")).unwrap();
     db1.sync(None).unwrap();
 
@@ -3336,7 +3329,6 @@ fn deleted_path_is_released() {
 #[test]
 fn fuzzer_stuck_test() {
     let db1 = test_core_with_account();
-    let root = db1.get_root().unwrap();
     let b = db1.create_at_path(&path(&db1, "b")).unwrap();
     let c = db1.create_at_path(&path(&db1, "c/")).unwrap();
     let d = db1.create_at_path(&path(&db1, "c/d/")).unwrap();
@@ -3373,7 +3365,6 @@ fn fuzzer_stuck_test_2() {
 #[test]
 fn fuzzer_stuck_test_3() {
     let db1 = test_core_with_account();
-    let root = db1.get_account().unwrap();
     let db2 = test_core_from(&db1);
 
     db1.sync(None).unwrap();
@@ -3468,7 +3459,6 @@ fn fuzzer_stuck_test_5() {
 #[test]
 fn fuzzer_get_updates_required_test() {
     let db1 = test_core_with_account();
-    let root = db1.get_root().unwrap();
 
     let document = db1.create_at_path(&path(&db1, "document")).unwrap();
 

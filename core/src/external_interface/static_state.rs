@@ -1,6 +1,6 @@
 use crate::{unexpected_only, Config, LbCore, UnexpectedError};
 use lazy_static::lazy_static;
-use std::sync::{Arc, RwLock, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 lazy_static! {
     static ref STATE: Arc<RwLock<Option<LbCore>>> = Arc::new(RwLock::new(None));

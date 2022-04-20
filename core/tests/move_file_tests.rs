@@ -1,11 +1,9 @@
-use lockbook_core::pure_functions::files;
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
 use test_utils::*;
 
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::FileMetadataDiff;
-use lockbook_models::file_metadata::FileType;
 
 #[test]
 fn move_document() {
@@ -117,7 +115,6 @@ fn move_document_deleted() {
 fn move_document_conflict() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
-    let root = core.get_root().unwrap();
 
     let doc = core.create_at_path(&path(&core, "doc.md")).unwrap().id;
     let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
@@ -257,7 +254,7 @@ fn move_folder_into_descendants() {
         .create_at_path(&path(&core, "folder1/folder2/"))
         .unwrap()
         .id;
-    let mut folder2 = core.db.local_metadata.get(&folder2).unwrap().unwrap();
+    let folder2 = core.db.local_metadata.get(&folder2).unwrap().unwrap();
 
     api_service::request(
         &account,
@@ -289,7 +286,7 @@ fn move_document_into_document() {
     let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     let doc2 = core.create_at_path(&path(&core, "doc2.md")).unwrap().id;
-    let mut doc2 = core.db.local_metadata.get(&doc2).unwrap().unwrap();
+    let doc2 = core.db.local_metadata.get(&doc2).unwrap().unwrap();
 
     api_service::request(
         &account,

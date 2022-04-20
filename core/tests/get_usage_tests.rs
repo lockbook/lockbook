@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use lockbook_core::model::repo::RepoSource;
 use lockbook_core::repo::document_repo;
 use lockbook_models::file_metadata::FileType;

@@ -3,7 +3,6 @@ use std::cmp::Ordering;
 use crate::Actions::*;
 use indicatif::{ProgressBar, ProgressStyle};
 use lockbook_core::model::errors::MoveFileError;
-use lockbook_core::service::sync_service::sync;
 use lockbook_core::Error::UiError;
 use lockbook_core::LbCore;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
@@ -11,7 +10,6 @@ use lockbook_models::file_metadata::FileType::{Document, Folder};
 use rand::distributions::{Alphanumeric, Distribution, Standard};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use test_utils::*;
 use test_utils::*;
 use variant_count::VariantCount;
 

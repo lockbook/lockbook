@@ -16,9 +16,8 @@ pub use lockbook_core::Error::Unexpected;
 pub use lockbook_core::UnexpectedError;
 
 pub use lockbook_core::model::errors::AccountExportError as ExportAccountError;
-pub use lockbook_core::model::errors::CreateAccountError;
-pub use lockbook_core::model::errors::ImportError as ImportAccountError;
 pub use lockbook_core::model::errors::CalculateWorkError;
+pub use lockbook_core::model::errors::CreateAccountError;
 pub use lockbook_core::model::errors::CreateFileError;
 pub use lockbook_core::model::errors::ExportFileError;
 pub use lockbook_core::model::errors::FileDeleteError;
@@ -27,6 +26,7 @@ pub use lockbook_core::model::errors::GetFileByIdError;
 pub use lockbook_core::model::errors::GetFileByPathError;
 pub use lockbook_core::model::errors::GetRootError;
 pub use lockbook_core::model::errors::GetUsageError;
+pub use lockbook_core::model::errors::ImportError as ImportAccountError;
 pub use lockbook_core::model::errors::ImportFileError;
 pub use lockbook_core::model::errors::MigrationError;
 pub use lockbook_core::model::errors::ReadDocumentError;
@@ -161,7 +161,9 @@ impl Api for DefaultApi {
         match self.core.get_account() {
             Ok(acct) => Ok(Some(acct)),
             Err(err) => match err {
-                Error::UiError(lockbook_core::model::errors::GetAccountError::NoAccount) => Ok(None),
+                Error::UiError(lockbook_core::model::errors::GetAccountError::NoAccount) => {
+                    Ok(None)
+                }
                 Error::Unexpected(msg) => Err(msg),
             },
         }

@@ -1,8 +1,6 @@
-use crate::*;
 use criterion::{black_box, criterion_group, BenchmarkId, Criterion, Throughput};
 use lockbook_models::file_metadata::FileType;
 use test_utils::test_core_with_account;
-use test_utils::*;
 use uuid::Uuid;
 
 const BYTES_LEN_1: u64 = 100;

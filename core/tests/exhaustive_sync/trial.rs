@@ -63,7 +63,7 @@ impl Trial {
             self.clients.push(test_core());
         }
 
-        &self.clients[0]
+        self.clients[0]
             .create_account(&random_name(), &url())
             .map_err(|err| Failed(format!("failed to create account: {:#?}", err)))?;
         let account_string = &self.clients[0].export_account().unwrap();

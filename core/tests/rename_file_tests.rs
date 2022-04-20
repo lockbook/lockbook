@@ -3,7 +3,6 @@ use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::FileMetadataDiff;
-use lockbook_models::file_metadata::FileType;
 use test_utils::*;
 
 #[test]
@@ -13,7 +12,7 @@ fn rename_document() {
     let root = core.get_root().unwrap();
 
     let doc = core.create_at_path(&path(&core, "test.md")).unwrap().id;
-    let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
+    let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     api_service::request(
         &account,
@@ -23,7 +22,7 @@ fn rename_document() {
 
     let old_name = doc.name.clone();
     core.rename_file(doc.id, &random_name()).unwrap();
-    let mut doc = core.db.local_metadata.get(&doc.id).unwrap().unwrap();
+    let doc = core.db.local_metadata.get(&doc.id).unwrap().unwrap();
 
     api_service::request(
         &account,
@@ -65,7 +64,7 @@ fn rename_document_deleted() {
     let root = core.get_root().unwrap();
 
     let doc = core.create_at_path(&path(&core, "test.md")).unwrap().id;
-    let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
+    let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     api_service::request(
         &account,
@@ -94,7 +93,7 @@ fn rename_document_conflict() {
     let root = core.get_root().unwrap();
 
     let doc = core.create_at_path(&path(&core, "test.md")).unwrap().id;
-    let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
+    let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     api_service::request(
         &account,
@@ -103,7 +102,7 @@ fn rename_document_conflict() {
     .unwrap();
 
     core.rename_file(doc.id, &random_name()).unwrap();
-    let mut doc = core.db.local_metadata.get(&doc.id).unwrap().unwrap();
+    let doc = core.db.local_metadata.get(&doc.id).unwrap().unwrap();
 
     let result = api_service::request(
         &account,
@@ -126,7 +125,7 @@ fn rename_document_path_taken() {
     let mut doc1 = core.db.local_metadata.get(&doc1).unwrap().unwrap();
 
     let doc2 = core.create_at_path(&path(&core, "test2.md")).unwrap().id;
-    let mut doc2 = core.db.local_metadata.get(&doc2).unwrap().unwrap();
+    let doc2 = core.db.local_metadata.get(&doc2).unwrap().unwrap();
 
     api_service::request(
         &account,

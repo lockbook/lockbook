@@ -7,7 +7,7 @@ use lockbook_core::service::api_service::ApiError;
 use lockbook_core::service::path_service::Filter::DocumentsOnly;
 use lockbook_core::{Config, LbCore};
 use lockbook_models::api::{AccountTier, FileMetadataUpsertsError, PaymentMethod};
-use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata};
+use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::tree::{FileMetaExt, FileMetadata};
 use lockbook_models::work_unit::WorkUnit;
 use std::collections::HashMap;
@@ -232,12 +232,7 @@ pub fn assert_local_work_paths(
     let mut expected_paths = expected_paths.to_vec();
     let mut actual_paths: Vec<String> = get_dirty_ids(db, false)
         .iter()
-        .map(|&id| {
-            db.db
-                .transaction(|tx| Tx::path_by_id_helper(&all_local_files, id))
-                .unwrap()
-                .unwrap()
-        })
+        .map(|&id| Tx::path_by_id_helper(&all_local_files, id).unwrap())
         .map(|path| String::from(&path[root.decrypted_name.len() + 1..]))
         .collect();
     actual_paths.sort_unstable();
