@@ -18,9 +18,6 @@ use lockbook_models::account::Account;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 use uuid::Uuid;
 
-#[cfg(target_os = "windows")]
-use dirs::document_dir;
-
 #[macro_export]
 macro_rules! path_string {
     ($pb:expr) => {
@@ -118,17 +115,6 @@ pub fn get_editor() -> SupportedEditors {
     }
 }
 
-#[cfg(target_os = "windows")]
-pub fn get_directory_location() -> CliResult<PathBuf> {
-    let mut result = document_dir().get_or_insert(env::temp_dir()).to_path_buf();
-    result.push(format!("{}", Uuid::new_v4()));
-
-    fs::create_dir(&result)
-        .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
-    Ok(result)
-}
-
-#[cfg(not(target_os = "windows"))]
 pub fn get_directory_location() -> CliResult<PathBuf> {
     let mut result = env::temp_dir();
     result.push(format!("{}", Uuid::new_v4()));
