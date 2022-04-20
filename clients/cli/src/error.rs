@@ -44,13 +44,6 @@ impl CliError {
         )
     }
 
-    pub fn uninstall_required() -> Self {
-        Self::new(
-            ErrCode::UninstallRequired,
-            "Your local state cannot be migrated, please re-sync with a fresh client.",
-        )
-    }
-
     pub fn expected_stdin() -> Self {
         Self::new(ErrCode::ExpectedStdin, "expected stdin")
     }
@@ -265,11 +258,10 @@ make_errcode_enum!(
     3 => Unexpected,
     4 => NetworkIssue,
     5 => UpdateRequired,
-    6 => UninstallRequired,
-    7 => ExpectedStdin,
-    8 => NoCliLocation,
-    9 => NoRoot,
-    10 => ServerDisabled,
+    6 => ExpectedStdin,
+    7 => NoCliLocation,
+    8 => NoRoot,
+    9 => ServerDisabled,
 
     // Account (20s)
     20 => NoAccount,
