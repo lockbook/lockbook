@@ -55,14 +55,6 @@ data class Config(
 )
 
 @Serializable
-enum class State {
-    ReadyToUse,
-    Empty,
-    MigrationRequired,
-    StateRequiresClearing
-}
-
-@Serializable
 data class UsageMetrics(
     val usages: List<FileUsage>,
     @SerialName("server_usage")
@@ -84,6 +76,3 @@ data class FileUsage(
     @SerialName("size_bytes")
     val sizeBytes: Int,
 )
-
-inline fun <reified T : Enum<T>> String.asEnumOrDefault(defaultValue: T? = null): T? =
-    enumValues<T>().firstOrNull { it.name.equals(this, ignoreCase = true) } ?: defaultValue

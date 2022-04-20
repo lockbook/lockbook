@@ -106,14 +106,6 @@ enum class GetUsageError : UiCoreError {
 enum class GetStateError : UiCoreError
 
 @Serializable
-enum class MigrationError : UiCoreError {
-    StateRequiresCleaning;
-
-    override fun toLbError(res: Resources): LbError = when (this) {
-        StateRequiresCleaning -> LbError.newUserError(getString(res, R.string.state_requires_cleaning))
-    }
-}
-@Serializable
 enum class CreateAccountError : UiCoreError {
     UsernameTaken,
     InvalidUsername,
@@ -131,6 +123,7 @@ enum class CreateAccountError : UiCoreError {
         ServerDisabled -> LbError.newUserError(getString(res, R.string.new_account_disabled))
     }
 }
+
 @Serializable
 enum class ImportError : UiCoreError {
     AccountStringCorrupted,
@@ -149,6 +142,7 @@ enum class ImportError : UiCoreError {
         ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
     }
 }
+
 @Serializable
 enum class AccountExportError : UiCoreError {
     NoAccount;
@@ -174,6 +168,7 @@ enum class GetRootError : UiCoreError {
         NoRoot -> LbError.newUserError(getString(res, R.string.no_root))
     }
 }
+
 @Serializable
 enum class WriteToDocumentError : UiCoreError {
     NoAccount,
@@ -186,6 +181,7 @@ enum class WriteToDocumentError : UiCoreError {
         FolderTreatedAsDocument -> LbError.newUserError(getString(res, R.string.folder_treated_as_document))
     }
 }
+
 @Serializable
 enum class CreateFileError : UiCoreError {
     NoAccount,
@@ -204,6 +200,7 @@ enum class CreateFileError : UiCoreError {
         FileNameEmpty -> LbError.newUserError(getString(res, R.string.file_name_empty))
     }
 }
+
 @Serializable
 enum class GetChildrenError : UiCoreError
 
@@ -225,6 +222,7 @@ enum class FileDeleteError : UiCoreError {
         CannotDeleteRoot -> LbError.newUserError(getString(res, R.string.cannot_delete_root))
     }
 }
+
 @Serializable
 enum class ReadDocumentError : UiCoreError {
     TreatedFolderAsDocument,
@@ -237,6 +235,7 @@ enum class ReadDocumentError : UiCoreError {
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
     }
 }
+
 @Serializable
 enum class SaveDocumentToDiskError : UiCoreError {
     TreatedFolderAsDocument,
@@ -253,6 +252,7 @@ enum class SaveDocumentToDiskError : UiCoreError {
         FileAlreadyExistsInDisk -> LbError.newUserError(getString(res, R.string.file_already_exists_on_disk))
     }
 }
+
 @Serializable
 enum class ExportDrawingToDiskError : UiCoreError {
     FolderTreatedAsDrawing,
@@ -271,6 +271,7 @@ enum class ExportDrawingToDiskError : UiCoreError {
         FileAlreadyExistsInDisk -> LbError.newUserError(getString(res, R.string.file_already_exists_on_disk))
     }
 }
+
 @Serializable
 enum class RenameFileError : UiCoreError {
     FileDoesNotExist,
@@ -287,6 +288,7 @@ enum class RenameFileError : UiCoreError {
         CannotRenameRoot -> LbError.newUserError(getString(res, R.string.cannot_rename_root))
     }
 }
+
 @Serializable
 enum class MoveFileError : UiCoreError {
     NoAccount,
@@ -307,6 +309,7 @@ enum class MoveFileError : UiCoreError {
         FolderMovedIntoItself -> LbError.newUserError(getString(res, R.string.folder_moved_into_itself))
     }
 }
+
 @Serializable
 enum class SyncAllError : UiCoreError {
     NoAccount,
@@ -319,6 +322,7 @@ enum class SyncAllError : UiCoreError {
         ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
     }
 }
+
 @Serializable
 enum class CalculateWorkError : UiCoreError {
     NoAccount,
