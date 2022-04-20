@@ -13,7 +13,6 @@ pub fn init(config: &Config) -> Result<(), UnexpectedError> {
         .write()
         .map_err(|err| unexpected_only!("{:#?}", err))?
         .replace(core);
-    STATE.read().unwrap().clone().unwrap();
     Ok(())
 }
 
