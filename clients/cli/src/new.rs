@@ -2,8 +2,8 @@ use std::fs;
 use std::fs::File;
 use std::path::Path;
 
-use lockbook_core::model::errors::FileDeleteError;
 use lockbook_core::model::errors::CreateFileAtPathError;
+use lockbook_core::model::errors::FileDeleteError;
 use lockbook_core::Error as LbError;
 use lockbook_core::LbCore;
 use lockbook_models::file_metadata::FileType::Folder;
@@ -55,13 +55,14 @@ pub fn new(core: &LbCore, lb_path: &str) -> Result<(), CliError> {
         }
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
-        core.delete_file(file_metadata.id).map_err(|err| match err {
-            LbError::UiError(err) => match err {
-                FileDeleteError::FileDoesNotExist => CliError::file_not_found(lb_path),
-                FileDeleteError::CannotDeleteRoot => CliError::no_root_ops("delete"),
-            }
-            LbError::Unexpected(msg) => CliError::unexpected(msg),
-        })?;
+        core.delete_file(file_metadata.id)
+            .map_err(|err| match err {
+                LbError::UiError(err) => match err {
+                    FileDeleteError::FileDoesNotExist => CliError::file_not_found(lb_path),
+                    FileDeleteError::CannotDeleteRoot => CliError::no_root_ops("delete"),
+                },
+                LbError::Unexpected(msg) => CliError::unexpected(msg),
+            })?;
     }
 
     fs::remove_file(&temp_file_path).map_err(|err| {
