@@ -326,10 +326,7 @@ fn get_metadata_local_falls_back_to_base() {
     let core = test_core_with_account();
     let dir = core.create_at_path(&path(&core, "test/")).unwrap();
     let db_dir = core.db.local_metadata.delete(dir.id).unwrap().unwrap();
-    core.db
-        .base_metadata
-        .insert(db_dir.id, db_dir.clone())
-        .unwrap();
+    core.db.base_metadata.insert(db_dir.id, db_dir).unwrap();
 
     let result = core
         .db
@@ -456,7 +453,7 @@ fn get_document_nonexistent() {
         RepoSource::Local,
         &files::create(
             FileType::Document,
-            files::create_root(&account).id,
+            files::create_root(account).id,
             "asdf",
             &account.public_key(),
         ),

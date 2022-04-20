@@ -29,7 +29,7 @@ fn get_uncompressed_usage_no_documents() {
 #[test]
 fn get_uncompressed_usage_empty_document() {
     let core = &test_core_with_account();
-    let document = core.create_at_path(&path(&core, "document")).unwrap();
+    let document = core.create_at_path(&path(core, "document")).unwrap();
     core.write_document(document.id, b"").unwrap();
     assert_eq!(
         core.get_uncompressed_usage().unwrap(),
@@ -40,7 +40,7 @@ fn get_uncompressed_usage_empty_document() {
 #[test]
 fn get_uncompressed_usage_one_document() {
     let core = &test_core_with_account();
-    let document = core.create_at_path(&path(&core, "document")).unwrap();
+    let document = core.create_at_path(&path(core, "document")).unwrap();
 
     core.write_document(document.id, b"0123456789").unwrap();
 
@@ -53,8 +53,8 @@ fn get_uncompressed_usage_one_document() {
 #[test]
 fn get_uncompressed_usage_multiple_documents() {
     let core = &test_core_with_account();
-    let document1 = core.create_at_path(&path(&core, "document1")).unwrap();
-    let document2 = core.create_at_path(&path(&core, "document2")).unwrap();
+    let document1 = core.create_at_path(&path(core, "document1")).unwrap();
+    let document2 = core.create_at_path(&path(core, "document2")).unwrap();
 
     core.write_document(document1.id, b"01234").unwrap();
     core.write_document(document2.id, b"56789").unwrap();

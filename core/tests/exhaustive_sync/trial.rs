@@ -4,8 +4,8 @@ use crate::exhaustive_sync::trial::Status::{Failed, Ready, Running, Succeeded};
 use crate::exhaustive_sync::utils::{find_by_name, random_filename, random_utf8};
 use lockbook_core::model::errors::MoveFileError;
 use lockbook_core::service::api_service;
-use lockbook_core::Error::UiError;
 use lockbook_core::Core;
+use lockbook_core::Error::UiError;
 use lockbook_models::api::DeleteAccountRequest;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use std::time::Instant;
@@ -70,7 +70,7 @@ impl Trial {
 
         for client in &self.clients[1..] {
             client
-                .import_account(&account_string)
+                .import_account(account_string)
                 .map_err(|err| Failed(format!("{:#?}", err)))?;
             client
                 .sync(None)
@@ -318,7 +318,7 @@ impl Trial {
     fn cleanup(&self) {
         if let Ok(account) = &self.clients[0].get_account() {
             // Delete account in server
-            api_service::request(&account, DeleteAccountRequest {}).unwrap_or_else(|err| {
+            api_service::request(account, DeleteAccountRequest {}).unwrap_or_else(|err| {
                 println!("Failed to delete account: {} error : {:?}", account.username, err)
             });
 

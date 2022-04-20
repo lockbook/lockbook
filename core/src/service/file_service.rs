@@ -30,7 +30,7 @@ impl Tx<'_> {
         let all_metadata = self.get_all_metadata(RepoSource::Local)?;
         let metadata =
             files::apply_create(&all_metadata, file_type, parent, name, &account.public_key())?;
-        self.insert_metadatum(&config, RepoSource::Local, &metadata)?;
+        self.insert_metadatum(config, RepoSource::Local, &metadata)?;
         Ok(metadata)
     }
     pub fn root(&self) -> Result<DecryptedFileMetadata, CoreError> {
@@ -245,7 +245,7 @@ impl Tx<'_> {
     pub fn delete_file(&mut self, config: &Config, id: Uuid) -> Result<(), CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
         let file = files::apply_delete(&files, id)?;
-        self.insert_metadatum(&config, RepoSource::Local, &file)?;
+        self.insert_metadatum(config, RepoSource::Local, &file)?;
         self.prune_deleted(config)
     }
 

@@ -5,8 +5,8 @@ use uuid::Uuid;
 
 use lockbook_core::model::errors::WriteToDocumentError;
 use lockbook_core::pure_functions::drawing::SupportedImageFormats;
-use lockbook_core::Error as LbError;
 use lockbook_core::Core;
+use lockbook_core::Error as LbError;
 
 use crate::error::CliError;
 

@@ -124,7 +124,7 @@ pub fn run(ops: &[Operation]) {
             Operation::Move { client_num, path, new_parent_path } => {
                 || -> Result<_, String> {
                     let core = &cores[*client_num];
-                    let path = core.get_root().unwrap().decrypted_name.clone() + "/" + path;
+                    let path = core.get_root().unwrap().decrypted_name + "/" + path;
                     let new_parent_path = root.decrypted_name.clone() + "/" + new_parent_path;
                     let target = core.get_by_path(&path).map_err(err_to_string)?;
                     let new_parent = core.get_by_path(&new_parent_path).map_err(err_to_string)?;
