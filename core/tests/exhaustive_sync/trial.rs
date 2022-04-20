@@ -5,7 +5,7 @@ use crate::exhaustive_sync::utils::{find_by_name, random_filename, random_utf8};
 use lockbook_core::model::errors::MoveFileError;
 use lockbook_core::service::api_service;
 use lockbook_core::Error::UiError;
-use lockbook_core::LbCore;
+use lockbook_core::Core;
 use lockbook_models::api::DeleteAccountRequest;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use std::time::Instant;
@@ -47,7 +47,7 @@ impl Status {
 #[derive(Clone, Debug)]
 pub struct Trial {
     pub id: Uuid,
-    pub clients: Vec<LbCore>,
+    pub clients: Vec<Core>,
     pub target_clients: usize,
     pub target_steps: usize,
     pub steps: Vec<Action>,

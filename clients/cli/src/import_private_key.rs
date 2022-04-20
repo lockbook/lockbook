@@ -1,10 +1,10 @@
 use lockbook_core::model::errors::ImportError;
 use lockbook_core::Error as LbError;
-use lockbook_core::LbCore;
+use lockbook_core::Core;
 
 use crate::error::CliError;
 
-pub fn import_private_key(core: &LbCore) -> Result<(), CliError> {
+pub fn import_private_key(core: &Core) -> Result<(), CliError> {
     if atty::is(atty::Stream::Stdin) {
         Err(CliError::expected_stdin().with_extra(
             "To import an existing Lockbook, pipe your account string into this command, \

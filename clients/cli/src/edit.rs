@@ -5,7 +5,7 @@ use std::path::Path;
 use lockbook_core::model::errors::GetFileByPathError;
 use lockbook_core::model::errors::ReadDocumentError;
 use lockbook_core::Error as LbError;
-use lockbook_core::LbCore;
+use lockbook_core::Core;
 
 use crate::error::CliError;
 use crate::utils::{
@@ -13,7 +13,7 @@ use crate::utils::{
     stop_auto_save,
 };
 
-pub fn edit(core: &LbCore, lb_path: &str) -> Result<(), CliError> {
+pub fn edit(core: &Core, lb_path: &str) -> Result<(), CliError> {
     core.get_account()?;
 
     let file_metadata = core.get_by_path(lb_path).map_err(|err| match err {

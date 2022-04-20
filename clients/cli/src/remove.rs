@@ -4,13 +4,13 @@ use std::io::Write;
 use lockbook_core::model::errors::FileDeleteError;
 use lockbook_core::model::errors::GetAndGetChildrenError;
 use lockbook_core::model::errors::GetFileByPathError;
+use lockbook_core::Core;
 use lockbook_core::Error as LbError;
-use lockbook_core::LbCore;
 use lockbook_models::file_metadata::FileType;
 
 use crate::error::CliError;
 
-pub fn remove(core: &LbCore, lb_path: &str, force: bool) -> Result<(), CliError> {
+pub fn remove(core: &Core, lb_path: &str, force: bool) -> Result<(), CliError> {
     core.get_account()?;
 
     let meta = core.get_by_path(lb_path).map_err(|err| match err {

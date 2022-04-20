@@ -2,12 +2,12 @@ use std::io;
 use std::io::Write;
 
 use lockbook_core::model::errors::GetFileByPathError;
+use lockbook_core::Core;
 use lockbook_core::Error as LbError;
-use lockbook_core::LbCore;
 
 use crate::error::CliError;
 
-pub fn print(core: &LbCore, lb_path: &str) -> Result<(), CliError> {
+pub fn print(core: &Core, lb_path: &str) -> Result<(), CliError> {
     core.get_account()?;
 
     let file_metadata = core.get_by_path(lb_path).map_err(|err| match err {

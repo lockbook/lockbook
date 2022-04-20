@@ -1,13 +1,13 @@
-use crate::{unexpected_only, Config, LbCore, UnexpectedError};
+use crate::{unexpected_only, Config, Core, UnexpectedError};
 use lazy_static::lazy_static;
 use std::sync::{Arc, RwLock};
 
 lazy_static! {
-    static ref STATE: Arc<RwLock<Option<LbCore>>> = Arc::new(RwLock::new(None));
+    static ref STATE: Arc<RwLock<Option<Core>>> = Arc::new(RwLock::new(None));
 }
 
 pub fn init(config: &Config) -> Result<(), UnexpectedError> {
-    let core = LbCore::init(config)?;
+    let core = Core::init(config)?;
     STATE
         .write()
         .map_err(|err| unexpected_only!("{:#?}", err))?
@@ -15,7 +15,7 @@ pub fn init(config: &Config) -> Result<(), UnexpectedError> {
     Ok(())
 }
 
-pub fn get() -> Result<LbCore, UnexpectedError> {
+pub fn get() -> Result<Core, UnexpectedError> {
     STATE
         .read()
         .map_err(|err| unexpected_only!("{:#?}", err))?

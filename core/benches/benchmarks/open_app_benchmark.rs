@@ -1,6 +1,6 @@
 use crate::*;
 use criterion::{black_box, criterion_group, Criterion};
-use lockbook_core::LbCore;
+use lockbook_core::Core;
 use lockbook_models::file_metadata::FileType;
 use test_utils::*;
 use uuid::Uuid;
@@ -15,7 +15,7 @@ fn open_app_benchmark(c: &mut Criterion) {
 fn get_state_benchmark(c: &mut Criterion) {
     let core = test_core_with_account();
 
-    c.bench_function("open_app_get_state", |b| b.iter(|| LbCore::init(&core.config).unwrap()));
+    c.bench_function("open_app_get_state", |b| b.iter(|| Core::init(&core.config).unwrap()));
 }
 
 fn get_account_benchmark(c: &mut Criterion) {
@@ -23,7 +23,7 @@ fn get_account_benchmark(c: &mut Criterion) {
 
     c.bench_function("open_app_get_account", |b| {
         b.iter(|| {
-            let core2 = LbCore::init(&core.config).unwrap();
+            let core2 = Core::init(&core.config).unwrap();
             core2.get_account().unwrap();
         })
     });
@@ -55,7 +55,7 @@ fn list_metadatas_benchmark(c: &mut Criterion) {
 
         list_metadatas_group.bench_function(size.to_string(), |b| {
             b.iter(|| {
-                let core2 = LbCore::init(&core1.config).unwrap();
+                let core2 = Core::init(&core1.config).unwrap();
                 core2.list_metadatas().unwrap();
             })
         });
@@ -90,7 +90,7 @@ fn list_paths_benchmark(c: &mut Criterion) {
 
         list_paths_group.bench_function(size.to_string(), |b| {
             b.iter(|| {
-                let core2 = LbCore::init(&core1.config).unwrap();
+                let core2 = Core::init(&core1.config).unwrap();
                 core2.list_paths(None).unwrap();
             })
         });

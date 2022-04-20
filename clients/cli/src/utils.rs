@@ -6,7 +6,7 @@ use uuid::Uuid;
 use lockbook_core::model::errors::WriteToDocumentError;
 use lockbook_core::pure_functions::drawing::SupportedImageFormats;
 use lockbook_core::Error as LbError;
-use lockbook_core::LbCore;
+use lockbook_core::Core;
 
 use crate::error::CliError;
 
@@ -112,7 +112,7 @@ pub fn edit_file_with_editor(file_location: &str) -> bool {
     }
 }
 
-pub fn print_last_successful_sync(core: &LbCore) -> Result<(), CliError> {
+pub fn print_last_successful_sync(core: &Core) -> Result<(), CliError> {
     if atty::is(atty::Stream::Stdout) {
         let last_updated = core.get_last_synced_human_string().map_err(|err| {
             CliError::unexpected(format!("attempting to retrieve usage: {:#?}", err))
@@ -123,7 +123,7 @@ pub fn print_last_successful_sync(core: &LbCore) -> Result<(), CliError> {
     Ok(())
 }
 
-pub fn set_up_auto_save(core: &LbCore, id: Uuid, location: String) -> Option<Hotwatch> {
+pub fn set_up_auto_save(core: &Core, id: Uuid, location: String) -> Option<Hotwatch> {
     let core = core.clone();
     match Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5)) {
         Ok(mut watcher) => {
@@ -155,7 +155,7 @@ pub fn stop_auto_save(mut watcher: Hotwatch, file_location: String) {
         .unwrap_or_else(|err| eprintln!("file watcher failed to unwatch: {:#?}", err))
 }
 
-pub fn save_temp_file_contents(core: &LbCore, id: Uuid, location: &str) -> Result<(), CliError> {
+pub fn save_temp_file_contents(core: &Core, id: Uuid, location: &str) -> Result<(), CliError> {
     let secret = fs::read_to_string(&location)
         .map_err(|err| {
             CliError::unexpected(format!(

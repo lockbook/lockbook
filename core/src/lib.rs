@@ -43,12 +43,12 @@ pub struct Config {
 }
 
 #[derive(Clone, Debug)]
-pub struct LbCore {
+pub struct Core {
     pub config: Config,
     pub db: CoreV1,
 }
 
-impl LbCore {
+impl Core {
     pub fn init(config: &Config) -> Result<Self, UnexpectedError> {
         if config.logs {
             log_service::init(&config.writeable_path)?;

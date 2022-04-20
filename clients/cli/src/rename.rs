@@ -1,11 +1,11 @@
 use lockbook_core::model::errors::GetFileByPathError;
 use lockbook_core::model::errors::RenameFileError;
 use lockbook_core::Error as LbError;
-use lockbook_core::LbCore;
+use lockbook_core::Core;
 
 use crate::error::CliError;
 
-pub fn rename(core: &LbCore, path: &str, new_name: &str) -> Result<(), CliError> {
+pub fn rename(core: &Core, path: &str, new_name: &str) -> Result<(), CliError> {
     core.get_account()?;
 
     let target_id = core
