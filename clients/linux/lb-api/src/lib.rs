@@ -130,11 +130,12 @@ pub struct DefaultApi {
 
 impl DefaultApi {
     pub fn new() -> Result<Self, String> {
-        let writeable_path = std::env::var("LOCKBOOK_PATH")
-            .unwrap_or(format!("{}/.lockbook", std::env::var("HOME").unwrap()));
-        let cfg = Config { logs: true, writeable_path };
+        let lockbook_dir = std::env::var("LOCKBOOK_PATH")
+            .unwrap_or_else(|_| format!("{}/.lockbook", std::env::var("HOME").unwrap()));
 
-        let core = Core::init(&cfg).map_err(|e| e.0)?;
+        let writeable_path = format!("{}/linux", lockbook_dir);
+
+        let core = Core::init(&Config { logs: true, writeable_path }).map_err(|e| e.0)?;
 
         let sync_lock = Mutex::new(0);
 
