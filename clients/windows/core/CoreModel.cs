@@ -168,28 +168,6 @@ namespace Core {
         }
     }
 
-    namespace GetDbState {
-        public interface IResult { }
-        public class Success : IResult {
-            public DbState dbState;
-        }
-        public enum PossibleErrors {
-            Stub,
-        }
-        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
-        public class UnexpectedError : Core.UnexpectedError, IResult { }
-    }
-
-    namespace MigrateDb {
-        public interface IResult { }
-        public class Success : IResult { }
-        public enum PossibleErrors {
-            StateRequiresCleaning,
-        }
-        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
-        public class UnexpectedError : Core.UnexpectedError, IResult { }
-    }
-
     namespace CreateAccount {
         public interface IResult { }
         public class Success : IResult { }
@@ -328,7 +306,7 @@ namespace Core {
         public class UnexpectedError : Core.UnexpectedError, IResult { }
     }
 
-    namespace GetFileByPath {
+    namespace GetByPath {
         public interface IResult { }
         public class Success : IResult {
             public DecryptedFileMetadata file;

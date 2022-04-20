@@ -39,42 +39,6 @@ namespace test {
         }
 
         [TestMethod]
-        public void GetDbStateEmpty() {
-            var getDbStateResult = CoreService.GetDbState().WaitResult();
-            Assert.AreEqual(DbState.Empty,
-                CastOrDie(getDbStateResult, out Core.GetDbState.Success _).dbState);
-        }
-
-        [TestMethod]
-        public void GetDbStateReady() {
-            var getDbStateResult = CoreService.GetDbState().WaitResult();
-            Assert.AreEqual(DbState.Empty,
-                CastOrDie(getDbStateResult, out Core.GetDbState.Success _).dbState);
-
-            var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
-            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
-
-            var getDbStateResult2 = CoreService.GetDbState().WaitResult();
-            Assert.AreEqual(DbState.ReadyToUse,
-                CastOrDie(getDbStateResult2, out Core.GetDbState.Success _).dbState);
-        }
-
-        [TestMethod]
-        public void MigrateDb() {
-            // needs to be done first
-            var getDbStateResult = CoreService.GetDbState().WaitResult();
-            CastOrDie(getDbStateResult, out Core.GetDbState.Success _);
-
-            var username = RandomUsername();
-            var createAccountResult = CoreService.CreateAccount(username, apiUrl).WaitResult();
-            CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
-
-            var migrateDbResult = CoreService.MigrateDb().WaitResult();
-            CastOrDie(migrateDbResult, out Core.MigrateDb.Success _);
-        }
-
-        [TestMethod]
         public void AccountExistsFalse() {
             Assert.IsFalse(CoreService.AccountExists().WaitResult());
         }
@@ -733,16 +697,14 @@ namespace test {
                 {"GetAccountError", typeof(Core.GetAccount.PossibleErrors)},
                 {"GetChildrenError", typeof(Core.GetChildren.PossibleErrors)},
                 // {"GetFileByIdError", typeof(Core.???.PossibleErrors)},
-                {"GetFileByPathError", typeof(Core.GetFileByPath.PossibleErrors)},
+                {"GetFileByPathError", typeof(Core.GetByPath.PossibleErrors)},
                 {"GetLastSyncedError", typeof(Core.GetLastSynced.PossibleErrors)},
                 {"GetRootError", typeof(Core.GetRoot.PossibleErrors)},
-                {"GetStateError", typeof(Core.GetDbState.PossibleErrors)},
                 {"GetUsageError", typeof(Core.GetUsage.PossibleErrors)},
                 {"ImportError", typeof(Core.ImportAccount.PossibleErrors)},
                 // {"InsertFileError", typeof(Core.???.PossibleErrors)},
                 {"ListMetadatasError", typeof(Core.ListMetadatas.PossibleErrors)},
                 {"ListPathsError", typeof(Core.ListPaths.PossibleErrors)},
-                {"MigrationError", typeof(Core.MigrateDb.PossibleErrors)},
                 {"MoveFileError", typeof(Core.MoveFile.PossibleErrors)},
                 {"ReadDocumentError", typeof(Core.ReadDocument.PossibleErrors)},
                 {"RenameFileError", typeof(Core.RenameFile.PossibleErrors)},

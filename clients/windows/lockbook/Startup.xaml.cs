@@ -36,18 +36,9 @@ namespace lockbook {
                 Title = "Update Lockbook";
                 Message = "Update required.";
             } else {
-                switch (App.DbState) {
-                    case Core.DbState.MigrationRequired:
-                        Working = true;
-                        Title = "Finishing update";
-                        Message = "You've recently updated the app and we need to make some final adjustments.";
-                        break;
-                    default:
-                        Working = true;
-                        Title = "Loading";
-                        Message = "";
-                        break;
-                }
+                Working = true;
+                Title = "Loading";
+                Message = "";
             }
         }
 

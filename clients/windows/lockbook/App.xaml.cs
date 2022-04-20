@@ -48,17 +48,6 @@ namespace lockbook {
             }
         }
 
-        private static Core.DbState dbState;
-        public static Core.DbState DbState {
-            get {
-                return dbState;
-            }
-            set {
-                dbState = value;
-                Refresh();
-            }
-        }
-
         private static Dictionary<string, UIFile> uiFiles = new Dictionary<string, UIFile>();
         public static Dictionary<string, UIFile> UIFiles {
             get {
@@ -74,24 +63,13 @@ namespace lockbook {
         public static string AccountString { get; set; }
 
         public static void Refresh() {
-            Type targetType = typeof(Startup);
+            Type targetType;
             if (ClientUpdateRequired) {
                 targetType = typeof(Startup);
+            } else if (Account == null) {
+                targetType = typeof(SignUp);
             } else {
-                switch (DbState) {
-                    case Core.DbState.ReadyToUse:
-                        targetType = typeof(FileExplorer);
-                        break;
-                    case Core.DbState.Empty:
-                        targetType = typeof(SignUp);
-                        break;
-                    case Core.DbState.MigrationRequired:
-                        targetType = typeof(Startup);
-                        break;
-                    case Core.DbState.StateRequiresClearing:
-                        targetType = typeof(FileExplorer);
-                        break;
-                }
+                targetType = typeof(FileExplorer);
             }
             if (Frame.Content.GetType() != targetType) {
                 Frame.Navigate(targetType);
@@ -102,21 +80,10 @@ namespace lockbook {
 
         public static async Task SignOut() {
             await ApplicationData.Current.ClearAsync();
-            await ReloadDbStateAndAccount();
+            await ReloadAccount();
         }
 
-        public static async Task ReloadDbStateAndAccount() {
-            switch (await CoreService.GetDbState()) {
-                case Core.GetDbState.Success success:
-                    DbState = success.dbState;
-                    if (DbState == Core.DbState.StateRequiresClearing) {
-                        await PromptClearState();
-                    }
-                    break;
-                case Core.GetDbState.UnexpectedError error:
-                    await new MessageDialog(error.ErrorMessage, "Unexpected error while getting state of local database: " + error.ErrorMessage).ShowAsync();
-                    break;
-            }
+        public static async Task ReloadAccount() {
             switch (await CoreService.GetAccount()) {
                 case Core.GetAccount.Success success:
                     Account = success.account;
@@ -178,13 +145,9 @@ namespace lockbook {
                 Frame.Navigate(typeof(Startup));
 
                 CoreService = new CoreService(ApplicationData.Current.LocalFolder.Path);
-                await CoreService.InitLoggerSafely();
+                await CoreService.Init();
 
-                await ReloadDbStateAndAccount();
-                if (DbState == Core.DbState.MigrationRequired) {
-                    await CoreService.MigrateDb();
-                    await ReloadDbStateAndAccount();
-                }
+                await ReloadAccount();
             }
         }
     }
