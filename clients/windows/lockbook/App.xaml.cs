@@ -114,6 +114,7 @@ namespace lockbook {
                     await new MessageDialog(error.ErrorMessage, "Unexpected error while exporting account: " + error.ErrorMessage).ShowAsync();
                     break;
             }
+            Refresh();
         }
 
         private static async Task PromptClearState() {
