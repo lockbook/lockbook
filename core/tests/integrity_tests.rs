@@ -14,7 +14,7 @@ use test_utils::*;
 #[test]
 fn test_integrity_no_problems() {
     let core = test_core_with_account();
-    core.validate();
+    core.validate().unwrap();
 }
 
 #[test]

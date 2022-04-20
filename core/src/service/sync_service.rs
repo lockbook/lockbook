@@ -367,13 +367,6 @@ enum SyncProgressOperation {
     StartWorkUnit(ClientWorkUnit),
 }
 
-#[instrument(level = "debug", skip(config, maybe_update_sync_progress), err(Debug))]
-pub fn sync(
-    config: &Config, maybe_update_sync_progress: Option<Box<dyn Fn(SyncProgress)>>,
-) -> Result<(), CoreError> {
-    todo!()
-}
-
 impl Tx<'_> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync<F: Fn(SyncProgress)>(

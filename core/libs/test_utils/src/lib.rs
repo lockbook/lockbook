@@ -73,7 +73,7 @@ pub enum Operation<'a> {
 
 pub fn run(ops: &[Operation]) {
     let mut cores = vec![test_core()];
-    cores[0].create_account(&random_name(), &url());
+    cores[0].create_account(&random_name(), &url()).unwrap();
     let root = cores[0].get_root().unwrap();
 
     let ensure_client_exists = |clients: &mut Vec<LbCore>, client_num: &usize| {
