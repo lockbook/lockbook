@@ -72,10 +72,10 @@ pub unsafe extern "C" fn init(writeable_path: *const c_char) -> *const c_char {
 pub unsafe extern "C" fn create_account(
     username: *const c_char, api_url: *const c_char,
 ) -> *const c_char {
-    c_string(translate(
-        static_state::get()
-            .map(|core| core.create_account(&str_from_ptr(username), &str_from_ptr(api_url))),
-    ))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.create_account(&str_from_ptr(username), &str_from_ptr(api_url))),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -83,9 +83,10 @@ pub unsafe extern "C" fn create_account(
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn import_account(account_string: *const c_char) -> *const c_char {
-    c_string(translate(
-        static_state::get().map(|core| core.import_account(&str_from_ptr(account_string))),
-    ))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.import_account(&str_from_ptr(account_string))),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -93,7 +94,10 @@ pub unsafe extern "C" fn import_account(account_string: *const c_char) -> *const
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn export_account() -> *const c_char {
-    c_string(translate(static_state::get().map(|core| core.export_account())))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.export_account()),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -101,7 +105,10 @@ pub unsafe extern "C" fn export_account() -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_account() -> *const c_char {
-    c_string(translate(static_state::get().map(|core| core.get_account())))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.get_account()),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -109,9 +116,10 @@ pub unsafe extern "C" fn get_account() -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn create_file_at_path(path_and_name: *const c_char) -> *const c_char {
-    c_string(translate(
-        static_state::get().map(|core| core.create_at_path(&str_from_ptr(path_and_name))),
-    ))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.create_at_path(&str_from_ptr(path_and_name))),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -121,12 +129,13 @@ pub unsafe extern "C" fn create_file_at_path(path_and_name: *const c_char) -> *c
 pub unsafe extern "C" fn write_document(
     id: *const c_char, content: *const c_char,
 ) -> *const c_char {
-    c_string(translate(static_state::get().map(|core| {
-        core.write_document(
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.write_document(
             Uuid::from_str(&str_from_ptr(id)).expect("Could not String -> Uuid"),
             &str_from_ptr(content).into_bytes(),
-        )
-    })))
+        )),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -136,9 +145,14 @@ pub unsafe extern "C" fn write_document(
 pub unsafe extern "C" fn create_file(
     name: *const c_char, parent: *const c_char, file_type: *const c_char,
 ) -> *const c_char {
-    c_string(translate(static_state::get().map(|core| {
-        core.create_file(&str_from_ptr(name), uuid_from_ptr(parent), file_type_from_ptr(file_type))
-    })))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.create_file(
+            &str_from_ptr(name),
+            uuid_from_ptr(parent),
+            file_type_from_ptr(file_type),
+        )),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -146,7 +160,10 @@ pub unsafe extern "C" fn create_file(
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_root() -> *const c_char {
-    c_string(translate(static_state::get().map(|core| core.get_root())))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.get_root()),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -154,15 +171,21 @@ pub unsafe extern "C" fn get_root() -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_children(id: *const c_char) -> *const c_char {
-    c_string(translate(static_state::get().map(|core| core.get_children(uuid_from_ptr(id)))))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.get_children(uuid_from_ptr(id))),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn get_file_by_path(path: *const c_char) -> *const c_char {
-    c_string(translate(static_state::get().map(|core| core.get_by_path(&str_from_ptr(path)))))
+pub unsafe extern "C" fn get_by_path(path: *const c_char) -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.get_by_path(&str_from_ptr(path))),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -170,7 +193,10 @@ pub unsafe extern "C" fn get_file_by_path(path: *const c_char) -> *const c_char 
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn delete_file(id: *const c_char) -> *const c_char {
-    c_string(translate(static_state::get().map(|core| core.delete_file(uuid_from_ptr(id)))))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.delete_file(uuid_from_ptr(id))),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -178,10 +204,13 @@ pub unsafe extern "C" fn delete_file(id: *const c_char) -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn read_document(id: *const c_char) -> *const c_char {
-    c_string(translate(static_state::get().map(|core| {
-        core.read_document(uuid_from_ptr(id))
-            .map(|d| String::from(String::from_utf8_lossy(&d)))
-    })))
+    c_string(match static_state::get() {
+        Ok(core) => translate(
+            core.read_document(uuid_from_ptr(id))
+                .map(|d| String::from(String::from_utf8_lossy(&d))),
+        ),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -189,10 +218,12 @@ pub unsafe extern "C" fn read_document(id: *const c_char) -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn export_drawing(id: *const c_char) -> *const c_char {
-    c_string(translate(
-        static_state::get()
-            .map(|core| core.export_drawing(uuid_from_ptr(id), SupportedImageFormats::Png, None)),
-    ))
+    c_string(match static_state::get() {
+        Ok(core) => {
+            translate(core.export_drawing(uuid_from_ptr(id), SupportedImageFormats::Png, None))
+        }
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -200,7 +231,10 @@ pub unsafe extern "C" fn export_drawing(id: *const c_char) -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn list_paths(filter: *const c_char) -> *const c_char {
-    c_string(translate(static_state::get().map(|core| core.list_paths(filter_from_ptr(filter)))))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.list_paths(filter_from_ptr(filter))),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -208,10 +242,10 @@ pub unsafe extern "C" fn list_paths(filter: *const c_char) -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn rename_file(id: *const c_char, new_name: *const c_char) -> *const c_char {
-    c_string(translate(
-        static_state::get()
-            .map(|core| core.rename_file(uuid_from_ptr(id), &str_from_ptr(new_name))),
-    ))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.rename_file(uuid_from_ptr(id), &str_from_ptr(new_name))),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -219,7 +253,10 @@ pub unsafe extern "C" fn rename_file(id: *const c_char, new_name: *const c_char)
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn list_metadatas() -> *const c_char {
-    c_string(translate(static_state::get().map(|core| core.list_metadatas())))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.list_metadatas()),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -227,10 +264,10 @@ pub unsafe extern "C" fn list_metadatas() -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn move_file(id: *const c_char, new_parent: *const c_char) -> *const c_char {
-    c_string(translate(
-        static_state::get()
-            .map(|core| core.move_file(uuid_from_ptr(id), uuid_from_ptr(new_parent))),
-    ))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.move_file(uuid_from_ptr(id), uuid_from_ptr(new_parent))),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -238,7 +275,10 @@ pub unsafe extern "C" fn move_file(id: *const c_char, new_parent: *const c_char)
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn calculate_work() -> *const c_char {
-    c_string(translate(static_state::get().map(|core| core.calculate_work())))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.calculate_work()),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -246,7 +286,10 @@ pub unsafe extern "C" fn calculate_work() -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn sync_all() -> *const c_char {
-    c_string(translate(static_state::get().map(|core| core.sync(None))))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.sync(None)),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -254,7 +297,10 @@ pub unsafe extern "C" fn sync_all() -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_last_synced() -> *const c_char {
-    c_string(translate(static_state::get().map(|core| core.get_last_synced())))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.get_last_synced()),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -262,7 +308,10 @@ pub unsafe extern "C" fn get_last_synced() -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_last_synced_human_string() -> *const c_char {
-    c_string(translate(static_state::get().map(|core| core.get_last_synced_human_string())))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.get_last_synced_human_string()),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -270,15 +319,21 @@ pub unsafe extern "C" fn get_last_synced_human_string() -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_usage() -> *const c_char {
-    c_string(translate(static_state::get().map(|core| core.get_usage())))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.get_usage()),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn get_uncomressed_usage() -> *const c_char {
-    c_string(translate(static_state::get().map(|core| core.get_uncompressed_usage())))
+pub unsafe extern "C" fn get_uncompressed_usage() -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.get_uncompressed_usage()),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -286,7 +341,10 @@ pub unsafe extern "C" fn get_uncomressed_usage() -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_drawing(id: *const c_char) -> *const c_char {
-    c_string(translate(static_state::get().map(|core| core.get_drawing(uuid_from_ptr(id)))))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.get_drawing(uuid_from_ptr(id))),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 /// # Safety
@@ -294,7 +352,10 @@ pub unsafe extern "C" fn get_drawing(id: *const c_char) -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn get_local_changes() -> *const c_char {
-    c_string(translate(static_state::get().map(|core| core.get_local_changes())))
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.get_local_changes()),
+        e => translate(e.map(|_| ())),
+    })
 }
 
 // FOR INTEGRATION TESTS ONLY

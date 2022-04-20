@@ -7,7 +7,7 @@ edition = "2018"
 aead = "0.4.2"
 aes-gcm = "0.9.3"
 bincode = "1.2.1"
-libsecp256k1 = "0.7.0"
+libsecp256k1 = { git = "https://github.com/steverusso/libsecp256k1" }
 sha2 = "0.9.0"
 hmac = "0.11.0"
 rand = "0.8.4"
