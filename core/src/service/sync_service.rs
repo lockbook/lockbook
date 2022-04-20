@@ -1,8 +1,10 @@
-use std::fmt;
-
-use hmdb::transaction::Transaction;
-use serde::Serialize;
-
+use crate::model::filename::DocumentType;
+use crate::model::repo::RepoSource;
+use crate::model::repo::RepoState;
+use crate::pure_functions::files;
+use crate::repo::schema::{OneKey, Tx};
+use crate::service::{api_service, file_encryption_service, file_service};
+use crate::{Config, CoreError};
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::account::Account;
 use lockbook_models::api::{
@@ -12,14 +14,8 @@ use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
 use lockbook_models::tree::FileMetaExt;
 use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
-
-use crate::model::filename::DocumentType;
-use crate::model::repo::RepoSource;
-use crate::model::repo::RepoState;
-use crate::pure_functions::files;
-use crate::repo::schema::{OneKey, Tx};
-use crate::service::{api_service, file_encryption_service, file_service};
-use crate::{CalculateWorkError, Config, CoreError, Error, LbCore, SyncAllError};
+use serde::Serialize;
+use std::fmt;
 
 use super::file_compression_service;
 
@@ -594,7 +590,7 @@ impl Tx<'_> {
     /// Updates remote and base metadata to local.
     #[instrument(level = "debug", skip_all, err(Debug))]
     fn push_metadata<F>(
-        &mut self, config: &Config, update_sync_progress: &mut F,
+        &mut self, _config: &Config, update_sync_progress: &mut F,
     ) -> Result<(), CoreError>
     where
         F: FnMut(SyncProgressOperation),

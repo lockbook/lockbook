@@ -1,5 +1,4 @@
 use reqwest::blocking::Client as ReqwestClient;
-use reqwest::Error as ReqwestError;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 

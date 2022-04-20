@@ -1,17 +1,12 @@
-use hmdb::transaction::Transaction;
-
+use crate::model::errors::core_err_unexpected;
+use crate::pure_functions::files;
+use crate::repo::schema::{OneKey, Tx};
+use crate::service::{api_service, file_encryption_service};
+use crate::CoreError;
 use lockbook_crypto::clock_service::get_time;
 use lockbook_crypto::pubkey;
 use lockbook_models::account::Account;
 use lockbook_models::api::{GetPublicKeyRequest, NewAccountRequest};
-
-use crate::model::errors::{core_err_unexpected, CreateAccountError};
-use crate::pure_functions::files;
-use crate::repo::schema::{OneKey, Tx};
-use crate::service::{api_service, file_encryption_service};
-use crate::{
-    AccountExportError, Config, CoreError, Error, GetAccountError, ImportError, LbCore, UiError,
-};
 
 impl Tx<'_> {
     pub fn create_account(&mut self, username: &str, api_url: &str) -> Result<Account, CoreError> {

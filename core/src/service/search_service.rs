@@ -1,13 +1,10 @@
-use std::cmp::Ordering;
-
+use crate::model::repo::RepoSource;
+use crate::CoreError;
+use crate::Tx;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
+use std::cmp::Ordering;
 use uuid::Uuid;
-
-use crate::model::repo::RepoSource;
-use crate::path_service;
-use crate::CoreError;
-use crate::{file_service, Tx};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct SearchResultItem {

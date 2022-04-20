@@ -1,15 +1,10 @@
-use hmdb::transaction::Transaction;
-use uuid::Uuid;
-
+use crate::model::repo::RepoSource;
+use crate::pure_functions::files;
+use crate::{Config, CoreError, Tx};
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use lockbook_models::tree::FileMetaExt;
-
-use crate::model::errors::CreateFileAtPathError;
-use crate::model::repo::RepoSource;
-use crate::pure_functions::files;
-use crate::service::file_service;
-use crate::{Config, CoreError, Error, GetFileByPathError, LbCore, Tx, UnexpectedError};
+use uuid::Uuid;
 
 impl Tx<'_> {
     pub fn create_at_path(

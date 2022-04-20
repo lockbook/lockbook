@@ -1,11 +1,13 @@
-use std::collections::HashSet;
-
-use hmdb::transaction::Transaction;
+use crate::model::repo::RepoSource;
+use crate::model::repo::RepoState;
+use crate::pure_functions::files;
+use crate::repo::document_repo;
+use crate::repo::schema::{OneKey, Tx};
+use crate::service::file_compression_service;
+use crate::service::file_encryption_service;
+use crate::CoreError::RootNonexistent;
+use crate::{Config, CoreError};
 use itertools::Itertools;
-use sha2::Digest;
-use sha2::Sha256;
-use uuid::Uuid;
-
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::crypto::EncryptedDocument;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
@@ -14,22 +16,10 @@ use lockbook_models::file_metadata::FileMetadataDiff;
 use lockbook_models::file_metadata::FileType;
 use lockbook_models::tree::FileMetaExt;
 use lockbook_models::utils;
-
-use crate::model::errors::{GetRootError, RenameFileError, SaveDocumentToDiskError};
-use crate::model::repo::RepoSource;
-use crate::model::repo::RepoState;
-use crate::pure_functions::files;
-use crate::pure_functions::files::maybe_find_state;
-use crate::repo::document_repo;
-use crate::repo::schema::{OneKey, Tx};
-use crate::service::file_encryption_service;
-use crate::service::{file_compression_service, file_service};
-use crate::CoreError::RootNonexistent;
-use crate::{
-    Config, CoreError, CreateFileError, Error, FileDeleteError, GetAndGetChildrenError,
-    GetFileByIdError, LbCore, MoveFileError, ReadDocumentError, UnexpectedError,
-    WriteToDocumentError,
-};
+use sha2::Digest;
+use sha2::Sha256;
+use std::collections::HashSet;
+use uuid::Uuid;
 
 impl Tx<'_> {
     pub fn create_file(

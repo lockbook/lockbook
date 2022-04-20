@@ -4,19 +4,22 @@ extern crate reqwest;
 #[macro_use]
 extern crate tracing;
 
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-
+use crate::billing_service::CreditCardLast4Digits;
+use crate::model::errors::*;
+use crate::model::repo::RepoSource;
+use crate::path_service::Filter;
+use crate::pure_functions::drawing::SupportedImageFormats;
+use crate::repo::schema::{CoreV1, OneKey, Tx};
+use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
+use crate::service::search_service::SearchResultItem;
+use crate::service::sync_service::SyncProgress;
+use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
+use crate::service::{billing_service, path_service, sync_service};
+use crate::sync_service::WorkCalculated;
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
-use serde::Deserialize;
-use serde_json::{json, value::Value};
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
-use uuid::Uuid;
-
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
 use lockbook_models::api::AccountTier;
@@ -25,31 +28,13 @@ use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use model::errors::Error::UiError;
 pub use model::errors::{CoreError, Error, UnexpectedError};
+use serde::Deserialize;
+use serde_json::{json, value::Value};
 use service::log_service;
-
-use crate::billing_service::CreditCardLast4Digits;
-use crate::model::errors::{
-    core_err_unexpected, AccountExportError, CalculateWorkError, CreateAccountError,
-    CreateFileAtPathError, CreateFileError, ExportDrawingError, ExportDrawingToDiskError,
-    ExportFileError, FileDeleteError, GetAccountError, GetAndGetChildrenError, GetCreditCard,
-    GetDrawingError, GetFileByIdError, GetFileByPathError, GetRootError, GetUsageError,
-    ImportError, ImportFileError, MigrationError, MoveFileError, ReadDocumentError,
-    RenameFileError, SaveDocumentToDiskError, SaveDrawingError, SwitchAccountTierError,
-    SyncAllError, TestRepoError, Warning, WriteToDocumentError,
-};
-use crate::model::repo::RepoSource;
-use crate::path_service::Filter;
-use crate::pure_functions::drawing::SupportedImageFormats;
-use crate::repo::schema::{CoreV1, OneKey, Tx};
-use crate::service::import_export_service::{self, ImportExportFileInfo, ImportStatus};
-use crate::service::search_service::SearchResultItem;
-use crate::service::sync_service::SyncProgress;
-use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
-use crate::service::{
-    account_service, billing_service, drawing_service, file_service, path_service, search_service,
-    sync_service, usage_service,
-};
-use crate::sync_service::WorkCalculated;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use strum::IntoEnumIterator;
+use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
@@ -369,7 +354,6 @@ macro_rules! impl_get_variants {
 
 // All new errors must be placed in here!
 impl_get_variants!(
-    MigrationError,
     CreateAccountError,
     ImportError,
     AccountExportError,

@@ -1,7 +1,7 @@
 use crate::model::errors::core_err_unexpected;
 use crate::service::api_service;
 use crate::service::api_service::ApiError;
-use crate::{Config, CoreError, Tx};
+use crate::{CoreError, Tx};
 use lockbook_models::api::{
     AccountTier, GetCreditCardError, GetCreditCardRequest, SwitchAccountTierError,
     SwitchAccountTierRequest,

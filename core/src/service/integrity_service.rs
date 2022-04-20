@@ -1,17 +1,13 @@
-use itertools::Itertools;
-use std::path::Path;
-
-use uuid::Uuid;
-
-use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
-use lockbook_models::tree::{FileMetaExt, TestFileTreeError, TreeError};
-
 use crate::model::errors::{TestRepoError, Warning};
 use crate::model::repo::RepoSource;
 use crate::pure_functions::drawing;
+use crate::service::file_service;
 use crate::service::integrity_service::TestRepoError::DocumentReadError;
-use crate::service::{file_service, path_service};
-use crate::{Config, CoreError, OneKey, Tx};
+use crate::{Config, OneKey, Tx};
+use itertools::Itertools;
+use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
+use lockbook_models::tree::{FileMetaExt, TestFileTreeError};
+use std::path::Path;
 
 const UTF8_SUFFIXES: [&str; 12] =
     ["md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs"];

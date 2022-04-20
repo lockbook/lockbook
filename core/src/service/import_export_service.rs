@@ -1,17 +1,13 @@
+use crate::model::filename::NameComponents;
+use crate::model::repo::RepoSource;
+use crate::{Config, CoreError, Tx};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
+use lockbook_models::tree::FileMetaExt;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-
 use uuid::Uuid;
-
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
-use lockbook_models::tree::FileMetaExt;
-
-use crate::model::filename::NameComponents;
-use crate::model::repo::RepoSource;
-use crate::service::file_service;
-use crate::{Config, CoreError, Tx};
 
 pub enum ImportStatus {
     CalculatedTotal(usize),
