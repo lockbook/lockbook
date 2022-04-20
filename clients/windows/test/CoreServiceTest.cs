@@ -36,6 +36,7 @@ namespace test {
             try {
                 Directory.Delete(lockbookDir, true);
             } catch (DirectoryNotFoundException) { }
+            CoreService.Init().Wait();
         }
 
         [TestMethod]
