@@ -1,7 +1,6 @@
 use std::fmt;
 use std::io;
 use std::path::Path;
-use std::path::PathBuf;
 
 use lockbook_core::model::errors::GetAccountError;
 use lockbook_core::Error as LbError;
@@ -192,7 +191,7 @@ impl CliError {
         )
     }
 
-    pub fn os_create_file(path: &PathBuf, err: io::Error) -> Self {
+    pub fn os_create_file(path: &Path, err: io::Error) -> Self {
         Self::new(
             ErrCode::OsCouldNotCreateFile,
             format!("could not create file {:?}: {}", path, err),
