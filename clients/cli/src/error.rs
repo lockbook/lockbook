@@ -99,6 +99,7 @@ make_errkind_enum!(
     32 => OsCouldNotCreateFile(PathBuf, IoError),
     33 => OsCouldNotWriteFile(PathBuf, IoError),
     34 => OsCouldNotDeleteFile(PathBuf, IoError),
+    34 => OsCouldNotDeleteFolder(PathBuf, IoError),
     35 => OsInvalidPath(PathBuf),
     36 => OsFileCollision(PathBuf),
 
@@ -149,6 +150,7 @@ impl ErrorKind {
             Self::OsCouldNotCreateFile(path, err) => format!("could not create file '{:?}': {}", path, err),
             Self::OsCouldNotWriteFile(path, err) => format!("could not write file '{:?}': {}", path, err),
             Self::OsCouldNotDeleteFile(path, err) => format!("could not delete file '{:?}': {}", path, err),
+            Self::OsCouldNotDeleteFolder(path, err) => format!("could not delete folder '{:?}': {}", path, err),
             Self::OsInvalidPath(path) => format!("'{:?}' is an invalid path", path),
             Self::OsFileCollision(path) => format!("A file collision was detected in '{:?}'", path),
 

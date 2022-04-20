@@ -62,5 +62,7 @@ pub fn edit(file_name: &str) -> CliResult<()> {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
 
-    fs::remove_file(&file_buf).map_err(|err| err!(OsCouldNotDeleteFile(file_buf, err)))
+    fs::remove_file(&file_buf).map_err(|err| err!(OsCouldNotDeleteFile(file_buf.clone(), err)))?;
+    file_buf.pop();
+    fs::remove_dir_all(&file_buf).map_err(|err| err!(OsCouldNotDeleteFolder(file_buf, err)))
 }

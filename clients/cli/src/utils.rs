@@ -4,11 +4,11 @@ use lockbook_core::{
     migrate_db, GetAccountError, MigrationError,
 };
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
-use std::{env, fs};
 use std::path::PathBuf;
+use std::{env, fs};
 
 use crate::error::CliResult;
-use crate::utils::SupportedEditors::{Code, Emacs, Notepad, Nano, Sublime, Vim};
+use crate::utils::SupportedEditors::{Code, Emacs, Nano, Sublime, Vim};
 use crate::{err, err_extra, err_unexpected};
 use hotwatch::{Event, Hotwatch};
 use lockbook_core::pure_functions::drawing::SupportedImageFormats;
@@ -18,12 +18,6 @@ use lockbook_models::account::Account;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 use uuid::Uuid;
 
-#[cfg(target_os = "windows")]
-use winapi::um::fileapi::SetFileAttributesA;
-#[cfg(target_os = "windows")]
-use winapi::um::winnt::{FILE_ATTRIBUTE_TEMPORARY, FILE_ATTRIBUTE_HIDDEN, FILE_ATTRIBUTE_NOT_CONTENT_INDEXED};
-#[cfg(target_os = "windows")]
-use std::ffi::CString;
 #[cfg(target_os = "windows")]
 use dirs::document_dir;
 
@@ -97,7 +91,6 @@ pub enum SupportedEditors {
     Nano,
     Sublime,
     Code,
-    Notepad,
 }
 
 pub fn get_editor() -> SupportedEditors {
@@ -108,9 +101,8 @@ pub fn get_editor() -> SupportedEditors {
             "nano" => Nano,
             "subl" | "sublime" => Sublime,
             "code" => Code,
-            "notepad" => Notepad,
             _ => {
-                let default_editor = if cfg!(target_os = "windows") { Notepad } else { Vim };
+                let default_editor = if cfg!(target_os = "windows") { Code } else { Vim };
                 eprintln!(
                     "{} is not yet supported, make a github issue! Falling back to {:?}.",
                     editor, default_editor
@@ -119,7 +111,7 @@ pub fn get_editor() -> SupportedEditors {
             }
         },
         Err(_) => {
-            let editor = if cfg!(target_os = "windows") { Notepad } else { Vim };
+            let editor = if cfg!(target_os = "windows") { Code } else { Vim };
             eprintln!("LOCKBOOK_EDITOR not set, assuming {:?}", editor);
             editor
         }
@@ -130,12 +122,7 @@ pub fn get_editor() -> SupportedEditors {
 pub fn get_directory_location() -> CliResult<PathBuf> {
     let mut result = document_dir().get_or_insert(env::temp_dir()).to_path_buf();
     result.push(format!("{}", Uuid::new_v4()));
-    let c_str_path = CString::new(result.as_path().to_str().unwrap()).unwrap();
-    // unsafe { 
-    //     SetFileAttributesA(c_str_path.as_ptr(), FILE_ATTRIBUTE_NOT_CONTENT_INDEXED); 
-    //     SetFileAttributesA(c_str_path.as_ptr(), FILE_ATTRIBUTE_TEMPORARY); 
-    //     SetFileAttributesA(c_str_path.as_ptr(), FILE_ATTRIBUTE_HIDDEN); 
-    // };
+
     fs::create_dir(&result)
         .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
     Ok(result)
@@ -170,52 +157,45 @@ pub fn get_image_format(image_format: &str) -> SupportedImageFormats {
 
 #[cfg(target_os = "windows")]
 pub fn edit_file_with_editor(file_location: &PathBuf) -> bool {
-    // if cfg!(target_os = "windows") 
-        let command = match get_editor() {
-            Vim | Emacs | Nano => {
-                eprintln!("Terminal editors are not supported on windows! Set LOCKBOOK_EDITOR to a visual editor.");
-                return false;
-            }
-            Sublime => "subl --wait",
-            Code => "code --wait",
-            Notepad => "call notepad.exe"
-        };
+    let command = match get_editor() {
+        Vim | Emacs | Nano => {
+            eprintln!("Terminal editors are not supported on windows! Set LOCKBOOK_EDITOR to a visual editor.");
+            return false;
+        }
+        Sublime => "subl --wait",
+        Code => "code --wait",
+    };
 
-        std::process::Command::new("cmd")
-            .arg("/C")
-            .arg(command)
-            .arg(file_location)
-            .spawn()
-            .expect("Error: Failed to run editor")
-            .wait()
-            .unwrap()
-            .success()
+    std::process::Command::new("cmd")
+        .arg("/C")
+        .arg(command)
+        .arg(file_location)
+        .spawn()
+        .expect("Error: Failed to run editor")
+        .wait()
+        .unwrap()
+        .success()
 }
 
 #[cfg(not(target_os = "windows"))]
 pub fn edit_file_with_editor(file_location: &PathBuf) -> bool {
-        let command = match get_editor() {
-            Notepad => {
-                eprintln!("Notepad is only supported on windows! Set LOCKBOOK_EDITOR to a different editor.");
-                return false
-            }
-            Vim => "</dev/tty vim",
-            Emacs => "</dev/tty emacs",
-            Nano => "</dev/tty nano",
-            Sublime => "subl --wait",
-            Code => "code --wait",
-        };
+    let command = match get_editor() {
+        Vim => "</dev/tty vim",
+        Emacs => "</dev/tty emacs",
+        Nano => "</dev/tty nano",
+        Sublime => "subl --wait",
+        Code => "code --wait",
+    };
 
-        std::process::Command::new("/bin/sh")
-            .arg("-c")
-            .arg(command)
-            .arg(file_location)
-            .spawn()
-            .expect("Error: Failed to run editor")
-            .wait()
-            .unwrap()
-            .success()
-    
+    std::process::Command::new("/bin/sh")
+        .arg("-c")
+        .arg(command)
+        .arg(file_location)
+        .spawn()
+        .expect("Error: Failed to run editor")
+        .wait()
+        .unwrap()
+        .success()
 }
 
 pub fn metadatas() -> CliResult<Vec<DecryptedFileMetadata>> {

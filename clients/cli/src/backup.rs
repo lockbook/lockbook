@@ -11,7 +11,7 @@ use lockbook_core::{
 
 use crate::error::CliResult;
 use crate::utils::{account, config};
-use crate::{err, err_unexpected, path_string};
+use crate::{err, err_unexpected};
 
 pub fn backup() -> CliResult<()> {
     account()?;
