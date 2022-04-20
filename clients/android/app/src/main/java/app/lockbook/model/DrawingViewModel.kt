@@ -10,7 +10,6 @@ import android.os.Looper
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
-import app.lockbook.App.Companion.config
 import app.lockbook.getRes
 import app.lockbook.ui.DrawingStrokeState
 import app.lockbook.ui.DrawingView
@@ -78,7 +77,6 @@ class DrawingViewModel(
                         when (
                             val writeToDocumentResult =
                                 CoreModel.writeToDocument(
-                                    config,
                                     id,
                                     Json.encodeToString(persistentDrawing.clone()).replace(" ", "")
                                 )

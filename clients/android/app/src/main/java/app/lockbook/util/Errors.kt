@@ -6,8 +6,10 @@ import app.lockbook.R
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
-import kotlinx.serialization.*
-import kotlinx.serialization.json.*
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonClassDiscriminator
 
 @OptIn(ExperimentalSerializationApi::class)
 @JsonClassDiscriminator("tag")
@@ -84,7 +86,7 @@ interface UiCoreError {
 enum class Empty : UiCoreError
 
 @Serializable
-enum class InitLoggerError : UiCoreError
+enum class InitError : UiCoreError
 
 @Serializable
 enum class GetUsageError : UiCoreError {

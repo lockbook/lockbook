@@ -49,7 +49,10 @@ data class WorkUnit(val content: WorkUnitMetadata, val tag: String)
 data class WorkUnitMetadata(val metadata: DecryptedFileMetadata)
 
 @Serializable
-data class Config(val writeable_path: String)
+data class Config(
+    val logs: Boolean,
+    val writeable_path: String
+)
 
 @Serializable
 enum class State {

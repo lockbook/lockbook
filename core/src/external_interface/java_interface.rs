@@ -103,7 +103,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
 
     string_to_jstring(
         &env,
-        translate(static_state::get().map(|core| core.create_account(&username, &api_url))),
+        match static_state::get() {
+            Ok(core) => translate(core.create_account(&username, &api_url)),
+            e => translate(e.map(|_| ())),
+        },
     )
 }
 
@@ -118,7 +121,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
 
     string_to_jstring(
         &env,
-        translate(static_state::get().map(|core| core.import_account(account.as_str()))),
+        match static_state::get() {
+            Ok(core) => translate(core.import_account(account.as_str())),
+            e => translate(e.map(|_| ())),
+        },
     )
 }
 
@@ -126,17 +132,35 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_importAccount(
 pub extern "system" fn Java_app_lockbook_core_CoreKt_exportAccount(
     env: JNIEnv, _: JClass,
 ) -> jstring {
-    string_to_jstring(&env, translate(static_state::get().map(|core| core.export_account())))
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.export_account()),
+            e => translate(e.map(|_| ())),
+        },
+    )
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_getAccount(env: JNIEnv, _: JClass) -> jstring {
-    string_to_jstring(&env, translate(static_state::get().map(|core| core.get_account())))
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.get_account()),
+            e => translate(e.map(|_| ())),
+        },
+    )
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_getRoot(env: JNIEnv, _: JClass) -> jstring {
-    string_to_jstring(&env, translate(static_state::get().map(|core| core.get_root())))
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.get_root()),
+            e => translate(e.map(|_| ())),
+        },
+    )
 }
 
 #[no_mangle]
@@ -148,7 +172,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getChildren(
         Err(err) => return err,
     };
 
-    string_to_jstring(&env, translate(static_state::get().map(|core| core.get_children(id))))
+    string_to_jstring(&env, translate(static_state::get().and_then(|core| core.get_children(id))))
 }
 
 #[no_mangle]
@@ -160,7 +184,13 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getFileById(
         Err(err) => return err,
     };
 
-    string_to_jstring(&env, translate(static_state::get().map(|core| core.get_file_by_id(id))))
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.get_file_by_id(id)),
+            e => translate(e.map(|_| ())),
+        },
+    )
 }
 
 #[no_mangle]
@@ -176,7 +206,13 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFile(
         Err(err) => return err,
     };
 
-    string_to_jstring(&env, translate(static_state::get().map(|core| core.rename_file(id, name))))
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.rename_file(id, name)),
+            e => translate(e.map(|_| ())),
+        },
+    )
 }
 
 #[no_mangle]
@@ -198,7 +234,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
 
     string_to_jstring(
         &env,
-        translate(static_state::get().map(|core| core.create_file(name.as_str(), id, file_type))),
+        match static_state::get() {
+            Ok(core) => translate(core.create_file(name.as_str(), id, file_type)),
+            e => translate(e.map(|_| ())),
+        },
     )
 }
 
@@ -220,7 +259,13 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_convertToHumanDuration(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_getUsage(env: JNIEnv, _: JClass) -> jstring {
-    string_to_jstring(&env, translate(static_state::get().map(|core| core.get_usage())))
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.get_usage()),
+            e => translate(e.map(|_| ())),
+        },
+    )
 }
 
 #[no_mangle]
@@ -229,7 +274,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getUncompressedUsage(
 ) -> jstring {
     string_to_jstring(
         &env,
-        translate(static_state::get().map(|core| core.get_uncompressed_usage())),
+        match static_state::get() {
+            Ok(core) => translate(core.get_uncompressed_usage()),
+            e => translate(e.map(|_| ())),
+        },
     )
 }
 
@@ -241,7 +289,14 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_deleteFile(
         Ok(ok) => ok,
         Err(err) => return err,
     };
-    string_to_jstring(&env, translate(static_state::get().map(|core| core.delete_file(id))))
+
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.delete_file(id)),
+            e => translate(e.map(|_| ())),
+        },
+    )
 }
 
 #[no_mangle]
@@ -252,12 +307,16 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
         Ok(ok) => ok,
         Err(err) => return err,
     };
+
     string_to_jstring(
         &env,
-        translate(static_state::get().map(|core| {
-            core.read_document(id)
-                .map(|d| String::from(String::from_utf8_lossy(&d)))
-        })),
+        match static_state::get() {
+            Ok(core) => translate(
+                core.read_document(id)
+                    .map(|d| String::from(String::from_utf8_lossy(&d))),
+            ),
+            e => translate(e.map(|_| ())),
+        },
     )
 }
 
@@ -269,13 +328,18 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_saveDocumentToDisk(
         Ok(ok) => ok,
         Err(err) => return err,
     };
+
     let location = match jstring_to_string(&env, jlocation, "path") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
+
     string_to_jstring(
         &env,
-        translate(static_state::get().map(|core| core.save_document_to_disk(id, &location))),
+        match static_state::get() {
+            Ok(core) => translate(core.save_document_to_disk(id, &location)),
+            e => translate(e.map(|_| ())),
+        },
     )
 }
 
@@ -287,13 +351,18 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawing(
         Ok(ok) => ok,
         Err(err) => return err,
     };
+
     let format = match deserialize::<SupportedImageFormats>(&env, jformat, "image format") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
+
     string_to_jstring(
         &env,
-        translate(static_state::get().map(|core| core.export_drawing(id, format, None))),
+        match static_state::get() {
+            Ok(core) => translate(core.export_drawing(id, format, None)),
+            e => translate(e.map(|_| ())),
+        },
     )
 }
 
@@ -305,10 +374,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawingToDisk(
         Ok(ok) => ok,
         Err(err) => return err,
     };
+
     let format = match deserialize::<SupportedImageFormats>(&env, jformat, "image format") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
+
     let location = match jstring_to_string(&env, jlocation, "path") {
         Ok(ok) => ok,
         Err(err) => return err,
@@ -316,10 +387,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawingToDisk(
 
     string_to_jstring(
         &env,
-        translate(
-            static_state::get()
-                .map(|core| core.export_drawing_to_disk(id, format, None, &location)),
-        ),
+        match static_state::get() {
+            Ok(core) => translate(core.export_drawing_to_disk(id, format, None, &location)),
+            e => translate(e.map(|_| ())),
+        },
     )
 }
 
@@ -331,13 +402,18 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_writeDocument(
         Ok(ok) => ok,
         Err(err) => return err,
     };
+
     let content = match jstring_to_string(&env, jcontent, "content") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
+
     string_to_jstring(
         &env,
-        translate(static_state::get().map(|core| core.write_document(id, &content.into_bytes()))),
+        match static_state::get() {
+            Ok(core) => translate(core.write_document(id, &content.into_bytes())),
+            e => translate(e.map(|_| ())),
+        },
     )
 }
 
@@ -349,13 +425,18 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_moveFile(
         Ok(ok) => ok,
         Err(err) => return err,
     };
+
     let parent_id = match deserialize_id(&env, jparentid) {
         Ok(ok) => ok,
         Err(err) => return err,
     };
+
     string_to_jstring(
         &env,
-        translate(static_state::get().map(|core| core.move_file(id, parent_id))),
+        match static_state::get() {
+            Ok(core) => translate(core.move_file(id, parent_id)),
+            e => translate(e.map(|_| ())),
+        },
     )
 }
 
@@ -403,7 +484,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
 
     string_to_jstring(
         &env,
-        translate(static_state::get().map(|core| core.sync(Some(Box::new(closure))))),
+        match static_state::get() {
+            Ok(core) => translate(core.sync(Some(Box::new(closure)))),
+            e => translate(e.map(|_| ())),
+        },
     )
 }
 
@@ -411,14 +495,26 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
 pub extern "system" fn Java_app_lockbook_core_CoreKt_backgroundSync(
     env: JNIEnv, _: JClass,
 ) -> jstring {
-    string_to_jstring(&env, translate(static_state::get().map(|core| core.sync(None))))
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.sync(None)),
+            e => translate(e.map(|_| ())),
+        },
+    )
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateWork(
     env: JNIEnv, _: JClass,
 ) -> jstring {
-    string_to_jstring(&env, translate(static_state::get().map(|core| core.calculate_work())))
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.calculate_work()),
+            e => translate(e.map(|_| ())),
+        },
+    )
 }
 
 #[no_mangle]

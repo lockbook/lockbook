@@ -1,18 +1,14 @@
 package app.lockbook
 
-import app.lockbook.core.deleteFile
 import app.lockbook.model.CoreModel
 import app.lockbook.util.Config
 import app.lockbook.util.FileDeleteError
 import app.lockbook.util.FileType
-import app.lockbook.util.IntermCoreResult
-import kotlinx.serialization.decodeFromString
-import org.junit.After
+import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 
 class DeleteFileTest {
-    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -22,57 +18,48 @@ class DeleteFileTest {
         }
     }
 
-    @After
-    fun createDirectory() {
-        config = Config(createRandomPath())
+    @Before
+    fun initCore() {
+        CoreModel.init(Config(false, createRandomPath()))
     }
 
     @Test
     fun deleteFileOk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
+        val rootFileMetadata = CoreModel.getRoot().unwrapOk()
 
         val document = CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
         ).unwrapOk()
 
         val folder = CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
         ).unwrapOk()
 
-        CoreModel.deleteFile(config, document.id).unwrapOk()
+        CoreModel.deleteFile(document.id).unwrapOk()
 
-        CoreModel.deleteFile(config, folder.id).unwrapOk()
+        CoreModel.deleteFile(folder.id).unwrapOk()
     }
 
     @Test
     fun deleteFileNoFileWithThatId() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        CoreModel.deleteFile(config, generateId()).unwrapErrorType(FileDeleteError.FileDoesNotExist)
+        CoreModel.deleteFile(generateId()).unwrapErrorType(FileDeleteError.FileDoesNotExist)
     }
 
     @Test
     fun deleteFileCannotDeleteRoot() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
+        val rootFileMetadata = CoreModel.getRoot().unwrapOk()
 
-        CoreModel.deleteFile(config, rootFileMetadata.id)
+        CoreModel.deleteFile(rootFileMetadata.id)
             .unwrapErrorType(FileDeleteError.CannotDeleteRoot)
-    }
-
-    @Test
-    fun deleteFileUnexpectedError() {
-        CoreModel.deleteFileParser.decodeFromString<IntermCoreResult<Unit, FileDeleteError>>(
-            deleteFile("", "")
-        ).unwrapUnexpected()
     }
 }

@@ -1,7 +1,6 @@
 package app.lockbook.model
 
 import android.text.format.DateUtils
-import app.lockbook.App.Companion.config
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -69,7 +68,7 @@ class ShareModel(
 
                 when (
                     val exportDrawingToDiskResult =
-                        CoreModel.exportDrawingToDisk(config, file.id, SupportedImageFormats.Jpeg, image.absolutePath)
+                        CoreModel.exportDrawingToDisk(file.id, SupportedImageFormats.Jpeg, image.absolutePath)
                 ) {
                     is Ok -> filesToShare.add(image)
                     is Err -> {
@@ -84,7 +83,7 @@ class ShareModel(
                     file.decryptedName
                 ).absoluteFile
 
-                when (val saveDocumentToDiskResult = CoreModel.saveDocumentToDisk(config, file.id, doc.absolutePath)) {
+                when (val saveDocumentToDiskResult = CoreModel.saveDocumentToDisk(file.id, doc.absolutePath)) {
                     is Ok -> filesToShare.add(doc)
                     is Err -> {
                         isLoadingOverlayVisible = false
@@ -111,7 +110,7 @@ class ShareModel(
                 FileType.Folder ->
                     when (
                         val getChildrenResult =
-                            CoreModel.getChildren(config, file.id)
+                            CoreModel.getChildren(file.id)
                     ) {
                         is Ok -> {
                             val retrieveDocumentsResult = retrieveSelectedDocuments(getChildrenResult.value, documents)

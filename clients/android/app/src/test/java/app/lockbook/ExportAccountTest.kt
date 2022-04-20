@@ -1,17 +1,13 @@
 package app.lockbook
 
-import app.lockbook.core.exportAccount
 import app.lockbook.model.CoreModel
 import app.lockbook.util.AccountExportError
 import app.lockbook.util.Config
-import app.lockbook.util.IntermCoreResult
-import kotlinx.serialization.decodeFromString
-import org.junit.After
+import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 
 class ExportAccountTest {
-    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -21,27 +17,20 @@ class ExportAccountTest {
         }
     }
 
-    @After
-    fun createDirectory() {
-        config = Config(createRandomPath())
+    @Before
+    fun initCore() {
+        CoreModel.init(Config(false, createRandomPath()))
     }
 
     @Test
     fun exportAccountOk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        CoreModel.exportAccount(config).unwrapOk()
+        CoreModel.exportAccount().unwrapOk()
     }
 
     @Test
     fun exportAccountNoAccount() {
-        CoreModel.exportAccount(config).unwrapErrorType(AccountExportError.NoAccount)
-    }
-
-    @Test
-    fun exportAccountUnexpectedError() {
-        CoreModel.exportAccountParser.decodeFromString<IntermCoreResult<String, AccountExportError>>(
-            exportAccount("")
-        ).unwrapUnexpected()
+        CoreModel.exportAccount().unwrapErrorType(AccountExportError.NoAccount)
     }
 }

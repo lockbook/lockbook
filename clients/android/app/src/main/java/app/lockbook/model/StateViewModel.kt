@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
-import app.lockbook.App
 import app.lockbook.getRes
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
@@ -64,7 +63,6 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             val writeToDocumentResult =
                 CoreModel.writeToDocument(
-                    App.config,
                     id,
                     Json.encodeToString(drawing).replace(" ", "")
                 )
@@ -84,7 +82,7 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
     fun saveTextOnExit(id: String, text: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val writeToDocumentResult =
-                CoreModel.writeToDocument(App.config, id, text)
+                CoreModel.writeToDocument(id, text)
 
             if (writeToDocumentResult is Err) {
                 _updateMainScreenUI.postValue(
