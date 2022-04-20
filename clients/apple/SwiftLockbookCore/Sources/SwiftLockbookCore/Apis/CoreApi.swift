@@ -5,14 +5,14 @@ public struct CoreApi: LockbookApi {
 
     var documentsDirectory: String
     
-    public init(documentsDirectory: String) {
+    public init(_ documentsDirectory: String, logs: Bool) {
         self.documentsDirectory = documentsDirectory
         print("Located at \(documentsDirectory)")
-        print("core init result: \(startCore())")
+        print("core init result: \(startCore(logs))")
     }
     
-    public func startCore() -> FfiResult<Empty, GetStateError> {
-        fromPrimitiveResult(result: `init`(documentsDirectory))
+    public func startCore(_ logs: Bool) -> FfiResult<Empty, GetStateError> {
+        fromPrimitiveResult(result: `init`(documentsDirectory, logs))
     }
     
     public func getAccount() -> FfiResult<Account, GetAccountError> {
