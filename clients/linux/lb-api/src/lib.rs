@@ -28,7 +28,7 @@ pub use lockbook_core::model::errors::GetRootError;
 pub use lockbook_core::model::errors::GetUsageError;
 pub use lockbook_core::model::errors::ImportError as ImportAccountError;
 pub use lockbook_core::model::errors::ImportFileError;
-pub use lockbook_core::model::errors::MigrationError;
+pub use lockbook_core::model::errors::MoveFileError;
 pub use lockbook_core::model::errors::ReadDocumentError;
 pub use lockbook_core::model::errors::RenameFileError;
 pub use lockbook_core::model::errors::SyncAllError;
@@ -210,7 +210,7 @@ impl Api for DefaultApi {
     }
 
     fn move_file(&self, id: Uuid, dest: Uuid) -> Result<(), Error<MoveFileError>> {
-        lockbook_core::move_file(&self.cfg, id, dest)
+        self.core.move_file(id, dest)
     }
 
     fn delete_file(&self, id: Uuid) -> Result<(), Error<FileDeleteError>> {
