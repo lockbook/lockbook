@@ -11,7 +11,7 @@ where
     K: AsRef<[u8]>,
     V: Into<Vec<u8>>,
 {
-    let path_str = key_path(db, namespace, key);
+    let path_str = key_path(db, &namespace, &key) + ".pending";
     let path = Path::new(&path_str);
     let data = &value.into();
     trace!("write\t{} {:?} bytes", &path_str, data.len());
@@ -21,7 +21,8 @@ where
         .create(true)
         .truncate(true)
         .open(path)?;
-    f.write_all(data).map_err(CoreError::from)
+    f.write_all(data).map_err(CoreError::from)?;
+    fs::rename(path, key_path(db, &namespace, &key)).map_err(CoreError::from)
 }
 
 pub fn read<N, K, V>(db: &Config, namespace: N, key: K) -> Result<Option<V>, CoreError>
