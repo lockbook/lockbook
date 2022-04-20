@@ -153,27 +153,23 @@ enum Lockbook {
     Validate,
 }
 
-fn config() -> Result<Config, CliError> {
-    let path = match (env::var("LOCKBOOK_CLI_LOCATION"), env::var("HOME"), env::var("HOMEPATH")) {
-        (Ok(s), _, _) => Ok(s),
-        (Err(_), Ok(s), _) => Ok(format!("{}/.lockbook", s)),
-        (Err(_), Err(_), Ok(s)) => Ok(format!("{}/.lockbook", s)),
-        _ => Err(CliError::no_cli_location()),
-    };
-
-    Ok(Config { logs: true, writeable_path: path? })
-}
-
 fn exit_with(err: CliError) -> ! {
     err.print();
     std::process::exit(err.code as i32)
 }
 
 fn parse_and_run() -> Result<(), CliError> {
-    let args = Lockbook::from_args();
-    let core = Core::init(&config()?)?;
+    let lockbook_dir = match (env::var("LOCKBOOK_PATH"), env::var("HOME"), env::var("HOMEPATH")) {
+        (Ok(s), _, _) => s,
+        (Err(_), Ok(s), _) => format!("{}/.lockbook", s),
+        (Err(_), Err(_), Ok(s)) => format!("{}/.lockbook", s),
+        _ => return Err(CliError::no_cli_location()),
+    };
+    let writeable_path = format!("{}/cli", lockbook_dir);
 
-    match args {
+    let core = Core::init(&Config { logs: true, writeable_path })?;
+
+    match Lockbook::from_args() {
         Lockbook::Copy { disk_files: files, destination } => {
             copy::copy(&core, &files, &destination)
         }
