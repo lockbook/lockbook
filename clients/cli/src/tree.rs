@@ -1,9 +1,9 @@
-use lockbook_core::LbCore;
+use lockbook_core::Core;
 use lockbook_models::tree::FileMetaExt;
 
 use crate::error::CliError;
 
-pub fn tree(core: &LbCore) -> Result<(), CliError> {
+pub fn tree(core: &Core) -> Result<(), CliError> {
     core.get_account()?;
 
     let files = core

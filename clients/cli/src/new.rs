@@ -4,8 +4,8 @@ use std::path::Path;
 
 use lockbook_core::model::errors::CreateFileAtPathError;
 use lockbook_core::model::errors::FileDeleteError;
+use lockbook_core::Core;
 use lockbook_core::Error as LbError;
-use lockbook_core::LbCore;
 use lockbook_models::file_metadata::FileType::Folder;
 
 use crate::error::CliError;
@@ -14,7 +14,7 @@ use crate::utils::{
     stop_auto_save,
 };
 
-pub fn new(core: &LbCore, lb_path: &str) -> Result<(), CliError> {
+pub fn new(core: &Core, lb_path: &str) -> Result<(), CliError> {
     core.get_account()?;
 
     let file_metadata = core.create_at_path(lb_path).map_err(|err| match err {

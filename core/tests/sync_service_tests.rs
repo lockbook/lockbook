@@ -201,7 +201,7 @@ fn synced_device() {
                 f: &|dbs, root| {
                     let db = &dbs[0];
                     let account = db.get_account().unwrap();
-                    let document_path = format!("{}", account.username);
+                    let document_path = account.username;
                     test_utils::assert_all_paths(db, root, &["", &document_path]);
                     test_utils::assert_all_document_contents(db, root, &[(&document_path, b"")]);
                 },

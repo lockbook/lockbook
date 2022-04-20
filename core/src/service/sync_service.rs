@@ -668,7 +668,7 @@ impl Tx<'_> {
             .unwrap_or(0);
 
         let server_updates = api_service::request(
-            &account,
+            account,
             GetUpdatesRequest { since_metadata_version: base_max_metadata_version },
         )
         .map_err(CoreError::from)?

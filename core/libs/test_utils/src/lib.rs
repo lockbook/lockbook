@@ -5,7 +5,7 @@ use lockbook_core::model::repo::RepoSource;
 use lockbook_core::repo::schema::Tx;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_core::service::path_service::Filter::DocumentsOnly;
-use lockbook_core::{Config, LbCore};
+use lockbook_core::{Config, Core};
 use lockbook_models::api::{AccountTier, FileMetadataUpsertsError, PaymentMethod};
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::tree::{FileMetaExt, FileMetadata};
@@ -20,11 +20,11 @@ pub fn test_config() -> Config {
     Config { writeable_path: format!("/tmp/{}", Uuid::new_v4()), logs: false }
 }
 
-pub fn test_core() -> LbCore {
-    LbCore::init(&test_config()).unwrap()
+pub fn test_core() -> Core {
+    Core::init(&test_config()).unwrap()
 }
 
-pub fn test_core_from(core: &LbCore) -> LbCore {
+pub fn test_core_from(core: &Core) -> Core {
     let account_string = core.export_account().unwrap();
     let core = test_core();
     core.import_account(&account_string).unwrap();
@@ -32,7 +32,7 @@ pub fn test_core_from(core: &LbCore) -> LbCore {
     core
 }
 
-pub fn test_core_with_account() -> LbCore {
+pub fn test_core_with_account() -> Core {
     let core = test_core();
     core.create_account(&random_name(), &url()).unwrap();
     core
@@ -50,7 +50,7 @@ pub fn random_name() -> String {
         .collect()
 }
 
-pub fn path(core: &LbCore, path: &str) -> String {
+pub fn path(core: &Core, path: &str) -> String {
     let root = core.get_root().unwrap().name();
     format!("{}/{}", root, path)
 }
@@ -68,7 +68,7 @@ pub enum Operation<'a> {
     Move { client_num: usize, path: &'a str, new_parent_path: &'a str },
     Delete { client_num: usize, path: &'a str },
     Edit { client_num: usize, path: &'a str, content: &'a [u8] },
-    Custom { f: &'a dyn Fn(&[LbCore], &DecryptedFileMetadata) },
+    Custom { f: &'a dyn Fn(&[Core], &DecryptedFileMetadata) },
 }
 
 pub fn run(ops: &[Operation]) {
@@ -76,7 +76,7 @@ pub fn run(ops: &[Operation]) {
     cores[0].create_account(&random_name(), &url()).unwrap();
     let root = cores[0].get_root().unwrap();
 
-    let ensure_client_exists = |clients: &mut Vec<LbCore>, client_num: &usize| {
+    let ensure_client_exists = |clients: &mut Vec<Core>, client_num: &usize| {
         if *client_num > clients.len() - 1 {
             let account_string = clients[0].export_account().unwrap();
             let core = test_core();
@@ -124,7 +124,7 @@ pub fn run(ops: &[Operation]) {
             Operation::Move { client_num, path, new_parent_path } => {
                 || -> Result<_, String> {
                     let core = &cores[*client_num];
-                    let path = core.get_root().unwrap().decrypted_name.clone() + "/" + path;
+                    let path = core.get_root().unwrap().decrypted_name + "/" + path;
                     let new_parent_path = root.decrypted_name.clone() + "/" + new_parent_path;
                     let target = core.get_by_path(&path).map_err(err_to_string)?;
                     let new_parent = core.get_by_path(&new_parent_path).map_err(err_to_string)?;
@@ -171,7 +171,7 @@ pub fn run(ops: &[Operation]) {
     }
 }
 
-pub fn assert_all_paths(core: &LbCore, root: &DecryptedFileMetadata, expected_paths: &[&str]) {
+pub fn assert_all_paths(core: &Core, root: &DecryptedFileMetadata, expected_paths: &[&str]) {
     if expected_paths.iter().any(|&path| path.starts_with('/')) {
         panic!(
             "improper call to test_utils::assert_all_paths; all paths must not begin with '/'. expected_paths={:?}",
@@ -202,7 +202,7 @@ fn err_to_string<E: Debug>(e: E) -> String {
     format!("{}: {:?}", std::any::type_name::<E>(), e)
 }
 
-pub fn get_dirty_ids(db: &LbCore, server: bool) -> Vec<Uuid> {
+pub fn get_dirty_ids(db: &Core, server: bool) -> Vec<Uuid> {
     db.calculate_work()
         .unwrap()
         .work_units
@@ -216,12 +216,12 @@ pub fn get_dirty_ids(db: &LbCore, server: bool) -> Vec<Uuid> {
         .collect()
 }
 
-pub fn assert_local_work_ids(db: &LbCore, ids: &[Uuid]) {
+pub fn assert_local_work_ids(db: &Core, ids: &[Uuid]) {
     assert!(slices_equal_ignore_order(&get_dirty_ids(db, false), ids));
 }
 
 pub fn assert_local_work_paths(
-    db: &LbCore, root: &DecryptedFileMetadata, expected_paths: &[&'static str],
+    db: &Core, root: &DecryptedFileMetadata, expected_paths: &[&'static str],
 ) {
     let all_local_files = db
         .db
@@ -246,7 +246,7 @@ pub fn assert_local_work_paths(
 }
 
 pub fn assert_server_work_paths(
-    db: &LbCore, root: &DecryptedFileMetadata, expected_paths: &[&'static str],
+    db: &Core, root: &DecryptedFileMetadata, expected_paths: &[&'static str],
 ) {
     let staged = db
         .db
@@ -287,12 +287,12 @@ pub fn assert_server_work_paths(
     }
 }
 
-pub fn assert_server_work_ids(db: &LbCore, ids: &[Uuid]) {
+pub fn assert_server_work_ids(db: &Core, ids: &[Uuid]) {
     assert!(slices_equal_ignore_order(&get_dirty_ids(db, true), ids));
 }
 
 pub fn assert_all_document_contents(
-    db: &LbCore, root: &DecryptedFileMetadata, expected_contents_by_path: &[(&str, &[u8])],
+    db: &Core, root: &DecryptedFileMetadata, expected_contents_by_path: &[(&str, &[u8])],
 ) {
     let expected_contents_by_path = expected_contents_by_path
         .iter()
@@ -318,7 +318,7 @@ pub fn assert_all_document_contents(
         );
     }
 }
-pub fn assert_deleted_files_pruned(core: &LbCore) {
+pub fn assert_deleted_files_pruned(core: &Core) {
     core.db.transaction(|tx| {
         for source in [RepoSource::Local, RepoSource::Base] {
             let all_metadata = tx.get_all_metadata(source).unwrap();
@@ -334,7 +334,7 @@ pub fn assert_deleted_files_pruned(core: &LbCore) {
 }
 
 /// Compare dbs for key equality don't compare last synced.
-pub fn assert_dbs_eq(left: &LbCore, right: &LbCore) {
+pub fn assert_dbs_eq(left: &Core, right: &Core) {
     keys_match(&left.db.account.get_all().unwrap(), &right.db.account.get_all().unwrap());
     keys_match(&left.db.root.get_all().unwrap(), &right.db.root.get_all().unwrap());
     keys_match(&left.db.local_digest.get_all().unwrap(), &right.db.local_digest.get_all().unwrap());
@@ -354,7 +354,7 @@ fn keys_match<T: Eq + Hash, U, V>(map1: &HashMap<T, U>, map2: &HashMap<T, V>) ->
     map1.len() == map2.len() && map1.keys().all(|k| map2.contains_key(k))
 }
 
-pub fn dbs_equal(left: &LbCore, right: &LbCore) -> bool {
+pub fn dbs_equal(left: &Core, right: &Core) -> bool {
     left.db.account.get_all().unwrap() == right.db.account.get_all().unwrap()
         && left.db.root.get_all().unwrap() == right.db.root.get_all().unwrap()
         && left.db.local_digest.get_all().unwrap() == right.db.local_digest.get_all().unwrap()
@@ -363,13 +363,13 @@ pub fn dbs_equal(left: &LbCore, right: &LbCore) -> bool {
         && left.db.base_metadata.get_all().unwrap() == right.db.base_metadata.get_all().unwrap()
 }
 
-pub fn assert_new_synced_client_dbs_eq(core: &LbCore) {
+pub fn assert_new_synced_client_dbs_eq(core: &Core) {
     let new_client = test_core_from(core);
     assert_repo_integrity(&new_client);
     assert_dbs_eq(core, &new_client);
 }
 
-pub fn assert_repo_integrity(core: &LbCore) {
+pub fn assert_repo_integrity(core: &Core) {
     core.validate().unwrap();
 }
 

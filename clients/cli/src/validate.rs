@@ -1,11 +1,11 @@
 use uuid::Uuid;
 
 use lockbook_core::model::errors::{TestRepoError, Warning};
-use lockbook_core::LbCore;
+use lockbook_core::Core;
 
 use crate::error::CliError;
 
-pub fn validate(core: &LbCore) -> Result<(), CliError> {
+pub fn validate(core: &Core) -> Result<(), CliError> {
     core.get_account()?;
 
     let err = match core.validate() {
@@ -65,7 +65,7 @@ pub fn validate(core: &LbCore) -> Result<(), CliError> {
     Err(err)
 }
 
-fn get_path_by_id_or_err(core: &LbCore, id: Uuid) -> Result<String, CliError> {
+fn get_path_by_id_or_err(core: &Core, id: Uuid) -> Result<String, CliError> {
     core.get_path_by_id(id).map_err(|err| {
         CliError::unexpected(format!("failed to get path by id: {} err: {:#?}", id, err))
     })

@@ -3,13 +3,13 @@ use std::io::Write;
 
 use lockbook_core::model::errors::ExportDrawingError;
 use lockbook_core::model::errors::GetFileByPathError;
+use lockbook_core::Core;
 use lockbook_core::Error as LbError;
-use lockbook_core::LbCore;
 
 use crate::error::CliError;
 use crate::utils::get_image_format;
 
-pub fn export_drawing(core: &LbCore, lb_path: &str, format: &str) -> Result<(), CliError> {
+pub fn export_drawing(core: &Core, lb_path: &str, format: &str) -> Result<(), CliError> {
     let file_metadata = core.get_by_path(lb_path).map_err(|err| match err {
         LbError::UiError(GetFileByPathError::NoFileAtThatPath) => CliError::file_not_found(lb_path),
         LbError::Unexpected(msg) => CliError::unexpected(msg),

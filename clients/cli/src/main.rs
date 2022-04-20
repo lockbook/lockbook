@@ -5,7 +5,7 @@ use structopt::StructOpt;
 
 use lockbook_core::service::path_service::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 use lockbook_core::Config;
-use lockbook_core::LbCore;
+use lockbook_core::Core;
 
 use crate::error::CliError;
 
@@ -171,7 +171,7 @@ fn exit_with(err: CliError) -> ! {
 
 fn parse_and_run() -> Result<(), CliError> {
     let args = Lockbook::from_args();
-    let core = LbCore::init(&config()?)?;
+    let core = Core::init(&config()?)?;
 
     match args {
         Lockbook::Copy { disk_files: files, destination } => {

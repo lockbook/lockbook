@@ -6,12 +6,12 @@ use chrono::{DateTime, Utc};
 use lockbook_core::model::errors::ExportFileError;
 use lockbook_core::model::errors::GetRootError;
 use lockbook_core::service::path_service::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
+use lockbook_core::Core;
 use lockbook_core::Error as LbError;
-use lockbook_core::LbCore;
 
 use crate::error::CliError;
 
-pub fn backup(core: &LbCore) -> Result<(), CliError> {
+pub fn backup(core: &Core) -> Result<(), CliError> {
     core.get_account()?;
 
     let leaf_nodes = core.list_paths(Some(LeafNodesOnly))?;

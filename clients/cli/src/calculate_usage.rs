@@ -1,10 +1,10 @@
 use lockbook_core::model::errors::GetUsageError;
+use lockbook_core::Core;
 use lockbook_core::Error as LbError;
-use lockbook_core::LbCore;
 
 use crate::error::CliError;
 
-pub fn calculate_usage(core: &LbCore, exact: bool) -> Result<(), CliError> {
+pub fn calculate_usage(core: &Core, exact: bool) -> Result<(), CliError> {
     core.get_account()?;
 
     let usage = core.get_usage()?;

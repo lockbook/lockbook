@@ -1,12 +1,12 @@
 use lockbook_core::model::errors::CalculateWorkError;
+use lockbook_core::Core;
 use lockbook_core::Error as LbError;
-use lockbook_core::LbCore;
 use lockbook_models::work_unit::WorkUnit;
 
 use crate::error::CliError;
 use crate::utils::print_last_successful_sync;
 
-pub fn status(core: &LbCore) -> Result<(), CliError> {
+pub fn status(core: &Core) -> Result<(), CliError> {
     core.get_account()?;
 
     let work = core.calculate_work().map_err(|err| match err {

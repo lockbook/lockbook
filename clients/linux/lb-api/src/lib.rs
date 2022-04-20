@@ -46,7 +46,7 @@ pub use lockbook_core::service::usage_service::UsageMetrics;
 
 pub use lockbook_core::DEFAULT_API_LOCATION;
 
-use lockbook_core::LbCore;
+use lockbook_core::Core;
 
 use lockbook_core::model::filename::NameComponents;
 
@@ -124,7 +124,7 @@ impl From<Error<SyncAllError>> for SyncError {
 }
 
 pub struct DefaultApi {
-    core: LbCore,
+    core: Core,
     sync_lock: Mutex<u8>,
 }
 
@@ -134,7 +134,7 @@ impl DefaultApi {
             .unwrap_or(format!("{}/.lockbook", std::env::var("HOME").unwrap()));
         let cfg = Config { logs: true, writeable_path };
 
-        let core = LbCore::init(&cfg).map_err(|e| e.0)?;
+        let core = Core::init(&cfg).map_err(|e| e.0)?;
 
         let sync_lock = Mutex::new(0);
 

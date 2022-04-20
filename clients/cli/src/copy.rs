@@ -6,14 +6,14 @@ use lockbook_core::model::errors::CreateFileAtPathError;
 use lockbook_core::model::errors::GetFileByPathError;
 use lockbook_core::model::errors::ImportFileError;
 use lockbook_core::service::import_export_service::ImportStatus;
+use lockbook_core::Core;
 use lockbook_core::CoreError;
 use lockbook_core::Error as LbError;
-use lockbook_core::LbCore;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 
 use crate::error::CliError;
 
-pub fn copy(core: &LbCore, disk_paths: &[PathBuf], lb_path: &str) -> Result<(), CliError> {
+pub fn copy(core: &Core, disk_paths: &[PathBuf], lb_path: &str) -> Result<(), CliError> {
     core.get_account()?;
 
     let total = Cell::new(0);
@@ -45,7 +45,7 @@ pub fn copy(core: &LbCore, disk_paths: &[PathBuf], lb_path: &str) -> Result<(), 
         })
 }
 
-fn get_or_create_file(core: &LbCore, lb_path: &str) -> Result<DecryptedFileMetadata, CliError> {
+fn get_or_create_file(core: &Core, lb_path: &str) -> Result<DecryptedFileMetadata, CliError> {
     // Try to get a file
     match core.get_by_path(lb_path) {
         Ok(file) => return Ok(file),

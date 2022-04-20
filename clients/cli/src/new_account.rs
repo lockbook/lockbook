@@ -2,12 +2,12 @@ use std::io::Write;
 use std::{env, io};
 
 use lockbook_core::model::errors::CreateAccountError;
+use lockbook_core::Core;
 use lockbook_core::Error as LbError;
-use lockbook_core::LbCore;
 
 use crate::error::CliError;
 
-pub fn new_account(core: &LbCore) -> Result<(), CliError> {
+pub fn new_account(core: &Core) -> Result<(), CliError> {
     print!("Enter a Username: ");
     io::stdout().flush().unwrap();
 

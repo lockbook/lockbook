@@ -3,8 +3,8 @@ use std::cmp::Ordering;
 use crate::Actions::*;
 use indicatif::{ProgressBar, ProgressStyle};
 use lockbook_core::model::errors::MoveFileError;
+use lockbook_core::Core;
 use lockbook_core::Error::UiError;
-use lockbook_core::LbCore;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use rand::distributions::{Alphanumeric, Distribution, Standard};
@@ -64,7 +64,7 @@ fn stress_test_sync() {
 }
 
 impl Actions {
-    fn execute(&self, clients: &[LbCore], rng: &mut StdRng) {
+    fn execute(&self, clients: &[Core], rng: &mut StdRng) {
         match &self {
             SyncAndCheck => {
                 for _ in 0..2 {
@@ -168,7 +168,7 @@ impl Actions {
         }
     }
 
-    fn random_client(clients: &[LbCore], rng: &mut StdRng) -> LbCore {
+    fn random_client(clients: &[Core], rng: &mut StdRng) -> Core {
         let client_index = rng.gen_range(0..CLIENTS) as usize;
         print!("client index = {:?}\t", client_index);
         clients[client_index].clone()
@@ -188,7 +188,7 @@ impl Actions {
             .collect()
     }
 
-    fn pick_random_file(core: &LbCore, rng: &mut StdRng) -> Option<DecryptedFileMetadata> {
+    fn pick_random_file(core: &Core, rng: &mut StdRng) -> Option<DecryptedFileMetadata> {
         let mut possible_files = core.list_metadatas().unwrap();
         possible_files.retain(|meta| meta.parent != meta.id);
         possible_files.sort_by(Self::deterministic_sort());
@@ -213,7 +213,7 @@ impl Actions {
         }
     }
 
-    fn pick_random_parent(core: &LbCore, rng: &mut StdRng) -> DecryptedFileMetadata {
+    fn pick_random_parent(core: &Core, rng: &mut StdRng) -> DecryptedFileMetadata {
         let mut possible_parents = core.list_metadatas().unwrap();
         possible_parents.retain(|meta| meta.file_type == Folder);
         possible_parents.sort_by(Self::deterministic_sort());
@@ -222,7 +222,7 @@ impl Actions {
         possible_parents[parent_index].clone()
     }
 
-    fn pick_random_document(core: &LbCore, rng: &mut StdRng) -> Option<DecryptedFileMetadata> {
+    fn pick_random_document(core: &Core, rng: &mut StdRng) -> Option<DecryptedFileMetadata> {
         let mut possible_documents = core.list_metadatas().unwrap();
         possible_documents.retain(|meta| meta.file_type == Document);
         possible_documents.sort_by(Self::deterministic_sort());
@@ -236,7 +236,7 @@ impl Actions {
     }
 }
 
-fn create_clients() -> Vec<LbCore> {
+fn create_clients() -> Vec<Core> {
     let mut cores = vec![];
 
     for _ in 0..CLIENTS {

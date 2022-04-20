@@ -1,11 +1,11 @@
 use lockbook_core::model::errors::GetFileByPathError;
 use lockbook_core::model::errors::MoveFileError;
+use lockbook_core::Core;
 use lockbook_core::Error as LbError;
-use lockbook_core::LbCore;
 
 use crate::error::CliError;
 
-pub fn move_file(core: &LbCore, path1: &str, path2: &str) -> Result<(), CliError> {
+pub fn move_file(core: &Core, path1: &str, path2: &str) -> Result<(), CliError> {
     core.get_account()?;
 
     let file_metadata = core.get_by_path(path1).map_err(|err| match err {
