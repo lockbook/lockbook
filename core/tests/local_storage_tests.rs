@@ -1,6 +1,5 @@
-mod test_utils;
-use crate::test_utils::test_config;
 use lockbook_core::repo::local_storage;
+use test_utils::test_config;
 
 #[test]
 fn read() {

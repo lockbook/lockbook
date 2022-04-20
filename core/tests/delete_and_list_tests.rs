@@ -1,4 +1,3 @@
-mod test_utils;
 use lockbook_core::model::errors::Error::UiError;
 use lockbook_core::model::errors::*;
 use lockbook_core::service::path_service::Filter;

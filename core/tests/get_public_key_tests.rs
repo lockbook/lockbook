@@ -1,8 +1,7 @@
-mod test_utils;
-use crate::test_utils::{random_name, test_core_with_account};
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_models::api::*;
+use test_utils::*;
 
 #[test]
 fn get_public_key() {

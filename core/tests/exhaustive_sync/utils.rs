@@ -2,12 +2,11 @@ use rand::distributions::Alphanumeric;
 use rand::rngs::OsRng;
 use rand::Rng;
 
-use lockbook_core::list_metadatas;
-use lockbook_core::model::state::Config;
+use lockbook_core::LbCore;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 
-pub fn find_by_name(config: &Config, name: &str) -> DecryptedFileMetadata {
-    let mut possible_matches = list_metadatas(config).unwrap();
+pub fn find_by_name(core: &LbCore, name: &str) -> DecryptedFileMetadata {
+    let mut possible_matches = core.list_metadatas().unwrap();
     if name == "root" {
         possible_matches.retain(|meta| meta.parent == meta.id);
     } else {

@@ -1,8 +1,6 @@
-mod test_utils;
-
-use crate::test_utils::test_core_with_account;
 use lockbook_core::service::api_service;
 use lockbook_models::api::{GetUpdatesRequest, NewAccountRequest};
+use test_utils::test_core_with_account;
 
 #[test]
 fn get_updates() {

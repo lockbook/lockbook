@@ -1,9 +1,8 @@
+use crate::*;
 use criterion::{black_box, criterion_group, Criterion};
-use lockbook_core::service::test_utils::{
-    create_account, test_config, CREATE_FILES_BENCH_1, CREATE_FILES_BENCH_2, CREATE_FILES_BENCH_3,
-    CREATE_FILES_BENCH_4, CREATE_FILES_BENCH_5, CREATE_FILES_BENCH_6,
-};
+use lockbook_core::LbCore;
 use lockbook_models::file_metadata::FileType;
+use test_utils::*;
 use uuid::Uuid;
 
 fn open_app_benchmark(c: &mut Criterion) {
@@ -14,20 +13,19 @@ fn open_app_benchmark(c: &mut Criterion) {
 }
 
 fn get_state_benchmark(c: &mut Criterion) {
-    let db = test_config();
-    create_account(&db);
+    let core = test_core_with_account();
 
-    c.bench_function("open_app_get_state", |b| {
-        b.iter(|| lockbook_core::get_db_state(&db).unwrap())
-    });
+    c.bench_function("open_app_get_state", |b| b.iter(|| LbCore::init(&core.config).unwrap()));
 }
 
 fn get_account_benchmark(c: &mut Criterion) {
-    let db = test_config();
-    create_account(&db);
+    let core = test_core_with_account();
 
     c.bench_function("open_app_get_account", |b| {
-        b.iter(|| lockbook_core::get_account(black_box(&db)))
+        b.iter(|| {
+            let core2 = LbCore::init(&core.config).unwrap();
+            core2.get_account().unwrap();
+        })
     });
 }
 
@@ -43,21 +41,23 @@ fn list_metadatas_benchmark(c: &mut Criterion) {
     ]
     .iter()
     {
-        let db = test_config();
-        let (_, root) = create_account(&db);
-
+        let core1 = test_core_with_account();
+        let root = core1.get_root().unwrap();
         for _ in 0..*size {
-            lockbook_core::create_file(
-                black_box(&db),
-                black_box(&Uuid::new_v4().to_string()),
-                black_box(root.id),
-                black_box(FileType::Document),
-            )
-            .unwrap();
+            core1
+                .create_file(
+                    black_box(&Uuid::new_v4().to_string()),
+                    black_box(root.id),
+                    black_box(FileType::Document),
+                )
+                .unwrap();
         }
 
         list_metadatas_group.bench_function(size.to_string(), |b| {
-            b.iter(|| lockbook_core::list_metadatas(&db).unwrap())
+            b.iter(|| {
+                let core2 = LbCore::init(&core1.config).unwrap();
+                core2.list_metadatas().unwrap();
+            })
         });
     }
     list_metadatas_group.finish();
@@ -75,21 +75,24 @@ fn list_paths_benchmark(c: &mut Criterion) {
     ]
     .iter()
     {
-        let db = test_config();
-        let (_, root) = create_account(&db);
+        let core1 = test_core_with_account();
+        let root = core1.get_root().unwrap();
 
         for _ in 0..*size {
-            lockbook_core::create_file(
-                black_box(&db),
-                black_box(&Uuid::new_v4().to_string()),
-                black_box(root.id),
-                black_box(FileType::Document),
-            )
-            .unwrap();
+            core1
+                .create_file(
+                    black_box(&Uuid::new_v4().to_string()),
+                    black_box(root.id),
+                    black_box(FileType::Document),
+                )
+                .unwrap();
         }
 
         list_paths_group.bench_function(size.to_string(), |b| {
-            b.iter(|| lockbook_core::list_paths(black_box(&db), black_box(None)).unwrap())
+            b.iter(|| {
+                let core2 = LbCore::init(&core1.config).unwrap();
+                core2.list_paths(None).unwrap();
+            })
         });
     }
     list_paths_group.finish();

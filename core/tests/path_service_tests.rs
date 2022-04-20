@@ -1,6 +1,3 @@
-mod test_utils;
-
-use crate::test_utils::test_core_with_account;
 use lockbook_core::model::errors::CreateFileAtPathError::*;
 use lockbook_core::model::repo::RepoSource;
 use lockbook_core::pure_functions::files;
@@ -10,6 +7,7 @@ use lockbook_core::service::{file_service, path_service};
 use lockbook_core::Error::UiError;
 use lockbook_core::{CoreError, Error};
 use lockbook_models::file_metadata::FileType;
+use test_utils::*;
 
 #[test]
 fn create_at_path_document() {

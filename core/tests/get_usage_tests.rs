@@ -1,11 +1,10 @@
-mod test_utils;
 use std::path::Path;
 
-use crate::test_utils::{random_name, test_core_with_account};
 use lockbook_core::model::repo::RepoSource;
 use lockbook_core::repo::document_repo;
 use lockbook_models::file_metadata::FileType;
 use lockbook_models::file_metadata::FileType::Folder;
+use test_utils::*;
 
 #[test]
 fn report_usage() {

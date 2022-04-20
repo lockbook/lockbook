@@ -1,12 +1,10 @@
-mod test_utils;
-
-use crate::test_utils::{path, test_core_from, test_core_with_account};
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use lockbook_core::model::repo::RepoSource;
 use lockbook_core::pure_functions::files;
 use lockbook_core::service::file_service;
 use test_utils::Operation::*;
+use test_utils::*;
 
 /*  ---------------------------------------------------------------------------------------------------------------
     Tests that operate on one device without syncing

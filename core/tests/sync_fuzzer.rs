@@ -1,8 +1,5 @@
-mod test_utils;
 use std::cmp::Ordering;
 
-use crate::test_utils::{assert_dbs_eq, url};
-use crate::test_utils::{random_name, test_core};
 use crate::Actions::*;
 use indicatif::{ProgressBar, ProgressStyle};
 use lockbook_core::model::errors::MoveFileError;
@@ -14,6 +11,8 @@ use lockbook_models::file_metadata::FileType::{Document, Folder};
 use rand::distributions::{Alphanumeric, Distribution, Standard};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
+use test_utils::*;
+use test_utils::*;
 use variant_count::VariantCount;
 
 /// Starting parameters that matter

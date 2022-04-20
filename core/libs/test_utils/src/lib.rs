@@ -1,6 +1,4 @@
 use chrono::Datelike;
-use std::env;
-
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use lockbook_core::model::repo::RepoSource;
@@ -13,6 +11,7 @@ use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadat
 use lockbook_models::tree::{FileMetaExt, FileMetadata};
 use lockbook_models::work_unit::WorkUnit;
 use std::collections::HashMap;
+use std::env;
 use std::fmt::Debug;
 use std::hash::Hash;
 use uuid::Uuid;
@@ -202,23 +201,7 @@ pub fn assert_all_paths(core: &LbCore, root: &DecryptedFileMetadata, expected_pa
 fn err_to_string<E: Debug>(e: E) -> String {
     format!("{}: {:?}", std::any::type_name::<E>(), e)
 }
-//
-// #[macro_export]
-// macro_rules! assert_dirty_ids {
-//     ($db:expr, $n:literal) => {
-//         assert_eq!(
-//             sync_service::calculate_work(&$db)
-//                 .unwrap()
-//                 .work_units
-//                 .into_iter()
-//                 .map(|wu| wu.get_metadata().id)
-//                 .unique()
-//                 .count(),
-//             $n
-//         );
-//     };
-// }
-//
+
 pub fn get_dirty_ids(db: &LbCore, server: bool) -> Vec<Uuid> {
     db.calculate_work()
         .unwrap()
@@ -376,17 +359,15 @@ fn keys_match<T: Eq + Hash, U, V>(map1: &HashMap<T, U>, map2: &HashMap<T, V>) ->
     map1.len() == map2.len() && map1.keys().all(|k| map2.contains_key(k))
 }
 
-//
-//     pub fn dbs_equal(&self, other: &Self) -> bool {
-//         self.account.get_all() == other.account.get_all()
-//             && self.last_synced.get_all() == other.last_synced.get_all()
-//             && self.root.get_all() == other.root.get_all()
-//             && self.local_digest.get_all() == other.local_digest.get_all()
-//             && self.base_digest.get_all() == other.base_digest.get_all()
-//             && self.local_metadata.get_all() == other.local_metadata.get_all()
-//             && self.base_metadata.get_all() == other.base_metadata.get_all()
-//     }
-//
+pub fn dbs_equal(left: &LbCore, right: &LbCore) -> bool {
+    left.db.account.get_all().unwrap() == right.db.account.get_all().unwrap()
+        && left.db.root.get_all().unwrap() == right.db.root.get_all().unwrap()
+        && left.db.local_digest.get_all().unwrap() == right.db.local_digest.get_all().unwrap()
+        && left.db.base_digest.get_all().unwrap() == right.db.base_digest.get_all().unwrap()
+        && left.db.local_metadata.get_all().unwrap() == right.db.local_metadata.get_all().unwrap()
+        && left.db.base_metadata.get_all().unwrap() == right.db.base_metadata.get_all().unwrap()
+}
+
 pub fn assert_new_synced_client_dbs_eq(core: &LbCore) {
     let new_client = test_core_from(core);
     assert_repo_integrity(&new_client);
@@ -446,16 +427,6 @@ macro_rules! assert_matches (
         }
     }
 );
-
-// pub const MAX_FILES_PER_BENCH: u64 = 6;
-//
-// pub const CREATE_FILES_BENCH_1: u64 = 1;
-// pub const CREATE_FILES_BENCH_2: u64 = 10;
-// pub const CREATE_FILES_BENCH_3: u64 = 100;
-// pub const CREATE_FILES_BENCH_4: u64 = 500;
-// pub const CREATE_FILES_BENCH_5: u64 = 1000;
-// pub const CREATE_FILES_BENCH_6: u64 = 2000;
-//
 
 fn get_frequencies<T: Hash + Eq>(a: &[T]) -> HashMap<&T, i32> {
     let mut result = HashMap::new();

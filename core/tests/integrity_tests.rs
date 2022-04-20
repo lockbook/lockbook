@@ -1,10 +1,7 @@
-mod test_utils;
-
 use hmdb::transaction::Transaction;
 use rand::Rng;
 use uuid::Uuid;
 
-use crate::test_utils::{path, test_core, test_core_with_account};
 use lockbook_core::model::errors::TestRepoError::*;
 use lockbook_core::model::errors::Warning::*;
 use lockbook_core::model::repo::RepoSource;
@@ -12,6 +9,7 @@ use lockbook_core::pure_functions::files;
 use lockbook_models::file_metadata::FileType::Document;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use lockbook_models::tree::{FileMetaExt, TestFileTreeError};
+use test_utils::*;
 
 #[test]
 fn test_integrity_no_problems() {

@@ -1,0 +1,12 @@
+[package]
+name = "test_utils"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lockbook-core = { path = "../../" }
+lockbook-models = { path = "../models" }
+hmdb = "0.1.12"
+itertools = "0.10.1"
+chrono = "0.4.15"
+uuid = { version = "0.8.1", features = ["v4", "serde"] }

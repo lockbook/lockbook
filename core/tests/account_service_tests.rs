@@ -1,10 +1,9 @@
-mod test_utils;
-use crate::test_utils::{random_name, test_core, url};
 use lockbook_core::model::errors::{CreateAccountError, ImportError};
 use lockbook_core::repo::schema::OneKey;
 use lockbook_core::Error;
 use lockbook_crypto::pubkey;
 use lockbook_models::account::Account;
+use test_utils::*;
 
 #[test]
 fn create_account_success() {

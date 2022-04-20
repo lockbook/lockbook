@@ -1,13 +1,11 @@
-mod test_utils;
-
-use crate::assert_matches;
-use crate::test_utils::{path, test_core_with_account};
 use lockbook_core::model::repo::RepoSource;
 use lockbook_core::repo::document_repo;
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::FileMetadataDiff;
+use test_utils::assert_matches;
+use test_utils::*;
 
 #[test]
 fn change_document_content() {

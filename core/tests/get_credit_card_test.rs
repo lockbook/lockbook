@@ -1,9 +1,7 @@
-mod test_utils;
-
-use crate::test_utils::{generate_premium_account_tier, test_core_with_account, test_credit_cards};
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_models::api::*;
+use test_utils::*;
 
 #[test]
 fn get_credit_card() {

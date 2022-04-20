@@ -1,11 +1,8 @@
-mod test_utils;
-
-use uuid::Uuid;
-
-use crate::test_utils::{path, test_core_with_account, UPDATES_REQ};
 use lockbook_core::service::api_service;
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::FileMetadataDiff;
+use test_utils::*;
+use uuid::Uuid;
 
 #[test]
 fn create_document() {

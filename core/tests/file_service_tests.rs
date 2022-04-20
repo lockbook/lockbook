@@ -1,5 +1,3 @@
-mod test_utils;
-
 use hmdb::transaction::Transaction;
 use lockbook_core::model::repo::RepoSource;
 use lockbook_core::pure_functions::files;

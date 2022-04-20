@@ -1,9 +1,7 @@
-mod test_utils;
-
-use crate::test_utils::{path, test_core_with_account, UPDATES_REQ};
 use lockbook_core::pure_functions::files;
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
+use test_utils::*;
 
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::FileMetadataDiff;

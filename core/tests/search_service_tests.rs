@@ -1,6 +1,5 @@
-mod test_utils;
-use crate::test_utils::{path, test_core_with_account};
 use lockbook_core::service::search_service::SearchResultItem;
+use test_utils::*;
 
 #[test]
 fn test_matches() {

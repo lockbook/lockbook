@@ -1,6 +1,3 @@
-mod test_utils;
-
-use crate::test_utils::{random_name, test_core_with_account, url};
 use lockbook_core::pure_functions::files;
 use lockbook_core::repo::schema::helper_log::account;
 use lockbook_core::service::api_service::ApiError;
@@ -8,6 +5,7 @@ use lockbook_core::service::{api_service, file_encryption_service};
 use lockbook_crypto::pubkey;
 use lockbook_models::account::Account;
 use lockbook_models::api::*;
+use test_utils::*;
 
 fn random_account() -> Account {
     Account { username: random_name(), api_url: url(), private_key: pubkey::generate_key() }

@@ -1,11 +1,10 @@
-mod test_utils;
-use crate::test_utils::{path, test_core_with_account};
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_models::api::*;
 use lockbook_models::crypto::AESEncrypted;
 use lockbook_models::file_metadata::FileMetadataDiff;
 use lockbook_models::file_metadata::FileType;
+use test_utils::*;
 use uuid::Uuid;
 
 #[test]

@@ -1,10 +1,8 @@
-mod test_utils;
-
-use crate::test_utils::test_core_with_account;
 use lockbook_core::pure_functions::files;
 use lockbook_core::CoreError;
 use lockbook_models::file_metadata::FileType;
 use lockbook_models::tree::{FileMetaExt, PathConflict};
+use test_utils::test_core_with_account;
 
 #[test]
 fn apply_rename() {

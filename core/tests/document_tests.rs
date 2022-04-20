@@ -1,5 +1,3 @@
-mod test_utils;
-
 use lockbook_core::model::repo::RepoSource;
 use lockbook_core::repo::document_repo;
 use lockbook_crypto::symkey;

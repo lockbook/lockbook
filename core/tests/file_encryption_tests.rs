@@ -1,5 +1,3 @@
-mod test_utils;
-
 use lockbook_core::pure_functions::files;
 use lockbook_core::service::file_encryption_service;
 use lockbook_crypto::symkey;
