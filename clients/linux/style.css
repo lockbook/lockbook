@@ -1,3 +1,11 @@
+.onboard-heading {
+	font-size: 28px;
+	font-weight: bold;
+}
+.onboard-link {
+	padding: 0px;
+	margin: 0px;
+}
 .settings-heading {
 	font-size: 20px;
 }
