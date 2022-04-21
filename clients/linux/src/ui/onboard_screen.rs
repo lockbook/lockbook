@@ -33,8 +33,6 @@ impl OnboardScreen {
     pub fn new(op_chan: &glib::Sender<OnboardOp>) -> Self {
         let heading = gtk::Label::builder()
             .css_classes(vec!["onboard-heading".to_string()])
-            .margin_top(16)
-            .margin_bottom(16)
             .label("Lockbook")
             .build();
 
@@ -83,15 +81,14 @@ impl OnboardScreen {
         let status = Status::new();
         stack.add_named(&status.cntr, Some("status"));
 
-        let switcher = gtk::StackSwitcher::builder()
-            .stack(&stack)
-            .margin_top(20)
-            .margin_bottom(20)
-            .build();
+        let switcher = gtk::StackSwitcher::builder().stack(&stack).build();
 
-        let cntr = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        cntr.set_halign(gtk::Align::Center);
-        cntr.set_valign(gtk::Align::Center);
+        let cntr = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .halign(gtk::Align::Center)
+            .margin_top(30)
+            .spacing(20)
+            .build();
         cntr.append(&super::logo(256));
         cntr.append(&heading);
         cntr.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
