@@ -39,13 +39,13 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
         setContentView(binding.root)
         Timber.plant(Timber.DebugTree())
 
-        handleDBState()
+        handleAccountState()
     }
 
-    private fun handleDBState() {
-        when (val getAccount = CoreModel.getAccount()) {
+    private fun handleAccountState() {
+        when (val getAccountResult = CoreModel.getAccount()) {
             is Ok -> startFromExistingAccount()
-            is Err -> when (val error = getAccount.error) {
+            is Err -> when (val error = getAccountResult.error) {
                 is CoreError.UiError -> when (error.content) {
                     GetAccountError.NoAccount -> {
                         startActivity(Intent(this, OnBoardingActvity::class.java))
