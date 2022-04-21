@@ -6,6 +6,11 @@ pub enum OnboardOp {
     ImportAccount(String),
 }
 
+pub enum OnboardRoute {
+    Create,
+    Import,
+}
+
 #[derive(Clone)]
 pub struct OnboardScreen {
     error_create: gtk::Label,
@@ -96,18 +101,24 @@ impl OnboardScreen {
         Self { status, error_create, error_import, stack, switcher, cntr }
     }
 
-    pub fn start(&self, title: &str) {
-        self.status.title.set_text(title);
+    pub fn start(&self, which: OnboardRoute) {
+        self.status.title.set_text(match which {
+            OnboardRoute::Create => "Creating account...",
+            OnboardRoute::Import => "Importing account...",
+        });
         self.switcher.set_sensitive(false);
         self.stack.set_visible_child_name("status");
         self.status.spinner.start();
         self.status.spinner.show();
     }
 
-    pub fn stop(&self, back_to: &str) {
+    pub fn stop(&self, which: OnboardRoute) {
         self.status.spinner.stop();
         self.status.title.set_text("");
-        self.stack.set_visible_child_name(back_to);
+        self.stack.set_visible_child_name(match which {
+            OnboardRoute::Create => "create",
+            OnboardRoute::Import => "import",
+        });
         self.switcher.set_sensitive(true);
     }
 

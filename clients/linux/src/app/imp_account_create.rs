@@ -1,9 +1,11 @@
 use gtk::glib;
 use gtk::prelude::*;
 
+use crate::ui;
+
 impl super::App {
     pub fn create_account(&self, uname: String, url: String) {
-        self.onboard.start("Creating account...");
+        self.onboard.start(ui::OnboardRoute::Create);
 
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
         std::thread::spawn({
@@ -18,7 +20,7 @@ impl super::App {
 
         let app = self.clone();
         rx.attach(None, move |create_acct_result| {
-            app.onboard.stop("create");
+            app.onboard.stop(ui::OnboardRoute::Create);
 
             match create_acct_result {
                 Ok(_acct) => app.prompt_backup(),

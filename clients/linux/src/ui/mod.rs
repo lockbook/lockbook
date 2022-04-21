@@ -11,6 +11,7 @@ mod titlebar;
 pub use account_screen::AccountOp;
 pub use account_screen::AccountScreen;
 pub use onboard_screen::OnboardOp;
+pub use onboard_screen::OnboardRoute;
 pub use onboard_screen::OnboardScreen;
 
 pub use filetree::FileTree;
