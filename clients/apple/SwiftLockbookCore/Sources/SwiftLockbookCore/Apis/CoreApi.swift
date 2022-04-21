@@ -11,7 +11,7 @@ public struct CoreApi: LockbookApi {
         print("core init result: \(startCore(logs))")
     }
     
-    public func startCore(_ logs: Bool) -> FfiResult<Empty, GetStateError> {
+    public func startCore(_ logs: Bool) -> FfiResult<Empty, InitError> {
         fromPrimitiveResult(result: `init`(documentsDirectory, logs))
     }
     

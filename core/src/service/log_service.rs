@@ -19,9 +19,11 @@ pub fn init<P: AsRef<Path>>(log_path: P) -> Result<(), CoreError> {
         fmt::Layer::new()
             .with_span_events(FmtSpan::ACTIVE)
             .with_target(false)
-            .with_writer(tracing_appender::rolling::never(log_path, LOG_FILE))
+            .with_writer(tracing_appender::rolling::never(&log_path, LOG_FILE))
             .with_filter(lockbook_log_level)
-            .with_filter(filter::filter_fn(|metadata| metadata.target() == "lockbook_core")),
+            .with_filter(filter::filter_fn(|metadata| {
+                metadata.target().starts_with("lockbook_core")
+            })),
     );
 
     tracing::subscriber::set_global_default(subscriber).map_err(core_err_unexpected)?;
