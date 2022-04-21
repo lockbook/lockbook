@@ -1,6 +1,6 @@
 global:
-  scrape_interval: 15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
-  evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+  scrape_interval: 1s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+  evaluation_interval: 1s # Evaluate rules every 15 seconds. The default is every 1 minute.
 
 alerting:
   alertmanagers:
@@ -13,12 +13,15 @@ scrape_configs:
       - targets:
           - 'localhost:9090'
           - 'localhost:9100'
-  - job_name: 'load-balancer'
+  - job_name: 'production'
     static_configs:
-      - targets:
-          - '172.31.43.245:9100'
-  - job_name: 'api'
-    static_configs:
-      - targets: ['172.31.41.113:9100']
+      - targets: ['172.31.89.187:9100']
       - labels:
-          instance: 'api-001'
+          instance: 'production'
+  - job_name: 'github'
+    static_configs:
+      - targets: ['172.31.27.221:8001']
+  - job_name: 'lockbook-server'
+    scheme: https
+    static_configs:
+            - targets: ['api.prod.lockbook.net']
