@@ -658,6 +658,7 @@ impl Tx<'_> {
         Ok(())
     }
 
+    #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn calculate_work(&self, config: &Config) -> Result<WorkCalculated, CoreError> {
         let account = &self.get_account()?;
         let base_metadata = self.get_all_metadata(RepoSource::Base)?;

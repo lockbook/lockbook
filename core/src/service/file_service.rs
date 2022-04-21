@@ -251,6 +251,7 @@ impl Tx<'_> {
 
     /// Removes deleted files which are safe to delete. Call this function after a set of operations rather than in-between
     /// each operation because otherwise you'll prune e.g. a file that was moved out of a folder that was deleted.
+    #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn prune_deleted(&mut self, config: &Config) -> Result<(), CoreError> {
         // If a file is deleted or has a deleted ancestor, we say that it is deleted. Whether a file is deleted is specific
         // to the source (base or local). We cannot prune (delete from disk) a file in one source and not in the other in

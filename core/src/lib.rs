@@ -49,6 +49,7 @@ pub struct Core {
 }
 
 impl Core {
+    #[instrument(level = "info", skip_all, err(Debug))]
     pub fn init(config: &Config) -> Result<Self, UnexpectedError> {
         if config.logs {
             log_service::init(&config.writeable_path)?;
@@ -60,6 +61,7 @@ impl Core {
         Ok(Self { config, db })
     }
 
+    #[instrument(level = "info", err(Debug))]
     pub fn create_account(
         &self, username: &str, api_url: &str,
     ) -> Result<Account, Error<CreateAccountError>> {
@@ -69,6 +71,7 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn import_account(&self, account_string: &str) -> Result<Account, Error<ImportError>> {
         let val = self
             .db
@@ -76,16 +79,19 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn export_account(&self) -> Result<String, Error<AccountExportError>> {
         let val = self.db.transaction(|tx| tx.export_account())?;
         Ok(val?)
     }
 
+    #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn get_account(&self) -> Result<Account, Error<GetAccountError>> {
         let account = self.db.transaction(|tx| tx.get_account())??;
         Ok(account)
     }
 
+    #[instrument(level = "debug", skip(name), err(Debug))]
     pub fn create_file(
         &self, name: &str, parent: Uuid, file_type: FileType,
     ) -> Result<DecryptedFileMetadata, Error<CreateFileError>> {
@@ -95,6 +101,7 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", skip(content), err(Debug))]
     pub fn write_document(
         &self, id: Uuid, content: &[u8],
     ) -> Result<(), Error<WriteToDocumentError>> {
@@ -106,16 +113,19 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn get_root(&self) -> Result<DecryptedFileMetadata, Error<GetRootError>> {
         let val = self.db.transaction(|tx| tx.root())?;
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn get_children(&self, id: Uuid) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
         let val = self.db.transaction(|tx| tx.get_children(id))?;
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn get_and_get_children_recursively(
         &self, id: Uuid,
     ) -> Result<Vec<DecryptedFileMetadata>, Error<GetAndGetChildrenError>> {
@@ -126,6 +136,7 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn get_file_by_id(
         &self, id: Uuid,
     ) -> Result<DecryptedFileMetadata, Error<GetFileByIdError>> {
@@ -136,11 +147,13 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn delete_file(&self, id: Uuid) -> Result<(), Error<FileDeleteError>> {
         let val = self.db.transaction(|tx| tx.delete_file(&self.config, id))?;
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
         let val = self
             .db
@@ -148,6 +161,7 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn save_document_to_disk(
         &self, id: Uuid, location: &str,
     ) -> Result<(), Error<SaveDocumentToDiskError>> {
@@ -158,6 +172,7 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn list_metadatas(&self) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
         let val = self
             .db
@@ -165,6 +180,7 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", skip(new_name), err(Debug))]
     pub fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), Error<RenameFileError>> {
         let val = self
             .db
@@ -173,6 +189,7 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn move_file(&self, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
         let val = self
             .db
@@ -180,6 +197,7 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn create_at_path(
         &self, path_and_name: &str,
     ) -> Result<DecryptedFileMetadata, Error<CreateFileAtPathError>> {
@@ -190,6 +208,7 @@ impl Core {
         Ok(val)
     }
 
+    #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn get_by_path(
         &self, path: &str,
     ) -> Result<DecryptedFileMetadata, Error<GetFileByPathError>> {
@@ -198,17 +217,20 @@ impl Core {
         Ok(val)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn get_path_by_id(&self, id: Uuid) -> Result<String, UnexpectedError> {
         let val: Result<_, CoreError> = self.db.transaction(|tx| tx.get_path_by_id(id))?;
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn list_paths(&self, filter: Option<Filter>) -> Result<Vec<String>, UnexpectedError> {
         let val: Result<_, CoreError> = self.db.transaction(|tx| tx.list_paths(filter))?;
 
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn get_local_changes(&self) -> Result<Vec<Uuid>, UnexpectedError> {
         let val = self
             .db
@@ -216,20 +238,24 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>> {
         let val = self.db.transaction(|tx| tx.calculate_work(&self.config))?;
         Ok(val?)
     }
 
+    #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>> {
         let val = self.db.transaction(|tx| tx.sync(&self.config, f))?;
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn get_last_synced(&self) -> Result<i64, UnexpectedError> {
         Ok(self.db.last_synced.get(&OneKey {})?.unwrap_or(0))
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn get_last_synced_human_string(&self) -> Result<String, UnexpectedError> {
         let last_synced = self.db.last_synced.get(&OneKey {})?.unwrap_or(0);
 
@@ -242,11 +268,13 @@ impl Core {
         })
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn get_usage(&self) -> Result<UsageMetrics, Error<GetUsageError>> {
         let val = self.db.transaction(|tx| tx.get_usage())?;
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn get_uncompressed_usage(&self) -> Result<UsageItemMetric, Error<GetUsageError>> {
         let val = self
             .db
@@ -254,11 +282,13 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn get_drawing(&self, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
         let val = self.db.transaction(|tx| tx.get_drawing(&self.config, id))?;
         Ok(val?)
     }
 
+    #[instrument(level = "debug", skip(drawing_bytes), err(Debug))]
     pub fn save_drawing(
         &self, id: Uuid, drawing_bytes: &[u8],
     ) -> Result<(), Error<SaveDrawingError>> {
@@ -268,6 +298,7 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn export_drawing(
         &self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
@@ -278,6 +309,7 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn export_drawing_to_disk(
         &self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
@@ -288,6 +320,7 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", skip(update_status), err(Debug))]
     pub fn import_files<F: Fn(ImportStatus)>(
         &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
     ) -> Result<(), Error<ImportFileError>> {
@@ -297,6 +330,7 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", skip(export_progress), err(Debug))]
     pub fn export_file(
         &self, id: Uuid, destination: PathBuf, edit: bool,
         export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
@@ -307,6 +341,7 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn switch_account_tier(
         &self, new_account_tier: AccountTier,
     ) -> Result<(), Error<SwitchAccountTierError>> {
@@ -316,16 +351,19 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn get_credit_card(&self) -> Result<CreditCardLast4Digits, Error<GetCreditCard>> {
         let val = self.db.transaction(|tx| tx.get_credit_card())?;
         Ok(val?)
     }
 
+    #[instrument(level = "debug", skip(input), err(Debug))]
     pub fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError> {
         let val = self.db.transaction(|tx| tx.search_file_paths(input))?;
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
     pub fn validate(&self) -> Result<Vec<Warning>, TestRepoError> {
         self.db
             .transaction(|tx| tx.test_repo_integrity(&self.config))
