@@ -17,11 +17,19 @@ namespace lockbook {
     }
 
     public class CoreService {
-        public IntPtr path;
         private JsonSerializerSettings jsonSettings = new JsonSerializerSettings { MissingMemberHandling = MissingMemberHandling.Error };
 
         public CoreService(string path) {
-            this.path = Utils.ToFFI(path);
+            var pathFFI = Utils.ToFFI(path);
+            Task.Run(() => {
+                try {
+                    coreMutex.WaitOne();
+                    init(pathFFI, true);
+                } finally {
+                    coreMutex.ReleaseMutex();
+                }
+            }).Wait();
+            Marshal.FreeHGlobal(pathFFI);
         }
 
         private static Mutex coreMutex = new Mutex();
@@ -154,17 +162,6 @@ namespace lockbook {
                 default:
                     return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (tag neither Ok nor Err): " + tag);
             }
-        }
-
-        public async Task Init() {
-            await Task.Run(() => {
-                try {
-                    coreMutex.WaitOne();
-                    init(path, true);
-                } finally {
-                    coreMutex.ReleaseMutex();
-                }
-            });
         }
 
         public async Task<Core.CreateAccount.IResult> CreateAccount(string username, string apiUrl) {

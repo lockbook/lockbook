@@ -146,7 +146,6 @@ namespace lockbook {
                 Frame.Navigate(typeof(Startup));
 
                 CoreService = new CoreService(ApplicationData.Current.LocalFolder.Path);
-                await CoreService.Init();
 
                 await ReloadAccount();
             }
