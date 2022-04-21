@@ -129,7 +129,7 @@ impl super::App {
         onboard_op_rx.attach(None, move |op| {
             use ui::OnboardOp::*;
             match op {
-                CreateAccount(uname, url) => self.create_account(uname, url),
+                CreateAccount { uname, api_url } => self.create_account(uname, api_url),
                 ImportAccount(account_string) => self.import_account(account_string),
             }
             glib::Continue(true)
