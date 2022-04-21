@@ -11,6 +11,7 @@ mod titlebar;
 pub use account_screen::AccountOp;
 pub use account_screen::AccountScreen;
 pub use onboard_screen::OnboardOp;
+pub use onboard_screen::OnboardRoute;
 pub use onboard_screen::OnboardScreen;
 
 pub use filetree::FileTree;
@@ -80,6 +81,21 @@ pub fn document_icon_from_name(fname: &str) -> String {
     } else {
         "text-x-generic".to_string()
     }
+}
+
+pub fn logo(size: i32) -> impl IsA<gtk::Widget> {
+    static LOGO: &[u8] = include_bytes!("../../lockbook-backdrop.png");
+
+    let logo_pic = gtk::Picture::for_pixbuf(&gdk_pixbuf::Pixbuf::from_read(LOGO).unwrap());
+    let wrap_1 = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    wrap_1.set_size_request(size, size);
+    wrap_1.append(&logo_pic);
+    let wrap_2 = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    wrap_2.set_size_request(size, size);
+    wrap_2.set_halign(gtk::Align::Center);
+    wrap_2.set_valign(gtk::Align::Center);
+    wrap_2.append(&wrap_1);
+    wrap_2
 }
 
 pub mod icons {

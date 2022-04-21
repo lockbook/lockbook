@@ -81,7 +81,7 @@ impl AccountScreen {
         sidebar.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
         sidebar.append(&sync.cntr);
 
-        stack.add_named(&logo(), Some("logo"));
+        stack.add_named(&super::logo(400), Some("logo"));
         stack.add_named(&tabs, Some("tabs"));
 
         let cntr = gtk::Paned::new(gtk::Orientation::Horizontal);
@@ -123,19 +123,4 @@ impl AccountScreen {
         }
         false
     }
-}
-
-fn logo() -> impl IsA<gtk::Widget> {
-    static LOGO: &[u8] = include_bytes!("../../lockbook-backdrop.png");
-
-    let logo_pic = gtk::Picture::for_pixbuf(&gdk_pixbuf::Pixbuf::from_read(LOGO).unwrap());
-    let wrap_1 = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    wrap_1.set_size_request(400, 400);
-    wrap_1.append(&logo_pic);
-    let wrap_2 = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    wrap_2.set_size_request(400, 400);
-    wrap_2.set_halign(gtk::Align::Center);
-    wrap_2.set_valign(gtk::Align::Center);
-    wrap_2.append(&wrap_1);
-    wrap_2
 }

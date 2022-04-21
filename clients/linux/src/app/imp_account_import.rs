@@ -4,7 +4,7 @@ use crate::ui;
 
 impl super::App {
     pub fn import_account(&self, acct_str: String) {
-        self.onboard.start("Importing account...");
+        self.onboard.start(ui::OnboardRoute::Import);
 
         // Create a channel to receive and process the result of importing the account.
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
@@ -50,7 +50,7 @@ impl super::App {
             match pr {
                 lb::SyncProgressReport::Update(msg) => set_import_sync_progress(&app.onboard, &msg),
                 lb::SyncProgressReport::Done(result) => {
-                    app.onboard.stop("import");
+                    app.onboard.stop(ui::OnboardRoute::Import);
                     match result {
                         Ok(_) => app.init_account_screen(),
                         Err(err) => import_sync_done_with_err(&app, err),
