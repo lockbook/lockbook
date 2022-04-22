@@ -13,7 +13,6 @@ import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TransientScreen
-import app.lockbook.util.Config
 import app.lockbook.util.LbErrorKind
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -36,7 +35,6 @@ class RenameFileDialogFragment : DialogFragment() {
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
 
     private val model: StateViewModel by activityViewModels()
-    lateinit var config: Config
 
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()), view)
@@ -66,7 +64,6 @@ class RenameFileDialogFragment : DialogFragment() {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        config = Config(requireNotNull(this.activity).application.filesDir.absolutePath)
         dialog?.setCanceledOnTouchOutside(false) ?: alertModel.notifyBasicError()
 
         binding.renameFileCancel.setOnClickListener {
@@ -97,7 +94,7 @@ class RenameFileDialogFragment : DialogFragment() {
     }
 
     private suspend fun renameFile(newName: String) {
-        when (val renameFileResult = CoreModel.renameFile(config, (model.transientScreen as TransientScreen.Rename).file.id, newName)) {
+        when (val renameFileResult = CoreModel.renameFile((model.transientScreen as TransientScreen.Rename).file.id, newName)) {
             is Ok -> {
                 withContext(Dispatchers.Main) {
                     dismiss()

@@ -1,16 +1,15 @@
-use lockbook_core::{import_account, Error as CoreError, ImportError};
+use lockbook_core::model::errors::ImportError;
+use lockbook_core::Core;
+use lockbook_core::Error as LbError;
 
-use crate::error::CliResult;
-use crate::utils::config;
-use crate::{err, err_extra, err_unexpected};
+use crate::error::CliError;
 
-pub fn import_private_key() -> CliResult<()> {
+pub fn import_private_key(core: &Core) -> Result<(), CliError> {
     if atty::is(atty::Stream::Stdin) {
-        Err(err_extra!(
-            ExpectedStdin,
+        Err(CliError::expected_stdin().with_extra(
             "To import an existing Lockbook, pipe your account string into this command, \
     eg. pbpaste | lockbook import-private-key \
-    or xclip -selection clipboard -o | lockbook import-private-key"
+    or xclip -selection clipboard -o | lockbook import-private-key",
         ))
     } else {
         let mut account_string = String::new();
@@ -21,17 +20,18 @@ pub fn import_private_key() -> CliResult<()> {
 
         println!("Importing...");
 
-        import_account(&config()?, &account_string).map_err(|err| match err {
-            CoreError::UiError(err) => match err {
-                ImportError::AccountStringCorrupted => err!(AccountStringCorrupted),
-                ImportError::AccountExistsAlready => err!(AccountAlreadyExists),
-                ImportError::AccountDoesNotExist => err!(AccountDoesNotExistOnServer),
-                ImportError::UsernamePKMismatch => err!(UsernamePkMismatch),
-                ImportError::CouldNotReachServer => err!(NetworkIssue),
-                ImportError::ClientUpdateRequired => err!(UpdateRequired),
-            },
-            CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
-        })?;
+        core.import_account(&account_string)
+            .map_err(|err| match err {
+                LbError::UiError(err) => match err {
+                    ImportError::AccountStringCorrupted => CliError::account_string_corrupted(),
+                    ImportError::AccountExistsAlready => CliError::account_exists(),
+                    ImportError::AccountDoesNotExist => CliError::account_not_on_server(),
+                    ImportError::UsernamePKMismatch => CliError::username_pk_mismatch(),
+                    ImportError::CouldNotReachServer => CliError::network_issue(),
+                    ImportError::ClientUpdateRequired => CliError::update_required(),
+                },
+                LbError::Unexpected(msg) => CliError::unexpected(msg),
+            })?;
 
         println!("Account imported successfully.");
         Ok(())

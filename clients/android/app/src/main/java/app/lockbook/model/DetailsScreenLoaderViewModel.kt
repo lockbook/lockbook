@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
-import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.getRes
 import app.lockbook.getString
@@ -26,7 +25,7 @@ class DetailsScreenLoaderViewModel(application: Application, loadingInfo: Detail
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            val getContentsResults = CoreModel.readDocument(App.config, loadingInfo.fileMetadata.id)
+            val getContentsResults = CoreModel.readDocument(loadingInfo.fileMetadata.id)
             _updateDetailScreenLoaderUI.postValue(
                 when (getContentsResults) {
                     is Ok -> {

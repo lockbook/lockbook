@@ -1,17 +1,13 @@
 package app.lockbook
 
-import app.lockbook.core.importAccount
 import app.lockbook.model.CoreModel
 import app.lockbook.util.Config
 import app.lockbook.util.ImportError
-import app.lockbook.util.IntermCoreResult
-import kotlinx.serialization.decodeFromString
-import org.junit.After
+import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 
 class ImportAccountTest {
-    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -21,32 +17,25 @@ class ImportAccountTest {
         }
     }
 
-    @After
-    fun createDirectory() {
-        config = Config(createRandomPath())
+    @Before
+    fun initCore() {
+        CoreModel.init(Config(false, createRandomPath()))
     }
 
     @Test
     fun importAccountOk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        val exportAccountString = CoreModel.exportAccount(config).unwrapOk()
+        val exportAccountString = CoreModel.exportAccount().unwrapOk()
 
-        config = Config(createRandomPath())
+        CoreModel.init(Config(false, createRandomPath()))
 
-        CoreModel.importAccount(config, exportAccountString).unwrapOk()
+        CoreModel.importAccount(exportAccountString).unwrapOk()
     }
 
     @Test
     fun importAccountStringCorrupted() {
-        CoreModel.importAccount(config, "!@#$%^&*()")
+        CoreModel.importAccount("!@#$%^&*()")
             .unwrapErrorType(ImportError.AccountStringCorrupted)
-    }
-
-    @Test
-    fun importAccountUnexpectedError() {
-        CoreModel.importAccountParser.decodeFromString<IntermCoreResult<Unit, ImportError>>(
-            importAccount("", "")
-        ).unwrapUnexpected()
     }
 }

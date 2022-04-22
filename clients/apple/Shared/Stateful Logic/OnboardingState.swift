@@ -29,8 +29,7 @@ class OnboardingService: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async {
             let operation = self.core.createAccount(username: self.username, apiLocation: ConfigHelper.get(.apiLocation))
             DispatchQueue.main.async {
-                self.working = false
-                
+                self.working = false                
                 switch operation {
                 case .success:
                     DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1)) { self.anAccountWasCreatedThisSession = true }
@@ -45,7 +44,7 @@ class OnboardingService: ObservableObject {
                         case .ClientUpdateRequired:
                             self.createAccountError = "Please download the most recent version of Lockbook to create an account!"
                         case .CouldNotReachServer:
-                            self.createAccountError = "Could not reach \(ConfigHelper.get(.apiLocation))!"
+                            self.createAccountError = "Could not reach lockbook.net!"
                         case .InvalidUsername:
                             self.createAccountError = "That username is not valid!"
                         case .UsernameTaken:
@@ -96,7 +95,7 @@ class OnboardingService: ObservableObject {
                         case .ClientUpdateRequired:
                             self.importAccountError = "Lockbook must be updated before you can continue!"
                         case .CouldNotReachServer:
-                            self.importAccountError = "Could not reach \(ConfigHelper.get(.apiLocation))!"
+                            self.importAccountError = "Could not reach lockbook.net!"
                         case .UsernamePKMismatch:
                             self.importAccountError = "That username does not match the public key stored on this server!"
                         }
