@@ -45,12 +45,12 @@ pub fn edit(file_name: &str) -> CliResult<()> {
         .sync_all()
         .map_err(|err| err!(OsCouldNotWriteFile(file_buf.clone(), err)))?;
 
-    let watcher = set_up_auto_save(file_metadata.id, file_buf.clone());
+    let watcher = set_up_auto_save(file_metadata.id, &file_buf);
 
     let edit_was_successful = edit_file_with_editor(&file_buf);
 
     if let Some(ok) = watcher {
-        stop_auto_save(ok, file_buf.clone());
+        stop_auto_save(ok, &file_buf);
     }
 
     if edit_was_successful {

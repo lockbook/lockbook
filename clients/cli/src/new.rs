@@ -49,7 +49,7 @@ pub fn new(file_name: &str) -> CliResult<()> {
         return Ok(());
     }
 
-    let watcher = set_up_auto_save(file_metadata.id, file_buf.clone());
+    let watcher = set_up_auto_save(file_metadata.id, &file_buf);
 
     let edit_was_successful = edit_file_with_editor(&file_buf);
 

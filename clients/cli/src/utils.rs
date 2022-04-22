@@ -5,7 +5,6 @@ use lockbook_core::{
 };
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
 use std::ffi::OsStr;
-use std::marker::Send;
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 
@@ -119,7 +118,7 @@ pub fn get_editor() -> SupportedEditors {
 
 pub fn get_directory_location() -> CliResult<PathBuf> {
     let mut result = env::temp_dir();
-    result.push(format!("{}", Uuid::new_v4()));
+    result.push(Uuid::new_v4().to_string());
     fs::create_dir(&result)
         .map_err(|err| err_unexpected!("couldn't open temporary file for writing: {:#?}", err))?;
     Ok(result)
@@ -200,13 +199,12 @@ pub fn print_last_successful_sync() -> CliResult<()> {
     Ok(())
 }
 
-pub fn set_up_auto_save<P: 'static + AsRef<Path> + Send>(
-    id: Uuid, location: P,
-) -> Option<Hotwatch> {
+pub fn set_up_auto_save<P: AsRef<Path>>(id: Uuid, location: P) -> Option<Hotwatch> {
+    let location = PathBuf::from(location.as_ref());
     match Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5)) {
         Ok(mut watcher) => {
             watcher
-                .watch(location.as_ref().to_path_buf(), move |event: Event| match event {
+                .watch(location.clone(), move |event: Event| match event {
                     Event::NoticeWrite(_) | Event::Write(_) | Event::Create(_) => {
                         if let Err(err) = save_temp_file_contents(id, &location) {
                             err.print();
