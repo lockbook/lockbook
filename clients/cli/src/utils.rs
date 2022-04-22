@@ -4,7 +4,9 @@ use lockbook_core::{
     migrate_db, GetAccountError, MigrationError,
 };
 use lockbook_core::{write_document, Error as CoreError, WriteToDocumentError};
-use std::path::PathBuf;
+use std::ffi::OsStr;
+use std::marker::Send;
+use std::path::{Path, PathBuf};
 use std::{env, fs};
 
 use crate::error::CliResult;
@@ -142,7 +144,7 @@ pub fn get_image_format(image_format: &str) -> SupportedImageFormats {
 }
 
 #[cfg(target_os = "windows")]
-pub fn edit_file_with_editor(file_location: &PathBuf) -> bool {
+pub fn edit_file_with_editor<S: AsRef<OsStr>>(file_location: S) -> bool {
     let command = match get_editor() {
         Vim | Emacs | Nano => {
             eprintln!("Terminal editors are not supported on windows! Set LOCKBOOK_EDITOR to a visual editor.");
@@ -164,7 +166,7 @@ pub fn edit_file_with_editor(file_location: &PathBuf) -> bool {
 }
 
 #[cfg(not(target_os = "windows"))]
-pub fn edit_file_with_editor(file_location: &PathBuf) -> bool {
+pub fn edit_file_with_editor<S: AsRef<OsStr>>(file_location: S) -> bool {
     let command = match get_editor() {
         Vim => "</dev/tty vim",
         Emacs => "</dev/tty emacs",
@@ -198,11 +200,11 @@ pub fn print_last_successful_sync() -> CliResult<()> {
     Ok(())
 }
 
-pub fn set_up_auto_save(id: Uuid, location: PathBuf) -> Option<Hotwatch> {
+pub fn set_up_auto_save<P: 'static + AsRef< Path> + Send>(id: Uuid, location: P) -> Option<Hotwatch> {
     match Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5)) {
         Ok(mut watcher) => {
             watcher
-                .watch(location.clone(), move |event: Event| match event {
+                .watch(location.as_ref().to_path_buf(), move |event: Event| match event {
                     Event::NoticeWrite(_) | Event::Write(_) | Event::Create(_) => {
                         if let Err(err) = save_temp_file_contents(id, &location) {
                             err.print();
@@ -223,18 +225,18 @@ pub fn set_up_auto_save(id: Uuid, location: PathBuf) -> Option<Hotwatch> {
     }
 }
 
-pub fn stop_auto_save(mut watcher: Hotwatch, file_location: PathBuf) {
+pub fn stop_auto_save<P: AsRef<Path>>(mut watcher: Hotwatch, file_location: P) {
     watcher
         .unwatch(file_location)
         .unwrap_or_else(|err| eprintln!("file watcher failed to unwatch: {:#?}", err))
 }
 
-pub fn save_temp_file_contents(id: Uuid, location: &PathBuf) -> CliResult<()> {
+pub fn save_temp_file_contents<P: AsRef<Path>>(id: Uuid, location: P) -> CliResult<()> {
     let secret = fs::read_to_string(&location)
         .map_err(|err| {
             err_unexpected!(
                 "could not read from temporary file, not deleting {:?}, err: {:#?}",
-                location,
+                location.as_ref(),
                 err
             )
         })?
