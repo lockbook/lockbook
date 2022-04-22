@@ -58,7 +58,7 @@ impl Request for FileMetadataUpsertsRequest {
     const ROUTE: &'static str = "/upsert-file-metadata";
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum FileMetadataUpsertsError {
     NotPermissioned,
     NewFileHasOldParentAndName,

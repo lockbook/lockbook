@@ -9,7 +9,8 @@ use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadat
 
 use crate::model::errors::{core_err_unexpected, CoreError};
 
-/// Converts a DecryptedFileMetadata to a FileMetadata using its decrypted parent key. Sharing is not supported; user access keys are encrypted for the provided account. This is a pure function.
+/// Converts a DecryptedFileMetadata to a FileMetadata using its decrypted parent key. Sharing is
+/// not supported; user access keys are encrypted for the provided account. This is a pure function.
 pub fn encrypt_metadatum(
     account: &Account, parent_key: &AESKey, target: &DecryptedFileMetadata,
 ) -> Result<EncryptedFileMetadata, CoreError> {
@@ -32,7 +33,10 @@ pub fn encrypt_metadatum(
     })
 }
 
-/// Converts a set of DecryptedFileMetadata's to FileMetadata's. All parents of files must be included in files. Sharing is not supported; user access keys are encrypted for the provided account. This is a pure function.
+/// Converts a set of DecryptedFileMetadata's to EncryptedFileMetadata's. All parents of files must be
+/// included in files. Sharing is not supported; user access keys are encrypted for the provided
+/// account. This is a pure function.
+/// TODO perf n2
 pub fn encrypt_metadata(
     account: &Account, files: &[DecryptedFileMetadata],
 ) -> Result<Vec<EncryptedFileMetadata>, CoreError> {
@@ -83,7 +87,8 @@ fn encrypt_folder_access_keys(
     symkey::encrypt(parent_key, target_key).map_err(core_err_unexpected)
 }
 
-/// Converts a FileMetadata to a DecryptedFileMetadata using its decrypted parent key. Sharing is not supported; user access keys not for the provided account are ignored. This is a pure function.
+/// Converts a FileMetadata to a DecryptedFileMetadata using its decrypted parent key. Sharing is
+/// not supported; user access keys not for the provided account are ignored. This is a pure function.
 pub fn decrypt_metadatum(
     parent_key: &AESKey, target: &EncryptedFileMetadata,
 ) -> Result<DecryptedFileMetadata, CoreError> {
@@ -100,7 +105,9 @@ pub fn decrypt_metadatum(
     })
 }
 
-/// Converts a set of FileMetadata's to DecryptedFileMetadata's. All parents of files must be included in files. Sharing is not supported; user access keys not for the provided account are ignored. This is a pure function.
+/// Converts a set of FileMetadata's to DecryptedFileMetadata's. All parents of files must be
+/// included in files. Sharing is not supported; user access keys not for the provided account are
+/// ignored. This is a pure function.
 pub fn decrypt_metadata(
     account: &Account, files: &[EncryptedFileMetadata],
 ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
@@ -114,7 +121,8 @@ pub fn decrypt_metadata(
     Ok(result)
 }
 
-/// Decrypts the file key given a target and its ancestors. All ancestors of target, as well as target itself, must be included in target_with_ancestors.
+/// Decrypts the file key given a target and its ancestors. All ancestors of target, as well as
+/// target itself, must be included in target_with_ancestors.
 fn decrypt_file_key(
     account: &Account, target_id: Uuid, target_with_ancestors: &[EncryptedFileMetadata],
     key_cache: &mut HashMap<Uuid, AESKey>,
@@ -174,48 +182,4 @@ pub fn decrypt_document(
     document: &EncryptedDocument, metadata: &DecryptedFileMetadata,
 ) -> Result<DecryptedDocument, CoreError> {
     symkey::decrypt(&metadata.decrypted_access_key, document).map_err(core_err_unexpected)
-}
-
-#[cfg(test)]
-mod unit_tests {
-    use uuid::Uuid;
-
-    use lockbook_crypto::symkey;
-    use lockbook_models::file_metadata::FileType;
-    use lockbook_models::tree::FileMetaExt;
-
-    use crate::pure_functions::files;
-    use crate::service::{file_encryption_service, test_utils};
-
-    #[test]
-    fn encrypt_decrypt_metadatum() {
-        let account = test_utils::generate_account();
-        let key = symkey::generate_key();
-        let file = files::create(FileType::Folder, Uuid::new_v4(), "folder", &account.public_key());
-
-        let encrypted_file =
-            file_encryption_service::encrypt_metadatum(&account, &key, &file).unwrap();
-        let decrypted_file =
-            file_encryption_service::decrypt_metadatum(&key, &encrypted_file).unwrap();
-
-        assert_eq!(file, decrypted_file);
-    }
-
-    #[test]
-    fn encrypt_decrypt_metadata() {
-        let account = test_utils::generate_account();
-        let root = files::create_root(&account);
-        let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-        let document =
-            files::create(FileType::Folder, folder.id, "document", &account.public_key());
-        let files = [root.clone(), folder.clone(), document.clone()];
-
-        let encrypted_files = file_encryption_service::encrypt_metadata(&account, &files).unwrap();
-        let decrypted_files =
-            file_encryption_service::decrypt_metadata(&account, &encrypted_files).unwrap();
-
-        assert_eq!(files.find(root.id).unwrap(), decrypted_files.find(root.id).unwrap(),);
-        assert_eq!(files.find(folder.id).unwrap(), decrypted_files.find(folder.id).unwrap(),);
-        assert_eq!(files.find(document.id).unwrap(), decrypted_files.find(document.id).unwrap(),);
-    }
 }

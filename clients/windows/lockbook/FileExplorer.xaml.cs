@@ -162,7 +162,7 @@ namespace lockbook {
                             App.Refresh();
                             break;
                         case Core.CalculateWork.PossibleErrors.NoAccount:
-                            await App.ReloadDbStateAndAccount();
+                            await App.ReloadAccount();
                             break;
                     }
                     break;
@@ -335,7 +335,7 @@ namespace lockbook {
                             App.Refresh();
                             break;
                         case Core.SyncAll.PossibleErrors.NoAccount:
-                            await App.ReloadDbStateAndAccount();
+                            await App.ReloadAccount();
                             break;
                     }
                     break;

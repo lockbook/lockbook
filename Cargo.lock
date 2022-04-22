@@ -1685,6 +1685,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "hmdb"
+version = "0.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "efeb8ccf7eaa871e4d3a64e31cd2f92d450be3de21e7a91148d75ee68676395d"
+dependencies = [
+ "bincode",
+ "serde",
+]
+
+[[package]]
 name = "hotwatch"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2090,8 +2100,7 @@ dependencies = [
 [[package]]
 name = "libsecp256k1"
 version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0452aac8bab02242429380e9b2f94ea20cea2b37e2c1777a1358799bbe97f37"
+source = "git+https://github.com/steverusso/libsecp256k1#5fa13e5aec943a829a3800f1b3f0e57bc76ff155"
 dependencies = [
  "arrayref",
  "base64 0.13.0",
@@ -2109,8 +2118,7 @@ dependencies = [
 [[package]]
 name = "libsecp256k1-core"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5be9b9bb642d8522a44d533eab56c16c738301965504753b03ad1de3425d5451"
+source = "git+https://github.com/steverusso/libsecp256k1#5fa13e5aec943a829a3800f1b3f0e57bc76ff155"
 dependencies = [
  "crunchy",
  "digest 0.9.0",
@@ -2120,8 +2128,7 @@ dependencies = [
 [[package]]
 name = "libsecp256k1-gen-ecmult"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3038c808c55c87e8a172643a7d87187fc6c4174468159cb3090659d55bcb4809"
+source = "git+https://github.com/steverusso/libsecp256k1#5fa13e5aec943a829a3800f1b3f0e57bc76ff155"
 dependencies = [
  "libsecp256k1-core",
 ]
@@ -2129,8 +2136,7 @@ dependencies = [
 [[package]]
 name = "libsecp256k1-gen-genmult"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3db8d6ba2cec9eacc40e6e8ccc98931840301f1006e95647ceb2dd5c3aa06f7c"
+source = "git+https://github.com/steverusso/libsecp256k1#5fa13e5aec943a829a3800f1b3f0e57bc76ff155"
 dependencies = [
  "libsecp256k1-core",
 ]
@@ -2173,7 +2179,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.3.17"
+version = "0.4.0"
 dependencies = [
  "atty",
  "chrono",
@@ -2188,7 +2194,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-core"
-version = "0.3.17"
+version = "0.4.0"
 dependencies = [
  "backtrace",
  "base64 0.11.0",
@@ -2200,10 +2206,12 @@ dependencies = [
  "diffy",
  "flate2",
  "fuzzy-matcher",
+ "hmdb",
  "image 0.23.14",
  "indicatif 0.17.0-rc.6",
  "itertools",
  "jni",
+ "lazy_static",
  "libsecp256k1",
  "lockbook-crypto",
  "lockbook-models",
@@ -2217,6 +2225,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "tempfile",
+ "test_utils",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -2243,7 +2252,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-desktop"
-version = "0.3.19"
+version = "0.4.0"
 dependencies = [
  "gdk-pixbuf",
  "gio",
@@ -2274,7 +2283,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "0.3.17"
+version = "0.4.0"
 dependencies = [
  "async-stripe",
  "atomic-counter",
@@ -3981,6 +3990,18 @@ checksum = "633c1a546cee861a1a6d0dc69ebeca693bf4296661ba7852b9d21d159e0506df"
 dependencies = [
  "libc",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "test_utils"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hmdb",
+ "itertools",
+ "lockbook-core",
+ "lockbook-models",
+ "uuid",
 ]
 
 [[package]]

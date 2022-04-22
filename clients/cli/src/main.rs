@@ -1,9 +1,13 @@
+use std::env;
 use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-use crate::utils::{check_and_perform_migrations, init_logger_or_print};
 use lockbook_core::service::path_service::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
+use lockbook_core::Config;
+use lockbook_core::Core;
+
+use crate::error::CliError;
 
 mod backup;
 mod calculate_usage;
@@ -149,42 +153,55 @@ enum Lockbook {
     Validate,
 }
 
+fn exit_with(err: CliError) -> ! {
+    err.print();
+    std::process::exit(err.code as i32)
+}
+
+fn parse_and_run() -> Result<(), CliError> {
+    let lockbook_dir = match (env::var("LOCKBOOK_PATH"), env::var("HOME"), env::var("HOMEPATH")) {
+        (Ok(s), _, _) => s,
+        (Err(_), Ok(s), _) => format!("{}/.lockbook", s),
+        (Err(_), Err(_), Ok(s)) => format!("{}/.lockbook", s),
+        _ => return Err(CliError::no_cli_location()),
+    };
+    let writeable_path = format!("{}/cli", lockbook_dir);
+
+    let core = Core::init(&Config { logs: true, writeable_path })?;
+
+    match Lockbook::from_args() {
+        Lockbook::Copy { disk_files: files, destination } => {
+            copy::copy(&core, &files, &destination)
+        }
+        Lockbook::Edit { path } => edit::edit(&core, path.trim()),
+        Lockbook::ExportPrivateKey => export_private_key::export_private_key(&core),
+        Lockbook::ImportPrivateKey => import_private_key::import_private_key(&core),
+        Lockbook::NewAccount => new_account::new_account(&core),
+        Lockbook::List => list::list(&core, Some(LeafNodesOnly)),
+        Lockbook::ListAll => list::list(&core, None),
+        Lockbook::ListDocs => list::list(&core, Some(DocumentsOnly)),
+        Lockbook::ListFolders => list::list(&core, Some(FoldersOnly)),
+        Lockbook::Move { target, new_parent } => move_file::move_file(&core, &target, &new_parent),
+        Lockbook::New { path } => new::new(&core, path.trim()),
+        Lockbook::Print { path } => print::print(&core, path.trim()),
+        Lockbook::Remove { path, force } => remove::remove(&core, path.trim(), force),
+        Lockbook::Rename { path, name } => rename::rename(&core, &path, &name),
+        Lockbook::Status => status::status(&core),
+        Lockbook::Sync => sync::sync(&core),
+        Lockbook::Tree => tree::tree(&core),
+        Lockbook::WhoAmI => whoami::whoami(&core),
+        Lockbook::Validate => validate::validate(&core),
+        Lockbook::Backup => backup::backup(&core),
+        Lockbook::GetUsage { exact } => calculate_usage::calculate_usage(&core, exact),
+        Lockbook::ExportDrawing { path, format } => {
+            export_drawing::export_drawing(&core, &path, &format)
+        }
+        Lockbook::Errors => error::print_err_table(),
+    }
+}
+
 fn main() {
-    if let Err(err) = init_logger_or_print() {
-        err.exit()
-    }
-
-    let args = Lockbook::from_args();
-
-    if let Err(err) = check_and_perform_migrations() {
-        err.exit()
-    }
-
-    if let Err(err) = match args {
-        Lockbook::Copy { disk_files: files, destination } => copy::copy(&files, &destination),
-        Lockbook::Edit { path } => edit::edit(path.trim()),
-        Lockbook::ExportPrivateKey => export_private_key::export_private_key(),
-        Lockbook::ImportPrivateKey => import_private_key::import_private_key(),
-        Lockbook::NewAccount => new_account::new_account(),
-        Lockbook::List => list::list(Some(LeafNodesOnly)),
-        Lockbook::ListAll => list::list(None),
-        Lockbook::ListDocs => list::list(Some(DocumentsOnly)),
-        Lockbook::ListFolders => list::list(Some(FoldersOnly)),
-        Lockbook::Move { target, new_parent } => move_file::move_file(&target, &new_parent),
-        Lockbook::New { path } => new::new(path.trim()),
-        Lockbook::Print { path } => print::print(path.trim()),
-        Lockbook::Remove { path, force } => remove::remove(path.trim(), force),
-        Lockbook::Rename { path, name } => rename::rename(&path, &name),
-        Lockbook::Status => status::status(),
-        Lockbook::Sync => sync::sync(),
-        Lockbook::Tree => tree::tree(),
-        Lockbook::WhoAmI => whoami::whoami(),
-        Lockbook::Validate => validate::validate(),
-        Lockbook::Backup => backup::backup(),
-        Lockbook::GetUsage { exact } => calculate_usage::calculate_usage(exact),
-        Lockbook::ExportDrawing { path, format } => export_drawing::export_drawing(&path, &format),
-        Lockbook::Errors => error::ErrorKind::print_table(),
-    } {
-        err.exit()
+    if let Err(err) = parse_and_run() {
+        exit_with(err);
     }
 }

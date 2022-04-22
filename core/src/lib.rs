@@ -1,21 +1,25 @@
 #![recursion_limit = "256"]
 
+extern crate reqwest;
 #[macro_use]
 extern crate tracing;
-extern crate reqwest;
 
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-
+use crate::billing_service::CreditCardLast4Digits;
+use crate::model::errors::*;
+use crate::model::repo::RepoSource;
+use crate::path_service::Filter;
+use crate::pure_functions::drawing::SupportedImageFormats;
+use crate::repo::schema::{CoreV1, OneKey, Tx};
+use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
+use crate::service::search_service::SearchResultItem;
+use crate::service::sync_service::SyncProgress;
+use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
+use crate::service::{billing_service, path_service, sync_service};
+use crate::sync_service::WorkCalculated;
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
-
-use serde::Serialize;
-use serde_json::{json, value::Value};
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
-use uuid::Uuid;
-
+use hmdb::log::Reader;
+use hmdb::transaction::Transaction;
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
 use lockbook_models::api::AccountTier;
@@ -24,679 +28,352 @@ use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use model::errors::Error::UiError;
 pub use model::errors::{CoreError, Error, UnexpectedError};
+use serde::Deserialize;
+use serde_json::{json, value::Value};
 use service::log_service;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use strum::IntoEnumIterator;
+use uuid::Uuid;
 
-use crate::billing_service::CreditCardLast4Digits;
-use crate::model::repo::RepoSource;
-use crate::model::state::Config;
-use crate::pure_functions::drawing::SupportedImageFormats;
-use crate::repo::{account_repo, last_updated_repo};
-use crate::service::db_state_service::State;
-use crate::service::import_export_service::{self, ImportExportFileInfo, ImportStatus};
-use crate::service::search_service::SearchResultItem;
-use crate::service::sync_service::SyncProgress;
-use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
-use crate::service::{
-    account_service, billing_service, db_state_service, drawing_service, file_service,
-    path_service, search_service, sync_service, usage_service,
-};
-use crate::sync_service::WorkCalculated;
-
-#[instrument(skip(log_path), err(Debug))]
-pub fn init_logger(log_path: &Path) -> Result<(), UnexpectedError> {
-    log_service::init(log_path).map_err(|err| unexpected_only!("{:#?}", err))
+#[derive(Debug, Deserialize, Clone)]
+pub struct Config {
+    pub logs: bool,
+    pub writeable_path: String,
 }
 
-#[instrument(skip(config), err(Debug))]
-pub fn get_db_state(config: &Config) -> Result<State, UnexpectedError> {
-    db_state_service::get_state(config).map_err(|e| unexpected_only!("{:#?}", e))
+#[derive(Clone, Debug)]
+pub struct Core {
+    pub config: Config,
+    pub db: CoreV1,
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum MigrationError {
-    StateRequiresCleaning,
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn migrate_db(config: &Config) -> Result<(), Error<MigrationError>> {
-    db_state_service::perform_migration(config).map_err(|e| match e {
-        CoreError::ClientWipeRequired => UiError(MigrationError::StateRequiresCleaning),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum CreateAccountError {
-    UsernameTaken,
-    InvalidUsername,
-    CouldNotReachServer,
-    AccountExistsAlready,
-    ClientUpdateRequired,
-    ServerDisabled,
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn create_account(
-    config: &Config, username: &str, api_url: &str,
-) -> Result<Account, Error<CreateAccountError>> {
-    account_service::create_account(config, username, api_url).map_err(|e| match e {
-        CoreError::AccountExists => UiError(CreateAccountError::AccountExistsAlready),
-        CoreError::UsernameTaken => UiError(CreateAccountError::UsernameTaken),
-        CoreError::UsernameInvalid => UiError(CreateAccountError::InvalidUsername),
-        CoreError::ServerUnreachable => UiError(CreateAccountError::CouldNotReachServer),
-        CoreError::ClientUpdateRequired => UiError(CreateAccountError::ClientUpdateRequired),
-        CoreError::ServerDisabled => UiError(CreateAccountError::ServerDisabled),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum ImportError {
-    AccountStringCorrupted,
-    AccountExistsAlready,
-    AccountDoesNotExist,
-    UsernamePKMismatch,
-    CouldNotReachServer,
-    ClientUpdateRequired,
-}
-
-#[instrument(skip(config, account_string), err(Debug))]
-pub fn import_account(
-    config: &Config, account_string: &str,
-) -> Result<Account, Error<ImportError>> {
-    account_service::import_account(config, account_string).map_err(|e| match e {
-        CoreError::AccountStringCorrupted => UiError(ImportError::AccountStringCorrupted),
-        CoreError::AccountExists => UiError(ImportError::AccountExistsAlready),
-        CoreError::UsernamePublicKeyMismatch => UiError(ImportError::UsernamePKMismatch),
-        CoreError::ServerUnreachable => UiError(ImportError::CouldNotReachServer),
-        CoreError::AccountNonexistent => UiError(ImportError::AccountDoesNotExist),
-        CoreError::ClientUpdateRequired => UiError(ImportError::ClientUpdateRequired),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum AccountExportError {
-    NoAccount,
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn export_account(config: &Config) -> Result<String, Error<AccountExportError>> {
-    account_service::export_account(config).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(AccountExportError::NoAccount),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetAccountError {
-    NoAccount,
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn get_account(config: &Config) -> Result<Account, Error<GetAccountError>> {
-    account_repo::get(config).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(GetAccountError::NoAccount),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum CreateFileAtPathError {
-    FileAlreadyExists,
-    NoAccount,
-    NoRoot,
-    PathDoesntStartWithRoot,
-    PathContainsEmptyFile,
-    DocumentTreatedAsFolder,
-}
-
-#[instrument(skip(config, path_and_name), err(Debug))]
-pub fn create_file_at_path(
-    config: &Config, path_and_name: &str,
-) -> Result<DecryptedFileMetadata, Error<CreateFileAtPathError>> {
-    path_service::create_at_path(config, path_and_name).map_err(|e| match e {
-        CoreError::PathStartsWithNonRoot => UiError(CreateFileAtPathError::PathDoesntStartWithRoot),
-        CoreError::PathContainsEmptyFileName => {
-            UiError(CreateFileAtPathError::PathContainsEmptyFile)
+impl Core {
+    #[instrument(level = "info", skip_all, err(Debug))]
+    pub fn init(config: &Config) -> Result<Self, UnexpectedError> {
+        if config.logs {
+            log_service::init(&config.writeable_path)?;
         }
-        CoreError::RootNonexistent => UiError(CreateFileAtPathError::NoRoot),
-        CoreError::AccountNonexistent => UiError(CreateFileAtPathError::NoAccount),
-        CoreError::PathTaken => UiError(CreateFileAtPathError::FileAlreadyExists),
-        CoreError::FileNotFolder => UiError(CreateFileAtPathError::DocumentTreatedAsFolder),
-        _ => unexpected!("{:#?}", e),
-    })
+        let db =
+            CoreV1::init(&config.writeable_path).map_err(|err| unexpected_only!("{:#?}", err))?;
+        let config = config.clone();
+
+        Ok(Self { config, db })
+    }
+
+    #[instrument(level = "info", err(Debug))]
+    pub fn create_account(
+        &self, username: &str, api_url: &str,
+    ) -> Result<Account, Error<CreateAccountError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.create_account(username, api_url))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn import_account(&self, account_string: &str) -> Result<Account, Error<ImportError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.import_account(account_string))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn export_account(&self) -> Result<String, Error<AccountExportError>> {
+        let val = self.db.transaction(|tx| tx.export_account())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn get_account(&self) -> Result<Account, Error<GetAccountError>> {
+        let account = self.db.transaction(|tx| tx.get_account())??;
+        Ok(account)
+    }
+
+    #[instrument(level = "debug", skip(name), err(Debug))]
+    pub fn create_file(
+        &self, name: &str, parent: Uuid, file_type: FileType,
+    ) -> Result<DecryptedFileMetadata, Error<CreateFileError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.create_file(&self.config, name, parent, file_type))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(content), err(Debug))]
+    pub fn write_document(
+        &self, id: Uuid, content: &[u8],
+    ) -> Result<(), Error<WriteToDocumentError>> {
+        let val: Result<_, CoreError> = self.db.transaction(|tx| {
+            let metadata = tx.get_not_deleted_metadata(RepoSource::Local, id)?;
+            tx.insert_document(&self.config, RepoSource::Local, &metadata, content)?;
+            Ok(())
+        })?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn get_root(&self) -> Result<DecryptedFileMetadata, Error<GetRootError>> {
+        let val = self.db.transaction(|tx| tx.root())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn get_children(&self, id: Uuid) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
+        let val = self.db.transaction(|tx| tx.get_children(id))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn get_and_get_children_recursively(
+        &self, id: Uuid,
+    ) -> Result<Vec<DecryptedFileMetadata>, Error<GetAndGetChildrenError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.get_and_get_children_recursively(id))?;
+
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn get_file_by_id(
+        &self, id: Uuid,
+    ) -> Result<DecryptedFileMetadata, Error<GetFileByIdError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.get_not_deleted_metadata(RepoSource::Local, id))?;
+
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn delete_file(&self, id: Uuid) -> Result<(), Error<FileDeleteError>> {
+        let val = self.db.transaction(|tx| tx.delete_file(&self.config, id))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.read_document(&self.config, id))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn save_document_to_disk(
+        &self, id: Uuid, location: &str,
+    ) -> Result<(), Error<SaveDocumentToDiskError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.save_document_to_disk(&self.config, id, location))?;
+
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn list_metadatas(&self) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
+        let val = self
+            .db
+            .transaction(|tx| tx.get_all_not_deleted_metadata(RepoSource::Local))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(new_name), err(Debug))]
+    pub fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), Error<RenameFileError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.rename_file(&self.config, id, new_name))?;
+
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn move_file(&self, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.move_file(&self.config, id, new_parent))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn create_at_path(
+        &self, path_and_name: &str,
+    ) -> Result<DecryptedFileMetadata, Error<CreateFileAtPathError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.create_at_path(&self.config, path_and_name))??;
+
+        Ok(val)
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn get_by_path(
+        &self, path: &str,
+    ) -> Result<DecryptedFileMetadata, Error<GetFileByPathError>> {
+        let val = self.db.transaction(|tx| tx.get_by_path(path))??;
+
+        Ok(val)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn get_path_by_id(&self, id: Uuid) -> Result<String, UnexpectedError> {
+        let val: Result<_, CoreError> = self.db.transaction(|tx| tx.get_path_by_id(id))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn list_paths(&self, filter: Option<Filter>) -> Result<Vec<String>, UnexpectedError> {
+        let val: Result<_, CoreError> = self.db.transaction(|tx| tx.list_paths(filter))?;
+
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn get_local_changes(&self) -> Result<Vec<Uuid>, UnexpectedError> {
+        let val = self
+            .db
+            .transaction(|tx| tx.get_local_changes(&self.config))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>> {
+        let val = self.db.transaction(|tx| tx.calculate_work(&self.config))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>> {
+        let val = self.db.transaction(|tx| tx.sync(&self.config, f))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn get_last_synced(&self) -> Result<i64, UnexpectedError> {
+        Ok(self.db.last_synced.get(&OneKey {})?.unwrap_or(0))
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn get_last_synced_human_string(&self) -> Result<String, UnexpectedError> {
+        let last_synced = self.db.last_synced.get(&OneKey {})?.unwrap_or(0);
+
+        Ok(if last_synced != 0 {
+            Duration::milliseconds(clock_service::get_time().0 - last_synced)
+                .format_human()
+                .to_string()
+        } else {
+            "never".to_string()
+        })
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn get_usage(&self) -> Result<UsageMetrics, Error<GetUsageError>> {
+        let val = self.db.transaction(|tx| tx.get_usage())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn get_uncompressed_usage(&self) -> Result<UsageItemMetric, Error<GetUsageError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.get_uncompressed_usage(&self.config))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn get_drawing(&self, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
+        let val = self.db.transaction(|tx| tx.get_drawing(&self.config, id))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(drawing_bytes), err(Debug))]
+    pub fn save_drawing(
+        &self, id: Uuid, drawing_bytes: &[u8],
+    ) -> Result<(), Error<SaveDrawingError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.save_drawing(&self.config, id, drawing_bytes))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn export_drawing(
+        &self, id: Uuid, format: SupportedImageFormats,
+        render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
+    ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.export_drawing(&self.config, id, format, render_theme))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn export_drawing_to_disk(
+        &self, id: Uuid, format: SupportedImageFormats,
+        render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
+    ) -> Result<(), Error<ExportDrawingToDiskError>> {
+        let val = self.db.transaction(|tx| {
+            tx.export_drawing_to_disk(&self.config, id, format, render_theme, location)
+        })?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(update_status), err(Debug))]
+    pub fn import_files<F: Fn(ImportStatus)>(
+        &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
+    ) -> Result<(), Error<ImportFileError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.import_files(&self.config, sources, dest, update_status))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(export_progress), err(Debug))]
+    pub fn export_file(
+        &self, id: Uuid, destination: PathBuf, edit: bool,
+        export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+    ) -> Result<(), Error<ExportFileError>> {
+        let val = self.db.transaction(|tx| {
+            tx.export_file(&self.config, id, destination, edit, export_progress)
+        })?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn switch_account_tier(
+        &self, new_account_tier: AccountTier,
+    ) -> Result<(), Error<SwitchAccountTierError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.switch_account_tier(new_account_tier))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn get_credit_card(&self) -> Result<CreditCardLast4Digits, Error<GetCreditCard>> {
+        let val = self.db.transaction(|tx| tx.get_credit_card())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(input), err(Debug))]
+    pub fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError> {
+        let val = self.db.transaction(|tx| tx.search_file_paths(input))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn validate(&self) -> Result<Vec<Warning>, TestRepoError> {
+        self.db
+            .transaction(|tx| tx.test_repo_integrity(&self.config))
+            .map_err(CoreError::from)
+            .map_err(TestRepoError::Core)?
+    }
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum WriteToDocumentError {
-    NoAccount,
-    FileDoesNotExist,
-    FolderTreatedAsDocument,
-}
-
-#[instrument(skip(config, content), err(Debug))]
-pub fn write_document(
-    config: &Config, id: Uuid, content: &[u8],
-) -> Result<(), Error<WriteToDocumentError>> {
-    file_service::write_document(config, id, content).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(WriteToDocumentError::NoAccount),
-        CoreError::FileNonexistent => UiError(WriteToDocumentError::FileDoesNotExist),
-        CoreError::FileNotDocument => UiError(WriteToDocumentError::FolderTreatedAsDocument),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum CreateFileError {
-    NoAccount,
-    DocumentTreatedAsFolder,
-    CouldNotFindAParent,
-    FileNameNotAvailable,
-    FileNameEmpty,
-    FileNameContainsSlash,
-}
-
-#[instrument(skip(config, name), err(Debug))]
-pub fn create_file(
-    config: &Config, name: &str, parent: Uuid, file_type: FileType,
-) -> Result<DecryptedFileMetadata, Error<CreateFileError>> {
-    file_service::create_file(config, name, parent, file_type).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(CreateFileError::NoAccount),
-        CoreError::FileNonexistent => UiError(CreateFileError::CouldNotFindAParent),
-        CoreError::PathTaken => UiError(CreateFileError::FileNameNotAvailable),
-        CoreError::FileNotFolder => UiError(CreateFileError::DocumentTreatedAsFolder),
-        CoreError::FileParentNonexistent => UiError(CreateFileError::CouldNotFindAParent),
-        CoreError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
-        CoreError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetRootError {
-    NoRoot,
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn get_root(config: &Config) -> Result<DecryptedFileMetadata, Error<GetRootError>> {
-    file_service::get_root(config).map_err(|err| match err {
-        CoreError::RootNonexistent => UiError(GetRootError::NoRoot),
-        _ => unexpected!("{:#?}", err),
-    })
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn get_children(
-    config: &Config, id: Uuid,
-) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
-    file_service::get_children(config, id).map_err(|e| unexpected_only!("{:#?}", e))
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetAndGetChildrenError {
-    FileDoesNotExist,
-    DocumentTreatedAsFolder,
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn get_and_get_children_recursively(
-    config: &Config, id: Uuid,
-) -> Result<Vec<DecryptedFileMetadata>, Error<GetAndGetChildrenError>> {
-    file_service::get_and_get_children_recursively(config, id).map_err(|e| match e {
-        CoreError::FileNonexistent => UiError(GetAndGetChildrenError::FileDoesNotExist),
-        CoreError::FileNotFolder => UiError(GetAndGetChildrenError::DocumentTreatedAsFolder),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetFileByIdError {
-    NoFileWithThatId,
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn get_file_by_id(
-    config: &Config, id: Uuid,
-) -> Result<DecryptedFileMetadata, Error<GetFileByIdError>> {
-    file_service::get_not_deleted_metadata(config, RepoSource::Local, id).map_err(|e| match e {
-        CoreError::FileNonexistent => UiError(GetFileByIdError::NoFileWithThatId),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetFileByPathError {
-    NoFileAtThatPath,
-}
-
-#[instrument(skip(config, path), err(Debug))]
-pub fn get_file_by_path(
-    config: &Config, path: &str,
-) -> Result<DecryptedFileMetadata, Error<GetFileByPathError>> {
-    path_service::get_by_path(config, path).map_err(|e| match e {
-        CoreError::FileNonexistent => UiError(GetFileByPathError::NoFileAtThatPath),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum FileDeleteError {
-    CannotDeleteRoot,
-    FileDoesNotExist,
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn delete_file(config: &Config, id: Uuid) -> Result<(), Error<FileDeleteError>> {
-    file_service::delete_file(config, id).map_err(|e| match e {
-        CoreError::RootModificationInvalid => UiError(FileDeleteError::CannotDeleteRoot),
-        CoreError::FileNonexistent => UiError(FileDeleteError::FileDoesNotExist),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum ReadDocumentError {
-    TreatedFolderAsDocument,
-    NoAccount,
-    FileDoesNotExist,
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn read_document(
-    config: &Config, id: Uuid,
-) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
-    file_service::read_document(config, id).map_err(|e| match e {
-        CoreError::FileNotDocument => UiError(ReadDocumentError::TreatedFolderAsDocument),
-        CoreError::AccountNonexistent => UiError(ReadDocumentError::NoAccount),
-        CoreError::FileNonexistent => UiError(ReadDocumentError::FileDoesNotExist),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum SaveDocumentToDiskError {
-    TreatedFolderAsDocument,
-    NoAccount,
-    FileDoesNotExist,
-    BadPath,
-    FileAlreadyExistsInDisk,
-}
-
-#[instrument(skip(config, location), err(Debug))]
-pub fn save_document_to_disk(
-    config: &Config, id: Uuid, location: &str,
-) -> Result<(), Error<SaveDocumentToDiskError>> {
-    file_service::save_document_to_disk(config, id, location).map_err(|e| match e {
-        CoreError::FileNotDocument => UiError(SaveDocumentToDiskError::TreatedFolderAsDocument),
-        CoreError::AccountNonexistent => UiError(SaveDocumentToDiskError::NoAccount),
-        CoreError::FileNonexistent => UiError(SaveDocumentToDiskError::FileDoesNotExist),
-        CoreError::DiskPathInvalid => UiError(SaveDocumentToDiskError::BadPath),
-        CoreError::DiskPathTaken => UiError(SaveDocumentToDiskError::FileAlreadyExistsInDisk),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn list_paths(
-    config: &Config, filter: Option<path_service::Filter>,
-) -> Result<Vec<String>, UnexpectedError> {
-    path_service::get_all_paths(config, filter).map_err(|e| unexpected_only!("{:#?}", e))
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn get_path_by_id(config: &Config, id: Uuid) -> Result<String, UnexpectedError> {
-    path_service::get_path_by_id(config, id).map_err(|e| unexpected_only!("{:#?}", e))
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn list_metadatas(config: &Config) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
-    file_service::get_all_not_deleted_metadata(config, RepoSource::Local)
-        .map_err(|e| unexpected_only!("{:#?}", e))
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum RenameFileError {
-    FileDoesNotExist,
-    NewNameEmpty,
-    NewNameContainsSlash,
-    FileNameNotAvailable,
-    CannotRenameRoot,
-}
-
-#[instrument(skip(config, new_name), err(Debug))]
-pub fn rename_file(
-    config: &Config, id: Uuid, new_name: &str,
-) -> Result<(), Error<RenameFileError>> {
-    file_service::rename_file(config, id, new_name).map_err(|e| match e {
-        CoreError::FileNonexistent => UiError(RenameFileError::FileDoesNotExist),
-        CoreError::FileNameEmpty => UiError(RenameFileError::NewNameEmpty),
-        CoreError::FileNameContainsSlash => UiError(RenameFileError::NewNameContainsSlash),
-        CoreError::PathTaken => UiError(RenameFileError::FileNameNotAvailable),
-        CoreError::RootModificationInvalid => UiError(RenameFileError::CannotRenameRoot),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum MoveFileError {
-    CannotMoveRoot,
-    DocumentTreatedAsFolder,
-    FileDoesNotExist,
-    FolderMovedIntoItself,
-    NoAccount,
-    TargetParentDoesNotExist,
-    TargetParentHasChildNamedThat,
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn move_file(config: &Config, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
-    file_service::move_file(config, id, new_parent).map_err(|e| match e {
-        CoreError::RootModificationInvalid => UiError(MoveFileError::CannotMoveRoot),
-        CoreError::FileNotFolder => UiError(MoveFileError::DocumentTreatedAsFolder),
-        CoreError::FileNonexistent => UiError(MoveFileError::FileDoesNotExist),
-        CoreError::FolderMovedIntoSelf => UiError(MoveFileError::FolderMovedIntoItself),
-        CoreError::AccountNonexistent => UiError(MoveFileError::NoAccount),
-        CoreError::FileParentNonexistent => UiError(MoveFileError::TargetParentDoesNotExist),
-        CoreError::PathTaken => UiError(MoveFileError::TargetParentHasChildNamedThat),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum SyncAllError {
-    NoAccount,
-    ClientUpdateRequired,
-    CouldNotReachServer,
-}
-
-#[instrument(skip(config, f), err(Debug))]
-pub fn sync_all(
-    config: &Config, f: Option<Box<dyn Fn(SyncProgress)>>,
-) -> Result<(), Error<SyncAllError>> {
-    sync_service::sync(config, f).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(SyncAllError::NoAccount),
-        CoreError::ServerUnreachable => UiError(SyncAllError::CouldNotReachServer),
-        CoreError::ClientUpdateRequired => UiError(SyncAllError::ClientUpdateRequired),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn get_local_changes(config: &Config) -> Result<Vec<Uuid>, UnexpectedError> {
-    file_service::get_local_changes(config).map_err(|e| unexpected_only!("{:#?}", e))
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum CalculateWorkError {
-    NoAccount,
-    CouldNotReachServer,
-    ClientUpdateRequired,
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn calculate_work(config: &Config) -> Result<WorkCalculated, Error<CalculateWorkError>> {
-    sync_service::calculate_work(config).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(CalculateWorkError::NoAccount),
-        CoreError::ServerUnreachable => UiError(CalculateWorkError::CouldNotReachServer),
-        CoreError::ClientUpdateRequired => UiError(CalculateWorkError::ClientUpdateRequired),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[instrument(skip(config), ret(Debug))]
-pub fn get_last_synced(config: &Config) -> Result<i64, UnexpectedError> {
-    last_updated_repo::get(config).map_err(|e| unexpected_only!("{:#?}", e))
-}
-
-#[instrument(skip(config), ret(Debug))]
-pub fn get_last_synced_human_string(config: &Config) -> Result<String, UnexpectedError> {
-    let last_synced = last_updated_repo::get(config).map_err(|e| unexpected_only!("{:#?}", e))?;
-
-    Ok(if last_synced != 0 {
-        Duration::milliseconds(clock_service::get_time().0 - last_synced)
-            .format_human()
-            .to_string()
-    } else {
-        "never".to_string()
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetUsageError {
-    NoAccount,
-    CouldNotReachServer,
-    ClientUpdateRequired,
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn get_usage(config: &Config) -> Result<UsageMetrics, Error<GetUsageError>> {
-    usage_service::get_usage(config).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(GetUsageError::NoAccount),
-        CoreError::ServerUnreachable => UiError(GetUsageError::CouldNotReachServer),
-        CoreError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn get_uncompressed_usage(config: &Config) -> Result<UsageItemMetric, Error<GetUsageError>> {
-    usage_service::get_uncompressed_usage(config).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(GetUsageError::NoAccount),
-        CoreError::ServerUnreachable => UiError(GetUsageError::CouldNotReachServer),
-        CoreError::ClientUpdateRequired => UiError(GetUsageError::ClientUpdateRequired),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetDrawingError {
-    NoAccount,
-    FolderTreatedAsDrawing,
-    InvalidDrawing,
-    FileDoesNotExist,
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn get_drawing(config: &Config, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
-    drawing_service::get_drawing(config, id).map_err(|e| match e {
-        CoreError::DrawingInvalid => UiError(GetDrawingError::InvalidDrawing),
-        CoreError::FileNotDocument => UiError(GetDrawingError::FolderTreatedAsDrawing),
-        CoreError::AccountNonexistent => UiError(GetDrawingError::NoAccount),
-        CoreError::FileNonexistent => UiError(GetDrawingError::FileDoesNotExist),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum SaveDrawingError {
-    NoAccount,
-    FileDoesNotExist,
-    FolderTreatedAsDrawing,
-    InvalidDrawing,
-}
-
-#[instrument(skip(config, drawing_bytes), err(Debug))]
-pub fn save_drawing(
-    config: &Config, id: Uuid, drawing_bytes: &[u8],
-) -> Result<(), Error<SaveDrawingError>> {
-    drawing_service::save_drawing(config, id, drawing_bytes).map_err(|e| match e {
-        CoreError::DrawingInvalid => UiError(SaveDrawingError::InvalidDrawing),
-        CoreError::AccountNonexistent => UiError(SaveDrawingError::NoAccount),
-        CoreError::FileNonexistent => UiError(SaveDrawingError::FileDoesNotExist),
-        CoreError::FileNotDocument => UiError(SaveDrawingError::FolderTreatedAsDrawing),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum ExportDrawingError {
-    FolderTreatedAsDrawing,
-    FileDoesNotExist,
-    NoAccount,
-    InvalidDrawing,
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn export_drawing(
-    config: &Config, id: Uuid, format: SupportedImageFormats,
-    render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-) -> Result<Vec<u8>, Error<ExportDrawingError>> {
-    drawing_service::export_drawing(config, id, format, render_theme).map_err(|e| match e {
-        CoreError::DrawingInvalid => UiError(ExportDrawingError::InvalidDrawing),
-        CoreError::AccountNonexistent => UiError(ExportDrawingError::NoAccount),
-        CoreError::FileNonexistent => UiError(ExportDrawingError::FileDoesNotExist),
-        CoreError::FileNotDocument => UiError(ExportDrawingError::FolderTreatedAsDrawing),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum ExportDrawingToDiskError {
-    FolderTreatedAsDrawing,
-    FileDoesNotExist,
-    NoAccount,
-    InvalidDrawing,
-    BadPath,
-    FileAlreadyExistsInDisk,
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn export_drawing_to_disk(
-    config: &Config, id: Uuid, format: SupportedImageFormats,
-    render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
-) -> Result<(), Error<ExportDrawingToDiskError>> {
-    drawing_service::export_drawing_to_disk(config, id, format, render_theme, location).map_err(
-        |e| match e {
-            CoreError::DrawingInvalid => UiError(ExportDrawingToDiskError::InvalidDrawing),
-            CoreError::AccountNonexistent => UiError(ExportDrawingToDiskError::NoAccount),
-            CoreError::FileNonexistent => UiError(ExportDrawingToDiskError::FileDoesNotExist),
-            CoreError::FileNotDocument => UiError(ExportDrawingToDiskError::FolderTreatedAsDrawing),
-            CoreError::DiskPathInvalid => UiError(ExportDrawingToDiskError::BadPath),
-            CoreError::DiskPathTaken => UiError(ExportDrawingToDiskError::FileAlreadyExistsInDisk),
-            _ => unexpected!("{:#?}", e),
-        },
-    )
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum ImportFileError {
-    NoAccount,
-    ParentDoesNotExist,
-    DocumentTreatedAsFolder,
-}
-
-#[instrument(skip(config, sources, update_status), err(Debug))]
-pub fn import_files<F: Fn(ImportStatus)>(
-    config: &Config, sources: &[PathBuf], dest: Uuid, update_status: &F,
-) -> Result<(), Error<ImportFileError>> {
-    import_export_service::import_files(config, sources, dest, update_status).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(ImportFileError::NoAccount),
-        CoreError::FileNonexistent => UiError(ImportFileError::ParentDoesNotExist),
-        CoreError::FileNotFolder => UiError(ImportFileError::DocumentTreatedAsFolder),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum ExportFileError {
-    NoAccount,
-    ParentDoesNotExist,
-    DiskPathTaken,
-    DiskPathInvalid,
-}
-
-#[instrument(skip(config, destination, export_progress), err(Debug))]
-pub fn export_file(
-    config: &Config, id: Uuid, destination: PathBuf, edit: bool,
-    export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
-) -> Result<(), Error<ExportFileError>> {
-    import_export_service::export_file(config, id, destination, edit, export_progress).map_err(
-        |e| match e {
-            CoreError::AccountNonexistent => UiError(ExportFileError::NoAccount),
-            CoreError::FileNonexistent => UiError(ExportFileError::ParentDoesNotExist),
-            CoreError::DiskPathInvalid => UiError(ExportFileError::DiskPathInvalid),
-            CoreError::DiskPathTaken => UiError(ExportFileError::DiskPathTaken),
-            _ => unexpected!("{:#?}", e),
-        },
-    )
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum SwitchAccountTierError {
-    NoAccount,
-    CouldNotReachServer,
-    OldCardDoesNotExist,
-    NewTierIsOldTier,
-    InvalidCardNumber,
-    InvalidCardCvc,
-    InvalidCardExpYear,
-    InvalidCardExpMonth,
-    CardDecline,
-    CardHasInsufficientFunds,
-    TryAgain,
-    CardNotSupported,
-    ExpiredCard,
-    ClientUpdateRequired,
-    CurrentUsageIsMoreThanNewTier,
-    ConcurrentRequestsAreTooSoon,
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn switch_account_tier(
-    config: &Config, new_account_tier: AccountTier,
-) -> Result<(), Error<SwitchAccountTierError>> {
-    billing_service::switch_account_tier(config, new_account_tier).map_err(|e| match e {
-        CoreError::OldCardDoesNotExist => UiError(SwitchAccountTierError::OldCardDoesNotExist),
-        CoreError::InvalidCardNumber => UiError(SwitchAccountTierError::InvalidCardNumber),
-        CoreError::InvalidCardExpYear => UiError(SwitchAccountTierError::InvalidCardExpYear),
-        CoreError::InvalidCardExpMonth => UiError(SwitchAccountTierError::InvalidCardExpMonth),
-        CoreError::InvalidCardCvc => UiError(SwitchAccountTierError::InvalidCardCvc),
-        CoreError::NewTierIsOldTier => UiError(SwitchAccountTierError::NewTierIsOldTier),
-        CoreError::ServerUnreachable => UiError(SwitchAccountTierError::CouldNotReachServer),
-        CoreError::CardDecline => UiError(SwitchAccountTierError::CardDecline),
-        CoreError::CardHasInsufficientFunds => {
-            UiError(SwitchAccountTierError::CardHasInsufficientFunds)
-        }
-        CoreError::TryAgain => UiError(SwitchAccountTierError::TryAgain),
-        CoreError::CardNotSupported => UiError(SwitchAccountTierError::CardNotSupported),
-        CoreError::ExpiredCard => UiError(SwitchAccountTierError::ExpiredCard),
-        CoreError::CurrentUsageIsMoreThanNewTier => {
-            UiError(SwitchAccountTierError::CurrentUsageIsMoreThanNewTier)
-        }
-        CoreError::AccountNonexistent => UiError(SwitchAccountTierError::NoAccount),
-        CoreError::ConcurrentRequestsAreTooSoon => {
-            UiError(SwitchAccountTierError::ConcurrentRequestsAreTooSoon)
-        }
-        CoreError::ClientUpdateRequired => UiError(SwitchAccountTierError::ClientUpdateRequired),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetCreditCard {
-    NoAccount,
-    CouldNotReachServer,
-    NotAStripeCustomer,
-    ClientUpdateRequired,
-}
-
-#[instrument(skip(config), err(Debug))]
-pub fn get_credit_card(config: &Config) -> Result<CreditCardLast4Digits, Error<GetCreditCard>> {
-    billing_service::get_credit_card(config).map_err(|e| match e {
-        CoreError::AccountNonexistent => UiError(GetCreditCard::NoAccount),
-        CoreError::ServerUnreachable => UiError(GetCreditCard::CouldNotReachServer),
-        CoreError::NotAStripeCustomer => UiError(GetCreditCard::NotAStripeCustomer),
-        CoreError::ClientUpdateRequired => UiError(GetCreditCard::ClientUpdateRequired),
-        _ => unexpected!("{:#?}", e),
-    })
-}
-
-#[instrument(skip(config, input), err(Debug))]
-pub fn search_file_paths(
-    config: &Config, input: &str,
-) -> Result<Vec<SearchResultItem>, UnexpectedError> {
-    search_service::search_file_paths(config, input).map_err(|e| unexpected_only!("{:#?}", e))
+pub fn get_code_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
 }
 
 // This basically generates a function called `get_all_error_variants`,
@@ -715,7 +392,6 @@ macro_rules! impl_get_variants {
 
 // All new errors must be placed in here!
 impl_get_variants!(
-    MigrationError,
     CreateAccountError,
     ImportError,
     AccountExportError,

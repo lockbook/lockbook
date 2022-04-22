@@ -2,12 +2,9 @@ package app.lockbook.model
 
 import android.content.Context
 import androidx.preference.PreferenceManager
-import app.lockbook.App.Companion.config
 import app.lockbook.R
 import app.lockbook.util.*
 import com.github.michaelbull.result.*
-import com.github.michaelbull.result.Err
-import com.github.michaelbull.result.Ok
 
 enum class SortStyle {
     AToZ,
@@ -51,9 +48,9 @@ class FileModel(
                 else -> return Err(LbError.basicError(context.resources))
             }
 
-            return when (val getRootResult = CoreModel.getRoot(config)) {
+            return when (val getRootResult = CoreModel.getRoot()) {
                 is Ok -> {
-                    when (val getChildrenResult = CoreModel.getChildren(config, getRootResult.value.id)) {
+                    when (val getChildrenResult = CoreModel.getChildren(getRootResult.value.id)) {
                         is Ok -> {
                             val fileModel = FileModel(
                                 getRootResult.value,
@@ -69,7 +66,7 @@ class FileModel(
                     }
                 }
                 is Err -> {
-                    if (getRootResult.error == CoreError.UiError<GetRootError>(GetRootError.NoRoot)) {
+                    if (getRootResult.error == CoreError.UiError(GetRootError.NoRoot)) {
                         Ok(null)
                     } else {
                         Err(getRootResult.error.toLbError(res))
@@ -119,7 +116,7 @@ class FileModel(
     }
 
     fun refreshChildren(): Result<Unit, CoreError<GetChildrenError>> {
-        return CoreModel.getChildren(config, parent.id).map { newChildren ->
+        return CoreModel.getChildren(parent.id).map { newChildren ->
             children = newChildren.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent }
             sortChildren()
         }
@@ -132,7 +129,7 @@ class FileModel(
     }
 
     fun intoParent(): Result<Unit, CoreError<out UiCoreError>> {
-        return CoreModel.getFileById(config, parent.parent).andThen { newParent ->
+        return CoreModel.getFileById(parent.parent).andThen { newParent ->
             refreshChildrenAtNewParent(newParent).map {
                 if (fileDir.size != 1) {
                     fileDir.removeLastOrNull()

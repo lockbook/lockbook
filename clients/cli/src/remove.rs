@@ -1,36 +1,34 @@
 use std::io;
 use std::io::Write;
 
-use lockbook_core::{
-    delete_file, get_and_get_children_recursively, get_file_by_path, Error::UiError,
-    Error::Unexpected as UnexpectedError, FileDeleteError, GetAndGetChildrenError,
-    GetFileByPathError,
-};
+use lockbook_core::model::errors::FileDeleteError;
+use lockbook_core::model::errors::GetAndGetChildrenError;
+use lockbook_core::model::errors::GetFileByPathError;
+use lockbook_core::Core;
+use lockbook_core::Error as LbError;
 use lockbook_models::file_metadata::FileType;
 
-use crate::error::CliResult;
-use crate::utils::{account, config};
-use crate::{err, err_unexpected};
+use crate::error::CliError;
 
-pub fn remove(path: &str, force: bool) -> CliResult<()> {
-    account()?;
-    let config = config()?;
+pub fn remove(core: &Core, lb_path: &str, force: bool) -> Result<(), CliError> {
+    core.get_account()?;
 
-    let meta = get_file_by_path(&config, path).map_err(|err| match err {
-        UiError(GetFileByPathError::NoFileAtThatPath) => err!(FileNotFound(path.to_string())),
-        UnexpectedError(msg) => err_unexpected!("{}", msg),
+    let meta = core.get_by_path(lb_path).map_err(|err| match err {
+        LbError::UiError(GetFileByPathError::NoFileAtThatPath) => CliError::file_not_found(lb_path),
+        LbError::Unexpected(msg) => CliError::unexpected(msg),
     })?;
 
     if meta.file_type == FileType::Folder && !force {
-        let children =
-            get_and_get_children_recursively(&config, meta.id).map_err(|err| match err {
-                UiError(GetAndGetChildrenError::DocumentTreatedAsFolder) => {
-                    err!(DocTreatedAsFolder(path.to_string()))
-                }
-                UiError(GetAndGetChildrenError::FileDoesNotExist) => {
-                    err!(FileNotFound(path.to_string()))
-                }
-                UnexpectedError(msg) => err_unexpected!("{}", msg),
+        let children = core
+            .get_and_get_children_recursively(meta.id)
+            .map_err(|err| match err {
+                LbError::UiError(err) => match err {
+                    GetAndGetChildrenError::DocumentTreatedAsFolder => {
+                        CliError::doc_treated_as_dir(lb_path)
+                    }
+                    GetAndGetChildrenError::FileDoesNotExist => CliError::file_not_found(lb_path),
+                },
+                LbError::Unexpected(msg) => CliError::unexpected(msg),
             })?;
 
         print!(
@@ -54,9 +52,9 @@ pub fn remove(path: &str, force: bool) -> CliResult<()> {
         }
     }
 
-    delete_file(&config, meta.id).map_err(|err| match err {
-        UiError(FileDeleteError::FileDoesNotExist) => err!(FileNotFound(path.to_string())),
-        UiError(FileDeleteError::CannotDeleteRoot) => err!(NoRootOps("delete")),
-        UnexpectedError(msg) => err_unexpected!("{}", msg),
+    core.delete_file(meta.id).map_err(|err| match err {
+        LbError::UiError(FileDeleteError::FileDoesNotExist) => CliError::file_not_found(lb_path),
+        LbError::UiError(FileDeleteError::CannotDeleteRoot) => CliError::no_root_ops("delete"),
+        LbError::Unexpected(msg) => CliError::unexpected(msg),
     })
 }

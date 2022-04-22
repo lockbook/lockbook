@@ -1,13 +1,13 @@
 use std::io::Write;
 use std::{env, io};
 
-use lockbook_core::{create_account, CreateAccountError, Error as CoreError};
+use lockbook_core::model::errors::CreateAccountError;
+use lockbook_core::Core;
+use lockbook_core::Error as LbError;
 
-use crate::error::CliResult;
-use crate::utils::config;
-use crate::{err, err_unexpected};
+use crate::error::CliError;
 
-pub fn new_account() -> CliResult<()> {
+pub fn new_account(core: &Core) -> Result<(), CliError> {
     print!("Enter a Username: ");
     io::stdout().flush().unwrap();
 
@@ -22,17 +22,18 @@ pub fn new_account() -> CliResult<()> {
 
     println!("Generating keys and checking for username availability...");
 
-    create_account(&config()?, &username, &api_location).map_err(|err| match err {
-        CoreError::UiError(err) => match err {
-            CreateAccountError::UsernameTaken => err!(UsernameTaken(username)),
-            CreateAccountError::InvalidUsername => err!(UsernameInvalid(username)),
-            CreateAccountError::AccountExistsAlready => err!(AccountAlreadyExists),
-            CreateAccountError::CouldNotReachServer => err!(NetworkIssue),
-            CreateAccountError::ClientUpdateRequired => err!(UpdateRequired),
-            CreateAccountError::ServerDisabled => err!(ServerDisabled),
-        },
-        CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
-    })?;
+    core.create_account(&username, &api_location)
+        .map_err(|err| match err {
+            LbError::UiError(err) => match err {
+                CreateAccountError::UsernameTaken => CliError::username_taken(&username),
+                CreateAccountError::InvalidUsername => CliError::username_invalid(&username),
+                CreateAccountError::AccountExistsAlready => CliError::account_exists(),
+                CreateAccountError::CouldNotReachServer => CliError::network_issue(),
+                CreateAccountError::ClientUpdateRequired => CliError::update_required(),
+                CreateAccountError::ServerDisabled => CliError::server_disabled(),
+            },
+            LbError::Unexpected(msg) => CliError::unexpected(msg),
+        })?;
 
     println!("Account created successfully.");
     Ok(())

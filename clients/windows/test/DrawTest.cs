@@ -1,12 +1,10 @@
 ﻿using Core;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Numerics;
 
-namespace devtest {
+namespace test {
     [TestClass]
     public class DrawTest {
         private bool StrokeEqual(InkStroke expected, InkStroke actual) {

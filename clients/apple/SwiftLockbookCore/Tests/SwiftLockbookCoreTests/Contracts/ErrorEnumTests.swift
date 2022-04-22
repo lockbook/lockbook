@@ -4,7 +4,6 @@ import XCTest
 
 class ErrorEnumTests: XCTestCase {
     struct AllErrors: Decodable {
-        let MigrationError: [MigrationError]
         let CreateAccountError: [CreateAccountError]
         let ImportError: [ImportError]
         let AccountExportError: [AccountExportError]
@@ -27,8 +26,7 @@ class ErrorEnumTests: XCTestCase {
         let ExportDrawingError: [ExportDrawingError]
 
         func noneEmpty() -> Bool {
-                !MigrationError.isEmpty
-                && !CreateAccountError.isEmpty
+                !CreateAccountError.isEmpty
                 && !ImportError.isEmpty
                 && !AccountExportError.isEmpty
                 && !GetAccountError.isEmpty

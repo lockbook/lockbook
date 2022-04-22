@@ -15,7 +15,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.viewpager2.adapter.FragmentStateAdapter
-import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.ActivityOnBoardingBinding
 import app.lockbook.databinding.FragmentOnBoardingCreateAccountBinding
@@ -154,7 +153,7 @@ class ImportFragment : Fragment() {
         onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
 
         uiScope.launch {
-            when (val importAccountResult = CoreModel.importAccount(App.config, account)) {
+            when (val importAccountResult = CoreModel.importAccount(account)) {
                 is Ok -> {
                     onBoardingActivity.startActivity(Intent(context, ImportAccountActivity::class.java))
                     onBoardingActivity.finishAffinity()
@@ -210,7 +209,7 @@ class CreateFragment : Fragment() {
         onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
 
         uiScope.launch {
-            when (val createAccountResult = CoreModel.createAccount(App.config, username)) {
+            when (val createAccountResult = CoreModel.createAccount(username)) {
                 is Ok -> {
                     val intent = Intent(context, MainScreenActivity::class.java)
                     intent.putExtra(IS_THIS_A_NEW_ACCOUNT, true)
