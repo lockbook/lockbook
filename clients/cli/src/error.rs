@@ -70,6 +70,7 @@ macro_rules! make_errkind_enum {
 }
 
 type IoError = std::io::Error;
+type PathBuf = std::path::PathBuf;
 
 // Error Codes, respect: http://www.tldp.org/LDP/abs/html/exitcodes.html
 make_errkind_enum!(
@@ -94,12 +95,12 @@ make_errkind_enum!(
 
     // OS (30s)
     30 => OsPwdMissing(IoError),
-    31 => OsCouldNotCreateDir(String, IoError),
-    32 => OsCouldNotCreateFile(String, IoError),
-    33 => OsCouldNotWriteFile(String, IoError),
-    34 => OsCouldNotDeleteFile(String, IoError),
-    35 => OsInvalidPath(String),
-    36 => OsFileCollision(String),
+    31 => OsCouldNotCreateDir(PathBuf, IoError),
+    32 => OsCouldNotCreateFile(PathBuf, IoError),
+    33 => OsCouldNotWriteFile(PathBuf, IoError),
+    34 => OsCouldNotDeleteFile(PathBuf, IoError),
+    35 => OsInvalidPath(PathBuf),
+    36 => OsFileCollision(PathBuf),
 
     // Lockbook file ops (40-52)
     40 => FileNotFound(String),
@@ -144,12 +145,12 @@ impl ErrorKind {
             Self::UsernamePkMismatch => "The public_key in this account_string does not match what is on the server.".to_string(),
 
             Self::OsPwdMissing(err) => format!("getting PWD from OS: {}", err),
-            Self::OsCouldNotCreateDir(path, err) => format!("could not create directory '{}': {}", path, err),
-            Self::OsCouldNotCreateFile(path, err) => format!("could not create file '{}': {}", path, err),
-            Self::OsCouldNotWriteFile(path, err) => format!("could not write file '{}': {}", path, err),
-            Self::OsCouldNotDeleteFile(path, err) => format!("could not delete file '{}': {}", path, err),
-            Self::OsInvalidPath(path) => format!("'{}' is an invalid path", path),
-            Self::OsFileCollision(path) => format!("A file collision was detected in '{}'", path),
+            Self::OsCouldNotCreateDir(path, err) => format!("could not create directory '{:?}': {}", &path, err),
+            Self::OsCouldNotCreateFile(path, err) => format!("could not create file '{:?}': {}", path, err),
+            Self::OsCouldNotWriteFile(path, err) => format!("could not write file '{:?}': {}", path, err),
+            Self::OsCouldNotDeleteFile(path, err) => format!("could not delete file '{:?}': {}", path, err),
+            Self::OsInvalidPath(path) => format!("'{:?}' is an invalid path", path),
+            Self::OsFileCollision(path) => format!("A file collision was detected in '{:?}'", path),
 
             Self::FileNotFound(path) => format!("file '{}' not found", path),
             Self::FileAlreadyExists(path) => format!("the file '{}' already exists", path),

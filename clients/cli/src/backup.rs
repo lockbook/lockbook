@@ -37,7 +37,7 @@ pub fn backup() -> CliResult<()> {
     };
 
     fs::create_dir(&backup_directory)
-        .map_err(|err| err!(OsCouldNotCreateDir(path_string!(backup_directory), err)))?;
+        .map_err(|err| err!(OsCouldNotCreateDir(backup_directory.clone(), err)))?;
 
     let index_file_content = leaf_nodes.join("\n");
     let index_path = {
@@ -47,9 +47,9 @@ pub fn backup() -> CliResult<()> {
     };
 
     File::create(&index_path)
-        .map_err(|err| err!(OsCouldNotCreateFile(path_string!(index_path), err)))?
+        .map_err(|err| err!(OsCouldNotCreateFile(index_path.clone(), err)))?
         .write_all(index_file_content.as_bytes())
-        .map_err(|err| err!(OsCouldNotWriteFile(path_string!(index_path), err)))?;
+        .map_err(|err| err!(OsCouldNotWriteFile(index_path.clone(), err)))?;
 
     println!("Backing up {} folders and {} documents.", folders_len, docs_len);
 
@@ -61,10 +61,10 @@ pub fn backup() -> CliResult<()> {
     export_file(&config, root.id, backup_directory.clone(), false, None).map_err(|err| match err {
         CoreError::UiError(ExportFileError::NoAccount) => err!(NoAccount),
         CoreError::UiError(ExportFileError::DiskPathTaken) => {
-            err!(OsFileCollision(format!("{}", backup_directory.display())))
+            err!(OsFileCollision(backup_directory))
         }
         CoreError::UiError(ExportFileError::DiskPathInvalid) => {
-            err!(OsInvalidPath(format!("{}", backup_directory.display())))
+            err!(OsInvalidPath(backup_directory))
         }
         CoreError::UiError(ExportFileError::ParentDoesNotExist) | CoreError::Unexpected(_) => {
             err_unexpected!("{:#?}", err)
