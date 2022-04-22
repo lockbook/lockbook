@@ -200,7 +200,9 @@ pub fn print_last_successful_sync() -> CliResult<()> {
     Ok(())
 }
 
-pub fn set_up_auto_save<P: 'static + AsRef< Path> + Send>(id: Uuid, location: P) -> Option<Hotwatch> {
+pub fn set_up_auto_save<P: 'static + AsRef<Path> + Send>(
+    id: Uuid, location: P,
+) -> Option<Hotwatch> {
     match Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5)) {
         Ok(mut watcher) => {
             watcher
