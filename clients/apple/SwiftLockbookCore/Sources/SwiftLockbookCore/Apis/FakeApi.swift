@@ -95,11 +95,7 @@ Vestibulum ante ipsum primis in vel.
         .failure(.init(unexpected: "LAZY"))
     }
     
-    public func getState() -> FfiResult<DbState, GetStateError> {
-        .failure(.init(unexpected: "LAZY"))
-    }
-    
-    public func migrateState() -> FfiResult<Empty, MigrationError> {
+    public func getState() -> FfiResult<DbState, InitError> {
         .failure(.init(unexpected: "LAZY"))
     }
     

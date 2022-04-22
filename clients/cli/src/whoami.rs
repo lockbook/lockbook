@@ -1,7 +1,8 @@
-use crate::error::CliResult;
-use crate::utils::account;
+use lockbook_core::Core;
 
-pub fn whoami() -> CliResult<()> {
-    println!("{}", account()?.username);
+use crate::error::CliError;
+
+pub fn whoami(core: &Core) -> Result<(), CliError> {
+    println!("{}", core.get_account()?.username);
     Ok(())
 }

@@ -25,17 +25,6 @@ impl super::App {
         window.set_titlebar(Some(&titlebar));
         window.set_child(Some(&overlay));
 
-        if let Err(err) = api.init_logger(Path::new(&writeable_path)) {
-            show_launch_error(&window, &err.0);
-            return;
-        }
-
-        if let Err(err) = check_and_perform_migrations(&api) {
-            let msg = format!("checking and performing migrations: {}", err);
-            show_launch_error(&window, &msg);
-            return;
-        }
-
         let settings = match Settings::from_data_dir(&writeable_path) {
             Ok(s) => Arc::new(RwLock::new(s)),
             Err(err) => {
@@ -199,25 +188,6 @@ impl super::App {
         self.update_sync_status();
         self.bg_state.begin_work(&self.api, &self.settings);
         self.overlay.set_child(Some(&self.account.cntr))
-    }
-}
-
-fn check_and_perform_migrations(api: &Arc<dyn lb::Api>) -> Result<(), String> {
-    const STATE_REQ_CLEAN_MSG: &str =
-        "Your local state cannot be migrated, please re-sync with a fresh client.";
-
-    match api.db_state().map_err(|err| format!("{}", err))? {
-        lb::DbState::ReadyToUse | lb::DbState::Empty => Ok(()),
-        lb::DbState::StateRequiresClearing => Err(STATE_REQ_CLEAN_MSG.to_string()),
-        lb::DbState::MigrationRequired => {
-            println!("Local state requires migration! Performing migration now...");
-            api.migrate_db().map_err(|err| match err {
-                lb::Error::UiError(lb::MigrationError::StateRequiresCleaning) => {
-                    STATE_REQ_CLEAN_MSG.to_string()
-                }
-                lb::Error::Unexpected(msg) => msg,
-            })
-        }
     }
 }
 

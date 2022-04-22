@@ -45,6 +45,7 @@ struct OnboardingView: View {
                         .bold()
                     Button("Create Account", action: self.onboardingState.attemptCreate)
                         .foregroundColor(.blue)
+                        .disabled(self.onboardingState.working)
                 case .Import:
                     HStack {
                         SecureField("Account String", text: self.$onboardingState.accountString)
