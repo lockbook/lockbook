@@ -1,4 +1,3 @@
-use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -16,29 +15,27 @@ pub use lockbook_core::Error::UiError;
 pub use lockbook_core::Error::Unexpected;
 pub use lockbook_core::UnexpectedError;
 
-pub use lockbook_core::AccountExportError as ExportAccountError;
-pub use lockbook_core::CalculateWorkError;
-pub use lockbook_core::CreateAccountError;
-pub use lockbook_core::CreateFileError;
-pub use lockbook_core::ExportFileError;
-pub use lockbook_core::FileDeleteError;
-pub use lockbook_core::GetAndGetChildrenError;
-pub use lockbook_core::GetFileByIdError;
-pub use lockbook_core::GetFileByPathError;
-pub use lockbook_core::GetRootError;
-pub use lockbook_core::GetUsageError;
-pub use lockbook_core::ImportError as ImportAccountError;
-pub use lockbook_core::ImportFileError;
-pub use lockbook_core::MigrationError;
-pub use lockbook_core::MoveFileError;
-pub use lockbook_core::ReadDocumentError;
-pub use lockbook_core::RenameFileError;
-pub use lockbook_core::SyncAllError;
-pub use lockbook_core::WriteToDocumentError as WriteDocumentError;
+pub use lockbook_core::model::errors::AccountExportError as ExportAccountError;
+pub use lockbook_core::model::errors::CalculateWorkError;
+pub use lockbook_core::model::errors::CreateAccountError;
+pub use lockbook_core::model::errors::CreateFileError;
+pub use lockbook_core::model::errors::ExportFileError;
+pub use lockbook_core::model::errors::FileDeleteError;
+pub use lockbook_core::model::errors::GetAndGetChildrenError;
+pub use lockbook_core::model::errors::GetFileByIdError;
+pub use lockbook_core::model::errors::GetFileByPathError;
+pub use lockbook_core::model::errors::GetRootError;
+pub use lockbook_core::model::errors::GetUsageError;
+pub use lockbook_core::model::errors::ImportError as ImportAccountError;
+pub use lockbook_core::model::errors::ImportFileError;
+pub use lockbook_core::model::errors::MoveFileError;
+pub use lockbook_core::model::errors::ReadDocumentError;
+pub use lockbook_core::model::errors::RenameFileError;
+pub use lockbook_core::model::errors::SyncAllError;
+pub use lockbook_core::model::errors::WriteToDocumentError as WriteDocumentError;
 
-pub use lockbook_core::model::state::Config;
+pub use lockbook_core::Config;
 
-pub use lockbook_core::service::db_state_service::State as DbState;
 pub use lockbook_core::service::import_export_service::ImportExportFileInfo;
 pub use lockbook_core::service::import_export_service::ImportStatus;
 pub use lockbook_core::service::search_service::SearchResultItem;
@@ -49,14 +46,11 @@ pub use lockbook_core::service::usage_service::UsageMetrics;
 
 pub use lockbook_core::DEFAULT_API_LOCATION;
 
+use lockbook_core::Core;
+
 use lockbook_core::model::filename::NameComponents;
 
 pub trait Api: Send + Sync {
-    fn init_logger(&self, log_path: &Path) -> Result<(), UnexpectedError>;
-
-    fn db_state(&self) -> Result<DbState, UnexpectedError>;
-    fn migrate_db(&self) -> Result<(), Error<MigrationError>>;
-
     fn create_account(
         &self, username: &str, api_url: &str,
     ) -> Result<Account, Error<CreateAccountError>>;
@@ -130,147 +124,140 @@ impl From<Error<SyncAllError>> for SyncError {
 }
 
 pub struct DefaultApi {
-    cfg: Config,
+    core: Core,
     sync_lock: Mutex<u8>,
 }
 
-impl Default for DefaultApi {
-    fn default() -> Self {
-        let writeable_path = std::env::var("LOCKBOOK_PATH")
-            .unwrap_or(format!("{}/.lockbook", std::env::var("HOME").unwrap()));
-        let cfg = Config { writeable_path };
+impl DefaultApi {
+    pub fn new() -> Result<Self, String> {
+        let lockbook_dir = std::env::var("LOCKBOOK_PATH")
+            .unwrap_or_else(|_| format!("{}/.lockbook", std::env::var("HOME").unwrap()));
+
+        let writeable_path = format!("{}/linux", lockbook_dir);
+
+        let core = Core::init(&Config { logs: true, writeable_path }).map_err(|e| e.0)?;
 
         let sync_lock = Mutex::new(0);
 
-        Self { cfg, sync_lock }
+        Ok(Self { core, sync_lock })
     }
 }
 
 impl Api for DefaultApi {
-    fn init_logger(&self, log_path: &Path) -> Result<(), UnexpectedError> {
-        lockbook_core::init_logger(log_path)
-    }
-
-    fn db_state(&self) -> Result<DbState, UnexpectedError> {
-        lockbook_core::get_db_state(&self.cfg)
-    }
-
-    fn migrate_db(&self) -> Result<(), Error<MigrationError>> {
-        lockbook_core::migrate_db(&self.cfg)
-    }
-
     fn create_account(
         &self, username: &str, api_url: &str,
     ) -> Result<Account, Error<CreateAccountError>> {
-        lockbook_core::create_account(&self.cfg, username, api_url)
+        self.core.create_account(username, api_url)
     }
 
     fn import_account(&self, account_string: &str) -> Result<Account, Error<ImportAccountError>> {
-        lockbook_core::import_account(&self.cfg, account_string)
+        self.core.import_account(account_string)
     }
 
     fn export_account(&self) -> Result<String, Error<ExportAccountError>> {
-        lockbook_core::export_account(&self.cfg)
+        self.core.export_account()
     }
 
     fn account(&self) -> Result<Option<Account>, String> {
-        match lockbook_core::get_account(&self.cfg) {
+        match self.core.get_account() {
             Ok(acct) => Ok(Some(acct)),
             Err(err) => match err {
-                Error::UiError(lockbook_core::GetAccountError::NoAccount) => Ok(None),
+                Error::UiError(lockbook_core::model::errors::GetAccountError::NoAccount) => {
+                    Ok(None)
+                }
                 Error::Unexpected(msg) => Err(msg),
             },
         }
     }
 
     fn root(&self) -> Result<FileMetadata, Error<GetRootError>> {
-        lockbook_core::get_root(&self.cfg)
+        self.core.get_root()
     }
 
     fn list_metadatas(&self) -> Result<Vec<FileMetadata>, UnexpectedError> {
-        lockbook_core::list_metadatas(&self.cfg)
+        self.core.list_metadatas()
     }
 
     fn file_by_id(&self, id: Uuid) -> Result<FileMetadata, Error<GetFileByIdError>> {
-        lockbook_core::get_file_by_id(&self.cfg, id)
+        self.core.get_file_by_id(id)
     }
 
     fn file_by_path(&self, path: &str) -> Result<FileMetadata, Error<GetFileByPathError>> {
-        lockbook_core::get_file_by_path(&self.cfg, path)
+        self.core.get_by_path(path)
     }
 
     fn children(&self, id: Uuid) -> Result<Vec<FileMetadata>, UnexpectedError> {
-        lockbook_core::get_children(&self.cfg, id)
+        self.core.get_children(id)
     }
 
     fn file_and_all_children(
         &self, id: Uuid,
     ) -> Result<Vec<FileMetadata>, Error<GetAndGetChildrenError>> {
-        lockbook_core::get_and_get_children_recursively(&self.cfg, id)
+        self.core.get_and_get_children_recursively(id)
     }
 
     fn path_by_id(&self, id: Uuid) -> Result<String, UnexpectedError> {
-        lockbook_core::get_path_by_id(&self.cfg, id)
+        self.core.get_path_by_id(id)
     }
 
     fn create_file(
         &self, name: &str, parent: Uuid, ftype: FileType,
     ) -> Result<FileMetadata, Error<CreateFileError>> {
-        lockbook_core::create_file(&self.cfg, name, parent, ftype)
+        self.core.create_file(name, parent, ftype)
     }
 
     fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), Error<RenameFileError>> {
-        lockbook_core::rename_file(&self.cfg, id, new_name)
+        self.core.rename_file(id, new_name)
     }
 
     fn move_file(&self, id: Uuid, dest: Uuid) -> Result<(), Error<MoveFileError>> {
-        lockbook_core::move_file(&self.cfg, id, dest)
+        self.core.move_file(id, dest)
     }
 
     fn delete_file(&self, id: Uuid) -> Result<(), Error<FileDeleteError>> {
-        lockbook_core::delete_file(&self.cfg, id)
+        self.core.delete_file(id)
     }
 
     fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
-        lockbook_core::read_document(&self.cfg, id)
+        self.core.read_document(id)
     }
 
     fn write_document(&self, id: Uuid, content: &[u8]) -> Result<(), Error<WriteDocumentError>> {
-        lockbook_core::write_document(&self.cfg, id, content)
+        self.core.write_document(id, content)
     }
 
     fn import_files(
         &self, sources: &[PathBuf], dest: Uuid, update_status: Box<dyn Fn(ImportStatus)>,
     ) -> Result<(), Error<ImportFileError>> {
-        lockbook_core::import_files(&self.cfg, sources, dest, &update_status)
+        self.core.import_files(sources, dest, &update_status)
     }
 
     fn export_file(
         &self, id: Uuid, dest: PathBuf, edit: bool,
         export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> Result<(), Error<ExportFileError>> {
-        lockbook_core::export_file(&self.cfg, id, dest, edit, export_progress)
+        self.core.export_file(id, dest, edit, export_progress)
     }
 
     fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>> {
-        lockbook_core::calculate_work(&self.cfg)
+        self.core.calculate_work()
     }
 
     fn last_synced(&self) -> Result<i64, UnexpectedError> {
-        lockbook_core::get_last_synced(&self.cfg)
+        self.core.get_last_synced()
     }
 
     fn uncompressed_usage(&self) -> Result<UsageItemMetric, Error<GetUsageError>> {
-        lockbook_core::get_uncompressed_usage(&self.cfg)
+        self.core.get_uncompressed_usage()
     }
 
     fn usage(&self) -> Result<UsageMetrics, Error<GetUsageError>> {
-        lockbook_core::get_usage(&self.cfg)
+        self.core.get_usage()
     }
 
     fn sync_all(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>> {
         let _lock = self.sync_lock.lock().unwrap();
-        lockbook_core::sync_all(&self.cfg, f)
+        self.core.sync(f)
     }
 
     fn is_syncing(&self) -> bool {
@@ -278,7 +265,7 @@ impl Api for DefaultApi {
     }
 
     fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError> {
-        lockbook_core::search_file_paths(&self.cfg, input)
+        self.core.search_file_paths(input)
     }
 }
 

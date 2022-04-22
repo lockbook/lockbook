@@ -37,14 +37,18 @@ where E : Enum<E>, E : UiCoreError {
 fun <O, E> Result<O, CoreError<E>>?.unwrapOk(): O
         where E : Enum<E>, E : UiCoreError {
     return this!!.getOrElse { error ->
-        val errorName = if (error is CoreError.UiError) {
-            error.content
-        } else if (error is CoreError.UiError) {
-            error.content.name
-        } else {
-            "a 3rd unknown (and impossible) core error type"
+        val errorName = when (error) {
+            is CoreError.UiError -> {
+                error.content.name
+            }
+            is CoreError.Unexpected -> {
+                error.content
+            }
+            else -> {
+                "a 3rd unknown (and impossible) core error type"
+            }
         }
 
-        throw Throwable("${Thread.currentThread().stackTrace[1]}: Tried unwrap on error type $errorName")
+        throw Throwable("${Thread.currentThread().stackTrace[1]}: Tried unwrap on error: $errorName")
     }
 }

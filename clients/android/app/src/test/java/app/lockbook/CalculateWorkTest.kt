@@ -1,15 +1,13 @@
 package app.lockbook
 
-import app.lockbook.core.calculateWork
 import app.lockbook.model.CoreModel
-import app.lockbook.util.*
-import kotlinx.serialization.decodeFromString
-import org.junit.After
+import app.lockbook.util.Config
+import app.lockbook.util.FileType
+import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 
 class CalculateWorkTest {
-    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -19,38 +17,29 @@ class CalculateWorkTest {
         }
     }
 
-    @After
-    fun createDirectory() {
-        config = Config(createRandomPath())
+    @Before
+    fun initCore() {
+        CoreModel.init(Config(false, createRandomPath()))
     }
 
     @Test
     fun calculateWorkOk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
+        val rootFileMetadata = CoreModel.getRoot().unwrapOk()
 
         CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
         ).unwrapOk()
 
         CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
         ).unwrapOk()
 
-        CoreModel.calculateWork(config).unwrapOk()
-    }
-
-    @Test
-    fun calculateWorkUnexpectedError() {
-        CoreModel.calculateWorkParser.decodeFromString<IntermCoreResult<WorkCalculated, CalculateWorkError>>(
-            calculateWork("")
-        ).unwrapUnexpected()
+        CoreModel.calculateWork().unwrapOk()
     }
 }

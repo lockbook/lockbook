@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-core"
-version = "0.3.17"
+version = "0.4.0"
 edition = "2018"
 description = "The functional components of the iOS and Android lockbook clients."
 license = "BSD-3-Clause"
@@ -14,12 +14,6 @@ bench = false
 default = ["rustls-tls"]
 rustls-tls = ["reqwest/rustls-tls"]
 native-tls = ["reqwest/native-tls"]
-
-[dependencies.lockbook-models]
-path = "libs/models"
-
-[dependencies.lockbook-crypto]
-path = "libs/crypto"
 
 [dependencies]
 base64 = "0.11.0"
@@ -43,10 +37,14 @@ tempfile = { version = "3.1.0" }
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
 itertools = "0.10.1"
 backtrace = "0.3"
-libsecp256k1 = "0.7.0"
+libsecp256k1 = { git = "https://github.com/steverusso/libsecp256k1" }
 tracing = "0.1.5"
 tracing-subscriber = "0.3.9"
 tracing-appender = "0.2"
+hmdb = "0.1.12"
+lazy_static = "1.4.0"
+lockbook-models = { path = "libs/models" }
+lockbook-crypto = { path = "libs/crypto" }
 
 [profile.release]
 debug = true
@@ -55,9 +53,10 @@ debug = true
 cpuprofiler = "0.0.4"
 criterion = "0.3.5"
 indicatif = "0.17.0-beta.1"
-libsecp256k1 = "0.7.0"
+libsecp256k1 = { git = "https://github.com/steverusso/libsecp256k1" }
 variant_count = "1.1.0"
 num_cpus = "1.13.0"
+test_utils = { path = "libs/test_utils" }
 
 [[bench]]
 name = "bench_main"

@@ -111,14 +111,10 @@
     <string name="drawing_eraser_description">Eraser</string>
     <string name="settings_open_new_document_automatically">Automatically open new documents</string>
 
-    <string name="initial_figure_outer_migrate_data">Migrating your data…</string>
-    <string name="initial_figure_outer_finished_upgrading_data">Your data has been migrated.</string>
-
     <!-- Errors -->
     <string name="no_account">You have no account.</string>
     <string name="could_not_reach_server">Offline.</string>
     <string name="client_update_required">Update required.</string>
-    <string name="state_requires_cleaning">This lockbook version is incompatible with your data, please clear your data or downgrade your lockbook.</string>
     <string name="username_taken">This username has been taken.</string>
     <string name="invalid_username">This username is invalid.</string>
     <string name="account_exists_already">An account already exists on this device.</string>

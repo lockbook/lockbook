@@ -1,210 +1,158 @@
-#[cfg(test)]
-mod delete_and_list_tests {
-    use lockbook_core::service::path_service::Filter;
-    use lockbook_core::service::test_utils;
-    use lockbook_core::Error::UiError;
-    use lockbook_core::{
-        assert_matches, create_file, create_file_at_path, delete_file, list_metadatas, list_paths,
-        move_file, read_document, rename_file, save_document_to_disk, write_document,
-        CreateFileError, FileDeleteError, MoveFileError, ReadDocumentError, RenameFileError,
-        SaveDocumentToDiskError, WriteToDocumentError,
-    };
-    use lockbook_models::file_metadata::FileType;
+use lockbook_core::model::errors::Error::UiError;
+use lockbook_core::model::errors::*;
+use lockbook_core::service::path_service::Filter;
+use lockbook_models::file_metadata::FileType;
+use test_utils::*;
 
-    #[test]
-    fn test_create_delete_list() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-        let doc = create_file_at_path(&db, &test_utils::path(&root, "/doc.md")).unwrap();
-        assert_eq!(list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(), 1);
+#[test]
+fn test_create_delete_list() {
+    let core = test_core_with_account();
+    let id = core.create_at_path(&path(&core, "test.md")).unwrap().id;
+    assert_eq!(core.list_paths(Some(Filter::LeafNodesOnly)).unwrap().len(), 1);
+    core.delete_file(id).unwrap();
+    assert_eq!(core.list_paths(Some(Filter::LeafNodesOnly)).unwrap().len(), 0);
+}
 
-        delete_file(&db, doc.id).unwrap();
+#[test]
+fn test_create_delete_read() {
+    let core = test_core_with_account();
+    let id = core.create_at_path(&path(&core, "test.md")).unwrap().id;
+    core.delete_file(id).unwrap();
+    assert_matches!(core.read_document(id), Err(UiError(ReadDocumentError::FileDoesNotExist)));
+}
 
-        assert_eq!(list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(), 0);
-    }
+#[test]
+fn test_create_delete_write() {
+    let core = test_core_with_account();
+    let id = core.create_at_path(&path(&core, "test.md")).unwrap().id;
+    core.delete_file(id).unwrap();
+    assert_matches!(
+        core.write_document(id, "document content".as_bytes()),
+        Err(UiError(WriteToDocumentError::FileDoesNotExist))
+    );
+}
 
-    #[test]
-    fn test_create_delete_read() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-        let doc = create_file_at_path(&db, &test_utils::path(&root, "/doc.md")).unwrap();
-        assert_eq!(list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(), 1);
+#[test]
+fn test_create_parent_delete_create_in_parent() {
+    let core = test_core_with_account();
+    let id = core.create_at_path(&path(&core, "folder/")).unwrap().id;
+    core.delete_file(id).unwrap();
 
-        delete_file(&db, doc.id).unwrap();
+    assert_matches!(
+        core.create_file("document", id, FileType::Document),
+        Err(UiError(CreateFileError::CouldNotFindAParent))
+    );
+}
 
-        assert_matches!(
-            read_document(&db, doc.id),
-            Err(UiError(ReadDocumentError::FileDoesNotExist))
-        );
-    }
+#[test]
+fn try_to_delete_root() {
+    let core = test_core_with_account();
+    let root = core.get_root().unwrap();
+    assert_matches!(core.delete_file(root.id), Err(UiError(FileDeleteError::CannotDeleteRoot)));
+}
 
-    #[test]
-    fn test_create_delete_write() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-        let doc = create_file_at_path(&db, &test_utils::path(&root, "/doc.md")).unwrap();
-        assert_eq!(list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(), 1);
+#[test]
+fn test_create_parent_delete_parent_read_doc() {
+    let core = test_core_with_account();
+    let doc = core.create_at_path(&path(&core, "folder/test.md")).unwrap();
+    core.write_document(doc.id, "content".as_bytes()).unwrap();
+    assert_eq!(core.read_document(doc.id).unwrap(), "content".as_bytes());
+    core.delete_file(doc.parent).unwrap();
+    assert_matches!(core.read_document(doc.id), Err(UiError(ReadDocumentError::FileDoesNotExist)));
+}
 
-        delete_file(&db, doc.id).unwrap();
+#[test]
+fn test_create_parent_delete_parent_save_doc() {
+    let core = test_core_with_account();
+    let doc = core.create_at_path(&path(&core, "folder/test.md")).unwrap();
+    core.write_document(doc.id, "content".as_bytes()).unwrap();
+    core.delete_file(doc.parent).unwrap();
+    assert_matches!(
+        core.save_document_to_disk(doc.id, "/dev/null"),
+        Err(UiError(SaveDocumentToDiskError::FileDoesNotExist))
+    );
+}
 
-        assert_matches!(
-            write_document(&db, doc.id, "document content".as_bytes()),
-            Err(UiError(WriteToDocumentError::FileDoesNotExist))
-        );
-    }
+#[test]
+fn test_create_parent_delete_parent_rename_doc() {
+    let core = test_core_with_account();
+    let doc = core.create_at_path(&path(&core, "folder/test.md")).unwrap();
+    core.delete_file(doc.parent).unwrap();
+    assert_matches!(
+        core.rename_file(doc.id, "test2.md"),
+        Err(UiError(RenameFileError::FileDoesNotExist))
+    );
+}
 
-    #[test]
-    fn test_create_parent_delete_create_in_parent() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-        let folder = create_file_at_path(&db, &test_utils::path(&root, "/folder/")).unwrap();
+#[test]
+fn test_create_parent_delete_parent_rename_parent() {
+    let core = test_core_with_account();
+    let doc = core.create_at_path(&path(&core, "folder/test.md")).unwrap();
+    core.delete_file(doc.parent).unwrap();
+    assert_matches!(
+        core.rename_file(doc.parent, "folder2"),
+        Err(UiError(RenameFileError::FileDoesNotExist))
+    );
+}
 
-        assert_eq!(list_paths(&db, Some(Filter::LeafNodesOnly)).unwrap().len(), 1);
+#[test]
+fn test_folder_move_delete_source_doc() {
+    let core = test_core_with_account();
+    let doc = core.create_at_path(&path(&core, "folder/test.md")).unwrap();
+    let folder2 = core.create_at_path(&path(&core, "folder2/")).unwrap();
+    core.delete_file(doc.parent).unwrap();
+    assert_matches!(
+        core.move_file(doc.id, folder2.id),
+        Err(UiError(MoveFileError::FileDoesNotExist))
+    );
+}
 
-        delete_file(&db, folder.id).unwrap();
+#[test]
+fn test_folder_move_delete_source_parent() {
+    let core = test_core_with_account();
+    let doc = core.create_at_path(&path(&core, "folder/test.md")).unwrap();
+    let folder2 = core.create_at_path(&path(&core, "folder2/")).unwrap();
+    core.delete_file(doc.parent).unwrap();
+    assert_matches!(
+        core.move_file(doc.parent, folder2.id),
+        Err(UiError(MoveFileError::FileDoesNotExist))
+    );
+}
 
-        assert_matches!(
-            create_file(&db, "document", folder.id, FileType::Document),
-            Err(UiError(CreateFileError::CouldNotFindAParent))
-        );
-    }
+#[test]
+fn test_folder_move_delete_destination_parent() {
+    let core = test_core_with_account();
+    let doc = core.create_at_path(&path(&core, "folder/test.md")).unwrap();
+    let folder2 = core.create_at_path(&path(&core, "folder2/")).unwrap();
+    core.delete_file(folder2.id).unwrap();
+    assert_matches!(
+        core.move_file(doc.id, folder2.id),
+        Err(UiError(MoveFileError::TargetParentDoesNotExist))
+    );
+}
 
-    #[test]
-    fn try_to_deleteroot() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
+#[test]
+fn test_folder_move_delete_destination_doc() {
+    let core = test_core_with_account();
+    let doc = core.create_at_path(&path(&core, "folder/test.md")).unwrap();
+    let folder2 = core.create_at_path(&path(&core, "folder2/")).unwrap();
+    core.delete_file(folder2.id).unwrap();
+    assert_matches!(
+        core.move_file(doc.parent, folder2.id),
+        Err(UiError(MoveFileError::TargetParentDoesNotExist))
+    );
+}
 
-        assert_matches!(delete_file(&db, root.id), Err(UiError(FileDeleteError::CannotDeleteRoot)));
-    }
+#[test]
+fn test_delete_list_files() {
+    let core = test_core_with_account();
+    let f1 = core.create_at_path(&path(&core, "f1/")).unwrap();
+    core.create_at_path(&path(&core, "f1/f2/")).unwrap();
+    let d1 = core.create_at_path(&path(&core, "f1/f2/d1.md")).unwrap();
+    core.delete_file(f1.id).unwrap();
 
-    #[test]
-    fn test_create_parent_delete_parent_read_doc() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-        let doc = create_file_at_path(&db, &test_utils::path(&root, "/folder/test.md")).unwrap();
-        write_document(&db, doc.id, "content".as_bytes()).unwrap();
-        assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
-        delete_file(&db, doc.parent).unwrap();
-        assert_matches!(
-            read_document(&db, doc.id),
-            Err(UiError(ReadDocumentError::FileDoesNotExist))
-        );
-    }
+    let mut files = core.list_metadatas().unwrap();
+    files.retain(|meta| meta.id == d1.id);
 
-    #[test]
-    fn test_create_parent_delete_parent_save_doc() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-        let doc = create_file_at_path(&db, &test_utils::path(&root, "/folder/test.md")).unwrap();
-        write_document(&db, doc.id, "content".as_bytes()).unwrap();
-        assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
-        delete_file(&db, doc.parent).unwrap();
-        assert_matches!(
-            save_document_to_disk(&db, doc.id, "/dev/null"),
-            Err(UiError(SaveDocumentToDiskError::FileDoesNotExist))
-        );
-    }
-
-    #[test]
-    fn test_create_parent_delete_parent_rename_doc() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-        let doc = create_file_at_path(&db, &test_utils::path(&root, "/folder/test.md")).unwrap();
-        write_document(&db, doc.id, "content".as_bytes()).unwrap();
-        assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
-        delete_file(&db, doc.parent).unwrap();
-        assert_matches!(
-            rename_file(&db, doc.id, "test2.md"),
-            Err(UiError(RenameFileError::FileDoesNotExist))
-        );
-    }
-
-    #[test]
-    fn test_create_parent_delete_parent_rename_parent() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-        let doc = create_file_at_path(&db, &test_utils::path(&root, "/folder/test.md")).unwrap();
-        write_document(&db, doc.id, "content".as_bytes()).unwrap();
-        assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
-        delete_file(&db, doc.parent).unwrap();
-        assert_matches!(
-            rename_file(&db, doc.parent, "folder2"),
-            Err(UiError(RenameFileError::FileDoesNotExist))
-        );
-    }
-
-    #[test]
-    fn test_folder_move_delete_source_parent() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-        let doc = create_file_at_path(&db, &test_utils::path(&root, "/folder1/test.md")).unwrap();
-        let folder2 = create_file_at_path(&db, &test_utils::path(&root, "/folder2")).unwrap();
-        write_document(&db, doc.id, "content".as_bytes()).unwrap();
-        assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
-        delete_file(&db, doc.parent).unwrap();
-        assert_matches!(
-            move_file(&db, doc.id, folder2.id),
-            Err(UiError(MoveFileError::FileDoesNotExist))
-        );
-    }
-
-    #[test]
-    fn test_folder_move_delete_source_doc() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-        let doc = create_file_at_path(&db, &test_utils::path(&root, "/folder1/test.md")).unwrap();
-        let folder2 = create_file_at_path(&db, &test_utils::path(&root, "/folder2")).unwrap();
-        write_document(&db, doc.id, "content".as_bytes()).unwrap();
-        assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
-        delete_file(&db, doc.parent).unwrap();
-        assert_matches!(
-            move_file(&db, doc.parent, folder2.id),
-            Err(UiError(MoveFileError::FileDoesNotExist))
-        );
-    }
-
-    #[test]
-    fn test_folder_move_delete_destination_parent() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-        let doc = create_file_at_path(&db, &test_utils::path(&root, "/folder1/test.md")).unwrap();
-        let folder2 = create_file_at_path(&db, &test_utils::path(&root, "/folder2")).unwrap();
-        write_document(&db, doc.id, "content".as_bytes()).unwrap();
-        assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
-        delete_file(&db, folder2.id).unwrap();
-        assert_matches!(
-            move_file(&db, doc.id, folder2.id),
-            Err(UiError(MoveFileError::TargetParentDoesNotExist))
-        );
-    }
-
-    #[test]
-    fn test_folder_move_delete_destination_doc() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-        let doc = create_file_at_path(&db, &test_utils::path(&root, "/folder1/test.md")).unwrap();
-        let folder2 = create_file_at_path(&db, &test_utils::path(&root, "/folder2")).unwrap();
-        write_document(&db, doc.id, "content".as_bytes()).unwrap();
-        assert_eq!(read_document(&db, doc.id).unwrap(), "content".as_bytes());
-        delete_file(&db, folder2.id).unwrap();
-        assert_matches!(
-            move_file(&db, doc.parent, folder2.id),
-            Err(UiError(MoveFileError::TargetParentDoesNotExist))
-        );
-    }
-
-    #[test]
-    fn test_delete_list_files() {
-        let db = test_utils::test_config();
-        let (_account, root) = test_utils::create_account(&db);
-        let f1 = create_file_at_path(&db, &test_utils::path(&root, "/f1/")).unwrap();
-        let _f2 = create_file_at_path(&db, &test_utils::path(&root, "/f1/f2/")).unwrap();
-        let d1 = create_file_at_path(&db, &test_utils::path(&root, "/f1/f2/d1.md")).unwrap();
-        delete_file(&db, f1.id).unwrap();
-
-        let mut files = list_metadatas(&db).unwrap();
-        files.retain(|meta| meta.id == d1.id);
-
-        assert!(files.is_empty());
-    }
+    assert!(files.is_empty());
 }

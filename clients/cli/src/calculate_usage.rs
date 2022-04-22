@@ -1,27 +1,14 @@
-use crate::error::CliResult;
-use crate::utils::{account, config};
-use crate::{err, err_unexpected};
-use lockbook_core::{Error as CoreError, GetUsageError};
+use lockbook_core::model::errors::GetUsageError;
+use lockbook_core::Core;
+use lockbook_core::Error as LbError;
 
-pub fn calculate_usage(exact: bool) -> CliResult<()> {
-    account()?;
+use crate::error::CliError;
 
-    let usage = lockbook_core::get_usage(&config()?).map_err(|err| match err {
-        CoreError::UiError(GetUsageError::CouldNotReachServer) => err!(NetworkIssue),
-        CoreError::UiError(GetUsageError::ClientUpdateRequired) => err!(UpdateRequired),
-        CoreError::UiError(GetUsageError::NoAccount) | CoreError::Unexpected(_) => {
-            err_unexpected!("{:?}", err)
-        }
-    })?;
+pub fn calculate_usage(core: &Core, exact: bool) -> Result<(), CliError> {
+    core.get_account()?;
 
-    let uncompressed_usage =
-        lockbook_core::get_uncompressed_usage(&config()?).map_err(|err| match err {
-            CoreError::UiError(GetUsageError::CouldNotReachServer) => err!(NetworkIssue),
-            CoreError::UiError(GetUsageError::ClientUpdateRequired) => err!(UpdateRequired),
-            CoreError::UiError(GetUsageError::NoAccount) | CoreError::Unexpected(_) => {
-                err_unexpected!("{:?}", err)
-            }
-        })?;
+    let usage = core.get_usage()?;
+    let uncompressed_usage = core.get_uncompressed_usage()?;
 
     let (uncompressed, server_usage, data_cap) = if exact {
         (
@@ -37,4 +24,17 @@ pub fn calculate_usage(exact: bool) -> CliResult<()> {
     println!("Server Utilization: {}", server_usage);
     println!("Server Data Cap: {}", data_cap);
     Ok(())
+}
+
+impl From<LbError<GetUsageError>> for CliError {
+    fn from(e: LbError<GetUsageError>) -> Self {
+        match e {
+            LbError::UiError(err) => match err {
+                GetUsageError::NoAccount => Self::no_account(),
+                GetUsageError::CouldNotReachServer => Self::network_issue(),
+                GetUsageError::ClientUpdateRequired => Self::update_required(),
+            },
+            LbError::Unexpected(msg) => Self::unexpected(msg),
+        }
+    }
 }

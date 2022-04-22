@@ -5,110 +5,106 @@ public struct CoreApi: LockbookApi {
 
     var documentsDirectory: String
     
-    public init(documentsDirectory: String) {
+    public init(_ documentsDirectory: String, logs: Bool) {
         self.documentsDirectory = documentsDirectory
         print("Located at \(documentsDirectory)")
-        init_logger_safely(documentsDirectory)
+        print("core init result: \(startCore(logs))")
+    }
+    
+    public func startCore(_ logs: Bool) -> FfiResult<Empty, InitError> {
+        fromPrimitiveResult(result: `init`(documentsDirectory, logs))
     }
     
     public func getAccount() -> FfiResult<Account, GetAccountError> {
-        fromPrimitiveResult(result: get_account(documentsDirectory))
+        fromPrimitiveResult(result: get_account())
     }
     
     public func createAccount(username: String, apiLocation: String) -> FfiResult<Empty, CreateAccountError> {
-        fromPrimitiveResult(result: create_account(documentsDirectory, username, apiLocation))
+        fromPrimitiveResult(result: create_account(username, apiLocation))
     }
     
     public func importAccount(accountString: String) -> FfiResult<Empty, ImportError> {
-        fromPrimitiveResult(result: import_account(documentsDirectory, accountString.trimmingCharacters(in: .whitespacesAndNewlines)))
+        fromPrimitiveResult(result: import_account(accountString.trimmingCharacters(in: .whitespacesAndNewlines)))
     }
     
     public func exportAccount() -> FfiResult<String, AccountExportError> {
-        fromPrimitiveResult(result: export_account(documentsDirectory))
+        fromPrimitiveResult(result: export_account())
     }
     
     public func getUsage() -> FfiResult<UsageMetrics, GetUsageError> {
-        fromPrimitiveResult(result: get_usage(documentsDirectory))
+        fromPrimitiveResult(result: get_usage())
     }
     
     public func getUncompressedUsage() -> FfiResult<UsageItemMetric, GetUsageError> {
-        fromPrimitiveResult(result: get_uncomressed_usage(documentsDirectory))
+        fromPrimitiveResult(result: get_uncompressed_usage())
     }
     
     public func syncAll() -> FfiResult<Empty, SyncAllError> {
-        fromPrimitiveResult(result: sync_all(documentsDirectory))
+        fromPrimitiveResult(result: sync_all())
     }
     
     public func calculateWork() -> FfiResult<WorkMetadata, CalculateWorkError> {
-        fromPrimitiveResult(result: calculate_work(documentsDirectory))
+        fromPrimitiveResult(result: calculate_work())
     }
     
     public func getRoot() -> FfiResult<DecryptedFileMetadata, GetRootError> {
-        fromPrimitiveResult(result: get_root(documentsDirectory))
+        fromPrimitiveResult(result: get_root())
     }
     
     public func listFiles() -> FfiResult<[DecryptedFileMetadata], ListMetadatasError> {
-        fromPrimitiveResult(result: list_metadatas(documentsDirectory))
+        fromPrimitiveResult(result: list_metadatas())
     }
     
     // TODO this needs to be renamed
     public func getFile(id: UUID) -> FfiResult<String, ReadDocumentError> {
-        fromPrimitiveResult(result: read_document(documentsDirectory, id.uuidString))
+        fromPrimitiveResult(result: read_document(id.uuidString))
     }
     
     public func readDrawing(id: UUID) -> FfiResult<Drawing, GetDrawingError> {
-        fromPrimitiveResult(result: get_drawing(documentsDirectory, id.uuidString))
+        fromPrimitiveResult(result: get_drawing(id.uuidString))
     }
     
     public func writeDrawing(id: UUID, content: Drawing) -> FfiResult<Empty, WriteToDocumentError> {
         switch serialize(obj: content) {
         case .success(let serializedDrawing):
-            return fromPrimitiveResult(result: write_document(documentsDirectory, id.uuidString, serializedDrawing))
+            return fromPrimitiveResult(result: write_document(id.uuidString, serializedDrawing))
         case .failure(let err):
             return .failure(.init(unexpected: err.localizedDescription))
         }
     }
 
     public func exportDrawing(id: UUID) -> FfiResult<Data, ExportDrawingError> {
-        let res: FfiResult<[UInt8], ExportDrawingError> = fromPrimitiveResult(result: export_drawing(documentsDirectory, id.uuidString))
+        let res: FfiResult<[UInt8], ExportDrawingError> = fromPrimitiveResult(result: export_drawing(id.uuidString))
         return res.map(transform: { Data($0) })
     }
     
     public func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<DecryptedFileMetadata, CreateFileError> {
         let fileType = isFolder ? "Folder" : "Document"
-        return fromPrimitiveResult(result: create_file(documentsDirectory, name, dirId.uuidString, fileType))
+        return fromPrimitiveResult(result: create_file(name, dirId.uuidString, fileType))
     }
     
     // TODO this needs to be renamed and brought in line with core
     public func updateFile(id: UUID, content: String) -> FfiResult<Empty, WriteToDocumentError> {
-        fromPrimitiveResult(result: write_document(documentsDirectory, id.uuidString, content))
+        fromPrimitiveResult(result: write_document(id.uuidString, content))
     }
     
     public func deleteFile(id: UUID) -> FfiResult<Empty, FileDeleteError> {
-        fromPrimitiveResult(result: delete_file(documentsDirectory, id.uuidString))
+        fromPrimitiveResult(result: delete_file(id.uuidString))
     }
     
     public func renameFile(id: UUID, name: String) -> FfiResult<Empty, RenameFileError> {
-        fromPrimitiveResult(result: rename_file(documentsDirectory, id.uuidString, name))
+        fromPrimitiveResult(result: rename_file(id.uuidString, name))
     }
 
     public func moveFile(id: UUID, newParent: UUID) -> FfiResult<Empty, MoveFileError> {
-        fromPrimitiveResult(result: move_file(documentsDirectory, id.uuidString, newParent.uuidString))
+        fromPrimitiveResult(result: move_file(id.uuidString, newParent.uuidString))
     }
-    
-    public func getState() -> FfiResult<DbState, GetStateError> {
-        fromPrimitiveResult(result: get_db_state(documentsDirectory))
-    }
-    
-    public func migrateState() -> FfiResult<Empty, MigrationError> {
-        fromPrimitiveResult(result: migrate_db(documentsDirectory))
-    }
-    
+
     public func getLocalChanges() -> FfiResult<[UUID], GetLocalChangesError> {
-        fromPrimitiveResult(result: get_local_changes(documentsDirectory))
+        fromPrimitiveResult(result: get_local_changes())
     }
     
     public func getLastSyncedHumanString() -> FfiResult<String, GetLastSyncedError> {
-        fromPrimitiveResult(result: get_last_synced_human_string(documentsDirectory))
+        fromPrimitiveResult(result: get_last_synced_human_string())
     }
 }
