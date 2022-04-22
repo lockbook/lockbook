@@ -4,6 +4,7 @@ use lockbook_core::service::{api_service, file_encryption_service};
 use lockbook_crypto::pubkey;
 use lockbook_models::account::Account;
 use lockbook_models::api::*;
+use reqwest::blocking::Client;
 use test_utils::*;
 
 fn random_account() -> Account {
@@ -15,7 +16,7 @@ fn test_account(account: &Account) -> Result<NewAccountResponse, ApiError<NewAcc
     let root =
         file_encryption_service::encrypt_metadatum(account, &root.decrypted_access_key, &root)
             .unwrap();
-    api_service::request(account, NewAccountRequest::new(account, &root))
+    api_service::request(&Client::new(), account, NewAccountRequest::new(account, &root))
 }
 #[test]
 fn new_account() {

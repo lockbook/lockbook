@@ -15,6 +15,7 @@ fn delete_document() {
     // delete document
     doc.deleted = true;
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(root, &doc.name, &doc)],
@@ -33,6 +34,7 @@ fn delete_document_not_found() {
     let mut diff = FileMetadataDiff::new_diff(root, &doc.name, &doc);
     diff.new_deleted = true;
     let result = api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             // create document as if deleting an existing document
@@ -57,6 +59,7 @@ fn delete_document_new_document() {
     doc.deleted = true;
 
     let result = api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             // create document as if deleting an existing document
@@ -84,6 +87,7 @@ fn delete_document_deleted() {
     // delete document
     doc.deleted = true;
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(root, &doc.name, &doc)],
@@ -93,6 +97,7 @@ fn delete_document_deleted() {
 
     // delete document again
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(root, &doc.name, &doc)],
@@ -110,6 +115,7 @@ fn delete_cannot_delete_root() {
 
     root.deleted = true;
     let result = api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)],

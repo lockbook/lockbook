@@ -12,6 +12,7 @@ fn create_document() {
     let doc = core.db.local_metadata.get(&id).unwrap().unwrap();
 
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
     )
@@ -29,6 +30,7 @@ fn create_document_duplicate_id() {
 
     // create document with same id and key
     let result = api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
     );
@@ -48,6 +50,7 @@ fn create_document_duplicate_path() {
     // create document with same path
     doc.id = Uuid::new_v4();
     let result = api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
     );
@@ -68,6 +71,7 @@ fn create_document_parent_not_found() {
 
     // create document
     let result = api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
     );

@@ -28,6 +28,7 @@ use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use model::errors::Error::UiError;
 pub use model::errors::{CoreError, Error, UnexpectedError};
+use reqwest::blocking::Client;
 use serde::Deserialize;
 use serde_json::{json, value::Value};
 use service::log_service;
@@ -46,6 +47,7 @@ pub struct Config {
 pub struct Core {
     pub config: Config,
     pub db: CoreV1,
+    pub client: Client,
 }
 
 impl Core {
@@ -57,8 +59,9 @@ impl Core {
         let db =
             CoreV1::init(&config.writeable_path).map_err(|err| unexpected_only!("{:#?}", err))?;
         let config = config.clone();
+        let client = Client::new();
 
-        Ok(Self { config, db })
+        Ok(Self { config, db, client })
     }
 
     #[instrument(level = "info", err(Debug))]
@@ -67,7 +70,7 @@ impl Core {
     ) -> Result<Account, Error<CreateAccountError>> {
         let val = self
             .db
-            .transaction(|tx| tx.create_account(username, api_url))?;
+            .transaction(|tx| tx.create_account(&self.client, username, api_url))?;
         Ok(val?)
     }
 
@@ -75,7 +78,7 @@ impl Core {
     pub fn import_account(&self, account_string: &str) -> Result<Account, Error<ImportError>> {
         let val = self
             .db
-            .transaction(|tx| tx.import_account(account_string))?;
+            .transaction(|tx| tx.import_account(&self.client, account_string))?;
         Ok(val?)
     }
 
@@ -240,13 +243,17 @@ impl Core {
 
     #[instrument(level = "debug", err(Debug))]
     pub fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>> {
-        let val = self.db.transaction(|tx| tx.calculate_work(&self.config))?;
+        let val = self
+            .db
+            .transaction(|tx| tx.calculate_work(&self.client, &self.config))?;
         Ok(val?)
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>> {
-        let val = self.db.transaction(|tx| tx.sync(&self.config, f))?;
+        let val = self
+            .db
+            .transaction(|tx| tx.sync(&self.client, &self.config, f))?;
         Ok(val?)
     }
 
@@ -270,7 +277,7 @@ impl Core {
 
     #[instrument(level = "debug", err(Debug))]
     pub fn get_usage(&self) -> Result<UsageMetrics, Error<GetUsageError>> {
-        let val = self.db.transaction(|tx| tx.get_usage())?;
+        let val = self.db.transaction(|tx| tx.get_usage(&self.client))?;
         Ok(val?)
     }
 
@@ -347,13 +354,13 @@ impl Core {
     ) -> Result<(), Error<SwitchAccountTierError>> {
         let val = self
             .db
-            .transaction(|tx| tx.switch_account_tier(new_account_tier))?;
+            .transaction(|tx| tx.switch_account_tier(&self.client, new_account_tier))?;
         Ok(val?)
     }
 
     #[instrument(level = "debug", err(Debug))]
     pub fn get_credit_card(&self) -> Result<CreditCardLast4Digits, Error<GetCreditCard>> {
-        let val = self.db.transaction(|tx| tx.get_credit_card())?;
+        let val = self.db.transaction(|tx| tx.get_credit_card(&self.client))?;
         Ok(val?)
     }
 

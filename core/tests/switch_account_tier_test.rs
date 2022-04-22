@@ -12,6 +12,7 @@ fn switch_to_premium_and_back() {
 
     // switch account tier to premium
     api_service::request(
+        &core.client,
         &account,
         SwitchAccountTierRequest {
             account_tier: generate_premium_account_tier(test_credit_cards::GOOD, None, None, None),
@@ -20,8 +21,12 @@ fn switch_to_premium_and_back() {
     .unwrap();
 
     // switch account tier back to free
-    api_service::request(&account, SwitchAccountTierRequest { account_tier: AccountTier::Free })
-        .unwrap();
+    api_service::request(
+        &core.client,
+        &account,
+        SwitchAccountTierRequest { account_tier: AccountTier::Free },
+    )
+    .unwrap();
 }
 
 #[test]
@@ -31,6 +36,7 @@ fn new_tier_is_old_tier() {
 
     // switch account tier to free
     let result = api_service::request(
+        &core.client,
         &account,
         SwitchAccountTierRequest { account_tier: AccountTier::Free },
     );
@@ -42,6 +48,7 @@ fn new_tier_is_old_tier() {
 
     // switch account tier to premium
     api_service::request(
+        &core.client,
         &account,
         SwitchAccountTierRequest {
             account_tier: generate_premium_account_tier(test_credit_cards::GOOD, None, None, None),
@@ -51,6 +58,7 @@ fn new_tier_is_old_tier() {
 
     // switch account tier to premium
     let result = api_service::request(
+        &core.client,
         &account,
         SwitchAccountTierRequest {
             account_tier: generate_premium_account_tier(test_credit_cards::GOOD, None, None, None),
@@ -70,6 +78,7 @@ fn card_does_not_exist() {
 
     // switch account tier to premium using an "old card"
     let result = api_service::request(
+        &core.client,
         &account,
         SwitchAccountTierRequest { account_tier: AccountTier::Premium(PaymentMethod::OldCard) },
     );
@@ -98,6 +107,7 @@ fn card_decline() {
     for (card_number, expected_err) in scenarios {
         // switch account tier to premium using bad card number
         let result = api_service::request(
+            &core.client,
             &account,
             SwitchAccountTierRequest {
                 account_tier: generate_premium_account_tier(card_number, None, None, None),
@@ -146,6 +156,7 @@ fn invalid_cards() {
     for (card_number, maybe_exp_year, maybe_exp_month, maybe_cvc, expected_err) in scenarios {
         // switch account tier to premium using bad card information
         let result = api_service::request(
+            &core.client,
             &account,
             SwitchAccountTierRequest {
                 account_tier: generate_premium_account_tier(
@@ -192,6 +203,7 @@ fn downgrade_denied() {
 
     // switch account tier to premium
     api_service::request(
+        &core.client,
         &account,
         SwitchAccountTierRequest {
             account_tier: generate_premium_account_tier(test_credit_cards::GOOD, None, None, None),
@@ -201,6 +213,7 @@ fn downgrade_denied() {
 
     // attempt to switch account tier back free
     let result = api_service::request(
+        &core.client,
         &account,
         SwitchAccountTierRequest { account_tier: AccountTier::Free },
     );
@@ -226,6 +239,10 @@ fn downgrade_denied() {
     }
 
     // switch account tier back to free
-    api_service::request(&account, SwitchAccountTierRequest { account_tier: AccountTier::Free })
-        .unwrap();
+    api_service::request(
+        &core.client,
+        &account,
+        SwitchAccountTierRequest { account_tier: AccountTier::Free },
+    )
+    .unwrap();
 }

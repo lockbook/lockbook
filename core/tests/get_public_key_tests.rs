@@ -8,10 +8,13 @@ fn get_public_key() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 
-    let result =
-        api_service::request(&account, GetPublicKeyRequest { username: account.username.clone() })
-            .unwrap()
-            .key;
+    let result = api_service::request(
+        &core.client,
+        &account,
+        GetPublicKeyRequest { username: account.username.clone() },
+    )
+    .unwrap()
+    .key;
     assert_eq!(result, account.public_key());
 }
 
@@ -20,7 +23,11 @@ fn get_public_key_not_found() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 
-    let result = api_service::request(&account, GetPublicKeyRequest { username: random_name() });
+    let result = api_service::request(
+        &core.client,
+        &account,
+        GetPublicKeyRequest { username: random_name() },
+    );
     assert_matches!(
         result,
         Err(ApiError::<GetPublicKeyError>::Endpoint(GetPublicKeyError::UserNotFound))

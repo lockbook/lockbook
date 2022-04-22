@@ -15,6 +15,7 @@ fn upsert_id_takeover() {
         let id = core1.create_at_path(path).unwrap().id;
         core1.sync(None).unwrap();
         api_service::request(
+            &core1.client,
             &core1.get_account().unwrap(),
             GetUpdatesRequest { since_metadata_version: 0 },
         )
@@ -30,6 +31,7 @@ fn upsert_id_takeover() {
 
     // If this succeeded account2 would be able to control file1
     let result = api_service::request(
+        &core2.client,
         &core2.get_account().unwrap(),
         FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&file1)] },
     );
@@ -52,17 +54,22 @@ fn upsert_id_takeover_change_parent() {
         let path = &path(&core1, "test.md");
         let id = core1.create_at_path(path).unwrap().id;
         core1.sync(None).unwrap();
-        api_service::request(&account1, GetUpdatesRequest { since_metadata_version: 0 })
-            .unwrap()
-            .file_metadata
-            .iter()
-            .find(|&f| f.id == id)
-            .unwrap()
-            .clone()
+        api_service::request(
+            &core1.client,
+            &account1,
+            GetUpdatesRequest { since_metadata_version: 0 },
+        )
+        .unwrap()
+        .file_metadata
+        .iter()
+        .find(|&f| f.id == id)
+        .unwrap()
+        .clone()
     };
 
     // If this succeeded account2 would be able to control file1
     let result = api_service::request(
+        &core2.client,
         &account2,
         FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&file1)] },
     );
@@ -87,6 +94,7 @@ fn change_document_content() {
     };
 
     let result = api_service::request(
+        &core2.client,
         &core2.get_account().unwrap(),
         ChangeDocumentContentRequest {
             id: file.id,
@@ -114,8 +122,11 @@ fn get_someone_else_document() {
         core1.get_by_path(path).unwrap()
     };
 
-    let result =
-        api_service::request(&core2.get_account().unwrap(), GetDocumentRequest::from(&file));
+    let result = api_service::request(
+        &core2.client,
+        &core2.get_account().unwrap(),
+        GetDocumentRequest::from(&file),
+    );
     assert_matches!(
         result,
         Err(ApiError::<GetDocumentError>::Endpoint(GetDocumentError::NotPermissioned))

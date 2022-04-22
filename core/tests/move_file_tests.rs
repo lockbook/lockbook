@@ -19,6 +19,7 @@ fn move_document() {
     // move document
     doc.parent = folder;
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
@@ -43,6 +44,7 @@ fn move_document_not_found() {
     let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     let result = api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             // create document as if moving an existing document
@@ -73,6 +75,7 @@ fn move_document_parent_not_found() {
     let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     let result = api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
     );
@@ -92,6 +95,7 @@ fn move_document_deleted() {
     let folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
 
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&folder)],
@@ -103,6 +107,7 @@ fn move_document_deleted() {
     doc.deleted = true;
     doc.parent = folder.id;
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
@@ -123,6 +128,7 @@ fn move_document_conflict() {
     let folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
 
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&folder)],
@@ -133,6 +139,7 @@ fn move_document_conflict() {
     // move document
     doc.parent = folder.id;
     let result = api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             // use incorrect previous parent
@@ -162,6 +169,7 @@ fn move_document_path_taken() {
     doc2.name = doc.name.clone();
 
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![
@@ -176,6 +184,7 @@ fn move_document_path_taken() {
     // move document
     doc.parent = folder.id;
     let result = api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
@@ -195,6 +204,7 @@ fn move_folder_cannot_move_root() {
     let folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
 
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&folder)] },
     )
@@ -203,6 +213,7 @@ fn move_folder_cannot_move_root() {
     // move root
     root.parent = folder.id;
     let result = api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)],
@@ -226,6 +237,7 @@ fn move_folder_into_itself() {
     let mut folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
 
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&folder)] },
     )
@@ -233,6 +245,7 @@ fn move_folder_into_itself() {
 
     folder.parent = folder.id;
     let result = api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(root.id, &folder.name, &folder)],
@@ -257,6 +270,7 @@ fn move_folder_into_descendants() {
     let folder2 = core.db.local_metadata.get(&folder2).unwrap().unwrap();
 
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new(&folder), FileMetadataDiff::new(&folder2)],
@@ -267,6 +281,7 @@ fn move_folder_into_descendants() {
     // move folder into itself
     folder.parent = folder2.id;
     let result = api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(root.id, &folder.name, &folder)],
@@ -289,6 +304,7 @@ fn move_document_into_document() {
     let doc2 = core.db.local_metadata.get(&doc2).unwrap().unwrap();
 
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&doc2)],
@@ -299,6 +315,7 @@ fn move_document_into_document() {
     // move folder into itself
     doc.parent = doc2.id;
     let result = api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],

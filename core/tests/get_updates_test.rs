@@ -9,14 +9,19 @@ fn get_updates() {
     let root = core.get_root().unwrap();
 
     // get updates at version 0
-    let result = api_service::request(&account, GetUpdatesRequest { since_metadata_version: 0 })
-        .unwrap()
-        .file_metadata
-        .len();
+    let result = api_service::request(
+        &core.client,
+        &account,
+        GetUpdatesRequest { since_metadata_version: 0 },
+    )
+    .unwrap()
+    .file_metadata
+    .len();
     assert_eq!(result, 1);
 
     // get updates at version of root folder
     let result = api_service::request(
+        &core.client,
         &account,
         GetUpdatesRequest { since_metadata_version: root.metadata_version },
     )

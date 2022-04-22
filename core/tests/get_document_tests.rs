@@ -22,6 +22,7 @@ fn get_document() {
 
     // update document content
     api_service::request(
+        &core.client,
         &account,
         ChangeDocumentContentRequest {
             id,
@@ -33,6 +34,7 @@ fn get_document() {
 
     // get content version
     let content_version = api_service::request(
+        &core.client,
         &account,
         GetUpdatesRequest { since_metadata_version: metadata_version },
     )
@@ -45,7 +47,8 @@ fn get_document() {
 
     // get document
     let result =
-        &api_service::request(&account, GetDocumentRequest { id, content_version }).unwrap();
+        &api_service::request(&core.client, &account, GetDocumentRequest { id, content_version })
+            .unwrap();
     assert_eq!(
         result.content,
         AESEncrypted { value: vec!(69), nonce: vec!(69), _t: Default::default() }
@@ -59,6 +62,7 @@ fn get_document_not_found() {
 
     // get document we never created
     let result = api_service::request(
+        &core.client,
         &account,
         GetDocumentRequest { id: Uuid::new_v4(), content_version: 0 },
     );

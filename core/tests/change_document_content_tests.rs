@@ -17,6 +17,7 @@ fn change_document_content() {
 
     // create document
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc_enc)] },
     )
@@ -24,6 +25,7 @@ fn change_document_content() {
 
     // get document metadata version
     doc.metadata_version = api_service::request(
+        &core.client,
         &account,
         GetUpdatesRequest { since_metadata_version: root.metadata_version },
     )
@@ -37,6 +39,7 @@ fn change_document_content() {
 
     // change document content
     api_service::request(
+        &core.client,
         &account,
         ChangeDocumentContentRequest {
             id: doc.id,
@@ -57,6 +60,7 @@ fn change_document_content_not_found() {
 
     // change content of document we never created
     let result = api_service::request(
+        &core.client,
         &account,
         ChangeDocumentContentRequest { id: doc.id, old_metadata_version: 0, new_content },
     );

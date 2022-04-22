@@ -10,6 +10,7 @@ fn get_credit_card() {
 
     // switch account tier to premium
     api_service::request(
+        &core.client,
         &account,
         SwitchAccountTierRequest {
             account_tier: generate_premium_account_tier(test_credit_cards::GOOD, None, None, None),
@@ -18,7 +19,7 @@ fn get_credit_card() {
     .unwrap();
 
     // get the last 4 digits of the most recently added card
-    let result = api_service::request(&account, GetCreditCardRequest {})
+    let result = api_service::request(&core.client, &account, GetCreditCardRequest {})
         .unwrap()
         .credit_card_last_4_digits;
 
@@ -31,7 +32,7 @@ fn not_a_stripe_customer() {
     let account = core.get_account().unwrap();
 
     // attempt to get the last 4 digits of the most recently added card
-    let result = api_service::request(&account, GetCreditCardRequest {});
+    let result = api_service::request(&core.client, &account, GetCreditCardRequest {});
 
     assert_matches!(
         result,

@@ -318,9 +318,10 @@ impl Trial {
     fn cleanup(&self) {
         if let Ok(account) = &self.clients[0].get_account() {
             // Delete account in server
-            api_service::request(account, DeleteAccountRequest {}).unwrap_or_else(|err| {
-                println!("Failed to delete account: {} error : {:?}", account.username, err)
-            });
+            api_service::request(&self.clients[0].client, account, DeleteAccountRequest {})
+                .unwrap_or_else(|err| {
+                    println!("Failed to delete account: {} error : {:?}", account.username, err)
+                });
 
             // Delete account locally
             for client in &self.clients {

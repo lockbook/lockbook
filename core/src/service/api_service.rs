@@ -1,4 +1,3 @@
-use lazy_static::lazy_static;
 use reqwest::blocking::Client as ReqwestClient;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -38,22 +37,18 @@ pub enum ApiError<E> {
     Deserialize(String),
 }
 
-lazy_static! {
-    static ref CLIENT: ReqwestClient = ReqwestClient::new();
-}
-
 pub fn request<
     T: Request<Response = impl DeserializeOwned, Error = impl DeserializeOwned> + Serialize,
 >(
-    account: &Account, request: T,
+    client: &ReqwestClient, account: &Account, request: T,
 ) -> Result<T::Response, ApiError<T::Error>> {
-    request_helper(account, request, get_code_version, get_time)
+    request_helper(client, account, request, get_code_version, get_time)
 }
 
 pub fn request_helper<
     T: Request<Response = impl DeserializeOwned, Error = impl DeserializeOwned> + Serialize,
 >(
-    account: &Account, request: T, get_code_version: fn() -> &'static str,
+    client: &ReqwestClient, account: &Account, request: T, get_code_version: fn() -> &'static str,
     get_time: fn() -> Timestamp,
 ) -> Result<T::Response, ApiError<T::Error>> {
     let signed_request =
@@ -63,7 +58,7 @@ pub fn request_helper<
         client_version: String::from(get_code_version()),
     })
     .map_err(|err| ApiError::Serialize(err.to_string()))?;
-    let serialized_response = CLIENT
+    let serialized_response = client
         .request(T::METHOD, format!("{}{}", account.api_url, T::ROUTE).as_str())
         .body(serialized_request)
         .send()

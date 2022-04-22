@@ -1,3 +1,4 @@
+use reqwest::blocking::Client;
 use serde::Serialize;
 
 use lockbook_models::api::{FileUsage, GetUsageRequest, GetUsageResponse};
@@ -32,14 +33,14 @@ pub struct UsageItemMetric {
 }
 
 impl Tx<'_> {
-    fn server_usage(&self) -> Result<GetUsageResponse, CoreError> {
+    fn server_usage(&self, client: &Client) -> Result<GetUsageResponse, CoreError> {
         let acc = &self.get_account()?;
 
-        Ok(api_service::request(acc, GetUsageRequest {})?)
+        Ok(api_service::request(client, acc, GetUsageRequest {})?)
     }
 
-    pub fn get_usage(&self) -> Result<UsageMetrics, CoreError> {
-        let server_usage_and_cap = self.server_usage()?;
+    pub fn get_usage(&self, client: &Client) -> Result<UsageMetrics, CoreError> {
+        let server_usage_and_cap = self.server_usage(client)?;
 
         let server_usage = server_usage_and_cap.sum_server_usage();
         let cap = server_usage_and_cap.cap;

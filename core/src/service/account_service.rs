@@ -7,9 +7,12 @@ use lockbook_crypto::clock_service::get_time;
 use lockbook_crypto::pubkey;
 use lockbook_models::account::Account;
 use lockbook_models::api::{GetPublicKeyRequest, NewAccountRequest};
+use reqwest::blocking::Client;
 
 impl Tx<'_> {
-    pub fn create_account(&mut self, username: &str, api_url: &str) -> Result<Account, CoreError> {
+    pub fn create_account(
+        &mut self, client: &Client, username: &str, api_url: &str,
+    ) -> Result<Account, CoreError> {
         let username = String::from(username).to_lowercase();
 
         if self.account.get(&OneKey {}).is_some() {
@@ -30,9 +33,12 @@ impl Tx<'_> {
             )),
         )?;
 
-        root_metadata.metadata_version =
-            api_service::request(&account, NewAccountRequest::new(&account, &encrypted_metadatum))?
-                .folder_metadata_version;
+        root_metadata.metadata_version = api_service::request(
+            client,
+            &account,
+            NewAccountRequest::new(&account, &encrypted_metadatum),
+        )?
+        .folder_metadata_version;
 
         let root = file_encryption_service::encrypt_metadata(&account, &[root_metadata])?
             .first()
@@ -45,7 +51,9 @@ impl Tx<'_> {
         Ok(account)
     }
 
-    pub fn import_account(&mut self, account_string: &str) -> Result<Account, CoreError> {
+    pub fn import_account(
+        &mut self, client: &Client, account_string: &str,
+    ) -> Result<Account, CoreError> {
         if self.account.get(&OneKey {}).is_some() {
             warn!("tried to import an account, but account exists already.");
             return Err(CoreError::AccountExists);
@@ -66,6 +74,7 @@ impl Tx<'_> {
         };
 
         let server_public_key = api_service::request(
+            client,
             &account,
             GetPublicKeyRequest { username: account.username.clone() },
         )?

@@ -253,7 +253,7 @@ pub fn assert_server_work_paths(
         .transaction(|tx| {
             let all_local_files = tx.get_all_metadata(RepoSource::Local).unwrap();
             let new_server_files = tx
-                .calculate_work(&db.config)
+                .calculate_work(&db.client, &db.config)
                 .unwrap()
                 .work_units
                 .into_iter()

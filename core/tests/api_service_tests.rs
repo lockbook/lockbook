@@ -15,6 +15,7 @@ fn forced_upgrade() {
     let account = core.get_account().unwrap();
 
     let result: Result<PublicKey, ApiError<GetPublicKeyError>> = request_helper(
+        &core.client,
         &account,
         GetPublicKeyRequest { username: account.username.clone() },
         CODE_VERSION,
@@ -33,6 +34,7 @@ fn expired_request() {
     let account = core.get_account().unwrap();
 
     let result = request_helper(
+        &core.client,
         &account,
         GetPublicKeyRequest { username: account.username.clone() },
         get_code_version,

@@ -14,6 +14,7 @@ use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
 use lockbook_models::tree::FileMetaExt;
 use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
+use reqwest::blocking::Client;
 use serde::Serialize;
 use std::fmt;
 
@@ -276,12 +277,14 @@ impl fmt::Debug for ResolvedDocument {
 /// have old contents copied to a new file. Remote document is returned so that caller can update base.
 #[instrument(level = "debug", skip_all, err(Debug))]
 fn get_resolved_document(
-    config: &Config, account: &Account, all_metadata_state: &[RepoState<DecryptedFileMetadata>],
+    config: &Config, client: &Client, account: &Account,
+    all_metadata_state: &[RepoState<DecryptedFileMetadata>],
     remote_metadatum: &DecryptedFileMetadata, merged_metadatum: &DecryptedFileMetadata,
 ) -> Result<ResolvedDocument, CoreError> {
     let remote_document = if remote_metadatum.content_version != 0 {
         let remote_document_encrypted =
-            api_service::request(account, GetDocumentRequest::from(remote_metadatum))?.content;
+            api_service::request(client, account, GetDocumentRequest::from(remote_metadatum))?
+                .content;
         file_compression_service::decompress(&file_encryption_service::decrypt_document(
             &remote_document_encrypted,
             remote_metadatum,
@@ -366,7 +369,7 @@ enum SyncProgressOperation {
 impl Tx<'_> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync<F: Fn(SyncProgress)>(
-        &mut self, config: &Config, maybe_update_sync_progress: Option<F>,
+        &mut self, client: &Client, config: &Config, maybe_update_sync_progress: Option<F>,
     ) -> Result<(), CoreError> {
         let mut sync_progress_total = 4 + self.get_all_with_document_changes(config)?.len(); // 3 metadata pulls + 1 metadata push + doc pushes
         let mut sync_progress = 0;
@@ -384,12 +387,12 @@ impl Tx<'_> {
             }
         };
 
-        self.pull(config, &mut update_sync_progress)?;
+        self.pull(client, config, &mut update_sync_progress)?;
         self.prune_deleted(config)?;
-        self.push_metadata(config, &mut update_sync_progress)?;
-        self.pull(config, &mut update_sync_progress)?;
-        self.push_documents(config, &mut update_sync_progress)?;
-        self.pull(config, &mut update_sync_progress)?;
+        self.push_metadata(client, &mut update_sync_progress)?;
+        self.pull(client, config, &mut update_sync_progress)?;
+        self.push_documents(client, config, &mut update_sync_progress)?;
+        self.pull(client, config, &mut update_sync_progress)?;
         self.prune_deleted(config)?;
         self.last_synced.insert(OneKey {}, get_time().0);
         Ok(())
@@ -397,7 +400,9 @@ impl Tx<'_> {
 
     /// Updates local files to 3-way merge of local, base, and remote; updates base files to remote.
     #[instrument(level = "debug", skip_all, err(Debug))]
-    fn pull<F>(&mut self, config: &Config, update_sync_progress: &mut F) -> Result<(), CoreError>
+    fn pull<F>(
+        &mut self, client: &Client, config: &Config, update_sync_progress: &mut F,
+    ) -> Result<(), CoreError>
     where
         F: FnMut(SyncProgressOperation),
     {
@@ -412,6 +417,7 @@ impl Tx<'_> {
         update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PullMetadata));
 
         let remote_metadata_changes = api_service::request(
+            client,
             account,
             GetUpdatesRequest { since_metadata_version: base_max_metadata_version },
         )
@@ -478,6 +484,7 @@ impl Tx<'_> {
 
                 match get_resolved_document(
                     config,
+                    client,
                     account,
                     &all_metadata_state,
                     &remote_metadatum,
@@ -590,7 +597,7 @@ impl Tx<'_> {
     /// Updates remote and base metadata to local.
     #[instrument(level = "debug", skip_all, err(Debug))]
     fn push_metadata<F>(
-        &mut self, _config: &Config, update_sync_progress: &mut F,
+        &mut self, client: &Client, update_sync_progress: &mut F,
     ) -> Result<(), CoreError>
     where
         F: FnMut(SyncProgressOperation),
@@ -601,8 +608,12 @@ impl Tx<'_> {
         // update remote to local (metadata)
         let metadata_changes = self.get_all_metadata_changes()?;
         if !metadata_changes.is_empty() {
-            api_service::request(account, FileMetadataUpsertsRequest { updates: metadata_changes })
-                .map_err(CoreError::from)?;
+            api_service::request(
+                client,
+                account,
+                FileMetadataUpsertsRequest { updates: metadata_changes },
+            )
+            .map_err(CoreError::from)?;
         }
 
         // update base to local
@@ -614,7 +625,7 @@ impl Tx<'_> {
     /// Updates remote and base files to local.
     #[instrument(level = "debug", skip_all, err(Debug))]
     fn push_documents<F>(
-        &mut self, config: &Config, update_sync_progress: &mut F,
+        &mut self, client: &Client, config: &Config, update_sync_progress: &mut F,
     ) -> Result<(), CoreError>
     where
         F: FnMut(SyncProgressOperation),
@@ -635,6 +646,7 @@ impl Tx<'_> {
 
             // update remote to local (document)
             local_metadata.content_version = api_service::request(
+                client,
                 account,
                 ChangeDocumentContentRequest {
                     id,
@@ -659,7 +671,9 @@ impl Tx<'_> {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn calculate_work(&self, config: &Config) -> Result<WorkCalculated, CoreError> {
+    pub fn calculate_work(
+        &self, client: &Client, config: &Config,
+    ) -> Result<WorkCalculated, CoreError> {
         let account = &self.get_account()?;
         let base_metadata = self.get_all_metadata(RepoSource::Base)?;
         let base_max_metadata_version = base_metadata
@@ -669,6 +683,7 @@ impl Tx<'_> {
             .unwrap_or(0);
 
         let server_updates = api_service::request(
+            &client,
             account,
             GetUpdatesRequest { since_metadata_version: base_max_metadata_version },
         )

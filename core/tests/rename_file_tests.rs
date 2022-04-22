@@ -15,6 +15,7 @@ fn rename_document() {
     let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
     )
@@ -25,6 +26,7 @@ fn rename_document() {
     let doc = core.db.local_metadata.get(&doc.id).unwrap().unwrap();
 
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(root.id, &old_name, &doc)],
@@ -43,6 +45,7 @@ fn rename_document_not_found() {
     let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     let result = api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             // create document as if renaming an existing document
@@ -67,6 +70,7 @@ fn rename_document_deleted() {
     let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
     )
@@ -78,6 +82,7 @@ fn rename_document_deleted() {
     doc.deleted = true;
 
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(root.id, &old_name, &doc)],
@@ -96,6 +101,7 @@ fn rename_document_conflict() {
     let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
     )
@@ -105,6 +111,7 @@ fn rename_document_conflict() {
     let doc = core.db.local_metadata.get(&doc.id).unwrap().unwrap();
 
     let result = api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             // use incorrect previous name
@@ -128,6 +135,7 @@ fn rename_document_path_taken() {
     let doc2 = core.db.local_metadata.get(&doc2).unwrap().unwrap();
 
     api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new(&doc1), FileMetadataDiff::new(&doc2)],
@@ -140,6 +148,7 @@ fn rename_document_path_taken() {
     doc1.name = doc2.name;
 
     let result = api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(root.id, &old_name, &doc1)],
@@ -160,6 +169,7 @@ fn rename_folder_cannot_rename_root() {
         .unwrap();
 
     let result = api_service::request(
+        &core.client,
         &account,
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)],
