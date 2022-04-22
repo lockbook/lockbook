@@ -1,9 +1,14 @@
+use std::io;
+use std::sync::Arc;
+
+use gdk_pixbuf::Pixbuf;
 use gtk::gdk;
 use gtk::glib;
 use gtk::prelude::*;
 use sv5::prelude::*;
 
 use crate::ui;
+use crate::ui::Tab;
 
 impl super::App {
     pub fn open_file_from_id_str(&self, id_str: &str) {
@@ -23,52 +28,37 @@ impl super::App {
     }
 
     fn read_file_and_open_tab(&self, id: lb::Uuid) -> Result<(), String> {
-        use lb::GetFileByIdError::*;
-        let name = self
-            .api
-            .file_by_id(id)
-            .map(|fm| fm.decrypted_name)
-            .map_err(|err| match err {
-                lb::Error::UiError(NoFileWithThatId) => format!("no file with id '{}'", id),
-                lb::Error::Unexpected(msg) => msg,
-            })?;
+        let doc = load_doc(&self.api, id)?;
 
-        use lb::ReadDocumentError::*;
-        let data = self
-            .api
-            .read_document(id)
-            .map(|data| String::from_utf8_lossy(&data).to_string())
-            .map_err(|err| match err {
-                lb::Error::UiError(err) => match err {
-                    TreatedFolderAsDocument => "treated folder as document",
-                    NoAccount => "no account",
-                    FileDoesNotExist => "file does not exist",
-                }
-                .to_string(),
-                lb::Error::Unexpected(msg) => msg,
-            })?;
+        match doc.ext.as_str() {
+            "" | "txt" | "md" => self.present_text(doc),
+            "png" => self.present_image(doc),
+            ext => Err(format!("Unable to open '{}' files.", ext)),
+        }
+    }
 
-        let tab_page = ui::TextEditor::new(id);
-        tab_page.set_name(&name);
+    fn present_text(&self, doc: Document) -> Result<(), String> {
+        let tab_page = ui::TextEditor::new(doc.id);
+        tab_page.set_name(&doc.name);
 
         let buf = tab_page
             .editor()
             .buffer()
             .downcast::<sv5::Buffer>()
             .unwrap();
-        buf.set_text(&data);
+        buf.set_text(&String::from_utf8_lossy(&doc.data).to_string());
         buf.set_highlight_syntax(true);
 
-        let lang_guess = self.account.lang_mngr.guess_language(Some(&name), None);
+        let lang_guess = self.account.lang_mngr.guess_language(Some(&doc.name), None);
         buf.set_language(lang_guess.as_ref());
 
-        if lang_guess.map(|l| l.name().to_string()) == Some("Markdown".to_string()) {
-            connect_sview_clipboard_paste(self, &tab_page, &buf, id);
-            connect_sview_drop_controller(self, &tab_page, &buf, id);
+        if doc.ext == "md" {
+            connect_sview_clipboard_paste(self, &tab_page, &buf, doc.id);
+            connect_sview_drop_controller(self, &tab_page, &buf, doc.id);
             connect_sview_click_controller(self, &tab_page);
         }
 
-        let edit_alert_tx = self.bg_state.track(id);
+        let edit_alert_tx = self.bg_state.track(doc.id);
         tab_page.connect_edit_alert_chan(edit_alert_tx);
 
         self.account
@@ -83,6 +73,58 @@ impl super::App {
 
         Ok(())
     }
+
+    fn present_image(&self, doc: Document) -> Result<(), String> {
+        let pbuf = Pixbuf::from_read(io::Cursor::new(doc.data)).unwrap();
+        let pic = gtk::Picture::for_pixbuf(&pbuf);
+
+        let tab_page = ui::ImageTab::new(doc.id);
+        tab_page.set_name(&doc.name);
+        tab_page.set_picture(&pic);
+
+        self.account
+            .tabs
+            .append_page(&tab_page, Some(tab_page.tab_label()));
+
+        Ok(())
+    }
+}
+
+struct Document {
+    id: lb::Uuid,
+    name: String,
+    ext: String,
+    data: Vec<u8>,
+}
+
+fn load_doc(api: &Arc<dyn lb::Api>, id: lb::Uuid) -> Result<Document, String> {
+    use lb::GetFileByIdError::*;
+    let name = api
+        .file_by_id(id)
+        .map(|fm| fm.decrypted_name)
+        .map_err(|err| match err {
+            lb::Error::UiError(NoFileWithThatId) => format!("no file with id '{}'", id),
+            lb::Error::Unexpected(msg) => msg,
+        })?;
+
+    let ext = std::path::Path::new(&name)
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .to_string();
+
+    use lb::ReadDocumentError::*;
+    let data = api.read_document(id).map_err(|err| match err {
+        lb::Error::UiError(err) => match err {
+            TreatedFolderAsDocument => "treated folder as document",
+            NoAccount => "no account",
+            FileDoesNotExist => "file does not exist",
+        }
+        .to_string(),
+        lb::Error::Unexpected(msg) => msg,
+    })?;
+
+    Ok(Document { id, name, ext, data })
 }
 
 fn connect_sview_clipboard_paste(

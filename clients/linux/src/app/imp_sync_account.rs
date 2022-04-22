@@ -2,6 +2,7 @@ use gtk::glib;
 use gtk::prelude::*;
 
 use crate::ui;
+use crate::ui::Tab;
 
 impl super::App {
     pub fn perform_sync(&self) {

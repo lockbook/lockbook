@@ -2,6 +2,7 @@ mod account_screen;
 mod onboard_screen;
 
 mod filetree;
+mod image_tab;
 mod menu_item;
 mod search_row;
 mod sync_panel;
@@ -16,6 +17,7 @@ pub use onboard_screen::OnboardScreen;
 
 pub use filetree::FileTree;
 pub use filetree::FileTreeCol;
+pub use image_tab::ImageTab;
 pub use menu_item::menu_separator;
 pub use menu_item::MenuItemBuilder;
 pub use search_row::SearchRow;
@@ -28,6 +30,14 @@ pub mod about_dialog;
 
 use gtk::glib;
 use gtk::prelude::*;
+
+pub trait Tab {
+    fn as_any(&self) -> &dyn std::any::Any;
+    fn page(&self) -> gtk::Widget;
+    fn id(&self) -> lb::Uuid;
+    fn set_name(&self, name: &str);
+    fn name(&self) -> String;
+}
 
 pub fn id_from_tpath(model: &impl IsA<gtk::TreeModel>, tpath: &gtk::TreePath) -> lb::Uuid {
     let col = filetree::FileTreeCol::Id.as_tree_store_index();

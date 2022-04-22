@@ -67,7 +67,7 @@ impl super::App {
                 for child in &info.all_children {
                     if let Some(tab) = app.account.tab_by_id(child.id) {
                         let t = &app.account.tabs;
-                        t.remove_page(t.page_num(&tab));
+                        t.remove_page(t.page_num(&tab.page()));
                     }
                 }
             }

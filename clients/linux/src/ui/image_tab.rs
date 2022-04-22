@@ -1,37 +1,28 @@
-use std::sync::mpsc;
-
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
 glib::wrapper! {
-    pub struct TextEditor(ObjectSubclass<imp::TextEditor>)
+    pub struct ImageTab(ObjectSubclass<imp::ImageTab>)
         @extends gtk::Widget, gtk::Box,
         @implements gtk::Accessible;
 }
 
-impl TextEditor {
+impl ImageTab {
     pub fn new(id: lb::Uuid) -> Self {
-        glib::Object::new(&[("id", &id.to_string())]).expect("failed to create TextEditor")
+        glib::Object::new(&[("id", &id.to_string())]).expect("failed to create ImageTab")
+    }
+
+    pub fn set_picture(&self, pic: &gtk::Picture) {
+        self.imp().cntr.append(pic);
     }
 
     pub fn tab_label(&self) -> &gtk::Label {
         &self.imp().name
     }
-
-    pub fn editor(&self) -> &sv5::View {
-        &self.imp().editor
-    }
-
-    pub fn connect_edit_alert_chan(&self, change_tx: mpsc::Sender<lb::Uuid>) {
-        let id = self.imp().id.get();
-        self.imp().editor.buffer().connect_changed(move |_| {
-            change_tx.send(id).unwrap();
-        });
-    }
 }
 
-impl super::Tab for TextEditor {
+impl super::Tab for ImageTab {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -59,20 +50,18 @@ mod imp {
     use gtk::glib;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
-    use sv5::prelude::*;
 
     #[derive(Debug, Default)]
-    pub struct TextEditor {
+    pub struct ImageTab {
         pub id: Cell<lb::Uuid>,
         pub name: gtk::Label,
-        pub editor: sv5::View,
-        pub scroll: gtk::ScrolledWindow,
+        pub cntr: gtk::Box,
     }
 
     #[glib::object_subclass]
-    impl ObjectSubclass for TextEditor {
-        const NAME: &'static str = "TextEditor";
-        type Type = super::TextEditor;
+    impl ObjectSubclass for ImageTab {
+        const NAME: &'static str = "ImageTab";
+        type Type = super::ImageTab;
         type ParentType = gtk::Widget;
 
         fn class_init(c: &mut Self::Class) {
@@ -81,18 +70,11 @@ mod imp {
         }
     }
 
-    impl ObjectImpl for TextEditor {
+    impl ObjectImpl for ImageTab {
         fn constructed(&self, obj: &Self::Type) {
             self.parent_constructed(obj);
 
-            let ed = &self.editor;
-            ed.set_wrap_mode(gtk::WrapMode::Word);
-            ed.set_monospace(true);
-            ed.set_left_margin(4);
-            ed.set_tab_width(4);
-
-            self.scroll.set_child(Some(ed));
-            self.scroll.set_parent(obj);
+            self.cntr.set_parent(obj);
         }
 
         fn properties() -> &'static [glib::ParamSpec] {
@@ -131,9 +113,9 @@ mod imp {
         }
 
         fn dispose(&self, _obj: &Self::Type) {
-            self.scroll.unparent();
+            self.cntr.unparent();
         }
     }
 
-    impl WidgetImpl for TextEditor {}
+    impl WidgetImpl for ImageTab {}
 }
