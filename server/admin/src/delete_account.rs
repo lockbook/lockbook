@@ -1,6 +1,6 @@
 use lockbook_models::api::DeleteAccountRequest;
-use lockbook_server_lib::account_service::{public_key_from_username, purge_account};
-use lockbook_server_lib::{RequestContext, ServerState};
+use lockbook_server_lib::account_service::public_key_from_username;
+use lockbook_server_lib::{account_service, RequestContext, ServerState};
 
 pub async fn delete_account(server_state: ServerState, username: &str) -> bool {
     let public_key = public_key_from_username(username, &server_state)
@@ -8,7 +8,7 @@ pub async fn delete_account(server_state: ServerState, username: &str) -> bool {
         .unwrap_or_else(|_| panic!("Could not get public key for user: {}", username))
         .key;
 
-    purge_account(RequestContext {
+    account_service::delete_account(RequestContext {
         server_state: &server_state,
         request: DeleteAccountRequest {},
         public_key,
