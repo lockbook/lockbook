@@ -70,7 +70,7 @@ where E : UiCoreError {
     class Unexpected<E : UiCoreError>(val content: String) : CoreError<E>()
 
     fun toLbError(res: Resources): LbError = when (this) {
-        is UiError -> (content as UiCoreError).toLbError(res)
+        is UiError -> content.toLbError(res)
         is Unexpected -> {
             LbError.newProgError(content)
         }

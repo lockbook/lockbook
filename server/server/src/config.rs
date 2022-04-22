@@ -152,12 +152,26 @@ impl MetricsConfig {
 }
 
 #[derive(Clone)]
+pub struct GoogleConfig {
+    pub service_account_cred_path: String,
+}
+
+impl GoogleConfig {
+    pub fn from_env_vars() -> GoogleConfig {
+        GoogleConfig {
+            service_account_cred_path: env_or_panic("SERVICE_ACCOUNT_CRED_PATH").parse().unwrap()
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct Config {
     pub server: ServerConfig,
     pub index_db: IndexDbConf,
     pub files_db: FilesDbConfig,
     pub stripe: StripeConfig,
     pub metrics: MetricsConfig,
+    pub google: GoogleConfig,
 }
 
 impl Config {
@@ -168,6 +182,7 @@ impl Config {
             server: ServerConfig::from_env_vars(),
             stripe: StripeConfig::from_env_vars(),
             metrics: MetricsConfig::from_env_vars(),
+            google: GoogleConfig::from_env_vars(),
         }
     }
 

@@ -212,4 +212,24 @@
     <string name="one_mb">1 MB</string>
     <string name="two_fifty">$2.50</string>
     <string name="twenty_five">$25</string>
+
+    <!--    Billing-->
+
+    <string name="premium_usage_tier">Premium Tier</string>
+    <string name="update_to_premium">Upgrade</string>
+    <string name="choose_your_plan">Choose your plan</string>
+    <string name="yearly_plan">Premium (Yearly)</string>
+    <string name="monthly_plan">Premium (Monthly)</string>
+    <string name="exit">Exit</string>
+    <string name="premium_space">Storage Space</string>
+    <string name="monthly_premium_cost">$2.50 a month</string>
+    <string name="checkmark">Check</string>
+    <string name="subscribe">Subscribe</string>
+    <string name="free_tier_current">Free (Current)</string>
+    <string name="fifty_gb">50 GB</string>
+    <string name="per_year">/ year</string>
+    <string name="per_month">/ month</string>
+    <string name="one_mb">1 MB</string>
+    <string name="two_fifty">$2.50</string>
+    <string name="twenty_five">$25</string>
 </resources>

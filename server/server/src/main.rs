@@ -11,6 +11,8 @@ use lockbook_server_lib::content::file_content_client;
 use log::info;
 
 use std::sync::Arc;
+use gcp_auth::CustomServiceAccount;
+use google_androidpublisher3::{AndroidPublisher, hyper_rustls, oauth2};
 use warp::Filter;
 
 use lockbook_server_lib::router_service::{build_info, core_routes, get_metrics, stripe_webhooks};
@@ -30,11 +32,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let stripe_client = stripe::Client::new(&config.stripe.stripe_secret);
 
+    // let gcp_auth_manager = gcp_auth::AuthenticationManager::from(CustomServiceAccount::from_file(&config.google.service_account_cred_path).unwrap());
+    // let gcp_auth_manager = google_androidpublisher3::oauth2::read_service_account_key(&config.google.service_account_cred_path).await.unwrap();
+    //
+    // google_androidpublisher3::oauth2::ApplicationSecret::default()
+    //
+    // let auth = oauth2::InstalledFlowAuthenticator::builder(
+    //     google_androidpublisher3::oauth2::read_service_account_key(&config.google.service_account_cred_path).await.unwrap(),
+    //     oauth2::InstalledFlowReturnMethod::HTTPRedirect,
+    // ).build().await.unwrap();
+
+    let service_account_key: google_androidpublisher3::oauth2::ServiceAccountKey =
+        google_androidpublisher3::oauth2::read_service_account_key(&config.google.service_account_cred_path).await.unwrap();
+
+    let auth = google_androidpublisher3::oauth2::ServiceAccountAuthenticator::builder(service_account_key)
+        .build()
+        .await
+        .unwrap();
+
+    let client = warp::hyper::Client::builder().build(hyper_rustls::HttpsConnector::with_native_roots());
+
+    let gcp_publisher = google_androidpublisher3::AndroidPublisher::new(client, auth);
+
     let server_state = Arc::new(ServerState {
         config: config.clone(),
         index_db_pool,
         stripe_client,
         files_db_client,
+        gcp_publisher,
     });
 
     feature_flags::initialize_flags(&server_state).await;

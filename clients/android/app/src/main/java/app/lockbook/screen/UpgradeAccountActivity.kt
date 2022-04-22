@@ -9,6 +9,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.res.ResourcesCompat
 import app.lockbook.R
 import app.lockbook.databinding.ActivityUpgradeAccountBinding
+import com.android.billingclient.api.*
+import com.android.billingclient.api.BillingClient.BillingResponseCode
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 
 class UpgradeAccountActivity: AppCompatActivity() {
@@ -26,6 +30,43 @@ class UpgradeAccountActivity: AppCompatActivity() {
     val binding get() = _binding!!
     var selectedTier = AccountTier.Free
 
+    private val purchasesUpdatedListener =
+        PurchasesUpdatedListener { billingResult, purchases ->
+            if (billingResult.responseCode == BillingResponseCode.OK && purchases != null) {
+                for (purchase in purchases) {
+                    handlePurchase(purchase)
+                }
+            } else if (billingResult.responseCode == BillingResponseCode.USER_CANCELED) {
+                // Handle an error caused by a user cancelling the purchase flow.
+            } else {
+                // Handle any other error codes.
+            }
+        }
+
+    private var billingClient = BillingClient.newBuilder(applicationContext)
+        .setListener(purchasesUpdatedListener)
+        .enablePendingPurchases()
+        .build()
+
+    suspend fun querySkuDetails() {
+        val skuList = ArrayList<String>()
+        skuList.add("lockbook.subscription.premium_monthly")
+        val params = SkuDetailsParams.newBuilder()
+        params.setSkusList(skuList).setType(BillingClient.SkuType.SUBS)
+
+        val skuDetails = withContext(Dispatchers.IO) {
+            billingClient.querySkuDetails(params.build())
+        }.skuDetailsList?.get(0) ?: return
+
+
+        val flowParams = BillingFlowParams.newBuilder()
+            .setSkuDetails(skuDetails)
+            .build()
+
+        val responseCode = billingClient.launchBillingFlow(this, flowParams).responseCode
+    }
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         _binding = ActivityUpgradeAccountBinding.inflate(layoutInflater)
@@ -41,7 +82,6 @@ class UpgradeAccountActivity: AppCompatActivity() {
 
         binding.exitBilling.setOnClickListener {
             finish()
-//            overridePendingTransition(R.anim.slide_in, R.anim.slide_out)
         }
 
         val selectedTierCardView = when(selectedTier) {
