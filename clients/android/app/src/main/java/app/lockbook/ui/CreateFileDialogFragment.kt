@@ -8,7 +8,6 @@ import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.activityViewModels
-import app.lockbook.App.Companion.config
 import app.lockbook.R
 import app.lockbook.databinding.DialogCreateFileBinding
 import app.lockbook.model.*
@@ -148,7 +147,7 @@ class CreateFileDialogFragment : DialogFragment() {
     private suspend fun createFile(name: String) {
         when (
             val createFileResult =
-                CoreModel.createFile(config, info.parentId, name, info.extendedFileType.toFileType())
+                CoreModel.createFile(info.parentId, name, info.extendedFileType.toFileType())
         ) {
             is Ok -> {
                 newFile = createFileResult.value

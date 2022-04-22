@@ -29,8 +29,4 @@ public protocol LockbookApi {
     func readDrawing(id: UUID) -> FfiResult<Drawing, GetDrawingError>
     func writeDrawing(id: UUID, content: Drawing) -> FfiResult<Empty, WriteToDocumentError>
     func exportDrawing(id: UUID) -> FfiResult<Data, ExportDrawingError>
-
-    // State
-    func getState() -> FfiResult<DbState, GetStateError>
-    func migrateState() -> FfiResult<Empty, MigrationError>
 }

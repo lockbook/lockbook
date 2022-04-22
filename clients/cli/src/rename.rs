@@ -1,32 +1,32 @@
-use crate::error::CliResult;
-use crate::utils::{account, config};
-use crate::{err, err_unexpected};
-use lockbook_core::{
-    get_file_by_path, rename_file, Error as CoreError, GetFileByPathError, RenameFileError,
-};
+use lockbook_core::model::errors::GetFileByPathError;
+use lockbook_core::model::errors::RenameFileError;
+use lockbook_core::Core;
+use lockbook_core::Error as LbError;
 
-pub fn rename(path: &str, new_name: &str) -> CliResult<()> {
-    account()?;
+use crate::error::CliError;
 
-    let file_metadata = get_file_by_path(&config()?, path).map_err(|err| match err {
-        CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
-            err!(FileNotFound(path.to_string()))
-        }
-        CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
-    })?;
+pub fn rename(core: &Core, path: &str, new_name: &str) -> Result<(), CliError> {
+    core.get_account()?;
 
-    rename_file(&config()?, file_metadata.id, new_name).map_err(|err| match err {
-        CoreError::UiError(err) => match err {
-            RenameFileError::NewNameEmpty => err!(FileNameEmpty),
-            RenameFileError::CannotRenameRoot => err!(NoRootOps("rename")),
-            RenameFileError::NewNameContainsSlash => {
-                err!(FileNameHasSlash(new_name.to_string()))
-            }
-            RenameFileError::FileNameNotAvailable => {
-                err!(FileNameNotAvailable(new_name.to_string()))
-            }
-            RenameFileError::FileDoesNotExist => err_unexpected!("FileDoesNotExist!"),
-        },
-        CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
-    })
+    let target_id = core
+        .get_by_path(path)
+        .map(|meta| meta.id)
+        .map_err(|err| match err {
+            LbError::UiError(err) => match err {
+                GetFileByPathError::NoFileAtThatPath => CliError::file_not_found(path),
+            },
+            LbError::Unexpected(msg) => CliError::unexpected(msg),
+        })?;
+
+    core.rename_file(target_id, new_name)
+        .map_err(|err| match err {
+            LbError::UiError(err) => match err {
+                RenameFileError::NewNameEmpty => CliError::file_name_empty(),
+                RenameFileError::CannotRenameRoot => CliError::no_root_ops("rename"),
+                RenameFileError::NewNameContainsSlash => CliError::file_name_has_slash(new_name),
+                RenameFileError::FileNameNotAvailable => CliError::file_name_taken(new_name),
+                RenameFileError::FileDoesNotExist => CliError::file_not_found(path),
+            },
+            LbError::Unexpected(msg) => CliError::unexpected(msg),
+        })
 }

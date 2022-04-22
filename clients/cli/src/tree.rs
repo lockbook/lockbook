@@ -1,9 +1,14 @@
-use crate::error::CliResult;
-use crate::utils::metadatas;
+use lockbook_core::Core;
 use lockbook_models::tree::FileMetaExt;
 
-pub fn tree() -> CliResult<()> {
-    let files = metadatas()?;
+use crate::error::CliError;
+
+pub fn tree(core: &Core) -> Result<(), CliError> {
+    core.get_account()?;
+
+    let files = core
+        .list_metadatas()
+        .map_err(|err| CliError::unexpected(format!("{}", err)))?;
 
     println!("{}", files.pretty_print());
 

@@ -193,7 +193,7 @@ class FilesListViewModel(application: Application, isThisANewAccount: Boolean) :
     fun deleteSelectedFiles() {
         viewModelScope.launch(Dispatchers.IO) {
             for (fileMetadata in selectableFiles.getSelectedItems()) {
-                val deleteFileResult = CoreModel.deleteFile(App.config, fileMetadata.id)
+                val deleteFileResult = CoreModel.deleteFile(fileMetadata.id)
                 if (deleteFileResult is Err) {
                     _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(deleteFileResult.error.toLbError(getRes())))
                     return@launch

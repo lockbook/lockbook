@@ -2,20 +2,21 @@ package app.lockbook.screen
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
-import app.lockbook.App.Companion.config
 import app.lockbook.R
 import app.lockbook.databinding.SplashScreenBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.BiometricModel
 import app.lockbook.model.CoreModel
 import app.lockbook.model.VerificationItem
-import app.lockbook.util.*
+import app.lockbook.util.CoreError
+import app.lockbook.util.GetAccountError
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import timber.log.Timber
 import java.lang.ref.WeakReference
 
@@ -38,48 +39,20 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
         setContentView(binding.root)
         Timber.plant(Timber.DebugTree())
 
-        handleDBState()
+        handleAccountState()
     }
 
-    private fun handleDBState() {
-        when (val getDBStateResult = CoreModel.getDBState(config)) {
-            is Ok -> {
-                when (getDBStateResult.value) {
-                    State.Empty -> {
+    private fun handleAccountState() {
+        when (val getAccountResult = CoreModel.getAccount()) {
+            is Ok -> startFromExistingAccount()
+            is Err -> when (val error = getAccountResult.error) {
+                is CoreError.UiError -> when (error.content) {
+                    GetAccountError.NoAccount -> {
                         startActivity(Intent(this, OnBoardingActvity::class.java))
                         finish()
                     }
-                    State.ReadyToUse -> startFromExistingAccount()
-                    State.MigrationRequired -> {
-                        alertModel.notify(getString(R.string.initial_figure_outer_migrate_data))
-                        binding.migrateProgressBar.visibility = View.VISIBLE
-                        migrateDB()
-                    }
-                    State.StateRequiresClearing -> {
-                        Timber.e("DB state requires cleaning!")
-                        alertModel.notify(getString(R.string.state_requires_cleaning))
-                    }
                 }
-            }
-            is Err -> alertModel.notifyError(getDBStateResult.error.toLbError(resources))
-        }
-    }
-
-    private fun migrateDB() {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                when (val migrateDBResult = CoreModel.migrateDB(Config(filesDir.absolutePath))) {
-                    is Ok -> {
-                        withContext(Dispatchers.Main) {
-                            binding.migrateProgressBar.visibility = View.GONE
-                            alertModel.notify(
-                                getString(R.string.initial_figure_outer_finished_upgrading_data),
-                                ::startFromExistingAccount
-                            )
-                        }
-                    }
-                    is Err -> alertModel.notifyError(migrateDBResult.error.toLbError(resources), ::finish)
-                }.exhaustive
+                is CoreError.Unexpected -> alertModel.notifyError(error.toLbError(resources))
             }
         }
     }

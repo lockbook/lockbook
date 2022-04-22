@@ -1,7 +1,6 @@
 package app.lockbook.model
 
 import androidx.lifecycle.LiveData
-import app.lockbook.App.Companion.config
 import app.lockbook.util.*
 import com.github.michaelbull.result.*
 import com.github.michaelbull.result.Ok
@@ -53,12 +52,12 @@ class SyncModel {
     }
 
     fun hasSyncWork(): Result<Boolean, CoreError<out UiCoreError>> {
-        return CoreModel.calculateWork(config).map { workCalculated -> workCalculated.workUnits.isNotEmpty() }
+        return CoreModel.calculateWork().map { workCalculated -> workCalculated.workUnits.isNotEmpty() }
     }
 
     private fun sync(): Result<Unit, CoreError<out UiCoreError>> {
         syncStatus = SyncStatus.StartingSync
-        return CoreModel.syncAll(config, this)
+        return CoreModel.syncAll(this)
     }
 }
 

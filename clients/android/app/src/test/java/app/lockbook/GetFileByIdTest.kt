@@ -1,15 +1,14 @@
 package app.lockbook
 
-import app.lockbook.core.exportAccount
 import app.lockbook.model.CoreModel
-import app.lockbook.util.*
-import kotlinx.serialization.decodeFromString
-import org.junit.After
+import app.lockbook.util.Config
+import app.lockbook.util.FileType
+import app.lockbook.util.GetFileByIdError
+import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 
 class GetFileByIdTest {
-    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -19,48 +18,39 @@ class GetFileByIdTest {
         }
     }
 
-    @After
-    fun createDirectory() {
-        config = Config(createRandomPath())
+    @Before
+    fun initCore() {
+        CoreModel.init(Config(false, createRandomPath()))
     }
 
     @Test
     fun getFileByIdOk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
+        val rootFileMetadata = CoreModel.getRoot().unwrapOk()
 
         val document = CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
         ).unwrapOk()
 
         val folder = CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
         ).unwrapOk()
 
-        CoreModel.getFileById(config, document.id).unwrapOk()
+        CoreModel.getFileById(document.id).unwrapOk()
 
-        CoreModel.getFileById(config, folder.id).unwrapOk()
+        CoreModel.getFileById(folder.id).unwrapOk()
     }
 
     @Test
     fun getFileByIdNoFile() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        CoreModel.getFileById(config, generateId())
+        CoreModel.getFileById(generateId())
             .unwrapErrorType(GetFileByIdError.NoFileWithThatId)
-    }
-
-    @Test
-    fun getFileByIdUnexpectedError() {
-        CoreModel.getFileByIdParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, GetFileByIdError>>(
-            exportAccount("")
-        ).unwrapUnexpected()
     }
 }

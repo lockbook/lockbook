@@ -49,15 +49,10 @@ data class WorkUnit(val content: WorkUnitMetadata, val tag: String)
 data class WorkUnitMetadata(val metadata: DecryptedFileMetadata)
 
 @Serializable
-data class Config(val writeable_path: String)
-
-@Serializable
-enum class State {
-    ReadyToUse,
-    Empty,
-    MigrationRequired,
-    StateRequiresClearing
-}
+data class Config(
+    val logs: Boolean,
+    val writeable_path: String
+)
 
 @Serializable
 data class UsageMetrics(
@@ -81,6 +76,3 @@ data class FileUsage(
     @SerialName("size_bytes")
     val sizeBytes: Int,
 )
-
-inline fun <reified T : Enum<T>> String.asEnumOrDefault(defaultValue: T? = null): T? =
-    enumValues<T>().firstOrNull { it.name.equals(this, ignoreCase = true) } ?: defaultValue

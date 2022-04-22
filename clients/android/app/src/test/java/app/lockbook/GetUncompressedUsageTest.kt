@@ -1,18 +1,12 @@
 package app.lockbook
 
-import app.lockbook.core.getUncompressedUsage
 import app.lockbook.model.CoreModel
 import app.lockbook.util.Config
-import app.lockbook.util.GetUsageError
-import app.lockbook.util.IntermCoreResult
-import app.lockbook.util.UsageItemMetric
-import kotlinx.serialization.decodeFromString
-import org.junit.After
+import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 
 class GetUncompressedUsageTest {
-    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -22,22 +16,15 @@ class GetUncompressedUsageTest {
         }
     }
 
-    @After
-    fun createDirectory() {
-        config = Config(createRandomPath())
+    @Before
+    fun initCore() {
+        CoreModel.init(Config(false, createRandomPath()))
     }
 
     @Test
     fun getUncompressedUsageOk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        CoreModel.getUncompressedUsage(config).unwrapOk()
-    }
-
-    @Test
-    fun getUncompressedUsageUnexpectedError() {
-        CoreModel.getUncompressedUsageParser.decodeFromString<IntermCoreResult<UsageItemMetric, GetUsageError>>(
-            getUncompressedUsage("")
-        ).unwrapUnexpected()
+        CoreModel.getUncompressedUsage().unwrapOk()
     }
 }

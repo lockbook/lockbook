@@ -66,14 +66,6 @@ public protocol UiError: Decodable, Error {
     
 }
 
-public enum GetStateError: String, UiError {
-    case Stub
-}
-
-public enum MigrationError: String, UiError {
-    case StateRequiresCleaning
-}
-
 public enum CreateAccountError: String, UiError {
     case AccountExistsAlready
     case ClientUpdateRequired
@@ -129,6 +121,10 @@ public enum GetRootError: String, UiError {
 }
 
 public enum GetChildrenError: String, UiError {
+    case Stub
+}
+
+public enum InitError: String, UiError {
     case Stub
 }
 

@@ -6,13 +6,10 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
 
 class AllErrorVariantsTest {
-    var config = Config(createRandomPath())
-
     companion object {
         @BeforeClass
         @JvmStatic
@@ -21,29 +18,20 @@ class AllErrorVariantsTest {
         }
     }
 
-    @After
-    fun createDirectory() {
-        config = Config(createRandomPath())
-    }
+    private val json = Json { ignoreUnknownKeys = true }
 
     @Test
     fun checkIfAllErrorsPresent() {
-        Json { ignoreUnknownKeys = true }.decodeFromString<CheckAllErrorsPresent>(getAllErrorVariants())
+        json.decodeFromString<CheckAllErrorsPresent>(getAllErrorVariants())
     }
 
     @Serializable
     data class CheckAllErrorsPresent(
-        @SerialName("InitLoggerError")
-        val initLoggerErrors: List<InitLoggerError> = listOf(),
-
         @SerialName("GetUsageError")
         val getUsageErrors: List<GetUsageError>,
 
         @SerialName("GetStateError")
         val getStateErrors: List<GetStateError> = listOf(),
-
-        @SerialName("MigrationError")
-        val migrateErrors: List<MigrationError>,
 
         @SerialName("CreateAccountError")
         val createAccountErrors: List<CreateAccountError>,

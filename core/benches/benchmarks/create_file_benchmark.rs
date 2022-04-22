@@ -1,9 +1,7 @@
+use crate::*;
 use criterion::{black_box, criterion_group, BenchmarkId, Criterion, Throughput};
-use lockbook_core::service::test_utils::{
-    create_account, test_config, CREATE_FILES_BENCH_1, CREATE_FILES_BENCH_2, CREATE_FILES_BENCH_3,
-    CREATE_FILES_BENCH_4, CREATE_FILES_BENCH_5, CREATE_FILES_BENCH_6,
-};
 use lockbook_models::file_metadata::FileType;
+use test_utils::*;
 use uuid::Uuid;
 
 fn create_file_benchmark(c: &mut Criterion) {
@@ -18,15 +16,14 @@ fn create_file_benchmark(c: &mut Criterion) {
     ]
     .iter()
     {
-        let db = test_config();
-        let (_, root) = create_account(&db);
+        let core = test_core_with_account();
+        let root = core.get_root().unwrap();
 
         create_file_group.throughput(Throughput::Elements(*size));
         create_file_group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, &size| {
             b.iter(|| {
                 for _ in 0..*size {
-                    lockbook_core::create_file(
-                        black_box(&db),
+                    core.create_file(
                         black_box(&Uuid::new_v4().to_string()),
                         black_box(root.id),
                         black_box(FileType::Document),

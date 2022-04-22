@@ -1,18 +1,14 @@
 package app.lockbook
 
-import app.lockbook.core.writeDocument
 import app.lockbook.model.CoreModel
 import app.lockbook.util.Config
 import app.lockbook.util.FileType
-import app.lockbook.util.IntermCoreResult
 import app.lockbook.util.WriteToDocumentError
-import kotlinx.serialization.decodeFromString
-import org.junit.After
+import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 
 class WriteToDocumentTest {
-    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -22,56 +18,47 @@ class WriteToDocumentTest {
         }
     }
 
-    @After
-    fun createDirectory() {
-        config = Config(createRandomPath())
+    @Before
+    fun initCore() {
+        CoreModel.init(Config(false, createRandomPath()))
     }
 
     @Test
     fun writeToDocumentOk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
+        val rootFileMetadata = CoreModel.getRoot().unwrapOk()
 
         val document = CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
         ).unwrapOk()
 
-        CoreModel.writeToDocument(config, document.id, "").unwrapOk()
+        CoreModel.writeToDocument(document.id, "").unwrapOk()
     }
 
     @Test
     fun writeToDocumentFileDoesNotExist() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        CoreModel.writeToDocument(config, generateId(), "")
+        CoreModel.writeToDocument(generateId(), "")
             .unwrapErrorType(WriteToDocumentError.FileDoesNotExist)
     }
 
     @Test
     fun writeToDocumentFolderTreatedAsDocument() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
+        val rootFileMetadata = CoreModel.getRoot().unwrapOk()
 
         val folder = CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
         ).unwrapOk()
 
-        CoreModel.writeToDocument(config, folder.id, "")
+        CoreModel.writeToDocument(folder.id, "")
             .unwrapErrorType(WriteToDocumentError.FolderTreatedAsDocument)
-    }
-
-    @Test
-    fun writeToDocumentUnexpectedError() {
-        CoreModel.writeToDocumentParser.decodeFromString<IntermCoreResult<Unit, WriteToDocumentError>>(
-            writeDocument("", "", "")
-        ).unwrapUnexpected()
     }
 }

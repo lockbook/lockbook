@@ -6,11 +6,13 @@ import android.content.Context
 import android.content.res.Resources
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatDelegate
-import androidx.lifecycle.*
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.preference.PreferenceManager
 import androidx.work.*
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
-import app.lockbook.App.Companion.config
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
@@ -25,21 +27,16 @@ class App : Application() {
         ProcessLifecycleOwner.get().lifecycle
             .addObserver(ForegroundBackgroundObserver(this))
 
-        config = Config(this.filesDir.absolutePath)
-
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
     }
 
     companion object {
-        lateinit var config: Config
-            private set
-
         const val PERIODIC_SYNC_TAG = "periodic_sync"
     }
 
     private fun loadLockbookCore() {
         System.loadLibrary("lockbook_core")
-        CoreModel.setUpInitLogger(filesDir.absolutePath)
+        CoreModel.init(Config(true, this.filesDir.absolutePath))
     }
 }
 
@@ -72,11 +69,14 @@ class ForegroundBackgroundObserver(val context: Context) : DefaultLifecycleObser
     }
 
     private fun doIfLoggedIn(onSuccess: () -> Unit) {
-        when (val getDbStateResult = CoreModel.getDBState(config)) {
-            is Ok -> if (getDbStateResult.value == State.ReadyToUse) {
-                onSuccess()
+        when (val getAccountResult = CoreModel.getAccount()) {
+            is Ok -> onSuccess()
+            is Err -> when (val error = getAccountResult.error) {
+                is CoreError.UiError -> when (error.content) {
+                    GetAccountError.NoAccount -> {}
+                }
+                is CoreError.Unexpected -> Timber.e("Error: ${error.content}")
             }
-            is Err -> Timber.e("Error: ${getDbStateResult.error.toLbError(context.resources)}")
         }
     }
 }
@@ -85,7 +85,8 @@ class SyncWork(appContext: Context, workerParams: WorkerParameters) :
     Worker(appContext, workerParams) {
     override fun doWork(): Result {
         val syncResult =
-            CoreModel.syncAll(Config(applicationContext.filesDir.absolutePath), null)
+            CoreModel.syncAll(null)
+
         return if (syncResult is Err) {
             val msg = when (val error = syncResult.error) {
                 is CoreError.UiError -> when (error.content) {

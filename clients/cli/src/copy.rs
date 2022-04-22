@@ -2,19 +2,19 @@ use std::cell::Cell;
 use std::io::Write;
 use std::path::PathBuf;
 
+use lockbook_core::model::errors::CreateFileAtPathError;
+use lockbook_core::model::errors::GetFileByPathError;
+use lockbook_core::model::errors::ImportFileError;
 use lockbook_core::service::import_export_service::ImportStatus;
-use lockbook_core::{
-    create_file_at_path, get_file_by_path, import_files, CoreError, CreateFileAtPathError,
-    GetFileByPathError, ImportFileError,
-};
+use lockbook_core::Core;
+use lockbook_core::CoreError;
+use lockbook_core::Error as LbError;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 
-use crate::error::CliResult;
-use crate::utils::{account, config};
-use crate::{err, err_unexpected};
+use crate::error::CliError;
 
-pub fn copy(disk_paths: &[PathBuf], lb_path: &str) -> CliResult<()> {
-    account()?;
+pub fn copy(core: &Core, disk_paths: &[PathBuf], lb_path: &str) -> Result<(), CliError> {
+    core.get_account()?;
 
     let total = Cell::new(0);
     let nth_file = Cell::new(0);
@@ -32,52 +32,48 @@ pub fn copy(disk_paths: &[PathBuf], lb_path: &str) -> CliResult<()> {
         ImportStatus::FinishedItem(_meta) => println!("Done."),
     };
 
-    let dest = get_or_create_file(lb_path)?;
-    let dest_name = dest.decrypted_name;
+    let dest = get_or_create_file(core, lb_path)?;
 
-    import_files(&config()?, disk_paths, dest.id, &update_status).map_err(|err| match err {
-        lockbook_core::Error::UiError(err) => match err {
-            ImportFileError::NoAccount => err!(NoAccount),
-            ImportFileError::ParentDoesNotExist => err!(FileNotFound(dest_name)),
-            ImportFileError::DocumentTreatedAsFolder => err!(DocTreatedAsFolder(dest_name)),
-        },
-        lockbook_core::Error::Unexpected(msg) => err_unexpected!("{}", msg),
-    })
+    core.import_files(disk_paths, dest.id, &update_status)
+        .map_err(|err| match err {
+            LbError::UiError(err) => match err {
+                ImportFileError::NoAccount => CliError::no_account(),
+                ImportFileError::ParentDoesNotExist => CliError::file_not_found(lb_path),
+                ImportFileError::DocumentTreatedAsFolder => CliError::doc_treated_as_dir(lb_path),
+            },
+            LbError::Unexpected(msg) => CliError::unexpected(msg),
+        })
 }
 
-fn get_or_create_file(lb_path: &str) -> CliResult<DecryptedFileMetadata> {
+fn get_or_create_file(core: &Core, lb_path: &str) -> Result<DecryptedFileMetadata, CliError> {
     // Try to get a file
-    match get_file_by_path(&config()?, lb_path) {
+    match core.get_by_path(lb_path) {
         Ok(file) => return Ok(file),
         Err(err) => match err {
-            lockbook_core::Error::UiError(GetFileByPathError::NoFileAtThatPath) => {} // Continue
-            lockbook_core::Error::Unexpected(msg) => return Err(err_unexpected!("{}", msg)),
+            LbError::UiError(GetFileByPathError::NoFileAtThatPath) => {} // Continue
+            LbError::Unexpected(msg) => return Err(CliError::unexpected(msg)),
         },
     };
 
     // It does not exist, create it
     if lb_path.ends_with('/') {
-        create_file_at_path(&config()?, lb_path).map_err(|err| match err {
-            lockbook_core::Error::UiError(err) => match err {
-                CreateFileAtPathError::FileAlreadyExists => {
-                    err!(FileAlreadyExists(lb_path.to_string()))
-                }
-                CreateFileAtPathError::NoAccount => err!(NoAccount),
-                CreateFileAtPathError::NoRoot => err!(NoRoot),
+        core.create_at_path(lb_path).map_err(|err| match err {
+            LbError::UiError(err) => match err {
+                CreateFileAtPathError::FileAlreadyExists => CliError::file_exists(lb_path),
+                CreateFileAtPathError::NoAccount => CliError::no_account(),
+                CreateFileAtPathError::NoRoot => CliError::no_root(),
                 CreateFileAtPathError::PathContainsEmptyFile => {
-                    err!(PathContainsEmptyFile(lb_path.to_string()))
+                    CliError::path_has_empty_file(lb_path)
                 }
-                CreateFileAtPathError::PathDoesntStartWithRoot => {
-                    err!(PathNoRoot(lb_path.to_string()))
-                }
+                CreateFileAtPathError::PathDoesntStartWithRoot => CliError::path_no_root(lb_path),
                 CreateFileAtPathError::DocumentTreatedAsFolder => {
-                    err!(DocTreatedAsFolder(lb_path.to_string()))
+                    CliError::doc_treated_as_dir(lb_path)
                 }
             },
-            lockbook_core::Error::Unexpected(msg) => err_unexpected!("{}", msg),
+            LbError::Unexpected(msg) => CliError::unexpected(msg),
         })
     } else {
         eprintln!("Copy destination must be a folder!");
-        Err(err!(DocTreatedAsFolder(lb_path.to_string())))
+        Err(CliError::doc_treated_as_dir(lb_path))
     }
 }

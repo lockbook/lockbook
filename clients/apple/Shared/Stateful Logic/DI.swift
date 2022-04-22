@@ -2,12 +2,11 @@ import SwiftUI
 import SwiftLockbookCore
 
 class DI {
-    static let core = CoreApi(documentsDirectory: ConfigHelper.getEnv(.lockbookLocation) ?? ConfigHelper.location)
+    static let core = CoreApi(ConfigHelper.getEnv(.lockbookLocation) ?? ConfigHelper.location, logs: true)
     
     static let coreService: CoreService = CoreService(core)
     static let errors: UnexpectedErrorService = UnexpectedErrorService()
     static let accounts = AccountService(core)
-    static let dbState: DbStateService = DbStateService(core)
     static let settings = SettingsService(core)
     static let status = StatusService(core)
     static let files = FileService(core)
@@ -26,7 +25,6 @@ class Mock {
     static let coreService: CoreService = CoreService(core)
     static let errors: UnexpectedErrorService = UnexpectedErrorService()
     static let accounts = AccountService(core)
-    static let dbState: DbStateService = DbStateService(core)
     static let settings = SettingsService(core)
     static let status = StatusService(core)
     static let files = FileService(core)
@@ -53,7 +51,6 @@ extension View {
             .environmentObject(DI.coreService)
             .environmentObject(DI.errors)
             .environmentObject(DI.accounts)
-            .environmentObject(DI.dbState)
             .environmentObject(DI.settings)
             .environmentObject(DI.status)
             .environmentObject(DI.files)
@@ -79,7 +76,6 @@ extension View {
             .environmentObject(Mock.errors)
             .environmentObject(Mock.accounts)
             .environmentObject(Mock.settings)
-            .environmentObject(Mock.dbState)
             .environmentObject(Mock.status)
             .environmentObject(Mock.files)
             .environmentObject(Mock.sync)

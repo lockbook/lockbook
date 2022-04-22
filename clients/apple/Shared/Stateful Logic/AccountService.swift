@@ -8,7 +8,6 @@ class AccountService: ObservableObject {
     
     init(_ core: LockbookApi) {
         self.core = core
-        
         switch core.getAccount() {
         case .success(let account):
             self.account = account

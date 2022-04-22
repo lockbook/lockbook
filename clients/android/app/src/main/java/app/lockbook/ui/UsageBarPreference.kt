@@ -6,7 +6,6 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
-import app.lockbook.App.Companion.config
 import app.lockbook.R
 import app.lockbook.model.CoreModel
 import app.lockbook.screen.SettingsActivity
@@ -40,7 +39,7 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
             withContext(Dispatchers.IO) {
                 val usageInfo = holder.itemView.findViewById<TextView>(R.id.usage_info)
 
-                val getUsageResult = CoreModel.getUsage(config).andThen { usage ->
+                val getUsageResult = CoreModel.getUsage().andThen { usage ->
                     val resources = holder.itemView.resources
 
                     val usageBar = holder.itemView.findViewById<ProgressBar>(R.id.usage_bar)
@@ -48,7 +47,7 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
                     usageBar.max = usage.dataCap.exact
                     usageBar.progress = usage.serverUsage.exact
 
-                    CoreModel.getUncompressedUsage(config).map { uncompressedUsage ->
+                    CoreModel.getUncompressedUsage().map { uncompressedUsage ->
                         withContext(Dispatchers.Main) {
                             usageInfo.text = spannable {
                                 resources.getString(R.string.settings_usage_current)

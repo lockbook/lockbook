@@ -17,89 +17,76 @@ namespace lockbook {
     }
 
     public class CoreService {
-        public IntPtr path;
         private JsonSerializerSettings jsonSettings = new JsonSerializerSettings { MissingMemberHandling = MissingMemberHandling.Error };
-
-        public CoreService(string path) {
-            this.path = Utils.ToFFI(path);
-        }
-
-        private static Mutex coreMutex = new Mutex();
 
         [DllImport("lockbook_core", ExactSpelling = true)]
         private unsafe static extern void release_pointer(IntPtr str_pointer);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern void init_logger_safely(IntPtr writeable_path);
+        private static extern IntPtr init(IntPtr writeable_path, bool logs);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr get_db_state(IntPtr writeable_path);
+        private static extern IntPtr create_account(IntPtr username, IntPtr api_url);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr migrate_db(IntPtr writeable_path);
+        private static extern IntPtr import_account(IntPtr account_string);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr create_account(IntPtr writeable_path, IntPtr username, IntPtr api_url);
+        private static extern IntPtr export_account();
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr import_account(IntPtr writeable_path, IntPtr account_string);
+        private static extern IntPtr get_account();
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr export_account(IntPtr writeable_path);
+        private static extern IntPtr create_file_at_path(IntPtr path_and_name);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr get_account(IntPtr writeable_path);
+        private static extern IntPtr write_document(IntPtr id, IntPtr content);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr create_file_at_path(IntPtr writeable_path, IntPtr path_and_name);
+        private static extern IntPtr create_file(IntPtr name, IntPtr parent, IntPtr file_type);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr write_document(IntPtr writeable_path, IntPtr id, IntPtr content);
+        private static extern IntPtr get_root();
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr create_file(IntPtr writeable_path, IntPtr name, IntPtr parent, IntPtr file_type);
+        private static extern IntPtr get_children(IntPtr id);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr get_root(IntPtr writeable_path);
+        private static extern IntPtr get_by_path(IntPtr path);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr get_children(IntPtr writeable_path, IntPtr id);
+        private static extern IntPtr read_document(IntPtr id);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr get_file_by_path(IntPtr writeable_path, IntPtr path);
+        private static extern IntPtr delete_file(IntPtr id);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr read_document(IntPtr writeable_path, IntPtr id);
+        private static extern IntPtr list_paths(IntPtr filter);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr delete_file(IntPtr writeable_path, IntPtr id);
+        private static extern IntPtr rename_file(IntPtr id, IntPtr new_name);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr list_paths(IntPtr writeable_path, IntPtr filter);
+        private static extern IntPtr list_metadatas();
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr rename_file(IntPtr writeable_path, IntPtr id, IntPtr new_name);
+        private static extern IntPtr move_file(IntPtr id, IntPtr new_parent);
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr list_metadatas(IntPtr writeable_path);
+        private static extern IntPtr calculate_work();
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr move_file(IntPtr writeable_path, IntPtr id, IntPtr new_parent);
+        private static extern IntPtr sync_all();
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr calculate_work(IntPtr writeable_path);
+        private static extern IntPtr get_last_synced();
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr sync_all(IntPtr writeable_path);
+        private static extern IntPtr get_last_synced_human_string();
 
         [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr get_last_synced(IntPtr writeable_path);
-
-        [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr get_last_synced_human_string(IntPtr writeable_path);
-
-        [DllImport("lockbook_core", ExactSpelling = true)]
-        private static extern IntPtr get_usage(IntPtr writeable_path);
+        private static extern IntPtr get_usage();
 
         [DllImport("lockbook_core", ExactSpelling = true)]
         private static extern IntPtr get_variants();
@@ -115,16 +102,9 @@ namespace lockbook {
             return getAccountIResult.GetType() == typeof(Core.GetAccount.Success);
         }
 
-        private async Task<string> RunAsyncWithMutex(Func<IntPtr> func) {
+        private async Task<string> RunManaged(Func<IntPtr> func) {
             return await Task.Run(() => {
-                string coreResponse;
-                try {
-                    coreMutex.WaitOne();
-                    coreResponse = CopyToManagedAndRelease(func());
-                } finally {
-                    coreMutex.ReleaseMutex();
-                }
-                return coreResponse;
+                return CopyToManagedAndRelease(func());
             });
         }
 
@@ -132,7 +112,7 @@ namespace lockbook {
             where TExpectedErr : ExpectedError<TPossibleErrs>, TIResult, new()
             where TPossibleErrs : struct, Enum
             where TUnexpectedErr : UnexpectedError, TIResult, new() {
-            var result = await RunAsyncWithMutex(func);
+            var result = await RunManaged(func);
 
             var obj = JObject.Parse(result);
             var tag = obj.SelectToken("tag", errorWhenNoMatch: false)?.ToString();
@@ -162,40 +142,20 @@ namespace lockbook {
             }
         }
 
-        public async Task InitLoggerSafely() {
-            await Task.Run(() => {
-                try {
-                    coreMutex.WaitOne();
-                    init_logger_safely(path);
-                } finally {
-                    coreMutex.ReleaseMutex();
-                }
-            });
-        }
-
-        public async Task<Core.GetDbState.IResult> GetDbState() {
-            return await FFICommon<Core.GetDbState.IResult, Core.GetDbState.ExpectedError, Core.GetDbState.PossibleErrors, Core.GetDbState.UnexpectedError>(
-                () => get_db_state(path),
-                s => {
-                    if (Enum.TryParse<DbState>(s, out var dbState)) {
-                        return new Core.GetDbState.Success { dbState = dbState };
-                    } else {
-                        return new Core.GetDbState.UnexpectedError { ErrorMessage = "contract error (unknown dbState variant): " + s };
-                    }
-                });
-        }
-
-        public async Task<Core.MigrateDb.IResult> MigrateDb() {
-            return await FFICommon<Core.MigrateDb.IResult, Core.MigrateDb.ExpectedError, Core.MigrateDb.PossibleErrors, Core.MigrateDb.UnexpectedError>(
-                () => migrate_db(path),
-                s => new Core.MigrateDb.Success());
+        public async Task<Core.Init.IResult> Init(string writeablePath, bool logs) {
+            var writablePathPtr = Utils.ToFFI(writeablePath);
+            var result = await FFICommon<Core.Init.IResult, Core.Init.ExpectedError, Core.Init.PossibleErrors, Core.Init.UnexpectedError>(
+                () => init(writablePathPtr, logs),
+                s => new Core.Init.Success());
+            Marshal.FreeHGlobal(writablePathPtr);
+            return result;
         }
 
         public async Task<Core.CreateAccount.IResult> CreateAccount(string username, string apiUrl) {
             var usernamePtr = Utils.ToFFI(username);
             var apiUrlPtr = Utils.ToFFI(apiUrl);
             var result = await FFICommon<Core.CreateAccount.IResult, Core.CreateAccount.ExpectedError, Core.CreateAccount.PossibleErrors, Core.CreateAccount.UnexpectedError>(
-                () => create_account(path, usernamePtr, apiUrlPtr),
+                () => create_account(usernamePtr, apiUrlPtr),
                 s => new Core.CreateAccount.Success());
             Marshal.FreeHGlobal(usernamePtr);
             Marshal.FreeHGlobal(apiUrlPtr);
@@ -205,7 +165,7 @@ namespace lockbook {
         public async Task<Core.ImportAccount.IResult> ImportAccount(string accountString) {
             var accountStringPtr = Utils.ToFFI(accountString);
             var result = await FFICommon<Core.ImportAccount.IResult, Core.ImportAccount.ExpectedError, Core.ImportAccount.PossibleErrors, Core.ImportAccount.UnexpectedError>(
-                () => import_account(path, accountStringPtr),
+                () => import_account(accountStringPtr),
                 s => new Core.ImportAccount.Success());
             Marshal.FreeHGlobal(accountStringPtr);
             return result;
@@ -213,20 +173,20 @@ namespace lockbook {
 
         public async Task<Core.ExportAccount.IResult> ExportAccount() {
             return await FFICommon<Core.ExportAccount.IResult, Core.ExportAccount.ExpectedError, Core.ExportAccount.PossibleErrors, Core.ExportAccount.UnexpectedError>(
-                () => export_account(path),
+                () => export_account(),
                 s => new Core.ExportAccount.Success { accountString = s });
         }
 
         public async Task<Core.GetAccount.IResult> GetAccount() {
             return await FFICommon<Core.GetAccount.IResult, Core.GetAccount.ExpectedError, Core.GetAccount.PossibleErrors, Core.GetAccount.UnexpectedError>(
-                () => get_account(path),
+                () => get_account(),
                 s => new Core.GetAccount.Success { account = JsonConvert.DeserializeObject<Account>(s, jsonSettings) });
         }
 
         public async Task<Core.CreateFileAtPath.IResult> CreateFileAtPath(string pathWithName) {
             var pathWithNamePtr = Utils.ToFFI(pathWithName);
             var result = await FFICommon<Core.CreateFileAtPath.IResult, Core.CreateFileAtPath.ExpectedError, Core.CreateFileAtPath.PossibleErrors, Core.CreateFileAtPath.UnexpectedError>(
-                () => create_file_at_path(path, pathWithNamePtr),
+                () => create_file_at_path(pathWithNamePtr),
                 s => new Core.CreateFileAtPath.Success { newFile = JsonConvert.DeserializeObject<DecryptedFileMetadata>(s, jsonSettings) });
             Marshal.FreeHGlobal(pathWithNamePtr);
             return result;
@@ -236,7 +196,7 @@ namespace lockbook {
             var idPtr = Utils.ToFFI(id);
             var contentPtr = Utils.ToFFI(content);
             var result = await FFICommon<Core.WriteDocument.IResult, Core.WriteDocument.ExpectedError, Core.WriteDocument.PossibleErrors, Core.WriteDocument.UnexpectedError>(
-                () => write_document(path, idPtr, contentPtr),
+                () => write_document(idPtr, contentPtr),
                 s => new Core.WriteDocument.Success());
             Marshal.FreeHGlobal(idPtr);
             Marshal.FreeHGlobal(contentPtr);
@@ -248,7 +208,7 @@ namespace lockbook {
             var parentPtr = Utils.ToFFI(parent);
             var fileTypePtr = Utils.ToFFI(ft == FileType.Folder ? "Folder" : "Document");
             var result = await FFICommon<Core.CreateFile.IResult, Core.CreateFile.ExpectedError, Core.CreateFile.PossibleErrors, Core.CreateFile.UnexpectedError>(
-                () => create_file(path, namePtr, parentPtr, fileTypePtr),
+                () => create_file(namePtr, parentPtr, fileTypePtr),
                 s => new Core.CreateFile.Success { newFile = JsonConvert.DeserializeObject<DecryptedFileMetadata>(s, jsonSettings) });
             Marshal.FreeHGlobal(namePtr);
             Marshal.FreeHGlobal(parentPtr);
@@ -258,14 +218,14 @@ namespace lockbook {
 
         public async Task<Core.GetRoot.IResult> GetRoot() {
             return await FFICommon<Core.GetRoot.IResult, Core.GetRoot.ExpectedError, Core.GetRoot.PossibleErrors, Core.GetRoot.UnexpectedError>(
-                () => get_root(path),
+                () => get_root(),
                 s => new Core.GetRoot.Success { root = JsonConvert.DeserializeObject<DecryptedFileMetadata>(s, jsonSettings) });
         }
 
         public async Task<Core.GetChildren.IResult> GetChildren(string id) {
             var idPtr = Utils.ToFFI(id);
             var result = await FFICommon<Core.GetChildren.IResult, Core.GetChildren.ExpectedError, Core.GetChildren.PossibleErrors, Core.GetChildren.UnexpectedError>(
-                () => get_children(path, idPtr),
+                () => get_children(idPtr),
                 s => new Core.GetChildren.Success { children = JsonConvert.DeserializeObject<List<DecryptedFileMetadata>>(s, jsonSettings) });
             Marshal.FreeHGlobal(idPtr);
             return result;
@@ -274,17 +234,17 @@ namespace lockbook {
         public async Task<Core.ReadDocument.IResult> ReadDocument(string id) {
             var idPtr = Utils.ToFFI(id);
             var result = await FFICommon<Core.ReadDocument.IResult, Core.ReadDocument.ExpectedError, Core.ReadDocument.PossibleErrors, Core.ReadDocument.UnexpectedError>(
-                () => read_document(path, idPtr),
+                () => read_document(idPtr),
                 s => new Core.ReadDocument.Success { content = s });
             Marshal.FreeHGlobal(idPtr);
             return result;
         }
 
-        public async Task<Core.GetFileByPath.IResult> GetFileByPath(string pathWithName) {
+        public async Task<Core.GetByPath.IResult> GetByPath(string pathWithName) {
             var pathWithNamePtr = Utils.ToFFI(pathWithName);
-            var result = await FFICommon<Core.GetFileByPath.IResult, Core.GetFileByPath.ExpectedError, Core.GetFileByPath.PossibleErrors, Core.GetFileByPath.UnexpectedError>(
-                () => get_file_by_path(path, pathWithNamePtr),
-                s => new Core.GetFileByPath.Success { file = JsonConvert.DeserializeObject<DecryptedFileMetadata>(s, jsonSettings) });
+            var result = await FFICommon<Core.GetByPath.IResult, Core.GetByPath.ExpectedError, Core.GetByPath.PossibleErrors, Core.GetByPath.UnexpectedError>(
+                () => get_by_path(pathWithNamePtr),
+                s => new Core.GetByPath.Success { file = JsonConvert.DeserializeObject<DecryptedFileMetadata>(s, jsonSettings) });
             Marshal.FreeHGlobal(pathWithNamePtr);
             return result;
         }
@@ -292,7 +252,7 @@ namespace lockbook {
         public async Task<Core.DeleteFile.IResult> DeleteFile(string id) {
             var idPtr = Utils.ToFFI(id);
             var result = await FFICommon<Core.DeleteFile.IResult, Core.DeleteFile.ExpectedError, Core.DeleteFile.PossibleErrors, Core.DeleteFile.UnexpectedError>(
-                () => delete_file(path, idPtr),
+                () => delete_file(idPtr),
                 s => new Core.DeleteFile.Success());
             Marshal.FreeHGlobal(idPtr);
             return result;
@@ -301,7 +261,7 @@ namespace lockbook {
         public async Task<Core.ListPaths.IResult> ListPaths(string filter) {
             var filterPtr = Utils.ToFFI(filter);
             var result = await FFICommon<Core.ListPaths.IResult, Core.ListPaths.ExpectedError, Core.ListPaths.PossibleErrors, Core.ListPaths.UnexpectedError>(
-                () => list_paths(path, filterPtr),
+                () => list_paths(filterPtr),
                 s => new Core.ListPaths.Success { paths = JsonConvert.DeserializeObject<List<string>>(s, jsonSettings) });
             Marshal.FreeHGlobal(filterPtr);
             return result;
@@ -309,7 +269,7 @@ namespace lockbook {
 
         public async Task<Core.ListMetadatas.IResult> ListMetadatas() {
             return await FFICommon<Core.ListMetadatas.IResult, Core.ListMetadatas.ExpectedError, Core.ListMetadatas.PossibleErrors, Core.ListMetadatas.UnexpectedError>(
-                () => list_metadatas(path),
+                () => list_metadatas(),
                 s => new Core.ListMetadatas.Success { files = JsonConvert.DeserializeObject<List<DecryptedFileMetadata>>(s, jsonSettings) });
         }
 
@@ -317,7 +277,7 @@ namespace lockbook {
             var idPtr = Utils.ToFFI(id);
             var newNamePtr = Utils.ToFFI(newName);
             var result = await FFICommon<Core.RenameFile.IResult, Core.RenameFile.ExpectedError, Core.RenameFile.PossibleErrors, Core.RenameFile.UnexpectedError>(
-                () => rename_file(path, idPtr, newNamePtr),
+                () => rename_file(idPtr, newNamePtr),
                 s => new Core.RenameFile.Success());
             Marshal.FreeHGlobal(idPtr);
             Marshal.FreeHGlobal(newNamePtr);
@@ -328,7 +288,7 @@ namespace lockbook {
             var idPtr = Utils.ToFFI(id);
             var newParentPtr = Utils.ToFFI(newParent);
             var result = await FFICommon<Core.MoveFile.IResult, Core.MoveFile.ExpectedError, Core.MoveFile.PossibleErrors, Core.MoveFile.UnexpectedError>(
-                () => move_file(path, idPtr, newParentPtr),
+                () => move_file(idPtr, newParentPtr),
                 s => new Core.MoveFile.Success());
             Marshal.FreeHGlobal(idPtr);
             Marshal.FreeHGlobal(newParentPtr);
@@ -337,36 +297,36 @@ namespace lockbook {
 
         public async Task<Core.SyncAll.IResult> SyncAll() {
             return await FFICommon<Core.SyncAll.IResult, Core.SyncAll.ExpectedError, Core.SyncAll.PossibleErrors, Core.SyncAll.UnexpectedError>(
-                () => sync_all(path),
+                () => sync_all(),
                 s => new Core.SyncAll.Success());
         }
 
         public async Task<Core.CalculateWork.IResult> CalculateWork() {
             return await FFICommon<Core.CalculateWork.IResult, Core.CalculateWork.ExpectedError, Core.CalculateWork.PossibleErrors, Core.CalculateWork.UnexpectedError>(
-                () => calculate_work(path),
+                () => calculate_work(),
                 s => new Core.CalculateWork.Success { workCalculated = JsonConvert.DeserializeObject<WorkCalculated>(s, jsonSettings) });
         }
 
         public async Task<Core.GetLastSynced.IResult> GetLastSynced() {
             return await FFICommon<Core.GetLastSynced.IResult, Core.GetLastSynced.ExpectedError, Core.GetLastSynced.PossibleErrors, Core.GetLastSynced.UnexpectedError>(
-                () => get_last_synced(path),
+                () => get_last_synced(),
                 s => new Core.GetLastSynced.Success { timestamp = JsonConvert.DeserializeObject<ulong>(s, jsonSettings) });
         }
 
         public async Task<Core.GetLastSyncedHumanString.IResult> GetLastSyncedHumanString() {
             return await FFICommon<Core.GetLastSyncedHumanString.IResult, Core.GetLastSyncedHumanString.ExpectedError, Core.GetLastSyncedHumanString.PossibleErrors, Core.GetLastSyncedHumanString.UnexpectedError>(
-                () => get_last_synced_human_string(path),
+                () => get_last_synced_human_string(),
                 s => new Core.GetLastSyncedHumanString.Success { timestamp = s });
         }
 
         public async Task<Core.GetUsage.IResult> GetUsage() {
             return await FFICommon<Core.GetUsage.IResult, Core.GetUsage.ExpectedError, Core.GetUsage.PossibleErrors, Core.GetUsage.UnexpectedError>(
-                () => get_usage(path),
+                () => get_usage(),
                 s => new Core.GetUsage.Success { usage = JsonConvert.DeserializeObject<UsageMetrics>(s, jsonSettings) });
         }
 
         public async Task<Dictionary<string, List<string>>> GetVariants() {
-            var result = await RunAsyncWithMutex(get_variants);
+            var result = await RunManaged(get_variants);
             return JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(result, jsonSettings);
         }
     }

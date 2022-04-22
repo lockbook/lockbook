@@ -91,7 +91,7 @@ pub async fn get_public_key(
     context: RequestContext<'_, GetPublicKeyRequest>,
 ) -> Result<GetPublicKeyResponse, ServerError<GetPublicKeyError>> {
     let (request, server_state) = (&context.request, context.server_state);
-    Ok(public_key_from_username(&request.username, server_state).await?)
+    public_key_from_username(&request.username, server_state).await
 }
 
 pub async fn public_key_from_username(

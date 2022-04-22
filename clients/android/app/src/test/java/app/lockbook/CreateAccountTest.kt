@@ -1,19 +1,13 @@
 package app.lockbook
 
-import app.lockbook.core.createAccount
 import app.lockbook.model.CoreModel
-import app.lockbook.model.CoreModel.getAPIURL
-import app.lockbook.util.*
-import kotlinx.serialization.*
-import kotlinx.serialization.PolymorphicSerializer.*
-import kotlinx.serialization.json.*
-import kotlinx.serialization.modules.*
-import org.junit.After
+import app.lockbook.util.Config
+import app.lockbook.util.CreateAccountError
+import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 
 class CreateAccountTest {
-    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -23,46 +17,39 @@ class CreateAccountTest {
         }
     }
 
-    @After
-    fun createDirectory() {
-        config = Config(createRandomPath())
+    @Before
+    fun initCore() {
+        CoreModel.init(Config(false, createRandomPath()))
     }
 
     @Test
     fun createAccountOk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
     }
 
     @Test
     fun createAccountUsernameTaken() {
         val username = generateAlphaString()
 
-        CoreModel.createAccount(config, username).unwrapOk()
+        CoreModel.createAccount(username).unwrapOk()
 
-        config = Config(createRandomPath())
+        CoreModel.init(Config(false, createRandomPath()))
 
-        CoreModel.createAccount(config, username)
+        CoreModel.createAccount(username)
             .unwrapErrorType(CreateAccountError.UsernameTaken)
     }
 
     @Test
     fun createAccountInvalidUsername() {
-        CoreModel.createAccount(config, "!@#$%^&*()")
+        CoreModel.createAccount("!@#$%^&*()")
             .unwrapErrorType(CreateAccountError.InvalidUsername)
     }
 
     @Test
     fun createAccountExistsAlready() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        CoreModel.createAccount(config, generateAlphaString())
+        CoreModel.createAccount(generateAlphaString())
             .unwrapErrorType(CreateAccountError.AccountExistsAlready)
-    }
-
-    @Test
-    fun createAccountUnexpectedError() {
-        CoreModel.createAccountParser.decodeFromString<IntermCoreResult<Unit, CreateAccountError>>(
-            createAccount("", "", getAPIURL())
-        ).unwrapUnexpected()
     }
 }

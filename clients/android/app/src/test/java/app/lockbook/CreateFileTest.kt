@@ -1,15 +1,14 @@
 package app.lockbook
 
-import app.lockbook.core.createFile
 import app.lockbook.model.CoreModel
-import app.lockbook.util.*
-import kotlinx.serialization.decodeFromString
-import org.junit.After
+import app.lockbook.util.Config
+import app.lockbook.util.CreateFileError
+import app.lockbook.util.FileType
+import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 
 class CreateFileTest {
-    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -19,26 +18,24 @@ class CreateFileTest {
         }
     }
 
-    @After
-    fun createDirectory() {
-        config = Config(createRandomPath())
+    @Before
+    fun initCore() {
+        CoreModel.init(Config(false, createRandomPath()))
     }
 
     @Test
     fun createFileOk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
+        val rootFileMetadata = CoreModel.getRoot().unwrapOk()
 
         CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
         ).unwrapOk()
 
         CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
@@ -47,19 +44,17 @@ class CreateFileTest {
 
     @Test
     fun createFileContainsSlash() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
+        val rootFileMetadata = CoreModel.getRoot().unwrapOk()
 
         CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             "/",
             FileType.Document
         ).unwrapErrorType(CreateFileError.FileNameContainsSlash)
 
         CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             "/",
             FileType.Folder
@@ -68,19 +63,17 @@ class CreateFileTest {
 
     @Test
     fun createFileEmpty() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
+        val rootFileMetadata = CoreModel.getRoot().unwrapOk()
 
         CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             "",
             FileType.Document
         ).unwrapErrorType(CreateFileError.FileNameEmpty)
 
         CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             "",
             FileType.Folder
@@ -89,20 +82,18 @@ class CreateFileTest {
 
     @Test
     fun createFileNotAvailable() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
+        val rootFileMetadata = CoreModel.getRoot().unwrapOk()
         val fileName = generateAlphaString()
 
         CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             fileName,
             FileType.Document
         ).unwrapOk()
 
         CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             fileName,
             FileType.Folder
@@ -112,17 +103,9 @@ class CreateFileTest {
     @Test
     fun createFileNoAccount() {
         CoreModel.createFile(
-            config,
             generateId(),
             generateAlphaString(),
             FileType.Document
         ).unwrapErrorType(CreateFileError.NoAccount)
-    }
-
-    @Test
-    fun createFileUnexpectedError() {
-        CoreModel.createFileParser.decodeFromString<IntermCoreResult<DecryptedFileMetadata, CreateFileError>>(
-            createFile("", "", "", "")
-        ).unwrapUnexpected()
     }
 }

@@ -144,7 +144,7 @@ namespace lockbook {
                     break;
             }
 
-            await App.ReloadDbStateAndAccount();
+            await App.ReloadAccount();
 
             ButtonsEnabled = true;
             ImportAccountWorking = false;
@@ -156,7 +156,7 @@ namespace lockbook {
 
             switch (await App.CoreService.CreateAccount(Username, APILocation)) {
                 case Core.CreateAccount.Success:
-                    await App.ReloadDbStateAndAccount();
+                    await App.ReloadAccount();
                     break;
                 case Core.CreateAccount.UnexpectedError error:
                     await new MessageDialog(error.ErrorMessage, "Unexpected Error!").ShowAsync();

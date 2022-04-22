@@ -2,7 +2,6 @@ package app.lockbook.model
 
 import android.app.Application
 import androidx.lifecycle.*
-import app.lockbook.App.Companion.config
 import app.lockbook.getRes
 import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
@@ -35,7 +34,7 @@ class MoveFileViewModel(application: Application) :
 
     private fun startInRoot() {
         viewModelScope.launch(Dispatchers.IO) {
-            when (val rootResult = CoreModel.getRoot(config)) {
+            when (val rootResult = CoreModel.getRoot()) {
                 is Ok -> {
                     currentParent = rootResult.value
                     refreshOverFolder()
@@ -48,7 +47,7 @@ class MoveFileViewModel(application: Application) :
     fun moveFilesToFolder(ids: Array<String>) {
         viewModelScope.launch(Dispatchers.IO) {
             for (id in ids) {
-                when (val moveFileResult = CoreModel.moveFile(config, id, currentParent.id)) {
+                when (val moveFileResult = CoreModel.moveFile(id, currentParent.id)) {
                     is Ok -> {
                     }
                     is Err -> {
@@ -64,7 +63,7 @@ class MoveFileViewModel(application: Application) :
     }
 
     private fun refreshOverFolder() {
-        when (val getChildrenResult = CoreModel.getChildren(config, currentParent.id)) {
+        when (val getChildrenResult = CoreModel.getChildren(currentParent.id)) {
             is Ok -> {
                 val tempFiles = getChildrenResult.value.filter { fileMetadata ->
                     fileMetadata.fileType == FileType.Folder && !ids.contains(fileMetadata.id)
@@ -90,7 +89,7 @@ class MoveFileViewModel(application: Application) :
     }
 
     private fun setParentAsParent() {
-        when (val getFileById = CoreModel.getFileById(config, currentParent.parent)) {
+        when (val getFileById = CoreModel.getFileById(currentParent.parent)) {
             is Ok -> currentParent = getFileById.value
             is Err -> _notifyError.postValue(getFileById.error.toLbError(getRes()))
         }.exhaustive

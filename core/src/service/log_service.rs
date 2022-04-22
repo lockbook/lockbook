@@ -1,17 +1,15 @@
+use crate::model::errors::core_err_unexpected;
+use crate::CoreError;
 use std::env;
 use std::path::Path;
 use std::str::FromStr;
-
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::{filter, fmt, prelude::*};
 
-use crate::model::errors::core_err_unexpected;
-use crate::CoreError;
-
 static LOG_FILE: &str = "lockbook.log";
 
-pub fn init(log_path: &Path) -> Result<(), CoreError> {
+pub fn init<P: AsRef<Path>>(log_path: P) -> Result<(), CoreError> {
     let lockbook_log_level = env::var("LOG_LEVEL")
         .ok()
         .and_then(|s| LevelFilter::from_str(s.as_str()).ok())
@@ -21,9 +19,11 @@ pub fn init(log_path: &Path) -> Result<(), CoreError> {
         fmt::Layer::new()
             .with_span_events(FmtSpan::ACTIVE)
             .with_target(false)
-            .with_writer(tracing_appender::rolling::never(log_path, LOG_FILE))
+            .with_writer(tracing_appender::rolling::never(&log_path, LOG_FILE))
             .with_filter(lockbook_log_level)
-            .with_filter(filter::filter_fn(|metadata| metadata.target() == "lockbook_core")),
+            .with_filter(filter::filter_fn(|metadata| {
+                metadata.target().starts_with("lockbook_core")
+            })),
     );
 
     tracing::subscriber::set_global_default(subscriber).map_err(core_err_unexpected)?;

@@ -1,40 +1,39 @@
-use crate::error::CliResult;
-use crate::utils::{config, get_image_format};
-use crate::{err, err_unexpected};
-use lockbook_core::{get_file_by_path, Error as CoreError, ExportDrawingError, GetFileByPathError};
-use std::io::{stdout, Write};
+use std::io;
+use std::io::Write;
 
-pub fn export_drawing(lb_path: &str, format: &str) -> CliResult<()> {
-    let file_metadata = get_file_by_path(&config()?, lb_path).map_err(|err| match err {
-        CoreError::UiError(GetFileByPathError::NoFileAtThatPath) => {
-            err!(FileNotFound(lb_path.to_string()))
-        }
-        CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
+use lockbook_core::model::errors::ExportDrawingError;
+use lockbook_core::model::errors::GetFileByPathError;
+use lockbook_core::Core;
+use lockbook_core::Error as LbError;
+
+use crate::error::CliError;
+use crate::utils::get_image_format;
+
+pub fn export_drawing(core: &Core, lb_path: &str, format: &str) -> Result<(), CliError> {
+    let file_metadata = core.get_by_path(lb_path).map_err(|err| match err {
+        LbError::UiError(GetFileByPathError::NoFileAtThatPath) => CliError::file_not_found(lb_path),
+        LbError::Unexpected(msg) => CliError::unexpected(msg),
     })?;
 
     let lockbook_format = get_image_format(format);
 
-    let drawing_bytes =
-        lockbook_core::export_drawing(&config()?, file_metadata.id, lockbook_format, None)
-            .map_err(|err| match err {
-                CoreError::UiError(ui_err) => match ui_err {
-                    ExportDrawingError::FolderTreatedAsDrawing => {
-                        err!(FolderTreatedAsDoc(lb_path.to_string()))
-                    }
-                    ExportDrawingError::NoAccount => err!(NoAccount),
-                    ExportDrawingError::InvalidDrawing => {
-                        err!(InvalidDrawing(file_metadata.decrypted_name))
-                    }
-                    ExportDrawingError::FileDoesNotExist => {
-                        err!(FileNotFound(file_metadata.decrypted_name))
-                    }
-                },
-                CoreError::Unexpected(msg) => err_unexpected!("{}", msg),
-            })?;
+    let drawing_bytes = core
+        .export_drawing(file_metadata.id, lockbook_format, None)
+        .map_err(|err| match err {
+            LbError::UiError(err) => match err {
+                ExportDrawingError::FolderTreatedAsDrawing => CliError::dir_treated_as_doc(lb_path),
+                ExportDrawingError::NoAccount => CliError::no_account(),
+                ExportDrawingError::InvalidDrawing => {
+                    CliError::invalid_drawing(file_metadata.decrypted_name)
+                }
+                ExportDrawingError::FileDoesNotExist => CliError::file_not_found(lb_path),
+            },
+            LbError::Unexpected(msg) => CliError::unexpected(msg),
+        })?;
 
-    stdout()
+    io::stdout()
         .write_all(drawing_bytes.as_slice())
-        .map_err(|err| err_unexpected!("{:#?}", err))?;
+        .map_err(|err| CliError::unexpected(format!("{:#?}", err)))?;
 
     Ok(())
 }

@@ -1,19 +1,13 @@
 package app.lockbook
 
-import app.lockbook.core.getUsage
 import app.lockbook.model.CoreModel
 import app.lockbook.util.Config
 import app.lockbook.util.GetUsageError
-import app.lockbook.util.IntermCoreResult
-import app.lockbook.util.UsageMetrics
-import kotlinx.serialization.decodeFromString
-import org.junit.After
+import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 
 class GetUsageTest {
-    var config = Config(createRandomPath())
-
     companion object {
         @BeforeClass
         @JvmStatic
@@ -22,27 +16,20 @@ class GetUsageTest {
         }
     }
 
-    @After
-    fun createDirectory() {
-        config = Config(createRandomPath())
+    @Before
+    fun initCore() {
+        CoreModel.init(Config(false, createRandomPath()))
     }
 
     @Test
     fun getUsageOk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        CoreModel.getUsage(config).unwrapOk()
+        CoreModel.getUsage().unwrapOk()
     }
 
     @Test
     fun getUsageNoAccount() {
-        CoreModel.getUsage(config).unwrapErrorType(GetUsageError.NoAccount)
-    }
-
-    @Test
-    fun getUsageUnexpectedError() {
-        CoreModel.getUsageParser.decodeFromString<IntermCoreResult<UsageMetrics, GetUsageError>>(
-            getUsage("")
-        ).unwrapUnexpected()
+        CoreModel.getUsage().unwrapErrorType(GetUsageError.NoAccount)
     }
 }

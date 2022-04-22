@@ -1,17 +1,14 @@
-use crate::error::CliResult;
-use crate::utils::{account, config};
-use crate::{err, err_unexpected};
-use lockbook_core::get_path_by_id;
-use lockbook_core::model::state::Config;
-use lockbook_core::service::integrity_service::{test_repo_integrity, TestRepoError, Warning};
 use uuid::Uuid;
 
-pub fn validate() -> CliResult<()> {
-    account()?;
+use lockbook_core::model::errors::{TestRepoError, Warning};
+use lockbook_core::Core;
 
-    let config = config()?;
+use crate::error::CliError;
 
-    let err = match test_repo_integrity(&config) {
+pub fn validate(core: &Core) -> Result<(), CliError> {
+    core.get_account()?;
+
+    let err = match core.validate() {
         Ok(warnings) => {
             if warnings.is_empty() {
                 return Ok(());
@@ -20,58 +17,56 @@ pub fn validate() -> CliResult<()> {
             for w in &warnings {
                 match w {
                     Warning::EmptyFile(id) => {
-                        let path = get_path_by_id_or_err(&config, *id)?;
+                        let path = get_path_by_id_or_err(core, *id)?;
                         eprintln!("File at path {} is empty.", path);
                     }
                     Warning::InvalidUTF8(id) => {
-                        let path = get_path_by_id_or_err(&config, *id)?;
+                        let path = get_path_by_id_or_err(core, *id)?;
                         eprintln!("File at path {} contains invalid UTF8.", path);
                     }
                     Warning::UnreadableDrawing(id) => {
-                        let path = get_path_by_id_or_err(&config, *id)?;
+                        let path = get_path_by_id_or_err(core, *id)?;
                         eprintln!("Drawing at path {} is unreadable.", path);
                     }
                 }
             }
-            err!(WarningsFound(warnings.len() as i32))
+
+            CliError::validate_warnings_found(warnings.len())
         }
         Err(err) => match err {
-            TestRepoError::NoRootFolder => err!(NoRootOps("validate")),
+            TestRepoError::NoAccount => CliError::no_account(),
+            TestRepoError::NoRootFolder => CliError::no_root(),
             TestRepoError::DocumentTreatedAsFolder(id) => {
-                err!(DocTreatedAsFolder(get_path_by_id_or_err(&config, id)?))
+                CliError::doc_treated_as_dir(get_path_by_id_or_err(core, id)?)
             }
             TestRepoError::FileOrphaned(id) => {
-                err!(FileOrphaned(get_path_by_id_or_err(&config, id)?))
+                CliError::file_orphaned(get_path_by_id_or_err(core, id)?)
             }
-            TestRepoError::CycleDetected(_) => {
-                err!(CycleDetected)
-            }
-            TestRepoError::FileNameEmpty(_) => {
-                err!(FileNameEmpty)
-            }
+            TestRepoError::CycleDetected(_) => CliError::cycle_detected(),
+            TestRepoError::FileNameEmpty(_) => CliError::file_name_empty(),
             TestRepoError::FileNameContainsSlash(id) => {
-                err!(FileNameHasSlash(get_path_by_id_or_err(&config, id)?))
+                CliError::file_name_has_slash(get_path_by_id_or_err(core, id)?)
             }
             TestRepoError::NameConflictDetected(id) => {
-                err!(NameConflictDetected(get_path_by_id_or_err(&config, id)?))
+                CliError::name_conflict_detected(get_path_by_id_or_err(core, id)?)
             }
             TestRepoError::DocumentReadError(id, err) => {
-                err!(DocumentReadError(get_path_by_id_or_err(&config, id)?, format!("{:#?}", err)))
+                CliError::validate_doc_read(get_path_by_id_or_err(core, id)?, format!("{:#?}", err))
             }
             TestRepoError::Core(err) => {
-                err_unexpected!("an unexpected error occurred: {:#?}", err)
+                CliError::unexpected(format!("unexpected error: {:#?}", err))
             }
             TestRepoError::Tree(err) => {
-                err_unexpected!("an unexpected error occurred: {:#?}", err)
+                CliError::unexpected(format!("unexpected error: {:#?}", err))
             }
-            TestRepoError::NoAccount => err!(NoAccount),
         },
     };
 
     Err(err)
 }
 
-fn get_path_by_id_or_err(config: &Config, id: Uuid) -> CliResult<String> {
-    get_path_by_id(config, id)
-        .map_err(|err| err_unexpected!("failed to get path by id: {} err: {:#?}", id, err))
+fn get_path_by_id_or_err(core: &Core, id: Uuid) -> Result<String, CliError> {
+    core.get_path_by_id(id).map_err(|err| {
+        CliError::unexpected(format!("failed to get path by id: {} err: {:#?}", id, err))
+    })
 }

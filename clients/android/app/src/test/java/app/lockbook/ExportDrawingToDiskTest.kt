@@ -3,15 +3,13 @@ package app.lockbook
 import app.lockbook.core.exportDrawingToDisk
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import org.junit.After
+import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 
 class ExportDrawingToDiskTest {
-    var config = Config(createRandomPath())
 
     companion object {
         @BeforeClass
@@ -21,30 +19,26 @@ class ExportDrawingToDiskTest {
         }
     }
 
-    @After
-    fun createDirectory() {
-        config = Config(createRandomPath())
+    @Before
+    fun initCore() {
+        CoreModel.init(Config(false, createRandomPath()))
     }
 
     @Test
     fun exportDrawingToDiskOk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
+        val rootFileMetadata = CoreModel.getRoot().unwrapOk()
 
         val document = CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
         ).unwrapOk()
 
-        println("HERE: ${Json.encodeToString(Drawing())}")
-
-        CoreModel.writeToDocument(config, document.id, Json.encodeToString(Drawing())).unwrapOk()
+        CoreModel.writeToDocument(document.id, Json.encodeToString(Drawing())).unwrapOk()
 
         CoreModel.exportDrawingToDisk(
-            config,
             document.id,
             SupportedImageFormats.Jpeg,
             generateFakeRandomPath()
@@ -54,7 +48,6 @@ class ExportDrawingToDiskTest {
     @Test
     fun exportDrawingToDiskNoAccount() {
         CoreModel.exportDrawingToDisk(
-            config,
             generateId(),
             SupportedImageFormats.Jpeg,
             generateFakeRandomPath()
@@ -63,12 +56,11 @@ class ExportDrawingToDiskTest {
 
     @Test
     fun exportDrawingToDiskFileDoesNotExist() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        CoreModel.getRoot(config).unwrapOk()
+        CoreModel.getRoot().unwrapOk()
 
         CoreModel.exportDrawingToDisk(
-            config,
             generateId(),
             SupportedImageFormats.Jpeg,
             generateFakeRandomPath()
@@ -77,21 +69,19 @@ class ExportDrawingToDiskTest {
 
     @Test
     fun exportDrawingToDiskInvalidDrawing() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
+        val rootFileMetadata = CoreModel.getRoot().unwrapOk()
 
         val document = CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
         ).unwrapOk()
 
-        CoreModel.writeToDocument(config, document.id, "an invalid drawing").unwrapOk()
+        CoreModel.writeToDocument(document.id, "an invalid drawing").unwrapOk()
 
         CoreModel.exportDrawingToDisk(
-            config,
             document.id,
             SupportedImageFormats.Jpeg,
             generateFakeRandomPath()
@@ -100,19 +90,17 @@ class ExportDrawingToDiskTest {
 
     @Test
     fun exportDrawingToDiskFolderTreatedAsDrawing() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
+        val rootFileMetadata = CoreModel.getRoot().unwrapOk()
 
         val folder = CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Folder
         ).unwrapOk()
 
         CoreModel.exportDrawingToDisk(
-            config,
             folder.id,
             SupportedImageFormats.Jpeg,
             generateFakeRandomPath()
@@ -121,51 +109,42 @@ class ExportDrawingToDiskTest {
 
     @Test
     fun exportDrawingToDiskBadPath() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
+        val rootFileMetadata = CoreModel.getRoot().unwrapOk()
 
         val document = CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
         ).unwrapOk()
 
-        CoreModel.writeToDocument(config, document.id, Json.encodeToString(Drawing())).unwrapOk()
+        CoreModel.writeToDocument(document.id, Json.encodeToString(Drawing())).unwrapOk()
 
-        CoreModel.exportDrawingToDisk(config, document.id, SupportedImageFormats.Jpeg, "")
+        CoreModel.exportDrawingToDisk(document.id, SupportedImageFormats.Jpeg, "")
             .unwrapErrorType(ExportDrawingToDiskError.BadPath)
     }
 
     @Test
     fun exportDrawingToDiskFileAlreadyExistsInDisk() {
-        CoreModel.createAccount(config, generateAlphaString()).unwrapOk()
+        CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        val rootFileMetadata = CoreModel.getRoot(config).unwrapOk()
+        val rootFileMetadata = CoreModel.getRoot().unwrapOk()
 
         val document = CoreModel.createFile(
-            config,
             rootFileMetadata.id,
             generateAlphaString(),
             FileType.Document
         ).unwrapOk()
 
-        CoreModel.writeToDocument(config, document.id, Json.encodeToString(Drawing())).unwrapOk()
+        CoreModel.writeToDocument(document.id, Json.encodeToString(Drawing())).unwrapOk()
 
         val path = generateFakeRandomPath()
 
-        CoreModel.exportDrawingToDisk(config, document.id, SupportedImageFormats.Jpeg, path)
+        CoreModel.exportDrawingToDisk(document.id, SupportedImageFormats.Jpeg, path)
             .unwrapOk()
 
-        CoreModel.exportDrawingToDisk(config, document.id, SupportedImageFormats.Jpeg, path)
+        CoreModel.exportDrawingToDisk(document.id, SupportedImageFormats.Jpeg, path)
             .unwrapErrorType(ExportDrawingToDiskError.FileAlreadyExistsInDisk)
-    }
-
-    @Test
-    fun exportDrawingToDiskUnexpectedError() {
-        CoreModel.exportDrawingToDiskParser.decodeFromString<IntermCoreResult<Unit, ExportDrawingToDiskError>>(
-            exportDrawingToDisk("", "", "", "")
-        ).unwrapUnexpected()
     }
 }

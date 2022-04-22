@@ -1,16 +1,15 @@
-use lockbook_core::list_paths;
 use lockbook_core::service::path_service::Filter;
+use lockbook_core::Core;
 
-use crate::error::CliResult;
-use crate::utils::{account, config, print_last_successful_sync};
+use crate::error::CliError;
+use crate::utils::print_last_successful_sync;
 
-pub fn list(file_filter: Option<Filter>) -> CliResult<()> {
-    account()?;
+pub fn list(core: &Core, file_filter: Option<Filter>) -> Result<(), CliError> {
+    core.get_account()?;
 
-    list_paths(&config()?, file_filter)
-        .expect("Failed to retrieve content from FileMetadataRepo")
+    core.list_paths(file_filter)?
         .into_iter()
         .for_each(|path| println!("{}", path));
 
-    print_last_successful_sync()
+    print_last_successful_sync(core)
 }

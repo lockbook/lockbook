@@ -14,17 +14,18 @@ pub fn generate_key() -> SecretKey {
     SecretKey::random(&mut OsRng)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum ECSignError {
     ParseError(libsecp256k1::Error),
-    Serialization(bincode::Error),
+    Serialization(String),
 }
 
 pub fn sign<T: Serialize>(
     sk: &SecretKey, to_sign: T, time_getter: TimeGetter,
 ) -> Result<ECSigned<T>, ECSignError> {
     let timestamped = timestamp(to_sign, time_getter);
-    let serialized = bincode::serialize(&timestamped).map_err(ECSignError::Serialization)?;
+    let serialized = bincode::serialize(&timestamped)
+        .map_err(|err| ECSignError::Serialization(err.to_string()))?;
     let digest = Sha256::digest(&serialized);
     let message = &Message::parse_slice(&digest).map_err(ECSignError::ParseError)?;
     let (signature, _) = libsecp256k1::sign(message, sk);

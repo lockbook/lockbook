@@ -10,7 +10,6 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.PopupWindow
 import androidx.preference.*
-import app.lockbook.App.Companion.config
 import app.lockbook.R
 import app.lockbook.model.AlertModel
 import app.lockbook.model.BiometricModel
@@ -18,7 +17,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.model.VerificationItem
 import app.lockbook.ui.NumberPickerPreference
 import app.lockbook.ui.NumberPickerPreferenceDialog
-import app.lockbook.util.*
+import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.zxing.BarcodeFormat
@@ -89,7 +88,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 ::exportAccountRaw
             )
             getString(R.string.view_logs_key) -> startActivity(Intent(context, LogActivity::class.java))
-            getString(R.string.clear_logs_key) -> File("${config.writeable_path}/${LogActivity.LOG_FILE_NAME}").writeText(
+            getString(R.string.clear_logs_key) -> File("${requireContext().filesDir.absolutePath}/${LogActivity.LOG_FILE_NAME}").writeText(
                 ""
             )
             getString(R.string.background_sync_enabled_key) ->
@@ -102,7 +101,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun exportAccountQR() {
-        when (val exportResult = CoreModel.exportAccount(config)) {
+        when (val exportResult = CoreModel.exportAccount()) {
             is Ok -> {
                 val bitmap = BarcodeEncoder().encodeBitmap(
                     exportResult.value,
@@ -125,7 +124,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun exportAccountRaw() {
-        when (val exportResult = CoreModel.exportAccount(config)) {
+        when (val exportResult = CoreModel.exportAccount()) {
             is Ok -> {
                 val clipBoard: ClipboardManager =
                     requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager

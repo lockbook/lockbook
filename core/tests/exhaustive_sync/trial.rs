@@ -1,29 +1,18 @@
-use std::time::Instant;
-use std::{fs, thread};
-
-use uuid::Uuid;
-use variant_count::VariantCount;
-
 use crate::exhaustive_sync::experiment::ThreadID;
-use lockbook_core::model::state::Config;
-use lockbook_core::service::api_service;
-use lockbook_core::service::integrity_service::test_repo_integrity;
-use lockbook_core::service::test_utils::{dbs_equal, random_username, test_config, url};
-use lockbook_core::Error::UiError;
-use lockbook_core::{
-    calculate_work, create_account, delete_file, export_account, get_account, import_account,
-    move_file, rename_file, sync_all, write_document, MoveFileError,
-};
-use lockbook_core::{create_file, list_metadatas};
-use lockbook_models::api::DeleteAccountRequest;
-use lockbook_models::file_metadata::FileType::{Document, Folder};
-
-use crate::exhaustive_sync::trial::Action::{
-    AttemptFolderMove, DeleteFile, MoveDocument, NewDocument, NewFolder, NewMarkdownDocument,
-    RenameFile, SyncAndCheck, UpdateDocument,
-};
+use crate::exhaustive_sync::trial::Action::*;
 use crate::exhaustive_sync::trial::Status::{Failed, Ready, Running, Succeeded};
 use crate::exhaustive_sync::utils::{find_by_name, random_filename, random_utf8};
+use lockbook_core::model::errors::MoveFileError;
+use lockbook_core::service::api_service;
+use lockbook_core::Core;
+use lockbook_core::Error::UiError;
+use lockbook_models::api::DeleteAccountRequest;
+use lockbook_models::file_metadata::FileType::{Document, Folder};
+use std::time::Instant;
+use std::{fs, thread};
+use test_utils::*;
+use uuid::Uuid;
+use variant_count::VariantCount;
 
 #[derive(VariantCount, Debug, Clone)]
 pub enum Action {
@@ -58,7 +47,7 @@ impl Status {
 #[derive(Clone, Debug)]
 pub struct Trial {
     pub id: Uuid,
-    pub clients: Vec<Config>,
+    pub clients: Vec<Core>,
     pub target_clients: usize,
     pub target_steps: usize,
     pub steps: Vec<Action>,
@@ -71,16 +60,21 @@ pub struct Trial {
 impl Trial {
     fn create_clients(&mut self) -> Result<(), Status> {
         for _ in 0..self.target_clients {
-            self.clients.push(test_config());
+            self.clients.push(test_core());
         }
 
-        create_account(&self.clients[0], &random_username(), &url())
+        self.clients[0]
+            .create_account(&random_name(), &url())
             .map_err(|err| Failed(format!("failed to create account: {:#?}", err)))?;
-        let account_string = export_account(&self.clients[0]).unwrap();
+        let account_string = &self.clients[0].export_account().unwrap();
 
         for client in &self.clients[1..] {
-            import_account(client, &account_string).map_err(|err| Failed(format!("{:#?}", err)))?;
-            sync_all(client, None).map_err(|err| Failed(format!("{:#?}", err)))?;
+            client
+                .import_account(account_string)
+                .map_err(|err| Failed(format!("{:#?}", err)))?;
+            client
+                .sync(None)
+                .map_err(|err| Failed(format!("{:#?}", err)))?;
         }
 
         Ok(())
@@ -95,7 +89,7 @@ impl Trial {
                 Action::NewDocument { client, parent, name } => {
                     let db = self.clients[client].clone();
                     let parent = find_by_name(&db, &parent).id;
-                    if let Err(err) = create_file(&db, &name, parent, Document) {
+                    if let Err(err) = db.create_file(&name, parent, Document) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
@@ -103,7 +97,7 @@ impl Trial {
                 Action::NewMarkdownDocument { client, parent, name } => {
                     let db = self.clients[client].clone();
                     let parent = find_by_name(&db, &parent).id;
-                    if let Err(err) = create_file(&db, &name, parent, Document) {
+                    if let Err(err) = db.create_file(&name, parent, Document) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
@@ -111,7 +105,7 @@ impl Trial {
                 Action::NewFolder { client, parent, name } => {
                     let db = self.clients[client].clone();
                     let parent = find_by_name(&db, &parent).id;
-                    if let Err(err) = create_file(&db, &name, parent, Folder) {
+                    if let Err(err) = db.create_file(&name, parent, Folder) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
@@ -119,7 +113,7 @@ impl Trial {
                 Action::UpdateDocument { client, name, new_content } => {
                     let db = self.clients[client].clone();
                     let doc = find_by_name(&db, &name).id;
-                    if let Err(err) = write_document(&db, doc, new_content.as_bytes()) {
+                    if let Err(err) = db.write_document(doc, new_content.as_bytes()) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
@@ -127,7 +121,7 @@ impl Trial {
                 Action::RenameFile { client, name, new_name } => {
                     let db = self.clients[client].clone();
                     let doc = find_by_name(&db, &name).id;
-                    if let Err(err) = rename_file(&db, doc, &new_name) {
+                    if let Err(err) = db.rename_file(doc, &new_name) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
@@ -137,7 +131,7 @@ impl Trial {
                     let doc = find_by_name(&db, &doc_name).id;
                     let dest = find_by_name(&db, &destination_name).id;
 
-                    if let Err(err) = move_file(&db, doc, dest) {
+                    if let Err(err) = db.move_file(doc, dest) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
@@ -147,7 +141,7 @@ impl Trial {
                     let folder = find_by_name(&db, &folder_name).id;
                     let destination_folder = find_by_name(&db, &destination_name).id;
 
-                    let move_file_result = move_file(&db, folder, destination_folder);
+                    let move_file_result = db.move_file(folder, destination_folder);
                     match move_file_result {
                         Ok(()) | Err(UiError(MoveFileError::FolderMovedIntoItself)) => {}
                         Err(err) => {
@@ -159,7 +153,7 @@ impl Trial {
                 Action::DeleteFile { client, name } => {
                     let db = self.clients[client].clone();
                     let file = find_by_name(&db, &name).id;
-                    if let Err(err) = delete_file(&db, file) {
+                    if let Err(err) = db.delete_file(file) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
@@ -167,7 +161,7 @@ impl Trial {
                 Action::SyncAndCheck => {
                     for _ in 0..2 {
                         for client in &self.clients {
-                            if let Err(err) = sync_all(client, None) {
+                            if let Err(err) = client.sync(None) {
                                 self.status = Failed(format!("{:#?}", err));
                                 break 'steps;
                             }
@@ -179,20 +173,20 @@ impl Trial {
                             if !dbs_equal(row, col) {
                                 self.status = Failed(format!(
                                     "db {} is not equal to {} after a sync",
-                                    row.writeable_path, col.writeable_path
+                                    row.config.writeable_path, col.config.writeable_path
                                 ));
                                 break 'steps;
                             }
                         }
-                        if let Err(err) = test_repo_integrity(row) {
+                        if let Err(err) = row.validate() {
                             self.status = Failed(format!("Repo integrity compromised: {:#?}", err));
                             break 'steps;
                         }
 
-                        if !calculate_work(row).unwrap().work_units.is_empty() {
+                        if !row.calculate_work().unwrap().work_units.is_empty() {
                             self.status = Failed(format!(
                                 "work units not empty, client: {}",
-                                row.writeable_path
+                                row.config.writeable_path
                             ));
                             break 'steps;
                         }
@@ -215,7 +209,7 @@ impl Trial {
 
         for client_index in 0..self.clients.len() {
             let client = self.clients[client_index].clone();
-            let all_files = list_metadatas(&client).unwrap();
+            let all_files = client.list_metadatas().unwrap();
 
             let mut folders = all_files.clone();
             folders.retain(|f| f.file_type == Folder);
@@ -322,16 +316,19 @@ impl Trial {
     }
 
     fn cleanup(&self) {
-        if let Ok(account) = get_account(&self.clients[0]) {
+        if let Ok(account) = &self.clients[0].get_account() {
             // Delete account in server
-            api_service::request(&account, DeleteAccountRequest {}).unwrap_or_else(|err| {
+            api_service::request(account, DeleteAccountRequest {}).unwrap_or_else(|err| {
                 println!("Failed to delete account: {} error : {:?}", account.username, err)
             });
 
             // Delete account locally
             for client in &self.clients {
-                fs::remove_dir_all(&client.writeable_path).unwrap_or_else(|err| {
-                    println!("failed to cleanup file: {}, error: {}", client.writeable_path, err)
+                fs::remove_dir_all(&client.config.writeable_path).unwrap_or_else(|err| {
+                    println!(
+                        "failed to cleanup file: {}, error: {}",
+                        client.config.writeable_path, err
+                    )
                 });
             }
         } else {
