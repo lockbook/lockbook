@@ -168,6 +168,16 @@ namespace Core {
         }
     }
 
+    namespace Init {
+        public interface IResult { }
+        public class Success : IResult { }
+        public enum PossibleErrors {
+            Stub,
+        }
+        public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
+        public class UnexpectedError : Core.UnexpectedError, IResult { }
+    }
+
     namespace CreateAccount {
         public interface IResult { }
         public class Success : IResult { }

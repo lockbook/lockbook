@@ -21,6 +21,17 @@ namespace test {
             return "C:\\Temp\\.lockbook\\" + Guid.NewGuid().ToString().Replace("-", "");
         }
 
+        public CoreService NewCoreService() {
+            var result = new CoreService();
+            switch (result.Init(RandomLockbookDir(), false).WaitResult()) {
+                case Core.Init.Success:
+                    break;
+                case Core.Init.UnexpectedError error:
+                    throw new Exception("Unexpected error while initializing core: " + error.ErrorMessage);
+            }
+            return result;
+        }
+
         public TExpected CastOrDie<TExpected, TActual>(TActual actual, out TExpected expected) where TExpected : TActual {
             if (typeof(TExpected) == actual.GetType()) {
                 expected = (TExpected)actual;
@@ -35,7 +46,7 @@ namespace test {
         }
 
         [ClassCleanup]
-        public static void Cleanup() {
+        public static void DeleteData() {
             try {
                 Directory.Delete("C:\\Temp\\.lockbook", true);
             } catch (DirectoryNotFoundException) { }
@@ -43,13 +54,13 @@ namespace test {
 
         [TestMethod]
         public void AccountExistsFalse() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             Assert.IsFalse(coreService.AccountExists().WaitResult());
         }
 
         [TestMethod]
         public void AccountExistsTrue() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -61,7 +72,7 @@ namespace test {
 
         [TestMethod]
         public void CreateAccountSuccess() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -69,7 +80,7 @@ namespace test {
 
         [TestMethod]
         public void CreateAccountAccountExistsAlready() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -82,7 +93,7 @@ namespace test {
 
         [TestMethod]
         public void CreateAccountUsernameTaken() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -90,7 +101,7 @@ namespace test {
             var syncResult = coreService.SyncAll().WaitResult();
             CastOrDie(syncResult, out Core.SyncAll.Success _);
 
-            coreService = new CoreService(RandomLockbookDir());
+            coreService = NewCoreService();
 
             var createAccountResult2 = coreService.CreateAccount(username, apiUrl).WaitResult();
             Assert.AreEqual(Core.CreateAccount.PossibleErrors.UsernameTaken,
@@ -99,7 +110,7 @@ namespace test {
 
         [TestMethod]
         public void CreateAccountInvalidUsername() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = "not! a! valid! username!";
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             Assert.AreEqual(Core.CreateAccount.PossibleErrors.InvalidUsername,
@@ -108,7 +119,7 @@ namespace test {
 
         [TestMethod]
         public void GetAccount() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -119,7 +130,7 @@ namespace test {
 
         [TestMethod]
         public void GetAccountNoAccount() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var getAccountResult = coreService.GetAccount().WaitResult();
             Assert.AreEqual(Core.GetAccount.PossibleErrors.NoAccount,
                CastOrDie(getAccountResult, out Core.GetAccount.ExpectedError _).Error);
@@ -127,7 +138,7 @@ namespace test {
 
         [TestMethod]
         public void ExportAccount() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -138,7 +149,7 @@ namespace test {
 
         [TestMethod]
         public void ExportAccountNoAccount() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var exportAccountResult = coreService.ExportAccount().WaitResult();
             Assert.AreEqual(Core.ExportAccount.PossibleErrors.NoAccount,
                CastOrDie(exportAccountResult, out Core.ExportAccount.ExpectedError _).Error);
@@ -146,7 +157,7 @@ namespace test {
 
         [TestMethod]
         public void ImportAccount() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -154,7 +165,7 @@ namespace test {
             var exportAccountResult = coreService.ExportAccount().WaitResult();
             var accountString = CastOrDie(exportAccountResult, out Core.ExportAccount.Success _).accountString;
 
-            coreService = new CoreService(RandomLockbookDir());
+            coreService = NewCoreService();
 
             var importAccountResult = coreService.ImportAccount(accountString).WaitResult();
             CastOrDie(importAccountResult, out Core.ImportAccount.Success _);
@@ -162,14 +173,14 @@ namespace test {
 
         [TestMethod]
         public void ImportAccountAccountStringCorrupted() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
 
             var accountString = "#######!!@$@%";
 
-            coreService = new CoreService(RandomLockbookDir());
+            coreService = NewCoreService();
 
             var importAccountResult = coreService.ImportAccount(accountString).WaitResult();
             Assert.AreEqual(Core.ImportAccount.PossibleErrors.AccountStringCorrupted,
@@ -178,7 +189,7 @@ namespace test {
 
         [TestMethod]
         public void ImportAccountAccountExistsAlready() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -193,7 +204,7 @@ namespace test {
 
         [TestMethod]
         public void GetRoot() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -204,7 +215,7 @@ namespace test {
 
         [TestMethod]
         public void GetRootNoRoot() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -212,7 +223,7 @@ namespace test {
             var exportAccountResult = coreService.ExportAccount().WaitResult();
             var accountString = CastOrDie(exportAccountResult, out Core.ExportAccount.Success _).accountString;
 
-            coreService = new CoreService(RandomLockbookDir());
+            coreService = NewCoreService();
 
             var importAccountResult = coreService.ImportAccount(accountString).WaitResult();
             CastOrDie(importAccountResult, out Core.ImportAccount.Success _);
@@ -224,7 +235,7 @@ namespace test {
 
         [TestMethod]
         public void ListMetadatas() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -235,7 +246,7 @@ namespace test {
 
         [TestMethod]
         public void GetChildren() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -249,7 +260,7 @@ namespace test {
 
         [TestMethod]
         public void SyncAll() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -260,7 +271,7 @@ namespace test {
 
         [TestMethod]
         public void SyncAllNoAccount() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var syncAllResult = coreService.SyncAll().WaitResult();
             Assert.AreEqual(Core.SyncAll.PossibleErrors.NoAccount,
                 CastOrDie(syncAllResult, out Core.SyncAll.ExpectedError _).Error);
@@ -268,7 +279,7 @@ namespace test {
 
         [TestMethod]
         public void CalculateWork() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -279,7 +290,7 @@ namespace test {
 
         [TestMethod]
         public void CalculateWorkNoAccount() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var calculateWorkResult = coreService.CalculateWork().WaitResult();
             Assert.AreEqual(Core.CalculateWork.PossibleErrors.NoAccount,
                 CastOrDie(calculateWorkResult, out Core.CalculateWork.ExpectedError _).Error);
@@ -287,7 +298,7 @@ namespace test {
 
         [TestMethod]
         public void GetLastSynced() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -298,7 +309,7 @@ namespace test {
 
         [TestMethod]
         public void GetUsage() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -309,7 +320,7 @@ namespace test {
 
         [TestMethod]
         public void GetUsageNoAccount() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var getUsageResult = coreService.GetUsage().WaitResult();
             Assert.AreEqual(Core.GetUsage.PossibleErrors.NoAccount,
                 CastOrDie(getUsageResult, out Core.GetUsage.ExpectedError _).Error);
@@ -317,7 +328,7 @@ namespace test {
 
         [TestMethod]
         public void CreateFile() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -331,7 +342,7 @@ namespace test {
 
         [TestMethod]
         public void CreateFileNoAccount() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var createFileResult = coreService.CreateFile("TestFile", Guid.NewGuid().ToString(), FileType.Document).WaitResult();
             Assert.AreEqual(Core.CreateFile.PossibleErrors.NoAccount,
                 CastOrDie(createFileResult, out Core.CreateFile.ExpectedError _).Error);
@@ -339,7 +350,7 @@ namespace test {
 
         [TestMethod]
         public void CreateFileDocTreatedAsFolder() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -357,7 +368,7 @@ namespace test {
 
         [TestMethod]
         public void CreateFileFileNameNotAvailable() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -375,7 +386,7 @@ namespace test {
 
         [TestMethod]
         public void CreateFileFileNameContainsSlash() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -390,7 +401,7 @@ namespace test {
 
         [TestMethod]
         public void CreateFileFileNameEmpty() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -405,7 +416,7 @@ namespace test {
 
         [TestMethod]
         public void WriteDoc() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -422,7 +433,7 @@ namespace test {
 
         [TestMethod]
         public void WriteDocNoAccount() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -434,7 +445,7 @@ namespace test {
             CastOrDie(createFileResult, out Core.CreateFile.Success _);
             var fileId = ((Core.CreateFile.Success)createFileResult).newFile.id;
 
-            coreService = new CoreService(RandomLockbookDir());
+            coreService = NewCoreService();
 
             var writeDocResult = coreService.WriteDocument(fileId, "content").WaitResult();
             Assert.AreEqual(Core.WriteDocument.PossibleErrors.NoAccount,
@@ -443,7 +454,7 @@ namespace test {
 
         [TestMethod]
         public void ReadDoc() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -465,7 +476,7 @@ namespace test {
 
         [TestMethod]
         public void ReadDocNoAccount() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -477,7 +488,7 @@ namespace test {
             CastOrDie(createFileResult, out Core.CreateFile.Success _);
             var fileId = ((Core.CreateFile.Success)createFileResult).newFile.id;
 
-            coreService = new CoreService(RandomLockbookDir());
+            coreService = NewCoreService();
 
             var readDocResult = coreService.ReadDocument(fileId).WaitResult();
             Assert.AreEqual(Core.ReadDocument.PossibleErrors.NoAccount,
@@ -486,7 +497,7 @@ namespace test {
 
         [TestMethod]
         public void ReadDocTreatedFolderAsDocument() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -505,7 +516,7 @@ namespace test {
 
         [TestMethod]
         public void ReadDocFileDoesNotExist() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -517,7 +528,7 @@ namespace test {
 
         [TestMethod]
         public void RenameFile() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -535,7 +546,7 @@ namespace test {
 
         [TestMethod]
         public void MoveFile() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -555,7 +566,7 @@ namespace test {
 
         [TestMethod]
         public void MoveFileNoAccount() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -569,7 +580,7 @@ namespace test {
             var createFolderResult = coreService.CreateFile("TestFile2", root.id, FileType.Folder).WaitResult();
             var folder = CastOrDie(createFolderResult, out Core.CreateFile.Success _).newFile;
 
-            coreService = new CoreService(RandomLockbookDir());
+            coreService = NewCoreService();
 
             var moveFileResult = coreService.MoveFile(file.id, folder.id).WaitResult();
             Assert.AreEqual(Core.MoveFile.PossibleErrors.NoAccount,
@@ -578,7 +589,7 @@ namespace test {
 
         [TestMethod]
         public void MoveFileFileDoesNotExist() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -593,7 +604,7 @@ namespace test {
 
         [TestMethod]
         public void MoveFileDocumentTreatedAsFolder() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -614,7 +625,7 @@ namespace test {
 
         [TestMethod]
         public void MoveFileTargetParentHasChildNamedThat() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -638,7 +649,7 @@ namespace test {
 
         [TestMethod]
         public void MoveFileTargetParentDoesNotExist() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -656,7 +667,7 @@ namespace test {
 
         [TestMethod]
         public void MoveFileCannotMoveRoot() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -672,10 +683,9 @@ namespace test {
                CastOrDie(moveFileResult, out Core.MoveFile.ExpectedError _).Error);
         }
 
-
         [TestMethod]
         public void MoveFileIntoItself() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -696,7 +706,7 @@ namespace test {
 
         [TestMethod]
         public void DeleteFile() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -714,7 +724,7 @@ namespace test {
 
         [TestMethod]
         public void DeleteFileDoesNotExist() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -726,7 +736,7 @@ namespace test {
 
         [TestMethod]
         public void DeleteFileCannotDeleteRoot() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
             CastOrDie(createAccountResult, out Core.CreateAccount.Success _);
@@ -741,7 +751,7 @@ namespace test {
 
         [TestMethod]
         public void GetVariants() {
-            var coreService = new CoreService(RandomLockbookDir());
+            var coreService = NewCoreService();
             var typeMap = new Dictionary<string, Type> {
                 {"AccountExportError", typeof(Core.ExportAccount.PossibleErrors)},
                 {"CalculateWorkError", typeof(Core.CalculateWork.PossibleErrors)},

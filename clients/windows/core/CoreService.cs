@@ -19,21 +19,6 @@ namespace lockbook {
     public class CoreService {
         private JsonSerializerSettings jsonSettings = new JsonSerializerSettings { MissingMemberHandling = MissingMemberHandling.Error };
 
-        public CoreService(string path) {
-            var pathFFI = Utils.ToFFI(path);
-            Task.Run(() => {
-                try {
-                    coreMutex.WaitOne();
-                    init(pathFFI, true);
-                } finally {
-                    coreMutex.ReleaseMutex();
-                }
-            }).Wait();
-            Marshal.FreeHGlobal(pathFFI);
-        }
-
-        private static Mutex coreMutex = new Mutex();
-
         [DllImport("lockbook_core", ExactSpelling = true)]
         private unsafe static extern void release_pointer(IntPtr str_pointer);
 
@@ -117,16 +102,9 @@ namespace lockbook {
             return getAccountIResult.GetType() == typeof(Core.GetAccount.Success);
         }
 
-        private async Task<string> RunAsyncWithMutex(Func<IntPtr> func) {
+        private async Task<string> RunManaged(Func<IntPtr> func) {
             return await Task.Run(() => {
-                string coreResponse;
-                try {
-                    coreMutex.WaitOne();
-                    coreResponse = CopyToManagedAndRelease(func());
-                } finally {
-                    coreMutex.ReleaseMutex();
-                }
-                return coreResponse;
+                return CopyToManagedAndRelease(func());
             });
         }
 
@@ -134,7 +112,7 @@ namespace lockbook {
             where TExpectedErr : ExpectedError<TPossibleErrs>, TIResult, new()
             where TPossibleErrs : struct, Enum
             where TUnexpectedErr : UnexpectedError, TIResult, new() {
-            var result = await RunAsyncWithMutex(func);
+            var result = await RunManaged(func);
 
             var obj = JObject.Parse(result);
             var tag = obj.SelectToken("tag", errorWhenNoMatch: false)?.ToString();
@@ -162,6 +140,15 @@ namespace lockbook {
                 default:
                     return UnexpectedErrors.New<TIResult, TUnexpectedErr>("contract error (tag neither Ok nor Err): " + tag);
             }
+        }
+
+        public async Task<Core.Init.IResult> Init(string writeablePath, bool logs) {
+            var writablePathPtr = Utils.ToFFI(writeablePath);
+            var result = await FFICommon<Core.Init.IResult, Core.Init.ExpectedError, Core.Init.PossibleErrors, Core.Init.UnexpectedError>(
+                () => init(writablePathPtr, logs),
+                s => new Core.Init.Success());
+            Marshal.FreeHGlobal(writablePathPtr);
+            return result;
         }
 
         public async Task<Core.CreateAccount.IResult> CreateAccount(string username, string apiUrl) {
@@ -339,7 +326,7 @@ namespace lockbook {
         }
 
         public async Task<Dictionary<string, List<string>>> GetVariants() {
-            var result = await RunAsyncWithMutex(get_variants);
+            var result = await RunManaged(get_variants);
             return JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(result, jsonSettings);
         }
     }

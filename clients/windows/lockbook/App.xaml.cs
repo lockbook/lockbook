@@ -145,7 +145,16 @@ namespace lockbook {
                 Window.Current.Activate();
                 Frame.Navigate(typeof(Startup));
 
-                CoreService = new CoreService(ApplicationData.Current.LocalFolder.Path);
+                CoreService = new CoreService();
+                switch (await CoreService.Init(ApplicationData.Current.LocalFolder.Path, true)) {
+                    case Core.GetAccount.Success success:
+                        Account = success.account;
+                        break;
+                    case Core.GetAccount.UnexpectedError error:
+                        await new MessageDialog(error.ErrorMessage, "Unexpected error while initializing core: " + error.ErrorMessage).ShowAsync();
+                        CoreApplication.Exit();
+                        break;
+                }
 
                 await ReloadAccount();
             }
