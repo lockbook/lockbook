@@ -1,14 +1,12 @@
-use lazy_static::lazy_static;
-use reqwest::blocking::Client as ReqwestClient;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-
 use crate::get_code_version;
 use lockbook_crypto::clock_service::{get_time, Timestamp};
 use lockbook_crypto::pubkey;
 use lockbook_crypto::pubkey::ECSignError;
 use lockbook_models::account::Account;
 use lockbook_models::api::*;
+use reqwest::blocking::Client as ReqwestClient;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 impl<E> From<ErrorWrapper<E>> for ApiError<E> {
     fn from(err: ErrorWrapper<E>) -> Self {
@@ -38,10 +36,6 @@ pub enum ApiError<E> {
     Deserialize(String),
 }
 
-lazy_static! {
-    static ref CLIENT: ReqwestClient = ReqwestClient::new();
-}
-
 pub fn request<
     T: Request<Response = impl DeserializeOwned, Error = impl DeserializeOwned> + Serialize,
 >(
@@ -63,7 +57,7 @@ pub fn request_helper<
         client_version: String::from(get_code_version()),
     })
     .map_err(|err| ApiError::Serialize(err.to_string()))?;
-    let serialized_response = CLIENT
+    let serialized_response = ReqwestClient::new()
         .request(T::METHOD, format!("{}{}", account.api_url, T::ROUTE).as_str())
         .body(serialized_request)
         .send()
