@@ -335,18 +335,24 @@ pub fn assert_deleted_files_pruned(core: &Core) {
 
 /// Compare dbs for key equality don't compare last synced.
 pub fn assert_dbs_eq(left: &Core, right: &Core) {
-    keys_match(&left.db.account.get_all().unwrap(), &right.db.account.get_all().unwrap());
-    keys_match(&left.db.root.get_all().unwrap(), &right.db.root.get_all().unwrap());
-    keys_match(&left.db.local_digest.get_all().unwrap(), &right.db.local_digest.get_all().unwrap());
-    keys_match(&left.db.base_digest.get_all().unwrap(), &right.db.base_digest.get_all().unwrap());
-    keys_match(
+    assert!(keys_match(&left.db.account.get_all().unwrap(), &right.db.account.get_all().unwrap()));
+    assert!(keys_match(&left.db.root.get_all().unwrap(), &right.db.root.get_all().unwrap()));
+    assert!(keys_match(
+        &left.db.local_digest.get_all().unwrap(),
+        &right.db.local_digest.get_all().unwrap()
+    ));
+    assert!(keys_match(
+        &left.db.base_digest.get_all().unwrap(),
+        &right.db.base_digest.get_all().unwrap()
+    ));
+    assert!(keys_match(
         &left.db.local_metadata.get_all().unwrap(),
         &right.db.local_metadata.get_all().unwrap(),
-    );
-    keys_match(
+    ));
+    assert!(keys_match(
         &left.db.base_metadata.get_all().unwrap(),
         &right.db.base_metadata.get_all().unwrap(),
-    );
+    ));
 }
 
 /// https://stackoverflow.com/questions/58615910/checking-two-hashmaps-for-identical-keyset-in-rust
@@ -355,12 +361,24 @@ fn keys_match<T: Eq + Hash, U, V>(map1: &HashMap<T, U>, map2: &HashMap<T, V>) ->
 }
 
 pub fn dbs_equal(left: &Core, right: &Core) -> bool {
-    left.db.account.get_all().unwrap() == right.db.account.get_all().unwrap()
-        && left.db.root.get_all().unwrap() == right.db.root.get_all().unwrap()
-        && left.db.local_digest.get_all().unwrap() == right.db.local_digest.get_all().unwrap()
-        && left.db.base_digest.get_all().unwrap() == right.db.base_digest.get_all().unwrap()
-        && left.db.local_metadata.get_all().unwrap() == right.db.local_metadata.get_all().unwrap()
-        && left.db.base_metadata.get_all().unwrap() == right.db.base_metadata.get_all().unwrap()
+    keys_match(&left.db.account.get_all().unwrap(), &right.db.account.get_all().unwrap())
+        && keys_match(&left.db.root.get_all().unwrap(), &right.db.root.get_all().unwrap())
+        && keys_match(
+            &left.db.local_digest.get_all().unwrap(),
+            &right.db.local_digest.get_all().unwrap(),
+        )
+        && keys_match(
+            &left.db.base_digest.get_all().unwrap(),
+            &right.db.base_digest.get_all().unwrap(),
+        )
+        && keys_match(
+            &left.db.local_metadata.get_all().unwrap(),
+            &right.db.local_metadata.get_all().unwrap(),
+        )
+        && keys_match(
+            &left.db.base_metadata.get_all().unwrap(),
+            &right.db.base_metadata.get_all().unwrap(),
+        )
 }
 
 pub fn assert_new_synced_client_dbs_eq(core: &Core) {
