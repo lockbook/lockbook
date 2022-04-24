@@ -8,7 +8,6 @@ use gtk::prelude::*;
 use sv5::prelude::*;
 
 use crate::ui;
-use crate::ui::Tab;
 
 impl super::App {
     pub fn open_file_from_id_str(&self, id_str: &str) {
@@ -30,22 +29,23 @@ impl super::App {
     fn read_file_and_open_tab(&self, id: lb::Uuid) -> Result<(), String> {
         let doc = load_doc(&self.api, id)?;
 
-        match doc.ext.as_str() {
-            "" | "txt" | "md" => self.present_text(doc),
-            "png" => self.present_image(doc),
-            ext => Err(format!("Unable to open '{}' files.", ext)),
-        }
+        let tab = ui::Tab::new(doc.id);
+        tab.set_name(&doc.name);
+        tab.set_content(&match doc.ext.as_str() {
+            "png" => self.image_content(doc)?,
+            _ => self.text_content(doc),
+        });
+
+        self.account.tabs.append_page(&tab, Some(tab.tab_label()));
+        self.account.focus_tab_by_id(id);
+
+        Ok(())
     }
 
-    fn present_text(&self, doc: Document) -> Result<(), String> {
-        let tab_page = ui::TextEditor::new(doc.id);
-        tab_page.set_name(&doc.name);
+    fn text_content(&self, doc: Document) -> gtk::Widget {
+        let txt_ed = ui::TextEditor::new();
 
-        let buf = tab_page
-            .editor()
-            .buffer()
-            .downcast::<sv5::Buffer>()
-            .unwrap();
+        let buf = txt_ed.editor().buffer().downcast::<sv5::Buffer>().unwrap();
         buf.set_text(&String::from_utf8_lossy(&doc.data).to_string());
         buf.set_highlight_syntax(true);
 
@@ -53,40 +53,31 @@ impl super::App {
         buf.set_language(lang_guess.as_ref());
 
         if doc.ext == "md" {
-            connect_sview_clipboard_paste(self, &tab_page, &buf, doc.id);
-            connect_sview_drop_controller(self, &tab_page, &buf, doc.id);
-            connect_sview_click_controller(self, &tab_page);
+            connect_sview_clipboard_paste(self, &txt_ed, &buf, doc.id);
+            connect_sview_drop_controller(self, &txt_ed, &buf, doc.id);
+            connect_sview_click_controller(self, &txt_ed);
         }
 
-        let edit_alert_tx = self.bg_state.track(doc.id);
-        tab_page.connect_edit_alert_chan(edit_alert_tx);
-
-        self.account
-            .tabs
-            .append_page(&tab_page, Some(tab_page.tab_label()));
-        tab_page.editor().grab_focus();
+        let id = doc.id;
+        let edit_alert_tx = self.bg_state.track(id);
+        buf.connect_changed(move |_| edit_alert_tx.send(id).unwrap());
 
         let scheme_name = self.account.scheme_name.get();
         if let Some(ref scheme) = sv5::StyleSchemeManager::default().scheme(scheme_name) {
             buf.set_style_scheme(Some(scheme));
         }
 
-        Ok(())
+        txt_ed.upcast::<gtk::Widget>()
     }
 
-    fn present_image(&self, doc: Document) -> Result<(), String> {
-        let pbuf = Pixbuf::from_read(io::Cursor::new(doc.data)).unwrap();
+    fn image_content(&self, doc: Document) -> Result<gtk::Widget, String> {
+        let pbuf = Pixbuf::from_read(io::Cursor::new(doc.data)).map_err(|err| err.to_string())?;
         let pic = gtk::Picture::for_pixbuf(&pbuf);
 
-        let tab_page = ui::ImageTab::new(doc.id);
-        tab_page.set_name(&doc.name);
-        tab_page.set_picture(&pic);
+        let img_content = ui::ImageTab::new();
+        img_content.set_picture(&pic);
 
-        self.account
-            .tabs
-            .append_page(&tab_page, Some(tab_page.tab_label()));
-
-        Ok(())
+        Ok(img_content.upcast::<gtk::Widget>())
     }
 }
 
@@ -128,11 +119,11 @@ fn load_doc(api: &Arc<dyn lb::Api>, id: lb::Uuid) -> Result<Document, String> {
 }
 
 fn connect_sview_clipboard_paste(
-    app: &super::App, tab_page: &ui::TextEditor, buf: &sv5::Buffer, id: lb::Uuid,
+    app: &super::App, txt_ed: &ui::TextEditor, buf: &sv5::Buffer, id: lb::Uuid,
 ) {
     let app = app.clone();
     let buf = buf.clone();
-    tab_page.editor().connect_paste_clipboard(move |_| {
+    txt_ed.editor().connect_paste_clipboard(move |_| {
         let clip = gdk::Display::default().unwrap().clipboard();
         let app = app.clone();
         let buf = buf.clone();
@@ -160,9 +151,9 @@ fn connect_sview_clipboard_paste(
 }
 
 fn connect_sview_drop_controller(
-    app: &super::App, tab_page: &ui::TextEditor, buf: &sv5::Buffer, id: lb::Uuid,
+    app: &super::App, txt_ed: &ui::TextEditor, buf: &sv5::Buffer, id: lb::Uuid,
 ) {
-    tab_page.editor().add_controller(&{
+    txt_ed.editor().add_controller(&{
         let drop = gtk::DropTarget::new(gdk::FileList::static_type(), gtk::gdk::DragAction::COPY);
 
         let app = app.clone();
@@ -180,13 +171,13 @@ fn connect_sview_drop_controller(
     });
 }
 
-fn connect_sview_click_controller(app: &super::App, tab_page: &ui::TextEditor) {
-    tab_page.editor().add_controller(&{
+fn connect_sview_click_controller(app: &super::App, txt_ed: &ui::TextEditor) {
+    txt_ed.editor().add_controller(&{
         let g = gtk::GestureClick::new();
         g.set_button(gtk::gdk::ffi::GDK_BUTTON_PRIMARY as u32);
 
         let app = app.clone();
-        let sview = tab_page.editor().clone();
+        let sview = txt_ed.editor().clone();
         g.connect_pressed(move |g, _, x, y| {
             if g.current_event_state() == gdk::ModifierType::CONTROL_MASK {
                 app.handle_sview_ctrl_click(g, x as i32, y as i32, &sview);

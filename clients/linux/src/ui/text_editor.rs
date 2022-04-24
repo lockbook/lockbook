@@ -1,7 +1,4 @@
-use std::sync::mpsc;
-
 use gtk::glib;
-use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
 glib::wrapper! {
@@ -11,51 +8,22 @@ glib::wrapper! {
 }
 
 impl TextEditor {
-    pub fn new(id: lb::Uuid) -> Self {
-        glib::Object::new(&[("id", &id.to_string())]).expect("failed to create TextEditor")
-    }
-
-    pub fn tab_label(&self) -> &gtk::Label {
-        &self.imp().name
+    pub fn new() -> Self {
+        glib::Object::new(&[]).expect("failed to create TextEditor")
     }
 
     pub fn editor(&self) -> &sv5::View {
         &self.imp().editor
     }
-
-    pub fn connect_edit_alert_chan(&self, change_tx: mpsc::Sender<lb::Uuid>) {
-        let id = self.imp().id.get();
-        self.imp().editor.buffer().connect_changed(move |_| {
-            change_tx.send(id).unwrap();
-        });
-    }
 }
 
-impl super::Tab for TextEditor {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn page(&self) -> gtk::Widget {
-        self.clone().upcast::<gtk::Widget>()
-    }
-
-    fn id(&self) -> lb::Uuid {
-        self.imp().id.get()
-    }
-
-    fn set_name(&self, name: &str) {
-        self.imp().name.set_text(name)
-    }
-
-    fn name(&self) -> String {
-        self.imp().name.text().as_str().to_string()
+impl Default for TextEditor {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 mod imp {
-    use std::cell::Cell;
-
     use gtk::glib;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
@@ -63,8 +31,6 @@ mod imp {
 
     #[derive(Debug, Default)]
     pub struct TextEditor {
-        pub id: Cell<lb::Uuid>,
-        pub name: gtk::Label,
         pub editor: sv5::View,
         pub scroll: gtk::ScrolledWindow,
     }
@@ -93,41 +59,6 @@ mod imp {
 
             self.scroll.set_child(Some(ed));
             self.scroll.set_parent(obj);
-        }
-
-        fn properties() -> &'static [glib::ParamSpec] {
-            use once_cell::sync::Lazy;
-            static PROPS: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
-                vec![glib::ParamSpecString::new(
-                    "id", // Name
-                    "id", // Nickname
-                    "id", // Short description
-                    None, // Default value
-                    glib::ParamFlags::READWRITE,
-                )]
-            });
-            PROPS.as_ref()
-        }
-
-        fn set_property(
-            &self, _obj: &Self::Type, _id: usize, value: &glib::Value, pspec: &glib::ParamSpec,
-        ) {
-            match pspec.name() {
-                "id" => {
-                    let id_str: String = value
-                        .get()
-                        .expect("The value needs to be of type `String`.");
-                    self.id.set(lb::Uuid::parse_str(&id_str).unwrap());
-                }
-                _ => unimplemented!(),
-            }
-        }
-
-        fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
-            match pspec.name() {
-                "id" => self.id.get().to_string().to_value(),
-                _ => unimplemented!(),
-            }
         }
 
         fn dispose(&self, _obj: &Self::Type) {

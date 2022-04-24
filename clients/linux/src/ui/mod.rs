@@ -6,6 +6,7 @@ mod image_tab;
 mod menu_item;
 mod search_row;
 mod sync_panel;
+mod tab;
 mod text_editor;
 mod titlebar;
 
@@ -22,6 +23,7 @@ pub use menu_item::menu_separator;
 pub use menu_item::MenuItemBuilder;
 pub use search_row::SearchRow;
 pub use sync_panel::SyncPanel;
+pub use tab::Tab;
 pub use text_editor::TextEditor;
 pub use titlebar::SearchOp;
 pub use titlebar::Titlebar;
@@ -30,14 +32,6 @@ pub mod about_dialog;
 
 use gtk::glib;
 use gtk::prelude::*;
-
-pub trait Tab {
-    fn as_any(&self) -> &dyn std::any::Any;
-    fn page(&self) -> gtk::Widget;
-    fn id(&self) -> lb::Uuid;
-    fn set_name(&self, name: &str);
-    fn name(&self) -> String;
-}
 
 pub fn id_from_tpath(model: &impl IsA<gtk::TreeModel>, tpath: &gtk::TreePath) -> lb::Uuid {
     let col = filetree::FileTreeCol::Id.as_tree_store_index();

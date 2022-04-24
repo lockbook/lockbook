@@ -5,7 +5,6 @@ use gtk::glib;
 use gtk::prelude::*;
 
 use crate::ui;
-use crate::ui::Tab;
 
 pub enum AccountOp {
     NewDocument,
@@ -18,7 +17,7 @@ pub enum AccountOp {
     CopyFiles,
     PasteFiles,
     TreeReceiveDrop(glib::Value, f64, f64),
-    TabSwitched(Box<dyn Tab>),
+    TabSwitched(ui::Tab),
     AllTabsClosed,
 }
 
@@ -66,10 +65,8 @@ impl AccountScreen {
             let account_op_tx = account_op_tx.clone();
 
             move |_, w, _| {
-                let tab = cast_tab(w).unwrap();
-                account_op_tx
-                    .send(AccountOp::TabSwitched(tab))
-                    .unwrap();
+                let tab = w.clone().downcast::<ui::Tab>().unwrap();
+                account_op_tx.send(AccountOp::TabSwitched(tab)).unwrap();
             }
         });
 
@@ -97,10 +94,10 @@ impl AccountScreen {
         Self { tree, sync, lang_mngr, scheme_name, tabs, cntr }
     }
 
-    pub fn tab_by_id(&self, id: lb::Uuid) -> Option<Box<dyn Tab>> {
+    pub fn tab_by_id(&self, id: lb::Uuid) -> Option<ui::Tab> {
         for i in 0..self.tabs.n_pages() {
             let w = self.tabs.nth_page(Some(i)).unwrap();
-            let tab = cast_tab(&w).unwrap();
+            let tab = w.downcast::<ui::Tab>().unwrap();
             if tab.id().eq(&id) {
                 return Some(tab);
             }
@@ -108,39 +105,25 @@ impl AccountScreen {
         None
     }
 
-    pub fn current_tab(&self) -> Option<Box<dyn Tab>> {
+    pub fn current_tab(&self) -> Option<ui::Tab> {
         self.tabs
             .nth_page(self.tabs.current_page())
-            //.map(|w| w.downcast::<ui::TextEditor>().unwrap())
-            .map(|w| cast_tab(&w).unwrap())
+            .map(|w| w.downcast::<ui::Tab>().unwrap())
     }
 
     pub fn focus_tab_by_id(&self, id: lb::Uuid) -> bool {
         for i in 0..self.tabs.n_pages() {
             let w = self.tabs.nth_page(Some(i)).unwrap();
-            if let Ok(tab) = cast_tab(&w) {
+            if let Some(tab) = w.downcast_ref::<ui::Tab>() {
                 if tab.id().eq(&id) {
                     self.tabs.set_current_page(Some(i));
-                    //tab.editor().grab_focus();
+                    if let Some(txt_ed) = tab.content::<ui::TextEditor>() {
+                        txt_ed.editor().grab_focus();
+                    }
                     return true;
                 }
             }
         }
         false
     }
-}
-
-macro_rules! which_tab_type {
-    ($w:ident, $( $types:ty ),*) => {
-        $(
-            if let Some(v) = $w.downcast_ref::<$types>() {
-                return Ok(Box::new(v.clone()));
-            }
-        )*
-    };
-}
-
-fn cast_tab(w: &gtk::Widget) -> Result<Box<dyn Tab>, ()> {
-    which_tab_type!(w, ui::TextEditor, ui::ImageTab);
-    Err(())
 }

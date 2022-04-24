@@ -73,7 +73,7 @@ impl super::App {
 
             // Update the tab label if the file is open.
             if let Some(tab) = app.account.tab_by_id(id) {
-                app.account.tabs.set_tab_label_text(&tab.page(), &new_name);
+                app.account.tabs.set_tab_label_text(&tab, &new_name);
                 // todo: if it's an unsupported file extension, close the editor
             }
 

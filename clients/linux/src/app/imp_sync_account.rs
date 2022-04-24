@@ -2,7 +2,6 @@ use gtk::glib;
 use gtk::prelude::*;
 
 use crate::ui;
-use crate::ui::Tab;
 
 impl super::App {
     pub fn perform_sync(&self) {
@@ -60,7 +59,7 @@ impl super::App {
             let tab = tabs
                 .nth_page(Some(i))
                 .unwrap()
-                .downcast::<ui::TextEditor>()
+                .downcast::<ui::Tab>()
                 .unwrap();
             for f in &all_files {
                 if f.id == tab.id() {
