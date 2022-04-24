@@ -32,7 +32,7 @@ impl super::App {
         let tab = ui::Tab::new(doc.id);
         tab.set_name(&doc.name);
         tab.set_content(&match doc.ext.as_str() {
-            "png" => self.image_content(doc)?,
+            "png" | "jpg" | "jpeg" => self.image_content(doc)?,
             _ => self.text_content(doc),
         });
 
