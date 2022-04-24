@@ -73,6 +73,8 @@ impl super::App {
     fn image_content(&self, doc: Document) -> Result<gtk::Widget, String> {
         let pbuf = Pixbuf::from_read(io::Cursor::new(doc.data)).map_err(|err| err.to_string())?;
         let pic = gtk::Picture::for_pixbuf(&pbuf);
+        pic.set_halign(gtk::Align::Center);
+        pic.set_valign(gtk::Align::Center);
 
         let img_content = ui::ImageTab::new();
         img_content.set_picture(&pic);
