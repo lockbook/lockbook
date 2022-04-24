@@ -37,7 +37,7 @@ impl Tab {
     }
 
     pub fn name(&self) -> String {
-        self.imp().name.text().as_str().to_string()
+        self.imp().name.text().to_string()
     }
 }
 

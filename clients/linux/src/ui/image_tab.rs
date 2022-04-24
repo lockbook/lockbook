@@ -25,15 +25,12 @@ impl Default for ImageTab {
 }
 
 mod imp {
-    use std::cell::Cell;
-
     use gtk::glib;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
     #[derive(Debug, Default)]
     pub struct ImageTab {
-        pub id: Cell<lb::Uuid>,
         pub cntr: gtk::Box,
     }
 
@@ -44,7 +41,6 @@ mod imp {
         type ParentType = gtk::Widget;
 
         fn class_init(c: &mut Self::Class) {
-            // The layout manager determines how child widgets are laid out.
             c.set_layout_manager_type::<gtk::BinLayout>();
         }
     }
