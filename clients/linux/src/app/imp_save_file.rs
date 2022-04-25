@@ -1,5 +1,7 @@
 use gtk::prelude::*;
 
+use crate::ui;
+
 impl super::App {
     pub fn save_file(&self, maybe_id: Option<lb::Uuid>) {
         let maybe_tab = match maybe_id {
@@ -8,14 +10,16 @@ impl super::App {
         };
 
         if let Some(tab) = maybe_tab {
-            let id = tab.id();
-            let b = tab.editor().buffer();
-            let data = b.text(&b.start_iter(), &b.end_iter(), true);
-            match self.save_file_content(id, &data) {
-                Ok(()) => self.update_sync_status(),
-                Err(err) => self.show_err_dialog(&format!("error saving: {}", err)),
+            if let Some(txt_ed) = tab.content::<ui::TextEditor>() {
+                let id = tab.id();
+                let buf = txt_ed.editor().buffer();
+                let data = buf.text(&buf.start_iter(), &buf.end_iter(), true);
+                match self.save_file_content(id, &data) {
+                    Ok(()) => self.update_sync_status(),
+                    Err(err) => self.show_err_dialog(&format!("error saving: {}", err)),
+                }
+                self.bg_state.set_last_saved_now(id);
             }
-            self.bg_state.set_last_saved_now(id);
         }
     }
 
