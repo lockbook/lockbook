@@ -5,8 +5,11 @@ mod filetree;
 mod menu_item;
 mod search_row;
 mod sync_panel;
-mod text_editor;
 mod titlebar;
+
+mod image_tab;
+mod tab;
+mod text_editor;
 
 pub use account_screen::AccountOp;
 pub use account_screen::AccountScreen;
@@ -20,14 +23,29 @@ pub use menu_item::menu_separator;
 pub use menu_item::MenuItemBuilder;
 pub use search_row::SearchRow;
 pub use sync_panel::SyncPanel;
-pub use text_editor::TextEditor;
 pub use titlebar::SearchOp;
 pub use titlebar::Titlebar;
 
+pub use image_tab::ImageTab;
+pub use tab::Tab;
+pub use text_editor::TextEditor;
+
 pub mod about_dialog;
 
+use gdk_pixbuf::Pixbuf;
 use gtk::glib;
 use gtk::prelude::*;
+use once_cell::sync::Lazy;
+
+pub static SUPPORTED_IMAGE_FORMATS: Lazy<Vec<String>> = Lazy::new(|| {
+    let mut exts = Pixbuf::formats()
+        .iter()
+        .filter_map(|pf| pf.name().map(|n| n.to_string()))
+        .collect::<Vec<String>>();
+    exts.push("jpg".to_string());
+    exts.push("cr2".to_string());
+    exts
+});
 
 pub fn id_from_tpath(model: &impl IsA<gtk::TreeModel>, tpath: &gtk::TreePath) -> lb::Uuid {
     let col = filetree::FileTreeCol::Id.as_tree_store_index();
@@ -86,10 +104,11 @@ pub fn document_icon_from_name(fname: &str) -> String {
 pub fn logo(size: i32) -> impl IsA<gtk::Widget> {
     static LOGO: &[u8] = include_bytes!("../../lockbook-backdrop.png");
 
-    let logo_pic = gtk::Picture::for_pixbuf(&gdk_pixbuf::Pixbuf::from_read(LOGO).unwrap());
+    let logo_pic = gtk::Picture::for_pixbuf(&Pixbuf::from_read(LOGO).unwrap());
     let wrap_1 = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     wrap_1.set_size_request(size, size);
     wrap_1.append(&logo_pic);
+
     let wrap_2 = gtk::Box::new(gtk::Orientation::Vertical, 0);
     wrap_2.set_size_request(size, size);
     wrap_2.set_halign(gtk::Align::Center);
