@@ -59,7 +59,7 @@ impl super::App {
             let tab = tabs
                 .nth_page(Some(i))
                 .unwrap()
-                .downcast::<ui::TextEditor>()
+                .downcast::<ui::Tab>()
                 .unwrap();
             for f in &all_files {
                 if f.id == tab.id() {
