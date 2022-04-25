@@ -106,8 +106,7 @@ fn load_doc(api: &Arc<dyn lb::Api>, id: lb::Uuid) -> Result<Document, String> {
         .extension()
         .and_then(|s| s.to_str())
         .unwrap_or_default()
-        .to_lowercase()
-        .to_string();
+        .to_lowercase();
 
     use lb::ReadDocumentError::*;
     let data = api.read_document(id).map_err(|err| match err {
