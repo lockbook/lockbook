@@ -196,9 +196,9 @@ pub async fn free_username(
     con: &mut Connection, pk: &PublicKey,
 ) -> Result<(), ServerError<DeleteAccountError>> {
     // Delete everything else
-    let username: String = con.json_get(keys::username(&pk)).await?;
+    let username: String = con.json_get(keys::username(pk)).await?;
     debug!("purging username: {}", username);
-    con.del(keys::username(&pk)).await?;
+    con.del(keys::username(pk)).await?;
     con.del(public_key(&username)).await?;
     con.del(data_cap(pk)).await?;
     Ok(())
