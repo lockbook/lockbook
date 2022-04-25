@@ -11,7 +11,7 @@ use deadpool_redis::redis::AsyncCommands;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::FileMetadataUpsertsError::{
-    GetUpdatesRequired, NewFileDeleted, NewFileHasOldParentAndName, NotPermissioned, RootImmutable,
+    GetUpdatesRequired, NewFileHasOldParentAndName, NotPermissioned, RootImmutable,
 };
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::FileType::Document;
@@ -129,9 +129,6 @@ async fn apply_changes(
             None => {
                 if change.old_parent_and_name.is_some() {
                     return Err(Abort(ClientError(NewFileHasOldParentAndName)));
-                }
-                if change.new_deleted {
-                    return Err(Abort(ClientError(NewFileDeleted)));
                 }
                 let new_meta = new_meta(now, change, owner);
                 metas.push(new_meta.clone());

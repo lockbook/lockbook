@@ -62,7 +62,6 @@ impl Request for FileMetadataUpsertsRequest {
 pub enum FileMetadataUpsertsError {
     NotPermissioned,
     NewFileHasOldParentAndName,
-    NewFileDeleted,
     NewIdAlreadyExists,
     UserNotFound,
     RootImmutable,

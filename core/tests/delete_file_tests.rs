@@ -58,17 +58,9 @@ fn delete_document_new_document() {
 
     let result = api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
-            // create document as if deleting an existing document
-            updates: vec![FileMetadataDiff::new(&doc)],
-        },
+        FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
     );
-    assert_matches!(
-        result,
-        Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-            FileMetadataUpsertsError::NewFileDeleted
-        ))
-    );
+    assert_matches!(result, Ok(_));
 }
 
 #[test]

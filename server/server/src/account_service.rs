@@ -1,6 +1,7 @@
 use crate::utils::username_is_valid;
 use crate::{feature_flags, keys, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE};
 use deadpool_redis::redis::AsyncCommands;
+use deadpool_redis::Connection;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
 use log::{debug, error};
@@ -182,23 +183,23 @@ pub async fn delete_account(
         document_service::delete(context.server_state, file.id, file.content_version).await?;
     }
 
+    if !context.server_state.config.is_prod() {
+        free_username(&mut con, &context.public_key).await?;
+    }
+
     Ok(())
 }
 
 /// Delete's an account's files out of s3 and clears their file tree within redis
 /// DOES free up the username or public key for re-use, not exposed for non-admin use
-pub async fn purge_account(
-    context: RequestContext<'_, DeleteAccountRequest>,
+pub async fn free_username(
+    con: &mut Connection, pk: &PublicKey,
 ) -> Result<(), ServerError<DeleteAccountError>> {
-    let mut con = context.server_state.index_db_pool.get().await?;
-    // Delete the files
-    delete_account(context.clone()).await?;
-
     // Delete everything else
-    let username: String = con.json_get(keys::username(&context.public_key)).await?;
+    let username: String = con.json_get(keys::username(pk)).await?;
     debug!("purging username: {}", username);
-    con.del(keys::username(&context.public_key)).await?;
+    con.del(keys::username(pk)).await?;
     con.del(public_key(&username)).await?;
-    con.del(data_cap(&context.public_key)).await?;
+    con.del(data_cap(pk)).await?;
     Ok(())
 }
