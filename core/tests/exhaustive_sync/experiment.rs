@@ -80,7 +80,7 @@ impl Experiment {
     pub fn kick_off(self) {
         let state = Arc::new(Mutex::new(self));
 
-        for thread_id in 0..num_cpus::get() {
+        for thread_id in 0..((num_cpus::get() * 8) / 10) {
             fs::create_dir_all(format!("trials/{}", thread_id)).unwrap();
             let thread_state = state.clone();
             thread::Builder::new()
