@@ -31,10 +31,12 @@ impl super::App {
 
         let tab = ui::Tab::new(doc.id);
         tab.set_name(&doc.name);
-        tab.set_content(&match doc.ext.as_str() {
-            "png" | "jpg" | "jpeg" => self.image_content(doc)?,
-            _ => self.text_content(doc),
-        });
+
+        if ui::SUPPORTED_IMAGE_FORMATS.contains(&doc.ext) {
+            tab.set_content(&self.image_content(doc)?);
+        } else {
+            tab.set_content(&self.text_content(doc));
+        }
 
         self.account.tabs.append_page(&tab, Some(tab.tab_label()));
         self.account.focus_tab_by_id(id);
@@ -42,7 +44,7 @@ impl super::App {
         Ok(())
     }
 
-    fn text_content(&self, doc: Document) -> gtk::Widget {
+    fn text_content(&self, doc: Document) -> ui::TextEditor {
         let txt_ed = ui::TextEditor::new();
 
         let buf = txt_ed.editor().buffer().downcast::<sv5::Buffer>().unwrap();
@@ -67,10 +69,10 @@ impl super::App {
             buf.set_style_scheme(Some(scheme));
         }
 
-        txt_ed.upcast::<gtk::Widget>()
+        txt_ed
     }
 
-    fn image_content(&self, doc: Document) -> Result<gtk::Widget, String> {
+    fn image_content(&self, doc: Document) -> Result<ui::ImageTab, String> {
         let pbuf = Pixbuf::from_read(io::Cursor::new(doc.data)).map_err(|err| err.to_string())?;
         let pic = gtk::Picture::for_pixbuf(&pbuf);
         pic.set_halign(gtk::Align::Center);
@@ -79,7 +81,7 @@ impl super::App {
         let img_content = ui::ImageTab::new();
         img_content.set_picture(&pic);
 
-        Ok(img_content.upcast::<gtk::Widget>())
+        Ok(img_content)
     }
 }
 
@@ -104,6 +106,7 @@ fn load_doc(api: &Arc<dyn lb::Api>, id: lb::Uuid) -> Result<Document, String> {
         .extension()
         .and_then(|s| s.to_str())
         .unwrap_or_default()
+        .to_lowercase()
         .to_string();
 
     use lb::ReadDocumentError::*;
