@@ -3476,3 +3476,15 @@ fn fuzzer_get_updates_required_test() {
     db1.sync(None).unwrap();
     db2.sync(None).unwrap();
 }
+
+#[test]
+fn fuzzer_new_file_deleted() {
+    let core = test_core_with_account();
+
+    let dir1 = core.create_at_path(&path(&core, "u88/")).unwrap();
+    core.sync(None).unwrap();
+    let dir2 = core.create_at_path(&path(&core, "mep/")).unwrap();
+    core.move_file(dir1.id, dir2.id).unwrap();
+    core.delete_file(dir2.id).unwrap();
+    core.sync(None).unwrap();
+}
