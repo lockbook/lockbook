@@ -170,6 +170,12 @@ impl Config {
             metrics: MetricsConfig::from_env_vars(),
         }
     }
+
+    pub fn is_prod(&self) -> bool {
+        self.server.pd_api_key.is_some()
+            && self.server.ssl_private_key_location.is_some()
+            && self.server.ssl_cert_location.is_some()
+    }
 }
 
 fn env_or_panic(var_name: &str) -> String {
