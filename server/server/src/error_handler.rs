@@ -3,10 +3,11 @@ use crate::{
     StripeWebhookError,
 };
 use deadpool_redis::PoolError;
-use lockbook_models::api::{GetUsageError, SwitchAccountTierStripeError};
+use lockbook_models::api::{CancelAndroidSubscriptionError, ConfirmAndroidSubscriptionError, GetUsageError, SwitchAccountTierStripeError};
 use redis::RedisError;
 use redis_utils::converters::{JsonGetError, JsonSetError};
 use std::fmt::Debug;
+use crate::billing::google_play_client::SimpleGCPError;
 
 impl<T: Debug> From<PoolError> for ServerError<T> {
     fn from(err: PoolError) -> Self {
@@ -55,6 +56,22 @@ impl From<GetUsageHelperError> for ServerError<GetUsageError> {
         match e {
             GetUsageHelperError::UserNotFound => ClientError(GetUsageError::UserNotFound),
             GetUsageHelperError::Internal(e) => ServerError::from(e),
+        }
+    }
+}
+
+impl From<SimpleGCPError> for ServerError<ConfirmAndroidSubscriptionError> {
+    fn from(e: SimpleGCPError) -> Self {
+        match e {
+            SimpleGCPError::Unexpected(msg) => internal!("{}", msg),
+        }
+    }
+}
+
+impl From<SimpleGCPError> for ServerError<CancelAndroidSubscriptionError> {
+    fn from(e: SimpleGCPError) -> Self {
+        match e {
+            SimpleGCPError::Unexpected(msg) => internal!("{}", msg),
         }
     }
 }

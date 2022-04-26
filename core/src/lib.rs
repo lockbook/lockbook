@@ -22,7 +22,7 @@ use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
-use lockbook_models::api::AccountTier;
+use lockbook_models::api::{PremiumAccountType, StripeAccountTier};
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
@@ -342,12 +342,12 @@ impl Core {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn switch_account_tier(
-        &self, new_account_tier: AccountTier,
+    pub fn switch_account_tier_stripe(
+        &self, account_tier: StripeAccountTier,
     ) -> Result<(), Error<SwitchAccountTierError>> {
         let val = self
             .db
-            .transaction(|tx| tx.switch_account_tier(new_account_tier))?;
+            .transaction(|tx| tx.switch_account_tier_stripe(account_tier))?;
         Ok(val?)
     }
 
@@ -369,6 +369,26 @@ impl Core {
             .transaction(|tx| tx.test_repo_integrity(&self.config))
             .map_err(CoreError::from)
             .map_err(TestRepoError::Core)?
+    }
+
+    #[instrument(level = "debug", skip(self, purchase_token), err(Debug))]
+    pub fn confirm_android_subscription(
+        &self, purchase_token: &str, new_account_type: PremiumAccountType
+    ) -> Result<(), Error<SwitchAccountTierError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.confirm_android_subscription(purchase_token, new_account_type))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn cancel_android_subscription(
+        &self
+    ) -> Result<(), Error<SwitchAccountTierError>> {
+        let val = self
+            .db
+            .transaction(|tx| tx.cancel_android_subscription())?;
+        Ok(val?)
     }
 }
 

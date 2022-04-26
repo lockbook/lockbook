@@ -78,6 +78,7 @@ pub enum CoreError {
     AccountExists,
     AccountNonexistent,
     AccountStringCorrupted,
+    AlreadyPremium,
     ConcurrentRequestsAreTooSoon,
     CardDecline,
     CardHasInsufficientFunds,
@@ -103,8 +104,11 @@ pub enum CoreError {
     InvalidCardExpYear,
     InvalidCardExpMonth,
     InvalidCardCvc,
+    InvalidPurchaseToken,
     NewTierIsOldTier,
     NotAStripeCustomer,
+    NotPremium,
+    NotAGooglePlayCustomer,
     PathContainsEmptyFileName,
     PathNonexistent,
     PathStartsWithNonRoot,
@@ -784,6 +788,38 @@ impl From<CoreError> for Error<GetCreditCard> {
             CoreError::ServerUnreachable => UiError(GetCreditCard::CouldNotReachServer),
             CoreError::NotAStripeCustomer => UiError(GetCreditCard::NotAStripeCustomer),
             CoreError::ClientUpdateRequired => UiError(GetCreditCard::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum ConfirmAndroidSubscriptionError {
+    AlreadyPremium,
+    InvalidPurchaseToken
+}
+
+impl From<CoreError> for Error<ConfirmAndroidSubscriptionError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::AlreadyPremium => UiError(ConfirmAndroidSubscriptionError::AlreadyPremium),
+            CoreError::InvalidPurchaseToken => UiError(ConfirmAndroidSubscriptionError::InvalidPurchaseToken),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum CancelAndroidSubscriptionError {
+    NotPremium,
+    NotAGooglePlayCustomer
+}
+
+impl From<CoreError> for Error<CancelAndroidSubscriptionError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::NotPremium => UiError(CancelAndroidSubscriptionError::NotPremium),
+            CoreError::NotAGooglePlayCustomer => UiError(CancelAndroidSubscriptionError::NotAGooglePlayCustomer),
             _ => unexpected!("{:#?}", e),
         }
     }

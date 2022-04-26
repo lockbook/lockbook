@@ -30,6 +30,10 @@ pub fn public_key_from_stripe_customer_id(customer_id: &str) -> String {
     format!("stripe_customer_id:{}:public_key", customer_id)
 }
 
+pub fn android_purchase_token(pk: &PublicKey) -> String {
+    format!("public_key:{}:android_purchase_token", stringify_public_key(pk))
+}
+
 pub fn size(id: Uuid) -> String {
     format!("file_id:{}:size", id)
 }

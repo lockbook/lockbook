@@ -280,26 +280,6 @@ impl Request for DeleteAccountRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct IsUserPremiumRequest {}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct IsUserPremiumResponse {
-    pub is_user_premium: bool
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum IsUserPremiumError {
-    UserNotFound
-}
-
-impl Request for IsUserPremiumRequest {
-    type Response = IsUserPremiumResponse;
-    type Error = IsUserPremiumError;
-    const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/is-user-premium";
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetCreditCardRequest {}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -326,14 +306,14 @@ pub enum PaymentMethod {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum AccountTier {
+pub enum StripeAccountTier {
     Premium(PaymentMethod),
     Free,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct SwitchAccountTierStripeRequest {
-    pub account_tier: AccountTier,
+    pub account_tier: StripeAccountTier,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -363,3 +343,51 @@ impl Request for SwitchAccountTierStripeRequest {
     const METHOD: Method = Method::POST;
     const ROUTE: &'static str = "/switch-account-tier-stripe";
 }
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum PremiumAccountType {
+    MonthlyPremium,
+    YearlyPremium,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct ConfirmAndroidSubscriptionRequest {
+    pub purchase_token: String,
+    pub new_account_type: PremiumAccountType,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct ConfirmAndroidSubscriptionResponse {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum ConfirmAndroidSubscriptionError {
+    InvalidPurchaseToken,
+    AlreadyPremium
+}
+
+impl Request for ConfirmAndroidSubscriptionRequest {
+    type Response = ConfirmAndroidSubscriptionResponse;
+    type Error = ConfirmAndroidSubscriptionError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/confirm-android-subscription";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct CancelAndroidSubscriptionRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct CancelAndroidSubscriptionResponse {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum CancelAndroidSubscriptionError {
+    NotPremium,
+    NotAGooglePlayCustomer
+}
+
+impl Request for CancelAndroidSubscriptionRequest {
+    type Response = CancelAndroidSubscriptionResponse;
+    type Error = CancelAndroidSubscriptionError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/cancel-android-subscription";
+}
+

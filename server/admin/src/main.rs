@@ -13,6 +13,7 @@ use crate::feature_flags::handle_feature_flag;
 use lockbook_server_lib::content::file_content_client;
 use s3::bucket::Bucket;
 use structopt::StructOpt;
+use google_androidpublisher3::{AndroidPublisher, hyper_rustls, oauth2};
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A utility for a lockbook server administrator.")]
@@ -49,8 +50,18 @@ async fn main() {
     let config = Config::from_env_vars();
     let (index_db_pool, files_db_client) = connect_to_state(&config).await;
     let stripe_client = stripe::Client::new(&config.stripe.stripe_secret);
+    let service_account_key: google_androidpublisher3::oauth2::ServiceAccountKey =
+        google_androidpublisher3::oauth2::read_service_account_key(&config.google.service_account_cred_path).await.unwrap();
 
-    let server_state = ServerState { config, index_db_pool, stripe_client, files_db_client };
+    let auth = google_androidpublisher3::oauth2::ServiceAccountAuthenticator::builder(service_account_key)
+        .build()
+        .await
+        .unwrap();
+    let client = hyper::Client::builder().build(hyper_rustls::HttpsConnector::with_native_roots());
+    let gcp_publisher = google_androidpublisher3::AndroidPublisher::new(client, auth);
+
+
+    let server_state = ServerState { config, index_db_pool, stripe_client, files_db_client, gcp_publisher };
 
     let ok = match Subcommands::from_args() {
         DeleteAccount { username: user } => delete_account(server_state, &user).await,

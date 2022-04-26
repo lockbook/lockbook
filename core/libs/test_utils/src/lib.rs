@@ -6,7 +6,7 @@ use lockbook_core::repo::schema::Tx;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_core::service::path_service::Filter::DocumentsOnly;
 use lockbook_core::{Config, Core};
-use lockbook_models::api::{AccountTier, FileMetadataUpsertsError, PaymentMethod};
+use lockbook_models::api::{PremiumAccountType, FileMetadataUpsertsError, PaymentMethod, StripeAccountTier};
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::tree::{FileMetaExt, FileMetadata};
 use lockbook_models::work_unit::WorkUnit;
@@ -420,8 +420,8 @@ fn get_next_year() -> i32 {
 pub fn generate_premium_account_tier(
     card_number: &str, maybe_exp_year: Option<i32>, maybe_exp_month: Option<i32>,
     maybe_cvc: Option<&str>,
-) -> AccountTier {
-    AccountTier::Premium(PaymentMethod::NewCard {
+) -> StripeAccountTier {
+    StripeAccountTier::Premium(PaymentMethod::NewCard {
         number: card_number.to_string(),
         exp_year: maybe_exp_year.unwrap_or_else(get_next_year),
         exp_month: maybe_exp_month.unwrap_or(test_card_info::GENERIC_EXP_MONTH),

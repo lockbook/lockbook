@@ -39,8 +39,6 @@ redis_utils = "0.1.3"
 async-stripe = { git = "https://github.com/arlyon/async-stripe", default-features = true, features = ["runtime-tokio-hyper-rustls"] }
 sha2 = "0.10.2"
 google-androidpublisher3 = "3.0.0+20220307"
-gcp_auth = "0.7.2"
-hyper-rustls = "0.23.0"
 
 [build-dependencies]
 shadow-rs = "0.6.2"

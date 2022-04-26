@@ -87,8 +87,8 @@ pub fn core_routes(
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
         .or(core_req!(DeleteAccountRequest, delete_account, server_state))
         .or(core_req!(GetCreditCardRequest, get_credit_card, server_state))
-        .or(core_req!(SwitchAccountTierStripeRequest, switch_account_tier, server_state))
-        .or(core_req!(IsUserPremiumRequest, is_user_premium, server_state))
+        .or(core_req!(ConfirmAndroidSubscriptionRequest, confirm_android_subscription, server_state))
+        .or(core_req!(CancelAndroidSubscriptionRequest, cancel_android_subscription, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {

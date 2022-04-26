@@ -41,6 +41,11 @@ Values are json encoded.
 + `stripe_customer_id:x:public_key`.
   + `x` is the stripe `customer_id`.
 
+# Android Billing
++ `public_key:x:android_purchase_token`
+    + `x` is the `public_key`.
+    + A [purchase token](https://developer.android.com/google/play/billing/integrate) is tied to a subscription (in this case) and allows us to handle its related states.
+
 # Document Content (TODO)
 
 + Interactions with s3 are slow (100s of milliseconds) so the plan is to cache most documents in redis. Persist

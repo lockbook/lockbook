@@ -20,7 +20,7 @@ fn switch_to_premium_and_back() {
     .unwrap();
 
     // switch account tier back to free
-    api_service::request(&account, SwitchAccountTierStripeRequest { account_tier: AccountTier::Free })
+    api_service::request(&account, SwitchAccountTierStripeRequest { account_tier: PremiumAccountType::Free })
         .unwrap();
 }
 
@@ -32,7 +32,7 @@ fn new_tier_is_old_tier() {
     // switch account tier to free
     let result = api_service::request(
         &account,
-        SwitchAccountTierStripeRequest { account_tier: AccountTier::Free },
+        SwitchAccountTierStripeRequest { account_tier: PremiumAccountType::Free },
     );
 
     assert_matches!(
@@ -71,7 +71,7 @@ fn card_does_not_exist() {
     // switch account tier to premium using an "old card"
     let result = api_service::request(
         &account,
-        SwitchAccountTierStripeRequest { account_tier: AccountTier::Premium(PaymentMethod::OldCard) },
+        SwitchAccountTierStripeRequest { account_tier: PremiumAccountType::Premium(PaymentMethod::OldCard) },
     );
 
     assert_matches!(
@@ -202,7 +202,7 @@ fn downgrade_denied() {
     // attempt to switch account tier back free
     let result = api_service::request(
         &account,
-        SwitchAccountTierStripeRequest { account_tier: AccountTier::Free },
+        SwitchAccountTierStripeRequest { account_tier: PremiumAccountType::Free },
     );
 
     assert_matches!(
@@ -226,6 +226,6 @@ fn downgrade_denied() {
     }
 
     // switch account tier back to free
-    api_service::request(&account, SwitchAccountTierStripeRequest { account_tier: AccountTier::Free })
+    api_service::request(&account, SwitchAccountTierStripeRequest { account_tier: PremiumAccountType::Free })
         .unwrap();
 }

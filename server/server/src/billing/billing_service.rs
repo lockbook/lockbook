@@ -1,9 +1,9 @@
 use crate::account_service::GetUsageHelperError;
-use crate::billing::stripe_client;
+use crate::billing::{google_play_client, stripe_client};
 use crate::billing::stripe_model::{
     StripePaymentInfo, StripeSubscriptionInfo, StripeUserInfo, Timestamp,
 };
-use crate::keys::{data_cap, public_key_from_stripe_customer_id, stripe_user_info};
+use crate::keys::{android_purchase_token, data_cap, public_key_from_stripe_customer_id, stripe_user_info};
 use crate::ServerError::ClientError;
 use crate::{
     account_service, keys, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE,
@@ -13,7 +13,7 @@ use deadpool_redis::redis::AsyncCommands;
 use deadpool_redis::Connection;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
-use lockbook_models::api::{AccountTier, GetCreditCardError, GetCreditCardRequest, GetCreditCardResponse, IsUserPremiumError, IsUserPremiumRequest, IsUserPremiumResponse, PaymentMethod, SwitchAccountTierStripeError, SwitchAccountTierStripeRequest, SwitchAccountTierStripeResponse};
+use lockbook_models::api::{PremiumAccountType, CancelAndroidSubscriptionError, CancelAndroidSubscriptionRequest, CancelAndroidSubscriptionResponse, ConfirmAndroidSubscriptionError, ConfirmAndroidSubscriptionRequest, ConfirmAndroidSubscriptionResponse, GetCreditCardError, GetCreditCardRequest, GetCreditCardResponse, PaymentMethod, SwitchAccountTierStripeError, SwitchAccountTierStripeRequest, SwitchAccountTierStripeResponse, StripeAccountTier};
 use log::info;
 use redis_utils::converters::{JsonGet, JsonSet, PipelineJsonSet};
 use redis_utils::tx;
@@ -24,37 +24,60 @@ use std::sync::Arc;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
 
+pub async fn confirm_android_subscription(
+    context: RequestContext<'_, ConfirmAndroidSubscriptionRequest>,
+) -> Result<ConfirmAndroidSubscriptionResponse, ServerError<ConfirmAndroidSubscriptionError>> {
+    let (request, server_state) = (&context.request, context.server_state);
+    let mut con = server_state.index_db_pool.get().await?;
 
-pub async fn is_user_premium(
-    context: RequestContext<'_, IsUserPremiumRequest>
-) -> Result<IsUserPremiumResponse, ServerError<IsUserPremiumError>> {
-    let mut con = context.server_state.index_db_pool.get().await?;
+    let current_data_cap: u64 = con.get(data_cap(&context.public_key)).await?;
 
-    let data_cap: Option<u64> = con.get(data_cap(&context.public_key)).await?;
-
-    match data_cap.ok_or(ClientError(IsUserPremiumError::UserNotFound))? {
-        FREE_TIER_USAGE_SIZE => Ok(IsUserPremiumResponse {
-            is_user_premium: false
-        }),
-        PREMIUM_TIER_USAGE_SIZE => Ok(IsUserPremiumResponse {
-            is_user_premium: true
-        }),
-        _ => Err(internal!(
-                "Unrecognized data cap: {:?}, public_key: {:?}",
-                data_cap,
-                context.public_key
-            ))
+    if current_data_cap == PREMIUM_TIER_USAGE_SIZE {
+        return Err(ClientError(ConfirmAndroidSubscriptionError::AlreadyPremium));
     }
+
+    let subscription_id = match request.new_account_type {
+        PremiumAccountType::MonthlyPremium => &server_state.config.google.monthly_subscription_id,
+        PremiumAccountType::YearlyPremium => &server_state.config.google.yearly_subscription_id,
+    };
+
+    google_play_client::acknowledge_subscription(&server_state.gcp_publisher, subscription_id, &request.purchase_token, &context.public_key).await?;
+
+    con.set(data_cap(&context.public_key), PREMIUM_TIER_USAGE_SIZE).await?;
+    con.set(android_purchase_token(&context.public_key), &request.purchase_token).await?;
+
+    Ok(ConfirmAndroidSubscriptionResponse {})
 }
 
-pub async fn switch_account_tier(
+pub async fn cancel_android_subscription(
+    context: RequestContext<'_, CancelAndroidSubscriptionRequest>,
+) -> Result<CancelAndroidSubscriptionResponse, ServerError<CancelAndroidSubscriptionError>> {
+    let server_state = context.server_state;
+    let mut con = server_state.index_db_pool.get().await?;
+
+    let current_data_cap: u64 = con.get(data_cap(&context.public_key)).await?;
+
+    if current_data_cap == PREMIUM_TIER_USAGE_SIZE {
+        return Err(ClientError(CancelAndroidSubscriptionError::NotPremium));
+    }
+
+    let purchase_token: String = con.get(android_purchase_token(&context.public_key)).await?;
+
+    google_play_client::cancel_subscription(&server_state.gcp_publisher, &server_state.config.google.yearly_subscription_id, &purchase_token).await?;
+
+    con.set(data_cap(&context.public_key), FREE_TIER_USAGE_SIZE).await?;
+
+    Ok(CancelAndroidSubscriptionResponse {})
+}
+
+pub async fn switch_account_tier_stripe(
     context: RequestContext<'_, SwitchAccountTierStripeRequest>,
 ) -> Result<SwitchAccountTierStripeResponse, ServerError<SwitchAccountTierStripeError>> {
     let (request, server_state) = (&context.request, context.server_state);
 
     let fmt_public_key = keys::stringify_public_key(&context.public_key);
     let fmt_new_tier =
-        if let AccountTier::Premium(_) = request.account_tier { "premium" } else { "free" };
+        if let StripeAccountTier::Premium(_) = request.account_tier { "premium" } else { "free" };
 
     info!("Attempting to switch account tier of {} to {}", fmt_public_key, fmt_new_tier);
 
@@ -65,12 +88,12 @@ pub async fn switch_account_tier(
         &mut con,
         server_state.config.stripe.millis_between_user_payment_flows,
     )
-    .await?;
+        .await?;
 
     let current_data_cap: u64 = con.get(data_cap(&context.public_key)).await?;
 
     let new_data_cap = match (current_data_cap, &request.account_tier) {
-        (FREE_TIER_USAGE_SIZE, AccountTier::Premium(card)) => {
+        (FREE_TIER_USAGE_SIZE, StripeAccountTier::Premium(card)) => {
             create_subscription(
                 server_state,
                 &mut con,
@@ -79,13 +102,13 @@ pub async fn switch_account_tier(
                 card,
                 &mut user_info,
             )
-            .await?
+                .await?
         }
-        (FREE_TIER_USAGE_SIZE, AccountTier::Free)
-        | (PREMIUM_TIER_USAGE_SIZE, AccountTier::Premium(_)) => {
+        (FREE_TIER_USAGE_SIZE, StripeAccountTier::Free)
+        | (PREMIUM_TIER_USAGE_SIZE, StripeAccountTier::Premium(_)) => {
             return Err(ClientError(SwitchAccountTierStripeError::NewTierIsOldTier));
         }
-        (PREMIUM_TIER_USAGE_SIZE, AccountTier::Free) => {
+        (PREMIUM_TIER_USAGE_SIZE, StripeAccountTier::Free) => {
             info!("Switching account tier to free. public_key: {}", fmt_public_key);
 
             let usage: u64 = account_service::get_usage_helper(&mut con, &context.public_key)
@@ -114,7 +137,7 @@ pub async fn switch_account_tier(
                 &server_state.stripe_client,
                 &stripe::SubscriptionId::from_str(&user_info.subscriptions[pos].id)?,
             )
-            .await?;
+                .await?;
 
             info!("Successfully canceled stripe subscription. public_key: {}", fmt_public_key);
 
@@ -122,7 +145,7 @@ pub async fn switch_account_tier(
 
             FREE_TIER_USAGE_SIZE
         }
-        (_, AccountTier::Free) | (_, AccountTier::Premium(_)) => {
+        (_, StripeAccountTier::Free) | (_, StripeAccountTier::Premium(_)) => {
             return Err(internal!(
                 "Unrecognized current data cap: {}, public_key: {}",
                 current_data_cap,
@@ -216,7 +239,7 @@ async fn create_subscription(
                 *exp_year,
                 cvc,
             )
-            .await?;
+                .await?;
 
             let last_4 = payment_method_resp
                 .card
@@ -247,7 +270,7 @@ async fn create_subscription(
                         &user_info.customer_name.to_string(),
                         payment_method_resp.id.clone(),
                     )
-                    .await?;
+                        .await?;
                     let customer_id = customer_resp.id.to_string();
 
                     info!("Created customer_id: {}. public_key: {}", customer_id, fmt_public_key);
@@ -283,7 +306,7 @@ async fn create_subscription(
                     &server_state.stripe_client,
                     &stripe::PaymentMethodId::from_str(&info.id)?,
                 )
-                .await?;
+                    .await?;
             }
 
             info!(
@@ -296,7 +319,7 @@ async fn create_subscription(
                 customer_id.clone(),
                 payment_method_resp.id.clone(),
             )
-            .await?;
+                .await?;
 
             info!(
                 "Created a setup intent: {}, public_key: {}",
@@ -428,27 +451,27 @@ pub async fn stripe_webhooks(
         }
         (stripe::EventType::InvoicePaid, stripe::EventObject::Invoice(partial_invoice)) => {
             if let Some(stripe::InvoiceBillingReason::SubscriptionCycle) =
-                partial_invoice.billing_reason
+            partial_invoice.billing_reason
             {
                 let invoice = stripe_client::retrieve_invoice(
                     &server_state.stripe_client,
                     &partial_invoice.id,
                 )
-                .await
-                .map_err(|e| internal!("Error expanding invoice: {:?}", e))?;
+                    .await
+                    .map_err(|e| internal!("Error expanding invoice: {:?}", e))?;
 
                 let subscription_period_end = match invoice.subscription {
                     None => {
                         return Err(internal!(
                             "There should be a subscription tied to this invoice: {:?}",
                             invoice
-                        ))
+                        ));
                     }
                     Some(stripe::Expandable::Id(_)) => {
                         return Err(internal!(
                             "The subscription should be expanded in this invoice: {:?}",
                             invoice
-                        ))
+                        ));
                     }
                     Some(stripe::Expandable::Object(subscription)) => {
                         subscription.current_period_end
@@ -480,7 +503,7 @@ pub async fn stripe_webhooks(
             }
         }
         (_, _) => {
-            return Err(internal!("Unexpected and unhandled stripe event: {:?}", event.event_type))
+            return Err(internal!("Unexpected and unhandled stripe event: {:?}", event.event_type));
         }
     }
 

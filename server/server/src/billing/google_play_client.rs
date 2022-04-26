@@ -1,7 +1,8 @@
 use google_androidpublisher3::{AndroidPublisher, Error};
-use google_androidpublisher3::api::{ProductPurchasesAcknowledgeRequest, SubscriptionPurchase, SubscriptionPurchasesAcknowledgeRequest};
+use google_androidpublisher3::api::{ProductPurchase, ProductPurchasesAcknowledgeRequest, SubscriptionPurchase, SubscriptionPurchasesAcknowledgeRequest};
 use google_androidpublisher3::hyper::StatusCode;
-use crate::ServerState;
+use libsecp256k1::PublicKey;
+use crate::{keys, ServerState};
 
 pub enum SimpleGCPError {
     Unexpected(String)
@@ -9,17 +10,17 @@ pub enum SimpleGCPError {
 
 const PACKAGE_NAME: &str = "app.lockbook";
 
-async fn acknowledge_subscription(
+pub async fn acknowledge_subscription(
     client: &AndroidPublisher,
-    product_id: &str,
+    subscription_id: &str,
     purchase_token: &str,
-    username: String,
+    public_key: &PublicKey,
 ) -> Result<(), SimpleGCPError> {
-    let req = SubscriptionPurchasesAcknowledgeRequest { developer_payload: Some(username) };
+    let req = SubscriptionPurchasesAcknowledgeRequest { developer_payload: Some(keys::stringify_public_key(public_key)) };
 
     return match client
         .purchases()
-        .subscriptions_acknowledge(req, PACKAGE_NAME, product_id, purchase_token)
+        .subscriptions_acknowledge(req, PACKAGE_NAME, subscription_id, purchase_token)
         .doit()
         .await
     {
@@ -28,14 +29,14 @@ async fn acknowledge_subscription(
     };
 }
 
-async fn cancel_subscription(
+pub async fn cancel_subscription(
     client: &AndroidPublisher,
-    product_id: &str,
+    subscription_id: &str,
     purchase_token: &str,
 ) -> Result<(), SimpleGCPError> {
     return match client
         .purchases()
-        .subscriptions_cancel(PACKAGE_NAME, product_id, purchase_token)
+        .subscriptions_cancel(PACKAGE_NAME, subscription_id, purchase_token)
         .doit()
         .await
     {
@@ -44,14 +45,14 @@ async fn cancel_subscription(
     };
 }
 
-async fn verify_subscription(
+pub async fn verify_subscription(
     client: &AndroidPublisher,
-    product_id: &str,
+    subscription_id: &str,
     purchase_token: &str,
 ) -> Result<SubscriptionPurchase, SimpleGCPError> {
     return match client
         .purchases()
-        .subscriptions_get(PACKAGE_NAME, product_id, purchase_token)
+        .subscriptions_get(PACKAGE_NAME, subscription_id, purchase_token)
         .doit()
         .await
     {

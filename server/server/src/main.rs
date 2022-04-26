@@ -11,7 +11,6 @@ use lockbook_server_lib::content::file_content_client;
 use log::info;
 
 use std::sync::Arc;
-use gcp_auth::CustomServiceAccount;
 use google_androidpublisher3::{AndroidPublisher, hyper_rustls, oauth2};
 use warp::Filter;
 
@@ -32,6 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let stripe_client = stripe::Client::new(&config.stripe.stripe_secret);
 
+    // TODO: Remove this
     // let gcp_auth_manager = gcp_auth::AuthenticationManager::from(CustomServiceAccount::from_file(&config.google.service_account_cred_path).unwrap());
     // let gcp_auth_manager = google_androidpublisher3::oauth2::read_service_account_key(&config.google.service_account_cred_path).await.unwrap();
     //
