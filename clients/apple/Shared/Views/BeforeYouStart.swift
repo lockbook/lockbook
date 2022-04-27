@@ -18,7 +18,7 @@ struct BeforeYouStart: View {
                     .foregroundColor(.red)
                 Spacer()
             }
-            Text("Lockbook [encrypts](https://en.wikipedia.org/wiki/End-to-end_encryption) your notes with a key that stays on your Lockbook devices. This makes your notes unreadable to anyone but you. If you lose the key, your notes are not recoverable, so we recommend you make a backup in case something happens to this device.")
+            Text("Lockbook [encrypts](https://en.wikipedia.org/wiki/End-to-end_encryption) your notes with a key that stays on your Lockbook devices. This makes your notes unreadable to everyone except you. Therefore, if you lose this key, your notes are not recoverable. We recommend you make a backup in case something happens to this device.")
                 .font(.title2)
                 .fixedSize(horizontal: false, vertical: false)
             VStack(spacing: 20) {
