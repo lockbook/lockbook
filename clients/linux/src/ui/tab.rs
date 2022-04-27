@@ -13,6 +13,10 @@ impl Tab {
         glib::Object::new(&[("id", &id.to_string())]).expect("failed to create Tab")
     }
 
+    pub fn id(&self) -> lb::Uuid {
+        self.imp().id.get()
+    }
+
     pub fn set_content<W: IsA<gtk::Widget>>(&self, w: &W) {
         self.imp().content.set_child(Some(w));
     }
@@ -24,20 +28,40 @@ impl Tab {
             .and_then(|w| w.downcast::<T>().ok())
     }
 
-    pub fn tab_label(&self) -> &gtk::Label {
-        &self.imp().name
-    }
-
-    pub fn id(&self) -> lb::Uuid {
-        self.imp().id.get()
+    pub fn tab_label(&self) -> &TabLabel {
+        &self.imp().label
     }
 
     pub fn set_name(&self, name: &str) {
-        self.imp().name.set_text(name)
+        self.imp().label.text_lbl.set_text(name);
     }
 
     pub fn name(&self) -> String {
-        self.imp().name.text().to_string()
+        self.imp().label.text_lbl.text().to_string()
+    }
+}
+
+#[derive(Debug)]
+pub struct TabLabel {
+    text_lbl: gtk::Label,
+    pub close_btn: gtk::Button,
+    pub cntr: gtk::Box,
+}
+
+impl Default for TabLabel {
+    fn default() -> Self {
+        let text_lbl = gtk::Label::new(None);
+
+        let close_btn = gtk::Button::builder()
+            .icon_name("window-close-symbolic")
+            .build();
+        close_btn.add_css_class("flat");
+
+        let cntr = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        cntr.append(&text_lbl);
+        cntr.append(&close_btn);
+
+        Self { text_lbl, close_btn, cntr }
     }
 }
 
@@ -51,7 +75,7 @@ mod imp {
     #[derive(Debug, Default)]
     pub struct Tab {
         pub id: Cell<lb::Uuid>,
-        pub name: gtk::Label,
+        pub label: super::TabLabel,
         pub content: gtk::Overlay,
     }
 
