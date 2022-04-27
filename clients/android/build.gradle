@@ -32,8 +32,9 @@ buildscript {
         snackprogressbar_version = '6.4.2'
         fragment_version = '1.4.1'
         sliding_pane_layout_version = '1.2.0'
-        recyclical_version = "1.1.0"
-        safe_args_gradle_plugin = "2.3.5"
+        recyclical_version = '1.1.0'
+        safe_args_gradle_plugin = '2.3.5'
+        billing_version = '4.1.0'
     }
 
     repositories {

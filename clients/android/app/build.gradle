@@ -107,6 +107,7 @@ dependencies {
     implementation "com.jakewharton.timber:timber:$logger_version"
     implementation "androidx.work:work-runtime-ktx:$work_version"
     implementation "com.github.tingyik90:snackprogressbar:$snackprogressbar_version"
+    implementation "com.android.billingclient:billing:$billing_version"
 
     implementation project(':core')
 }
