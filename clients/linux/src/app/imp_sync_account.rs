@@ -63,7 +63,7 @@ impl super::App {
                 .unwrap();
             for f in &all_files {
                 if f.id == tab.id() {
-                    tab.tab_label().set_text(&f.decrypted_name);
+                    tab.set_name(&f.decrypted_name);
                     if Some(i) == tabs.current_page() {
                         self.window.set_title(Some(&f.decrypted_name));
                     }

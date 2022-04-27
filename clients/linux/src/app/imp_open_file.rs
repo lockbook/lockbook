@@ -38,7 +38,18 @@ impl super::App {
             tab.set_content(&self.text_content(doc));
         }
 
-        self.account.tabs.append_page(&tab, Some(tab.tab_label()));
+        let tab_lbl = tab.tab_label();
+
+        let click = gtk::GestureClick::new();
+        click.connect_pressed({
+            let tabs = self.account.tabs.clone();
+            let tab = tab.clone();
+
+            move |_, _, _, _| tabs.remove_page(tabs.page_num(&tab))
+        });
+        tab_lbl.close_btn.add_controller(&click);
+
+        self.account.tabs.append_page(&tab, Some(&tab_lbl.cntr));
         self.account.focus_tab_by_id(id);
 
         Ok(())
