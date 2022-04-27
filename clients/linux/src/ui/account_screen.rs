@@ -85,7 +85,7 @@ impl AccountScreen {
         stack.add_named(&tabs, Some("tabs"));
 
         let cntr = gtk::Paned::new(gtk::Orientation::Horizontal);
-        cntr.set_position(350);
+        cntr.set_position(325);
         cntr.set_start_child(&sidebar);
         cntr.set_end_child(&stack);
 
