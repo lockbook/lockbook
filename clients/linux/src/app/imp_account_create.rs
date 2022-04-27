@@ -124,4 +124,4 @@ fn icon_button(icon_name: &str, label: &str) -> gtk::Button {
     gtk::Button::builder().child(&content).build()
 }
 
-static MESSAGE: &str = "Lockbook encrypts your notes with a key that stays on your Lockbook devices. This makes your notes unreadable to everyone except you. However, if you lose this key, your notes are not recoverable. Therefore, we recommend you make a backup in case something happens to this device.";
+static MESSAGE: &str = "Lockbook encrypts your notes with a key that stays on your Lockbook devices. This makes your notes unreadable to everyone except you. Therefore, if you lose this key, your notes are not recoverable. We recommend you make a backup in case something happens to this device.";
