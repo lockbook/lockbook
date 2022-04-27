@@ -22,7 +22,6 @@ impl super::App {
         overlay.add_overlay(titlebar.search_result_area());
 
         let window = gtk::ApplicationWindow::new(a);
-        window.set_titlebar(Some(&titlebar));
         window.set_child(Some(&overlay));
 
         let settings = match Settings::from_data_dir(&writeable_path) {
@@ -166,7 +165,8 @@ impl super::App {
             gtk::Inhibit(false)
         });
 
-        self.window.set_default_size(900, 700);
+        self.window.set_title(Some("Lockbook"));
+        self.window.set_default_size(1000, 700);
 
         if self.settings.read().unwrap().window_maximize {
             self.window.maximize();
@@ -180,6 +180,8 @@ impl super::App {
     }
 
     pub fn init_account_screen(&self) {
+        self.window.set_titlebar(Some(&self.titlebar));
+
         match self.api.list_metadatas() {
             Ok(mut metas) => self.account.tree.populate(&mut metas),
             Err(err) => println!("{}", err), //todo
