@@ -12,7 +12,7 @@ public class Storage: NSTextStorage {
     var currentStyles: [AttributeRange] = []
     var myEditedRange: NSRange?
     var myChangeInLength: Int = 0
-    var us: Bool = false
+    var us: Bool = true
     
     public override var string: String {
         get {
@@ -53,7 +53,7 @@ public class Storage: NSTextStorage {
                 }
             }
         }
-        
+
         if dirty {
             print("DIRT")
             currentStyles = newStyles
@@ -76,7 +76,7 @@ public class Storage: NSTextStorage {
     public override func setAttributes(_ attrs: [NSAttributedString.Key : Any]?, range: NSRange) {
         if us {
             backingStore.setAttributes(attrs, range: range)
-            self.edited(.editedAttributes, range: range, changeInLength: 0)
         }
+        self.edited(.editedAttributes, range: range, changeInLength: 0)
     }
 }
