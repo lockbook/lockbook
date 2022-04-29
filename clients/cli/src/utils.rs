@@ -78,7 +78,6 @@ pub fn get_image_format(image_format: &str) -> SupportedImageFormats {
 
 use std::path::Path;
 
-
 #[cfg(target_os = "windows")]
 pub fn edit_file_with_editor<S: AsRef<Path>>(path: S) -> bool {
     use SupportedEditors::*;
