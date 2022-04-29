@@ -23,6 +23,7 @@ pub enum SupportedEditors {
 
 pub fn get_editor() -> SupportedEditors {
     use SupportedEditors::*;
+    let default_editor = if cfg!(target_os = "windows") { Code } else { Vim };
     match env::var("LOCKBOOK_EDITOR") {
         Ok(editor) => match editor.to_lowercase().as_str() {
             "vim" => Vim,
@@ -31,7 +32,6 @@ pub fn get_editor() -> SupportedEditors {
             "subl" | "sublime" => Sublime,
             "code" => Code,
             _ => {
-                let default_editor = if cfg!(target_os = "windows") { Code } else { Vim };
                 eprintln!(
                     "{} is not yet supported, make a github issue! Falling back to {:?}.",
                     editor, default_editor
@@ -40,7 +40,6 @@ pub fn get_editor() -> SupportedEditors {
             }
         },
         Err(_) => {
-            let default_editor = if cfg!(target_os = "windows") { Code } else { Vim };
             eprintln!("LOCKBOOK_EDITOR not set, assuming {:?}", default_editor);
             default_editor
         }
