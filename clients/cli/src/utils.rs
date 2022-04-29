@@ -78,47 +78,54 @@ pub fn get_image_format(image_format: &str) -> SupportedImageFormats {
 
 use std::path::Path;
 
-pub fn edit_file_with_editor<P: AsRef<Path>>(path: P) -> bool {
+
+#[cfg(target_os = "windows")]
+pub fn edit_file_with_editor<S: AsRef<Path>>(path: S) -> bool {
     use SupportedEditors::*;
 
     let path_str = path.as_ref().display();
 
-    if cfg!(target_os = "windows") {
-        let command = match get_editor() {
-            Vim | Emacs | Nano => {
-                eprintln!("Terminal editors are not supported on windows! Set LOCKBOOK_EDITOR to a visual editor.");
-                return false;
-            }
-            Sublime => format!("subl --wait {}", path_str),
-            Code => format!("code --wait {}", path_str),
-        };
+    let command = match get_editor() {
+        Vim | Emacs | Nano => {
+            eprintln!("Terminal editors are not supported on windows! Set LOCKBOOK_EDITOR to a visual editor.");
+            return false;
+        }
+        Sublime => format!("subl --wait {}", path_str),
+        Code => format!("code --wait {}", path_str),
+    };
 
-        std::process::Command::new("cmd")
-            .arg("/C")
-            .arg(command)
-            .spawn()
-            .expect("Error: Failed to run editor")
-            .wait()
-            .unwrap()
-            .success()
-    } else {
-        let command = match get_editor() {
-            Vim => format!("</dev/tty vim {}", path_str),
-            Emacs => format!("</dev/tty emacs {}", path_str),
-            Nano => format!("</dev/tty nano {}", path_str),
-            Sublime => format!("subl --wait {}", path_str),
-            Code => format!("code --wait {}", path_str),
-        };
+    std::process::Command::new("cmd")
+        .arg("/C")
+        .arg(command)
+        .spawn()
+        .expect("Error: Failed to run editor")
+        .wait()
+        .unwrap()
+        .success()
+}
 
-        std::process::Command::new("/bin/sh")
-            .arg("-c")
-            .arg(command)
-            .spawn()
-            .expect("Error: Failed to run editor")
-            .wait()
-            .unwrap()
-            .success()
-    }
+#[cfg(not(target_os = "windows"))]
+pub fn edit_file_with_editor<S: AsRef<Path>>(path: S) -> bool {
+    use SupportedEditors::*;
+
+    let path_str = path.as_ref().display();
+
+    let command = match get_editor() {
+        Vim => format!("</dev/tty vim {}", path_str),
+        Emacs => format!("</dev/tty emacs {}", path_str),
+        Nano => format!("</dev/tty nano {}", path_str),
+        Sublime => format!("subl --wait {}", path_str),
+        Code => format!("code --wait {}", path_str),
+    };
+
+    std::process::Command::new("/bin/sh")
+        .arg("-c")
+        .arg(command)
+        .spawn()
+        .expect("Error: Failed to run editor")
+        .wait()
+        .unwrap()
+        .success()
 }
 
 pub fn print_last_successful_sync(core: &Core) -> Result<(), CliError> {
