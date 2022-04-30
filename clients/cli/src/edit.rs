@@ -1,6 +1,5 @@
 use std::fs;
 use std::io::Write;
-use std::path::Path;
 
 use lockbook_core::model::errors::GetFileByPathError;
 use lockbook_core::model::errors::ReadDocumentError;
@@ -33,30 +32,31 @@ pub fn edit(core: &Core, lb_path: &str) -> Result<(), CliError> {
             }
         })?;
 
-    let file_location = format!("{}/{}", get_directory_location()?, file_metadata.decrypted_name);
-    let temp_file_path = Path::new(file_location.as_str());
+    let mut temp_file_path = get_directory_location()?;
+    temp_file_path.push(file_metadata.decrypted_name);
+
     let mut file_handle = fs::File::create(&temp_file_path).map_err(|err| {
         CliError::unexpected(format!("couldn't open temporary file for writing: {:#?}", err))
     })?;
 
     file_handle
         .write_all(&file_content)
-        .map_err(|err| CliError::os_write_file(temp_file_path, err))?;
+        .map_err(|err| CliError::os_write_file(&temp_file_path, err))?;
 
     file_handle
         .sync_all()
-        .map_err(|err| CliError::os_write_file(temp_file_path, err))?;
+        .map_err(|err| CliError::os_write_file(&temp_file_path, err))?;
 
-    let watcher = set_up_auto_save(core, file_metadata.id, file_location.clone());
+    let watcher = set_up_auto_save(core, file_metadata.id, &temp_file_path);
 
-    let edit_was_successful = edit_file_with_editor(&file_location);
+    let edit_was_successful = edit_file_with_editor(&temp_file_path);
 
     if let Some(ok) = watcher {
-        stop_auto_save(ok, file_location.clone());
+        stop_auto_save(ok, &temp_file_path);
     }
 
     if edit_was_successful {
-        match save_temp_file_contents(core, file_metadata.id, &file_location) {
+        match save_temp_file_contents(core, file_metadata.id, &temp_file_path) {
             Ok(_) => println!("Document encrypted and saved. Cleaning up temporary file."),
             Err(err) => err.print(),
         }
@@ -64,5 +64,5 @@ pub fn edit(core: &Core, lb_path: &str) -> Result<(), CliError> {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
     }
 
-    fs::remove_file(&temp_file_path).map_err(|err| CliError::os_delete_file(file_location, err))
+    fs::remove_file(&temp_file_path).map_err(|err| CliError::os_delete_file(&temp_file_path, err))
 }
