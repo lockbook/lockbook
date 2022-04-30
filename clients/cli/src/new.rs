@@ -1,6 +1,4 @@
 use std::fs;
-use std::fs::File;
-use std::path::Path;
 
 use lockbook_core::model::errors::CreateFileAtPathError;
 use lockbook_core::model::errors::FileDeleteError;
@@ -29,9 +27,9 @@ pub fn new(core: &Core, lb_path: &str) -> Result<(), CliError> {
         LbError::Unexpected(msg) => CliError::unexpected(msg),
     })?;
 
-    let file_location = format!("{}/{}", get_directory_location()?, file_metadata.decrypted_name);
-    let temp_file_path = Path::new(&file_location);
-    let _ = File::create(&temp_file_path).map_err(|err| {
+    let mut temp_file_path = get_directory_location()?;
+    temp_file_path.push(file_metadata.decrypted_name);
+    let _ = fs::File::create(&temp_file_path).map_err(|err| {
         CliError::unexpected(format!("couldn't open temporary file for writing: {:#?}", err))
     })?;
 
@@ -40,16 +38,16 @@ pub fn new(core: &Core, lb_path: &str) -> Result<(), CliError> {
         return Ok(());
     }
 
-    let watcher = set_up_auto_save(core, file_metadata.id, file_location.clone());
+    let watcher = set_up_auto_save(core, file_metadata.id, &temp_file_path);
 
-    let edit_was_successful = edit_file_with_editor(&file_location);
+    let edit_was_successful = edit_file_with_editor(&temp_file_path);
 
     if let Some(ok) = watcher {
-        stop_auto_save(ok, file_location.clone());
+        stop_auto_save(ok, &temp_file_path);
     }
 
     if edit_was_successful {
-        match save_temp_file_contents(core, file_metadata.id, &file_location) {
+        match save_temp_file_contents(core, file_metadata.id, &temp_file_path) {
             Ok(_) => println!("Document encrypted and saved. Cleaning up temporary file."),
             Err(err) => err.print(),
         }
@@ -66,6 +64,6 @@ pub fn new(core: &Core, lb_path: &str) -> Result<(), CliError> {
     }
 
     fs::remove_file(&temp_file_path).map_err(|err| {
-        CliError::unexpected(format!("deleting temporary file '{}': {}", &file_location, err))
+        CliError::unexpected(format!("deleting temporary file '{:?}': {}", &temp_file_path, err))
     })
 }
