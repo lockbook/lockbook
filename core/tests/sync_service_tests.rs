@@ -3326,6 +3326,7 @@ fn deleted_path_is_released() {
     db1.sync(None).unwrap();
 }
 
+// this case did not actually get the fuzzer stuck and was written while reproducing the issue
 #[test]
 fn fuzzer_stuck_test() {
     let db1 = test_core_with_account();
@@ -3336,6 +3337,7 @@ fn fuzzer_stuck_test() {
     db1.move_file(c.id, d.id).unwrap_err();
 }
 
+// this case did not actually get the fuzzer stuck and was written while reproducing the issue
 #[test]
 fn fuzzer_stuck_test_2() {
     let db1 = test_core_with_account();
@@ -3362,6 +3364,7 @@ fn fuzzer_stuck_test_2() {
     test_utils::assert_dbs_eq(&db1, &db2);
 }
 
+// this case did not actually get the fuzzer stuck and was written while reproducing the issue
 #[test]
 fn fuzzer_stuck_test_3() {
     let db1 = test_core_with_account();
@@ -3395,6 +3398,7 @@ fn fuzzer_stuck_test_3() {
     test_utils::assert_dbs_eq(&db1, &db2);
 }
 
+// this case did not actually get the fuzzer stuck and was written while reproducing the issue
 #[test]
 fn fuzzer_stuck_test_4() {
     let db1 = test_core_with_account();
@@ -3422,7 +3426,6 @@ fn fuzzer_stuck_test_4() {
     test_utils::assert_dbs_eq(&db1, &db2);
 }
 
-// this is the one that actually stuck the fuzzer (1 through 4 did not)
 #[test]
 fn fuzzer_stuck_test_5() {
     let db1 = test_core_with_account();
@@ -3454,6 +3457,28 @@ fn fuzzer_stuck_test_5() {
     db2.sync(None).unwrap();
     db1.validate().unwrap();
     test_utils::assert_dbs_eq(&db1, &db2);
+}
+
+#[test]
+fn fuzzer_stuck_test_6() {
+    let core1 = test_core_with_account();
+
+    let dir1 = core1.create_at_path(&path(&core1, "quB/")).unwrap();
+    let dir2 = core1.create_at_path(&path(&core1, "OO1/")).unwrap();
+    core1.sync(None).unwrap();
+    let core2 = test_core_from(&core1);
+    core2.move_file(dir2.id, dir1.id).unwrap();
+    let _doc1 = core1.create_at_path(&path(&core1, "KbW")).unwrap();
+    core1.move_file(dir1.id, dir2.id).unwrap();
+
+    core1.sync(None).unwrap();
+    println!("v----------------------------------------------------------v");
+    core2.sync(None).unwrap();
+    println!("^----------------------------------------------------------^");
+    // core1.sync(None).unwrap();
+    // core2.sync(None).unwrap();
+    // core1.validate().unwrap();
+    // test_utils::assert_dbs_eq(&core1, &core2);
 }
 
 #[test]
