@@ -205,7 +205,7 @@ impl Tx<'_> {
             if metadatum.file_type == FileType::Document
                 && local_metadata.maybe_find(metadatum.id).is_none()
             {
-                self.insert_document(config, RepoSource::Local, &metadatum, &[])?;
+                self.insert_document(config, RepoSource::Local, metadatum, &[])?;
             }
         }
         Ok(())
