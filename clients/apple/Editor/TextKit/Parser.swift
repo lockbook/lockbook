@@ -1,9 +1,6 @@
 import Foundation
 import Down
 
-/// This visitor will generate the debug description of an entire abstract syntax tree,
-/// indicating relationships between nodes with indentation.
-
 public class Parser: Visitor {
 
     public var indexes: IndexConverter
