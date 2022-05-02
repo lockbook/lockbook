@@ -3472,13 +3472,11 @@ fn fuzzer_stuck_test_6() {
     core1.move_file(dir1.id, dir2.id).unwrap();
 
     core1.sync(None).unwrap();
-    println!("v----------------------------------------------------------v");
     core2.sync(None).unwrap();
-    println!("^----------------------------------------------------------^");
-    // core1.sync(None).unwrap();
-    // core2.sync(None).unwrap();
-    // core1.validate().unwrap();
-    // test_utils::assert_dbs_eq(&core1, &core2);
+    core1.sync(None).unwrap();
+    core2.sync(None).unwrap();
+    core1.validate().unwrap();
+    test_utils::assert_dbs_eq(&core1, &core2);
 }
 
 #[test]
