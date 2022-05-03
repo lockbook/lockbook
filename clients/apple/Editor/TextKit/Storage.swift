@@ -26,7 +26,6 @@ public class Storage: NSTextStorage {
     }
     
     public override func replaceCharacters(in range: NSRange, with string: String) {
-        print(2)
         backingStore.replaceCharacters(in: range, with: string)
         
         myEditedRange = range

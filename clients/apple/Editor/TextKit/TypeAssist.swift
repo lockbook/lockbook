@@ -62,6 +62,7 @@ struct AssistableNode {
                     let whitespace = current[..<index]
                     return whitespace + String(oldNumber + 1) + ". "
                 } else {
+                    // TODO handle ) here in the future
                     return String(oldNumber + 1) + ". "
                 }
                 

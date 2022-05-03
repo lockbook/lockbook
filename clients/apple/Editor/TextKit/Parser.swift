@@ -17,7 +17,6 @@ public class Parser: Visitor {
 
         self.input = input as NSString
         self.typeAssist = TypeAssist(indexes)
-        print(DebugVisitor().visit(document: document))
         self.visit(document: document)
     }
 
@@ -68,7 +67,6 @@ public class Parser: Visitor {
     }
 
     public func visit(codeBlock node: CodeBlock)  {
-        print("Code start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
         let oldParent = self.currentParent
         let newParent = CodeBlockAR(indexes, node, currentParent!)
         self.currentParent = newParent

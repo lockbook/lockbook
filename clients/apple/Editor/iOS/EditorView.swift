@@ -15,7 +15,7 @@ struct EditorView: UIViewRepresentable {
         let textContainer = NSTextContainer(size: .zero)
         layoutManager.addTextContainer(textContainer)
         
-        let textView = UITextView(frame: .zero, textContainer: textContainer)
+        let textView = CustomUITextView(frame: .zero, textContainer: textContainer)
         textView.delegate = context.coordinator
         textView.text = model.textDocument!
         textView.autoresizingMask = .flexibleHeight
