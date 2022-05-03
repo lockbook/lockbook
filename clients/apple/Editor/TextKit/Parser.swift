@@ -4,6 +4,7 @@ import Down
 public class Parser: Visitor {
 
     public var indexes: IndexConverter
+    public var typeAssist: TypeAssist
     public var processedDocument: [AttributeRange] = []
     var currentParent: AttributeRange?
     let input: NSString
@@ -15,10 +16,14 @@ public class Parser: Visitor {
         print("Down perf: \(startingPoint.timeIntervalSinceNow * -1)")
 
         self.input = input as NSString
+        self.typeAssist = TypeAssist(indexes)
+        print(DebugVisitor().visit(document: document))
         self.visit(document: document)
     }
 
     public func visit(document node: Document)  {
+        print("Document start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
+
         let doc = DocumentAR(indexes.getRange(node))
         self.currentParent = doc
         processedDocument.append(doc)
@@ -43,11 +48,27 @@ public class Parser: Visitor {
         let newParent = ItemAR(indexes, node, currentParent!)
         self.currentParent = newParent
         processedDocument.append(newParent)
-        let _ = visitChildren(of: node)
+        if node.children.isEmpty {
+            let itemDefinition = indexes.getRange(
+                startCol: 1,
+                endCol: node.cmarkNode.pointee.end_column,
+                startLine: node.cmarkNode.pointee.start_line,
+                endLine: node.cmarkNode.pointee.start_line
+            )
+
+            let startOfLine = self.input.substring(with: itemDefinition)
+            let dummyPara = ParagraphAR(indexes, node, newParent, startOfLine as NSString)
+            processedDocument.append(dummyPara)
+            typeAssist.nodeOfInterest(nodeRange: newParent.range, startOfLine, lineStartRange: itemDefinition, fresh: true)
+        } else {
+            let _ = visitChildren(of: node)
+        }
+        
         self.currentParent = oldParent
     }
 
     public func visit(codeBlock node: CodeBlock)  {
+        print("Code start line: \(node.cmarkNode.pointee.start_line), endline: \(node.cmarkNode.pointee.end_line), start_column: \(node.cmarkNode.pointee.start_column), end_column: \(node.cmarkNode.pointee.end_column)")
         let oldParent = self.currentParent
         let newParent = CodeBlockAR(indexes, node, currentParent!)
         self.currentParent = newParent
@@ -65,6 +86,7 @@ public class Parser: Visitor {
     }
 
     public func visit(paragraph node: Paragraph)  {
+        print("para")
         let oldParent = self.currentParent
         var newParent: ParagraphAR
         if let itemParent = oldParent as? ItemAR {
@@ -75,7 +97,9 @@ public class Parser: Visitor {
                 endLine: node.cmarkNode.pointee.start_line
             )
             
-            newParent = ParagraphAR(indexes, node, itemParent, self.input.substring(with: itemDefinition) as NSString)
+            let startOfLine = self.input.substring(with: itemDefinition)
+            newParent = ParagraphAR(indexes, node, itemParent, startOfLine as NSString)
+            typeAssist.nodeOfInterest(nodeRange: newParent.range, startOfLine, lineStartRange: itemDefinition)
         } else {
             newParent = ParagraphAR(indexes, node, currentParent!)
         }
@@ -87,7 +111,21 @@ public class Parser: Visitor {
 
     public func visit(heading node: Heading)  {
         let oldParent = self.currentParent
-        let newParent = HeadingAR(indexes, node, currentParent!)
+        var newParent: AttributeRange
+        if let itemParent = oldParent as? ItemAR {
+            let itemDefinition = indexes.getRange(
+                startCol: 1,
+                endCol: node.cmarkNode.pointee.end_column,
+                startLine: node.cmarkNode.pointee.start_line,
+                endLine: node.cmarkNode.pointee.start_line
+            )
+
+            let startOfLine = self.input.substring(with: itemDefinition)
+            newParent = ParagraphAR(indexes, node, itemParent, startOfLine as NSString)
+            typeAssist.nodeOfInterest(nodeRange: newParent.range, startOfLine, lineStartRange: itemDefinition)
+        } else {
+            newParent = HeadingAR(indexes, node, currentParent!)
+        }
         self.currentParent = newParent
         processedDocument.append(newParent)
         let _ = visitChildren(of: node)

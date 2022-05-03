@@ -22,7 +22,7 @@ struct EditorView: NSViewRepresentable {
         )
         layoutManager.addTextContainer(textContainer)
         
-        let textView = NSTextView(frame: .zero, textContainer: textContainer)
+        let textView = CustomNSTextView(frame: .zero, textContainer: textContainer)
         textView.autoresizingMask = .width
         textView.isVerticallyResizable = true
         textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)

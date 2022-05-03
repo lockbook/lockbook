@@ -13,6 +13,7 @@ public class Storage: NSTextStorage {
     var myEditedRange: NSRange?
     var myChangeInLength: Int = 0
     var us: Bool = true
+    var parser: Parser?
     
     public override var string: String {
         get {
@@ -25,6 +26,7 @@ public class Storage: NSTextStorage {
     }
     
     public override func replaceCharacters(in range: NSRange, with string: String) {
+        print(2)
         backingStore.replaceCharacters(in: range, with: string)
         
         myEditedRange = range
@@ -38,7 +40,9 @@ public class Storage: NSTextStorage {
         print()
         var startingPoint = Date()
 
-        let newStyles = Parser(backingStore.string).processedDocument
+        let parser = Parser(backingStore.string)
+        self.parser = parser
+        let newStyles = parser.processedDocument
         adjustCurrentStyles()
         print("parser perf: \(startingPoint.timeIntervalSinceNow * -1)")
 
