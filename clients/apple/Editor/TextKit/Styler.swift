@@ -67,9 +67,7 @@ extension AttributeRange {
         
         if indentation != 0 {
             let paraStyle = NSMutableParagraphStyle()
-            paraStyle.firstLineHeadIndent = 7
-            paraStyle.headIndent = CGFloat(indentation + 7)
-            
+            paraStyle.headIndent = CGFloat(indentation)
             attrs[.paragraphStyle] = paraStyle
         }
         
@@ -159,8 +157,8 @@ class InlineCodeAR: BaseAR {
 
 class CodeBlockAR: BaseAR {
     override var monospace: Bool { true }
-    override var background: UniversalColor { UniversalColor.black.withAlphaComponent(0.65) }
-    override var foreground: UniversalColor { UniversalColor.white }
+//    override var background: UniversalColor { UniversalColor.black.withAlphaComponent(0.65) }
+    override var foreground: UniversalColor { UniversalColor.systemIndigo }
 }
 
 class BlockQuoteAR: BaseAR {
@@ -199,6 +197,32 @@ class ParagraphAR: BaseAR {
     }
     
     init(_ indexer: IndexConverter, _ node: Paragraph, _ parent: ItemAR, _ startOfLine: NSString) {
+        super.init(indexer, node, parent)
+        // TODO maybe not what we actually want to do. Basically it seems that paragraph styles need
+        // to apply to the first character to be taken seriously, this is a workaround for now
+        self.range = indexer.getRange(
+            startCol: 1,
+            endCol: node.cmarkNode.pointee.end_column,
+            startLine: node.cmarkNode.pointee.start_line,
+            endLine: node.cmarkNode.pointee.end_line
+        )
+        self.offset = Float(startOfLine.size(withAttributes: parent.finalizeAttributes()).width)
+    }
+    
+    init(_ indexer: IndexConverter, _ node: Item, _ parent: ItemAR, _ startOfLine: NSString) {
+        super.init(indexer, node, parent)
+        // TODO maybe not what we actually want to do. Basically it seems that paragraph styles need
+        // to apply to the first character to be taken seriously, this is a workaround for now
+        self.range = indexer.getRange(
+            startCol: 1,
+            endCol: node.cmarkNode.pointee.end_column,
+            startLine: node.cmarkNode.pointee.start_line,
+            endLine: node.cmarkNode.pointee.end_line
+        )
+        self.offset = Float(startOfLine.size(withAttributes: parent.finalizeAttributes()).width)
+    }
+    
+    init(_ indexer: IndexConverter, _ node: Heading, _ parent: ItemAR, _ startOfLine: NSString) {
         super.init(indexer, node, parent)
         // TODO maybe not what we actually want to do. Basically it seems that paragraph styles need
         // to apply to the first character to be taken seriously, this is a workaround for now
