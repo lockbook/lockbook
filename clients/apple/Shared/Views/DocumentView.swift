@@ -17,7 +17,7 @@ struct DocumentView: View {
                 .onAppear {
                     model.startLoading(meta)
                 }
-                .navigationTitle(meta.decryptedName)
+                .title(meta.decryptedName)
         } else if model.error != "" {
             Text("errors while loading: \(model.error)")
         } else if model.deleted {
@@ -29,7 +29,7 @@ struct DocumentView: View {
                     if let img = model.image {
                         ScrollView([.horizontal, .vertical]) {
                             img
-                        }.navigationTitle(meta.decryptedName)
+                        }.title(meta.decryptedName)
                     }
                 #if os(iOS)
                 case .Drawing:
@@ -37,7 +37,7 @@ struct DocumentView: View {
                         model: model,
                         toolPicker: toolbar
                     )
-                    .navigationTitle(meta.decryptedName)
+                    .navigationBarTitle(meta.decryptedName, displayMode: .inline)
                     .toolbar {
                         ToolbarItemGroup(placement: .bottomBar) {
                             Spacer()
@@ -48,13 +48,28 @@ struct DocumentView: View {
                 #endif
                 
                 case .Markdown:
-                    EditorView()
-                        .navigationTitle(meta.decryptedName)
-                    // TODO there needs to be a 20 horiz padding here on iOS
+                    GeometryReader { geo in
+                        EditorView(
+                            frame: geo.frame(in: .local)
+                        )
+                    }
+                    .title(meta.decryptedName)
+                        
                 case .Unknown:
                     Text("\(meta.decryptedName) cannot be opened on this device.")
+                        .title(meta.decryptedName)
                 }
             }
         }
+    }
+}
+
+extension View {
+    func title(_ name: String) -> some View {
+        #if os(macOS)
+            return self.navigationTitle(name)
+        #else
+        return self.navigationBarTitle(name, displayMode: .inline)
+        #endif
     }
 }
