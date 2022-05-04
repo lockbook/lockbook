@@ -4,6 +4,7 @@ import SwiftUI
 struct EditorView: NSViewRepresentable {
     
     @EnvironmentObject var model: DocumentLoader
+    let frame: CGRect
     let storage = Storage()
     
     func makeNSView(context: Context) -> NSScrollView {
@@ -11,6 +12,7 @@ struct EditorView: NSViewRepresentable {
 
         let layoutManager = NSLayoutManager()
         storage.addLayoutManager(layoutManager)
+        print("frame 1 \(frame)")
 
         let textContainer = NSTextContainer(containerSize: scrollView.frame.size)
         textContainer.widthTracksTextView = true
@@ -20,12 +22,13 @@ struct EditorView: NSViewRepresentable {
         )
         layoutManager.addTextContainer(textContainer)
         
-        let textView = NSTextView(frame: .zero, textContainer: textContainer)
+        let textView = CustomNSTextView(frame: .zero, textContainer: textContainer)
         textView.autoresizingMask = .width
         textView.isVerticallyResizable = true
         textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.minSize = NSSize(width: 0, height: scrollView.contentSize.height)
         textView.delegate = context.coordinator
+        textView.textContainerInset = NSSize(width: horizontalInset(), height: 20)
         textView.string = model.textDocument!
         textView.allowsUndo = true
         storage.syntaxHighlight()
@@ -45,6 +48,7 @@ struct EditorView: NSViewRepresentable {
     
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         if let nsView = scroll.documentView as? NSTextView {
+            nsView.textContainerInset = NSSize(width: horizontalInset(), height: 20)
             if model.reloadContent {
                 model.reloadContent = false
                 nsView.string = model.textDocument!
@@ -53,6 +57,18 @@ struct EditorView: NSViewRepresentable {
                 (nsView.textStorage as! Storage).syntaxHighlight()
             }
         }
+    }
+    
+    func horizontalInset() -> CGFloat {
+        let maxDocumentWidth = 600
+        let minInset = 25
+        
+        var inset = minInset
+        print(frame.width, CGFloat(maxDocumentWidth + minInset * 2))
+        if frame.width > CGFloat(maxDocumentWidth + minInset * 2) {
+            inset = (Int(frame.width) - maxDocumentWidth) / 2
+        }
+        return CGFloat(inset)
     }
 }
 

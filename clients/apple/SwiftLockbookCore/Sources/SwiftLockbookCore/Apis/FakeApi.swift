@@ -94,11 +94,7 @@ Vestibulum ante ipsum primis in vel.
     public func moveFile(id: UUID, newParent: UUID) -> FfiResult<Empty, MoveFileError> {
         .failure(.init(unexpected: "LAZY"))
     }
-    
-    public func getState() -> FfiResult<DbState, InitError> {
-        .failure(.init(unexpected: "LAZY"))
-    }
-    
+
     public func getLocalChanges() -> FfiResult<[UUID], GetLocalChangesError> {
         .failure(.init(unexpected: "LAZY"))
     }
