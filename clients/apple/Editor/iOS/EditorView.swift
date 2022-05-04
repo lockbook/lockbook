@@ -4,6 +4,7 @@ import SwiftUI
 struct EditorView: UIViewRepresentable {
     
     @EnvironmentObject var model: DocumentLoader
+    let frame: CGRect
     let storage = Storage()
     
     lazy var delegate: Coordinator = Coordinator(textChange: updateModel)
@@ -14,10 +15,11 @@ struct EditorView: UIViewRepresentable {
         let textContainer = NSTextContainer(size: .zero)
         layoutManager.addTextContainer(textContainer)
         
-        let textView = UITextView(frame: .zero, textContainer: textContainer)
+        let textView = CustomUITextView(frame: .zero, textContainer: textContainer)
         textView.delegate = context.coordinator
         textView.text = model.textDocument!
         textView.autoresizingMask = .flexibleHeight
+        textView.textContainerInset = UIEdgeInsets(top: 20, left: horizontalInset(), bottom: 20, right: horizontalInset())
         storage.syntaxHighlight()
         return textView
     }
@@ -31,11 +33,24 @@ struct EditorView: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: UITextView, context: Context) {
+        uiView.textContainerInset = UIEdgeInsets(top: 20, left: horizontalInset(), bottom: 20, right: horizontalInset())
         if model.reloadContent {
             model.reloadContent = false
             uiView.text = model.textDocument!
             (uiView.textStorage as! Storage).syntaxHighlight()
         }
+    }
+    
+    func horizontalInset() -> CGFloat {
+        let maxDocumentWidth = 750
+        let minInset = 25
+        
+        var inset = minInset
+        print(frame.width, CGFloat(maxDocumentWidth + minInset * 2))
+        if frame.width > CGFloat(maxDocumentWidth + minInset * 2) {
+            inset = (Int(frame.width) - maxDocumentWidth) / 2
+        }
+        return CGFloat(inset)
     }
 }
 
