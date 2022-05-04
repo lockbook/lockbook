@@ -151,6 +151,7 @@
 		B21AF22A28204D460098C2AB /* CustomNSTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomNSTextView.swift; sourceTree = "<group>"; };
 		B21AF22C282058FC0098C2AB /* TypeAssist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypeAssist.swift; sourceTree = "<group>"; };
 		B21AF22F28218B4E0098C2AB /* CustomUITextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomUITextView.swift; sourceTree = "<group>"; };
+		B21AF2322822FC7B0098C2AB /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		B227B6B227C156CC004CDF87 /* Parser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Parser.swift; sourceTree = "<group>"; };
 		B273394C26C8A4B400303EAE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B273394E26C8B3EF00303EAE /* Media.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Media.xcassets; sourceTree = "<group>"; };
@@ -263,6 +264,7 @@
 				872A61D827BD8A6700AEA1D3 /* TextKit */,
 				87E1C5D927B480C10029833D /* macOS */,
 				87E1C5D827B480A50029833D /* iOS */,
+				B21AF2322822FC7B0098C2AB /* README.md */,
 			);
 			path = Editor;
 			sourceTree = "<group>";

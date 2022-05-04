@@ -47,6 +47,10 @@ public class Parser: Visitor {
         let newParent = ItemAR(indexes, node, currentParent!)
         self.currentParent = newParent
         processedDocument.append(newParent)
+        // Items without any children yet will not be properly styled. So an edge case is added here in addition to paragraph
+        // There are further edge cases with items that have a soft break inside them. It is perhaps possible to cleanup a
+        // bunch of code by thinking through paragraph styling from an item centric perspective rather than a paragraph centric
+        // one. The paragraph centric approach makes it easy to calculate where the bullet / number ends and the content begins.
         if node.children.isEmpty {
             let itemDefinition = indexes.getRange(
                 startCol: 1,
@@ -110,6 +114,11 @@ public class Parser: Visitor {
     public func visit(heading node: Heading)  {
         let oldParent = self.currentParent
         var newParent: AttributeRange
+        // if you were to create a `-` style list, and then hit enter and then tab, it is valid for that tab
+        // to be a heading. This is not likely what the user expects to happen when they create a bulleted list
+        // and tab. However most parsers will output this heading according to commonmark spec. This is the one
+        // place our "Preview" will not behave the same way a parser would render. We should think about how we
+        // feel about that. 
         if let itemParent = oldParent as? ItemAR {
             let itemDefinition = indexes.getRange(
                 startCol: 1,

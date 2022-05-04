@@ -157,8 +157,8 @@ class InlineCodeAR: BaseAR {
 
 class CodeBlockAR: BaseAR {
     override var monospace: Bool { true }
-    override var background: UniversalColor { UniversalColor.black.withAlphaComponent(0.65) }
-    override var foreground: UniversalColor { UniversalColor.white }
+//    override var background: UniversalColor { UniversalColor.black.withAlphaComponent(0.65) }
+    override var foreground: UniversalColor { UniversalColor.systemIndigo }
 }
 
 class BlockQuoteAR: BaseAR {
