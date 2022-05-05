@@ -416,15 +416,57 @@ where
     }
 
     fn filter_deleted(&self) -> Result<Vec<Fm>, TreeError> {
-        todo!() //look into optimizing
+        // todo!() //look into optimizing. Optimized: I think it's O(n) instead of O(n^2) now
+        let mut result = HashMap::new();
+        let mut not_deleted = HashMap::new();
+        for (id, file) in self {
+            let mut ancestors = HashMap::from([(id.clone(), file.clone())]);
+            let mut ancestor = file;
+            loop {
+                if not_deleted.get(&ancestor.id()).is_none() // check it isn't confirmed as not deleted
+                    && (ancestor.deleted() || result.get(&ancestor.id()).is_some())
+                {
+                    for (prev_ancestor_id, prev_ancestor) in ancestors {
+                        result.insert(prev_ancestor_id, prev_ancestor);
+                    }
+                    break;
+                }
+
+                let parent = self.find(ancestor.parent())?;
+                if parent.id() == ancestor.id() {
+                    for (prev_ancestor_id, prev_ancestor) in ancestors {
+                        not_deleted.insert(prev_ancestor_id, prev_ancestor);
+                    }
+                    break; // root
+                }
+                if &parent.id() == id {
+                    for (prev_ancestor_id, prev_ancestor) in ancestors {
+                        not_deleted.insert(prev_ancestor_id, prev_ancestor);
+                    }
+                    break; // this is a cycle (unless it's root), but not our problem
+                }
+                ancestors.insert(parent.id(), parent.clone());
+                ancestor = &parent;
+            }
+        }
+        Ok(result.values().cloned().collect())
     }
 
     fn filter_not_deleted(&self) -> Result<Vec<Fm>, TreeError> {
-        todo!()
+        // need rework, especially if allowed to change output of filter_deleted
+        let deleted = self.filter_deleted()?; 
+        Ok(self
+            .into_values()
+            .into_iter()
+            .filter(|f| !deleted.iter().any(|nd| nd.id() == f.id()))
+            .collect())
     }
 
     fn filter_documents(&self) -> Vec<Fm> {
-        todo!()
+        self.into_values()
+            .into_iter()
+            .filter(|f| f.file_type() == FileType::Document)
+            .collect()
     }
 
     fn get_invalid_cycles(&self, staged_changes: &[Fm]) -> Result<Vec<Uuid>, TreeError> {
