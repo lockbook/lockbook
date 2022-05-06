@@ -348,12 +348,12 @@ where
     Fm: FileMetadata,
 {
     fn ids(&self) -> Vec<Uuid> {
-        self.keys().map(|k| *k).collect()
+        self.keys().cloned().collect()
     }
 
     fn stage(&self, staged: &[Fm]) -> Vec<(Fm, StageSource)> {
         let mut result = Vec::new();
-        for (_, file) in self {
+        for file in self.values() {
             if let Some(ref staged) = staged.maybe_find(file.id()) {
                 result.push((staged.clone(), StageSource::Staged));
             } else {
@@ -384,9 +384,7 @@ where
     }
 
     fn maybe_find_root(&self) -> Option<Fm> {
-        self.iter()
-            .find_map(|(&id, &f)| if id == f.parent() { Some(&f) } else { None })
-            .cloned()
+        self.values().find(|f| f.id() == f.parent()).cloned()
     }
 
     fn maybe_find(&self, id: Uuid) -> Option<Fm> {
@@ -420,8 +418,8 @@ where
         let mut result = HashMap::new();
         let mut not_deleted = HashMap::new();
         for (id, file) in self {
-            let mut ancestors = HashMap::from([(id.clone(), file.clone())]);
-            let mut ancestor = file;
+            let mut ancestors = HashMap::from([(*id, file.clone())]);
+            let mut ancestor = file.clone();
             loop {
                 if not_deleted.get(&ancestor.id()).is_none() // check it isn't confirmed as not deleted
                     && (ancestor.deleted() || result.get(&ancestor.id()).is_some())
@@ -433,20 +431,15 @@ where
                 }
 
                 let parent = self.find(ancestor.parent())?;
-                if parent.id() == ancestor.id() {
+                // first case is root, second case is a cycle (not our problem)
+                if parent.id() == ancestor.id() || &parent.id() == id {
                     for (prev_ancestor_id, prev_ancestor) in ancestors {
                         not_deleted.insert(prev_ancestor_id, prev_ancestor);
                     }
                     break; // root
                 }
-                if &parent.id() == id {
-                    for (prev_ancestor_id, prev_ancestor) in ancestors {
-                        not_deleted.insert(prev_ancestor_id, prev_ancestor);
-                    }
-                    break; // this is a cycle (unless it's root), but not our problem
-                }
                 ancestors.insert(parent.id(), parent.clone());
-                ancestor = &parent;
+                ancestor = parent;
             }
         }
         Ok(result.values().cloned().collect())
@@ -456,16 +449,16 @@ where
         // need rework, especially if allowed to change output of filter_deleted
         let deleted = self.filter_deleted()?; 
         Ok(self
-            .into_values()
-            .into_iter()
+            .values()
             .filter(|f| !deleted.iter().any(|nd| nd.id() == f.id()))
+            .cloned()
             .collect())
     }
 
     fn filter_documents(&self) -> Vec<Fm> {
-        self.into_values()
-            .into_iter()
+        self.values()
             .filter(|f| f.file_type() == FileType::Document)
+            .cloned()
             .collect()
     }
 
