@@ -62,12 +62,19 @@ public class IndexConverter {
             return NSRange(location: 0, length: 0)
         }
         
+        // This exists because of (presumably) bugs inside
+        var fixedEndCol = endCol
+        if endCol < startCol {
+            fixedEndCol = startCol
+        }
+        
         let startUTF8 = getUTF8Index(utf8Row: startLine-1, utf8Col: startCol-1)
-        let offset = getUTF8Index(utf8Row: endLine-1, utf8Col: endCol-1) - startUTF8
+        let offset = getUTF8Index(utf8Row: endLine-1, utf8Col: fixedEndCol-1) - startUTF8
         
         let start = indexLookup[startUTF8] ?? indexLookup[indexLookup.count - 1]!
         let end = indexLookup[startUTF8 + offset] ?? indexLookup[indexLookup.count - 1]!
         
+        // TODO we also get a crash here with - #
         return NSRange(start...end, in: string)
     }
     
