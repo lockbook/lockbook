@@ -1,19 +1,28 @@
 use crate::account_service::GetUsageHelperError;
-use crate::billing::{google_play_client, stripe_client};
 use crate::billing::stripe_model::{
     StripePaymentInfo, StripeSubscriptionInfo, StripeUserInfo, Timestamp,
 };
-use crate::keys::{android_purchase_token, data_cap, public_key_from_stripe_customer_id, stripe_user_info};
+use crate::billing::{google_play_client, stripe_client};
+use crate::keys::{google_play_user_info, data_cap, public_key_from_stripe_customer_id, stripe_user_info, stringify_public_key};
 use crate::ServerError::ClientError;
 use crate::{
     account_service, keys, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE,
     PREMIUM_TIER_USAGE_SIZE,
 };
+use base64::DecodeError;
 use deadpool_redis::redis::AsyncCommands;
 use deadpool_redis::Connection;
+use google_pubsub1::api::PubsubMessage;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
-use lockbook_models::api::{PremiumAccountType, CancelAndroidSubscriptionError, CancelAndroidSubscriptionRequest, CancelAndroidSubscriptionResponse, ConfirmAndroidSubscriptionError, ConfirmAndroidSubscriptionRequest, ConfirmAndroidSubscriptionResponse, GetCreditCardError, GetCreditCardRequest, GetCreditCardResponse, PaymentMethod, SwitchAccountTierStripeError, SwitchAccountTierStripeRequest, SwitchAccountTierStripeResponse, StripeAccountTier};
+use lockbook_models::api::{
+    CancelAndroidSubscriptionError, CancelAndroidSubscriptionRequest,
+    CancelAndroidSubscriptionResponse, ConfirmAndroidSubscriptionError,
+    ConfirmAndroidSubscriptionRequest, ConfirmAndroidSubscriptionResponse, GetCreditCardError,
+    GetCreditCardRequest, GetCreditCardResponse, PaymentMethod, PremiumAccountType,
+    StripeAccountTier, SwitchAccountTierStripeError, SwitchAccountTierStripeRequest,
+    SwitchAccountTierStripeResponse,
+};
 use log::info;
 use redis_utils::converters::{JsonGet, JsonSet, PipelineJsonSet};
 use redis_utils::tx;
@@ -23,6 +32,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
+use crate::billing::google_play_model::{DeveloperNotification, GooglePlayUserInfo};
 
 pub async fn confirm_android_subscription(
     context: RequestContext<'_, ConfirmAndroidSubscriptionRequest>,
@@ -41,10 +51,25 @@ pub async fn confirm_android_subscription(
         PremiumAccountType::YearlyPremium => &server_state.config.google.yearly_subscription_id,
     };
 
-    google_play_client::acknowledge_subscription(&server_state.gcp_publisher, subscription_id, &request.purchase_token, &context.public_key).await?;
+    let user_info = GooglePlayUserInfo {
+        purchase_token: request.purchase_token.clone(),
+        subscription_id: subscription_id.clone(),
+        expiration_time: get_time().0 as u64
+    };
 
-    con.set(data_cap(&context.public_key), PREMIUM_TIER_USAGE_SIZE).await?;
-    con.set(android_purchase_token(&context.public_key), &request.purchase_token).await?;
+    con.set(data_cap(&context.public_key), PREMIUM_TIER_USAGE_SIZE)
+        .await?;
+
+    con.json_set(google_play_user_info(&stringify_public_key(&context.public_key)), &user_info)
+        .await?;
+
+    google_play_client::acknowledge_subscription(
+        &server_state.android_publisher,
+        &user_info.subscription_id,
+        &user_info.purchase_token,
+        &context.public_key,
+    )
+        .await?;
 
     Ok(ConfirmAndroidSubscriptionResponse {})
 }
@@ -53,7 +78,6 @@ pub async fn cancel_android_subscription(
     context: RequestContext<'_, CancelAndroidSubscriptionRequest>,
 ) -> Result<CancelAndroidSubscriptionResponse, ServerError<CancelAndroidSubscriptionError>> {
     let server_state = context.server_state;
-    let mut con = server_state.index_db_pool.get().await?;
 
     let current_data_cap: u64 = con.get(data_cap(&context.public_key)).await?;
 
@@ -61,13 +85,26 @@ pub async fn cancel_android_subscription(
         return Err(ClientError(CancelAndroidSubscriptionError::NotPremium));
     }
 
-    let purchase_token: String = con.get(android_purchase_token(&context.public_key)).await?;
+    let maybe_user_info: Option<GooglePlayUserInfo> = con
+        .maybe_json_get(google_play_user_info(&stringify_public_key(&context.public_key)))
+        .await?;
 
-    google_play_client::cancel_subscription(&server_state.gcp_publisher, &server_state.config.google.yearly_subscription_id, &purchase_token).await?;
+    match maybe_user_info {
+        None => Err(ClientError(CancelAndroidSubscriptionError::NotAGooglePlayCustomer)),
+        Some(user_info) => {
+            google_play_client::cancel_subscription(
+                &server_state.android_publisher,
+                &user_info.subscription_id,
+                &user_info.purchase_token,
+            )
+                .await?;
 
-    con.set(data_cap(&context.public_key), FREE_TIER_USAGE_SIZE).await?;
+            con.set(data_cap(&context.public_key), FREE_TIER_USAGE_SIZE)
+                .await?;
 
-    Ok(CancelAndroidSubscriptionResponse {})
+            Ok(CancelAndroidSubscriptionResponse {})
+        }
+    }
 }
 
 pub async fn switch_account_tier_stripe(
@@ -88,7 +125,7 @@ pub async fn switch_account_tier_stripe(
         &mut con,
         server_state.config.stripe.millis_between_user_payment_flows,
     )
-        .await?;
+    .await?;
 
     let current_data_cap: u64 = con.get(data_cap(&context.public_key)).await?;
 
@@ -102,7 +139,7 @@ pub async fn switch_account_tier_stripe(
                 card,
                 &mut user_info,
             )
-                .await?
+            .await?
         }
         (FREE_TIER_USAGE_SIZE, StripeAccountTier::Free)
         | (PREMIUM_TIER_USAGE_SIZE, StripeAccountTier::Premium(_)) => {
@@ -128,7 +165,9 @@ pub async fn switch_account_tier_stripe(
                     "Cannot downgrade user to free since they are over the data cap. public_key: {}",
                     fmt_public_key
                 );
-                return Err(ClientError(SwitchAccountTierStripeError::CurrentUsageIsMoreThanNewTier));
+                return Err(ClientError(
+                    SwitchAccountTierStripeError::CurrentUsageIsMoreThanNewTier,
+                ));
             }
 
             let pos = get_active_subscription_index(&user_info.subscriptions)?;
@@ -137,7 +176,7 @@ pub async fn switch_account_tier_stripe(
                 &server_state.stripe_client,
                 &stripe::SubscriptionId::from_str(&user_info.subscriptions[pos].id)?,
             )
-                .await?;
+            .await?;
 
             info!("Successfully canceled stripe subscription. public_key: {}", fmt_public_key);
 
@@ -206,7 +245,9 @@ async fn lock_payment_workflow(
                 "User is already in payment flow, or this request is too soon after a failed one. public_key: {}",
                 keys::stringify_public_key(public_key)
             );
-            return Err(Abort(ClientError(SwitchAccountTierStripeError::ConcurrentRequestsAreTooSoon)));
+            return Err(Abort(ClientError(
+                SwitchAccountTierStripeError::ConcurrentRequestsAreTooSoon,
+            )));
         }
 
         user_info.last_in_payment_flow = current_time;
@@ -239,7 +280,7 @@ async fn create_subscription(
                 *exp_year,
                 cvc,
             )
-                .await?;
+            .await?;
 
             let last_4 = payment_method_resp
                 .card
@@ -270,7 +311,7 @@ async fn create_subscription(
                         &user_info.customer_name.to_string(),
                         payment_method_resp.id.clone(),
                     )
-                        .await?;
+                    .await?;
                     let customer_id = customer_resp.id.to_string();
 
                     info!("Created customer_id: {}. public_key: {}", customer_id, fmt_public_key);
@@ -306,7 +347,7 @@ async fn create_subscription(
                     &server_state.stripe_client,
                     &stripe::PaymentMethodId::from_str(&info.id)?,
                 )
-                    .await?;
+                .await?;
             }
 
             info!(
@@ -319,7 +360,7 @@ async fn create_subscription(
                 customer_id.clone(),
                 payment_method_resp.id.clone(),
             )
-                .await?;
+            .await?;
 
             info!(
                 "Created a setup intent: {}, public_key: {}",
@@ -451,14 +492,14 @@ pub async fn stripe_webhooks(
         }
         (stripe::EventType::InvoicePaid, stripe::EventObject::Invoice(partial_invoice)) => {
             if let Some(stripe::InvoiceBillingReason::SubscriptionCycle) =
-            partial_invoice.billing_reason
+                partial_invoice.billing_reason
             {
                 let invoice = stripe_client::retrieve_invoice(
                     &server_state.stripe_client,
                     &partial_invoice.id,
                 )
-                    .await
-                    .map_err(|e| internal!("Error expanding invoice: {:?}", e))?;
+                .await
+                .map_err(|e| internal!("Error expanding invoice: {:?}", e))?;
 
                 let subscription_period_end = match invoice.subscription {
                     None => {
@@ -531,4 +572,71 @@ async fn get_public_key_and_stripe_user_info(
         })?;
 
     Ok((public_key, user_info))
+}
+
+#[derive(Debug)]
+pub enum GooglePlayWebhookError {
+    InvalidToken,
+    CannotRetrieveData,
+    NoPubSubData,
+    CannotDecodePubSubData(DecodeError),
+    CannotRetrieveUserInfo,
+    CannotRetrievePublicKey,
+    CannotParseTime,
+}
+
+pub async fn android_notification_webhooks(
+    server_state: &Arc<ServerState>, request_body: Bytes, auth_token: String,
+) -> Result<(), ServerError<GooglePlayWebhookError>> {
+    if !constant_time_eq::constant_time_eq(
+        auth_token.as_bytes(),
+        server_state.config.google.pubsub_token.as_bytes(),
+    ) {
+        return Err(ClientError(GooglePlayWebhookError::InvalidToken));
+    }
+
+    let message = serde_json::from_slice::<PubsubMessage>(&request_body)?;
+    let data = base64::decode(
+        message
+            .data
+            .ok_or(ClientError(GooglePlayWebhookError::NoPubSubData))?,
+    )
+    .map_err(|e| ClientError(GooglePlayWebhookError::CannotDecodePubSubData(e)))?;
+
+    let notification = serde_json::from_slice::<DeveloperNotification>(&data)?;
+
+    if let Some(sub_notif) = notification.subscription_notification {
+        let purchase = google_play_client::get_subscription(&server_state.android_publisher, &sub_notif.subscription_id, &sub_notif.purchase_token).await?;
+
+        let mut con = server_state.index_db_pool.get().await?;
+
+        let mut changed = false;
+
+        let public_key = purchase.developer_payload.ok_or(ClientError(GooglePlayWebhookError::CannotRetrievePublicKey))?;
+
+        let mut user_info: GooglePlayUserInfo = con
+            .maybe_json_get(google_play_user_info(&public_key))
+            .await?
+            .ok_or(ClientError(GooglePlayWebhookError::CannotRetrieveUserInfo))?;
+
+        if let Some(purchase_token) = purchase.linked_purchase_token {
+            user_info.purchase_token = purchase_token;
+            changed = true;
+        }
+
+        if let Some(exp_time) = purchase.expiry_time_millis {
+            user_info.expiration_time = exp_time.parse::<u64>().map_err(|e| ClientError(GooglePlayWebhookError::CannotParseTime))?;
+            changed = true;
+        }
+    }
+
+    if let Some(test_notif) = notification.test_notification {
+        info!("Test notification hit: {}", test_notif.version)
+    }
+
+    if let Some(otp_notif) = notification.one_time_product_notification {
+        return Err(internal!("Received a one time product notification although there are no registered one time products. developer_notification: {:?}", notification));
+    }
+
+    Ok(())
 }

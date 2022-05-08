@@ -156,14 +156,20 @@ pub struct GoogleConfig {
     pub service_account_cred_path: String,
     pub yearly_subscription_id: String,
     pub monthly_subscription_id: String,
+    pub pubsub_token: String,
 }
 
 impl GoogleConfig {
     pub fn from_env_vars() -> GoogleConfig {
         GoogleConfig {
             service_account_cred_path: env_or_panic("SERVICE_ACCOUNT_CRED_PATH").parse().unwrap(),
-            yearly_subscription_id: env_or_panic("GOOGLE_YEARLY_SUBSCRIPTION_ID").parse().unwrap(),
-            monthly_subscription_id: env_or_panic("GOOGLE_MONTHLY_SUBSCRIPTION_ID").parse().unwrap()
+            yearly_subscription_id: env_or_panic("GOOGLE_YEARLY_SUBSCRIPTION_ID")
+                .parse()
+                .unwrap(),
+            monthly_subscription_id: env_or_panic("GOOGLE_MONTHLY_SUBSCRIPTION_ID")
+                .parse()
+                .unwrap(),
+            pubsub_token: env_or_panic("PUBSUB_NOTIFICATION_TOKEN").parse().unwrap(),
         }
     }
 }

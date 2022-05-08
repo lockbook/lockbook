@@ -87,7 +87,11 @@ pub fn core_routes(
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
         .or(core_req!(DeleteAccountRequest, delete_account, server_state))
         .or(core_req!(GetCreditCardRequest, get_credit_card, server_state))
-        .or(core_req!(ConfirmAndroidSubscriptionRequest, confirm_android_subscription, server_state))
+        .or(core_req!(
+            ConfirmAndroidSubscriptionRequest,
+            confirm_android_subscription,
+            server_state
+        ))
         .or(core_req!(CancelAndroidSubscriptionRequest, cancel_android_subscription, server_state))
 }
 
@@ -140,6 +144,40 @@ pub fn stripe_webhooks(
                         | ServerError::ClientError(StripeWebhookError::ParseError(_)) => {
                             StatusCode::BAD_REQUEST
                         }
+                        ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                    };
+
+                    warp::reply::with_status("".to_string(), status_code)
+                }
+            }
+        })
+}
+
+pub fn android_notification_webhooks(
+    server_state: &Arc<ServerState>,
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    let cloned_state = Arc::clone(server_state);
+
+    // server_state.gcp_pubsub.
+
+    warp::post()
+        .and(warp::path("android_notification_webhook"))
+        .and(warp::any().map(move || Arc::clone(&cloned_state)))
+        .and(warp::body::bytes())
+        .and(warp::query::query::<String>())
+        .then(|state: Arc<ServerState>, request: Bytes, auth_token: String| async move {
+            match billing_service::android_notification_webhooks(&state, request, auth_token).await
+            {
+                Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
+                Err(e) => {
+                    error!("{:?}", e);
+
+                    let status_code = match e {
+                        ServerError::ClientError(GooglePlayWebhookError::InvalidToken)
+                        | ServerError::ClientError(GooglePlayWebhookError::CannotRetrieveData)
+                        | ServerError::ClientError(GooglePlayWebhookError::NoPubSubData)
+                        | ServerError::ClientError(GooglePlayWebhookError::CannotDecodePubSubData(_))
+                        => StatusCode::BAD_REQUEST,
                         ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
                     };
 

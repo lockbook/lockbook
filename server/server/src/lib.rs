@@ -1,11 +1,9 @@
 extern crate log;
 
+use google_androidpublisher3::AndroidPublisher;
+use google_pubsub1::Pubsub;
 use std::env;
 use std::fmt::Debug;
-use google_androidpublisher3::AndroidPublisher;
-use google_androidpublisher3::hyper::client::HttpConnector;
-use google_androidpublisher3::hyper_rustls::HttpsConnector;
-use google_androidpublisher3::oauth2::authenticator::Authenticator;
 
 use libsecp256k1::PublicKey;
 use lockbook_crypto::pubkey::ECVerifyError;
@@ -28,7 +26,8 @@ pub struct ServerState {
     pub index_db_pool: deadpool_redis::Pool,
     pub stripe_client: stripe::Client,
     pub files_db_client: s3::bucket::Bucket,
-    pub gcp_publisher: AndroidPublisher,
+    pub android_publisher: AndroidPublisher,
+    pub gcp_pubsub: Pubsub,
 }
 
 #[derive(Clone)]

@@ -1,13 +1,16 @@
+use crate::billing::google_play_client::SimpleGCPError;
 use crate::{
     file_content_client, ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError,
     StripeWebhookError,
 };
 use deadpool_redis::PoolError;
-use lockbook_models::api::{CancelAndroidSubscriptionError, ConfirmAndroidSubscriptionError, GetUsageError, SwitchAccountTierStripeError};
+use lockbook_models::api::{
+    CancelAndroidSubscriptionError, ConfirmAndroidSubscriptionError, GetUsageError,
+    SwitchAccountTierStripeError,
+};
 use redis::RedisError;
 use redis_utils::converters::{JsonGetError, JsonSetError};
 use std::fmt::Debug;
-use crate::billing::google_play_client::SimpleGCPError;
 
 impl<T: Debug> From<PoolError> for ServerError<T> {
     fn from(err: PoolError) -> Self {
@@ -51,6 +54,12 @@ impl<T: Debug> From<stripe::ParseIdError> for ServerError<T> {
     }
 }
 
+impl<T: Debug> From<serde_json::Error> for ServerError<T> {
+    fn from(err: serde_json::Error) -> Self {
+        internal!("Serde json Error: {:?}", err)
+    }
+}
+
 impl From<GetUsageHelperError> for ServerError<GetUsageError> {
     fn from(e: GetUsageHelperError) -> Self {
         match e {
@@ -79,7 +88,9 @@ impl From<SimpleGCPError> for ServerError<CancelAndroidSubscriptionError> {
 impl From<SimplifiedStripeError> for ServerError<SwitchAccountTierStripeError> {
     fn from(e: SimplifiedStripeError) -> Self {
         match e {
-            SimplifiedStripeError::CardDecline => ClientError(SwitchAccountTierStripeError::CardDecline),
+            SimplifiedStripeError::CardDecline => {
+                ClientError(SwitchAccountTierStripeError::CardDecline)
+            }
             SimplifiedStripeError::InsufficientFunds => {
                 ClientError(SwitchAccountTierStripeError::InsufficientFunds)
             }
@@ -87,7 +98,9 @@ impl From<SimplifiedStripeError> for ServerError<SwitchAccountTierStripeError> {
             SimplifiedStripeError::CardNotSupported => {
                 ClientError(SwitchAccountTierStripeError::CardNotSupported)
             }
-            SimplifiedStripeError::ExpiredCard => ClientError(SwitchAccountTierStripeError::ExpiredCard),
+            SimplifiedStripeError::ExpiredCard => {
+                ClientError(SwitchAccountTierStripeError::ExpiredCard)
+            }
             SimplifiedStripeError::InvalidCardNumber => {
                 ClientError(SwitchAccountTierStripeError::InvalidCardNumber)
             }

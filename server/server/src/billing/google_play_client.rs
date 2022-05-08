@@ -1,22 +1,22 @@
-use google_androidpublisher3::{AndroidPublisher, Error};
-use google_androidpublisher3::api::{ProductPurchase, ProductPurchasesAcknowledgeRequest, SubscriptionPurchase, SubscriptionPurchasesAcknowledgeRequest};
-use google_androidpublisher3::hyper::StatusCode;
+use crate::keys;
+use google_androidpublisher3::api::{
+    SubscriptionPurchase, SubscriptionPurchasesAcknowledgeRequest,
+};
+use google_androidpublisher3::AndroidPublisher;
 use libsecp256k1::PublicKey;
-use crate::{keys, ServerState};
 
 pub enum SimpleGCPError {
-    Unexpected(String)
+    Unexpected(String),
 }
 
 const PACKAGE_NAME: &str = "app.lockbook";
 
 pub async fn acknowledge_subscription(
-    client: &AndroidPublisher,
-    subscription_id: &str,
-    purchase_token: &str,
-    public_key: &PublicKey,
+    client: &AndroidPublisher, subscription_id: &str, purchase_token: &str, public_key: &PublicKey,
 ) -> Result<(), SimpleGCPError> {
-    let req = SubscriptionPurchasesAcknowledgeRequest { developer_payload: Some(keys::stringify_public_key(public_key)) };
+    let req = SubscriptionPurchasesAcknowledgeRequest {
+        developer_payload: Some(keys::stringify_public_key(public_key)),
+    };
 
     return match client
         .purchases()
@@ -25,14 +25,12 @@ pub async fn acknowledge_subscription(
         .await
     {
         Ok(_) => Ok(()),
-        Err(err) => Err(SimpleGCPError::Unexpected(format!("{:#?}", err)))
+        Err(err) => Err(SimpleGCPError::Unexpected(format!("{:#?}", err))),
     };
 }
 
 pub async fn cancel_subscription(
-    client: &AndroidPublisher,
-    subscription_id: &str,
-    purchase_token: &str,
+    client: &AndroidPublisher, subscription_id: &str, purchase_token: &str,
 ) -> Result<(), SimpleGCPError> {
     return match client
         .purchases()
@@ -41,14 +39,12 @@ pub async fn cancel_subscription(
         .await
     {
         Ok(_) => Ok(()),
-        Err(err) => Err(SimpleGCPError::Unexpected(format!("{:#?}", err)))
+        Err(err) => Err(SimpleGCPError::Unexpected(format!("{:#?}", err))),
     };
 }
 
-pub async fn verify_subscription(
-    client: &AndroidPublisher,
-    subscription_id: &str,
-    purchase_token: &str,
+pub async fn get_subscription(
+    client: &AndroidPublisher, subscription_id: &str, purchase_token: &str,
 ) -> Result<SubscriptionPurchase, SimpleGCPError> {
     return match client
         .purchases()
@@ -57,6 +53,6 @@ pub async fn verify_subscription(
         .await
     {
         Ok(resp) => Ok(resp.1),
-        Err(err) => Err(SimpleGCPError::Unexpected(format!("{:#?}", err)))
+        Err(err) => Err(SimpleGCPError::Unexpected(format!("{:#?}", err))),
     };
 }

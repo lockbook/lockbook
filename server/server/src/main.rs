@@ -10,11 +10,13 @@ use deadpool_redis::Runtime;
 use lockbook_server_lib::content::file_content_client;
 use log::info;
 
+use google_androidpublisher3::{hyper, hyper_rustls};
 use std::sync::Arc;
-use google_androidpublisher3::{AndroidPublisher, hyper_rustls, oauth2};
 use warp::Filter;
 
-use lockbook_server_lib::router_service::{build_info, core_routes, get_metrics, stripe_webhooks};
+use lockbook_server_lib::router_service::{
+    android_notification_webhooks, build_info, core_routes, get_metrics, stripe_webhooks,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -31,35 +33,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let stripe_client = stripe::Client::new(&config.stripe.stripe_secret);
 
-    // TODO: Remove this
-    // let gcp_auth_manager = gcp_auth::AuthenticationManager::from(CustomServiceAccount::from_file(&config.google.service_account_cred_path).unwrap());
-    // let gcp_auth_manager = google_androidpublisher3::oauth2::read_service_account_key(&config.google.service_account_cred_path).await.unwrap();
-    //
-    // google_androidpublisher3::oauth2::ApplicationSecret::default()
-    //
-    // let auth = oauth2::InstalledFlowAuthenticator::builder(
-    //     google_androidpublisher3::oauth2::read_service_account_key(&config.google.service_account_cred_path).await.unwrap(),
-    //     oauth2::InstalledFlowReturnMethod::HTTPRedirect,
-    // ).build().await.unwrap();
-
     let service_account_key: google_androidpublisher3::oauth2::ServiceAccountKey =
-        google_androidpublisher3::oauth2::read_service_account_key(&config.google.service_account_cred_path).await.unwrap();
-
-    let auth = google_androidpublisher3::oauth2::ServiceAccountAuthenticator::builder(service_account_key)
-        .build()
+        google_androidpublisher3::oauth2::read_service_account_key(
+            &config.google.service_account_cred_path,
+        )
         .await
         .unwrap();
 
-    let client = warp::hyper::Client::builder().build(hyper_rustls::HttpsConnector::with_native_roots());
+    let auth =
+        google_androidpublisher3::oauth2::ServiceAccountAuthenticator::builder(service_account_key)
+            .build()
+            .await
+            .unwrap();
 
-    let gcp_publisher = google_androidpublisher3::AndroidPublisher::new(client, auth);
+    let client = hyper::Client::builder().build(
+        hyper_rustls::HttpsConnectorBuilder::with_native_roots(Default::default())
+            .https_or_http()
+            .enable_http1()
+            .enable_http2()
+            .build(),
+    );
+
+    let android_publisher =
+        google_androidpublisher3::AndroidPublisher::new(client.clone(), auth.clone());
+    let gcp_pubsub = google_pubsub1::Pubsub::new(client, auth);
 
     let server_state = Arc::new(ServerState {
         config: config.clone(),
         index_db_pool,
         stripe_client,
         files_db_client,
-        gcp_publisher,
+        android_publisher,
+        gcp_pubsub,
     });
 
     feature_flags::initialize_flags(&server_state).await;
@@ -67,7 +72,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let routes = core_routes(&server_state)
         .or(build_info())
         .or(get_metrics())
-        .or(stripe_webhooks(&server_state));
+        .or(stripe_webhooks(&server_state))
+        .or(android_notification_webhooks(&server_state));
 
     let server = warp::serve(routes);
 

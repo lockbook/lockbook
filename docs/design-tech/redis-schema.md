@@ -42,9 +42,9 @@ Values are json encoded.
   + `x` is the stripe `customer_id`.
 
 # Android Billing
-+ `public_key:x:android_purchase_token`
++ `public_key:x:google_play_user_info`
     + `x` is the `public_key`.
-    + A [purchase token](https://developer.android.com/google/play/billing/integrate) is tied to a subscription (in this case) and allows us to handle its related states.
+    + [Basic google play info](../../server/server/src/billing/google_play_model.rs) (subscription id, and purchase token) for a user.
 
 # Document Content (TODO)
 

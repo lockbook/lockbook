@@ -6,7 +6,7 @@ use lockbook_core::repo::schema::Tx;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_core::service::path_service::Filter::DocumentsOnly;
 use lockbook_core::{Config, Core};
-use lockbook_models::api::{PremiumAccountType, FileMetadataUpsertsError, PaymentMethod, StripeAccountTier};
+use lockbook_models::api::{FileMetadataUpsertsError, PaymentMethod, StripeAccountTier};
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::tree::{FileMetaExt, FileMetadata};
 use lockbook_models::work_unit::WorkUnit;
