@@ -11,11 +11,6 @@ struct FileListView: View {
     let currentFolder: DecryptedFileMetadata
     let account: Account
     
-    init(currentFolder: DecryptedFileMetadata, account: Account) {
-        self.account = account
-        self.currentFolder = currentFolder
-    }
-    
     var body: some View {
         VStack {
             OutlineSection(state: outlineState, root: currentFolder)
