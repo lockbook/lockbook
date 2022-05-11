@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct BookView: View {
-    @EnvironmentObject var onboarding: OnboardingService
+        @EnvironmentObject var onboarding: OnboardingService
     
     let currentFolder: DecryptedFileMetadata
     let account: Account
@@ -32,21 +32,12 @@ struct BookView: View {
                             }
                     }
                 }
-        }
+        }.navigationViewStyle(.stack)
     }
     
     var iPad: some View {
         NavigationView {
-            FileListView(currentFolder: currentFolder, account: account)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        NavigationLink(
-                            destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
-                                Image(systemName: "gearshape.fill")
-                                    .foregroundColor(.blue)
-                            }
-                    }
-                }
+            FileTreeView(currentFolder: currentFolder, account: account)
         }
     }
 #endif

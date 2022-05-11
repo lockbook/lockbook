@@ -51,7 +51,7 @@ struct FileListView: View {
                 .sheet(isPresented: $creatingFile, onDismiss: {
                     self.selection = self.newFile
                 }, content: {
-                    NewFileSheet(parent: currentFolder, showing: $creatingFile, selection: $newFile)
+                    NewFileSheet(parent: currentFolder, selection: $newFile)
                 })
                 .onChange(of: selection) {_ in
                     // When we return back to this screen, we have to change newFile back to nil regardless

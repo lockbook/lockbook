@@ -9,7 +9,7 @@ struct OutlineSection: View {
     
     var root: DecryptedFileMetadata
     
-
+    
     var children: [DecryptedFileMetadata] {
         files.files.filter {
             $0.parent == root.id && $0.id != root.id
@@ -30,10 +30,14 @@ struct OutlineSection: View {
             }
             .listStyle(SidebarListStyle())
             .frame(minWidth: 10, maxWidth: .infinity, maxHeight: .infinity)
-            .padding(8)
+            .padding()
             // A hack for list row insets not working. This hack also applies to the section header though.
         }.contextMenu {
-            OutlineContextMenu.getContextView(meta: root, outlineState: state, branchState: nil)
+            OutlineContextMenu (meta: root, outlineState: state, branchState: nil)
         }
+        .navigationTitle(files.root!.decryptedName)
+        .sheet(isPresented: $state.creating) { NewFileSheet(parent: state.creatingInfo?.parent, selection: $state.selectedItem) }
+        .sheet(isPresented: $state.moving) { MoveSheet(meta: state.movingInfo) }
+        .sheet(isPresented: $state.renaming) { RenamingSheet(meta: state.renamingInfo) }
     }
 }

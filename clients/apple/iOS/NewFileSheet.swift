@@ -10,62 +10,64 @@ enum ClientFileTypes {
 
 struct NewFileSheet: View {
     
-    @EnvironmentObject var files: FileService
-    @EnvironmentObject var status: StatusService
-    @EnvironmentObject var errorService: UnexpectedErrorService
-    
-    @Environment(\.presentationMode) var presentationMode
-    
-    let parent: DecryptedFileMetadata
+    // Parent was made optional here because, in an outline view, parent will not be known until sheet is presented.
+    // Later, however, lack of parent will be used to show a fuzzy find parent search.
+    let parent: DecryptedFileMetadata?
+    @Binding var selection: DecryptedFileMetadata?
     
     @State var selected: ClientFileTypes = .Document
     @State var name: String = ".md"
     @State var errors: String = ""
     @State var introspected = false
     
-    @Binding var showing: Bool
-    @Binding var selection: DecryptedFileMetadata?
+    @EnvironmentObject var files: FileService
+    @EnvironmentObject var status: StatusService
+    @EnvironmentObject var errorService: UnexpectedErrorService
+    
+    @Environment(\.presentationMode) var presentationMode
     
     var body: some View {
-        VStack (alignment: .leading, spacing: 15){
-            HStack (alignment: .center) {
-                Text("Create")
-                    .bold()
-                    .font(.title)
-                Spacer()
-                Button(action: { presentationMode.wrappedValue.dismiss() }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.gray)
-                        .imageScale(.large)
-                        .frame(width: 50, height: 50, alignment: .center)
+        if let parent = parent {
+            VStack (alignment: .leading, spacing: 15){
+                HStack (alignment: .center) {
+                    Text("Create")
+                        .bold()
+                        .font(.title)
+                    Spacer()
+                    Button(action: { presentationMode.wrappedValue.dismiss() }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                            .imageScale(.large)
+                            .frame(width: 50, height: 50, alignment: .center)
+                    }
                 }
-            }
-            HStack {
-                Text("Inside:")
-                Text(parent.decryptedName + "/")
-                    .font(.system(.body, design: .monospaced))
-            }
-            Picker(selection: $selected, label: Text(""), content: {
-                Text("Document").tag(ClientFileTypes.Document)
-                Text("Drawing").tag(ClientFileTypes.Drawing)
-                Text("Folder").tag(ClientFileTypes.Folder)
-            }).pickerStyle(SegmentedPickerStyle())
-                .onChange(of: selected, perform: selectionChanged)
-            
-            TextField("Choose a filename", text: $name, onCommit: onCommit)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .autocapitalization(.none)
-                .tag("FileNameView")
-                .introspectTextField(customize: handleCursor)
-            
-            if errors != "" {
-                Text(errors)
-                    .foregroundColor(.red)
-                    .bold()
-            }
-            
-            Spacer()
-        }.padding()
+                HStack {
+                    Text("Inside:")
+                    Text(parent.decryptedName + "/")
+                        .font(.system(.body, design: .monospaced))
+                }
+                Picker(selection: $selected, label: Text(""), content: {
+                    Text("Document").tag(ClientFileTypes.Document)
+                    Text("Drawing").tag(ClientFileTypes.Drawing)
+                    Text("Folder").tag(ClientFileTypes.Folder)
+                }).pickerStyle(SegmentedPickerStyle())
+                    .onChange(of: selected, perform: selectionChanged)
+                
+                TextField("Choose a filename", text: $name, onCommit: onCommit)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .autocapitalization(.none)
+                    .tag("FileNameView")
+                    .introspectTextField(customize: handleCursor)
+                
+                if errors != "" {
+                    Text(errors)
+                        .foregroundColor(.red)
+                        .bold()
+                }
+                
+                Spacer()
+            }.padding()
+        }
     }
     
     func handleCursor(textField: UITextField) {
@@ -101,12 +103,12 @@ struct NewFileSheet: View {
     }
     
     func onCommit() {
-        switch DI.core.createFile(name: name, dirId: parent.id, isFolder: selected == .Folder) {
+        switch DI.core.createFile(name: name, dirId: parent!.id, isFolder: selected == .Folder) {
         case .success(let newMeta):
             files.refresh()
             status.checkForLocalWork()
             self.selection = newMeta
-            self.showing = false
+            presentationMode.wrappedValue.dismiss()
         case .failure(let err):
             switch err.kind {
             case .UiError(let uiError):
