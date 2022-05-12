@@ -13,8 +13,11 @@
 	margin: 0;
 	padding: 0;
 }
-#err {
+.err, #err {
 	color: red;
+}
+.err-input {
+	border-color: red;
 }
 .tree-msg {
 	padding-top: 8px;

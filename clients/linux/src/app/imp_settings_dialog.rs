@@ -11,8 +11,8 @@ impl super::App {
         let d = gtk::Dialog::builder()
             .transient_for(&self.window)
             .modal(true)
-            .default_width(500)
-            .default_height(425)
+            .default_width(600)
+            .default_height(450)
             .resizable(false)
             .title("Settings")
             .build();
@@ -31,7 +31,6 @@ impl super::App {
 
     fn acct_settings(&self, settings_win: &gtk::Dialog) -> gtk::Box {
         let cntr = settings_box();
-
         match self.api.account() {
             Ok(maybe_acct) => {
                 cntr.append(&heading("Info"));
@@ -133,19 +132,85 @@ impl super::App {
 
     fn usage_settings(&self) -> gtk::Box {
         let cntr = settings_box();
-        cntr.set_margin_top(20);
+        cntr.set_margin_top(12);
         cntr.set_spacing(0);
 
-        match self.api.usage() {
-            Ok(metrics) => {
-                usage_metrics(&cntr, &metrics);
-                match self.api.uncompressed_usage() {
-                    Ok(uncompressed) => usage_compression(&cntr, &metrics, &uncompressed),
-                    Err(err) => cntr.append(&gtk::Label::new(Some(&format!("{:?}", err)))), //todo
-                }
+        let usage_home = gtk::Box::new(gtk::Orientation::Vertical, 12);
+
+        let stack = gtk::Stack::new();
+        stack.add_named(&usage_home, Some("home"));
+        cntr.append(&stack);
+
+        let metrics = match self.api.usage() {
+            Ok(metrics) => metrics,
+            Err(err) => {
+                usage_home.append(&gtk::Label::new(Some(&format!("{:?}", err)))); //todo
+                return cntr;
             }
-            Err(err) => cntr.append(&gtk::Label::new(Some(&format!("{:?}", err)))), //todo
-        }
+        };
+
+        let uncompressed = match self.api.uncompressed_usage() {
+            Ok(data) => data,
+            Err(err) => {
+                usage_home.append(&gtk::Label::new(Some(&format!("{:?}", err)))); //todo
+                return cntr;
+            }
+        };
+
+        let compr_ratio =
+            format!("{:.2}x", uncompressed.exact as f64 / metrics.server_usage.exact as f64);
+        let compr_stats = gtk::Grid::builder()
+            .column_spacing(8)
+            .row_spacing(8)
+            .build();
+        compr_stats.attach(&grid_key("Uncompressed usage: "), 0, 0, 1, 1);
+        compr_stats.attach(&grid_val(&uncompressed.readable), 1, 0, 1, 1);
+        compr_stats.attach(&grid_key("Compression ratio: "), 0, 1, 1, 1);
+        compr_stats.attach(&grid_val(&compr_ratio), 1, 1, 1, 1);
+
+        let info_popover = gtk::Popover::new();
+        info_popover.set_child(Some(&compr_stats));
+
+        let info_icon = gtk::Image::from_icon_name("dialog-information-symbolic");
+        let info_btn = gtk::MenuButton::builder()
+            .direction(gtk::ArrowType::Right)
+            .popover(&info_popover)
+            .child(&info_icon)
+            .build();
+
+        let current_usage = ui::UsageInfoPanel::new("Current");
+        current_usage.name_box.append(&info_btn);
+        current_usage.set_price("Free");
+        current_usage.set_metrics(metrics.server_usage.exact as f64, metrics.data_cap.exact as f64);
+
+        let upgraded_usage = ui::UsageInfoPanel::new("Premium");
+        upgraded_usage.set_price("$2.50 monthly  <b><i>OR</i></b>  $25 yearly");
+        upgraded_usage.set_metrics(metrics.server_usage.exact as f64, 50000000000.0);
+
+        let btn_upgrade = gtk::Button::new();
+        btn_upgrade.set_child(Some(&upgraded_usage.cntr));
+        btn_upgrade.connect_clicked({
+            let stack = stack.clone();
+            let app = self.clone();
+
+            move |_| {
+                let maybe_card = app.api.get_credit_card().ok();
+                let upgrade_panel = ui::billing::UpgradePanel::new(maybe_card);
+                upgrade_panel.btn_continue.connect_clicked({
+                    let upgrade_panel = upgrade_panel.clone();
+                    move |_| {
+                        upgrade_panel.input_to_payment_method();
+                    }
+                });
+                stack.add_named(&upgrade_panel.steps, Some("upgrade"));
+                stack.set_visible_child_name("upgrade");
+            }
+        });
+
+        usage_home.append(&current_usage.cntr);
+        usage_home.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
+        usage_home.append(&btn_upgrade);
+
         cntr
     }
 
@@ -160,42 +225,32 @@ impl super::App {
     }
 
     fn general_settings(&self) -> gtk::Box {
-        let section = section();
-        // Maximize on startup.
-        {
-            let s = self.settings.clone();
-            let ch = gtk::CheckButton::with_label("Maximize window on startup");
-            ch.set_active(s.read().unwrap().window_maximize);
-            ch.connect_toggled(move |ch| {
-                s.write().unwrap().window_maximize = ch.is_active();
-            });
-            section.append(&ch);
-        }
-        // Auto save.
-        {
-            let s = self.settings.clone();
-            let ch = gtk::CheckButton::with_label("Auto-save");
-            ch.set_active(s.read().unwrap().auto_save);
-            ch.connect_toggled(move |ch| {
-                let auto_save = ch.is_active();
-                s.write().unwrap().auto_save = auto_save;
-                //self.toggle_auto_save(auto_save);
-            });
-            section.append(&ch);
-        }
-        // Auto sync.
-        {
-            let s = self.settings.clone();
-            let ch = gtk::CheckButton::with_label("Auto-sync");
-            ch.set_active(s.read().unwrap().auto_sync);
-            ch.connect_toggled(move |ch| {
-                let auto_sync = ch.is_active();
-                s.write().unwrap().auto_sync = auto_sync;
-                //self.toggle_auto_sync(auto_sync);
-            });
-            section.append(&ch);
-        }
-        section
+        let s = self.settings.clone();
+        let maximize = gtk::CheckButton::with_label("Maximize window on startup");
+        maximize.set_active(s.read().unwrap().window_maximize);
+        maximize.connect_toggled(move |maximize| {
+            s.write().unwrap().window_maximize = maximize.is_active();
+        });
+
+        let s = self.settings.clone();
+        let auto_save = gtk::CheckButton::with_label("Auto-save");
+        auto_save.set_active(s.read().unwrap().auto_save);
+        auto_save.connect_toggled(move |auto_save| {
+            s.write().unwrap().auto_save = auto_save.is_active();
+        });
+
+        let s = self.settings.clone();
+        let auto_sync = gtk::CheckButton::with_label("Auto-sync");
+        auto_sync.set_active(s.read().unwrap().auto_sync);
+        auto_sync.connect_toggled(move |auto_sync| {
+            s.write().unwrap().auto_sync = auto_sync.is_active();
+        });
+
+        let general = section();
+        general.append(&maximize);
+        general.append(&auto_save);
+        general.append(&auto_sync);
+        general
     }
 
     fn filetree_settings(&self) -> gtk::Box {
@@ -225,10 +280,8 @@ impl super::App {
 }
 
 fn tab(tabs: &gtk::Notebook, name: &str, icon_name: &str, stuff: &gtk::Box) {
-    let icon = gtk::Image::builder()
-        .icon_name(icon_name)
-        .pixel_size(22)
-        .build();
+    let icon = gtk::Image::from_icon_name(icon_name);
+    icon.set_pixel_size(22);
 
     let icon_and_name = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
@@ -265,62 +318,11 @@ fn acct_info(maybe_acct: Option<&lb::Account>) -> gtk::Grid {
     info
 }
 
-fn usage_metrics(cntr: &gtk::Box, m: &lb::UsageMetrics) {
-    let su_pct = m.server_usage.exact as f64 / m.data_cap.exact as f64;
-    let su_str = format!("<b>{}</b> / <b>{}</b>", m.server_usage.readable, m.data_cap.readable);
-    let su_lbl = gtk::Label::builder()
-        .label(&su_str)
-        .use_markup(true)
-        .halign(gtk::Align::Start)
-        .tooltip_text(&format!("{} %", su_pct))
-        .build();
-    let su_pct_lbl = gtk::Label::builder()
-        .label(&format!("({:.2} %)", su_pct))
-        .halign(gtk::Align::End)
-        .hexpand(true)
-        .build();
-
-    let texts = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    texts.append(&su_lbl);
-    texts.append(&su_pct_lbl);
-
-    let su_bar = gtk::ProgressBar::builder()
-        .fraction(if su_pct > 1.0 { 1.0 } else { su_pct }) // clamp percentage at 1
-        .margin_top(12)
-        .build();
-
-    cntr.append(
-        &gtk::Label::builder()
-            .label("Server utilization:")
-            .halign(gtk::Align::Start)
-            .margin_bottom(12)
-            .build(),
-    );
-    cntr.append(&texts);
-    cntr.append(&su_bar);
-}
-
-fn usage_compression(cntr: &gtk::Box, m: &lb::UsageMetrics, cmpr: &lb::UsageItemMetric) {
-    let info = gtk::Grid::builder()
-        .margin_top(30)
-        .column_spacing(8)
-        .row_spacing(8)
-        .build();
-    let compression_ratio = format!("{:.2}x", cmpr.exact as f64 / m.server_usage.exact as f64);
-    info.attach(&grid_key("Uncompressed usage: "), 0, 0, 1, 1);
-    info.attach(&grid_val(&cmpr.readable), 1, 0, 1, 1);
-    info.attach(&grid_key("Compression ratio: "), 0, 1, 1, 1);
-    info.attach(&grid_val(&compression_ratio), 1, 1, 1, 1);
-    cntr.append(&info);
-}
-
 fn settings_box() -> gtk::Box {
-    gtk::Box::builder()
-        .orientation(gtk::Orientation::Vertical)
-        .spacing(12)
-        .margin_start(12)
-        .margin_end(12)
-        .build()
+    let b = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    b.set_margin_start(12);
+    b.set_margin_end(12);
+    b
 }
 
 fn heading(txt: &str) -> gtk::Label {
@@ -342,11 +344,10 @@ fn section() -> gtk::Box {
 }
 
 fn separator() -> gtk::Separator {
-    gtk::Separator::builder()
-        .orientation(gtk::Orientation::Horizontal)
-        .margin_top(20)
-        .margin_bottom(4)
-        .build()
+    let s = gtk::Separator::new(gtk::Orientation::Horizontal);
+    s.set_margin_top(20);
+    s.set_margin_bottom(4);
+    s
 }
 
 fn grid_key(txt: &str) -> gtk::Label {

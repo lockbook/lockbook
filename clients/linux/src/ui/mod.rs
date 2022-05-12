@@ -6,6 +6,7 @@ mod menu_item;
 mod search_row;
 mod sync_panel;
 mod titlebar;
+mod usage_info;
 
 mod image_tab;
 mod tab;
@@ -25,12 +26,14 @@ pub use search_row::SearchRow;
 pub use sync_panel::SyncPanel;
 pub use titlebar::SearchOp;
 pub use titlebar::Titlebar;
+pub use usage_info::UsageInfoPanel;
 
 pub use image_tab::ImageTab;
 pub use tab::Tab;
 pub use text_editor::TextEditor;
 
 pub mod about_dialog;
+pub mod billing;
 
 use gdk_pixbuf::Pixbuf;
 use gtk::glib;
