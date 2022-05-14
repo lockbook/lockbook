@@ -1,7 +1,8 @@
 use lockbook_core::pure_functions::files;
 use lockbook_core::CoreError;
 use lockbook_models::file_metadata::FileType;
-use lockbook_models::tree::{FileMetaExt, PathConflict};
+use lockbook_models::tree::{FileMetaExt, PathConflict, TEMP_FileMetaExt};
+use std::collections::HashMap;
 use test_utils::test_core_with_account;
 
 #[test]
@@ -165,6 +166,25 @@ fn apply_move_2cycle() {
     let folder2_id = folder2.id;
     let result = files::apply_move(&[root, folder1, folder2], folder1_id, folder2_id);
     assert_eq!(result, Err(CoreError::FolderMovedIntoSelf));
+}
+
+#[test]
+fn hash_map_apply_move_2cycle() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = files::create_root(&account);
+    let mut folder1 = files::create(FileType::Folder, root.id, "folder1", &account.public_key());
+    let folder2 = files::create(FileType::Folder, folder1.id, "folder2", &account.public_key());
+
+    folder1.parent = folder2.id.clone();
+    let all_files =
+        HashMap::from([(root.id, root), (folder1.id, folder1.clone()), (folder2.id, folder2)]);
+    // let all_files = &[root.clone(), folder1.clone(), folder2.clone()];
+    let result = all_files
+        .get_invalid_cycles(&all_files)
+        .unwrap()
+        .contains_key(&folder1.id);
+    assert_eq!(result, true);
 }
 
 #[test]

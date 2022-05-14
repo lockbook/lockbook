@@ -37,7 +37,7 @@ impl Tx<'_> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
         // let root = self.root.get(&OneKey {});
         // files. work on this. Replace the following files with root (maybe)
-        match files {
+        match files.maybe_find_root() {
             None => Err(RootNonexistent),
             Some(file_metadata) => Ok(file_metadata),
         }
