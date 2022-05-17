@@ -1,53 +1,98 @@
 import AppKit
 import SwiftLockbookCore
 
-class DataSource: NSObject, NSOutlineViewDataSource {
+class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvider {
+
+    var dragged: DecryptedFileMetadata? = nil
 
     func outlineView(
-        _ outlineView: NSOutlineView,
-        numberOfChildrenOfItem item: Any?
+            _ outlineView: NSOutlineView,
+            numberOfChildrenOfItem item: Any?
     ) -> Int {
-        print("numberOfChildrenOfItem")
         let file = item == nil ? DI.files.root! : item as! DecryptedFileMetadata
-        return DI.files.files.filter { $0.parent == file.id }.count
+        return DI.files.files.filter {
+                    $0.parent == file.id
+                }
+                .count
     }
-    
+
     func outlineView(
-        _ outlineView: NSOutlineView,
-        isItemExpandable item: Any
+            _ outlineView: NSOutlineView,
+            isItemExpandable item: Any
     ) -> Bool {
 
         let file = item as! DecryptedFileMetadata
-        print(file.fileType == .Folder
-              && !DI.files.files.filter { $0.parent == file.id }.isEmpty)
-        
+
         return file.fileType == .Folder
-        && !DI.files.files.filter { $0.parent == file.id }.isEmpty
+                && !DI.files.files.filter {
+                    $0.parent == file.id
+                }
+                .isEmpty
     }
-    
+
     func outlineView(
-        _ outlineView: NSOutlineView,
-        child index: Int,
-        ofItem item: Any?
+            _ outlineView: NSOutlineView,
+            child index: Int,
+            ofItem item: Any?
     ) -> Any {
-        print("child ofItem")
         let parent = item == nil ? DI.files.root! : item as! DecryptedFileMetadata
-        let siblings = DI.files.files.filter { $0.parent == parent.id }
+        let siblings = DI.files.files.filter {
+            $0.parent == parent.id
+        }
         let node = siblings[index]
         return node
     }
+
+    func outlineView(_ outlineView: NSOutlineView,
+                     pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
+        let pb = NSPasteboardItem()
+        pb.setDataProvider(self, forTypes: [NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE)])
+
+        return pb
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint, forItems draggedItems: [Any]) {
+        dragged = draggedItems[0] as? DecryptedFileMetadata
+        session.draggingPasteboard.setData(Data(), forType: NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE))
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
+        let parent = item == nil ? DI.files.root! : item as! DecryptedFileMetadata
+        if parent.fileType == .Document {
+            return []
+        }
+        return NSDragOperation.move
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, acceptDrop info: NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool {
+        let parent = item == nil ? DI.files.root! : item as! DecryptedFileMetadata
+        return DI.files.moveFileSync(id: dragged!.id, newParent: parent.id)
+    }
+
+    // never called
+    func pasteboard(_ pasteboard: NSPasteboard?, item: NSPasteboardItem, provideDataForType type: NSPasteboard.PasteboardType) {
+        print("pasteboard inspected")
+        let s = "Outline Pasteboard Item"
+        item.setString(s, forType: type)
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        dragged = nil
+    }
+
+    static let REORDER_PASTEBOARD_TYPE = "net.lockbook.metadata"
 }
 
 class TreeDelegate: NSObject, NSOutlineViewDelegate {
-    
-    var documentSelected: (DecryptedFileMetadata) -> Void = { _ in }
-    
+
+    var documentSelected: (DecryptedFileMetadata) -> Void = { _ in
+    }
+
     func outlineView(
-        _ outlineView: NSOutlineView,
-        viewFor tableColumn: NSTableColumn?,
-        item: Any
+            _ outlineView: NSOutlineView,
+            viewFor tableColumn: NSTableColumn?,
+            item: Any
     ) -> NSView? {
-        print("viewFor")
         let file = item as! DecryptedFileMetadata
         return FileItemView(file: file)
     }
@@ -55,13 +100,13 @@ class TreeDelegate: NSObject, NSOutlineViewDelegate {
     func outlineViewItemDidExpand(_ notification: Notification) {
         print("outlineViewItemDidExpand")
     }
-    
+
     func outlineView(_ outlineView: NSOutlineView,
                      shouldSelectItem item: Any) -> Bool {
         let file = item as! DecryptedFileMetadata
         return file.fileType == .Document
     }
-    
+
     func outlineViewSelectionDidChange(_ notification: Notification) {
         let outlineView = notification.object as! NSOutlineView
         if outlineView.selectedRow != -1 {
