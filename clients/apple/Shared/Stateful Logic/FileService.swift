@@ -9,7 +9,7 @@ class FileService: ObservableObject {
     
     init(_ core: LockbookApi) {
         self.core = core
-
+        
         if DI.accounts.account != nil { refresh() }
     }
     
@@ -66,7 +66,7 @@ class FileService: ObservableObject {
     func renameFile(id: UUID, name: String) {
         DispatchQueue.global(qos: .userInteractive).async {
             let operation = self.core.renameFile(id: id, name: name)
-
+            
             DispatchQueue.main.async {
                 switch operation {
                 case .success(_) :
@@ -94,28 +94,30 @@ class FileService: ObservableObject {
     }
     
     func refresh() {
-        DispatchQueue.global(qos: .userInteractive).async {
-            let allFiles = self.core.listFiles()
-            let root = self.core.getRoot()
-            
-            DispatchQueue.main.async {
-                switch root {
-                case .success(let root):
-                    self.root = root
-                case .failure(let error):
-                    DI.errors.handleError(error)
-                }
+//        if self.files.isEmpty {
+            DispatchQueue.global(qos: .userInteractive).async {
+                let allFiles = self.core.listFiles()
+                let root = self.core.getRoot()
                 
-                switch allFiles {
-                case .success(let files):
-                    self.files = files
-                    self.files.forEach { self.notifyDocumentChanged($0) }
-                    self.closeOpenFileIfDeleted()
-                case .failure(let error):
-                    DI.errors.handleError(error)
+                DispatchQueue.main.async {
+                    switch root {
+                    case .success(let root):
+                        self.root = root
+                    case .failure(let error):
+                        DI.errors.handleError(error)
+                    }
+                    
+                    switch allFiles {
+                    case .success(let files):
+                        self.files = files
+                        self.files.forEach { self.notifyDocumentChanged($0) }
+                        self.closeOpenFileIfDeleted()
+                    case .failure(let error):
+                        DI.errors.handleError(error)
+                    }
                 }
             }
-        }
+//        }
     }
     
     private func closeOpenFileIfDeleted() {

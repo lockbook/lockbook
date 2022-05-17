@@ -44,7 +44,7 @@ struct BookView: View {
 
     var macOS: some View {
         NavigationView {
-            FileListView(currentFolder: currentFolder, account: account)
+            FileListView()
         }
     }
     
