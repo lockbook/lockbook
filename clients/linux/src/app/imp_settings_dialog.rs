@@ -184,7 +184,7 @@ impl super::App {
         current_usage.set_metrics(metrics.server_usage.exact as f64, metrics.data_cap.exact as f64);
 
         let upgraded_usage = ui::UsageInfoPanel::new("Premium");
-        upgraded_usage.set_price("$2.50 monthly  <b><i>OR</i></b>  $25 yearly");
+        upgraded_usage.set_price("$2.50 / month");
         upgraded_usage.set_metrics(metrics.server_usage.exact as f64, 50000000000.0);
 
         let btn_upgrade = gtk::Button::new();
@@ -195,14 +195,20 @@ impl super::App {
 
             move |_| {
                 let maybe_card = app.api.get_credit_card().ok();
-                let upgrade_panel = ui::billing::UpgradePanel::new(maybe_card);
-                upgrade_panel.btn_continue.connect_clicked({
-                    let upgrade_panel = upgrade_panel.clone();
-                    move |_| {
-                        upgrade_panel.input_to_payment_method();
+                let upgrade_process = ui::billing::UpgradePaymentFlow::new(maybe_card);
+                upgrade_process.connect_cancelled({
+                    let stack = stack.clone();
+                    move |upgrade_process| {
+                        stack.set_visible_child_name("home");
+                        stack.remove(&upgrade_process.cntr);
                     }
                 });
-                stack.add_named(&upgrade_panel.steps, Some("upgrade"));
+                upgrade_process.connect_confirmed({
+                    move |upgrade_process, method| {
+                        upgrade_process.show_pay_screen(method);
+                    }
+                });
+                stack.add_named(&upgrade_process.cntr, Some("upgrade"));
                 stack.set_visible_child_name("upgrade");
             }
         });
@@ -213,6 +219,8 @@ impl super::App {
 
         cntr
     }
+
+    fn upgrade(&self, payment_method: lb::PaymentMethod) {}
 
     fn app_settings(&self) -> gtk::Box {
         let cntr = settings_box();

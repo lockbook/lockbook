@@ -26,3 +26,9 @@
 	margin-left: 2px;
 	margin-right: 2px;
 }
+.grayed-out {
+	color: rgba(90,90,90,0.35);
+}
+.green {
+	color: green;
+}
