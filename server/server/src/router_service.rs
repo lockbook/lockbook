@@ -92,7 +92,7 @@ pub fn core_routes(
             confirm_android_subscription,
             server_state
         ))
-        .or(core_req!(CancelAndroidSubscriptionRequest, cancel_android_subscription, server_state))
+        .or(core_req!(CancelSubscriptionRequest, cancel_subscription, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
@@ -176,9 +176,17 @@ pub fn android_notification_webhooks(
                         ServerError::ClientError(GooglePlayWebhookError::InvalidToken)
                         | ServerError::ClientError(GooglePlayWebhookError::CannotRetrieveData)
                         | ServerError::ClientError(GooglePlayWebhookError::NoPubSubData)
-                        | ServerError::ClientError(GooglePlayWebhookError::CannotDecodePubSubData(_))
-                        => StatusCode::BAD_REQUEST,
-                        ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                        | ServerError::ClientError(
+                            GooglePlayWebhookError::CannotDecodePubSubData(_),
+                        ) => StatusCode::BAD_REQUEST,
+                        ServerError::ClientError(
+                            GooglePlayWebhookError::CannotRetrieveUserInfo,
+                        )
+                        | ServerError::ClientError(
+                            GooglePlayWebhookError::CannotRetrievePublicKey,
+                        )
+                        | ServerError::ClientError(GooglePlayWebhookError::CannotParseTime)
+                        | ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
                     };
 
                     warp::reply::with_status("".to_string(), status_code)

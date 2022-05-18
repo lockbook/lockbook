@@ -6,8 +6,10 @@ import app.lockbook.R
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
-import kotlinx.serialization.*
-import kotlinx.serialization.json.*
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonClassDiscriminator
 
 @OptIn(ExperimentalSerializationApi::class)
 @JsonClassDiscriminator("tag")
@@ -337,11 +339,28 @@ enum class CalculateWorkError : UiCoreError {
 }
 
 @Serializable
-enum class IsUserPremiumError : UiCoreError {
-    NoAccount;
+enum class ConfirmAndroidSubscriptionError : UiCoreError {
+    AlreadyPremium,
+    InvalidPurchaseToken,
+    ConcurrentRequestsAreTooSoon;
 
     override fun toLbError(res: Resources): LbError = when (this) {
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
+        AlreadyPremium -> LbError.newUserError(getString(res, R.string.already_premium))
+        InvalidPurchaseToken -> LbError.newUserError(getString(res, R.string.invalid_purchase_token))
+        ConcurrentRequestsAreTooSoon -> LbError.newUserError(getString(res, R.string.concurrent_requests_are_too_soon))
+    }
+}
+
+@Serializable
+enum class CancelSubscriptionError : UiCoreError {
+    NotPremium,
+    UsageIsOverFreeTierDataCap,
+    ConcurrentRequestsAreTooSoon;
+
+    override fun toLbError(res: Resources): LbError = when (this) {
+        NotPremium -> LbError.newUserError(getString(res, R.string.not_premium))
+        UsageIsOverFreeTierDataCap -> LbError.newUserError(getString(res, R.string.usage_is_over_free_tier_data_cap))
+        ConcurrentRequestsAreTooSoon -> LbError.newUserError(getString(res, R.string.concurrent_requests_are_too_soon))
     }
 }
 

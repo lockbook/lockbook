@@ -1,10 +1,12 @@
 use crate::account_service::GetUsageHelperError;
-use crate::billing::stripe_model::{
-    StripePaymentInfo, StripeSubscriptionInfo, StripeUserInfo, Timestamp,
+use crate::billing::billing_model::{
+    BillingInfo, BillingLock, GooglePlayUserInfo, StripeUserInfo, Timestamp,
 };
+use crate::billing::google_play_client::SimpleGCPError;
+use crate::billing::google_play_model::DeveloperNotification;
 use crate::billing::{google_play_client, stripe_client};
-use crate::keys::{google_play_user_info, data_cap, public_key_from_stripe_customer_id, stripe_user_info, stringify_public_key};
-use crate::ServerError::ClientError;
+use crate::keys::{data_cap, public_key_from_stripe_customer_id};
+use crate::ServerError::{ClientError, InternalError};
 use crate::{
     account_service, keys, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE,
     PREMIUM_TIER_USAGE_SIZE,
@@ -16,12 +18,11 @@ use google_pubsub1::api::PubsubMessage;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::{
-    CancelAndroidSubscriptionError, CancelAndroidSubscriptionRequest,
-    CancelAndroidSubscriptionResponse, ConfirmAndroidSubscriptionError,
-    ConfirmAndroidSubscriptionRequest, ConfirmAndroidSubscriptionResponse, GetCreditCardError,
-    GetCreditCardRequest, GetCreditCardResponse, PaymentMethod, PremiumAccountType,
-    StripeAccountTier, SwitchAccountTierStripeError, SwitchAccountTierStripeRequest,
-    SwitchAccountTierStripeResponse,
+    CancelSubscriptionError, CancelSubscriptionRequest, CancelSubscriptionResponse,
+    ConfirmAndroidSubscriptionError, ConfirmAndroidSubscriptionRequest,
+    ConfirmAndroidSubscriptionResponse, GetCreditCardError, GetCreditCardRequest,
+    GetCreditCardResponse, PaymentMethod, StripeAccountTier, UpgradeAccountStripeError,
+    UpgradeAccountStripeRequest, UpgradeAccountStripeResponse,
 };
 use log::info;
 use redis_utils::converters::{JsonGet, JsonSet, PipelineJsonSet};
@@ -30,9 +31,9 @@ use std::fmt::Debug;
 use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
+use uuid::Uuid;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
-use crate::billing::google_play_model::{DeveloperNotification, GooglePlayUserInfo};
 
 pub async fn confirm_android_subscription(
     context: RequestContext<'_, ConfirmAndroidSubscriptionRequest>,
@@ -46,215 +47,211 @@ pub async fn confirm_android_subscription(
         return Err(ClientError(ConfirmAndroidSubscriptionError::AlreadyPremium));
     }
 
-    let subscription_id = match request.new_account_type {
-        PremiumAccountType::MonthlyPremium => &server_state.config.google.monthly_subscription_id,
-        PremiumAccountType::YearlyPremium => &server_state.config.google.yearly_subscription_id,
-    };
-
-    let user_info = GooglePlayUserInfo {
-        purchase_token: request.purchase_token.clone(),
-        subscription_id: subscription_id.clone(),
-        expiration_time: get_time().0 as u64
-    };
-
-    con.set(data_cap(&context.public_key), PREMIUM_TIER_USAGE_SIZE)
-        .await?;
-
-    con.json_set(google_play_user_info(&stringify_public_key(&context.public_key)), &user_info)
-        .await?;
-
-    google_play_client::acknowledge_subscription(
-        &server_state.android_publisher,
-        &user_info.subscription_id,
-        &user_info.purchase_token,
-        &context.public_key,
-    )
-        .await?;
-
-    Ok(ConfirmAndroidSubscriptionResponse {})
-}
-
-pub async fn cancel_android_subscription(
-    context: RequestContext<'_, CancelAndroidSubscriptionRequest>,
-) -> Result<CancelAndroidSubscriptionResponse, ServerError<CancelAndroidSubscriptionError>> {
-    let server_state = context.server_state;
-
-    let current_data_cap: u64 = con.get(data_cap(&context.public_key)).await?;
-
-    if current_data_cap == PREMIUM_TIER_USAGE_SIZE {
-        return Err(ClientError(CancelAndroidSubscriptionError::NotPremium));
-    }
-
-    let maybe_user_info: Option<GooglePlayUserInfo> = con
-        .maybe_json_get(google_play_user_info(&stringify_public_key(&context.public_key)))
-        .await?;
-
-    match maybe_user_info {
-        None => Err(ClientError(CancelAndroidSubscriptionError::NotAGooglePlayCustomer)),
-        Some(user_info) => {
-            google_play_client::cancel_subscription(
-                &server_state.android_publisher,
-                &user_info.subscription_id,
-                &user_info.purchase_token,
-            )
-                .await?;
-
-            con.set(data_cap(&context.public_key), FREE_TIER_USAGE_SIZE)
-                .await?;
-
-            Ok(CancelAndroidSubscriptionResponse {})
-        }
-    }
-}
-
-pub async fn switch_account_tier_stripe(
-    context: RequestContext<'_, SwitchAccountTierStripeRequest>,
-) -> Result<SwitchAccountTierStripeResponse, ServerError<SwitchAccountTierStripeError>> {
-    let (request, server_state) = (&context.request, context.server_state);
-
-    let fmt_public_key = keys::stringify_public_key(&context.public_key);
-    let fmt_new_tier =
-        if let StripeAccountTier::Premium(_) = request.account_tier { "premium" } else { "free" };
-
-    info!("Attempting to switch account tier of {} to {}", fmt_public_key, fmt_new_tier);
-
-    let mut con = server_state.index_db_pool.get().await?;
-
-    let mut user_info = lock_payment_workflow(
+    let mut billing_lock = lock_billing_workflow(
         &context.public_key,
         &mut con,
         server_state.config.stripe.millis_between_user_payment_flows,
     )
+    .await
+    .map_err(|err| match err {
+        ClientError(LockBillingWorkflowError::ConcurrentRequestsAreTooSoon) => {
+            ClientError(ConfirmAndroidSubscriptionError::ConcurrentRequestsAreTooSoon)
+        }
+        InternalError(msg) => InternalError(msg),
+    })?;
+
+    let info = GooglePlayUserInfo {
+        purchase_token: request.purchase_token.clone(),
+        subscription_id: server_state.config.google.premium_subscription_id.clone(),
+        expiration_time: get_time().0 as u64,
+    };
+
+    billing_lock
+        .info
+        .push(BillingInfo::GooglePlay(info.clone()));
+
+    con.set(data_cap(&context.public_key), PREMIUM_TIER_USAGE_SIZE)
+        .await?;
+    con.json_set(keys::billing_lock(&context.public_key), &billing_lock)
+        .await?;
+
+    google_play_client::acknowledge_subscription(
+        &server_state.android_publisher,
+        &info.subscription_id,
+        &info.purchase_token,
+        &context.public_key,
+    )
     .await?;
+
+    Ok(ConfirmAndroidSubscriptionResponse {})
+}
+
+pub async fn cancel_subscription(
+    context: RequestContext<'_, CancelSubscriptionRequest>,
+) -> Result<CancelSubscriptionResponse, ServerError<CancelSubscriptionError>> {
+    let server_state = context.server_state;
+    let mut con = server_state.index_db_pool.get().await?;
+
+    let fmt_public_key = keys::stringify_public_key(&context.public_key);
 
     let current_data_cap: u64 = con.get(data_cap(&context.public_key)).await?;
 
-    let new_data_cap = match (current_data_cap, &request.account_tier) {
-        (FREE_TIER_USAGE_SIZE, StripeAccountTier::Premium(card)) => {
-            create_subscription(
-                server_state,
-                &mut con,
-                &context.public_key,
-                &fmt_public_key,
-                card,
-                &mut user_info,
-            )
-            .await?
+    if current_data_cap == FREE_TIER_USAGE_SIZE {
+        return Err(ClientError(CancelSubscriptionError::NotPremium));
+    }
+
+    let billing_lock = lock_billing_workflow(
+        &context.public_key,
+        &mut con,
+        server_state.config.stripe.millis_between_user_payment_flows,
+    )
+    .await
+    .map_err(|err| match err {
+        ClientError(LockBillingWorkflowError::ConcurrentRequestsAreTooSoon) => {
+            ClientError(CancelSubscriptionError::ConcurrentRequestsAreTooSoon)
         }
-        (FREE_TIER_USAGE_SIZE, StripeAccountTier::Free)
-        | (PREMIUM_TIER_USAGE_SIZE, StripeAccountTier::Premium(_)) => {
-            return Err(ClientError(SwitchAccountTierStripeError::NewTierIsOldTier));
+        InternalError(msg) => InternalError(msg),
+    })?;
+
+    let usage: u64 = account_service::get_usage_helper(&mut con, &context.public_key)
+        .await
+        .map_err(|e| match e {
+            GetUsageHelperError::UserNotFound => ClientError(CancelSubscriptionError::NotPremium),
+            GetUsageHelperError::Internal(e) => ServerError::from(e),
+        })?
+        .iter()
+        .map(|a| a.size_bytes)
+        .sum();
+
+    if usage > FREE_TIER_USAGE_SIZE {
+        info!(
+            "Cannot downgrade user to free since they are over the data cap. public_key: {}",
+            fmt_public_key
+        );
+        return Err(ClientError(CancelSubscriptionError::UsageIsOverFreeTierDataCap));
+    }
+
+    match billing_lock.info.last() {
+        None => return Err(internal!("A user somehow has premium tier usage, but no billing information on redis. public_key: {}", fmt_public_key)),
+        Some(BillingInfo::GooglePlay(info)) => {
+            google_play_client::cancel_subscription(
+                &server_state.android_publisher,
+                &info.subscription_id,
+                &info.purchase_token,
+            ).await?;
         }
-        (PREMIUM_TIER_USAGE_SIZE, StripeAccountTier::Free) => {
-            info!("Switching account tier to free. public_key: {}", fmt_public_key);
-
-            let usage: u64 = account_service::get_usage_helper(&mut con, &context.public_key)
-                .await
-                .map_err(|e| match e {
-                    GetUsageHelperError::UserNotFound => {
-                        ClientError(SwitchAccountTierStripeError::UserNotFound)
-                    }
-                    GetUsageHelperError::Internal(e) => ServerError::from(e),
-                })?
-                .iter()
-                .map(|a| a.size_bytes)
-                .sum();
-
-            if usage > FREE_TIER_USAGE_SIZE {
-                info!(
-                    "Cannot downgrade user to free since they are over the data cap. public_key: {}",
-                    fmt_public_key
-                );
-                return Err(ClientError(
-                    SwitchAccountTierStripeError::CurrentUsageIsMoreThanNewTier,
-                ));
-            }
-
-            let pos = get_active_subscription_index(&user_info.subscriptions)?;
-
+        Some(BillingInfo::Stripe(info)) => {
             stripe_client::cancel_subscription(
                 &server_state.stripe_client,
-                &stripe::SubscriptionId::from_str(&user_info.subscriptions[pos].id)?,
+                &stripe::SubscriptionId::from_str(&info.subscription_id)?,
             )
-            .await?;
+                .await
+                .map_err(|err| internal!("{:?}", err))?;
 
             info!("Successfully canceled stripe subscription. public_key: {}", fmt_public_key);
-
-            user_info.subscriptions[pos].is_active = false;
-
-            FREE_TIER_USAGE_SIZE
         }
-        (_, StripeAccountTier::Free) | (_, StripeAccountTier::Premium(_)) => {
-            return Err(internal!(
-                "Unrecognized current data cap: {}, public_key: {}",
-                current_data_cap,
-                fmt_public_key
-            ));
-        }
-    };
+    }
 
-    user_info.last_in_payment_flow = 0;
-
-    con.set(data_cap(&context.public_key), new_data_cap).await?;
-    con.json_set(stripe_user_info(&context.public_key), &user_info)
+    con.set(data_cap(&context.public_key), FREE_TIER_USAGE_SIZE)
+        .await?;
+    con.json_set(keys::billing_lock(&context.public_key), &billing_lock)
         .await?;
 
-    info!(
-        "Successfully switched the account tier of {} from {} to {}.",
-        fmt_public_key,
-        if current_data_cap == PREMIUM_TIER_USAGE_SIZE {
-            "premium"
-        } else if current_data_cap == FREE_TIER_USAGE_SIZE {
-            "free"
-        } else {
-            "unknown"
-        },
-        fmt_new_tier
-    );
-
-    Ok(SwitchAccountTierStripeResponse {})
+    Ok(CancelSubscriptionResponse {})
 }
 
-fn get_active_subscription_index<U: Debug>(
-    subscriptions: &[StripeSubscriptionInfo],
-) -> Result<usize, ServerError<U>> {
-    let active_pos = subscriptions
-        .iter()
-        .position(|info| info.is_active)
-        .ok_or_else(|| internal!("Redis says there is no active subscription despite the user having non free data cap: {:?}", subscriptions))?;
+pub async fn upgrade_account_stripe(
+    context: RequestContext<'_, UpgradeAccountStripeRequest>,
+) -> Result<UpgradeAccountStripeResponse, ServerError<UpgradeAccountStripeError>> {
+    let (request, server_state) = (&context.request, context.server_state);
 
-    Ok(active_pos)
+    let fmt_public_key = keys::stringify_public_key(&context.public_key);
+
+    info!("Attempting to switch account tier of {} to premium", fmt_public_key);
+
+    let mut con = server_state.index_db_pool.get().await?;
+
+    let current_data_cap: u64 = con.get(data_cap(&context.public_key)).await?;
+
+    if current_data_cap != FREE_TIER_USAGE_SIZE {
+        return Err(ClientError(UpgradeAccountStripeError::NewTierIsOldTier));
+    }
+
+    let mut billing_lock = lock_billing_workflow(
+        &context.public_key,
+        &mut con,
+        server_state.config.stripe.millis_between_user_payment_flows,
+    )
+    .await
+    .map_err(|err| match err {
+        ClientError(LockBillingWorkflowError::ConcurrentRequestsAreTooSoon) => {
+            ClientError(UpgradeAccountStripeError::ConcurrentRequestsAreTooSoon)
+        }
+        InternalError(msg) => InternalError(msg),
+    })?;
+
+    let mut maybe_user_info = None;
+
+    for info in billing_lock.info.iter().rev() {
+        if let BillingInfo::Stripe(stripe_info) = info {
+            maybe_user_info = Some(stripe_info.clone());
+            break;
+        }
+    }
+
+    let (user_info, new_data_cap) = create_subscription(
+        server_state,
+        &mut con,
+        &context.public_key,
+        &fmt_public_key,
+        &request.account_tier,
+        maybe_user_info,
+    )
+    .await?;
+
+    billing_lock.info.push(BillingInfo::Stripe(user_info));
+    billing_lock.last_in_payment_flow = 0;
+
+    con.set(data_cap(&context.public_key), new_data_cap).await?;
+    con.json_set(keys::billing_lock(&context.public_key), &billing_lock)
+        .await?;
+
+    info!("Successfully switched the account tier of {} from free to premium.", fmt_public_key);
+
+    Ok(UpgradeAccountStripeResponse {})
 }
 
-async fn lock_payment_workflow(
+#[derive(Debug)]
+pub enum LockBillingWorkflowError {
+    ConcurrentRequestsAreTooSoon,
+}
+
+async fn lock_billing_workflow(
     public_key: &PublicKey, con: &mut deadpool_redis::Connection,
     millis_between_payment_flows: Timestamp,
-) -> Result<StripeUserInfo, ServerError<SwitchAccountTierStripeError>> {
-    let mut user_info = StripeUserInfo::default();
+) -> Result<BillingLock, ServerError<LockBillingWorkflowError>> {
+    let mut billing_lock = BillingLock::default();
 
-    let tx_result = tx!(con, pipe, &[stripe_user_info(public_key)], {
-        user_info = con
-            .maybe_json_get(stripe_user_info(public_key))
+    let tx_result = tx!(con, pipe, &[keys::billing_lock(public_key)], {
+        billing_lock = con
+            .maybe_json_get(keys::billing_lock(public_key))
             .await?
             .unwrap_or_default();
 
         let current_time = get_time().0 as Timestamp;
 
-        if current_time - user_info.last_in_payment_flow < millis_between_payment_flows {
+        if current_time - billing_lock.last_in_payment_flow < millis_between_payment_flows {
             info!(
                 "User is already in payment flow, or this request is too soon after a failed one. public_key: {}",
                 keys::stringify_public_key(public_key)
             );
-            return Err(Abort(ClientError(
-                SwitchAccountTierStripeError::ConcurrentRequestsAreTooSoon,
-            )));
+
+            return Err(Abort(ClientError(LockBillingWorkflowError::ConcurrentRequestsAreTooSoon)));
         }
 
-        user_info.last_in_payment_flow = current_time;
+        billing_lock.last_in_payment_flow = current_time;
 
-        pipe.json_set(stripe_user_info(public_key), &user_info)?;
-
-        Ok(&mut pipe)
+        pipe.json_set(keys::billing_lock(public_key), &billing_lock)
     });
     return_if_error!(tx_result);
 
@@ -263,14 +260,19 @@ async fn lock_payment_workflow(
         keys::stringify_public_key(public_key)
     );
 
-    Ok(user_info)
+    Ok(billing_lock)
 }
 
 async fn create_subscription(
     server_state: &ServerState, con: &mut deadpool_redis::Connection, public_key: &PublicKey,
-    fmt_public_key: &str, payment_method: &PaymentMethod, user_info: &mut StripeUserInfo,
-) -> Result<u64, ServerError<SwitchAccountTierStripeError>> {
-    let (customer_id, payment_method_id) = match payment_method {
+    fmt_public_key: &str, account_tier: &StripeAccountTier,
+    maybe_user_info: Option<StripeUserInfo>,
+) -> Result<(StripeUserInfo, u64), ServerError<UpgradeAccountStripeError>> {
+    let (payment_method, data_cap) = match account_tier {
+        StripeAccountTier::Premium(payment_method) => (payment_method, PREMIUM_TIER_USAGE_SIZE),
+    };
+
+    let (customer_id, customer_name, payment_method_id, last_4) = match payment_method {
         PaymentMethod::NewCard { number, exp_year, exp_month, cvc } => {
             info!("Creating a new card for public_key: {}", fmt_public_key);
             let payment_method_resp = stripe_client::create_payment_method(
@@ -299,16 +301,17 @@ async fn create_subscription(
                 last_4, fmt_public_key
             );
 
-            let customer_id = match &user_info.customer_id {
+            let (customer_id, customer_name) = match &maybe_user_info {
                 None => {
                     info!(
                         "User has no customer_id. Creating one with stripe now. public_key: {}",
                         keys::stringify_public_key(public_key)
                     );
 
+                    let customer_name = Uuid::new_v4();
                     let customer_resp = stripe_client::create_customer(
                         &server_state.stripe_client,
-                        &user_info.customer_name.to_string(),
+                        &customer_name.to_string(),
                         payment_method_resp.id.clone(),
                     )
                     .await?;
@@ -319,36 +322,31 @@ async fn create_subscription(
                     con.json_set(public_key_from_stripe_customer_id(&customer_id), public_key)
                         .await?;
 
-                    user_info.customer_id = Some(customer_id);
-                    customer_resp.id
+                    (customer_resp.id, customer_name)
                 }
-                Some(customer_id) => {
+                Some(user_info) => {
                     info!(
                         "User already has customer_id: {} public_key: {}",
-                        customer_id, fmt_public_key
+                        user_info.customer_id, fmt_public_key
                     );
 
-                    stripe::CustomerId::from_str(customer_id)?
+                    let customer_id = stripe::CustomerId::from_str(&user_info.customer_id)?;
+
+                    info!(
+                        "Disabling card with a payment method of {} since a new card has just been added. public_key: {}",
+                        user_info.customer_id,
+                        fmt_public_key
+                    );
+
+                    stripe_client::detach_payment_method_from_customer(
+                        &server_state.stripe_client,
+                        &stripe::PaymentMethodId::from_str(&user_info.payment_method_id)?,
+                    )
+                    .await?;
+
+                    (customer_id, user_info.customer_name)
                 }
             };
-
-            if let Some(info) = user_info
-                .payment_methods
-                .iter()
-                .max_by_key(|info| info.created_at)
-            {
-                info!(
-                    "Disabling card with a payment method of {} since a new card has just been added. public_key: {}",
-                    info.id,
-                    fmt_public_key
-                );
-
-                stripe_client::detach_payment_method_from_customer(
-                    &server_state.stripe_client,
-                    &stripe::PaymentMethodId::from_str(&info.id)?,
-                )
-                .await?;
-            }
 
             info!(
                 "Creating a setup intent to confirm a users payment method for their subscription. public_key: {}",
@@ -368,27 +366,20 @@ async fn create_subscription(
                 fmt_public_key
             );
 
-            user_info.payment_methods.push(StripePaymentInfo {
-                id: customer_id.to_string(),
-                last_4,
-                created_at: payment_method_resp.created as u64,
-            });
-
-            (customer_id, payment_method_resp.id.to_string())
+            (customer_id, customer_name, payment_method_resp.id.to_string(), last_4)
         }
         PaymentMethod::OldCard => {
             info!("Using an old card stored on redis for public_key: {}", fmt_public_key);
 
-            let payment_method = user_info
-                .payment_methods
-                .iter()
-                .max_by_key(|info| info.created_at)
-                .ok_or(ClientError(SwitchAccountTierStripeError::OldCardDoesNotExist))?;
+            let user_info = maybe_user_info
+                .ok_or(ClientError(UpgradeAccountStripeError::OldCardDoesNotExist))?;
 
-            match &user_info.customer_id {
-                Some(customer_id) => (stripe::CustomerId::from_str(customer_id)?, payment_method.id.clone()),
-                None => return Err(internal!("StripeUserInfo is in an inconsistent state: has payment method but no customer id: {:?}", user_info))
-            }
+            (
+                stripe::CustomerId::from_str(&user_info.customer_id)?,
+                user_info.customer_name,
+                user_info.payment_method_id,
+                user_info.last_4,
+            )
         }
     };
 
@@ -403,13 +394,17 @@ async fn create_subscription(
         subscription_resp.id, fmt_public_key
     );
 
-    user_info.subscriptions.push(StripeSubscriptionInfo {
-        id: subscription_resp.id.to_string(),
-        period_end: subscription_resp.current_period_end as u64,
-        is_active: true,
-    });
-
-    Ok(PREMIUM_TIER_USAGE_SIZE)
+    Ok((
+        StripeUserInfo {
+            customer_id: customer_id.to_string(),
+            customer_name,
+            payment_method_id: payment_method_id.to_string(),
+            last_4,
+            subscription_id: subscription_resp.id.to_string(),
+            period_end: subscription_resp.current_period_end as u64,
+        },
+        PREMIUM_TIER_USAGE_SIZE,
+    ))
 }
 
 pub async fn get_credit_card(
@@ -419,18 +414,16 @@ pub async fn get_credit_card(
 
     info!("Getting credit card for {}", keys::stringify_public_key(&context.public_key));
 
-    let user_info: StripeUserInfo = con
-        .maybe_json_get(stripe_user_info(&context.public_key))
+    let billing_lock: BillingLock = con
+        .maybe_json_get(keys::billing_lock(&context.public_key))
         .await?
-        .ok_or(ClientError(GetCreditCardError::NotAStripeCustomer))?;
+        .ok_or(ClientError(GetCreditCardError::NoCardAdded))?;
 
-    let payment_method = user_info
-        .payment_methods
-        .iter()
-        .max_by_key(|info| info.created_at)
-        .ok_or(ClientError(GetCreditCardError::NotAStripeCustomer))?;
-
-    Ok(GetCreditCardResponse { credit_card_last_4_digits: payment_method.last_4.clone() })
+    if let Some(BillingInfo::Stripe(info)) = billing_lock.info.last() {
+        Ok(GetCreditCardResponse { credit_card_last_4_digits: info.last_4.clone() })
+    } else {
+        Err(ClientError(GetCreditCardError::NoCardAdded))
+    }
 }
 
 #[derive(Debug)]
@@ -477,17 +470,37 @@ pub async fn stripe_webhooks(
                     stripe::Expandable::Object(customer) => customer.id.to_string(),
                 };
 
-                let (public_key, user_info) =
-                    get_public_key_and_stripe_user_info(&event, &mut con, &customer_id).await?;
+                let public_key: PublicKey = con
+                    .maybe_json_get(public_key_from_stripe_customer_id(&customer_id))
+                    .await?
+                    .ok_or_else(|| {
+                        internal!(
+                            "There is no public_key related to this customer_id: {:?}",
+                            customer_id
+                        )
+                    })?;
 
                 info!(
                     "User tier being reduced due to failed renewal payment via stripe. public_key: {}",
                     keys::stringify_public_key(&public_key)
                 );
 
-                con.set(data_cap(&public_key), FREE_TIER_USAGE_SIZE).await?;
-                con.json_set(stripe_user_info(&public_key), &user_info)
-                    .await?;
+                // TODO: cover edge cases
+                let tx_result = tx!(&mut con, pipe, &[keys::billing_lock(&public_key)], {
+                    let user_info: BillingLock = con
+                        .maybe_json_get(keys::billing_lock(&public_key))
+                        .await?
+                        .ok_or_else(|| {
+                            Abort(internal!(
+                            "Payment failed for a customer we don't have info about on redis: {:?}",
+                            event
+                        ))
+                        })?;
+
+                    pipe.set(data_cap(&public_key), FREE_TIER_USAGE_SIZE)
+                        .json_set(keys::billing_lock(&public_key), &user_info)
+                });
+                return_if_error!(tx_result);
             }
         }
         (stripe::EventType::InvoicePaid, stripe::EventObject::Invoice(partial_invoice)) => {
@@ -528,19 +541,39 @@ pub async fn stripe_webhooks(
                     stripe::Expandable::Object(customer) => customer.id.to_string(),
                 };
 
-                let (public_key, mut user_info) =
-                    get_public_key_and_stripe_user_info(&event, &mut con, &customer_id).await?;
-                let pos = get_active_subscription_index(&user_info.subscriptions)?;
+                let public_key: PublicKey = con
+                    .maybe_json_get(public_key_from_stripe_customer_id(&customer_id))
+                    .await?
+                    .ok_or_else(|| {
+                        internal!(
+                            "There is no public_key related to this customer_id: {:?}",
+                            customer_id
+                        )
+                    })?;
+
+                let tx_result = tx!(&mut con, pipe, &[keys::billing_lock(&public_key)], {
+                    let mut maybe_user_info: BillingLock = con
+                        .maybe_json_get(keys::billing_lock(&public_key))
+                        .await?
+                        .ok_or_else(|| {
+                            Abort(internal!(
+                                "Payment failed for a customer we don't have info about on redis: {:?}",
+                                event
+                         ))
+                    })?;
+
+                    if let Some(BillingInfo::Stripe(info)) = maybe_user_info.info.last_mut() {
+                        (*info).period_end = subscription_period_end as u64;
+                    }
+
+                    pipe.json_set(keys::billing_lock(&public_key), &maybe_user_info)
+                });
+                return_if_error!(tx_result);
 
                 info!(
-                    "User's subscription period_end is being changed after successful renewal. public_key: {}",
+                    "User's subscription period_end is changed after successful renewal. public_key: {}",
                     keys::stringify_public_key(&public_key)
                 );
-
-                user_info.subscriptions[pos].period_end = subscription_period_end as u64;
-
-                con.json_set(stripe_user_info(&public_key), &user_info)
-                    .await?;
             }
         }
         (_, _) => {
@@ -551,9 +584,10 @@ pub async fn stripe_webhooks(
     Ok(())
 }
 
-async fn get_public_key_and_stripe_user_info(
+// Does not get lock. Only gives you the billing metadata at that instant.
+async fn get_public_key_and_billing_lock(
     event: &stripe::WebhookEvent, con: &mut Connection, customer_id: &str,
-) -> Result<(PublicKey, StripeUserInfo), ServerError<StripeWebhookError>> {
+) -> Result<(PublicKey, BillingLock), ServerError<StripeWebhookError>> {
     let public_key: PublicKey = con
         .maybe_json_get(public_key_from_stripe_customer_id(customer_id))
         .await?
@@ -561,8 +595,8 @@ async fn get_public_key_and_stripe_user_info(
             internal!("There is no public_key related to this customer_id: {:?}", customer_id)
         })?;
 
-    let user_info: StripeUserInfo = con
-        .maybe_json_get(stripe_user_info(&public_key))
+    let user_info: BillingLock = con
+        .maybe_json_get(keys::billing_lock(&public_key))
         .await?
         .ok_or_else(|| {
             internal!(
@@ -606,28 +640,39 @@ pub async fn android_notification_webhooks(
     let notification = serde_json::from_slice::<DeveloperNotification>(&data)?;
 
     if let Some(sub_notif) = notification.subscription_notification {
-        let purchase = google_play_client::get_subscription(&server_state.android_publisher, &sub_notif.subscription_id, &sub_notif.purchase_token).await?;
+        // would normally make a from for this automatically return but get_subscription should probably return more than unexpected
+        let purchase = google_play_client::get_subscription(
+            &server_state.android_publisher,
+            &sub_notif.subscription_id,
+            &sub_notif.purchase_token,
+        )
+        .await
+        .map_err(|e| match e {
+            SimpleGCPError::Unexpected(msg) => internal!("{:#?}", msg),
+        })?;
 
         let mut con = server_state.index_db_pool.get().await?;
 
         let mut changed = false;
 
-        let public_key = purchase.developer_payload.ok_or(ClientError(GooglePlayWebhookError::CannotRetrievePublicKey))?;
+        let public_key = purchase
+            .developer_payload
+            .ok_or(ClientError(GooglePlayWebhookError::CannotRetrievePublicKey))?;
 
-        let mut user_info: GooglePlayUserInfo = con
-            .maybe_json_get(google_play_user_info(&public_key))
-            .await?
-            .ok_or(ClientError(GooglePlayWebhookError::CannotRetrieveUserInfo))?;
-
-        if let Some(purchase_token) = purchase.linked_purchase_token {
-            user_info.purchase_token = purchase_token;
-            changed = true;
-        }
-
-        if let Some(exp_time) = purchase.expiry_time_millis {
-            user_info.expiration_time = exp_time.parse::<u64>().map_err(|e| ClientError(GooglePlayWebhookError::CannotParseTime))?;
-            changed = true;
-        }
+        // let mut user_info: GooglePlayUserInfo = con
+        //     .maybe_json_get(billing_lock(&public_key))
+        //     .await?
+        //     .ok_or(ClientError(GooglePlayWebhookError::CannotRetrieveUserInfo))?;
+        //
+        // if let Some(purchase_token) = purchase.linked_purchase_token {
+        //     user_info.purchase_token = purchase_token;
+        //     changed = true;
+        // }
+        //
+        // if let Some(exp_time) = purchase.expiry_time_millis {
+        //     user_info.expiration_time = exp_time.parse::<u64>().map_err(|e| ClientError(GooglePlayWebhookError::CannotParseTime))?;
+        //     changed = true;
+        // }
     }
 
     if let Some(test_notif) = notification.test_notification {
@@ -635,7 +680,7 @@ pub async fn android_notification_webhooks(
     }
 
     if let Some(otp_notif) = notification.one_time_product_notification {
-        return Err(internal!("Received a one time product notification although there are no registered one time products. developer_notification: {:?}", notification));
+        return Err(internal!("Received a one time product notification although there are no registered one time products. one_time_product_notification: {:?}", otp_notif));
     }
 
     Ok(())

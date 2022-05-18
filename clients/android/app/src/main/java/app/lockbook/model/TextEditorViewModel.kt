@@ -5,7 +5,6 @@ import android.os.Handler
 import android.os.Looper
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import app.lockbook.getRes
 import app.lockbook.util.*
@@ -26,7 +25,7 @@ class TextEditorViewModel(application: Application, val id: String, private val 
     val notifyError: LiveData<LbError>
         get() = _notifyError
 
-    val content: MutableLiveData<String>
+    val content: LiveData<String>
         get() = _content
 
     init {

@@ -33,18 +33,13 @@ Values are json encoded.
   + `x` is the `uuid` of the file.
   + size (value) is a json encoded `FileUsage` object 
 
-# Stripe Billing
+# Billing
 
-+ `public_key:x:stripe_user_info`
++ `public_key:x:billing_lock`
   + `x` is the `public_key`.
-  + [Basic stripe information](../../server/server/src/billing/stripe_model.rs) (customer id, subscription ids, payment method ids, etc) for a user.
+  + `billing_lock` contains a user's info for a platform they may have.
 + `stripe_customer_id:x:public_key`.
   + `x` is the stripe `customer_id`.
-
-# Android Billing
-+ `public_key:x:google_play_user_info`
-    + `x` is the `public_key`.
-    + [Basic google play info](../../server/server/src/billing/google_play_model.rs) (subscription id, and purchase token) for a user.
 
 # Document Content (TODO)
 

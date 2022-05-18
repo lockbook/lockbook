@@ -6,7 +6,9 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.method.LinkMovementMethod
-import android.view.*
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
 import androidx.fragment.app.Fragment
@@ -20,7 +22,6 @@ import app.lockbook.databinding.FragmentFilesListBinding
 import app.lockbook.model.*
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
-import app.lockbook.util.FilesFragment
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.viewholder.isSelected
 import com.afollestad.recyclical.withItem
@@ -349,12 +350,12 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
             UpdateFilesUI.ToggleMenuBar -> toggleMenuBar()
             UpdateFilesUI.ShowBeforeWeStart -> {
-                val bottomSheetDialog = BottomSheetDialog(requireContext())
-                bottomSheetDialog.setContentView(R.layout.sheet_before_you_start)
+                val beforeWeStartDialog = BottomSheetDialog(requireContext())
+                beforeWeStartDialog.setContentView(R.layout.sheet_before_you_start)
 
-                bottomSheetDialog.findViewById<TextView>(R.id.before_you_start_description)!!.movementMethod = LinkMovementMethod.getInstance()
+                beforeWeStartDialog.findViewById<TextView>(R.id.before_you_start_description)!!.movementMethod = LinkMovementMethod.getInstance()
 
-                bottomSheetDialog.show()
+                beforeWeStartDialog.show()
             }
             UpdateFilesUI.SyncImport -> {
                 (activity as MainScreenActivity).syncImportAccount()

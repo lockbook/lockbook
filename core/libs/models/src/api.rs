@@ -289,7 +289,7 @@ pub struct GetCreditCardResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetCreditCardError {
-    NotAStripeCustomer,
+    NoCardAdded,
 }
 
 impl Request for GetCreditCardRequest {
@@ -308,19 +308,18 @@ pub enum PaymentMethod {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum StripeAccountTier {
     Premium(PaymentMethod),
-    Free,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct SwitchAccountTierStripeRequest {
+pub struct UpgradeAccountStripeRequest {
     pub account_tier: StripeAccountTier,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct SwitchAccountTierStripeResponse {}
+pub struct UpgradeAccountStripeResponse {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum SwitchAccountTierStripeError {
+pub enum UpgradeAccountStripeError {
     OldCardDoesNotExist,
     NewTierIsOldTier,
     CardDecline,
@@ -332,16 +331,15 @@ pub enum SwitchAccountTierStripeError {
     InvalidCardExpYear,
     InvalidCardExpMonth,
     InvalidCardCvc,
-    CurrentUsageIsMoreThanNewTier,
     ConcurrentRequestsAreTooSoon,
     UserNotFound,
 }
 
-impl Request for SwitchAccountTierStripeRequest {
-    type Response = SwitchAccountTierStripeResponse;
-    type Error = SwitchAccountTierStripeError;
+impl Request for UpgradeAccountStripeRequest {
+    type Response = UpgradeAccountStripeResponse;
+    type Error = UpgradeAccountStripeError;
     const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/switch-account-tier-stripe";
+    const ROUTE: &'static str = "/upgrade-account-stripe";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -353,7 +351,6 @@ pub enum PremiumAccountType {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ConfirmAndroidSubscriptionRequest {
     pub purchase_token: String,
-    pub new_account_type: PremiumAccountType,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -362,7 +359,8 @@ pub struct ConfirmAndroidSubscriptionResponse {}
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum ConfirmAndroidSubscriptionError {
     InvalidPurchaseToken,
-    AlreadyPremium
+    AlreadyPremium,
+    ConcurrentRequestsAreTooSoon,
 }
 
 impl Request for ConfirmAndroidSubscriptionRequest {
@@ -373,21 +371,21 @@ impl Request for ConfirmAndroidSubscriptionRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct CancelAndroidSubscriptionRequest {}
+pub struct CancelSubscriptionRequest {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct CancelAndroidSubscriptionResponse {}
+pub struct CancelSubscriptionResponse {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum CancelAndroidSubscriptionError {
+pub enum CancelSubscriptionError {
     NotPremium,
-    NotAGooglePlayCustomer
+    UsageIsOverFreeTierDataCap,
+    ConcurrentRequestsAreTooSoon,
 }
 
-impl Request for CancelAndroidSubscriptionRequest {
-    type Response = CancelAndroidSubscriptionResponse;
-    type Error = CancelAndroidSubscriptionError;
+impl Request for CancelSubscriptionRequest {
+    type Response = CancelSubscriptionResponse;
+    type Error = CancelSubscriptionError;
     const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/cancel-android-subscription";
+    const ROUTE: &'static str = "/cancel-subscription";
 }
-

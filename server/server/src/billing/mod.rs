@@ -1,3 +1,4 @@
+pub mod billing_model;
 pub mod billing_service;
 pub mod google_play_client;
 pub mod google_play_model;

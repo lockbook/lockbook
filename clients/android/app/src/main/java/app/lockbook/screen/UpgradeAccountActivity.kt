@@ -7,17 +7,27 @@ import android.view.View
 import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.res.ResourcesCompat
+import app.lockbook.App
 import app.lockbook.R
+import app.lockbook.billing.BillingEvent
 import app.lockbook.databinding.ActivityUpgradeAccountBinding
-import com.android.billingclient.api.*
-import com.android.billingclient.api.BillingClient.BillingResponseCode
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import app.lockbook.model.AlertModel
+import app.lockbook.model.CoreModel
+import app.lockbook.util.Animate
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import kotlinx.coroutines.*
+import timber.log.Timber
+import java.lang.ref.WeakReference
 
-
-class UpgradeAccountActivity: AppCompatActivity() {
+class UpgradeAccountActivity : AppCompatActivity() {
 
     private var _binding: ActivityUpgradeAccountBinding? = null
+    private val alertModel by lazy {
+        AlertModel(WeakReference(this))
+    }
+    private val uiScope = CoroutineScope(Dispatchers.Main + Job())
 
     enum class AccountTier {
         Free,
@@ -28,53 +38,19 @@ class UpgradeAccountActivity: AppCompatActivity() {
     // This property is only valid between onCreateView and
     // onDestroyView.
     val binding get() = _binding!!
+    lateinit var originTier: AccountTier
     var selectedTier = AccountTier.Free
-
-    private val purchasesUpdatedListener =
-        PurchasesUpdatedListener { billingResult, purchases ->
-            if (billingResult.responseCode == BillingResponseCode.OK && purchases != null) {
-                for (purchase in purchases) {
-                    handlePurchase(purchase)
-                }
-            } else if (billingResult.responseCode == BillingResponseCode.USER_CANCELED) {
-                // Handle an error caused by a user cancelling the purchase flow.
-            } else {
-                // Handle any other error codes.
-            }
-        }
-
-    private var billingClient = BillingClient.newBuilder(applicationContext)
-        .setListener(purchasesUpdatedListener)
-        .enablePendingPurchases()
-        .build()
-
-    suspend fun querySkuDetails() {
-        val skuList = ArrayList<String>()
-        skuList.add("lockbook.subscription.premium_monthly")
-        val params = SkuDetailsParams.newBuilder()
-        params.setSkusList(skuList).setType(BillingClient.SkuType.SUBS)
-
-        val skuDetails = withContext(Dispatchers.IO) {
-            billingClient.querySkuDetails(params.build())
-        }.skuDetailsList?.get(0) ?: return
-
-
-        val flowParams = BillingFlowParams.newBuilder()
-            .setSkuDetails(skuDetails)
-            .build()
-
-        val responseCode = billingClient.launchBillingFlow(this, flowParams).responseCode
-    }
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         _binding = ActivityUpgradeAccountBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        if(savedInstanceState != null) {
+        if (savedInstanceState != null) {
             selectedTier = AccountTier.valueOf(savedInstanceState.getString(SELECTED_TIER_KEY, AccountTier.Free.name))
         }
+
+        originTier = AccountTier.Free
 
         binding.switchAccountTierFree.setOnClickListener(clickListener)
         binding.switchAccountTierPremiumMonthly.setOnClickListener(clickListener)
@@ -84,7 +60,11 @@ class UpgradeAccountActivity: AppCompatActivity() {
             finish()
         }
 
-        val selectedTierCardView = when(selectedTier) {
+        (application as App).billingClientLifecycle.billingEvent.observe(this) { billingEvent ->
+            handleBillingEvent(billingEvent)
+        }
+
+        val selectedTierCardView = when (selectedTier) {
             AccountTier.Free -> binding.switchAccountTierFree
             AccountTier.PremiumMonthly -> binding.switchAccountTierPremiumMonthly
             AccountTier.PremiumYearly -> binding.switchAccountTierPremiumYearly
@@ -92,6 +72,50 @@ class UpgradeAccountActivity: AppCompatActivity() {
 
         animateTierSelectionToggle(selectedTierCardView, true)
         binding.subscribeToPlan.isEnabled = selectedTier != AccountTier.Free
+        binding.subscribeToPlan.setOnClickListener {
+            launchPurchaseFlow(selectedTier)
+        }
+    }
+
+    private fun handleBillingEvent(billingEvent: BillingEvent) {
+        when (billingEvent) {
+            BillingEvent.Canceled -> {}
+            BillingEvent.NotifyUnrecoverableError -> alertModel.notify(resources.getString(R.string.unrecoverable_billing_error))
+            is BillingEvent.SuccessfulPurchase -> {
+                uiScope.launch {
+                    Animate.animateVisibility(binding.progressOverlay, View.VISIBLE, 102, 500)
+
+                    withContext(Dispatchers.IO) {
+                        val confirmResult =
+                            CoreModel.confirmAndroidSubscription(billingEvent.purchaseToken)
+                        withContext(Dispatchers.Main) {
+
+                            when (confirmResult) {
+                                is Ok -> {
+                                    Animate.animateVisibility(
+                                        binding.progressOverlay,
+                                        View.GONE,
+                                        0,
+                                        500
+                                    )
+
+                                    val successfulPurchaseDialog =
+                                        BottomSheetDialog(this@UpgradeAccountActivity)
+                                    successfulPurchaseDialog.setContentView(R.layout.purchased_premium)
+                                    successfulPurchaseDialog.show()
+                                }
+                                is Err -> alertModel.notifyError(
+                                    confirmResult.error.toLbError(
+                                        applicationContext.resources
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            is BillingEvent.NotifyError -> alertModel.notifyError(billingEvent.error)
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -100,39 +124,47 @@ class UpgradeAccountActivity: AppCompatActivity() {
         super.onSaveInstanceState(outState)
     }
 
-    fun toggleSubscribeButton(oldSelectedTier: AccountTier, newSelectedTier: AccountTier) {
-//        if(oldSelectedTier == AccountTier.Free && newSelectedTier != AccountTier.Free) {
-//            binding.subscribeToPlan.visibility = View.VISIBLE
-//        } else if(oldSelectedTier != AccountTier.Free && newSelectedTier == AccountTier.Free) {
-//            binding.subscribeToPlan.visibility = View.GONE
-//        }
+    private fun toggleSubscribeButton() {
         binding.subscribeToPlan.isEnabled = selectedTier != AccountTier.Free
     }
 
     private val clickListener = View.OnClickListener { tierCardView ->
         val oldSelectedTier = selectedTier
 
-        selectedTier = when(tierCardView) {
+        selectedTier = when (tierCardView) {
             binding.switchAccountTierFree -> AccountTier.Free
             binding.switchAccountTierPremiumMonthly -> AccountTier.PremiumMonthly
             binding.switchAccountTierPremiumYearly -> AccountTier.PremiumYearly
             else -> AccountTier.Free
         }
 
-        val oldTierCardView = when(oldSelectedTier) {
+        val oldTierCardView = when (oldSelectedTier) {
             AccountTier.Free -> binding.switchAccountTierFree
             AccountTier.PremiumMonthly -> binding.switchAccountTierPremiumMonthly
             AccountTier.PremiumYearly -> binding.switchAccountTierPremiumYearly
         }
 
-        toggleSubscribeButton(oldSelectedTier, selectedTier)
-
+        toggleSubscribeButton()
         animateTierSelectionToggle(oldTierCardView, false)
         animateTierSelectionToggle(tierCardView as LinearLayout, true)
     }
 
+    private fun launchPurchaseFlow(selectedTier: AccountTier) {
+        if (originTier != selectedTier) {
+            Timber.e("SELECTED $originTier and $selectedTier")
+
+            if (selectedTier == AccountTier.Free) {
+                CoreModel.cancelSubscription()
+            } else {
+                (application as App).billingClientLifecycle.apply {
+                    launchBillingFlow(this@UpgradeAccountActivity, billingFlowParamsBuilder(selectedTier) ?: return alertModel.notifyBasicError())
+                }
+            }
+        }
+    }
+
     private fun animateTierSelectionToggle(linearLayout: LinearLayout, selected: Boolean) {
-        val color = if(selected) ResourcesCompat.getColor(resources, R.color.lightBlue, null) else Color.TRANSPARENT
+        val color = if (selected) ResourcesCompat.getColor(resources, R.color.lightBlue, null) else Color.TRANSPARENT
 
         ObjectAnimator.ofArgb(linearLayout, "backgroundColor", color).apply {
             duration = 100

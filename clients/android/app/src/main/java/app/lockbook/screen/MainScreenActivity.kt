@@ -11,6 +11,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import androidx.fragment.app.*
 import androidx.slidingpanelayout.widget.SlidingPaneLayout
+import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.model.*
@@ -23,7 +24,6 @@ import app.lockbook.util.FilesFragment
 import app.lockbook.util.exhaustive
 import java.io.File
 import java.lang.ref.WeakReference
-import java.util.ArrayList
 
 class MainScreenActivity : AppCompatActivity() {
     private var _binding: ActivityMainScreenBinding? = null
@@ -76,6 +76,8 @@ class MainScreenActivity : AppCompatActivity() {
             fragmentFinishedCallback,
             false
         )
+
+        lifecycle.addObserver((application as App).billingClientLifecycle)
 
         if (model.shareModel.isLoadingOverlayVisible) {
             updateMainScreenUI(UpdateMainScreenUI.ShowHideProgressOverlay(model.shareModel.isLoadingOverlayVisible))

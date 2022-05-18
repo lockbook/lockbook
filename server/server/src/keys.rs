@@ -22,16 +22,12 @@ pub fn file(id: Uuid) -> String {
     format!("file_id:{}:metadata", id)
 }
 
-pub fn stripe_user_info(pk: &PublicKey) -> String {
-    format!("public_key:{}:stripe_user_info", stringify_public_key(pk))
+pub fn billing_lock(pk: &PublicKey) -> String {
+    format!("public_key:{}:billing_lock", stringify_public_key(pk))
 }
 
 pub fn public_key_from_stripe_customer_id(customer_id: &str) -> String {
     format!("stripe_customer_id:{}:public_key", customer_id)
-}
-
-pub fn google_play_user_info(pk: &str) -> String {
-    format!("public_key:{}:google_play_user_info", pk)
 }
 
 pub fn size(id: Uuid) -> String {

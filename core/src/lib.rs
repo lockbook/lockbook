@@ -22,7 +22,7 @@ use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
-use lockbook_models::api::{PremiumAccountType, StripeAccountTier};
+use lockbook_models::api::{PaymentMethod, PremiumAccountType, StripeAccountTier};
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
@@ -341,13 +341,13 @@ impl Core {
         Ok(val?)
     }
 
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn switch_account_tier_stripe(
+    #[instrument(level = "debug", err(Debug))]
+    pub fn upgrade_account_stripe(
         &self, account_tier: StripeAccountTier,
-    ) -> Result<(), Error<SwitchAccountTierError>> {
+    ) -> Result<(), Error<UpgradeAccountStripeError>> {
         let val = self
             .db
-            .transaction(|tx| tx.switch_account_tier_stripe(account_tier))?;
+            .transaction(|tx| tx.upgrade_account_stripe(account_tier))?;
         Ok(val?)
     }
 
@@ -373,21 +373,17 @@ impl Core {
 
     #[instrument(level = "debug", skip(self, purchase_token), err(Debug))]
     pub fn confirm_android_subscription(
-        &self, purchase_token: &str, new_account_type: PremiumAccountType
-    ) -> Result<(), Error<SwitchAccountTierError>> {
+        &self, purchase_token: &str,
+    ) -> Result<(), Error<ConfirmAndroidSubscriptionError>> {
         let val = self
             .db
-            .transaction(|tx| tx.confirm_android_subscription(purchase_token, new_account_type))?;
+            .transaction(|tx| tx.confirm_android_subscription(purchase_token))?;
         Ok(val?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn cancel_android_subscription(
-        &self
-    ) -> Result<(), Error<SwitchAccountTierError>> {
-        let val = self
-            .db
-            .transaction(|tx| tx.cancel_android_subscription())?;
+    pub fn cancel_subscription(&self) -> Result<(), Error<CancelSubscriptionError>> {
+        let val = self.db.transaction(|tx| tx.cancel_subscription())?;
         Ok(val?)
     }
 }

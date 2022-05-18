@@ -310,15 +310,25 @@ object CoreModel {
             app.lockbook.core.calculateWork()
         )
 
-    private val isUserPremiumParser = Json {
+    private val confirmAndroidSubscriptionParser = Json {
         serializersModule = SerializersModule {
-            createPolyRelation(Boolean.serializer(), CalculateWorkError.serializer())
+            createPolyRelation(Unit.serializer(), ConfirmAndroidSubscriptionError.serializer())
         }
     }
 
-    fun isUserPremium(config: Config): Result<Boolean, CoreError<IsUserPremiumError>> =
-        isUserPremiumParser.tryParse(
-            app.lockbook.core.isUserPremium()
+    fun confirmAndroidSubscription(purchaseToken: String): Result<Boolean, CoreError<ConfirmAndroidSubscriptionError>> =
+        confirmAndroidSubscriptionParser.tryParse(
+            app.lockbook.core.confirmAndroidSubscription(purchaseToken)
         )
 
+    private val cancelSubscriptionParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), CancelSubscriptionError.serializer())
+        }
+    }
+
+    fun cancelSubscription(): Result<Boolean, CoreError<CancelSubscriptionError>> =
+        cancelSubscriptionParser.tryParse(
+            app.lockbook.core.cancelSubscription()
+        )
 }

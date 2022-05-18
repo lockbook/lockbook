@@ -18,7 +18,6 @@ import app.lockbook.util.*
 import com.github.michaelbull.result.getOrElse
 import kotlinx.coroutines.*
 
-
 class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Preference(context, attributeSet) {
     private var job = Job()
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
@@ -61,7 +60,7 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
                 val premiumUsageBar = holder.itemView.findViewById<ProgressBar>(R.id.premium_usage_bar)
                 val premiumUsageInfo = holder.itemView.findViewById<TextView>(R.id.premium_usage_info)
 
-                if(usage.dataCap.exact != PAID_TIER_USAGE_BYTES) {
+                if (usage.dataCap.exact != PAID_TIER_USAGE_BYTES) {
                     premiumUsageBar.max = (PAID_TIER_USAGE_BYTES / ROUND_DECIMAL_PLACES).toInt()
                     premiumUsageBar.progress = (usage.serverUsage.exact / ROUND_DECIMAL_PLACES).toInt()
 

@@ -11,7 +11,7 @@ fn get_credit_card() {
     // switch account tier to premium
     api_service::request(
         &account,
-        SwitchAccountTierStripeRequest {
+        UpgradeAccountStripeRequest {
             account_tier: generate_premium_account_tier(test_credit_cards::GOOD, None, None, None),
         },
     )
@@ -35,6 +35,6 @@ fn not_a_stripe_customer() {
 
     assert_matches!(
         result,
-        Err(ApiError::<GetCreditCardError>::Endpoint(GetCreditCardError::NotAStripeCustomer))
+        Err(ApiError::<GetCreditCardError>::Endpoint(GetCreditCardError::NoCardAdded))
     );
 }

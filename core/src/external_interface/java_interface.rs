@@ -521,15 +521,9 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateWork(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_confirmAndroidSubscription(
-    env: JNIEnv, _: JClass, jpurchase_token: JString, jaccount_type: JString
+    env: JNIEnv, _: JClass, jpurchase_token: JString,
 ) -> jstring {
-
     let purchase_token = &match jstring_to_string(&env, jpurchase_token, "purchase token") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    let account_type = match deserialize::<PremiumAccountType>(&env, jaccount_type, "account type") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -537,20 +531,20 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_confirmAndroidSubscription(
     string_to_jstring(
         &env,
         match static_state::get() {
-            Ok(core) => translate(core.confirm_android_subscription(purchase_token, account_type)),
+            Ok(core) => translate(core.confirm_android_subscription(purchase_token)),
             e => translate(e.map(|_| ())),
         },
     )
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_cancelAndroidSubscription(
-    env: JNIEnv, _: JClass
+pub extern "system" fn Java_app_lockbook_core_CoreKt_cancel_subscription(
+    env: JNIEnv, _: JClass,
 ) -> jstring {
     string_to_jstring(
         &env,
         match static_state::get() {
-            Ok(core) => translate(core.cancel_android_subscription()),
+            Ok(core) => translate(core.cancel_subscription()),
             e => translate(e.map(|_| ())),
         },
     )
@@ -562,4 +556,3 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getAllErrorVariants(
 ) -> jstring {
     serialize_to_jstring(&env, get_all_error_variants())
 }
-

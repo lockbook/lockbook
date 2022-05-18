@@ -13,15 +13,18 @@ fn switch_to_premium_and_back() {
     // switch account tier to premium
     api_service::request(
         &account,
-        SwitchAccountTierStripeRequest {
+        UpgradeAccountStripeRequest {
             account_tier: generate_premium_account_tier(test_credit_cards::GOOD, None, None, None),
         },
     )
     .unwrap();
 
     // switch account tier back to free
-    api_service::request(&account, SwitchAccountTierStripeRequest { account_tier: PremiumAccountType::Free })
-        .unwrap();
+    api_service::request(
+        &account,
+        UpgradeAccountStripeRequest { account_tier: PremiumAccountType::Free },
+    )
+    .unwrap();
 }
 
 #[test]
@@ -32,18 +35,20 @@ fn new_tier_is_old_tier() {
     // switch account tier to free
     let result = api_service::request(
         &account,
-        SwitchAccountTierStripeRequest { account_tier: PremiumAccountType::Free },
+        UpgradeAccountStripeRequest { account_tier: PremiumAccountType::Free },
     );
 
     assert_matches!(
         result,
-        Err(ApiError::<SwitchAccountTierStripeError>::Endpoint(SwitchAccountTierStripeError::NewTierIsOldTier))
+        Err(ApiError::<UpgradeAccountStripeError>::Endpoint(
+            UpgradeAccountStripeError::AlreadyPremium
+        ))
     );
 
     // switch account tier to premium
     api_service::request(
         &account,
-        SwitchAccountTierStripeRequest {
+        UpgradeAccountStripeRequest {
             account_tier: generate_premium_account_tier(test_credit_cards::GOOD, None, None, None),
         },
     )
@@ -52,14 +57,16 @@ fn new_tier_is_old_tier() {
     // switch account tier to premium
     let result = api_service::request(
         &account,
-        SwitchAccountTierStripeRequest {
+        UpgradeAccountStripeRequest {
             account_tier: generate_premium_account_tier(test_credit_cards::GOOD, None, None, None),
         },
     );
 
     assert_matches!(
         result,
-        Err(ApiError::<SwitchAccountTierStripeError>::Endpoint(SwitchAccountTierStripeError::NewTierIsOldTier))
+        Err(ApiError::<UpgradeAccountStripeError>::Endpoint(
+            UpgradeAccountStripeError::AlreadyPremium
+        ))
     );
 }
 
@@ -71,13 +78,15 @@ fn card_does_not_exist() {
     // switch account tier to premium using an "old card"
     let result = api_service::request(
         &account,
-        SwitchAccountTierStripeRequest { account_tier: PremiumAccountType::Premium(PaymentMethod::OldCard) },
+        UpgradeAccountStripeRequest {
+            account_tier: PremiumAccountType::Premium(PaymentMethod::OldCard),
+        },
     );
 
     assert_matches!(
         result,
-        Err(ApiError::<SwitchAccountTierStripeError>::Endpoint(
-            SwitchAccountTierStripeError::OldCardDoesNotExist
+        Err(ApiError::<UpgradeAccountStripeError>::Endpoint(
+            UpgradeAccountStripeError::OldCardDoesNotExist
         ))
     );
 }
@@ -88,24 +97,27 @@ fn card_decline() {
     let account = core.get_account().unwrap();
 
     let scenarios = vec![
-        (test_credit_cards::decline::GENERIC, SwitchAccountTierStripeError::CardDecline),
-        (test_credit_cards::decline::LOST_CARD, SwitchAccountTierStripeError::CardDecline), // core should not be informed a card is stolen or lost
-        (test_credit_cards::decline::INSUFFICIENT_FUNDS, SwitchAccountTierStripeError::InsufficientFunds),
-        (test_credit_cards::decline::PROCESSING_ERROR, SwitchAccountTierStripeError::TryAgain),
-        (test_credit_cards::decline::EXPIRED_CARD, SwitchAccountTierStripeError::ExpiredCard),
+        (test_credit_cards::decline::GENERIC, UpgradeAccountStripeError::CardDecline),
+        (test_credit_cards::decline::LOST_CARD, UpgradeAccountStripeError::CardDecline), // core should not be informed a card is stolen or lost
+        (
+            test_credit_cards::decline::INSUFFICIENT_FUNDS,
+            UpgradeAccountStripeError::InsufficientFunds,
+        ),
+        (test_credit_cards::decline::PROCESSING_ERROR, UpgradeAccountStripeError::TryAgain),
+        (test_credit_cards::decline::EXPIRED_CARD, UpgradeAccountStripeError::ExpiredCard),
     ];
 
     for (card_number, expected_err) in scenarios {
         // switch account tier to premium using bad card number
         let result = api_service::request(
             &account,
-            SwitchAccountTierStripeRequest {
+            UpgradeAccountStripeRequest {
                 account_tier: generate_premium_account_tier(card_number, None, None, None),
             },
         );
 
         match result {
-            Err(ApiError::<SwitchAccountTierStripeError>::Endpoint(err)) => {
+            Err(ApiError::<UpgradeAccountStripeError>::Endpoint(err)) => {
                 assert_eq!(err, expected_err)
             }
             other => panic!("expected {:?}, got {:?}", expected_err, other),
@@ -124,30 +136,36 @@ fn invalid_cards() {
             None,
             None,
             None,
-            SwitchAccountTierStripeError::InvalidCardNumber,
+            UpgradeAccountStripeError::InvalidCardNumber,
         ),
         (
             test_credit_cards::GOOD,
             Some(1970),
             None,
             None,
-            SwitchAccountTierStripeError::InvalidCardExpYear,
+            UpgradeAccountStripeError::InvalidCardExpYear,
         ),
         (
             test_credit_cards::GOOD,
             None,
             Some(14),
             None,
-            SwitchAccountTierStripeError::InvalidCardExpMonth,
+            UpgradeAccountStripeError::InvalidCardExpMonth,
         ),
-        (test_credit_cards::GOOD, None, None, Some("11"), SwitchAccountTierStripeError::InvalidCardCvc),
+        (
+            test_credit_cards::GOOD,
+            None,
+            None,
+            Some("11"),
+            UpgradeAccountStripeError::InvalidCardCvc,
+        ),
     ];
 
     for (card_number, maybe_exp_year, maybe_exp_month, maybe_cvc, expected_err) in scenarios {
         // switch account tier to premium using bad card information
         let result = api_service::request(
             &account,
-            SwitchAccountTierStripeRequest {
+            UpgradeAccountStripeRequest {
                 account_tier: generate_premium_account_tier(
                     card_number,
                     maybe_exp_year,
@@ -158,7 +176,7 @@ fn invalid_cards() {
         );
 
         match result {
-            Err(ApiError::<SwitchAccountTierStripeError>::Endpoint(err)) => {
+            Err(ApiError::<UpgradeAccountStripeError>::Endpoint(err)) => {
                 assert_eq!(err, expected_err)
             }
             other => panic!("expected {:?}, got {:?}", expected_err, other),
@@ -193,7 +211,7 @@ fn downgrade_denied() {
     // switch account tier to premium
     api_service::request(
         &account,
-        SwitchAccountTierStripeRequest {
+        UpgradeAccountStripeRequest {
             account_tier: generate_premium_account_tier(test_credit_cards::GOOD, None, None, None),
         },
     )
@@ -202,13 +220,13 @@ fn downgrade_denied() {
     // attempt to switch account tier back free
     let result = api_service::request(
         &account,
-        SwitchAccountTierStripeRequest { account_tier: PremiumAccountType::Free },
+        UpgradeAccountStripeRequest { account_tier: PremiumAccountType::Free },
     );
 
     assert_matches!(
         result,
-        Err(ApiError::<SwitchAccountTierStripeError>::Endpoint(
-            SwitchAccountTierStripeError::CurrentUsageIsMoreThanNewTier
+        Err(ApiError::<UpgradeAccountStripeError>::Endpoint(
+            UpgradeAccountStripeError::CurrentUsageIsMoreThanNewTier
         ))
     );
 
@@ -226,6 +244,9 @@ fn downgrade_denied() {
     }
 
     // switch account tier back to free
-    api_service::request(&account, SwitchAccountTierStripeRequest { account_tier: PremiumAccountType::Free })
-        .unwrap();
+    api_service::request(
+        &account,
+        UpgradeAccountStripeRequest { account_tier: PremiumAccountType::Free },
+    )
+    .unwrap();
 }

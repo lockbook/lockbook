@@ -111,6 +111,18 @@
     <string name="drawing_eraser_description">Eraser</string>
     <string name="settings_open_new_document_automatically">Automatically open new documents</string>
 
+    <string name="settings_protect_account_biometric_summary">Secure your account with biometrics.</string>
+
+    <string name="biometrics_title">Lockbook Biometric Verification</string>
+    <string name="biometrics_subtitle">Verify your identity to access Lockbook.</string>
+    <string name="biometrics_cancel">Cancel</string>
+
+    <array name="settings_biometric_names">
+        <item>@string/biometric_disabled</item>
+        <item>@string/biometric_recommended</item>
+        <item>@string/biometric_strict</item>
+    </array>
+
     <!-- Errors -->
     <string name="no_account">You have no account.</string>
     <string name="could_not_reach_server">Offline.</string>
@@ -140,20 +152,16 @@
     <string name="no_root">No root!</string>
     <string name="cannot_move_root">Cannot move root!</string>
     <string name="new_account_disabled">This server is not accepting any new accounts at this moment. Please try again another time.</string>
+    <string name="already_premium">Error, you are already premium.</string>
+    <string name="invalid_purchase_token">Failed to verify purchase..</string>
+    <string name="concurrent_requests_are_too_soon">You are accessing billing too quickly, please try again in a minute.</string>
+    <string name="not_premium">Error, you are not premium.</string>
+    <string name="usage_is_over_free_tier_data_cap">Your totally data usage exceeds free tier, please remove some data.</string>
+
 
     <string name="unexpected_error">An unexpected error has occurred!</string>
     <string name="basic_error">An error has occurred.</string>
-    <string name="settings_protect_account_biometric_summary">Secure your account with biometrics.</string>
-
-    <string name="biometrics_title">Lockbook Biometric Verification</string>
-    <string name="biometrics_subtitle">Verify your identity to access Lockbook.</string>
-    <string name="biometrics_cancel">Cancel</string>
-
-    <array name="settings_biometric_names">
-        <item>@string/biometric_disabled</item>
-        <item>@string/biometric_recommended</item>
-        <item>@string/biometric_strict</item>
-    </array>
+    <string name="unrecoverable_billing_error">Billing is currently not available right now, please try again later.</string>
 
     <!-- Preference keys -->
 
@@ -195,23 +203,6 @@
     <string name="before_you_start">Before you start…</string>
     <string name="before_you_start_description">Lockbook <a href="https://en.wikipedia.org/wiki/End-to-end_encryption">encrypts</a> your notes with a key that stays on your Lockbook devices. This makes your notes unreadable to anyone but you. If you lose the key, your notes are not recoverable, so we recommend you make a backup in case something happens to this device.</string>
     <string name="drawing_parse_error">Could not open drawing.</string>
-    <string name="premium_usage_tier">Premium Tier</string>
-    <string name="update_to_premium">Upgrade</string>
-    <string name="choose_your_plan">Choose your plan</string>
-    <string name="yearly_plan">Premium (Yearly)</string>
-    <string name="monthly_plan">Premium (Monthly)</string>
-    <string name="exit">Exit</string>
-    <string name="premium_space">Storage Space</string>
-    <string name="monthly_premium_cost">$2.50 a month</string>
-    <string name="checkmark">Check</string>
-    <string name="subscribe">Subscribe</string>
-    <string name="free_tier_current">Free (Current)</string>
-    <string name="fifty_gb">50 GB</string>
-    <string name="per_year">/ year</string>
-    <string name="per_month">/ month</string>
-    <string name="one_mb">1 MB</string>
-    <string name="two_fifty">$2.50</string>
-    <string name="twenty_five">$25</string>
 
     <!--    Billing-->
 
@@ -232,4 +223,7 @@
     <string name="one_mb">1 MB</string>
     <string name="two_fifty">$2.50</string>
     <string name="twenty_five">$25</string>
+    <string name="success_subscription_benefit">Your data cap has been extended to 50GB.</string>
+    <string name="successful_purchase">Thank you for purchasing premium.</string>
+
 </resources>

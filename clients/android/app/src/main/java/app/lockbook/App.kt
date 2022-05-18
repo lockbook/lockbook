@@ -13,6 +13,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.preference.PreferenceManager
 import androidx.work.*
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
+import app.lockbook.billing.BillingClientLifecycle
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
@@ -21,6 +22,9 @@ import timber.log.Timber
 import java.util.concurrent.TimeUnit
 
 class App : Application() {
+    val billingClientLifecycle: BillingClientLifecycle
+        get() = BillingClientLifecycle.getInstance(this)
+
     override fun onCreate() {
         super.onCreate()
         loadLockbookCore()

@@ -10,10 +10,10 @@ use lockbook_server_lib::config::Config;
 use lockbook_server_lib::ServerState;
 
 use crate::feature_flags::handle_feature_flag;
+use google_androidpublisher3::{hyper, hyper_rustls};
 use lockbook_server_lib::content::file_content_client;
 use s3::bucket::Bucket;
 use structopt::StructOpt;
-use google_androidpublisher3::{hyper_rustls, hyper};
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A utility for a lockbook server administrator.")]
@@ -51,17 +51,36 @@ async fn main() {
     let (index_db_pool, files_db_client) = connect_to_state(&config).await;
     let stripe_client = stripe::Client::new(&config.stripe.stripe_secret);
     let service_account_key: google_androidpublisher3::oauth2::ServiceAccountKey =
-        google_androidpublisher3::oauth2::read_service_account_key(&config.google.service_account_cred_path).await.unwrap();
-
-    let auth = google_androidpublisher3::oauth2::ServiceAccountAuthenticator::builder(service_account_key)
-        .build()
+        google_androidpublisher3::oauth2::read_service_account_key(
+            &config.google.service_account_cred_path,
+        )
         .await
         .unwrap();
-    let client = hyper::Client::builder().build(hyper_rustls::HttpsConnectorBuilder::with_native_roots(Default::default()).https_or_http().enable_http1().enable_http2().build());
-    let gcp_publisher = google_androidpublisher3::AndroidPublisher::new(client.clone(), auth.clone());
+
+    let auth =
+        google_androidpublisher3::oauth2::ServiceAccountAuthenticator::builder(service_account_key)
+            .build()
+            .await
+            .unwrap();
+    let client = hyper::Client::builder().build(
+        hyper_rustls::HttpsConnectorBuilder::with_native_roots(Default::default())
+            .https_or_http()
+            .enable_http1()
+            .enable_http2()
+            .build(),
+    );
+    let gcp_publisher =
+        google_androidpublisher3::AndroidPublisher::new(client.clone(), auth.clone());
     let gcp_pubsub = google_pubsub1::Pubsub::new(client, auth);
 
-    let server_state = ServerState { config, index_db_pool, stripe_client, files_db_client, android_publisher: gcp_publisher, gcp_pubsub };
+    let server_state = ServerState {
+        config,
+        index_db_pool,
+        stripe_client,
+        files_db_client,
+        android_publisher: gcp_publisher,
+        gcp_pubsub,
+    };
 
     let ok = match Subcommands::from_args() {
         DeleteAccount { username: user } => delete_account(server_state, &user).await,

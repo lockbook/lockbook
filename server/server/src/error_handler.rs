@@ -5,8 +5,8 @@ use crate::{
 };
 use deadpool_redis::PoolError;
 use lockbook_models::api::{
-    CancelAndroidSubscriptionError, ConfirmAndroidSubscriptionError, GetUsageError,
-    SwitchAccountTierStripeError,
+    CancelSubscriptionError, ConfirmAndroidSubscriptionError, GetUsageError,
+    UpgradeAccountStripeError,
 };
 use redis::RedisError;
 use redis_utils::converters::{JsonGetError, JsonSetError};
@@ -77,7 +77,7 @@ impl From<SimpleGCPError> for ServerError<ConfirmAndroidSubscriptionError> {
     }
 }
 
-impl From<SimpleGCPError> for ServerError<CancelAndroidSubscriptionError> {
+impl From<SimpleGCPError> for ServerError<CancelSubscriptionError> {
     fn from(e: SimpleGCPError) -> Self {
         match e {
             SimpleGCPError::Unexpected(msg) => internal!("{}", msg),
@@ -85,33 +85,39 @@ impl From<SimpleGCPError> for ServerError<CancelAndroidSubscriptionError> {
     }
 }
 
-impl From<SimplifiedStripeError> for ServerError<SwitchAccountTierStripeError> {
+// impl From<RedisError> for LockBillingWorkflowError {
+//     fn from(err: RedisError) -> Self {
+//         LockBillingWorkflowError::Unexpected(format!("Redis Error: {:?}", err))
+//     }
+// }
+
+impl From<SimplifiedStripeError> for ServerError<UpgradeAccountStripeError> {
     fn from(e: SimplifiedStripeError) -> Self {
         match e {
             SimplifiedStripeError::CardDecline => {
-                ClientError(SwitchAccountTierStripeError::CardDecline)
+                ClientError(UpgradeAccountStripeError::CardDecline)
             }
             SimplifiedStripeError::InsufficientFunds => {
-                ClientError(SwitchAccountTierStripeError::InsufficientFunds)
+                ClientError(UpgradeAccountStripeError::InsufficientFunds)
             }
-            SimplifiedStripeError::TryAgain => ClientError(SwitchAccountTierStripeError::TryAgain),
+            SimplifiedStripeError::TryAgain => ClientError(UpgradeAccountStripeError::TryAgain),
             SimplifiedStripeError::CardNotSupported => {
-                ClientError(SwitchAccountTierStripeError::CardNotSupported)
+                ClientError(UpgradeAccountStripeError::CardNotSupported)
             }
             SimplifiedStripeError::ExpiredCard => {
-                ClientError(SwitchAccountTierStripeError::ExpiredCard)
+                ClientError(UpgradeAccountStripeError::ExpiredCard)
             }
             SimplifiedStripeError::InvalidCardNumber => {
-                ClientError(SwitchAccountTierStripeError::InvalidCardNumber)
+                ClientError(UpgradeAccountStripeError::InvalidCardNumber)
             }
             SimplifiedStripeError::InvalidCardExpYear => {
-                ClientError(SwitchAccountTierStripeError::InvalidCardExpYear)
+                ClientError(UpgradeAccountStripeError::InvalidCardExpYear)
             }
             SimplifiedStripeError::InvalidCardExpMonth => {
-                ClientError(SwitchAccountTierStripeError::InvalidCardExpMonth)
+                ClientError(UpgradeAccountStripeError::InvalidCardExpMonth)
             }
             SimplifiedStripeError::InvalidCardCvc => {
-                ClientError(SwitchAccountTierStripeError::InvalidCardCvc)
+                ClientError(UpgradeAccountStripeError::InvalidCardCvc)
             }
             SimplifiedStripeError::Other(msg) => internal!("{}", msg),
         }
