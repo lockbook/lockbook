@@ -1,6 +1,8 @@
 import AppKit
 import SwiftLockbookCore
 
+// Reference for drag and drop:
+// https://github.com/KinematicSystems/NSOutlineViewReorder/blob/master/OutlineViewReorder/OutlineDataSource.swift
 class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvider {
 
     var dragged: DecryptedFileMetadata? = nil
@@ -83,10 +85,18 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
     static let REORDER_PASTEBOARD_TYPE = "net.lockbook.metadata"
 }
 
-class TreeDelegate: NSObject, NSOutlineViewDelegate {
-
+class TreeDelegate: NSObject, MenuOutlineViewDelegate {
     var documentSelected: (DecryptedFileMetadata) -> Void = { _ in
     }
+
+    func outlineView(_ outlineView: NSOutlineView, menuForItem item: Any?) -> NSMenu? {
+        let menu = NSMenu()
+        let parent = item == nil ? DI.files.root! : item as! DecryptedFileMetadata
+
+        menu.addItem(MyMenuItem(file: parent))
+        return menu
+    }
+
 
     func outlineView(
             _ outlineView: NSOutlineView,

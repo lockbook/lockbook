@@ -8,7 +8,7 @@ struct FileTreeView: NSViewRepresentable {
     @EnvironmentObject var files: FileService
     
     let scrollView = NSScrollView()
-    let treeView = NSOutlineView()
+    let treeView = MenuOutlineView()
     let delegate = TreeDelegate()
     var dataSource = DataSource()
     
@@ -49,4 +49,20 @@ struct FileTreeView: NSViewRepresentable {
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         treeView.reloadItem(nil)
     }
+}
+
+protocol MenuOutlineViewDelegate : NSOutlineViewDelegate {
+    func outlineView(_ outlineView: NSOutlineView, menuForItem item: Any?) -> NSMenu?
+}
+
+class MenuOutlineView: NSOutlineView {
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let point = self.convert(event.locationInWindow, from: nil)
+        let row = self.row(at: point)
+        let item = item(atRow: row)
+
+        return (delegate as! MenuOutlineViewDelegate).outlineView(self, menuForItem: item)
+    }
+
 }
