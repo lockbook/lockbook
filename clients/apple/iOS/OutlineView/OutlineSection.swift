@@ -3,13 +3,12 @@ import SwiftLockbookCore
 
 struct OutlineSection: View {
     
-    @EnvironmentObject var files: FileService
     @EnvironmentObject var onboarding: OnboardingService
-    @ObservedObject var state: OutlineState
+    @EnvironmentObject var files: FileService
+    @EnvironmentObject var state: SheetState
     
     var root: DecryptedFileMetadata
-    
-    
+
     var children: [DecryptedFileMetadata] {
         files.files.filter {
             $0.parent == root.id && $0.id != root.id
@@ -21,7 +20,7 @@ struct OutlineSection: View {
     }
     
     var body: some View {
-        let rootOutlineBranch = OutlineBranch(outlineState: state, file: root, level: -1)
+        let rootOutlineBranch = OutlineBranch(file: root, level: -1)
         ScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 // The padding in the section header is there to adjust for the inset hack.
@@ -33,11 +32,8 @@ struct OutlineSection: View {
             .padding()
             // A hack for list row insets not working. This hack also applies to the section header though.
         }.contextMenu {
-            OutlineContextMenu (meta: root, outlineState: state, branchState: nil)
+            OutlineContextMenu (meta: root, branchState: nil)
         }
         .navigationTitle(files.root!.decryptedName)
-        .sheet(isPresented: $state.creating) { NewFileSheet(parent: state.creatingInfo?.parent, selection: $state.selectedItem) }
-        .sheet(isPresented: $state.moving) { MoveSheet(meta: state.movingInfo) }
-        .sheet(isPresented: $state.renaming) { RenamingSheet(meta: state.renamingInfo) }
     }
 }

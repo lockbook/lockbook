@@ -3,14 +3,13 @@ import SwiftLockbookCore
 
 struct MoveSheet: View {
     
-    let meta: DecryptedFileMetadata?
-    
     @EnvironmentObject var fileService: FileService
-    
+    @EnvironmentObject var sheets: SheetState
+
     @Environment(\.presentationMode) var presentationMode
     
     var body: some View {
-        if let meta = meta {
+        if let meta = sheets.movingInfo {
             let root = fileService.files.first(where: { $0.parent == $0.id })!
             let wc = WithChild(root, fileService.files, { $0.id == $1.parent && $0.id != $1.id && $1.fileType == .Folder })
             

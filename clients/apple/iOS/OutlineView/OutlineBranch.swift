@@ -7,11 +7,12 @@ import SwiftLockbookCore
 import UniformTypeIdentifiers
 
 struct OutlineBranch: View {
+    @EnvironmentObject var current: CurrentDocument
     @EnvironmentObject var files: FileService
     @EnvironmentObject var status: StatusService
     @EnvironmentObject var errors: UnexpectedErrorService
-    
-    @ObservedObject var outlineState: OutlineState
+    @EnvironmentObject var sheets: SheetState
+
     @StateObject var state: BranchState = BranchState()
     
     let file: DecryptedFileMetadata
@@ -32,7 +33,7 @@ struct OutlineBranch: View {
         ScrollViewReader { scrollView in
             VStack(alignment: .leading) {
                 if level != -1 {
-                    if file == outlineState.selectedItem {
+                    if file == current.selectedItem {
                         OutlineRow(file: file, level: level, open: $state.open)
                             .background(Color.accentColor)
                             .foregroundColor(Color.white)
@@ -46,7 +47,7 @@ struct OutlineBranch: View {
                                     }
                                 } else {
                                     // Animating this causes editor to load weirdly
-                                    outlineState.selectedItem = self.file
+                                    current.selectedItem = file
                                     print("tap")
                                 }
                             }
@@ -55,18 +56,18 @@ struct OutlineBranch: View {
                 
                 if isLeaf == false && (state.open == true || level == -1) {
                     ForEach(children) { child in
-                        OutlineBranch(outlineState: outlineState, file: child, level: self.level + 1)
+                        OutlineBranch(file: child, level: self.level + 1)
                     }
                 }
             }
             .contextMenu(menuItems: {
-                OutlineContextMenu(meta: file, outlineState: outlineState, branchState: state)
+                OutlineContextMenu(meta: file, branchState: state)
             })
         }
     }
     
     func handleDelete(meta: DecryptedFileMetadata) -> () -> Void {
-        return {
+        {
             files.deleteFile(id: meta.id)
         }
     }

@@ -93,7 +93,11 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
         let menu = NSMenu()
         let parent = item == nil ? DI.files.root! : item as! DecryptedFileMetadata
 
-        menu.addItem(MyMenuItem(file: parent))
+        menu.addItem(Rename(file: parent))
+        if parent.fileType == .Folder {
+            menu.addItem(Create(file: parent))
+        }
+        menu.addItem(Delete(file: parent))
         return menu
     }
 

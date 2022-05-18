@@ -1,20 +1,13 @@
+import Introspect
 import SwiftUI
 import SwiftLockbookCore
 
-enum ClientFileTypes {
-    case Document
-    case Folder
-    case Drawing
-    
-}
-
 struct NewFileSheet: View {
-    
-    // Parent was made optional here because, in an outline view, parent will not be known until sheet is presented.
-    // Later, however, lack of parent will be used to show a fuzzy find parent search.
-    let parent: DecryptedFileMetadata?
-    @Binding var selection: DecryptedFileMetadata?
-    
+
+    @EnvironmentObject var sheets: SheetState
+    @EnvironmentObject var selection: CurrentDocument
+
+    // TODO there is a type in creating info that maybe we should use
     @State var selected: ClientFileTypes = .Document
     @State var name: String = ".md"
     @State var errors: String = ""
@@ -23,11 +16,11 @@ struct NewFileSheet: View {
     @EnvironmentObject var files: FileService
     @EnvironmentObject var status: StatusService
     @EnvironmentObject var errorService: UnexpectedErrorService
-    
+
     @Environment(\.presentationMode) var presentationMode
     
     var body: some View {
-        if let parent = parent {
+        if let parent = sheets.creatingInfo?.parent {
             VStack (alignment: .leading, spacing: 15){
                 HStack (alignment: .center) {
                     Text("Create")
@@ -70,6 +63,7 @@ struct NewFileSheet: View {
         }
     }
     
+    #if os(iOS)
     func handleCursor(textField: UITextField) {
         if !introspected {
             introspected = true
@@ -89,6 +83,15 @@ struct NewFileSheet: View {
             }
         }
     }
+    #else
+    func handleCursor(textField: NSTextField) {
+        if !introspected {
+            introspected = true
+            textField.becomeFirstResponder()
+            // TODO based on iOS
+        }
+    }
+    #endif
     
     func selectionChanged(selection: ClientFileTypes) {
         introspected = false
@@ -103,11 +106,15 @@ struct NewFileSheet: View {
     }
     
     func onCommit() {
-        switch DI.core.createFile(name: name, dirId: parent!.id, isFolder: selected == .Folder) {
+        switch DI.core.createFile(name: name, dirId: sheets.creatingInfo!.parent.id, isFolder: selected == .Folder) {
         case .success(let newMeta):
             files.refresh()
             status.checkForLocalWork()
-            self.selection = newMeta
+            if newMeta.fileType == .Document {
+                selection.selectedItem = newMeta
+            } else {
+                sheets.created = newMeta
+            }
             presentationMode.wrappedValue.dismiss()
         case .failure(let err):
             switch err.kind {

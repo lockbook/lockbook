@@ -2,21 +2,23 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct FileTreeView: View {
-        
+
+    @EnvironmentObject var sheets: SheetState
+    @EnvironmentObject var currentDoc: CurrentDocument
     @EnvironmentObject var coreService: CoreService
     @EnvironmentObject var files: FileService
     @EnvironmentObject var onboarding: OnboardingService
 
-    @StateObject var outlineState = OutlineState()
-    
     let currentFolder: DecryptedFileMetadata
     let account: Account
     
     var body: some View {
         VStack {
-            OutlineSection(state: outlineState, root: currentFolder)
+            OutlineSection(root: currentFolder)
             HStack {
-                BottomBar()
+                BottomBar(onCreating: {
+                    sheets.creatingInfo = CreatingInfo(parent: currentFolder, child_type: .Document)
+                })
             }
         }
         .toolbar {
@@ -28,7 +30,7 @@ struct FileTreeView: View {
                     }
             }
         }
-        if let item = outlineState.selectedItem {
+        if let item = currentDoc.selectedItem {
             DocumentView(meta: item)
         }
     }
