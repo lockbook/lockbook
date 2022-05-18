@@ -1,9 +1,7 @@
 use crate::account_service::GetUsageHelperError;
-use crate::billing::billing_model::{
-    BillingInfo, BillingLock, GooglePlayUserInfo, StripeUserInfo, Timestamp,
-};
+use crate::billing::billing_model::{BillingInfo, BillingLock, GooglePlayUserInfo, StripeUserInfo};
 use crate::billing::google_play_client::SimpleGCPError;
-use crate::billing::google_play_model::DeveloperNotification;
+use crate::billing::google_play_model::{DeveloperNotification, NotificationType};
 use crate::billing::{google_play_client, stripe_client};
 use crate::keys::{data_cap, public_key_from_stripe_customer_id};
 use crate::ServerError::{ClientError, InternalError};
@@ -21,8 +19,9 @@ use lockbook_models::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, CancelSubscriptionResponse,
     ConfirmAndroidSubscriptionError, ConfirmAndroidSubscriptionRequest,
     ConfirmAndroidSubscriptionResponse, GetCreditCardError, GetCreditCardRequest,
-    GetCreditCardResponse, PaymentMethod, StripeAccountTier, UpgradeAccountStripeError,
-    UpgradeAccountStripeRequest, UpgradeAccountStripeResponse,
+    GetCreditCardResponse, GetSubscriptionInfoError, GetSubscriptionInfoRequest,
+    GetSubscriptionInfoResponse, PaymentMethod, PaymentPlatform, StripeAccountTier,
+    UpgradeAccountStripeError, UpgradeAccountStripeRequest, UpgradeAccountStripeResponse,
 };
 use log::info;
 use redis_utils::converters::{JsonGet, JsonSet, PipelineJsonSet};
@@ -34,6 +33,44 @@ use std::sync::Arc;
 use uuid::Uuid;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
+
+pub async fn get_subscription_info(
+    context: RequestContext<'_, GetSubscriptionInfoRequest>,
+) -> Result<GetSubscriptionInfoResponse, ServerError<GetSubscriptionInfoError>> {
+    let (request, server_state) = (&context.request, context.server_state);
+    let mut con = server_state.index_db_pool.get().await?;
+
+    let current_data_cap: u64 = con.get(data_cap(&context.public_key)).await?;
+
+    if current_data_cap == FREE_TIER_USAGE_SIZE {
+        return Err(ClientError(GetSubscriptionInfoError::NotPremium));
+    }
+
+    let billing_lock: BillingLock = con
+        .maybe_json_get(keys::billing_lock(&context.public_key))
+        .await?
+        .ok_or_else(|| {
+            internal!(
+                "No billing lock despite being a premium tier. public_key: {:?}",
+                context.public_key
+            )
+        })?;
+
+    match billing_lock.info.last() {
+        None => Err(internal!(
+            "No billing information despite being a premium tier. public_key: {:?}",
+            context.public_key
+        )),
+        Some(BillingInfo::Stripe(info)) => Ok(GetSubscriptionInfoResponse {
+            payment_platform: PaymentPlatform::Stripe { card_last_4_digits: info.last_4.clone() },
+            period_end: info.expiration_time,
+        }),
+        Some(BillingInfo::GooglePlay(info)) => Ok(GetSubscriptionInfoResponse {
+            payment_platform: PaymentPlatform::GooglePlay,
+            period_end: info.expiration_time,
+        }),
+    }
+}
 
 pub async fn confirm_android_subscription(
     context: RequestContext<'_, ConfirmAndroidSubscriptionRequest>,
@@ -227,8 +264,7 @@ pub enum LockBillingWorkflowError {
 }
 
 async fn lock_billing_workflow(
-    public_key: &PublicKey, con: &mut deadpool_redis::Connection,
-    millis_between_payment_flows: Timestamp,
+    public_key: &PublicKey, con: &mut deadpool_redis::Connection, millis_between_payment_flows: u64,
 ) -> Result<BillingLock, ServerError<LockBillingWorkflowError>> {
     let mut billing_lock = BillingLock::default();
 
@@ -238,7 +274,7 @@ async fn lock_billing_workflow(
             .await?
             .unwrap_or_default();
 
-        let current_time = get_time().0 as Timestamp;
+        let current_time = get_time().0 as u64;
 
         if current_time - billing_lock.last_in_payment_flow < millis_between_payment_flows {
             info!(
@@ -401,7 +437,7 @@ async fn create_subscription(
             payment_method_id: payment_method_id.to_string(),
             last_4,
             subscription_id: subscription_resp.id.to_string(),
-            period_end: subscription_resp.current_period_end as u64,
+            expiration_time: subscription_resp.current_period_end as u64,
         },
         PREMIUM_TIER_USAGE_SIZE,
     ))
@@ -563,7 +599,7 @@ pub async fn stripe_webhooks(
                     })?;
 
                     if let Some(BillingInfo::Stripe(info)) = maybe_user_info.info.last_mut() {
-                        (*info).period_end = subscription_period_end as u64;
+                        (*info).expiration_time = subscription_period_end as u64;
                     }
 
                     pipe.json_set(keys::billing_lock(&public_key), &maybe_user_info)
@@ -639,8 +675,9 @@ pub async fn android_notification_webhooks(
 
     let notification = serde_json::from_slice::<DeveloperNotification>(&data)?;
 
+    let mut con = server_state.index_db_pool.get().await?;
+
     if let Some(sub_notif) = notification.subscription_notification {
-        // would normally make a from for this automatically return but get_subscription should probably return more than unexpected
         let purchase = google_play_client::get_subscription(
             &server_state.android_publisher,
             &sub_notif.subscription_id,
@@ -651,28 +688,74 @@ pub async fn android_notification_webhooks(
             SimpleGCPError::Unexpected(msg) => internal!("{:#?}", msg),
         })?;
 
-        let mut con = server_state.index_db_pool.get().await?;
+        let public_key: PublicKey =
+            serde_json::from_str(&purchase.developer_payload.ok_or(internal!(
+                "There should be a public key attached to a purchase: {:?}",
+                sub_notif.subscription_id
+            ))?)?;
 
-        let mut changed = false;
+        let notification_type = sub_notif.notification_type();
 
-        let public_key = purchase
-            .developer_payload
-            .ok_or(ClientError(GooglePlayWebhookError::CannotRetrievePublicKey))?;
+        let mut billing_lock = lock_billing_workflow(
+            &public_key,
+            &mut con,
+            server_state.config.stripe.millis_between_user_payment_flows,
+        )
+        .await
+        .map_err(|err| match err {
+            _ => internal!("{:#?}", err),
+        })?;
 
-        // let mut user_info: GooglePlayUserInfo = con
-        //     .maybe_json_get(billing_lock(&public_key))
-        //     .await?
-        //     .ok_or(ClientError(GooglePlayWebhookError::CannotRetrieveUserInfo))?;
-        //
-        // if let Some(purchase_token) = purchase.linked_purchase_token {
-        //     user_info.purchase_token = purchase_token;
-        //     changed = true;
-        // }
-        //
-        // if let Some(exp_time) = purchase.expiry_time_millis {
-        //     user_info.expiration_time = exp_time.parse::<u64>().map_err(|e| ClientError(GooglePlayWebhookError::CannotParseTime))?;
-        //     changed = true;
-        // }
+        if let Some(BillingInfo::Stripe(info)) = billing_lock.info.last_mut() {
+            match sub_notif.notification_type() {
+                NotificationType::SubscriptionRecovered => {
+                    con.set(data_cap(&public_key), PREMIUM_TIER_USAGE_SIZE)
+                        .await?;
+                    info.expiration_time = purchase.expiry_time_millis.ok_or_else(|| internal!("Cannot get expiration time of a recovered subscription. public_key {:?}", public_key))?.parse().map_err(|e| internal!("Cannot parse millis into int: {:?}", e))?;
+                    con.json_set(keys::billing_lock(&public_key), &billing_lock)
+                        .await?;
+                    // give back premium and update time exp
+                }
+                NotificationType::SubscriptionRenewed | NotificationType::SubscriptionRestarted => {
+                    info.expiration_time = purchase.expiry_time_millis.ok_or_else(|| internal!("Cannot get expiration time of a recovered subscription. public_key {:?}", public_key))?.parse().map_err(|e| internal!("Cannot parse millis into int: {:?}", e))?;
+                    con.json_set(keys::billing_lock(&public_key), &billing_lock)
+                        .await?;
+                    // change expiry time
+                }
+                NotificationType::SubscriptionInGracePeriod => {
+                    // do nothing, except maybe signify they are in a grace period
+                }
+                NotificationType::SubscriptionExpired
+                | NotificationType::SubscriptionRevoked
+                | NotificationType::SubscriptionOnHold => {
+                    con.set(data_cap(&public_key), FREE_TIER_USAGE_SIZE).await?;
+                    info.expiration_time = purchase.expiry_time_millis.ok_or_else(|| internal!("Cannot get expiration time of a recovered subscription. public_key {:?}", public_key))?.parse().map_err(|e| internal!("Cannot parse millis into int: {:?}", e))?;
+                    con.json_set(keys::billing_lock(&public_key), &billing_lock)
+                        .await?;
+                    // remove premium data cap and update exp date to past (for hold)
+                }
+                NotificationType::SubscriptionPurchased
+                | NotificationType::SubscriptionCanceled => {
+                    // nothing
+                }
+                NotificationType::SubscriptionPriceChangeConfirmed
+                | NotificationType::SubscriptionDeferred
+                | NotificationType::SubscriptionPaused
+                | NotificationType::SubscriptionPausedScheduleChanged => {
+                    return Err(internal!(
+                        "Unexpected subscription notification: {:?}, public_key: {:?}",
+                        notification_type,
+                        public_key
+                    ));
+                }
+                NotificationType::Unknown => {
+                    return Err(internal!(
+                        "Unknown subscription change. public_key: {:?}",
+                        public_key
+                    ));
+                }
+            }
+        }
     }
 
     if let Some(test_notif) = notification.test_notification {

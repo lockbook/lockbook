@@ -26,8 +26,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
     // onDestroyView.
     private val binding get() = _binding!!
 
-    private var job = Job()
-    private val uiScope = CoroutineScope(Dispatchers.Main + job)
+    private val uiScope = CoroutineScope(Dispatchers.Main + Job())
 
     private val alertModel by lazy {
         AlertModel(WeakReference(this))

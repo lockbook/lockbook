@@ -27,4 +27,4 @@ external fun calculateWork(): String
 external fun getAllErrorVariants(): String
 external fun confirmAndroidSubscription(purchaseToken: String): String
 external fun cancelSubscription(): String
-external fun isUserPremium(): String
+external fun getSubscriptionInfo(): String

@@ -11,7 +11,8 @@ import androidx.fragment.app.activityViewModels
 import app.lockbook.R
 import app.lockbook.databinding.DialogCreateFileBinding
 import app.lockbook.model.*
-import app.lockbook.util.*
+import app.lockbook.util.DecryptedFileMetadata
+import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
@@ -29,8 +30,7 @@ class CreateFileDialogFragment : DialogFragment() {
     private val createFileTextPart get() = binding.createFileTextPart
     private val createFileTitle get() = binding.createFileTitle
 
-    private var job = Job()
-    private val uiScope = CoroutineScope(Dispatchers.Main + job)
+    private val uiScope = CoroutineScope(Dispatchers.Main + Job())
 
     private val activityModel: StateViewModel by activityViewModels()
     private lateinit var info: CreateFileInfo

@@ -15,7 +15,10 @@ pub async fn acknowledge_subscription(
     client: &AndroidPublisher, subscription_id: &str, purchase_token: &str, public_key: &PublicKey,
 ) -> Result<(), SimpleGCPError> {
     let req = SubscriptionPurchasesAcknowledgeRequest {
-        developer_payload: Some(keys::stringify_public_key(public_key)),
+        developer_payload: Some(
+            serde_json::to_string(&public_key)
+                .map_err(|e| SimpleGCPError::Unexpected(format!("{:#?}", e)))?,
+        ),
     };
 
     return match client

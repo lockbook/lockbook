@@ -1,4 +1,3 @@
-use crate::billing::billing_model::Timestamp;
 use crate::config::Environment::{Local, Prod, Unknown};
 use std::fmt::Display;
 use std::time::Duration;
@@ -45,7 +44,7 @@ pub struct StripeConfig {
     pub stripe_secret: String,
     pub signing_secret: String,
     pub premium_price_id: String,
-    pub millis_between_user_payment_flows: Timestamp,
+    pub millis_between_user_payment_flows: u64,
 }
 
 impl StripeConfig {

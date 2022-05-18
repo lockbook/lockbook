@@ -841,6 +841,20 @@ impl From<CoreError> for Error<CancelSubscriptionError> {
     }
 }
 
+#[derive(Debug, Serialize, EnumIter)]
+pub enum GetSubscriptionInfoError {
+    NotPremium,
+}
+
+impl From<CoreError> for Error<GetSubscriptionInfoError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::NotPremium => UiError(GetSubscriptionInfoError::NotPremium),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum TestRepoError {
     NoAccount,

@@ -1,12 +1,10 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub type Timestamp = u64;
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BillingLock {
     pub info: Vec<BillingInfo>,
-    pub last_in_payment_flow: Timestamp,
+    pub last_in_payment_flow: u64,
 }
 
 impl Default for BillingLock {
@@ -35,5 +33,5 @@ pub struct StripeUserInfo {
     pub payment_method_id: String,
     pub last_4: String,
     pub subscription_id: String,
-    pub period_end: Timestamp,
+    pub expiration_time: u64,
 }

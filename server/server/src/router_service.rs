@@ -93,6 +93,7 @@ pub fn core_routes(
             server_state
         ))
         .or(core_req!(CancelSubscriptionRequest, cancel_subscription, server_state))
+        .or(core_req!(GetSubscriptionInfoRequest, get_subscription_info, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {

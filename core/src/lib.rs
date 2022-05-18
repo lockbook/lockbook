@@ -4,7 +4,7 @@ extern crate reqwest;
 #[macro_use]
 extern crate tracing;
 
-use crate::billing_service::CreditCardLast4Digits;
+use crate::billing_service::{CreditCardLast4Digits, SubscriptionInfo};
 use crate::model::errors::*;
 use crate::model::repo::RepoSource;
 use crate::path_service::Filter;
@@ -384,6 +384,14 @@ impl Core {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn cancel_subscription(&self) -> Result<(), Error<CancelSubscriptionError>> {
         let val = self.db.transaction(|tx| tx.cancel_subscription())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn get_subscription_info(
+        &self,
+    ) -> Result<SubscriptionInfo, Error<GetSubscriptionInfoError>> {
+        let val = self.db.transaction(|tx| tx.get_subscription_info())?;
         Ok(val?)
     }
 }

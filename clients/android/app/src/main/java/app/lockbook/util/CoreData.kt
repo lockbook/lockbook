@@ -76,3 +76,26 @@ data class FileUsage(
     @SerialName("size_bytes")
     val sizeBytes: Int,
 )
+
+
+//pub struct SubscriptionInfo {
+//    pub payment_platform: PaymentPlatform,
+//    pub period_end: u64
+//}
+
+@Serializable
+data class SubscriptionInfo (
+    @SerialName("payment_platform")
+    val paymentPlatform: PaymentPlatform,
+    @SerialName("period_end")
+    val periodEnd: Int
+)
+
+@Serializable
+sealed class PaymentPlatform {
+    object GooglePlay
+    data class Stripe(
+        @SerialName("card_last_4_digits")
+        val cardLast4Digits: String
+    )
+}

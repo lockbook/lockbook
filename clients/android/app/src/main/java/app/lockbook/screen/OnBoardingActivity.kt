@@ -82,8 +82,7 @@ class ImportFragment : Fragment() {
     // onDestroyView.
     private val importBinding get() = _importBinding!!
 
-    private var job = Job()
-    private val uiScope = CoroutineScope(Dispatchers.Main + job)
+    private val uiScope = CoroutineScope(Dispatchers.Main + Job())
 
     private var onQRCodeResult =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -178,8 +177,7 @@ class CreateFragment : Fragment() {
     // onDestroyView.
     private val createBinding get() = _createBinding!!
 
-    private var job = Job()
-    private val uiScope = CoroutineScope(Dispatchers.Main + job)
+    private val uiScope = CoroutineScope(Dispatchers.Main + Job())
 
     override fun onCreateView(
         inflater: LayoutInflater,

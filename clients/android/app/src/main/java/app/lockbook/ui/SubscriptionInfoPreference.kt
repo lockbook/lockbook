@@ -18,7 +18,7 @@ import app.lockbook.util.*
 import com.github.michaelbull.result.getOrElse
 import kotlinx.coroutines.*
 
-class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Preference(context, attributeSet) {
+class SubscriptionInfoPreference(context: Context, attributeSet: AttributeSet?) : Preference(context, attributeSet) {
     private val uiScope = CoroutineScope(Dispatchers.Main + Job())
 
     private val alertModel get() =
@@ -35,6 +35,8 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
 
     override fun onBindViewHolder(holder: PreferenceViewHolder) {
         super.onBindViewHolder(holder)
+
+
 
         setUpUsagePreference(holder)
     }

@@ -331,4 +331,15 @@ object CoreModel {
         cancelSubscriptionParser.tryParse(
             app.lockbook.core.cancelSubscription()
         )
+
+    private val getSubscriptionInfoParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), GetSubscriptionInfoError.serializer())
+        }
+    }
+
+    fun getSubscriptionInfo(): Result<SubscriptionInfo, CoreError<GetSubscriptionInfoError>> =
+        getSubscriptionInfoParser.tryParse(
+            app.lockbook.core.getSubscriptionInfo()
+        )
 }

@@ -4,11 +4,19 @@ use crate::service::api_service::ApiError;
 use crate::{CoreError, Tx};
 use lockbook_models::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, ConfirmAndroidSubscriptionError,
-    ConfirmAndroidSubscriptionRequest, GetCreditCardError, GetCreditCardRequest, PaymentMethod,
+    ConfirmAndroidSubscriptionRequest, GetCreditCardError, GetCreditCardRequest,
+    GetSubscriptionInfoError, GetSubscriptionInfoRequest, PaymentMethod, PaymentPlatform,
     PremiumAccountType, StripeAccountTier, UpgradeAccountStripeError, UpgradeAccountStripeRequest,
 };
+use serde::Serialize;
 
 pub type CreditCardLast4Digits = String;
+
+#[derive(Serialize)]
+pub struct SubscriptionInfo {
+    pub payment_platform: PaymentPlatform,
+    pub period_end: u64,
+}
 
 impl Tx<'_> {
     pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> Result<(), CoreError> {
@@ -99,5 +107,19 @@ impl Tx<'_> {
         })?;
 
         Ok(())
+    }
+
+    pub fn get_subscription_info(&self) -> Result<SubscriptionInfo, CoreError> {
+        let account = self.get_account()?;
+
+        api_service::request(&account, GetSubscriptionInfoRequest {})
+            .map_err(|err| match err {
+                ApiError::Endpoint(GetSubscriptionInfoError::NotPremium) => CoreError::NotPremium,
+                _ => core_err_unexpected(err),
+            })
+            .map(|resp| SubscriptionInfo {
+                payment_platform: resp.payment_platform,
+                period_end: resp.period_end,
+            })
     }
 }

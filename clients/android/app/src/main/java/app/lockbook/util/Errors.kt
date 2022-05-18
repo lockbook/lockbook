@@ -364,6 +364,14 @@ enum class CancelSubscriptionError : UiCoreError {
     }
 }
 
+@Serializable
+enum class GetSubscriptionInfoError : UiCoreError {
+    NotPremium;
+    override fun toLbError(res: Resources): LbError = when (this) {
+        NotPremium -> LbError.newUserError(getString(res, R.string.not_premium))
+    }
+}
+
 val <T> T.exhaustive: T
     get() = this
 

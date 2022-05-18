@@ -389,3 +389,30 @@ impl Request for CancelSubscriptionRequest {
     const METHOD: Method = Method::POST;
     const ROUTE: &'static str = "/cancel-subscription";
 }
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetSubscriptionInfoRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum PaymentPlatform {
+    Stripe { card_last_4_digits: String },
+    GooglePlay,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetSubscriptionInfoResponse {
+    pub payment_platform: PaymentPlatform,
+    pub period_end: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum GetSubscriptionInfoError {
+    NotPremium,
+}
+
+impl Request for GetSubscriptionInfoRequest {
+    type Response = GetSubscriptionInfoResponse;
+    type Error = GetSubscriptionInfoError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/get-subscription-info";
+}

@@ -5,9 +5,9 @@ import android.content.Context
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import app.lockbook.screen.UpgradeAccountActivity
 import app.lockbook.util.LbError
+import app.lockbook.util.SingleMutableLiveData
 import com.android.billingclient.api.*
 import com.android.billingclient.api.BillingClient.BillingResponseCode
 import timber.log.Timber
@@ -22,7 +22,7 @@ class BillingClientLifecycle private constructor(
     private lateinit var billingClient: BillingClient
     private var productDetails: ProductDetails? = null
 
-    private val _billingEvent = MutableLiveData<BillingEvent>()
+    private val _billingEvent = SingleMutableLiveData<BillingEvent>()
 
     val billingEvent: LiveData<BillingEvent>
         get() = _billingEvent
@@ -92,7 +92,6 @@ class BillingClientLifecycle private constructor(
 
         when {
             response.isOk -> {
-                Timber.e("AS IT WAS: $productDetailsList")
                 if (productDetailsList.size == LIST_OF_PRODUCTS.size) {
                     productDetails = productDetailsList[0]
                 }

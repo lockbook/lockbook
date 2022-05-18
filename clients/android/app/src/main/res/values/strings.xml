@@ -123,6 +123,8 @@
         <item>@string/biometric_strict</item>
     </array>
 
+    <string name="settings_change_subscription">Change your subscription</string>
+
     <!-- Errors -->
     <string name="no_account">You have no account.</string>
     <string name="could_not_reach_server">Offline.</string>
@@ -204,10 +206,12 @@
     <string name="before_you_start_description">Lockbook <a href="https://en.wikipedia.org/wiki/End-to-end_encryption">encrypts</a> your notes with a key that stays on your Lockbook devices. This makes your notes unreadable to anyone but you. If you lose the key, your notes are not recoverable, so we recommend you make a backup in case something happens to this device.</string>
     <string name="drawing_parse_error">Could not open drawing.</string>
 
+    <string name="change_subscription_key">change_subscription</string>
+
     <!--    Billing-->
 
     <string name="premium_usage_tier">Premium Tier</string>
-    <string name="update_to_premium">Upgrade</string>
+    <string name="update_to_premium">View Subscription Options</string>
     <string name="choose_your_plan">Choose your plan</string>
     <string name="yearly_plan">Premium (Yearly)</string>
     <string name="monthly_plan">Premium (Monthly)</string>
@@ -225,5 +229,9 @@
     <string name="twenty_five">$25</string>
     <string name="success_subscription_benefit">Your data cap has been extended to 50GB.</string>
     <string name="successful_purchase">Thank you for purchasing premium.</string>
+    <string name="upgrade_pitch">If you upgraded to premium, your usage would be:</string>
+    <string name="settings_premium">Premium</string>
+    <string name="settings_miscellaneous">Miscellaneous</string>
+    <string name="unsubscribe">Unsubscribe</string>
 
 </resources>
