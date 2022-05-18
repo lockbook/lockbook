@@ -7,6 +7,28 @@ class FileService: ObservableObject {
     @Published var root: DecryptedFileMetadata? = nil
     @Published var files: [DecryptedFileMetadata] = []
 
+    func childrenOf(_ meta: DecryptedFileMetadata?) -> [DecryptedFileMetadata] {
+        var file: DecryptedFileMetadata
+        if meta == nil {
+            file = root!
+        } else {
+            file = meta!
+        }
+
+        var toBeSorted = files.filter {
+            $0.parent == file.id && $0.parent != $0.id
+        }
+
+        toBeSorted.sort()
+
+        return toBeSorted
+    }
+
+    func childrenOfRoot() -> [DecryptedFileMetadata] {
+        let root = self.root!
+        return childrenOf(root)
+    }
+
     init(_ core: LockbookApi) {
         self.core = core
 

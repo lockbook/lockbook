@@ -9,16 +9,6 @@ struct OutlineSection: View {
     
     var root: DecryptedFileMetadata
 
-    var children: [DecryptedFileMetadata] {
-        files.files.filter {
-            $0.parent == root.id && $0.id != root.id
-        }
-    }
-    
-    var isLeaf: Bool {
-        children.isEmpty
-    }
-    
     var body: some View {
         let rootOutlineBranch = OutlineBranch(file: root, level: -1)
         ScrollView {

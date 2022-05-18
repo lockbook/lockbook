@@ -12,9 +12,7 @@ struct FileListView: View {
     @EnvironmentObject var fileService: FileService
     @EnvironmentObject var errors: UnexpectedErrorService
     var files: [DecryptedFileMetadata] {
-        fileService.files.filter {
-            $0.parent == currentFolder.id && $0.id != currentFolder.id
-        }
+        fileService.childrenOf(currentFolder)
     }
 
     // There are too many workarounds here, we want to learn how to properly animate a list and then do this ourselves

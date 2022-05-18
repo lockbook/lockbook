@@ -19,9 +19,7 @@ struct OutlineBranch: View {
     let level: CGFloat
     
     var children: [DecryptedFileMetadata] {
-        files.files.filter {
-            $0.parent == file.id && $0.id != file.id
-        }
+        files.childrenOf(file)
     }
     
     var isLeaf: Bool {

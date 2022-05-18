@@ -11,25 +11,18 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
             _ outlineView: NSOutlineView,
             numberOfChildrenOfItem item: Any?
     ) -> Int {
-        let file = item == nil ? DI.files.root! : item as! DecryptedFileMetadata
-        return DI.files.files.filter {
-                    $0.parent == file.id
-                }
-                .count
+        let file = item as? DecryptedFileMetadata
+        return DI.files.childrenOf(file).count
     }
 
     func outlineView(
             _ outlineView: NSOutlineView,
             isItemExpandable item: Any
     ) -> Bool {
-
         let file = item as! DecryptedFileMetadata
 
         return file.fileType == .Folder
-                && !DI.files.files.filter {
-                    $0.parent == file.id
-                }
-                .isEmpty
+                && !DI.files.childrenOf(file).isEmpty
     }
 
     func outlineView(
@@ -37,10 +30,8 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
             child index: Int,
             ofItem item: Any?
     ) -> Any {
-        let parent = item == nil ? DI.files.root! : item as! DecryptedFileMetadata
-        let siblings = DI.files.files.filter {
-            $0.parent == parent.id
-        }
+        let parent = item as? DecryptedFileMetadata
+        let siblings = DI.files.childrenOf(parent)
         let node = siblings[index]
         return node
     }
