@@ -10,7 +10,6 @@ pub struct UpgradePaymentFlow {
     header: UpgradeHeader,
     payment_method: SelectPayMethod,
     confirm_details: ConfirmDetails,
-    pay_and_upgrade: PayAndUpgrade,
     stack: gtk::Stack,
     pub cntr: gtk::Box,
 }
@@ -22,7 +21,6 @@ impl UpgradePaymentFlow {
 
         let payment_method = SelectPayMethod::new(maybe_card);
         let confirm_details = ConfirmDetails::new();
-        let pay_and_upgrade = PayAndUpgrade::new();
 
         let stack = gtk::Stack::new();
         stack.set_margin_start(12);
@@ -30,7 +28,6 @@ impl UpgradePaymentFlow {
         stack.set_margin_bottom(12);
         stack.add_named(&payment_method.cntr, Some("payment_method"));
         stack.add_named(&confirm_details.cntr, Some("confirm_details"));
-        stack.add_named(&pay_and_upgrade.cntr, Some("pay_and_upgrade"));
 
         payment_method.connect_method_selected({
             let header = header.clone();
@@ -60,7 +57,7 @@ impl UpgradePaymentFlow {
         cntr.append(&header.cntr);
         cntr.append(&stack);
 
-        Self { header, payment_method, confirm_details, pay_and_upgrade, stack, cntr }
+        Self { header, payment_method, confirm_details, stack, cntr }
     }
 
     pub fn connect_cancelled<F: Fn(&Self) + 'static>(&self, f: F) {
@@ -79,9 +76,9 @@ impl UpgradePaymentFlow {
     }
 
     pub fn show_pay_screen<W: IsA<gtk::Widget>>(&self, payment_ui: &W) {
-        self.pay_and_upgrade.cntr.append(payment_ui);
         self.header.confirm_details.mark_complete();
         self.header.pay_and_upgrade.mark_active();
+        self.stack.add_named(payment_ui, Some("pay_and_upgrade"));
         self.stack.set_visible_child_name("pay_and_upgrade");
     }
 
@@ -300,24 +297,13 @@ impl ConfirmDetails {
         ui::clear(&self.content);
 
         let prompt = gtk::Label::builder()
-            .label("You are about to pay\n$2.50 per month via credit card\nfor 50 gigabytes of space.")
+            .label(
+                "You are about to pay\n$2.50 per month via credit card\nfor 50 gigabytes of space.",
+            )
             .justify(gtk::Justification::Center)
             .margin_bottom(24)
             .build();
         self.content.append(&prompt);
-    }
-}
-
-#[derive(Clone)]
-struct PayAndUpgrade {
-    cntr: gtk::Box,
-}
-
-impl PayAndUpgrade {
-    fn new() -> Self {
-        let cntr = gtk::Box::new(gtk::Orientation::Vertical, 0);
-
-        Self { cntr }
     }
 }
 
