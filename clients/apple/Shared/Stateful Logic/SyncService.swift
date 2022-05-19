@@ -37,6 +37,7 @@ class SyncService: ObservableObject {
     }
     
     func sync() {
+        print("sync called")
         if syncing {
             return
         }
