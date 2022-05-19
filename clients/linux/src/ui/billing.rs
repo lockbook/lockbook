@@ -101,9 +101,9 @@ struct UpgradeHeader {
 
 impl UpgradeHeader {
     fn new() -> Self {
-        let payment_method = HeaderSection::new("Payment Method");
-        let confirm_details = HeaderSection::new("Confirm Details");
-        let pay_and_upgrade = HeaderSection::new("Pay and Upgrade");
+        let payment_method = HeaderSection::new("Payment Method", "dialog-information-symbolic");
+        let confirm_details = HeaderSection::new("Confirm Details", "dialog-question-symbolic");
+        let pay_and_upgrade = HeaderSection::new("Pay and Upgrade", "channel-secure-symbolic");
 
         let steps = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         steps.set_hexpand(true);
@@ -129,12 +129,13 @@ impl UpgradeHeader {
 #[derive(Clone)]
 struct HeaderSection {
     icon: gtk::Image,
+    icon_name: &'static str,
     title: gtk::Label,
     cntr: gtk::Box,
 }
 
 impl HeaderSection {
-    fn new(text: &str) -> Self {
+    fn new(text: &str, icon_name: &'static str) -> Self {
         let icon = gtk::Image::from_icon_name("action-unavailable-symbolic");
         icon.add_css_class("grayed-out");
         icon.set_margin_top(12);
@@ -149,11 +150,11 @@ impl HeaderSection {
         cntr.append(&icon);
         cntr.append(&title);
 
-        Self { icon, title, cntr }
+        Self { icon, icon_name, title, cntr }
     }
 
     fn mark_active(&self) {
-        self.icon.set_icon_name(Some("dialog-information-symbolic"));
+        self.icon.set_icon_name(Some(self.icon_name));
         self.icon.remove_css_class("grayed-out");
         self.icon.remove_css_class("green");
         self.title.set_sensitive(true);
