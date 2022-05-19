@@ -1,6 +1,6 @@
 name: lockbook-desktop
 base: core20
-version: '0.4.0'
+version: '0.4.1'
 summary: The linux gui version of Lockbook
 description: |
   The best place to store and share thoughts.
