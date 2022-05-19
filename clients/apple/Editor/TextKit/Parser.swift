@@ -88,7 +88,6 @@ public class Parser: Visitor {
     }
 
     public func visit(paragraph node: Paragraph)  {
-        print("para")
         let oldParent = self.currentParent
         var newParent: ParagraphAR
         if let itemParent = oldParent as? ItemAR {

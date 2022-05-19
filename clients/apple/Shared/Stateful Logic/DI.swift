@@ -3,7 +3,7 @@ import SwiftLockbookCore
 
 class DI {
     static let core = CoreApi(ConfigHelper.getEnv(.lockbookLocation) ?? ConfigHelper.location, logs: true)
-    
+
     static let coreService: CoreService = CoreService(core)
     static let errors: UnexpectedErrorService = UnexpectedErrorService()
     static let accounts = AccountService(core)
@@ -13,6 +13,8 @@ class DI {
     static let sync = SyncService(core)
     static let onboarding = OnboardingService(core)
     static let documentLoader = DocumentLoader(core)
+    static let sheets: SheetState = SheetState()
+    static let currentDoc: CurrentDocument = CurrentDocument()
     #if os(iOS)
     static let toolbarModel = ToolbarModel()
     #endif
@@ -31,6 +33,8 @@ class Mock {
     static let sync = SyncService(core)
     static let onboarding = OnboardingService(core)
     static let documentLoader = DocumentLoader(core)
+    static let sheets: SheetState = SheetState()
+    static let currentDoc: CurrentDocument = CurrentDocument()
     #if os(iOS)
     static let toolbarModel = ToolbarModel()
     #endif
@@ -57,6 +61,8 @@ extension View {
             .environmentObject(DI.sync)
             .environmentObject(DI.onboarding)
             .environmentObject(DI.documentLoader)
+            .environmentObject(DI.sheets)
+            .environmentObject(DI.currentDoc)
 
     }
     
@@ -81,5 +87,7 @@ extension View {
             .environmentObject(Mock.sync)
             .environmentObject(Mock.onboarding)
             .environmentObject(Mock.documentLoader)
+            .environmentObject(Mock.sheets)
+            .environmentObject(Mock.currentDoc)
     }
 }

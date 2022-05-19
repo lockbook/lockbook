@@ -4,11 +4,6 @@ struct BeforeYouStart: View {
     
     @Environment(\.presentationMode) var presentationMode
     
-    // Let's do this by keeping a global variable that defaults to false that represents whether an account was created
-    // this session. When an account is successfully created it's toggled to true. And we'll pop this bad boy up in a sheet
-    // If they toggle on backup we'll pop open settings
-    // If they say they'll do this later, we'll dismiss the sheet. 
-    
     var body: some View {
         VStack (spacing: 40){
             HStack {
