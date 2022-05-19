@@ -10,7 +10,7 @@ pub struct UpgradePaymentFlow {
     header: UpgradeHeader,
     payment_method: SelectPayMethod,
     confirm_details: ConfirmDetails,
-    stack: gtk::Stack,
+    pages: gtk::Stack,
     pub cntr: gtk::Box,
 }
 
@@ -22,42 +22,42 @@ impl UpgradePaymentFlow {
         let payment_method = SelectPayMethod::new(maybe_card);
         let confirm_details = ConfirmDetails::new();
 
-        let stack = gtk::Stack::new();
-        stack.set_margin_start(12);
-        stack.set_margin_end(12);
-        stack.set_margin_bottom(12);
-        stack.add_named(&payment_method.cntr, Some("payment_method"));
-        stack.add_named(&confirm_details.cntr, Some("confirm_details"));
+        let pages = gtk::Stack::new();
+        pages.set_margin_start(12);
+        pages.set_margin_end(12);
+        pages.set_margin_bottom(12);
+        pages.add_named(&payment_method.cntr, Some("payment_method"));
+        pages.add_named(&confirm_details.cntr, Some("confirm_details"));
 
         payment_method.connect_method_selected({
             let header = header.clone();
-            let stack = stack.clone();
+            let pages = pages.clone();
             let confirm_details = confirm_details.clone();
 
             move |method| {
                 confirm_details.set_for_payment_method(method);
                 header.payment_method.mark_complete();
                 header.confirm_details.mark_active();
-                stack.set_visible_child_name("confirm_details");
+                pages.set_visible_child_name("confirm_details");
             }
         });
 
         confirm_details.btn_go_back.connect_clicked({
             let header = header.clone();
-            let stack = stack.clone();
+            let pages = pages.clone();
 
             move |_| {
                 header.payment_method.mark_active();
                 header.confirm_details.mark_incomplete();
-                stack.set_visible_child_name("payment_method");
+                pages.set_visible_child_name("payment_method");
             }
         });
 
         let cntr = gtk::Box::new(gtk::Orientation::Vertical, 0);
         cntr.append(&header.cntr);
-        cntr.append(&stack);
+        cntr.append(&pages);
 
-        Self { header, payment_method, confirm_details, stack, cntr }
+        Self { header, payment_method, confirm_details, pages, cntr }
     }
 
     pub fn connect_cancelled<F: Fn(&Self) + 'static>(&self, f: F) {
@@ -78,8 +78,8 @@ impl UpgradePaymentFlow {
     pub fn show_pay_screen<W: IsA<gtk::Widget>>(&self, payment_ui: &W) {
         self.header.confirm_details.mark_complete();
         self.header.pay_and_upgrade.mark_active();
-        self.stack.add_named(payment_ui, Some("pay_and_upgrade"));
-        self.stack.set_visible_child_name("pay_and_upgrade");
+        self.pages.add_named(payment_ui, Some("pay_and_upgrade"));
+        self.pages.set_visible_child_name("pay_and_upgrade");
     }
 
     pub fn mark_final_header_section_complete(&self) {
