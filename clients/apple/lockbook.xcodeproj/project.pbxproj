@@ -523,7 +523,7 @@
 					};
 				};
 			};
-			buildConfigurationList = EA5C7D662516605F00F7F358 /* Build configuration list for PBXProject "lockbook" */;
+			buildConfigurationList = EA5C7D662516605F00F7F358 /* Build configuration list for PBXProject "Lockbook" */;
 			compatibilityVersion = "Xcode 9.3";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -533,7 +533,7 @@
 			);
 			mainGroup = EA5C7D622516605F00F7F358;
 			packageReferences = (
-				EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect.git" */,
+				EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */,
 				8794F43627D9525200B1B7EB /* XCRemoteSwiftPackageReference "Down" */,
 			);
 			productRefGroup = EA5C7D702516606000F7F358 /* Products */;
@@ -902,7 +902,7 @@
 					"@executable_path/Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios";
-				MARKETING_VERSION = 0.4.0;
+				MARKETING_VERSION = 0.4.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = iphoneos;
@@ -927,7 +927,7 @@
 					"@executable_path/Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios";
-				MARKETING_VERSION = 0.4.0;
+				MARKETING_VERSION = 0.4.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = iphoneos;
@@ -957,7 +957,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib";
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 0.4.0;
+				MARKETING_VERSION = 0.4.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = macosx;
@@ -986,7 +986,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib";
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 0.4.0;
+				MARKETING_VERSION = 0.4.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = macosx;
@@ -1071,7 +1071,7 @@
 					"@executable_path/Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios";
-				MARKETING_VERSION = 0.4.0;
+				MARKETING_VERSION = 0.4.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = iphoneos;
@@ -1100,7 +1100,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib";
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 0.4.0;
+				MARKETING_VERSION = 0.4.1;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = macosx;
@@ -1121,7 +1121,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		EA5C7D662516605F00F7F358 /* Build configuration list for PBXProject "lockbook" */ = {
+		EA5C7D662516605F00F7F358 /* Build configuration list for PBXProject "Lockbook" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EA5C7D812516606100F7F358 /* Debug */,
@@ -1162,7 +1162,7 @@
 				revision = bc7f15eefdc44612da63b349082794d880fd039a;
 			};
 		};
-		EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect.git" */ = {
+		EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/siteline/SwiftUI-Introspect.git";
 			requirement = {
@@ -1185,7 +1185,7 @@
 		};
 		B2ADC2482835451000DB8D3D /* Introspect */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect.git" */;
+			package = EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */;
 			productName = Introspect;
 		};
 		EA14E81E2516655B00B9158C /* SwiftLockbookCore */ = {
@@ -1194,7 +1194,7 @@
 		};
 		EA82B20B262652F700EE82B9 /* Introspect */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect.git" */;
+			package = EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */;
 			productName = Introspect;
 		};
 		EA8C627B25EF091900330E27 /* SwiftLockbookCore */ = {
