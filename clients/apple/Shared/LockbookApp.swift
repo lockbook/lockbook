@@ -3,23 +3,28 @@ import SwiftLockbookCore
 
 @main struct LockbookApp: App {
 
+    @Environment(\.scenePhase) private var scenePhase
     
     var body: some Scene {
 
-        let windowGroup = WindowGroup {
+        WindowGroup {
             AppView()
                 .realDI()
                 .buttonStyle(PlainButtonStyle())
                 .ignoresSafeArea()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .onBackground {
+                    DI.sync.sync()
+                }
+                .onForeground {
+                    DI.sync.sync()
+                }
         }.commands {
             CommandMenu("Lockbook") {
                 Button("Sync", action: { DI.sync.sync() }).keyboardShortcut("S", modifiers: .command)
             }
             SidebarCommands()
         }
-        
-        windowGroup
         
         #if os(macOS)
         Settings {
@@ -40,6 +45,38 @@ extension View {
     #if os(macOS)
     func autocapitalization(_ bunk: String?) -> some View {
         self
+    }
+    #endif
+}
+
+extension View {
+    #if os(iOS)
+    func onBackground(_ f: @escaping () -> Void) -> some View {
+        self.onReceive(
+            NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification),
+            perform: { _ in f() }
+        )
+    }
+    
+    func onForeground(_ f: @escaping () -> Void) -> some View {
+        self.onReceive(
+            NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification),
+            perform: { _ in f() }
+        )
+    }
+    #else
+    func onBackground(_ f: @escaping () -> Void) -> some View {
+        self.onReceive(
+            NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification),
+            perform: { _ in f() }
+        )
+    }
+    
+    func onForeground(_ f: @escaping () -> Void) -> some View {
+        self.onReceive(
+            NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification),
+            perform: { _ in f() }
+        )
     }
     #endif
 }

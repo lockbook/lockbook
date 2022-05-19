@@ -11,24 +11,24 @@ struct BottomBar: View {
 #endif
     
 #if os(iOS)
-    var menu: AnyView {
-        AnyView(Button(action: {
+    var menu: some View {
+        Button(action: {
             onCreating()
         }) {
             Image(systemName: "plus.circle.fill")
                 .imageScale(.large)
                 .foregroundColor(.blue)
                 .frame(width: 40, height: 40, alignment: .center)
-        })
+        }
     }
 #endif
     
 #if os(iOS)
-    var syncButton: AnyView {
+    @ViewBuilder var syncButton: some View {
         if sync.syncing {
-            return AnyView(ProgressView())
+            ProgressView()
         } else {
-            return AnyView(Button(action: {
+            Button(action: {
                 sync.sync()
                 status.work = 0
             }) {
@@ -36,29 +36,26 @@ struct BottomBar: View {
                     .imageScale(.large)
                     .foregroundColor(.blue)
                     .frame(width: 40, height: 40, alignment: .center)
-            })
+            }
         }
     }
 #else
-    var syncButton: AnyView {
+    @ViewBuilder var syncButton: some View {
         if sync.syncing {
-            
-            return AnyView(
-                Text("")
-                    .font(.callout)
-                    .foregroundColor(Color.gray)
-            )
+            Text("")
+                .font(.callout)
+                .foregroundColor(Color.gray)
             
         } else {
             
-            return AnyView(Button(action: {
+            Button(action: {
                 sync.sync()
                 status.work = 0
             }) {
                 Text(sync.offline ? "Try again" : "Sync now")
                     .font(.callout)
                     .foregroundColor(Color.init(red: 0.3, green: 0.45, blue: 0.79))
-            })
+            }
         }
     }
 #endif
@@ -73,25 +70,23 @@ struct BottomBar: View {
         }
     }
     
-    var statusText: AnyView {
+    @ViewBuilder
+    var statusText: some View {
         if sync.upgrade {
-            return AnyView(Text("Update required")
-                .foregroundColor(.secondary))
+            Text("Update required")
+                .foregroundColor(.secondary)
         } else if sync.syncing {
-            return AnyView(Text("Syncing...")
-                .foregroundColor(.secondary))
+            Text("Syncing...")
+                .foregroundColor(.secondary)
         } else {
             if sync.offline {
-                return AnyView(Text("Offline")
+                Text("Offline")
                     .foregroundColor(.secondary)
-                )
             } else {
-                return AnyView(
-                    Text(status.work == 0 ? "Last update: \(status.lastSynced)" : localChangeText)
-                        .font(.callout)
-                        .foregroundColor(.secondary)
-                        .bold()
-                )
+                Text(status.work == 0 ? "Last update: \(status.lastSynced)" : localChangeText)
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+                    .bold()
             }
         }
     }
