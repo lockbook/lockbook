@@ -339,11 +339,13 @@ impl CreditCardInput {
 
         let card_input_entry = {
             let error = error.clone();
+
             move |placeholder: &str| {
                 let entry = gtk::Entry::new();
                 entry.set_placeholder_text(Some(placeholder));
                 entry.connect_changed({
                     let error = error.clone();
+
                     move |entry| {
                         entry.remove_css_class("err-input");
                         error.hide();
@@ -354,25 +356,17 @@ impl CreditCardInput {
         };
 
         let number = card_input_entry("Card Number");
-        number.set_width_request(260);
-
         let exp_month = card_input_entry("MM");
-
         let exp_year = card_input_entry("YY");
-
         let cvc = card_input_entry("CVC");
 
-        let expiry_and_cvc = gtk::Grid::builder()
-            .column_spacing(4)
-            .column_homogeneous(true)
-            .build();
-        expiry_and_cvc.attach(&exp_month, 0, 0, 1, 1);
-        expiry_and_cvc.attach(&exp_year, 1, 0, 1, 1);
-        expiry_and_cvc.attach(&cvc, 2, 0, 1, 1);
+        number.set_width_request(260);
 
-        let inputs = gtk::Grid::builder().column_spacing(4).margin_top(8).build();
-        inputs.attach(&number, 0, 0, 1, 1);
-        inputs.attach(&expiry_and_cvc, 1, 0, 1, 1);
+        let inputs = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+        inputs.append(&number);
+        inputs.append(&exp_month);
+        inputs.append(&exp_year);
+        inputs.append(&cvc);
 
         let cntr = gtk::Box::new(gtk::Orientation::Vertical, 8);
         cntr.append(&inputs);
