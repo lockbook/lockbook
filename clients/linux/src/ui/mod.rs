@@ -50,6 +50,16 @@ pub static SUPPORTED_IMAGE_FORMATS: Lazy<Vec<String>> = Lazy::new(|| {
     exts
 });
 
+pub fn clear<W>(w: &W)
+where
+    W: IsA<gtk::Widget>,
+    W: IsA<gtk::Box>,
+{
+    while let Some(child) = w.first_child() {
+        w.remove(&child);
+    }
+}
+
 pub fn id_from_tpath(model: &impl IsA<gtk::TreeModel>, tpath: &gtk::TreePath) -> lb::Uuid {
     let col = filetree::FileTreeCol::Id.as_tree_store_index();
     let iter = model.iter(tpath).unwrap();

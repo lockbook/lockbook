@@ -130,22 +130,17 @@ impl super::App {
         cntr
     }
 
-    fn usage_settings(&self) -> gtk::Box {
-        let cntr = settings_box();
-        cntr.set_margin_top(12);
-        cntr.set_spacing(0);
-
-        let usage_home = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    fn usage_settings(&self) -> gtk::Stack {
+        let usage_home = settings_box();
 
         let stack = gtk::Stack::new();
         stack.add_named(&usage_home, Some("home"));
-        cntr.append(&stack);
 
         let metrics = match self.api.usage() {
             Ok(metrics) => metrics,
             Err(err) => {
                 usage_home.append(&gtk::Label::new(Some(&format!("{:?}", err)))); //todo
-                return cntr;
+                return stack;
             }
         };
 
@@ -153,7 +148,7 @@ impl super::App {
             Ok(data) => data,
             Err(err) => {
                 usage_home.append(&gtk::Label::new(Some(&format!("{:?}", err)))); //todo
-                return cntr;
+                return stack;
             }
         };
 
@@ -204,8 +199,64 @@ impl super::App {
                     }
                 });
                 upgrade_process.connect_confirmed({
+                    let api = app.api.clone();
+                    let stack = stack.clone();
+
                     move |upgrade_process, method| {
-                        upgrade_process.show_pay_screen(method);
+                        let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+                        std::thread::spawn({
+                            let api = api.clone();
+
+                            move || {
+                                let new_tier = lb::AccountTier::Premium(method);
+                                let result = api.switch_account_tier(new_tier);
+                                tx.send(result).unwrap();
+                            }
+                        });
+
+                        let payment_ui = gtk::Box::new(gtk::Orientation::Vertical, 12);
+                        payment_ui.append(&gtk::Spinner::builder().spinning(true).build());
+                        payment_ui
+                            .append(&gtk::Label::new(Some("Processing credit card payment...")));
+
+                        upgrade_process.show_pay_screen(&payment_ui);
+
+                        let btn_finish = gtk::Button::with_label("Finish");
+                        btn_finish.set_halign(gtk::Align::Center);
+                        btn_finish.connect_clicked({
+                            let upgrade_process_cntr = upgrade_process.cntr.clone();
+                            let stack = stack.clone();
+
+                            move |_| {
+                                stack.set_visible_child_name("home");
+                                stack.remove(&upgrade_process_cntr);
+                            }
+                        });
+
+                        let upgrade_process = upgrade_process.clone();
+                        rx.attach(None, move |switch_tier_result| {
+                            ui::clear(&payment_ui);
+                            match switch_tier_result {
+                                Ok(_) => {
+                                    upgrade_process.mark_final_header_section_complete();
+
+                                    let check = gtk::Image::from_icon_name("emblem-ok-symbolic");
+                                    check.set_pixel_size(40);
+
+                                    payment_ui.append(&check);
+                                    payment_ui.append(&gtk::Label::new(Some("Payment complete!")));
+                                    payment_ui.append(&btn_finish);
+                                }
+                                Err(err) => {
+                                    upgrade_process.set_final_header_icon(icons::ERROR_RED);
+                                    btn_finish.set_label("Close");
+                                    payment_ui
+                                        .append(&gtk::Label::new(Some(&format!("{:?}", err))));
+                                    payment_ui.append(&btn_finish);
+                                }
+                            }
+                            glib::Continue(false)
+                        });
                     }
                 });
                 stack.add_named(&upgrade_process.cntr, Some("upgrade"));
@@ -217,10 +268,8 @@ impl super::App {
         usage_home.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
         usage_home.append(&btn_upgrade);
 
-        cntr
+        stack
     }
-
-    fn upgrade(&self, payment_method: lb::PaymentMethod) {}
 
     fn app_settings(&self) -> gtk::Box {
         let cntr = settings_box();
@@ -287,7 +336,7 @@ impl super::App {
     }
 }
 
-fn tab(tabs: &gtk::Notebook, name: &str, icon_name: &str, stuff: &gtk::Box) {
+fn tab<W: IsA<gtk::Widget>>(tabs: &gtk::Notebook, name: &str, icon_name: &str, stuff: &W) {
     let icon = gtk::Image::from_icon_name(icon_name);
     icon.set_pixel_size(22);
 

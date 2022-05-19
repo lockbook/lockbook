@@ -27,7 +27,13 @@
 	margin-right: 2px;
 }
 .grayed-out {
-	color: rgba(90,90,90,0.35);
+	color: @insensitive_fg_color;
+}
+.upgrade-header {
+	background-color: @insensitive_bg_color;
+}
+.upgrade-header-active-section {
+	background-color: @theme_unfocused_bg_color;
 }
 .green {
 	color: green;

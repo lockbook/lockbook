@@ -4,18 +4,20 @@ use std::sync::Mutex;
 pub use uuid::Uuid;
 
 pub use lockbook_models::account::Account;
+pub use lockbook_models::api::AccountTier;
+pub use lockbook_models::api::PaymentMethod;
 pub use lockbook_models::crypto::DecryptedDocument;
 pub use lockbook_models::file_metadata::DecryptedFileMetadata as FileMetadata;
 pub use lockbook_models::file_metadata::FileType;
 pub use lockbook_models::work_unit::ClientWorkUnit;
-pub use lockbook_models::api::AccountTier;
-pub use lockbook_models::api::PaymentMethod;
 
+pub use lockbook_core::Config;
 pub use lockbook_core::CoreError;
 pub use lockbook_core::Error;
 pub use lockbook_core::Error::UiError;
 pub use lockbook_core::Error::Unexpected;
 pub use lockbook_core::UnexpectedError;
+pub use lockbook_core::DEFAULT_API_LOCATION;
 
 pub use lockbook_core::model::errors::AccountExportError as ExportAccountError;
 pub use lockbook_core::model::errors::CalculateWorkError;
@@ -34,10 +36,9 @@ pub use lockbook_core::model::errors::ImportFileError;
 pub use lockbook_core::model::errors::MoveFileError;
 pub use lockbook_core::model::errors::ReadDocumentError;
 pub use lockbook_core::model::errors::RenameFileError;
+pub use lockbook_core::model::errors::SwitchAccountTierError;
 pub use lockbook_core::model::errors::SyncAllError;
 pub use lockbook_core::model::errors::WriteToDocumentError as WriteDocumentError;
-
-pub use lockbook_core::Config;
 
 pub use lockbook_core::service::billing_service::CreditCardLast4Digits;
 pub use lockbook_core::service::import_export_service::ImportExportFileInfo;
@@ -45,11 +46,9 @@ pub use lockbook_core::service::import_export_service::ImportStatus;
 pub use lockbook_core::service::search_service::SearchResultItem;
 pub use lockbook_core::service::sync_service::SyncProgress;
 pub use lockbook_core::service::sync_service::WorkCalculated;
+pub use lockbook_core::service::usage_service::bytes_to_human;
 pub use lockbook_core::service::usage_service::UsageItemMetric;
 pub use lockbook_core::service::usage_service::UsageMetrics;
-pub use lockbook_core::service::usage_service::bytes_to_human;
-
-pub use lockbook_core::DEFAULT_API_LOCATION;
 
 use lockbook_core::Core;
 
@@ -102,6 +101,9 @@ pub trait Api: Send + Sync {
     fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError>;
 
     fn get_credit_card(&self) -> Result<CreditCardLast4Digits, Error<GetCreditCard>>;
+    fn switch_account_tier(
+        &self, new_tier: AccountTier,
+    ) -> Result<(), Error<SwitchAccountTierError>>;
 }
 
 pub enum SyncProgressReport {
@@ -277,6 +279,12 @@ impl Api for DefaultApi {
 
     fn get_credit_card(&self) -> Result<CreditCardLast4Digits, Error<GetCreditCard>> {
         self.core.get_credit_card()
+    }
+
+    fn switch_account_tier(
+        &self, new_tier: AccountTier,
+    ) -> Result<(), Error<SwitchAccountTierError>> {
+        self.core.switch_account_tier(new_tier)
     }
 }
 
