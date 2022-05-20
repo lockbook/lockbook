@@ -5,8 +5,8 @@ use crate::{CoreError, Tx};
 use lockbook_models::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, ConfirmAndroidSubscriptionError,
     ConfirmAndroidSubscriptionRequest, GetCreditCardError, GetCreditCardRequest,
-    GetSubscriptionInfoError, GetSubscriptionInfoRequest, PaymentMethod, PaymentPlatform,
-    PremiumAccountType, StripeAccountTier, UpgradeAccountStripeError, UpgradeAccountStripeRequest,
+    GetSubscriptionInfoError, GetSubscriptionInfoRequest, PaymentPlatform,
+    StripeAccountTier, UpgradeAccountStripeError, UpgradeAccountStripeRequest,
 };
 use serde::Serialize;
 

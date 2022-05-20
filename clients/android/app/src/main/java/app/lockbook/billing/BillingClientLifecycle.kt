@@ -116,7 +116,7 @@ class BillingClientLifecycle private constructor(
         }
     }
 
-//    fun getSubscriptionOffers(): List<ProductDetails.SubscriptionOfferDetails>? = productDetails?.subscriptionOfferDetails
+    fun getSubscriptionOffers(): List<ProductDetails.SubscriptionOfferDetails>? = productDetails?.subscriptionOfferDetails
 
     fun billingFlowParamsBuilder(newTier: UpgradeAccountActivity.AccountTier): BillingFlowParams? {
         val offerToken = when (newTier) {
@@ -133,7 +133,8 @@ class BillingClientLifecycle private constructor(
                         .setOfferToken(offerToken)
                         .build()
                 )
-            ).build()
+            )
+            .build()
     }
 
     companion object {

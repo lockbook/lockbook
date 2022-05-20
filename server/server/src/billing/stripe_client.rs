@@ -1,4 +1,4 @@
-use log::{debug, error, info};
+use log::{debug, info, warn};
 use std::fmt::Debug;
 
 use crate::{ServerState, StripeDeclineCodeCatcher, StripeKnownDeclineCode};
@@ -54,7 +54,7 @@ fn simplify_stripe_error(
                         ))
                     }) {
                         Ok(StripeDeclineCodeCatcher::Unknown(unknown_decline_code)) => {
-                            error!("Unknown decline code from stripe: {}", unknown_decline_code);
+                            warn!("Unknown decline code from stripe: {}", unknown_decline_code);
                             SimplifiedStripeError::CardDecline
                         }
                         Ok(StripeDeclineCodeCatcher::Known(decline_code)) => match decline_code {

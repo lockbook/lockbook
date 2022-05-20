@@ -11,7 +11,6 @@ use crate::{
 };
 use base64::DecodeError;
 use deadpool_redis::redis::AsyncCommands;
-use deadpool_redis::Connection;
 use google_pubsub1::api::PubsubMessage;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
@@ -37,7 +36,7 @@ use warp::hyper::body::Bytes;
 pub async fn get_subscription_info(
     context: RequestContext<'_, GetSubscriptionInfoRequest>,
 ) -> Result<GetSubscriptionInfoResponse, ServerError<GetSubscriptionInfoError>> {
-    let (request, server_state) = (&context.request, context.server_state);
+    let server_state = context.server_state;
     let mut con = server_state.index_db_pool.get().await?;
 
     let current_data_cap: u64 = con.get(data_cap(&context.public_key)).await?;
@@ -439,7 +438,7 @@ async fn create_subscription(
             subscription_id: subscription_resp.id.to_string(),
             expiration_time: subscription_resp.current_period_end as u64,
         },
-        PREMIUM_TIER_USAGE_SIZE,
+        data_cap,
     ))
 }
 
@@ -620,30 +619,6 @@ pub async fn stripe_webhooks(
     Ok(())
 }
 
-// Does not get lock. Only gives you the billing metadata at that instant.
-async fn get_public_key_and_billing_lock(
-    event: &stripe::WebhookEvent, con: &mut Connection, customer_id: &str,
-) -> Result<(PublicKey, BillingLock), ServerError<StripeWebhookError>> {
-    let public_key: PublicKey = con
-        .maybe_json_get(public_key_from_stripe_customer_id(customer_id))
-        .await?
-        .ok_or_else(|| {
-            internal!("There is no public_key related to this customer_id: {:?}", customer_id)
-        })?;
-
-    let user_info: BillingLock = con
-        .maybe_json_get(keys::billing_lock(&public_key))
-        .await?
-        .ok_or_else(|| {
-            internal!(
-                "Payment failed for a customer we don't have info about on redis: {:?}",
-                event
-            )
-        })?;
-
-    Ok((public_key, user_info))
-}
-
 #[derive(Debug)]
 pub enum GooglePlayWebhookError {
     InvalidToken,
@@ -712,8 +687,7 @@ pub async fn android_notification_webhooks(
                     con.set(data_cap(&public_key), PREMIUM_TIER_USAGE_SIZE)
                         .await?;
                     info.expiration_time = purchase.expiry_time_millis.ok_or_else(|| internal!("Cannot get expiration time of a recovered subscription. public_key {:?}", public_key))?.parse().map_err(|e| internal!("Cannot parse millis into int: {:?}", e))?;
-                    con.json_set(keys::billing_lock(&public_key), &billing_lock)
-                        .await?;
+                    con.json_set(keys::billing_lock(&public_key), &billing_lock).await?;
                     // give back premium and update time exp
                 }
                 NotificationType::SubscriptionRenewed | NotificationType::SubscriptionRestarted => {
@@ -730,23 +704,23 @@ pub async fn android_notification_webhooks(
                 | NotificationType::SubscriptionOnHold => {
                     con.set(data_cap(&public_key), FREE_TIER_USAGE_SIZE).await?;
                     info.expiration_time = purchase.expiry_time_millis.ok_or_else(|| internal!("Cannot get expiration time of a recovered subscription. public_key {:?}", public_key))?.parse().map_err(|e| internal!("Cannot parse millis into int: {:?}", e))?;
-                    con.json_set(keys::billing_lock(&public_key), &billing_lock)
-                        .await?;
+                    con.json_set(keys::billing_lock(&public_key), &billing_lock).await?;
                     // remove premium data cap and update exp date to past (for hold)
                 }
-                NotificationType::SubscriptionPurchased
-                | NotificationType::SubscriptionCanceled => {
-                    // nothing
+                NotificationType::SubscriptionCanceled
+                | NotificationType::SubscriptionPurchased => {
+
                 }
                 NotificationType::SubscriptionPriceChangeConfirmed
                 | NotificationType::SubscriptionDeferred
                 | NotificationType::SubscriptionPaused
                 | NotificationType::SubscriptionPausedScheduleChanged => {
-                    return Err(internal!(
+                    info!(
                         "Unexpected subscription notification: {:?}, public_key: {:?}",
                         notification_type,
                         public_key
-                    ));
+                    );
+                    return Ok(())
                 }
                 NotificationType::Unknown => {
                     return Err(internal!(

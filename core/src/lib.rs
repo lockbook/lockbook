@@ -22,7 +22,7 @@ use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
-use lockbook_models::api::{PaymentMethod, PremiumAccountType, StripeAccountTier};
+use lockbook_models::api::{StripeAccountTier};
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
