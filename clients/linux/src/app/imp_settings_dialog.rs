@@ -155,7 +155,7 @@ impl super::App {
             let maybe_card = api.get_credit_card().ok();
             let upgrading = ui::UpgradePaymentFlow::new(maybe_card);
             upgrading.connect_cancelled({
-                let pages = usage.pages();
+                let pages = usage.pages.clone();
 
                 move |upgrading| {
                     pages.set_visible_child_name("home");
@@ -164,7 +164,7 @@ impl super::App {
             });
             upgrading.connect_confirmed({
                 let api = api.clone();
-                let pages = usage.pages();
+                let pages = usage.pages.clone();
 
                 move |upgrading, method| {
                     let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
@@ -221,11 +221,11 @@ impl super::App {
                     });
                 }
             });
-            usage.pages().add_named(&upgrading.cntr, Some("upgrade"));
-            usage.pages().set_visible_child_name("upgrade");
+            usage.pages.add_named(&upgrading.cntr, Some("upgrade"));
+            usage.pages.set_visible_child_name("upgrade");
         });
 
-        usage.upcast::<gtk::Widget>()
+        usage.pages.upcast::<gtk::Widget>()
     }
 
     fn app_settings(&self) -> gtk::Box {

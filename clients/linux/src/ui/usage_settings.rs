@@ -1,83 +1,24 @@
-use gtk::glib;
 use gtk::prelude::*;
-use gtk::subclass::prelude::*;
 
 use crate::ui;
 
-glib::wrapper! {
-    pub struct UsageSettings(ObjectSubclass<UsageSettingsImp>)
-        @extends gtk::Widget, gtk::Box,
-        @implements gtk::Accessible;
-}
-
-impl UsageSettings {
-    pub fn new() -> Self {
-        glib::Object::new(&[]).expect("failed to create UsageSettings")
-    }
-
-    pub fn set_metrics(&self, metrics: lb::UsageMetrics, uncompressed: lb::UsageItemMetric) {
-        let server_usage = metrics.server_usage.exact as f64;
-        let compr_ratio = format!("{:.2}x", uncompressed.exact as f64 / server_usage);
-
-        self.imp()
-            .current_usage
-            .set_metrics(server_usage, metrics.data_cap.exact as f64);
-        self.imp()
-            .upgraded_usage
-            .set_metrics(server_usage, 50000000000.0);
-
-        let cs = &self.imp().compr_stats;
-        cs.attach(&grid_key("Uncompressed usage: "), 0, 0, 1, 1);
-        cs.attach(&grid_val(&uncompressed.readable), 1, 0, 1, 1);
-        cs.attach(&grid_key("Compression ratio: "), 0, 1, 1, 1);
-        cs.attach(&grid_val(&compr_ratio), 1, 1, 1, 1);
-    }
-
-    pub fn connect_begin_upgrade<F: Fn(&Self) + 'static>(&self, f: F) {
-        let this = self.clone();
-        self.imp().btn_upgrade.connect_clicked(move |_| f(&this));
-    }
-
-    pub fn pages(&self) -> gtk::Stack {
-        self.imp().pages.clone()
-    }
-}
-
-impl Default for UsageSettings {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct UsageSettingsImp {
+#[derive(Clone)]
+pub struct UsageSettings {
     current_usage: ui::UsageTier,
     compr_stats: gtk::Grid,
     upgraded_usage: ui::UsageTier,
     btn_upgrade: gtk::Button,
-    pages: gtk::Stack,
+    pub pages: gtk::Stack,
 }
 
-#[glib::object_subclass]
-impl ObjectSubclass for UsageSettingsImp {
-    const NAME: &'static str = "UsageSettings";
-    type Type = UsageSettings;
-    type ParentType = gtk::Widget;
-
-    fn class_init(c: &mut Self::Class) {
-        c.set_layout_manager_type::<gtk::BinLayout>();
-    }
-}
-
-impl ObjectImpl for UsageSettingsImp {
-    fn constructed(&self, obj: &Self::Type) {
-        self.parent_constructed(obj);
-
-        self.compr_stats.set_column_spacing(8);
-        self.compr_stats.set_row_spacing(8);
+impl UsageSettings {
+    pub fn new() -> Self {
+        let compr_stats = gtk::Grid::new();
+        compr_stats.set_column_spacing(8);
+        compr_stats.set_row_spacing(8);
 
         let info_popover = gtk::Popover::new();
-        info_popover.set_child(Some(&self.compr_stats));
+        info_popover.set_child(Some(&compr_stats));
 
         let info_btn = gtk::MenuButton::builder()
             .direction(gtk::ArrowType::Right)
@@ -89,31 +30,50 @@ impl ObjectImpl for UsageSettingsImp {
         current_title.append(&heading("Current"));
         current_title.append(&info_btn);
 
-        self.current_usage.set_title(&current_title);
-        self.current_usage.set_price("Free");
+        let current_usage = ui::UsageTier::new();
+        current_usage.set_title(&current_title);
+        current_usage.set_price("Free");
 
-        self.upgraded_usage.set_title(&heading("Premium"));
-        self.upgraded_usage.set_price("$2.50 / month");
+        let upgraded_usage = ui::UsageTier::new();
+        upgraded_usage.set_title(&heading("Premium"));
+        upgraded_usage.set_price("$2.50 / month");
 
-        self.btn_upgrade.set_child(Some(&self.upgraded_usage));
+        let btn_upgrade = gtk::Button::new();
+        btn_upgrade.set_child(Some(&upgraded_usage.cntr));
 
         let usage_home = gtk::Box::new(gtk::Orientation::Vertical, 12);
         usage_home.set_margin_start(12);
         usage_home.set_margin_end(12);
-        usage_home.append(&self.current_usage);
+        usage_home.append(&current_usage.cntr);
         usage_home.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
-        usage_home.append(&self.btn_upgrade);
+        usage_home.append(&btn_upgrade);
 
-        self.pages.add_named(&usage_home, Some("home"));
-        self.pages.set_parent(obj);
+        let pages = gtk::Stack::new();
+        pages.add_named(&usage_home, Some("home"));
+
+        Self { current_usage, compr_stats, upgraded_usage, btn_upgrade, pages }
     }
 
-    fn dispose(&self, _obj: &Self::Type) {
-        self.pages.unparent();
+    pub fn set_metrics(&self, metrics: lb::UsageMetrics, uncompressed: lb::UsageItemMetric) {
+        let server_usage = metrics.server_usage.exact as f64;
+        let compr_ratio = format!("{:.2}x", uncompressed.exact as f64 / server_usage);
+
+        self.current_usage
+            .set_metrics(server_usage, metrics.data_cap.exact as f64);
+        self.upgraded_usage.set_metrics(server_usage, 50000000000.0);
+
+        let cs = &self.compr_stats;
+        cs.attach(&grid_key("Uncompressed usage: "), 0, 0, 1, 1);
+        cs.attach(&grid_val(&uncompressed.readable), 1, 0, 1, 1);
+        cs.attach(&grid_key("Compression ratio: "), 0, 1, 1, 1);
+        cs.attach(&grid_val(&compr_ratio), 1, 1, 1, 1);
+    }
+
+    pub fn connect_begin_upgrade<F: Fn(&Self) + 'static>(&self, f: F) {
+        let this = self.clone();
+        self.btn_upgrade.connect_clicked(move |_| f(&this));
     }
 }
-
-impl WidgetImpl for UsageSettingsImp {}
 
 fn heading(txt: &str) -> gtk::Label {
     gtk::Label::builder()
