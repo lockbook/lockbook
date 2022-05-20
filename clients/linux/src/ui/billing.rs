@@ -177,17 +177,17 @@ impl HeaderSection {
 }
 
 #[derive(Clone)]
-pub struct SelectPayMethod {
+struct SelectPayMethod {
     old_card: gtk::CheckButton,
     new_card: gtk::CheckButton,
     new_card_input: CreditCardInput,
     btn_cancel: gtk::Button,
     btn_continue: gtk::Button,
-    pub cntr: gtk::Box,
+    cntr: gtk::Box,
 }
 
 impl SelectPayMethod {
-    pub fn new(maybe_existing_card: Option<lb::CreditCardLast4Digits>) -> Self {
+    fn new(maybe_existing_card: Option<lb::CreditCardLast4Digits>) -> Self {
         let group = gtk::CheckButton::new();
 
         let old_card = gtk::CheckButton::new();
