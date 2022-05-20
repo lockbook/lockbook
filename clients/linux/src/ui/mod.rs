@@ -6,7 +6,8 @@ mod menu_item;
 mod search_row;
 mod sync_panel;
 mod titlebar;
-mod usage_info;
+mod usage_settings;
+mod usage_tier;
 
 mod image_tab;
 mod tab;
@@ -26,7 +27,8 @@ pub use search_row::SearchRow;
 pub use sync_panel::SyncPanel;
 pub use titlebar::SearchOp;
 pub use titlebar::Titlebar;
-pub use usage_info::UsageInfoPanel;
+pub use usage_settings::UsageSettings;
+pub use usage_tier::UsageTier;
 
 pub use image_tab::ImageTab;
 pub use tab::Tab;
