@@ -8,6 +8,7 @@ mod sync_panel;
 mod titlebar;
 mod usage_settings;
 mod usage_tier;
+mod usage_upgrade;
 
 mod image_tab;
 mod tab;
@@ -29,13 +30,13 @@ pub use titlebar::SearchOp;
 pub use titlebar::Titlebar;
 pub use usage_settings::UsageSettings;
 pub use usage_tier::UsageTier;
+pub use usage_upgrade::UpgradePaymentFlow;
 
 pub use image_tab::ImageTab;
 pub use tab::Tab;
 pub use text_editor::TextEditor;
 
 pub mod about_dialog;
-pub mod billing;
 
 use gdk_pixbuf::Pixbuf;
 use gtk::glib;

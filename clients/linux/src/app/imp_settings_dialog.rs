@@ -153,7 +153,7 @@ impl super::App {
         let api = self.api.clone();
         usage.connect_begin_upgrade(move |usage| {
             let maybe_card = api.get_credit_card().ok();
-            let upgrading = ui::billing::UpgradePaymentFlow::new(maybe_card);
+            let upgrading = ui::UpgradePaymentFlow::new(maybe_card);
             upgrading.connect_cancelled({
                 let pages = usage.pages();
 
