@@ -4,6 +4,7 @@ use lockbook_models::file_metadata::FileType;
 use lockbook_models::tree::{FileMetaExt, PathConflict};
 use test_utils::test_core_with_account;
 
+#[test]
 fn apply_move_path_conflict() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();

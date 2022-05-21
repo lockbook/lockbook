@@ -1,4 +1,5 @@
 use libsecp256k1::PublicKey;
+use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
@@ -8,8 +9,8 @@ use uuid::Uuid;
 use lockbook_crypto::symkey;
 use lockbook_models::account::Account;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType, Owner};
-use lockbook_models::tree::FileMetaExt;
 use lockbook_models::tree::FileMetadata;
+use lockbook_models::tree::{FileMetaExt, TEMP_FileMetaExt};
 
 use crate::model::filename::NameComponents;
 use crate::{model::repo::RepoState, CoreError};
@@ -56,7 +57,7 @@ pub fn create_root(account: &Account) -> DecryptedFileMetadata {
 /// Validates a create operation for a file in the context of all files and returns a version of
 /// the file with the operation applied. This is a pure function.
 pub fn apply_create(
-    files: &[DecryptedFileMetadata], file_type: FileType, parent: Uuid, name: &str,
+    files: &HashMap<Uuid, DecryptedFileMetadata>, file_type: FileType, parent: Uuid, name: &str,
     owner: &PublicKey,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let file = create(file_type, parent, name, owner);
@@ -67,7 +68,8 @@ pub fn apply_create(
         .ok_or(CoreError::FileParentNonexistent)?;
     validate_is_folder(&parent)?;
 
-    if !files.get_path_conflicts(&[file.clone()])?.is_empty() {
+    let staged_changes = HashMap::from([(file.id(), file.clone())]);
+    if !files.get_path_conflicts(&staged_changes)?.is_empty() {
         return Err(CoreError::PathTaken);
     }
 
@@ -92,7 +94,7 @@ pub fn apply_rename(
 
 /// Validates a move operation for a file in the context of all files and returns a version of the file with the operation applied. This is a pure function.
 pub fn apply_move(
-    files: &[DecryptedFileMetadata], target_id: Uuid, new_parent: Uuid,
+    files: &HashMap<Uuid, DecryptedFileMetadata>, target_id: Uuid, new_parent: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let mut file = files.find(target_id)?;
     let parent = files
@@ -102,10 +104,11 @@ pub fn apply_move(
     validate_is_folder(&parent)?;
 
     file.parent = new_parent;
-    if !files.get_invalid_cycles(&[file.clone()])?.is_empty() {
+    let staged_changes = HashMap::from([(file.id().clone(), file.clone())]);
+    if !files.get_invalid_cycles(&staged_changes)?.is_empty() {
         return Err(CoreError::FolderMovedIntoSelf);
     }
-    if !files.get_path_conflicts(&[file.clone()])?.is_empty() {
+    if !files.get_path_conflicts(&staged_changes)?.is_empty() {
         return Err(CoreError::PathTaken);
     }
 

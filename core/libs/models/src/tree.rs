@@ -378,13 +378,11 @@ where
 
     fn stage(&self, staged: &HashMap<Uuid, Fm>) -> HashMap<Uuid, (Fm, StageSource)> {
         let mut result = HashMap::new();
-        result.extend(self.clone().into_iter().filter_map(|(id, file)| {
-            if staged.maybe_find(id).is_none() {
-                Some((id, (file, StageSource::Base)))
-            } else {
-                None
-            }
-        }));
+        result.extend(
+            self.clone()
+                .into_iter()
+                .map(|(id, file)| (id, (file, StageSource::Base))),
+        );
         result.extend(
             staged
                 .clone()
@@ -531,8 +529,8 @@ where
         for (id, (f, source)) in files_with_sources.iter() {
             let parent_id = f.parent();
             let name = f.name();
-            let parent_children = tree.entry(parent_id).or_insert(HashMap::new()); //from([(id, f)]));
-            let cloned_id = id.clone();
+            let parent_children = tree.entry(parent_id).or_insert_with(HashMap::new); //from([(id, f)]));
+            let cloned_id = *id;
 
             if let Some(conflicting_child_id) = parent_children.get(&name) {
                 match source {
@@ -561,7 +559,7 @@ where
             return Err(TestFileTreeError::NoRootFolder);
         }
 
-        for (_, file) in self {
+        for file in self.values() {
             if self.maybe_find(file.parent()).is_none() {
                 return Err(TestFileTreeError::FileOrphaned(file.id()));
             }

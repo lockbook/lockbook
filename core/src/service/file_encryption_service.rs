@@ -38,13 +38,13 @@ pub fn encrypt_metadatum(
 /// account. This is a pure function.
 /// TODO perf n2
 pub fn encrypt_metadata(
-    account: &Account, files: &[DecryptedFileMetadata],
+    account: &Account, files: &HashMap<Uuid, DecryptedFileMetadata>,
 ) -> Result<Vec<EncryptedFileMetadata>, CoreError> {
     let mut result = Vec::new();
-    for target in files {
+    for target in files.values() {
         let parent_key = files
             .iter()
-            .find(|m| m.id == target.parent)
+            .find(|(&id, &m)| id == target.parent)
             .ok_or_else(|| {
                 CoreError::Unexpected(String::from(
                     "parent metadata missing during call to file_encrpytion_service::encrypt_metadata",
@@ -109,14 +109,15 @@ pub fn decrypt_metadatum(
 /// included in files. Sharing is not supported; user access keys not for the provided account are
 /// ignored. This is a pure function.
 pub fn decrypt_metadata(
-    account: &Account, files: &[EncryptedFileMetadata],
-) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
-    let mut result = Vec::new();
+    account: &Account, files: &HashMap<Uuid, EncryptedFileMetadata>,
+) -> Result<HashMap<Uuid, DecryptedFileMetadata>, CoreError> {
+    let mut result = HashMap::new();
     let mut key_cache = HashMap::new();
 
-    for target in files {
+    for target in files.values() {
         let parent_key = decrypt_file_key(account, target.parent, files, &mut key_cache)?;
-        result.push(decrypt_metadatum(&parent_key, target)?);
+        let decrypted_metadatum = decrypt_metadatum(&parent_key, target)?
+        result.insert(decrypted_metadatum.id(), decrypteed_metadatum);
     }
     Ok(result)
 }
@@ -124,7 +125,7 @@ pub fn decrypt_metadata(
 /// Decrypts the file key given a target and its ancestors. All ancestors of target, as well as
 /// target itself, must be included in target_with_ancestors.
 fn decrypt_file_key(
-    account: &Account, target_id: Uuid, target_with_ancestors: &[EncryptedFileMetadata],
+    account: &Account, target_id: Uuid, target_with_ancestors: &HashMap<Uuid, EncryptedFileMetadata.,
     key_cache: &mut HashMap<Uuid, AESKey>,
 ) -> Result<AESKey, CoreError> {
     if let Some(key) = key_cache.get(&target_id) {

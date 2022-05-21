@@ -14,11 +14,11 @@ use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::file_metadata::EncryptedFileMetadata;
 use lockbook_models::file_metadata::FileMetadataDiff;
 use lockbook_models::file_metadata::FileType;
-use lockbook_models::tree::FileMetaExt;
+use lockbook_models::tree::{FileMetaExt, TEMP_FileMetaExt};
 use lockbook_models::utils;
 use sha2::Digest;
 use sha2::Sha256;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 impl Tx<'_> {
@@ -47,11 +47,12 @@ impl Tx<'_> {
     pub fn insert_metadatum(
         &mut self, config: &Config, source: RepoSource, metadata: &DecryptedFileMetadata,
     ) -> Result<(), CoreError> {
-        self.insert_metadata(config, source, &[metadata.clone()])
+        self.insert_metadata(config, source, HashMap::from([(metadata.id, metadata.clone())]))
     }
 
     pub fn insert_metadata(
-        &mut self, config: &Config, source: RepoSource, metadata_changes: &[DecryptedFileMetadata],
+        &mut self, config: &Config, source: RepoSource,
+        metadata_changes: HashMap<Uuid, DecryptedFileMetadata>,
     ) -> Result<(), CoreError> {
         let all_metadata = self.get_all_metadata(source)?;
         self.insert_metadata_given_decrypted_metadata(
@@ -71,7 +72,7 @@ impl Tx<'_> {
 
     pub fn get_all_not_deleted_metadata(
         &self, source: RepoSource,
-    ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
+    ) -> Result<HashMap<Uuid, DecryptedFileMetadata>, CoreError> {
         Ok(self.get_all_metadata(source)?.filter_not_deleted()?)
     }
 
@@ -79,14 +80,15 @@ impl Tx<'_> {
     //       at that point in time
     pub fn get_all_metadata(
         &self, source: RepoSource,
-    ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
+    ) -> Result<HashMap<Uuid, DecryptedFileMetadata>, CoreError> {
         let account = self.get_account()?;
-        let base: Vec<EncryptedFileMetadata> = self.base_metadata.get_all().into_values().collect();
+        let base: HashMap<Uuid, EncryptedFileMetadata> =
+            self.base_metadata.get_all().into_values().collect();
         match source {
             RepoSource::Base => file_encryption_service::decrypt_metadata(&account, &base),
             RepoSource::Local => {
-                let local: Vec<EncryptedFileMetadata> =
-                    self.local_metadata.get_all().into_values().collect();
+                let local: HashMap<Uuid, EncryptedFileMetadata> =
+                    self.local_metadata.get_all().collect();
                 let staged = base
                     .stage(&local)
                     .into_iter()
@@ -147,16 +149,17 @@ impl Tx<'_> {
     /// Disk optimization opportunity: this function needlessly writes to disk when setting local metadata = base metadata.
     /// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
     fn insert_metadata_given_decrypted_metadata(
-        &mut self, config: &Config, source: RepoSource, all_metadata: &[DecryptedFileMetadata],
-        metadata_changes: &[DecryptedFileMetadata],
+        &mut self, config: &Config, source: RepoSource,
+        all_metadata: &HashMap<Uuid, DecryptedFileMetadata>,
+        metadata_changes: &HashMap<Uuid, DecryptedFileMetadata>,
     ) -> Result<(), CoreError> {
         // encrypt metadata
         let account = self.get_account()?;
         let all_metadata_with_changes_staged = all_metadata
             .stage(metadata_changes)
             .into_iter()
-            .map(|(f, _)| f)
-            .collect::<Vec<DecryptedFileMetadata>>();
+            .map(|(id, (f, _))| (id, f))
+            .collect::<HashMap<Uuid, DecryptedFileMetadata>>();
         let all_metadata_encrypted =
             file_encryption_service::encrypt_metadata(&account, &all_metadata_with_changes_staged)?;
 
@@ -396,8 +399,11 @@ impl Tx<'_> {
     }
 
     pub fn get_all_metadata_with_encrypted_changes(
-        &self, source: RepoSource, changes: &[EncryptedFileMetadata],
-    ) -> Result<(Vec<DecryptedFileMetadata>, Vec<EncryptedFileMetadata>), CoreError> {
+        &self, source: RepoSource, changes: &HashMap<Uuid, EncryptedFileMetadata>,
+    ) -> Result<
+        (HashMap<Uuid, DecryptedFileMetadata>, HashMap<Uuid, EncryptedFileMetadata>),
+        CoreError,
+    > {
         let account = self.get_account()?;
         let base = self.base_metadata.get_all().values().cloned().collect_vec();
         let sourced = match source {
@@ -499,7 +505,7 @@ impl Tx<'_> {
         Ok(())
     }
 
-    pub fn get_all_metadata_changes(&self) -> Result<Vec<FileMetadataDiff>, CoreError> {
+    pub fn get_all_metadata_changes(&self) -> Result<HashMap<Uuid, FileMetadataDiff>, CoreError> {
         let local = self.local_metadata.get_all().into_values().collect_vec();
         let base = self.base_metadata.get_all().into_values().collect_vec();
 
