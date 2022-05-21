@@ -104,6 +104,4 @@
             android:key="@string/change_subscription_key"
             app:title="@string/settings_change_subscription"/>
     </PreferenceCategory>
-
-
 </PreferenceScreen>

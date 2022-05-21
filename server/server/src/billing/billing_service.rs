@@ -29,9 +29,12 @@ use std::fmt::Debug;
 use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
+use deadpool_redis::Connection;
+use stripe::Invoice;
 use uuid::Uuid;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
+use std::borrow::Borrow;
 
 pub async fn get_subscription_info(
     context: RequestContext<'_, GetSubscriptionInfoRequest>,
@@ -106,10 +109,8 @@ pub async fn confirm_android_subscription(
         .info
         .push(BillingInfo::GooglePlay(info.clone()));
 
-    con.set(data_cap(&context.public_key), PREMIUM_TIER_USAGE_SIZE)
-        .await?;
-    con.json_set(keys::billing_lock(&context.public_key), &billing_lock)
-        .await?;
+    con.set(data_cap(&context.public_key), PREMIUM_TIER_USAGE_SIZE).await?;
+    con.json_set(keys::billing_lock(&context.public_key), &billing_lock).await?;
 
     google_play_client::acknowledge_subscription(
         &server_state.android_publisher,
@@ -491,65 +492,51 @@ pub async fn stripe_webhooks(
     match (&event.event_type, &event.data.object) {
         (stripe::EventType::InvoicePaymentFailed, stripe::EventObject::Invoice(invoice)) => {
             if let Some(stripe::InvoiceBillingReason::SubscriptionCycle) = invoice.billing_reason {
-                let customer_id = match invoice
-                    .customer
-                    .as_ref()
-                    .ok_or_else(|| {
-                        ClientError(StripeWebhookError::InvalidBody(
-                            "Cannot retrieve the customer_id.".to_string(),
-                        ))
-                    })?
-                    .deref()
-                {
-                    stripe::Expandable::Id(id) => id.to_string(),
-                    stripe::Expandable::Object(customer) => customer.id.to_string(),
-                };
 
-                let public_key: PublicKey = con
-                    .maybe_json_get(public_key_from_stripe_customer_id(&customer_id))
-                    .await?
-                    .ok_or_else(|| {
-                        internal!(
-                            "There is no public_key related to this customer_id: {:?}",
-                            customer_id
-                        )
-                    })?;
+                let public_key = get_public_key(&mut con, invoice).await?;
 
                 info!(
                     "User tier being reduced due to failed renewal payment via stripe. public_key: {}",
                     keys::stringify_public_key(&public_key)
                 );
 
-                // TODO: cover edge cases
-                let tx_result = tx!(&mut con, pipe, &[keys::billing_lock(&public_key)], {
-                    let user_info: BillingLock = con
-                        .maybe_json_get(keys::billing_lock(&public_key))
-                        .await?
-                        .ok_or_else(|| {
-                            Abort(internal!(
-                            "Payment failed for a customer we don't have info about on redis: {:?}",
-                            event
-                        ))
-                        })?;
+                let mut billing_hist_size: Option<usize> = None;
 
-                    pipe.set(data_cap(&public_key), FREE_TIER_USAGE_SIZE)
-                        .json_set(keys::billing_lock(&public_key), &user_info)
+                let tx_result = tx!(&mut con, pipe, &[keys::billing_lock(&public_key)], {
+                    match lock_billing_workflow(
+                        &public_key,
+                        &mut con,
+                        server_state.config.stripe.millis_between_user_payment_flows,
+                    )
+                    .await {
+                        Ok(billing_lock) => {
+                            if let Some(size) = billing_hist_size {
+                                if size != billing_lock.info.len() {
+                                    return Ok(&mut pipe);
+                                }
+                            }
+
+                            billing_hist_size = Some(billing_lock.info.len());
+                            pipe.set(data_cap(&public_key), FREE_TIER_USAGE_SIZE);
+                        }
+                        Err(ClientError(LockBillingWorkflowError::ConcurrentRequestsAreTooSoon)) => {}
+                        Err(err) => {
+                            return Err(Abort(internal!("Cannot get billing lock in stripe webhooks: {:#?}", err)));
+                        }
+                    }
+                    Ok(&mut pipe)
                 });
                 return_if_error!(tx_result);
+
             }
         }
-        (stripe::EventType::InvoicePaid, stripe::EventObject::Invoice(partial_invoice)) => {
+        (stripe::EventType::InvoicePaid, stripe::EventObject::Invoice(invoice)) => {
             if let Some(stripe::InvoiceBillingReason::SubscriptionCycle) =
-                partial_invoice.billing_reason
+                invoice.billing_reason
             {
-                let invoice = stripe_client::retrieve_invoice(
-                    &server_state.stripe_client,
-                    &partial_invoice.id,
-                )
-                .await
-                .map_err(|e| internal!("Error expanding invoice: {:?}", e))?;
+                let public_key = get_public_key(&mut con, invoice).await?;
 
-                let subscription_period_end = match invoice.subscription {
+                let subscription_period_end = match &invoice.subscription {
                     None => {
                         return Err(internal!(
                             "There should be a subscription tied to this invoice: {:?}",
@@ -567,41 +554,24 @@ pub async fn stripe_webhooks(
                     }
                 };
 
-                let customer_id = match invoice.customer.ok_or_else(|| {
-                    ClientError(StripeWebhookError::InvalidBody(
-                        "Cannot retrieve the customer_id.".to_string(),
-                    ))
-                })? {
-                    stripe::Expandable::Id(id) => id.to_string(),
-                    stripe::Expandable::Object(customer) => customer.id.to_string(),
-                };
-
-                let public_key: PublicKey = con
-                    .maybe_json_get(public_key_from_stripe_customer_id(&customer_id))
-                    .await?
-                    .ok_or_else(|| {
-                        internal!(
-                            "There is no public_key related to this customer_id: {:?}",
-                            customer_id
-                        )
-                    })?;
-
                 let tx_result = tx!(&mut con, pipe, &[keys::billing_lock(&public_key)], {
-                    let mut maybe_user_info: BillingLock = con
-                        .maybe_json_get(keys::billing_lock(&public_key))
-                        .await?
-                        .ok_or_else(|| {
-                            Abort(internal!(
-                                "Payment failed for a customer we don't have info about on redis: {:?}",
-                                event
-                         ))
-                    })?;
+                    match lock_billing_workflow(
+                        &public_key,
+                        &mut con,
+                        server_state.config.stripe.millis_between_user_payment_flows,
+                    )
+                    .await {
+                        Ok(mut billing_lock) => {
+                            if let Some(BillingInfo::Stripe(info)) = billing_lock.info.last_mut() {
+                                (*info).expiration_time = subscription_period_end as u64;
+                            }
+                            billing_lock.last_in_payment_flow = 0;
 
-                    if let Some(BillingInfo::Stripe(info)) = maybe_user_info.info.last_mut() {
-                        (*info).expiration_time = subscription_period_end as u64;
+                            pipe.json_set(keys::billing_lock(&public_key), &billing_lock)
+                        }
+                        Err(ClientError(LockBillingWorkflowError::ConcurrentRequestsAreTooSoon)) => Ok(&mut pipe),
+                        Err(err) => Err(Abort(internal!("Cannot get billing lock in stripe webhooks: {:#?}", err)))
                     }
-
-                    pipe.json_set(keys::billing_lock(&public_key), &maybe_user_info)
                 });
                 return_if_error!(tx_result);
 
@@ -617,6 +587,34 @@ pub async fn stripe_webhooks(
     }
 
     Ok(())
+}
+
+async fn get_public_key(con: &mut Connection, invoice: &Invoice) -> Result<PublicKey, ServerError<StripeWebhookError>> {
+    let customer_id = match invoice
+        .customer
+        .as_ref()
+        .ok_or_else(|| {
+            ClientError(StripeWebhookError::InvalidBody(
+                "Cannot retrieve the customer_id.".to_string(),
+            ))
+        })?
+        .deref()
+    {
+        stripe::Expandable::Id(id) => id.to_string(),
+        stripe::Expandable::Object(customer) => customer.id.to_string(),
+    };
+
+    let public_key: PublicKey = con
+        .maybe_json_get(public_key_from_stripe_customer_id(&customer_id))
+        .await?
+        .ok_or_else(|| {
+            internal!(
+                "There is no public_key related to this customer_id: {:?}",
+                customer_id
+            )
+        })?;
+
+    Ok(public_key)
 }
 
 #[derive(Debug)]
@@ -664,72 +662,79 @@ pub async fn android_notification_webhooks(
         })?;
 
         let public_key: PublicKey =
-            serde_json::from_str(&purchase.developer_payload.ok_or(internal!(
+            serde_json::from_str(&purchase.developer_payload.clone().ok_or(internal!(
                 "There should be a public key attached to a purchase: {:?}",
                 sub_notif.subscription_id
             ))?)?;
 
         let notification_type = sub_notif.notification_type();
+        let mut billing_hist_size: Option<usize> = None;
 
-        let mut billing_lock = lock_billing_workflow(
-            &public_key,
-            &mut con,
-            server_state.config.stripe.millis_between_user_payment_flows,
-        )
-        .await
-        .map_err(|err| match err {
-            _ => internal!("{:#?}", err),
-        })?;
+        let tx_result = tx!(&mut con, pipe, &[keys::billing_lock(&public_key)], {
+            match lock_billing_workflow(
+                &public_key,
+                &mut con,
+                server_state.config.stripe.millis_between_user_payment_flows,
+            )
+            .await {
+                Ok(mut billing_lock) => {
+                    if let Some(size) = billing_hist_size {
+                        if size != billing_lock.info.len() {
+                            return Ok(&mut pipe);
+                        }
+                    }
 
-        if let Some(BillingInfo::Stripe(info)) = billing_lock.info.last_mut() {
-            match sub_notif.notification_type() {
-                NotificationType::SubscriptionRecovered => {
-                    con.set(data_cap(&public_key), PREMIUM_TIER_USAGE_SIZE)
-                        .await?;
-                    info.expiration_time = purchase.expiry_time_millis.ok_or_else(|| internal!("Cannot get expiration time of a recovered subscription. public_key {:?}", public_key))?.parse().map_err(|e| internal!("Cannot parse millis into int: {:?}", e))?;
-                    con.json_set(keys::billing_lock(&public_key), &billing_lock).await?;
-                    // give back premium and update time exp
+                    billing_hist_size = Some(billing_lock.info.len());
+                    if let Some(BillingInfo::Stripe(info)) = billing_lock.info.last_mut() {
+                        match notification_type {
+                            NotificationType::SubscriptionRecovered => {
+                                info.expiration_time = purchase.borrow().expiry_time_millis.as_ref().ok_or_else(|| Abort(internal!("Cannot get expiration time of a recovered subscription. public_key {:?}, subscription notification type: {:?}", public_key, notification_type)))?.parse().map_err(|e| Abort(internal!("Cannot parse millis into int: {:?}", e)))?;
+                                pipe.set(data_cap(&public_key), PREMIUM_TIER_USAGE_SIZE).json_set(keys::billing_lock(&public_key), &billing_lock)
+                                // give back premium and update time exp
+                            }
+                            NotificationType::SubscriptionRenewed | NotificationType::SubscriptionRestarted => {
+                                info.expiration_time = purchase.borrow().expiry_time_millis.as_ref().ok_or_else(|| Abort(internal!("Cannot get expiration time of a recovered subscription. public_key {:?}, subscription notification type: {:?}", public_key, notification_type)))?.parse().map_err(|e| Abort(internal!("Cannot parse millis into int: {:?}", e)))?;
+                                pipe.json_set(keys::billing_lock(&public_key), &billing_lock)
+                                // change expiry time
+                            }
+                            NotificationType::SubscriptionInGracePeriod => {
+                                Ok(&mut pipe)
+                            }
+                            NotificationType::SubscriptionExpired
+                            | NotificationType::SubscriptionRevoked
+                            | NotificationType::SubscriptionOnHold => {
+                                info.expiration_time = purchase.borrow().expiry_time_millis.as_ref().ok_or_else(|| Abort(internal!("Cannot get expiration time of a recovered subscription. public_key {:?}, subscription notification type: {:?}", public_key, notification_type)))?.parse().map_err(|e| Abort(internal!("Cannot parse millis into int: {:?}", e)))?;
+                                pipe.set(data_cap(&public_key), FREE_TIER_USAGE_SIZE).json_set(keys::billing_lock(&public_key), &billing_lock)
+                                // remove premium data cap and update exp date to past (for hold)
+                            }
+                            NotificationType::SubscriptionCanceled
+                            | NotificationType::SubscriptionPurchased => Ok(&mut pipe),
+                            NotificationType::SubscriptionPriceChangeConfirmed
+                            | NotificationType::SubscriptionDeferred
+                            | NotificationType::SubscriptionPaused
+                            | NotificationType::SubscriptionPausedScheduleChanged => {
+                                info!("Unexpected subscription notification: {:?}, public_key: {:?}",
+                                    notification_type,
+                                    public_key
+                                );
+                                Ok(&mut pipe)
+                            }
+                            NotificationType::Unknown => {
+                                Err(Abort(internal!(
+                                    "Unknown subscription change. public_key: {:?}",
+                                    public_key
+                                )))
+                            }
+                        }
+                    } else {
+                        Err(Abort(internal!("Cannot get any billing info for user. public_key: {:?}", public_key)))
+                    }
                 }
-                NotificationType::SubscriptionRenewed | NotificationType::SubscriptionRestarted => {
-                    info.expiration_time = purchase.expiry_time_millis.ok_or_else(|| internal!("Cannot get expiration time of a recovered subscription. public_key {:?}", public_key))?.parse().map_err(|e| internal!("Cannot parse millis into int: {:?}", e))?;
-                    con.json_set(keys::billing_lock(&public_key), &billing_lock)
-                        .await?;
-                    // change expiry time
-                }
-                NotificationType::SubscriptionInGracePeriod => {
-                    // do nothing, except maybe signify they are in a grace period
-                }
-                NotificationType::SubscriptionExpired
-                | NotificationType::SubscriptionRevoked
-                | NotificationType::SubscriptionOnHold => {
-                    con.set(data_cap(&public_key), FREE_TIER_USAGE_SIZE).await?;
-                    info.expiration_time = purchase.expiry_time_millis.ok_or_else(|| internal!("Cannot get expiration time of a recovered subscription. public_key {:?}", public_key))?.parse().map_err(|e| internal!("Cannot parse millis into int: {:?}", e))?;
-                    con.json_set(keys::billing_lock(&public_key), &billing_lock).await?;
-                    // remove premium data cap and update exp date to past (for hold)
-                }
-                NotificationType::SubscriptionCanceled
-                | NotificationType::SubscriptionPurchased => {
-
-                }
-                NotificationType::SubscriptionPriceChangeConfirmed
-                | NotificationType::SubscriptionDeferred
-                | NotificationType::SubscriptionPaused
-                | NotificationType::SubscriptionPausedScheduleChanged => {
-                    info!(
-                        "Unexpected subscription notification: {:?}, public_key: {:?}",
-                        notification_type,
-                        public_key
-                    );
-                    return Ok(())
-                }
-                NotificationType::Unknown => {
-                    return Err(internal!(
-                        "Unknown subscription change. public_key: {:?}",
-                        public_key
-                    ));
-                }
+                Err(ClientError(LockBillingWorkflowError::ConcurrentRequestsAreTooSoon)) => Ok(&mut pipe),
+                Err(err) => Err(Abort(internal!("Cannot get billing lock in stripe webhooks: {:#?}", err)))
             }
-        }
+        });
+        return_if_error!(tx_result);
     }
 
     if let Some(test_notif) = notification.test_notification {

@@ -48,6 +48,7 @@ class BillingClientLifecycle private constructor(
         billingResult: BillingResult,
         purchases: MutableList<Purchase>?
     ) {
+        Timber.e("HERE 1: ${billingResult.responseCode}")
         when (billingResult.responseCode) {
             BillingResponseCode.OK -> {
                 when {
@@ -93,6 +94,7 @@ class BillingClientLifecycle private constructor(
         when {
             response.isOk -> {
                 if (productDetailsList.size == LIST_OF_PRODUCTS.size) {
+                    Timber.e("SUCCESSFULLY GOT LIST")
                     productDetails = productDetailsList[0]
                 }
             }
@@ -108,6 +110,7 @@ class BillingClientLifecycle private constructor(
         }
 
         val response = BillingResponse(billingClient.launchBillingFlow(activity, params).responseCode)
+        Timber.e("HERE 2: ${response.code}")
 
         when {
             response.isOk -> {}

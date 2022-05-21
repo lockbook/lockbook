@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.res.ResourcesCompat
 import app.lockbook.App
 import app.lockbook.R
+import app.lockbook.billing.BillingClientLifecycle
 import app.lockbook.billing.BillingEvent
 import app.lockbook.databinding.ActivityUpgradeAccountBinding
 import app.lockbook.model.AlertModel
@@ -156,9 +157,7 @@ class UpgradeAccountActivity : AppCompatActivity() {
             if (selectedTier == AccountTier.Free) {
                 CoreModel.cancelSubscription()
             } else {
-                (application as App).billingClientLifecycle.apply {
-                    launchBillingFlow(this@UpgradeAccountActivity, billingFlowParamsBuilder(selectedTier) ?: return alertModel.notifyBasicError())
-                }
+                BillingClientLifecycle.getInstance(this).launchBillingFlow(this, BillingClientLifecycle.getInstance(this).billingFlowParamsBuilder(selectedTier) ?: return alertModel.notifyBasicError())
             }
         }
     }

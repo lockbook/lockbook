@@ -233,5 +233,6 @@
     <string name="settings_premium">Premium</string>
     <string name="settings_miscellaneous">Miscellaneous</string>
     <string name="unsubscribe">Unsubscribe</string>
+    <string name="subscription_info_key">subscription_info</string>
 
 </resources>
