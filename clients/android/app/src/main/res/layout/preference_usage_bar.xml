@@ -22,6 +22,12 @@
         android:layout_height="wrap_content"
         android:text="@string/default_value"/>
 
+    <LinearLayout
+        android:id="@+id/premium_info_for_free"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:orientation="vertical">
     <TextView
         android:id="@+id/premium_tier_pitch"
         android:layout_marginTop="20dp"
@@ -47,4 +53,5 @@
         android:paddingHorizontal="5dp"
         style="@style/Main.Button.Borderless.Colored"
         android:text="@string/update_to_premium"/>
+    </LinearLayout>
 </LinearLayout>

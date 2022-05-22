@@ -36,6 +36,8 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
     override fun onBindViewHolder(holder: PreferenceViewHolder) {
         super.onBindViewHolder(holder)
 
+
+
         setUpUsagePreference(holder)
     }
 
@@ -56,9 +58,10 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
                 usageBar.progress = (usage.serverUsage.exact / ROUND_DECIMAL_PLACES).toInt()
 
                 val premiumUsageBar = holder.itemView.findViewById<ProgressBar>(R.id.premium_usage_bar)
-                val premiumUsageInfo = holder.itemView.findViewById<TextView>(R.id.premium_tier_pitch)
 
                 if (usage.dataCap.exact != PAID_TIER_USAGE_BYTES) {
+                    holder.itemView.findViewById<ProgressBar>(R.id.premium_info_for_free).visibility = View.VISIBLE
+
                     premiumUsageBar.max = (PAID_TIER_USAGE_BYTES / ROUND_DECIMAL_PLACES).toInt()
                     premiumUsageBar.progress = (usage.serverUsage.exact / ROUND_DECIMAL_PLACES).toInt()
 
@@ -66,9 +69,6 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
                         context.startActivity(Intent(context, UpgradeAccountActivity::class.java))
 //                        (context as SettingsActivity).overridePendingTransition(R.anim.slide_in, R.anim.slide_out)
                     }
-                } else {
-                    premiumUsageBar.visibility = View.GONE
-                    premiumUsageInfo.visibility = View.GONE
                 }
 
                 val uncompressedUsage = CoreModel.getUncompressedUsage().getOrElse { error ->

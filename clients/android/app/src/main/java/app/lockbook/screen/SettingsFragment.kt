@@ -6,17 +6,20 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.PopupWindow
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.preference.*
 import app.lockbook.R
-import app.lockbook.model.AlertModel
-import app.lockbook.model.BiometricModel
-import app.lockbook.model.CoreModel
-import app.lockbook.model.VerificationItem
+import app.lockbook.model.*
 import app.lockbook.ui.NumberPickerPreference
 import app.lockbook.ui.NumberPickerPreferenceDialog
+import app.lockbook.ui.UsageBarPreference
+import app.lockbook.util.UsageMetrics
 import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -29,10 +32,47 @@ class SettingsFragment : PreferenceFragmentCompat() {
     val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
     }
+    val
+
+    private val model: SettingsViewModel by viewModels(
+        factoryProducer = {
+            object : ViewModelProvider.Factory {
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    if (modelClass.isAssignableFrom(SettingsViewModel::class.java))
+                        return SettingsViewModel(requireActivity().application) as T
+                    throw IllegalArgumentException("Unknown ViewModel class")
+                }
+            }
+        }
+    )
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.settings_preference, rootKey)
         setUpPreferences()
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        model.usageDetermined.observe(
+            viewLifecycleOwner
+        ) { usage ->
+            setUpUsagePreferences(usage)
+        }
+
+
+    }
+
+    private fun setUpUsagePreferences(usage: UsageMetrics) {
+        val isPremium = usage.dataCap.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES
+        findPreference<PreferenceCategory>(getString(R.string.premium_key))!!.isVisible = isPremium
+        findPreference<Preference>(getString(R.string.change_subscription_key))!!.setOnPreferenceClickListener {
+            val intent = Intent(context, UpgradeAccountActivity::class.java)
+            intent.putExtra(IS_PREMIUM, isPremium)
+            startActivity(intent)
+
+            true
+        }
     }
 
     private fun setUpPreferences() {
@@ -136,3 +176,6 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }.exhaustive
     }
 }
+
+const val IS_PREMIUM = "is_this_premium"
+

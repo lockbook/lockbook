@@ -5,6 +5,16 @@
     android:layout_height="match_parent">
 
     <PreferenceCategory
+        android:key="@string/premium_key"
+        android:icon="@drawable/ic_baseline_paid_24"
+        android:title="@string/settings_premium"
+        app:isPreferenceVisible="false">
+        <Preference
+            android:key="@string/change_subscription_key"
+            app:title="@string/settings_change_subscription"/>
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:icon="@drawable/ic_baseline_bug_report_24"
         android:title="@string/settings_preference_debug">
         <Preference
@@ -95,13 +105,5 @@
             android:title="@string/settings_open_new_document_automatically"
             app:iconSpaceReserved="false" />
 
-    </PreferenceCategory>
-
-    <PreferenceCategory
-        android:icon="@drawable/ic_baseline_paid_24"
-        android:title="@string/settings_premium">
-        <Preference
-            android:key="@string/change_subscription_key"
-            app:title="@string/settings_change_subscription"/>
     </PreferenceCategory>
 </PreferenceScreen>

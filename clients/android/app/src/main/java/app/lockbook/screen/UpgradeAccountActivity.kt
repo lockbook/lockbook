@@ -157,7 +157,7 @@ class UpgradeAccountActivity : AppCompatActivity() {
             if (selectedTier == AccountTier.Free) {
                 CoreModel.cancelSubscription()
             } else {
-                BillingClientLifecycle.getInstance(this).launchBillingFlow(this, BillingClientLifecycle.getInstance(this).billingFlowParamsBuilder(selectedTier) ?: return alertModel.notifyBasicError())
+                BillingClientLifecycle.getInstance(this).launchBillingFlow(this, selectedTier)
             }
         }
     }

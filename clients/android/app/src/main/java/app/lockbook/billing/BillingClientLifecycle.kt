@@ -33,6 +33,7 @@ class BillingClientLifecycle private constructor(
             .enablePendingPurchases()
             .build()
 
+        Timber.e("IS IT THO: ${billingClient.isReady}")
         if (!billingClient.isReady) {
             billingClient.startConnection(this)
         }
@@ -71,20 +72,16 @@ class BillingClientLifecycle private constructor(
 
     override fun onBillingSetupFinished(billingResult: BillingResult) {
         if (billingResult.responseCode == BillingResponseCode.OK) {
-            val productList: MutableList<QueryProductDetailsParams.Product> = arrayListOf()
-
-            for (product in LIST_OF_PRODUCTS) {
-                productList.add(
+            val queryProductParams = QueryProductDetailsParams.newBuilder().setProductList(
+                LIST_OF_PRODUCTS.map { productId ->
                     QueryProductDetailsParams.Product.newBuilder()
-                        .setProductId(product)
+                        .setProductId(productId)
                         .setProductType(BillingClient.ProductType.SUBS)
                         .build()
-                )
-            }
+                }
+            ).build()
 
-            QueryProductDetailsParams.newBuilder().setProductList(productList).let { productDetailsParams ->
-                billingClient.queryProductDetailsAsync(productDetailsParams.build(), this)
-            }
+            billingClient.queryProductDetailsAsync(queryProductParams, this)
         }
     }
 
@@ -103,14 +100,11 @@ class BillingClientLifecycle private constructor(
         }
     }
 
-    fun launchBillingFlow(activity: Activity, params: BillingFlowParams) {
-        if (!billingClient.isReady) {
-            Timber.e("launchBillingFlow: BillingClient is not ready")
-            _billingEvent.postValue(BillingEvent.NotifyError(LbError.basicError(applicationContext.resources)))
-        }
+    fun launchBillingFlow(activity: Activity, newTier: UpgradeAccountActivity.AccountTier) {
+        val billingFlowParams = billingFlowParamsBuilder(newTier)
+            ?: return _billingEvent.postValue(BillingEvent.NotifyError(LbError.basicError(applicationContext.resources)))
 
-        val response = BillingResponse(billingClient.launchBillingFlow(activity, params).responseCode)
-        Timber.e("HERE 2: ${response.code}")
+        val response = BillingResponse(billingClient.launchBillingFlow(activity, billingFlowParams).responseCode)
 
         when {
             response.isOk -> {}
@@ -121,12 +115,14 @@ class BillingClientLifecycle private constructor(
 
     fun getSubscriptionOffers(): List<ProductDetails.SubscriptionOfferDetails>? = productDetails?.subscriptionOfferDetails
 
-    fun billingFlowParamsBuilder(newTier: UpgradeAccountActivity.AccountTier): BillingFlowParams? {
+    private fun billingFlowParamsBuilder(newTier: UpgradeAccountActivity.AccountTier): BillingFlowParams? {
         val offerToken = when (newTier) {
             UpgradeAccountActivity.AccountTier.Free -> return null
             UpgradeAccountActivity.AccountTier.PremiumMonthly -> PREMIUM_MONTHLY_OFFER_ID
             UpgradeAccountActivity.AccountTier.PremiumYearly -> PREMIUM_YEARLY_OFFER_ID
         }
+
+        Timber.e("IS THIS INFO RIGHT?! PRODUCTID: ${productDetails?.productId} OFFERTOKENID: ${offerToken} ")
 
         return BillingFlowParams.newBuilder()
             .setProductDetailsParamsList(
@@ -137,6 +133,7 @@ class BillingClientLifecycle private constructor(
                         .build()
                 )
             )
+            .setIsOfferPersonalized(false)
             .build()
     }
 
