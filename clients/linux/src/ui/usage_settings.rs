@@ -23,34 +23,18 @@ impl UsageSettings {
         compr_stats.attach(&grid_key("Compression ratio: "), 0, 1, 1, 1);
         compr_stats.attach(&grid_val(&compr_ratio), 1, 1, 1, 1);
 
-        let compr_popover = gtk::Popover::new();
-        compr_popover.set_child(Some(&compr_stats));
+        let info_popover = gtk::Popover::new();
+        info_popover.set_child(Some(&compr_stats));
 
-        let usage_home = gtk::Box::new(gtk::Orientation::Vertical, 12);
-        let info_icon = gtk::Image::from_icon_name("dialog-information-symbolic");
+        let info_btn = gtk::MenuButton::builder()
+            .direction(gtk::ArrowType::Right)
+            .popover(&info_popover)
+            .child(&gtk::Image::from_icon_name("dialog-information-symbolic"))
+            .build();
+
         let current_title = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-
-        let motion = gtk::EventControllerMotion::new();
-        motion.connect_enter({
-            //let current_title = current_title.clone();
-            //let info_icon = info_icon.clone();
-            let p = compr_popover.clone();
-
-            move |_, x, y| {
-                //let bounds = info_icon.compute_bounds(&current_title).unwrap();
-                let rect = gtk::gdk::Rectangle::new(x as i32, y as i32, 1, 1);
-                p.set_pointing_to(Some(&rect));
-                p.popup();
-            }
-        });
-        let p = compr_popover.clone();
-        motion.connect_leave(move |_| p.popdown());
-
-        current_title.add_controller(&motion);
-
         current_title.append(&heading("Current"));
-        current_title.append(&info_icon);
-        current_title.append(&compr_popover);
+        current_title.append(&info_btn);
 
         let current_usage = ui::UsageTier::new(server_usage, metrics.data_cap.exact as f64);
         current_usage.set_title(&current_title);
@@ -63,6 +47,7 @@ impl UsageSettings {
         let btn_upgrade = gtk::Button::new();
         btn_upgrade.set_child(Some(&upgraded_usage.cntr));
 
+        let usage_home = gtk::Box::new(gtk::Orientation::Vertical, 12);
         usage_home.set_margin_start(12);
         usage_home.set_margin_end(12);
         usage_home.append(&current_usage.cntr);
