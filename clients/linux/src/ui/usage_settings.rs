@@ -11,30 +11,33 @@ pub struct UsageSettings {
 impl UsageSettings {
     pub fn new(metrics: lb::UsageMetrics, uncompressed: lb::UsageItemMetric) -> Self {
         let server_usage = metrics.server_usage.exact as f64;
-        let compr_ratio = format!("{:.2}x", uncompressed.exact as f64 / server_usage);
         let is_free_tier = metrics.data_cap.exact == 1000000;
-
-        let compr_stats = gtk::Grid::builder()
-            .column_spacing(8)
-            .row_spacing(8)
-            .build();
-        compr_stats.attach(&grid_key("Uncompressed usage: "), 0, 0, 1, 1);
-        compr_stats.attach(&grid_val(&uncompressed.readable), 1, 0, 1, 1);
-        compr_stats.attach(&grid_key("Compression ratio: "), 0, 1, 1, 1);
-        compr_stats.attach(&grid_val(&compr_ratio), 1, 1, 1, 1);
-
-        let info_popover = gtk::Popover::new();
-        info_popover.set_child(Some(&compr_stats));
-
-        let info_btn = gtk::MenuButton::builder()
-            .direction(gtk::ArrowType::Right)
-            .popover(&info_popover)
-            .child(&gtk::Image::from_icon_name("dialog-information-symbolic"))
-            .build();
 
         let current_title = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         current_title.append(&heading("Current"));
-        current_title.append(&info_btn);
+
+        if metrics.server_usage.exact > 0 {
+            let compr_ratio = format!("{:.2}x", uncompressed.exact as f64 / server_usage);
+
+            let compr_stats = gtk::Grid::builder()
+                .column_spacing(8)
+                .row_spacing(8)
+                .build();
+            compr_stats.attach(&grid_key("Uncompressed usage: "), 0, 0, 1, 1);
+            compr_stats.attach(&grid_val(&uncompressed.readable), 1, 0, 1, 1);
+            compr_stats.attach(&grid_key("Compression ratio: "), 0, 1, 1, 1);
+            compr_stats.attach(&grid_val(&compr_ratio), 1, 1, 1, 1);
+
+            let info_popover = gtk::Popover::new();
+            info_popover.set_child(Some(&compr_stats));
+
+            let info_btn = gtk::MenuButton::builder()
+                .direction(gtk::ArrowType::Right)
+                .popover(&info_popover)
+                .child(&gtk::Image::from_icon_name("dialog-information-symbolic"))
+                .build();
+            current_title.append(&info_btn);
+        }
 
         let current_usage = ui::UsageTier::new(server_usage, metrics.data_cap.exact as f64);
         current_usage.set_title(&current_title);
