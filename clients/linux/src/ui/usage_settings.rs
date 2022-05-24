@@ -12,6 +12,7 @@ impl UsageSettings {
     pub fn new(metrics: lb::UsageMetrics, uncompressed: lb::UsageItemMetric) -> Self {
         let server_usage = metrics.server_usage.exact as f64;
         let compr_ratio = format!("{:.2}x", uncompressed.exact as f64 / server_usage);
+        let is_free_tier = metrics.data_cap.exact == 1000000;
 
         let compr_stats = gtk::Grid::builder()
             .column_spacing(8)
@@ -37,7 +38,7 @@ impl UsageSettings {
 
         let current_usage = ui::UsageTier::new(server_usage, metrics.data_cap.exact as f64);
         current_usage.set_title(&current_title);
-        current_usage.set_price("Free");
+        current_usage.set_price(if is_free_tier { "Free" } else { "$2.50 / month" });
 
         let upgraded_usage = ui::UsageTier::new(server_usage, 50000000000.0);
         upgraded_usage.set_title(&heading("Premium"));
@@ -50,8 +51,11 @@ impl UsageSettings {
         usage_home.set_margin_start(12);
         usage_home.set_margin_end(12);
         usage_home.append(&current_usage.cntr);
-        usage_home.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
-        usage_home.append(&btn_upgrade);
+
+        if is_free_tier {
+            usage_home.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
+            usage_home.append(&btn_upgrade);
+        }
 
         let pages = gtk::Stack::new();
         pages.add_named(&usage_home, Some("home"));
