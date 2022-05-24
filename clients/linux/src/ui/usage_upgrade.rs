@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use gtk::glib;
 use gtk::prelude::*;
 
 use crate::ui;
@@ -36,6 +37,17 @@ impl UpgradePaymentFlow {
 
             move |method| {
                 confirm_details.set_for_payment_method(method);
+
+                let btn_confirm = confirm_details.btn_confirm.clone();
+                let btn_confirm_child = btn_confirm.child();
+                btn_confirm.set_label("Please wait...");
+                btn_confirm.set_sensitive(false);
+                glib::timeout_add_seconds_local(2, move || {
+                    btn_confirm.set_child(btn_confirm_child.as_ref());
+                    btn_confirm.set_sensitive(true);
+                    glib::Continue(false)
+                });
+
                 header.payment_method.mark_complete();
                 header.confirm_details.mark_active();
                 pages.set_visible_child_name("confirm_details");

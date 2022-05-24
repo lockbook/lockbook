@@ -22,7 +22,7 @@ impl super::App {
             .show_border(false)
             .build();
         tab(&tabs, "Account", icons::ACCOUNT, &self.acct_settings(&d));
-        tab(&tabs, "Usage", icons::USAGE, &self.usage_settings());
+        tab(&tabs, "Usage", icons::USAGE, &self.usage_settings(&d));
         tab(&tabs, "Application", icons::APP, &self.app_settings());
 
         d.set_child(Some(&tabs));
@@ -130,29 +130,38 @@ impl super::App {
         cntr
     }
 
-    fn usage_settings(&self) -> gtk::Widget {
-        let err_box = |msg: &str| gtk::Label::new(Some(msg)).upcast::<gtk::Widget>();
+    fn usage_settings(&self, settings_win: &gtk::Dialog) -> gtk::Widget {
+        let err_lbl = |msg: &str| gtk::Label::new(Some(msg)).upcast::<gtk::Widget>();
 
         let metrics = match self.api.usage() {
             Ok(metrics) => metrics,
             Err(err) => {
-                return err_box(&format!("{:?}", err)); //todo
+                return err_lbl(&format!("{:?}", err)); //todo
             }
         };
 
         let uncompressed = match self.api.uncompressed_usage() {
             Ok(data) => data,
             Err(err) => {
-                return err_box(&format!("{:?}", err)); //todo
+                return err_lbl(&format!("{:?}", err)); //todo
             }
         };
 
         let usage = ui::UsageSettings::new();
         usage.set_metrics(metrics, uncompressed);
 
+        let settings_win = settings_win.clone();
         let api = self.api.clone();
         usage.connect_begin_upgrade(move |usage| {
-            let maybe_card = api.get_credit_card().ok();
+            let maybe_card = match api.get_credit_card() {
+                Ok(last4) => Some(last4),
+                Err(err) => {
+                    let msg = cc_err_to_string(err);
+                    ui::show_err_dialog(&settings_win, &msg);
+                    return;
+                }
+            };
+
             let upgrading = ui::UpgradePaymentFlow::new(maybe_card);
             upgrading.connect_cancelled({
                 let pages = usage.pages.clone();
@@ -213,7 +222,8 @@ impl super::App {
                             Err(err) => {
                                 upgrading.set_final_header_icon(icons::ERROR_RED);
                                 btn_finish.set_label("Close");
-                                payment_ui.append(&gtk::Label::new(Some(&format!("{:?}", err))));
+                                let err_msg = payment_err_to_string(err);
+                                payment_ui.append(&gtk::Label::new(Some(&err_msg)));
                                 payment_ui.append(&btn_finish);
                             }
                         }
@@ -377,6 +387,48 @@ fn grid_val(txt: &str) -> gtk::Label {
         .use_markup(true)
         .halign(gtk::Align::Start)
         .build()
+}
+
+fn cc_err_to_string(err: lb::Error<lb::GetCreditCard>) -> String {
+    use lb::GetCreditCard::*;
+    match err {
+        lb::UiError(err) => match err {
+            NoAccount => "No account!",
+            CouldNotReachServer => "Unable to connect to server.",
+            ClientUpdateRequired => "You are using an out-of-date app. Please upgrade!",
+            NotAStripeCustomer => "Not a stripe customer?",
+        }
+        .to_string(),
+        lb::Unexpected(err) => err,
+    }
+}
+
+fn payment_err_to_string(err: lb::Error<lb::SwitchAccountTierError>) -> String {
+    use lb::SwitchAccountTierError::*;
+    match err {
+        lb::UiError(err) => match err {
+            NoAccount => "No account!",
+            CouldNotReachServer => "Unable to connect to server.",
+            OldCardDoesNotExist => "Could not find your current card.",
+            NewTierIsOldTier => "You are already subscribed for this tier.",
+            InvalidCardNumber => "Invalid card number.",
+            InvalidCardCvc => "Invalid CVC.",
+            InvalidCardExpYear => "Invalid expiration year.",
+            InvalidCardExpMonth => "Invalid expiration month.",
+            CardDecline => "Your card was declined.",
+            CardHasInsufficientFunds => "Your card has insufficient funds.",
+            TryAgain => "Please try again.",
+            CardNotSupported => "The card you provided is not supported.",
+            ExpiredCard => "The card you provided has expired.",
+            ClientUpdateRequired => "You are using an out-of-date app. Please upgrade!",
+            CurrentUsageIsMoreThanNewTier => {
+                "Your current usage is greater than the data cap of your desired subscription tier."
+            }
+            ConcurrentRequestsAreTooSoon => "ConcurrentRequestsAreTooSoon",
+        }
+        .to_string(),
+        lb::Unexpected(err) => err,
+    }
 }
 
 const EXPORT_DESC: &str = "\

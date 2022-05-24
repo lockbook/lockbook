@@ -1,6 +1,8 @@
 mod account_screen;
 mod onboard_screen;
 
+mod errors;
+
 mod credit_card_input;
 mod filetree;
 mod menu_item;
@@ -20,6 +22,8 @@ pub use account_screen::AccountScreen;
 pub use onboard_screen::OnboardOp;
 pub use onboard_screen::OnboardRoute;
 pub use onboard_screen::OnboardScreen;
+
+pub use errors::show_err_dialog;
 
 pub use credit_card_input::CreditCardInput;
 pub use filetree::FileTree;
@@ -151,5 +155,5 @@ pub mod icons {
     pub const SEARCH: &str = "system-search-symbolic";
     pub const SETTINGS: &str = "preferences-system-symbolic";
     pub const SYNC: &str = "emblem-synchronizing-symbolic";
-    pub const USAGE: &str = "utilities-system-monitor-symbolic";
+    pub const USAGE: &str = "media-floppy-symbolic";
 }
