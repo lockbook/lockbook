@@ -341,6 +341,20 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", skip(self, input), err(Debug))]
+    pub fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError> {
+        let val = self.db.transaction(|tx| tx.search_file_paths(input))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn validate(&self) -> Result<Vec<Warning>, TestRepoError> {
+        self.db
+            .transaction(|tx| tx.test_repo_integrity(&self.config))
+            .map_err(CoreError::from)
+            .map_err(TestRepoError::Core)?
+    }
+
     #[instrument(level = "debug", err(Debug))]
     pub fn upgrade_account_stripe(
         &self, account_tier: StripeAccountTier,
@@ -357,21 +371,7 @@ impl Core {
         Ok(val?)
     }
 
-    #[instrument(level = "debug", skip(self, input), err(Debug))]
-    pub fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError> {
-        let val = self.db.transaction(|tx| tx.search_file_paths(input))?;
-        Ok(val?)
-    }
-
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn validate(&self) -> Result<Vec<Warning>, TestRepoError> {
-        self.db
-            .transaction(|tx| tx.test_repo_integrity(&self.config))
-            .map_err(CoreError::from)
-            .map_err(TestRepoError::Core)?
-    }
-
-    #[instrument(level = "debug", skip(self, purchase_token), err(Debug))]
+    #[instrument(level = "debug", skip(purchase_token), err(Debug))]
     pub fn confirm_android_subscription(
         &self, purchase_token: &str,
     ) -> Result<(), Error<ConfirmAndroidSubscriptionError>> {
@@ -387,7 +387,7 @@ impl Core {
         Ok(val?)
     }
 
-    #[instrument(level = "debug", err(Debug))]
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn get_subscription_info(
         &self,
     ) -> Result<SubscriptionInfo, Error<GetSubscriptionInfoError>> {

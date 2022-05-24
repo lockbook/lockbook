@@ -10,7 +10,6 @@ import app.lockbook.util.LbError
 import app.lockbook.util.SingleMutableLiveData
 import com.android.billingclient.api.*
 import com.android.billingclient.api.BillingClient.BillingResponseCode
-import timber.log.Timber
 
 class BillingClientLifecycle private constructor(
     private val applicationContext: Context
@@ -33,7 +32,6 @@ class BillingClientLifecycle private constructor(
             .enablePendingPurchases()
             .build()
 
-        Timber.e("IS IT THO: ${billingClient.isReady}")
         if (!billingClient.isReady) {
             billingClient.startConnection(this)
         }
@@ -49,7 +47,6 @@ class BillingClientLifecycle private constructor(
         billingResult: BillingResult,
         purchases: MutableList<Purchase>?
     ) {
-        Timber.e("HERE 1: ${billingResult.responseCode}")
         when (billingResult.responseCode) {
             BillingResponseCode.OK -> {
                 when {
@@ -91,7 +88,6 @@ class BillingClientLifecycle private constructor(
         when {
             response.isOk -> {
                 if (productDetailsList.size == LIST_OF_PRODUCTS.size) {
-                    Timber.e("SUCCESSFULLY GOT LIST")
                     productDetails = productDetailsList[0]
                 }
             }
@@ -122,8 +118,6 @@ class BillingClientLifecycle private constructor(
             UpgradeAccountActivity.AccountTier.PremiumYearly -> PREMIUM_YEARLY_OFFER_ID
         }
 
-        Timber.e("IS THIS INFO RIGHT?! PRODUCTID: ${productDetails?.productId} OFFERTOKENID: ${offerToken} ")
-
         return BillingFlowParams.newBuilder()
             .setProductDetailsParamsList(
                 listOf(
@@ -133,7 +127,6 @@ class BillingClientLifecycle private constructor(
                         .build()
                 )
             )
-            .setIsOfferPersonalized(false)
             .build()
     }
 

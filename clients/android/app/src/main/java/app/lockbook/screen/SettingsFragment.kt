@@ -19,7 +19,6 @@ import app.lockbook.model.*
 import app.lockbook.ui.NumberPickerPreference
 import app.lockbook.ui.NumberPickerPreferenceDialog
 import app.lockbook.ui.UsageBarPreference
-import app.lockbook.util.UsageMetrics
 import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -32,7 +31,6 @@ class SettingsFragment : PreferenceFragmentCompat() {
     val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
     }
-    val
 
     private val model: SettingsViewModel by viewModels(
         factoryProducer = {
@@ -54,25 +52,28 @@ class SettingsFragment : PreferenceFragmentCompat() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        model.usageDetermined.observe(
+        model.determineSettingsInfo.observe(
             viewLifecycleOwner
-        ) { usage ->
-            setUpUsagePreferences(usage)
+        ) { settingsInfo ->
+            addDataToPreferences(settingsInfo)
         }
-
-
+        model.notifyError.observe(
+            viewLifecycleOwner
+        ) { error ->
+            alertModel.notifyError(error)
+        }
     }
 
-    private fun setUpUsagePreferences(usage: UsageMetrics) {
-        val isPremium = usage.dataCap.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES
-        findPreference<PreferenceCategory>(getString(R.string.premium_key))!!.isVisible = isPremium
+    private fun addDataToPreferences(settingsInfo: SettingsInfo) {
+        findPreference<PreferenceCategory>(getString(R.string.premium_key))!!.isVisible = settingsInfo.usage.dataCap.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES
         findPreference<Preference>(getString(R.string.change_subscription_key))!!.setOnPreferenceClickListener {
             val intent = Intent(context, UpgradeAccountActivity::class.java)
-            intent.putExtra(IS_PREMIUM, isPremium)
+            intent.putExtra(IS_PREMIUM, true)
             startActivity(intent)
 
             true
         }
+        findPreference<UsageBarPreference>(getString(R.string.usage_bar_key))!!.setUpUsagePreference(settingsInfo.usage, settingsInfo.uncompressedUsage)
     }
 
     private fun setUpPreferences() {
@@ -178,4 +179,3 @@ class SettingsFragment : PreferenceFragmentCompat() {
 }
 
 const val IS_PREMIUM = "is_this_premium"
-

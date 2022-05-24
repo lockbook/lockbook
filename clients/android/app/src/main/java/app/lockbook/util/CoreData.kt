@@ -77,14 +77,13 @@ data class FileUsage(
     val sizeBytes: Int,
 )
 
-
-//pub struct SubscriptionInfo {
+// pub struct SubscriptionInfo {
 //    pub payment_platform: PaymentPlatform,
 //    pub period_end: u64
-//}
+// }
 
 @Serializable
-data class SubscriptionInfo (
+data class SubscriptionInfo(
     @SerialName("payment_platform")
     val paymentPlatform: PaymentPlatform,
     @SerialName("period_end")
@@ -93,9 +92,14 @@ data class SubscriptionInfo (
 
 @Serializable
 sealed class PaymentPlatform {
-    object GooglePlay
+    object GooglePlay : PaymentPlatform()
     data class Stripe(
         @SerialName("card_last_4_digits")
         val cardLast4Digits: String
-    )
+    ) : PaymentPlatform()
+
+    fun intoAccountTier() = when (this) {
+        is GooglePlay -> {}
+        is Stripe -> {}
+    }
 }
