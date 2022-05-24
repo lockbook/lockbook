@@ -4,18 +4,23 @@ use crate::ui;
 
 #[derive(Clone)]
 pub struct UsageSettings {
-    current_usage: ui::UsageTier,
-    compr_stats: gtk::Grid,
-    upgraded_usage: ui::UsageTier,
     btn_upgrade: gtk::Button,
     pub pages: gtk::Stack,
 }
 
 impl UsageSettings {
-    pub fn new() -> Self {
-        let compr_stats = gtk::Grid::new();
-        compr_stats.set_column_spacing(8);
-        compr_stats.set_row_spacing(8);
+    pub fn new(metrics: lb::UsageMetrics, uncompressed: lb::UsageItemMetric) -> Self {
+        let server_usage = metrics.server_usage.exact as f64;
+        let compr_ratio = format!("{:.2}x", uncompressed.exact as f64 / server_usage);
+
+        let compr_stats = gtk::Grid::builder()
+            .column_spacing(8)
+            .row_spacing(8)
+            .build();
+        compr_stats.attach(&grid_key("Uncompressed usage: "), 0, 0, 1, 1);
+        compr_stats.attach(&grid_val(&uncompressed.readable), 1, 0, 1, 1);
+        compr_stats.attach(&grid_key("Compression ratio: "), 0, 1, 1, 1);
+        compr_stats.attach(&grid_val(&compr_ratio), 1, 1, 1, 1);
 
         let info_popover = gtk::Popover::new();
         info_popover.set_child(Some(&compr_stats));
@@ -30,11 +35,11 @@ impl UsageSettings {
         current_title.append(&heading("Current"));
         current_title.append(&info_btn);
 
-        let current_usage = ui::UsageTier::new();
+        let current_usage = ui::UsageTier::new(server_usage, metrics.data_cap.exact as f64);
         current_usage.set_title(&current_title);
         current_usage.set_price("Free");
 
-        let upgraded_usage = ui::UsageTier::new();
+        let upgraded_usage = ui::UsageTier::new(server_usage, 50000000000.0);
         upgraded_usage.set_title(&heading("Premium"));
         upgraded_usage.set_price("$2.50 / month");
 
@@ -51,22 +56,7 @@ impl UsageSettings {
         let pages = gtk::Stack::new();
         pages.add_named(&usage_home, Some("home"));
 
-        Self { current_usage, compr_stats, upgraded_usage, btn_upgrade, pages }
-    }
-
-    pub fn set_metrics(&self, metrics: lb::UsageMetrics, uncompressed: lb::UsageItemMetric) {
-        let server_usage = metrics.server_usage.exact as f64;
-        let compr_ratio = format!("{:.2}x", uncompressed.exact as f64 / server_usage);
-
-        self.current_usage
-            .set_metrics(server_usage, metrics.data_cap.exact as f64);
-        self.upgraded_usage.set_metrics(server_usage, 50000000000.0);
-
-        let cs = &self.compr_stats;
-        cs.attach(&grid_key("Uncompressed usage: "), 0, 0, 1, 1);
-        cs.attach(&grid_val(&uncompressed.readable), 1, 0, 1, 1);
-        cs.attach(&grid_key("Compression ratio: "), 0, 1, 1, 1);
-        cs.attach(&grid_val(&compr_ratio), 1, 1, 1, 1);
+        Self { btn_upgrade, pages }
     }
 
     pub fn connect_begin_upgrade<F: Fn(&Self) + 'static>(&self, f: F) {

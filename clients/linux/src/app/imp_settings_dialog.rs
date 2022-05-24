@@ -147,8 +147,7 @@ impl super::App {
             }
         };
 
-        let usage = ui::UsageSettings::new();
-        usage.set_metrics(metrics, uncompressed);
+        let usage = ui::UsageSettings::new(metrics, uncompressed);
 
         let settings_win = settings_win.clone();
         let api = self.api.clone();
