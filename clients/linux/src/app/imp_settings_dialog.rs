@@ -153,10 +153,9 @@ impl super::App {
         let api = self.api.clone();
         usage.connect_begin_upgrade(move |usage| {
             let maybe_card = match api.get_credit_card() {
-                Ok(last4) => Some(last4),
-                Err(err) => {
-                    let msg = cc_err_to_string(err);
-                    ui::show_err_dialog(&settings_win, &msg);
+                Ok(maybe_last4) => maybe_last4,
+                Err(err_msg) => {
+                    ui::show_err_dialog(&settings_win, &err_msg);
                     return;
                 }
             };
@@ -386,20 +385,6 @@ fn grid_val(txt: &str) -> gtk::Label {
         .use_markup(true)
         .halign(gtk::Align::Start)
         .build()
-}
-
-fn cc_err_to_string(err: lb::Error<lb::GetCreditCard>) -> String {
-    use lb::GetCreditCard::*;
-    match err {
-        lb::UiError(err) => match err {
-            NoAccount => "No account!",
-            CouldNotReachServer => "Unable to connect to server.",
-            ClientUpdateRequired => "You are using an out-of-date app. Please upgrade!",
-            NotAStripeCustomer => "Not a stripe customer?",
-        }
-        .to_string(),
-        lb::Unexpected(err) => err,
-    }
 }
 
 fn payment_err_to_string(err: lb::Error<lb::SwitchAccountTierError>) -> String {

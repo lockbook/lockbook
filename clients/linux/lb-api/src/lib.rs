@@ -100,7 +100,7 @@ pub trait Api: Send + Sync {
 
     fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError>;
 
-    fn get_credit_card(&self) -> Result<CreditCardLast4Digits, Error<GetCreditCard>>;
+    fn get_credit_card(&self) -> Result<Option<CreditCardLast4Digits>, String>;
     fn switch_account_tier(
         &self, new_tier: AccountTier,
     ) -> Result<(), Error<SwitchAccountTierError>>;
@@ -277,8 +277,22 @@ impl Api for DefaultApi {
         self.core.search_file_paths(input)
     }
 
-    fn get_credit_card(&self) -> Result<CreditCardLast4Digits, Error<GetCreditCard>> {
-        self.core.get_credit_card()
+    fn get_credit_card(&self) -> Result<Option<CreditCardLast4Digits>, String> {
+        use GetCreditCard::*;
+        match self.core.get_credit_card() {
+            Ok(last4) => Ok(Some(last4)),
+            Err(err) => match err {
+                UiError(err) => match err {
+                    NoAccount => Err("No account!".to_string()),
+                    CouldNotReachServer => Err("Unable to connect to server.".to_string()),
+                    ClientUpdateRequired => {
+                        Err("You are using an out-of-date app. Please upgrade!".to_string())
+                    }
+                    NotAStripeCustomer => Ok(None),
+                },
+                Unexpected(err) => Err(err),
+            },
+        }
     }
 
     fn switch_account_tier(
