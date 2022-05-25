@@ -256,12 +256,12 @@ impl Api for DefaultApi {
         self.core.get_last_synced()
     }
 
-    fn uncompressed_usage(&self) -> Result<UsageItemMetric, Error<GetUsageError>> {
-        self.core.get_uncompressed_usage()
-    }
-
     fn usage(&self) -> Result<UsageMetrics, Error<GetUsageError>> {
         self.core.get_usage()
+    }
+
+    fn uncompressed_usage(&self) -> Result<UsageItemMetric, Error<GetUsageError>> {
+        self.core.get_uncompressed_usage()
     }
 
     fn sync_all(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>> {
