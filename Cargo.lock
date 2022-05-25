@@ -2439,7 +2439,6 @@ dependencies = [
  "fern",
  "futures",
  "google-androidpublisher3",
- "google-pubsub1",
  "indicatif 0.16.2",
  "lazy_static",
  "libsecp256k1",

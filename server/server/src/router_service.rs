@@ -174,7 +174,6 @@ pub fn android_notification_webhooks(
                     let status_code = match e {
                         ServerError::ClientError(GooglePlayWebhookError::InvalidToken)
                         | ServerError::ClientError(GooglePlayWebhookError::CannotRetrieveData)
-                        | ServerError::ClientError(GooglePlayWebhookError::NoPubSubData)
                         | ServerError::ClientError(
                             GooglePlayWebhookError::CannotDecodePubSubData(_),
                         ) => StatusCode::BAD_REQUEST,

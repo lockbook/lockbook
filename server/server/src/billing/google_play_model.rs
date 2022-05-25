@@ -1,5 +1,11 @@
 use serde::Deserialize;
 
+
+#[derive(Debug, Deserialize)]
+pub struct PubsubMessage {
+    pub data: String
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeveloperNotification {

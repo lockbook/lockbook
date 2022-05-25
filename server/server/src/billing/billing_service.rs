@@ -1,7 +1,7 @@
 use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_model::{BillingInfo, BillingLock, GooglePlayUserInfo, StripeUserInfo};
 use crate::billing::google_play_client::SimpleGCPError;
-use crate::billing::google_play_model::{DeveloperNotification, NotificationType};
+use crate::billing::google_play_model::{DeveloperNotification, NotificationType, PubsubMessage};
 use crate::billing::{google_play_client, stripe_client};
 use crate::keys::{data_cap, public_key_from_stripe_customer_id};
 use crate::ServerError::{ClientError, InternalError};
@@ -11,7 +11,6 @@ use crate::{
 };
 use base64::DecodeError;
 use deadpool_redis::redis::AsyncCommands;
-use google_pubsub1::api::PubsubMessage;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::{
@@ -634,7 +633,6 @@ async fn get_public_key(con: &mut Connection, invoice: &Invoice) -> Result<Publi
 pub enum GooglePlayWebhookError {
     InvalidToken,
     CannotRetrieveData,
-    NoPubSubData,
     CannotDecodePubSubData(DecodeError),
     CannotRetrieveUserInfo,
     CannotRetrievePublicKey,
@@ -655,7 +653,6 @@ pub async fn android_notification_webhooks(
     let data = base64::decode(
         message
             .data
-            .ok_or(ClientError(GooglePlayWebhookError::NoPubSubData))?,
     )
     .map_err(|e| ClientError(GooglePlayWebhookError::CannotDecodePubSubData(e)))?;
 

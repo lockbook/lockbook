@@ -32,9 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .unwrap();
 
     let stripe_client = stripe::Client::new(&config.stripe.stripe_secret);
-
-    let (android_publisher, gcp_pubsub) = get_android_and_gcp_client(&config).await;
-
+    let android_publisher = get_android_client(&config).await;
 
     let server_state = Arc::new(ServerState {
         config: config.clone(),
@@ -42,7 +40,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         stripe_client,
         files_db_client,
         android_publisher,
-        gcp_pubsub,
     });
 
     feature_flags::initialize_flags(&server_state).await;
@@ -80,9 +77,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
-async fn get_android_and_gcp_client(config: &Config) -> (Option<google_androidpublisher3::AndroidPublisher>, Option<google_pubsub1::Pubsub>) {
-    match &config.google.service_account_cred_path {
-        None => (None, None),
+async fn get_android_client(config: &Config) -> google_androidpublisher3::AndroidPublisher {
+    let auth = match &config.google.service_account_cred_path {
+        None => {
+            google_androidpublisher3::oauth2::InstalledFlowAuthenticator::builder(
+                google_androidpublisher3::oauth2::ApplicationSecret::default(),
+                google_androidpublisher3::oauth2::InstalledFlowReturnMethod::HTTPRedirect,
+            ).build().await.unwrap()
+        },
         Some(cred_path) => {
             let service_account_key: google_androidpublisher3::oauth2::ServiceAccountKey =
                 google_androidpublisher3::oauth2::read_service_account_key(
@@ -91,22 +93,20 @@ async fn get_android_and_gcp_client(config: &Config) -> (Option<google_androidpu
                     .await
                     .unwrap();
 
-            let auth =
-                google_androidpublisher3::oauth2::ServiceAccountAuthenticator::builder(service_account_key)
-                    .build()
-                    .await
-                    .unwrap();
-
-            let client = hyper::Client::builder().build(
-                hyper_rustls::HttpsConnectorBuilder::with_native_roots(Default::default())
-                    .https_or_http()
-                    .enable_http1()
-                    .enable_http2()
-                    .build(),
-            );
-
-
-            (Some(google_androidpublisher3::AndroidPublisher::new(client.clone(), auth.clone())), Some(google_pubsub1::Pubsub::new(client, auth)))
+            google_androidpublisher3::oauth2::ServiceAccountAuthenticator::builder(service_account_key)
+                .build()
+                .await
+                .unwrap()
         }
-    }
+    };
+
+    let client = hyper::Client::builder().build(
+        hyper_rustls::HttpsConnectorBuilder::with_native_roots(Default::default())
+            .https_or_http()
+            .enable_http1()
+            .enable_http2()
+            .build(),
+    );
+
+    google_androidpublisher3::AndroidPublisher::new(client, auth)
 }

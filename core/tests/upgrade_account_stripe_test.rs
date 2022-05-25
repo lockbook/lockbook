@@ -1,8 +1,6 @@
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_models::api::*;
-use lockbook_models::file_metadata::FileType;
-use rand::RngCore;
 use test_utils::*;
 
 #[test]
@@ -32,19 +30,6 @@ fn new_tier_is_old_tier() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 
-    // switch account tier to free
-    let result = api_service::request(
-        &account,
-        UpgradeAccountStripeRequest { account_tier: PremiumAccountType::Free },
-    );
-
-    assert_matches!(
-        result,
-        Err(ApiError::<UpgradeAccountStripeError>::Endpoint(
-            UpgradeAccountStripeError::AlreadyPremium
-        ))
-    );
-
     // switch account tier to premium
     api_service::request(
         &account,
@@ -65,7 +50,7 @@ fn new_tier_is_old_tier() {
     assert_matches!(
         result,
         Err(ApiError::<UpgradeAccountStripeError>::Endpoint(
-            UpgradeAccountStripeError::AlreadyPremium
+            UpgradeAccountStripeError::NewTierIsOldTier
         ))
     );
 }
@@ -79,7 +64,7 @@ fn card_does_not_exist() {
     let result = api_service::request(
         &account,
         UpgradeAccountStripeRequest {
-            account_tier: PremiumAccountType::Premium(PaymentMethod::OldCard),
+            account_tier: StripeAccountTier::Premium(PaymentMethod::OldCard),
         },
     );
 
@@ -182,71 +167,4 @@ fn invalid_cards() {
             other => panic!("expected {:?}, got {:?}", expected_err, other),
         }
     }
-}
-
-#[test]
-fn downgrade_denied() {
-    let core = test_core_with_account();
-    let account = core.get_account().unwrap();
-    let root = core.get_root().unwrap();
-
-    // create files until the account is over the 1mb data cap
-    loop {
-        let mut bytes: [u8; 500000] = [0u8; 500000];
-
-        rand::thread_rng().fill_bytes(&mut bytes);
-
-        let file = core
-            .create_file(&uuid::Uuid::new_v4().to_string(), root.id, FileType::Document)
-            .unwrap();
-        core.write_document(file.id, &bytes).unwrap();
-        core.sync(None).unwrap();
-
-        // TODO: Currently a users data cap isn't enforced by the server. When it is, this code needs to be updated to not violate usage before upgrading.
-        if core.get_usage().unwrap().server_usage.exact > 1000000 {
-            break;
-        }
-    }
-
-    // switch account tier to premium
-    api_service::request(
-        &account,
-        UpgradeAccountStripeRequest {
-            account_tier: generate_premium_account_tier(test_credit_cards::GOOD, None, None, None),
-        },
-    )
-    .unwrap();
-
-    // attempt to switch account tier back free
-    let result = api_service::request(
-        &account,
-        UpgradeAccountStripeRequest { account_tier: PremiumAccountType::Free },
-    );
-
-    assert_matches!(
-        result,
-        Err(ApiError::<UpgradeAccountStripeError>::Endpoint(
-            UpgradeAccountStripeError::CurrentUsageIsMoreThanNewTier
-        ))
-    );
-
-    let children = core.get_children(root.id).unwrap();
-
-    // delete files until the account is under the 1mb data cap
-    for child in children {
-        core.delete_file(child.id).unwrap();
-
-        core.sync(None).unwrap();
-
-        if core.get_usage().unwrap().server_usage.exact < 1000000 {
-            break;
-        }
-    }
-
-    // switch account tier back to free
-    api_service::request(
-        &account,
-        UpgradeAccountStripeRequest { account_tier: PremiumAccountType::Free },
-    )
-    .unwrap();
 }
