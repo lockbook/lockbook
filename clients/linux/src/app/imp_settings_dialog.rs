@@ -11,8 +11,8 @@ impl super::App {
         let d = gtk::Dialog::builder()
             .transient_for(&self.window)
             .modal(true)
-            .default_width(500)
-            .default_height(425)
+            .default_width(600)
+            .default_height(450)
             .resizable(false)
             .title("Settings")
             .build();
@@ -22,7 +22,7 @@ impl super::App {
             .show_border(false)
             .build();
         tab(&tabs, "Account", icons::ACCOUNT, &self.acct_settings(&d));
-        tab(&tabs, "Usage", icons::USAGE, &self.usage_settings());
+        tab(&tabs, "Usage", icons::USAGE, &self.usage_settings(&d));
         tab(&tabs, "Application", icons::APP, &self.app_settings());
 
         d.set_child(Some(&tabs));
@@ -31,7 +31,6 @@ impl super::App {
 
     fn acct_settings(&self, settings_win: &gtk::Dialog) -> gtk::Box {
         let cntr = settings_box();
-
         match self.api.account() {
             Ok(maybe_acct) => {
                 cntr.append(&heading("Info"));
@@ -131,22 +130,102 @@ impl super::App {
         cntr
     }
 
-    fn usage_settings(&self) -> gtk::Box {
-        let cntr = settings_box();
-        cntr.set_margin_top(20);
-        cntr.set_spacing(0);
+    fn usage_settings(&self, settings_win: &gtk::Dialog) -> gtk::Stack {
+        let metrics_result = self.api.usage();
+        let uncompressed_result = self.api.uncompressed_usage();
 
-        match self.api.usage() {
-            Ok(metrics) => {
-                usage_metrics(&cntr, &metrics);
-                match self.api.uncompressed_usage() {
-                    Ok(uncompressed) => usage_compression(&cntr, &metrics, &uncompressed),
-                    Err(err) => cntr.append(&gtk::Label::new(Some(&format!("{:?}", err)))), //todo
+        let usage = ui::UsageSettings::new();
+        usage.set_metrics(metrics_result, uncompressed_result);
+
+        let settings_win = settings_win.clone();
+        let api = self.api.clone();
+        usage.connect_begin_upgrade(move |usage| {
+            let maybe_card = match api.get_credit_card() {
+                Ok(maybe_last4) => maybe_last4,
+                Err(err_msg) => {
+                    ui::show_err_dialog(&settings_win, &err_msg);
+                    return;
                 }
-            }
-            Err(err) => cntr.append(&gtk::Label::new(Some(&format!("{:?}", err)))), //todo
-        }
-        cntr
+            };
+
+            let upgrading = ui::UpgradePaymentFlow::new(maybe_card);
+            upgrading.connect_cancelled({
+                let pages = usage.pages.clone();
+
+                move |upgrading| {
+                    pages.set_visible_child_name("home");
+                    pages.remove(&upgrading.cntr);
+                }
+            });
+            upgrading.connect_confirmed({
+                let api = api.clone();
+                let usage = usage.clone();
+
+                move |upgrading, method| {
+                    let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+                    std::thread::spawn({
+                        let api = api.clone();
+
+                        move || {
+                            let new_tier = lb::AccountTier::Premium(method);
+                            let result = api.switch_account_tier(new_tier);
+                            tx.send(result).unwrap();
+                        }
+                    });
+
+                    let payment_ui = gtk::Box::new(gtk::Orientation::Vertical, 12);
+                    payment_ui.append(&gtk::Spinner::builder().spinning(true).build());
+                    payment_ui.append(&gtk::Label::new(Some("Processing credit card payment...")));
+
+                    upgrading.show_pay_screen(&payment_ui);
+
+                    let btn_finish = gtk::Button::with_label("Finish");
+                    btn_finish.set_halign(gtk::Align::Center);
+                    btn_finish.connect_clicked({
+                        let api = api.clone();
+                        let usage = usage.clone();
+                        let upgrade_process_cntr = upgrading.cntr.clone();
+
+                        move |_| {
+                            let metrics_result = api.usage();
+                            let uncompressed_result = api.uncompressed_usage();
+                            usage.set_metrics(metrics_result, uncompressed_result);
+                            usage.pages.set_visible_child_name("home");
+                            usage.pages.remove(&upgrade_process_cntr);
+                        }
+                    });
+
+                    let upgrading = upgrading.clone();
+                    rx.attach(None, move |switch_tier_result| {
+                        ui::clear(&payment_ui);
+                        match switch_tier_result {
+                            Ok(_) => {
+                                upgrading.mark_final_header_section_complete();
+
+                                let check = gtk::Image::from_icon_name("emblem-ok-symbolic");
+                                check.set_pixel_size(40);
+
+                                payment_ui.append(&check);
+                                payment_ui.append(&gtk::Label::new(Some("Payment complete!")));
+                                payment_ui.append(&btn_finish);
+                            }
+                            Err(err) => {
+                                upgrading.set_final_header_icon(icons::ERROR_RED);
+                                btn_finish.set_label("Close");
+                                let err_msg = payment_err_to_string(err);
+                                payment_ui.append(&gtk::Label::new(Some(&err_msg)));
+                                payment_ui.append(&btn_finish);
+                            }
+                        }
+                        glib::Continue(false)
+                    });
+                }
+            });
+            usage.pages.add_named(&upgrading.cntr, Some("upgrade"));
+            usage.pages.set_visible_child_name("upgrade");
+        });
+
+        usage.pages
     }
 
     fn app_settings(&self) -> gtk::Box {
@@ -160,42 +239,32 @@ impl super::App {
     }
 
     fn general_settings(&self) -> gtk::Box {
-        let section = section();
-        // Maximize on startup.
-        {
-            let s = self.settings.clone();
-            let ch = gtk::CheckButton::with_label("Maximize window on startup");
-            ch.set_active(s.read().unwrap().window_maximize);
-            ch.connect_toggled(move |ch| {
-                s.write().unwrap().window_maximize = ch.is_active();
-            });
-            section.append(&ch);
-        }
-        // Auto save.
-        {
-            let s = self.settings.clone();
-            let ch = gtk::CheckButton::with_label("Auto-save");
-            ch.set_active(s.read().unwrap().auto_save);
-            ch.connect_toggled(move |ch| {
-                let auto_save = ch.is_active();
-                s.write().unwrap().auto_save = auto_save;
-                //self.toggle_auto_save(auto_save);
-            });
-            section.append(&ch);
-        }
-        // Auto sync.
-        {
-            let s = self.settings.clone();
-            let ch = gtk::CheckButton::with_label("Auto-sync");
-            ch.set_active(s.read().unwrap().auto_sync);
-            ch.connect_toggled(move |ch| {
-                let auto_sync = ch.is_active();
-                s.write().unwrap().auto_sync = auto_sync;
-                //self.toggle_auto_sync(auto_sync);
-            });
-            section.append(&ch);
-        }
-        section
+        let s = self.settings.clone();
+        let maximize = gtk::CheckButton::with_label("Maximize window on startup");
+        maximize.set_active(s.read().unwrap().window_maximize);
+        maximize.connect_toggled(move |maximize| {
+            s.write().unwrap().window_maximize = maximize.is_active();
+        });
+
+        let s = self.settings.clone();
+        let auto_save = gtk::CheckButton::with_label("Auto-save");
+        auto_save.set_active(s.read().unwrap().auto_save);
+        auto_save.connect_toggled(move |auto_save| {
+            s.write().unwrap().auto_save = auto_save.is_active();
+        });
+
+        let s = self.settings.clone();
+        let auto_sync = gtk::CheckButton::with_label("Auto-sync");
+        auto_sync.set_active(s.read().unwrap().auto_sync);
+        auto_sync.connect_toggled(move |auto_sync| {
+            s.write().unwrap().auto_sync = auto_sync.is_active();
+        });
+
+        let general = section();
+        general.append(&maximize);
+        general.append(&auto_save);
+        general.append(&auto_sync);
+        general
     }
 
     fn filetree_settings(&self) -> gtk::Box {
@@ -224,11 +293,9 @@ impl super::App {
     }
 }
 
-fn tab(tabs: &gtk::Notebook, name: &str, icon_name: &str, stuff: &gtk::Box) {
-    let icon = gtk::Image::builder()
-        .icon_name(icon_name)
-        .pixel_size(22)
-        .build();
+fn tab<W: IsA<gtk::Widget>>(tabs: &gtk::Notebook, name: &str, icon_name: &str, stuff: &W) {
+    let icon = gtk::Image::from_icon_name(icon_name);
+    icon.set_pixel_size(22);
 
     let icon_and_name = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
@@ -265,62 +332,11 @@ fn acct_info(maybe_acct: Option<&lb::Account>) -> gtk::Grid {
     info
 }
 
-fn usage_metrics(cntr: &gtk::Box, m: &lb::UsageMetrics) {
-    let su_pct = m.server_usage.exact as f64 / m.data_cap.exact as f64;
-    let su_str = format!("<b>{}</b> / <b>{}</b>", m.server_usage.readable, m.data_cap.readable);
-    let su_lbl = gtk::Label::builder()
-        .label(&su_str)
-        .use_markup(true)
-        .halign(gtk::Align::Start)
-        .tooltip_text(&format!("{} %", su_pct))
-        .build();
-    let su_pct_lbl = gtk::Label::builder()
-        .label(&format!("({:.2} %)", su_pct))
-        .halign(gtk::Align::End)
-        .hexpand(true)
-        .build();
-
-    let texts = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    texts.append(&su_lbl);
-    texts.append(&su_pct_lbl);
-
-    let su_bar = gtk::ProgressBar::builder()
-        .fraction(if su_pct > 1.0 { 1.0 } else { su_pct }) // clamp percentage at 1
-        .margin_top(12)
-        .build();
-
-    cntr.append(
-        &gtk::Label::builder()
-            .label("Server utilization:")
-            .halign(gtk::Align::Start)
-            .margin_bottom(12)
-            .build(),
-    );
-    cntr.append(&texts);
-    cntr.append(&su_bar);
-}
-
-fn usage_compression(cntr: &gtk::Box, m: &lb::UsageMetrics, cmpr: &lb::UsageItemMetric) {
-    let info = gtk::Grid::builder()
-        .margin_top(30)
-        .column_spacing(8)
-        .row_spacing(8)
-        .build();
-    let compression_ratio = format!("{:.2}x", cmpr.exact as f64 / m.server_usage.exact as f64);
-    info.attach(&grid_key("Uncompressed usage: "), 0, 0, 1, 1);
-    info.attach(&grid_val(&cmpr.readable), 1, 0, 1, 1);
-    info.attach(&grid_key("Compression ratio: "), 0, 1, 1, 1);
-    info.attach(&grid_val(&compression_ratio), 1, 1, 1, 1);
-    cntr.append(&info);
-}
-
 fn settings_box() -> gtk::Box {
-    gtk::Box::builder()
-        .orientation(gtk::Orientation::Vertical)
-        .spacing(12)
-        .margin_start(12)
-        .margin_end(12)
-        .build()
+    let b = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    b.set_margin_start(12);
+    b.set_margin_end(12);
+    b
 }
 
 fn heading(txt: &str) -> gtk::Label {
@@ -342,11 +358,10 @@ fn section() -> gtk::Box {
 }
 
 fn separator() -> gtk::Separator {
-    gtk::Separator::builder()
-        .orientation(gtk::Orientation::Horizontal)
-        .margin_top(20)
-        .margin_bottom(4)
-        .build()
+    let s = gtk::Separator::new(gtk::Orientation::Horizontal);
+    s.set_margin_top(20);
+    s.set_margin_bottom(4);
+    s
 }
 
 fn grid_key(txt: &str) -> gtk::Label {
@@ -362,6 +377,34 @@ fn grid_val(txt: &str) -> gtk::Label {
         .use_markup(true)
         .halign(gtk::Align::Start)
         .build()
+}
+
+fn payment_err_to_string(err: lb::Error<lb::SwitchAccountTierError>) -> String {
+    use lb::SwitchAccountTierError::*;
+    match err {
+        lb::UiError(err) => match err {
+            NoAccount => "No account!",
+            CouldNotReachServer => "Unable to connect to server.",
+            OldCardDoesNotExist => "Could not find your current card.",
+            NewTierIsOldTier => "You are already subscribed for this tier.",
+            InvalidCardNumber => "Invalid card number.",
+            InvalidCardCvc => "Invalid CVC.",
+            InvalidCardExpYear => "Invalid expiration year.",
+            InvalidCardExpMonth => "Invalid expiration month.",
+            CardDecline => "Your card was declined.",
+            CardHasInsufficientFunds => "Your card has insufficient funds.",
+            TryAgain => "Please try again.",
+            CardNotSupported => "The card you provided is not supported.",
+            ExpiredCard => "The card you provided has expired.",
+            ClientUpdateRequired => "You are using an out-of-date app. Please upgrade!",
+            CurrentUsageIsMoreThanNewTier => {
+                "Your current usage is greater than the data cap of your desired subscription tier."
+            }
+            ConcurrentRequestsAreTooSoon => "ConcurrentRequestsAreTooSoon",
+        }
+        .to_string(),
+        lb::Unexpected(err) => err,
+    }
 }
 
 const EXPORT_DESC: &str = "\

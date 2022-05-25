@@ -344,9 +344,7 @@ pub async fn get_credit_card(
         .payment_methods
         .iter()
         .max_by_key(|info| info.created_at)
-        .ok_or_else(|| {
-            internal!("Should have at least 1 payment method on StripeUserInfo: {:?}", user_info)
-        })?;
+        .ok_or(ClientError(GetCreditCardError::NotAStripeCustomer))?;
 
     Ok(GetCreditCardResponse { credit_card_last_4_digits: payment_method.last_4.clone() })
 }

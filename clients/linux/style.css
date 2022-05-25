@@ -13,8 +13,11 @@
 	margin: 0;
 	padding: 0;
 }
-#err {
+.err, #err {
 	color: red;
+}
+.err-input {
+	border-color: red;
 }
 .tree-msg {
 	padding-top: 8px;
@@ -22,4 +25,16 @@
 	background: rgba(0, 0, 0, .2);
 	margin-left: 2px;
 	margin-right: 2px;
+}
+.grayed-out {
+	color: @insensitive_fg_color;
+}
+.upgrade-header {
+	background-color: @insensitive_bg_color;
+}
+.upgrade-header-active-section {
+	background-color: @theme_unfocused_bg_color;
+}
+.green {
+	color: green;
 }
