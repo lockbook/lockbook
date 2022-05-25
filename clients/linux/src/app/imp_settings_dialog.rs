@@ -131,23 +131,11 @@ impl super::App {
     }
 
     fn usage_settings(&self, settings_win: &gtk::Dialog) -> gtk::Widget {
-        let err_lbl = |msg: &str| gtk::Label::new(Some(msg)).upcast::<gtk::Widget>();
+        let metrics_result = self.api.usage();
+        let uncompressed_result = self.api.uncompressed_usage();
 
-        let metrics = match self.api.usage() {
-            Ok(metrics) => metrics,
-            Err(err) => {
-                return err_lbl(&format!("{:?}", err)); //todo
-            }
-        };
-
-        let uncompressed = match self.api.uncompressed_usage() {
-            Ok(data) => data,
-            Err(err) => {
-                return err_lbl(&format!("{:?}", err)); //todo
-            }
-        };
-
-        let usage = ui::UsageSettings::new(metrics, uncompressed);
+        let usage = ui::UsageSettings::new();
+        usage.set_metrics(metrics_result, uncompressed_result);
 
         let settings_win = settings_win.clone();
         let api = self.api.clone();
@@ -171,7 +159,7 @@ impl super::App {
             });
             upgrading.connect_confirmed({
                 let api = api.clone();
-                let pages = usage.pages.clone();
+                let usage = usage.clone();
 
                 move |upgrading, method| {
                     let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
@@ -194,12 +182,16 @@ impl super::App {
                     let btn_finish = gtk::Button::with_label("Finish");
                     btn_finish.set_halign(gtk::Align::Center);
                     btn_finish.connect_clicked({
+                        let api = api.clone();
+                        let usage = usage.clone();
                         let upgrade_process_cntr = upgrading.cntr.clone();
-                        let pages = pages.clone();
 
                         move |_| {
-                            pages.set_visible_child_name("home");
-                            pages.remove(&upgrade_process_cntr);
+                            let metrics_result = api.usage();
+                            let uncompressed_result = api.uncompressed_usage();
+                            usage.set_metrics(metrics_result, uncompressed_result);
+                            usage.pages.set_visible_child_name("home");
+                            usage.pages.remove(&upgrade_process_cntr);
                         }
                     });
 
