@@ -4,16 +4,20 @@ use std::sync::Mutex;
 pub use uuid::Uuid;
 
 pub use lockbook_models::account::Account;
+pub use lockbook_models::api::AccountTier;
+pub use lockbook_models::api::PaymentMethod;
 pub use lockbook_models::crypto::DecryptedDocument;
 pub use lockbook_models::file_metadata::DecryptedFileMetadata as FileMetadata;
 pub use lockbook_models::file_metadata::FileType;
 pub use lockbook_models::work_unit::ClientWorkUnit;
 
+pub use lockbook_core::Config;
 pub use lockbook_core::CoreError;
 pub use lockbook_core::Error;
 pub use lockbook_core::Error::UiError;
 pub use lockbook_core::Error::Unexpected;
 pub use lockbook_core::UnexpectedError;
+pub use lockbook_core::DEFAULT_API_LOCATION;
 
 pub use lockbook_core::model::errors::AccountExportError as ExportAccountError;
 pub use lockbook_core::model::errors::CalculateWorkError;
@@ -22,6 +26,7 @@ pub use lockbook_core::model::errors::CreateFileError;
 pub use lockbook_core::model::errors::ExportFileError;
 pub use lockbook_core::model::errors::FileDeleteError;
 pub use lockbook_core::model::errors::GetAndGetChildrenError;
+pub use lockbook_core::model::errors::GetCreditCard;
 pub use lockbook_core::model::errors::GetFileByIdError;
 pub use lockbook_core::model::errors::GetFileByPathError;
 pub use lockbook_core::model::errors::GetRootError;
@@ -31,20 +36,19 @@ pub use lockbook_core::model::errors::ImportFileError;
 pub use lockbook_core::model::errors::MoveFileError;
 pub use lockbook_core::model::errors::ReadDocumentError;
 pub use lockbook_core::model::errors::RenameFileError;
+pub use lockbook_core::model::errors::SwitchAccountTierError;
 pub use lockbook_core::model::errors::SyncAllError;
 pub use lockbook_core::model::errors::WriteToDocumentError as WriteDocumentError;
 
-pub use lockbook_core::Config;
-
+pub use lockbook_core::service::billing_service::CreditCardLast4Digits;
 pub use lockbook_core::service::import_export_service::ImportExportFileInfo;
 pub use lockbook_core::service::import_export_service::ImportStatus;
 pub use lockbook_core::service::search_service::SearchResultItem;
 pub use lockbook_core::service::sync_service::SyncProgress;
 pub use lockbook_core::service::sync_service::WorkCalculated;
+pub use lockbook_core::service::usage_service::bytes_to_human;
 pub use lockbook_core::service::usage_service::UsageItemMetric;
 pub use lockbook_core::service::usage_service::UsageMetrics;
-
-pub use lockbook_core::DEFAULT_API_LOCATION;
 
 use lockbook_core::Core;
 
@@ -95,6 +99,11 @@ pub trait Api: Send + Sync {
     fn is_syncing(&self) -> bool;
 
     fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError>;
+
+    fn get_credit_card(&self) -> Result<Option<CreditCardLast4Digits>, String>;
+    fn switch_account_tier(
+        &self, new_tier: AccountTier,
+    ) -> Result<(), Error<SwitchAccountTierError>>;
 }
 
 pub enum SyncProgressReport {
@@ -247,12 +256,12 @@ impl Api for DefaultApi {
         self.core.get_last_synced()
     }
 
-    fn uncompressed_usage(&self) -> Result<UsageItemMetric, Error<GetUsageError>> {
-        self.core.get_uncompressed_usage()
-    }
-
     fn usage(&self) -> Result<UsageMetrics, Error<GetUsageError>> {
         self.core.get_usage()
+    }
+
+    fn uncompressed_usage(&self) -> Result<UsageItemMetric, Error<GetUsageError>> {
+        self.core.get_uncompressed_usage()
     }
 
     fn sync_all(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>> {
@@ -266,6 +275,30 @@ impl Api for DefaultApi {
 
     fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError> {
         self.core.search_file_paths(input)
+    }
+
+    fn get_credit_card(&self) -> Result<Option<CreditCardLast4Digits>, String> {
+        use GetCreditCard::*;
+        match self.core.get_credit_card() {
+            Ok(last4) => Ok(Some(last4)),
+            Err(err) => match err {
+                UiError(err) => match err {
+                    NoAccount => Err("No account!".to_string()),
+                    CouldNotReachServer => Err("Unable to connect to server.".to_string()),
+                    ClientUpdateRequired => {
+                        Err("You are using an out-of-date app. Please upgrade!".to_string())
+                    }
+                    NotAStripeCustomer => Ok(None),
+                },
+                Unexpected(err) => Err(err),
+            },
+        }
+    }
+
+    fn switch_account_tier(
+        &self, new_tier: AccountTier,
+    ) -> Result<(), Error<SwitchAccountTierError>> {
+        self.core.switch_account_tier(new_tier)
     }
 }
 
