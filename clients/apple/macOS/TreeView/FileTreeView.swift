@@ -20,10 +20,12 @@ struct FileTreeView: NSViewRepresentable {
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalRuler = true
         scrollView.drawsBackground = false
-        
-        treeView.autoresizesOutlineColumn = false
+
+        treeView.autoresizesOutlineColumn = true
         treeView.headerView = nil
         treeView.usesAutomaticRowHeights = true
+        treeView.style = .fullWidth
+        treeView.backgroundColor = .clear
         treeView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
 
         treeView.registerForDraggedTypes([NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE)])
@@ -40,9 +42,7 @@ struct FileTreeView: NSViewRepresentable {
         treeView.dataSource = dataSource
         treeView.delegate = delegate
         treeView.stronglyReferencesItems = true
-        
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        
+
         return scrollView
     }
     

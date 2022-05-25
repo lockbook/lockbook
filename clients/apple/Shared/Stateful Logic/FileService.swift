@@ -25,7 +25,7 @@ class FileService: ObservableObject {
     }
 
     func childrenOfRoot() -> [DecryptedFileMetadata] {
-        let root = self.root!
+        let root = root!
         return childrenOf(root)
     }
 
@@ -70,11 +70,11 @@ class FileService: ObservableObject {
 
     func moveFileSync(id: UUID, newParent: UUID) -> Bool {
         print("moving file")
-        let operation = self.core.moveFile(id: id, newParent: newParent)
+        let operation = core.moveFile(id: id, newParent: newParent)
 
         switch operation {
         case .success(_):
-            self.refresh()
+            refresh()
             DI.status.checkForLocalWork()
             return true
         case .failure(let error):
@@ -145,24 +145,18 @@ class FileService: ObservableObject {
     }
 
     func refresh() {
-//        if self.files.isEmpty {
         DispatchQueue.global(qos: .userInteractive).async {
             let allFiles = self.core.listFiles()
-            let root = self.core.getRoot()
 
             DispatchQueue.main.async {
-                switch root {
-                case .success(let root):
-                    self.root = root
-                case .failure(let error):
-                    DI.errors.handleError(error)
-                }
-
                 switch allFiles {
                 case .success(let files):
                     self.files = files
                     self.files.forEach {
                         self.notifyDocumentChanged($0)
+                        if self.root == nil && $0.id == $0.parent {
+                            self.root = $0
+                        }
                     }
                     self.closeOpenFileIfDeleted()
                 case .failure(let error):
@@ -170,7 +164,6 @@ class FileService: ObservableObject {
                 }
             }
         }
-//        }
     }
 
     private func closeOpenFileIfDeleted() {
