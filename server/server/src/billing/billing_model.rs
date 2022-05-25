@@ -22,7 +22,8 @@ pub enum BillingInfo {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GooglePlayUserInfo {
     pub purchase_token: String,
-    pub subscription_id: String,
+    pub subscription_product_id: String,
+    pub subscription_offer_id: String,
     pub expiration_time: u64,
 }
 

@@ -14,8 +14,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
+    private val _canceledSubscription = MutableLiveData<Unit>()
     private val _determineSettingsInfo = MutableLiveData<SettingsInfo>()
     private val _notifyError = SingleMutableLiveData<LbError>()
+
+    val canceledSubscription: LiveData<Unit>
+        get() = _canceledSubscription
 
     val determineSettingsInfo: LiveData<SettingsInfo>
         get() = _determineSettingsInfo
@@ -43,6 +47,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     is Err -> _notifyError.postValue(uncompressedUsageResult.error.toLbError(getRes()))
                 }
                 is Err -> _notifyError.postValue(usageResult.error.toLbError(getRes()))
+            }
+        }
+    }
+
+    fun cancelSubscription() {
+        viewModelScope.launch(Dispatchers.IO) {
+            when(val cancelResult = CoreModel.cancelSubscription()) {
+                is Ok -> _canceledSubscription.postValue(Unit)
+                is Err -> _notifyError.postValue(cancelResult.error.toLbError(getRes()))
             }
         }
     }

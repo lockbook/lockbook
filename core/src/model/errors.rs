@@ -802,6 +802,8 @@ pub enum ConfirmAndroidSubscriptionError {
     AlreadyPremium,
     InvalidPurchaseToken,
     ConcurrentRequestsAreTooSoon,
+    CouldNotReachServer,
+    ClientUpdateRequired,
 }
 
 impl From<CoreError> for Error<ConfirmAndroidSubscriptionError> {
@@ -814,6 +816,8 @@ impl From<CoreError> for Error<ConfirmAndroidSubscriptionError> {
             CoreError::ConcurrentRequestsAreTooSoon => {
                 UiError(ConfirmAndroidSubscriptionError::ConcurrentRequestsAreTooSoon)
             }
+            CoreError::ServerUnreachable => UiError(ConfirmAndroidSubscriptionError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(ConfirmAndroidSubscriptionError::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -824,6 +828,8 @@ pub enum CancelSubscriptionError {
     NotPremium,
     UsageIsOverFreeTierDataCap,
     ConcurrentRequestsAreTooSoon,
+    CouldNotReachServer,
+    ClientUpdateRequired,
 }
 
 impl From<CoreError> for Error<CancelSubscriptionError> {
@@ -836,6 +842,8 @@ impl From<CoreError> for Error<CancelSubscriptionError> {
             CoreError::ConcurrentRequestsAreTooSoon => {
                 UiError(CancelSubscriptionError::ConcurrentRequestsAreTooSoon)
             }
+            CoreError::ServerUnreachable => UiError(CancelSubscriptionError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(CancelSubscriptionError::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -844,12 +852,16 @@ impl From<CoreError> for Error<CancelSubscriptionError> {
 #[derive(Debug, Serialize, EnumIter)]
 pub enum GetSubscriptionInfoError {
     NotPremium,
+    CouldNotReachServer,
+    ClientUpdateRequired,
 }
 
 impl From<CoreError> for Error<GetSubscriptionInfoError> {
     fn from(e: CoreError) -> Self {
         match e {
             CoreError::NotPremium => UiError(GetSubscriptionInfoError::NotPremium),
+            CoreError::ServerUnreachable => UiError(GetSubscriptionInfoError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(GetSubscriptionInfoError::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
         }
     }

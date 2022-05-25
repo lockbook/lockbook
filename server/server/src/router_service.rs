@@ -159,8 +159,6 @@ pub fn android_notification_webhooks(
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     let cloned_state = Arc::clone(server_state);
 
-    // server_state.gcp_pubsub.
-
     warp::post()
         .and(warp::path("android_notification_webhook"))
         .and(warp::any().map(move || Arc::clone(&cloned_state)))

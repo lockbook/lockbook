@@ -86,6 +86,8 @@ impl Tx<'_> {
             ApiError::Endpoint(ConfirmAndroidSubscriptionError::ConcurrentRequestsAreTooSoon) => {
                 CoreError::ConcurrentRequestsAreTooSoon
             }
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
             _ => core_err_unexpected(err),
         })?;
 
@@ -103,6 +105,8 @@ impl Tx<'_> {
             ApiError::Endpoint(CancelSubscriptionError::ConcurrentRequestsAreTooSoon) => {
                 CoreError::ConcurrentRequestsAreTooSoon
             }
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
             _ => core_err_unexpected(err),
         })?;
 
@@ -115,6 +119,8 @@ impl Tx<'_> {
         api_service::request(&account, GetSubscriptionInfoRequest {})
             .map_err(|err| match err {
                 ApiError::Endpoint(GetSubscriptionInfoError::NotPremium) => CoreError::NotPremium,
+                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
             })
             .map(|resp| SubscriptionInfo {
@@ -123,3 +129,4 @@ impl Tx<'_> {
             })
     }
 }
+

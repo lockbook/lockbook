@@ -109,14 +109,15 @@ class BillingClientLifecycle private constructor(
         }
     }
 
-    fun getSubscriptionOffers(): List<ProductDetails.SubscriptionOfferDetails>? = productDetails?.subscriptionOfferDetails
+    private fun getSubscriptionOffers(): List<ProductDetails.SubscriptionOfferDetails>? = productDetails?.subscriptionOfferDetails
 
     private fun billingFlowParamsBuilder(newTier: UpgradeAccountActivity.AccountTier): BillingFlowParams? {
-        val offerToken = when (newTier) {
+        val offerTag = when (newTier) {
             UpgradeAccountActivity.AccountTier.Free -> return null
             UpgradeAccountActivity.AccountTier.PremiumMonthly -> PREMIUM_MONTHLY_OFFER_ID
-            UpgradeAccountActivity.AccountTier.PremiumYearly -> PREMIUM_YEARLY_OFFER_ID
         }
+
+        val offerToken = getSubscriptionOffers()?.filter { it.offerTags[0] == offerTag }?.map { it.offerToken }?.get(0) ?: return null
 
         return BillingFlowParams.newBuilder()
             .setProductDetailsParamsList(
@@ -133,8 +134,7 @@ class BillingClientLifecycle private constructor(
     companion object {
         const val PREMIUM_PRODUCT_ID = "app.lockbook.premium_subscription"
 
-        const val PREMIUM_MONTHLY_OFFER_ID = "premium-subscription-monthly"
-        const val PREMIUM_YEARLY_OFFER_ID = "premium-subscription-yearly"
+        const val PREMIUM_MONTHLY_OFFER_ID = "monthly"
 
         private val LIST_OF_PRODUCTS = listOf(
             PREMIUM_PRODUCT_ID

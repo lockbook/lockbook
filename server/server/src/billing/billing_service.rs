@@ -36,6 +36,54 @@ use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
 use std::borrow::Borrow;
 
+#[derive(Debug)]
+pub enum LockBillingWorkflowError {
+    ConcurrentRequestsAreTooSoon,
+}
+
+async fn lock_billing_workflow(
+    public_key: &PublicKey, con: &mut deadpool_redis::Connection, millis_between_payment_flows: u64,
+) -> Result<BillingLock, ServerError<LockBillingWorkflowError>> {
+    let mut billing_lock = BillingLock::default();
+
+    let tx_result = tx!(con, pipe, &[keys::billing_lock(public_key)], {
+        billing_lock = con
+            .maybe_json_get(keys::billing_lock(public_key))
+            .await?
+            .unwrap_or_default();
+
+        let current_time = get_time().0 as u64;
+
+        if current_time - billing_lock.last_in_payment_flow < millis_between_payment_flows {
+            info!(
+                "User is already in payment flow, or this request is too soon after a failed one. public_key: {}",
+                keys::stringify_public_key(public_key)
+            );
+
+            return Err(Abort(ClientError(LockBillingWorkflowError::ConcurrentRequestsAreTooSoon)));
+        }
+
+        billing_lock.last_in_payment_flow = current_time;
+
+        pipe.json_set(keys::billing_lock(public_key), &billing_lock)
+    });
+    return_if_error!(tx_result);
+
+    info!(
+        "User successfully entered payment flow. public_key: {}",
+        keys::stringify_public_key(public_key)
+    );
+
+    Ok(billing_lock)
+}
+
+async fn set_billing_lock<E: Debug>(public_key: &PublicKey, con: &mut deadpool_redis::Connection, billing_lock: &mut BillingLock) -> Result<(), ServerError<E>> {
+    billing_lock.last_in_payment_flow = 0;
+    Ok(con.json_set(keys::billing_lock(&public_key), &billing_lock).await?)
+}
+
+
+
 pub async fn get_subscription_info(
     context: RequestContext<'_, GetSubscriptionInfoRequest>,
 ) -> Result<GetSubscriptionInfoResponse, ServerError<GetSubscriptionInfoError>> {
@@ -99,26 +147,35 @@ pub async fn confirm_android_subscription(
         InternalError(msg) => InternalError(msg),
     })?;
 
-    let info = GooglePlayUserInfo {
-        purchase_token: request.purchase_token.clone(),
-        subscription_id: server_state.config.google.premium_subscription_id.clone(),
-        expiration_time: get_time().0 as u64,
-    };
-
-    billing_lock
-        .info
-        .push(BillingInfo::GooglePlay(info.clone()));
-
     con.set(data_cap(&context.public_key), PREMIUM_TIER_USAGE_SIZE).await?;
-    con.json_set(keys::billing_lock(&context.public_key), &billing_lock).await?;
 
     google_play_client::acknowledge_subscription(
         &server_state.android_publisher,
-        &info.subscription_id,
-        &info.purchase_token,
+        &server_state.config.google.premium_subscription_product_id,
+        &request.purchase_token,
         &context.public_key,
     )
     .await?;
+
+    let purchase = google_play_client::get_subscription(
+        &server_state.android_publisher,
+        &server_state.config.google.premium_subscription_product_id,
+        &request.purchase_token,
+    )
+        .await
+        .map_err(|e| match e {
+            SimpleGCPError::Unexpected(msg) => internal!("{:#?}", msg),
+        })?;
+
+    billing_lock
+        .info
+        .push(BillingInfo::GooglePlay(GooglePlayUserInfo {
+            purchase_token: request.purchase_token.clone(),
+            subscription_product_id: server_state.config.google.premium_subscription_product_id.clone(),
+            subscription_offer_id: server_state.config.google.premium_subscription_offer_id.clone(),
+            expiration_time : purchase.borrow().expiry_time_millis.as_ref().ok_or_else(|| internal!("Cannot get expiration time of a recovered subscription. public_key {:?}", &context.public_key))?.parse().map_err(|e| internal!("Cannot parse millis into int: {:?}", e))?
+        }));
+    set_billing_lock(&context.public_key, &mut con, &mut billing_lock).await?;
 
     Ok(ConfirmAndroidSubscriptionResponse {})
 }
@@ -137,7 +194,7 @@ pub async fn cancel_subscription(
         return Err(ClientError(CancelSubscriptionError::NotPremium));
     }
 
-    let billing_lock = lock_billing_workflow(
+    let mut billing_lock = lock_billing_workflow(
         &context.public_key,
         &mut con,
         server_state.config.stripe.millis_between_user_payment_flows,
@@ -173,7 +230,7 @@ pub async fn cancel_subscription(
         Some(BillingInfo::GooglePlay(info)) => {
             google_play_client::cancel_subscription(
                 &server_state.android_publisher,
-                &info.subscription_id,
+                &info.subscription_product_id,
                 &info.purchase_token,
             ).await?;
         }
@@ -189,10 +246,8 @@ pub async fn cancel_subscription(
         }
     }
 
-    con.set(data_cap(&context.public_key), FREE_TIER_USAGE_SIZE)
-        .await?;
-    con.json_set(keys::billing_lock(&context.public_key), &billing_lock)
-        .await?;
+    con.set(data_cap(&context.public_key), FREE_TIER_USAGE_SIZE).await?;
+    set_billing_lock(&context.public_key, &mut con, &mut billing_lock).await?;
 
     Ok(CancelSubscriptionResponse {})
 }
@@ -210,7 +265,7 @@ pub async fn upgrade_account_stripe(
 
     let current_data_cap: u64 = con.get(data_cap(&context.public_key)).await?;
 
-    if current_data_cap != FREE_TIER_USAGE_SIZE {
+    if current_data_cap == PREMIUM_TIER_USAGE_SIZE {
         return Err(ClientError(UpgradeAccountStripeError::NewTierIsOldTier));
     }
 
@@ -247,56 +302,13 @@ pub async fn upgrade_account_stripe(
     .await?;
 
     billing_lock.info.push(BillingInfo::Stripe(user_info));
-    billing_lock.last_in_payment_flow = 0;
 
     con.set(data_cap(&context.public_key), new_data_cap).await?;
-    con.json_set(keys::billing_lock(&context.public_key), &billing_lock)
-        .await?;
+    set_billing_lock(&context.public_key, &mut con, &mut billing_lock).await?;
 
     info!("Successfully switched the account tier of {} from free to premium.", fmt_public_key);
 
     Ok(UpgradeAccountStripeResponse {})
-}
-
-#[derive(Debug)]
-pub enum LockBillingWorkflowError {
-    ConcurrentRequestsAreTooSoon,
-}
-
-async fn lock_billing_workflow(
-    public_key: &PublicKey, con: &mut deadpool_redis::Connection, millis_between_payment_flows: u64,
-) -> Result<BillingLock, ServerError<LockBillingWorkflowError>> {
-    let mut billing_lock = BillingLock::default();
-
-    let tx_result = tx!(con, pipe, &[keys::billing_lock(public_key)], {
-        billing_lock = con
-            .maybe_json_get(keys::billing_lock(public_key))
-            .await?
-            .unwrap_or_default();
-
-        let current_time = get_time().0 as u64;
-
-        if current_time - billing_lock.last_in_payment_flow < millis_between_payment_flows {
-            info!(
-                "User is already in payment flow, or this request is too soon after a failed one. public_key: {}",
-                keys::stringify_public_key(public_key)
-            );
-
-            return Err(Abort(ClientError(LockBillingWorkflowError::ConcurrentRequestsAreTooSoon)));
-        }
-
-        billing_lock.last_in_payment_flow = current_time;
-
-        pipe.json_set(keys::billing_lock(public_key), &billing_lock)
-    });
-    return_if_error!(tx_result);
-
-    info!(
-        "User successfully entered payment flow. public_key: {}",
-        keys::stringify_public_key(public_key)
-    );
-
-    Ok(billing_lock)
 }
 
 async fn create_subscription(
@@ -455,6 +467,7 @@ pub async fn get_credit_card(
         .await?
         .ok_or(ClientError(GetCreditCardError::NoCardAdded))?;
 
+    // Should I get the most recent stripe billing info for this or just check the last card?
     if let Some(BillingInfo::Stripe(info)) = billing_lock.info.last() {
         Ok(GetCreditCardResponse { credit_card_last_4_digits: info.last_4.clone() })
     } else {
@@ -565,8 +578,8 @@ pub async fn stripe_webhooks(
                             if let Some(BillingInfo::Stripe(info)) = billing_lock.info.last_mut() {
                                 (*info).expiration_time = subscription_period_end as u64;
                             }
-                            billing_lock.last_in_payment_flow = 0;
 
+                            billing_lock.last_in_payment_flow = 0;
                             pipe.json_set(keys::billing_lock(&public_key), &billing_lock)
                         }
                         Err(ClientError(LockBillingWorkflowError::ConcurrentRequestsAreTooSoon)) => Ok(&mut pipe),
@@ -688,11 +701,13 @@ pub async fn android_notification_webhooks(
                     if let Some(BillingInfo::Stripe(info)) = billing_lock.info.last_mut() {
                         match notification_type {
                             NotificationType::SubscriptionRecovered => {
+                                billing_lock.last_in_payment_flow = 0;
                                 info.expiration_time = purchase.borrow().expiry_time_millis.as_ref().ok_or_else(|| Abort(internal!("Cannot get expiration time of a recovered subscription. public_key {:?}, subscription notification type: {:?}", public_key, notification_type)))?.parse().map_err(|e| Abort(internal!("Cannot parse millis into int: {:?}", e)))?;
                                 pipe.set(data_cap(&public_key), PREMIUM_TIER_USAGE_SIZE).json_set(keys::billing_lock(&public_key), &billing_lock)
                                 // give back premium and update time exp
                             }
                             NotificationType::SubscriptionRenewed | NotificationType::SubscriptionRestarted => {
+                                billing_lock.last_in_payment_flow = 0;
                                 info.expiration_time = purchase.borrow().expiry_time_millis.as_ref().ok_or_else(|| Abort(internal!("Cannot get expiration time of a recovered subscription. public_key {:?}, subscription notification type: {:?}", public_key, notification_type)))?.parse().map_err(|e| Abort(internal!("Cannot parse millis into int: {:?}", e)))?;
                                 pipe.json_set(keys::billing_lock(&public_key), &billing_lock)
                                 // change expiry time
@@ -703,6 +718,7 @@ pub async fn android_notification_webhooks(
                             NotificationType::SubscriptionExpired
                             | NotificationType::SubscriptionRevoked
                             | NotificationType::SubscriptionOnHold => {
+                                billing_lock.last_in_payment_flow = 0;
                                 info.expiration_time = purchase.borrow().expiry_time_millis.as_ref().ok_or_else(|| Abort(internal!("Cannot get expiration time of a recovered subscription. public_key {:?}, subscription notification type: {:?}", public_key, notification_type)))?.parse().map_err(|e| Abort(internal!("Cannot parse millis into int: {:?}", e)))?;
                                 pipe.set(data_cap(&public_key), FREE_TIER_USAGE_SIZE).json_set(keys::billing_lock(&public_key), &billing_lock)
                                 // remove premium data cap and update exp date to past (for hold)

@@ -26,8 +26,8 @@ pub struct ServerState {
     pub index_db_pool: deadpool_redis::Pool,
     pub stripe_client: stripe::Client,
     pub files_db_client: s3::bucket::Bucket,
-    pub android_publisher: AndroidPublisher,
-    pub gcp_pubsub: Pubsub,
+    pub android_publisher: Option<AndroidPublisher>,
+    pub gcp_pubsub: Option<Pubsub>,
 }
 
 #[derive(Clone)]

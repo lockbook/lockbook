@@ -343,12 +343,6 @@ impl Request for UpgradeAccountStripeRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum PremiumAccountType {
-    MonthlyPremium,
-    YearlyPremium,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ConfirmAndroidSubscriptionRequest {
     pub purchase_token: String,
 }

@@ -10,6 +10,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.PopupWindow
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -52,6 +53,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        model.canceledSubscription.observe(
+            viewLifecycleOwner
+        ) {
+
+        }
+
         model.determineSettingsInfo.observe(
             viewLifecycleOwner
         ) { settingsInfo ->
@@ -66,13 +73,6 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     private fun addDataToPreferences(settingsInfo: SettingsInfo) {
         findPreference<PreferenceCategory>(getString(R.string.premium_key))!!.isVisible = settingsInfo.usage.dataCap.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES
-        findPreference<Preference>(getString(R.string.change_subscription_key))!!.setOnPreferenceClickListener {
-            val intent = Intent(context, UpgradeAccountActivity::class.java)
-            intent.putExtra(IS_PREMIUM, true)
-            startActivity(intent)
-
-            true
-        }
         findPreference<UsageBarPreference>(getString(R.string.usage_bar_key))!!.setUpUsagePreference(settingsInfo.usage, settingsInfo.uncompressedUsage)
     }
 
@@ -135,6 +135,17 @@ class SettingsFragment : PreferenceFragmentCompat() {
             getString(R.string.background_sync_enabled_key) ->
                 findPreference<Preference>(getString(R.string.background_sync_period_key))?.isEnabled =
                     (preference as SwitchPreference).isChecked
+            getString(R.string.cancel_subscription_key) -> {
+                val dialog = AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
+                    .setTitle(R.string.settings_cancel_sub_confirmation_title)
+                    .setMessage(R.string.settings_cancel_sub_confirmation_details)
+                    .setPositiveButton(R.string.yes) { _, _ ->
+                        model.cancelSubscription()
+                    }
+                    .setNegativeButton(R.string.no, null)
+
+                dialog.show()
+            }
             else -> super.onPreferenceTreeClick(preference)
         }
 
@@ -177,5 +188,3 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }.exhaustive
     }
 }
-
-const val IS_PREMIUM = "is_this_premium"

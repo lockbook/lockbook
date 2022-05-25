@@ -19,7 +19,6 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import kotlinx.coroutines.*
-import timber.log.Timber
 import java.lang.ref.WeakReference
 
 class UpgradeAccountActivity : AppCompatActivity() {
@@ -33,13 +32,12 @@ class UpgradeAccountActivity : AppCompatActivity() {
     enum class AccountTier {
         Free,
         PremiumMonthly,
-        PremiumYearly,
     }
 
     // This property is only valid between onCreateView and
     // onDestroyView.
     val binding get() = _binding!!
-    lateinit var originTier: AccountTier
+    private val originTier = AccountTier.Free
     var selectedTier = AccountTier.Free
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,12 +48,9 @@ class UpgradeAccountActivity : AppCompatActivity() {
         if (savedInstanceState != null) {
             selectedTier = AccountTier.valueOf(savedInstanceState.getString(SELECTED_TIER_KEY, AccountTier.Free.name))
         }
-
-        originTier = AccountTier.Free
-
+        
         binding.switchAccountTierFree.setOnClickListener(clickListener)
         binding.switchAccountTierPremiumMonthly.setOnClickListener(clickListener)
-        binding.switchAccountTierPremiumYearly.setOnClickListener(clickListener)
 
         binding.exitBilling.setOnClickListener {
             finish()
@@ -68,7 +63,6 @@ class UpgradeAccountActivity : AppCompatActivity() {
         val selectedTierCardView = when (selectedTier) {
             AccountTier.Free -> binding.switchAccountTierFree
             AccountTier.PremiumMonthly -> binding.switchAccountTierPremiumMonthly
-            AccountTier.PremiumYearly -> binding.switchAccountTierPremiumYearly
         }
 
         animateTierSelectionToggle(selectedTierCardView, true)
@@ -135,14 +129,12 @@ class UpgradeAccountActivity : AppCompatActivity() {
         selectedTier = when (tierCardView) {
             binding.switchAccountTierFree -> AccountTier.Free
             binding.switchAccountTierPremiumMonthly -> AccountTier.PremiumMonthly
-            binding.switchAccountTierPremiumYearly -> AccountTier.PremiumYearly
             else -> AccountTier.Free
         }
 
         val oldTierCardView = when (oldSelectedTier) {
             AccountTier.Free -> binding.switchAccountTierFree
             AccountTier.PremiumMonthly -> binding.switchAccountTierPremiumMonthly
-            AccountTier.PremiumYearly -> binding.switchAccountTierPremiumYearly
         }
 
         toggleSubscribeButton()
@@ -152,8 +144,6 @@ class UpgradeAccountActivity : AppCompatActivity() {
 
     private fun launchPurchaseFlow(selectedTier: AccountTier) {
         if (originTier != selectedTier) {
-            Timber.e("SELECTED $originTier and $selectedTier")
-
             if (selectedTier == AccountTier.Free) {
                 CoreModel.cancelSubscription()
             } else {

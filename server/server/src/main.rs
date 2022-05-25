@@ -33,30 +33,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let stripe_client = stripe::Client::new(&config.stripe.stripe_secret);
 
-    let service_account_key: google_androidpublisher3::oauth2::ServiceAccountKey =
-        google_androidpublisher3::oauth2::read_service_account_key(
-            &config.google.service_account_cred_path,
-        )
-        .await
-        .unwrap();
+    let (android_publisher, gcp_pubsub) = get_android_and_gcp_client(&config).await;
 
-    let auth =
-        google_androidpublisher3::oauth2::ServiceAccountAuthenticator::builder(service_account_key)
-            .build()
-            .await
-            .unwrap();
-
-    let client = hyper::Client::builder().build(
-        hyper_rustls::HttpsConnectorBuilder::with_native_roots(Default::default())
-            .https_or_http()
-            .enable_http1()
-            .enable_http2()
-            .build(),
-    );
-
-    let android_publisher =
-        google_androidpublisher3::AndroidPublisher::new(client.clone(), auth.clone());
-    let gcp_pubsub = google_pubsub1::Pubsub::new(client, auth);
 
     let server_state = Arc::new(ServerState {
         config: config.clone(),
@@ -100,4 +78,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     };
 
     Ok(())
+}
+
+async fn get_android_and_gcp_client(config: &Config) -> (Option<google_androidpublisher3::AndroidPublisher>, Option<google_pubsub1::Pubsub>) {
+    match &config.google.service_account_cred_path {
+        None => (None, None),
+        Some(cred_path) => {
+            let service_account_key: google_androidpublisher3::oauth2::ServiceAccountKey =
+                google_androidpublisher3::oauth2::read_service_account_key(
+                    cred_path,
+                )
+                    .await
+                    .unwrap();
+
+            let auth =
+                google_androidpublisher3::oauth2::ServiceAccountAuthenticator::builder(service_account_key)
+                    .build()
+                    .await
+                    .unwrap();
+
+            let client = hyper::Client::builder().build(
+                hyper_rustls::HttpsConnectorBuilder::with_native_roots(Default::default())
+                    .https_or_http()
+                    .enable_http1()
+                    .enable_http2()
+                    .build(),
+            );
+
+
+            (Some(google_androidpublisher3::AndroidPublisher::new(client.clone(), auth.clone())), Some(google_pubsub1::Pubsub::new(client, auth)))
+        }
+    }
 }

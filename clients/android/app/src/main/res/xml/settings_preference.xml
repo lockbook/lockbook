@@ -7,11 +7,13 @@
     <PreferenceCategory
         android:key="@string/premium_key"
         android:icon="@drawable/ic_baseline_paid_24"
-        android:title="@string/settings_premium"
-        app:isPreferenceVisible="false">
+        android:title="@string/settings_premium">
         <Preference
-            android:key="@string/change_subscription_key"
-            app:title="@string/settings_change_subscription"/>
+            android:key="@string/cancel_subscription_key"
+            app:title="@string/settings_cancel_subscription"/>
+        <Preference
+            android:key="@string/subscription_info_key"
+            app:layout="@layout/preference_subscription_info" />
     </PreferenceCategory>
 
     <PreferenceCategory

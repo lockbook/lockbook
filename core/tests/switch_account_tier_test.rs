@@ -22,7 +22,7 @@ fn switch_to_premium_and_back() {
     // switch account tier back to free
     api_service::request(
         &account,
-        UpgradeAccountStripeRequest { account_tier: PremiumAccountType::Free },
+        CancelSubscriptionRequest { },
     )
     .unwrap();
 }
