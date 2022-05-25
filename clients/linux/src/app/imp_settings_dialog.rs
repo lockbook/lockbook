@@ -130,7 +130,7 @@ impl super::App {
         cntr
     }
 
-    fn usage_settings(&self, settings_win: &gtk::Dialog) -> gtk::Widget {
+    fn usage_settings(&self, settings_win: &gtk::Dialog) -> gtk::Stack {
         let metrics_result = self.api.usage();
         let uncompressed_result = self.api.uncompressed_usage();
 
@@ -225,7 +225,7 @@ impl super::App {
             usage.pages.set_visible_child_name("upgrade");
         });
 
-        usage.pages.upcast::<gtk::Widget>()
+        usage.pages
     }
 
     fn app_settings(&self) -> gtk::Box {
