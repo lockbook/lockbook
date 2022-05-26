@@ -2,14 +2,16 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct FileTreeView: NSViewRepresentable {
-    
+
     @Binding var currentSelection: DecryptedFileMetadata?
 
     let scrollView = NSScrollView()
     let treeView = MenuOutlineView()
     let delegate = TreeDelegate()
     var dataSource = DataSource()
-    
+
+    @EnvironmentObject var files: FileService
+
     func makeNSView(context: Context) -> NSScrollView {
         
         delegate.documentSelected = { currentSelection = $0 }
@@ -45,7 +47,7 @@ struct FileTreeView: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        treeView.reloadItem(nil)
+        treeView.reloadData()
     }
 }
 
