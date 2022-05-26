@@ -9,7 +9,7 @@ class FileItemView: NSTableCellView {
         field.isBezeled = false
         field.drawsBackground = false
         field.usesSingleLineMode = false
-        field.cell?.wraps = true
+        field.cell?.wraps = false
         field.cell?.isScrollable = false
 
         super.init(frame: .zero)

@@ -109,6 +109,7 @@ class OnboardingService: ObservableObject {
     
     func getAccountAndFinalize() {
         DI.accounts.getAccount()
+        DI.status.setLastSynced()
         DI.files.refresh()
     }
 }

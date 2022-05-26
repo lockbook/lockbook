@@ -12,7 +12,9 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
             numberOfChildrenOfItem item: Any?
     ) -> Int {
         let file = item as? DecryptedFileMetadata
-        return DI.files.childrenOf(file).count
+        let children = DI.files.childrenOf(file)
+        print(children.count)
+        return children.count
     }
 
     func outlineView(

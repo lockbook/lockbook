@@ -4,9 +4,7 @@ import SwiftLockbookCore
 struct FileTreeView: NSViewRepresentable {
     
     @Binding var currentSelection: DecryptedFileMetadata?
-    
-    @EnvironmentObject var files: FileService
-    
+
     let scrollView = NSScrollView()
     let treeView = MenuOutlineView()
     let delegate = TreeDelegate()
@@ -20,10 +18,12 @@ struct FileTreeView: NSViewRepresentable {
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalRuler = true
         scrollView.drawsBackground = false
-        
-        treeView.autoresizesOutlineColumn = false
+
+        treeView.autoresizesOutlineColumn = true
         treeView.headerView = nil
         treeView.usesAutomaticRowHeights = true
+        treeView.style = .fullWidth
+        treeView.backgroundColor = .clear
         treeView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
 
         treeView.registerForDraggedTypes([NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE)])
@@ -36,13 +36,11 @@ struct FileTreeView: NSViewRepresentable {
         let onlyColumn = NSTableColumn()
         onlyColumn.resizingMask = .autoresizingMask
         treeView.addTableColumn(onlyColumn)
-        
+
         treeView.dataSource = dataSource
         treeView.delegate = delegate
         treeView.stronglyReferencesItems = true
-        
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        
+
         return scrollView
     }
     
@@ -57,12 +55,32 @@ protocol MenuOutlineViewDelegate : NSOutlineViewDelegate {
 
 class MenuOutlineView: NSOutlineView {
 
+    init() {
+        super.init(frame: .zero)
+        target = self
+        action = #selector(outlineViewClicked(_:))
+    }
+
+    @objc private func outlineViewClicked(_ outlineView: NSOutlineView) {
+        if let clickedItem = item(atRow: clickedRow) {
+            if  isItemExpanded(clickedItem) {
+                animator().collapseItem(clickedItem)
+            } else {
+                animator().expandItem(clickedItem)
+            }
+        }
+    }
+
     override func menu(for event: NSEvent) -> NSMenu? {
         let point = self.convert(event.locationInWindow, from: nil)
         let row = self.row(at: point)
         let item = item(atRow: row)
 
         return (delegate as! MenuOutlineViewDelegate).outlineView(self, menuForItem: item)
+    }
+
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 
 }
