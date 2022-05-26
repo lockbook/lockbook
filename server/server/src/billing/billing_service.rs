@@ -1,7 +1,7 @@
 use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_model::{BillingInfo, BillingLock, GooglePlayUserInfo, StripeUserInfo};
 use crate::billing::google_play_client::SimpleGCPError;
-use crate::billing::google_play_model::{DeveloperNotification, NotificationType, PubsubMessage};
+use crate::billing::google_play_model::{DeveloperNotification, NotificationType, PubSubNotification};
 use crate::billing::{google_play_client, stripe_client};
 use crate::keys::{data_cap, public_key_from_stripe_customer_id};
 use crate::ServerError::{ClientError, InternalError};
@@ -34,6 +34,7 @@ use uuid::Uuid;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
 use std::borrow::Borrow;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub enum LockBillingWorkflowError {
@@ -126,12 +127,15 @@ pub async fn confirm_android_subscription(
 ) -> Result<ConfirmAndroidSubscriptionResponse, ServerError<ConfirmAndroidSubscriptionError>> {
     let (request, server_state) = (&context.request, context.server_state);
     let mut con = server_state.index_db_pool.get().await?;
+    println!("CONFIRMING THIS SUBSCRIPTION: {}", context.request.purchase_token);
 
     let current_data_cap: u64 = con.get(data_cap(&context.public_key)).await?;
 
     if current_data_cap == PREMIUM_TIER_USAGE_SIZE {
         return Err(ClientError(ConfirmAndroidSubscriptionError::AlreadyPremium));
     }
+
+    println!("CONFIRMING THIS SUBSCRIPTION: {}", context.request.purchase_token);
 
     let mut billing_lock = lock_billing_workflow(
         &context.public_key,
@@ -640,19 +644,18 @@ pub enum GooglePlayWebhookError {
 }
 
 pub async fn android_notification_webhooks(
-    server_state: &Arc<ServerState>, request_body: Bytes, auth_token: String,
+    server_state: &Arc<ServerState>, request_body: Bytes, query_parameters: HashMap<String, String>
 ) -> Result<(), ServerError<GooglePlayWebhookError>> {
     if !constant_time_eq::constant_time_eq(
-        auth_token.as_bytes(),
+        query_parameters.get("token").ok_or(ClientError(GooglePlayWebhookError::InvalidToken))?.as_bytes(),
         server_state.config.google.pubsub_token.as_bytes(),
     ) {
         return Err(ClientError(GooglePlayWebhookError::InvalidToken));
     }
 
-    let message = serde_json::from_slice::<PubsubMessage>(&request_body)?;
+    let pubsub_notif = serde_json::from_slice::<PubSubNotification>(&request_body)?;
     let data = base64::decode(
-        message
-            .data
+        pubsub_notif.message.data
     )
     .map_err(|e| ClientError(GooglePlayWebhookError::CannotDecodePubSubData(e)))?;
 
@@ -661,6 +664,7 @@ pub async fn android_notification_webhooks(
     let mut con = server_state.index_db_pool.get().await?;
 
     if let Some(sub_notif) = notification.subscription_notification {
+        println!("THIS IS WHERE ERROR IS THROWN {} {}", sub_notif.subscription_id, sub_notif.purchase_token);
         let purchase = google_play_client::get_subscription(
             &server_state.android_publisher,
             &sub_notif.subscription_id,
@@ -670,6 +674,8 @@ pub async fn android_notification_webhooks(
         .map_err(|e| match e {
             SimpleGCPError::Unexpected(msg) => internal!("{:#?}", msg),
         })?;
+
+        println!("DIDNT GET HERE");
 
         let public_key: PublicKey =
             serde_json::from_str(&purchase.developer_payload.clone().ok_or(internal!(

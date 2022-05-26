@@ -48,6 +48,7 @@ pub async fn cancel_subscription(
 pub async fn get_subscription(
     client: &AndroidPublisher, subscription_id: &str, purchase_token: &str,
 ) -> Result<SubscriptionPurchase, SimpleGCPError> {
+
     return match client
         .purchases()
         .subscriptions_get(PACKAGE_NAME, subscription_id, purchase_token)

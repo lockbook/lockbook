@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use crate::account_service::*;
 use crate::billing::billing_service;
 use crate::billing::billing_service::*;
@@ -163,9 +164,9 @@ pub fn android_notification_webhooks(
         .and(warp::path("android_notification_webhook"))
         .and(warp::any().map(move || Arc::clone(&cloned_state)))
         .and(warp::body::bytes())
-        .and(warp::query::query::<String>())
-        .then(|state: Arc<ServerState>, request: Bytes, auth_token: String| async move {
-            match billing_service::android_notification_webhooks(&state, request, auth_token).await
+        .and(warp::query::query::<HashMap<String, String>>())
+        .then(|state: Arc<ServerState>, request: Bytes, query_parameters: HashMap<String, String>| async move {
+            match billing_service::android_notification_webhooks(&state, request, query_parameters).await
             {
                 Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
                 Err(e) => {

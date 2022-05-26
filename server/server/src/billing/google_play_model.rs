@@ -2,7 +2,12 @@ use serde::Deserialize;
 
 
 #[derive(Debug, Deserialize)]
-pub struct PubsubMessage {
+pub struct PubSubNotification {
+    pub message: PubSubMessage
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PubSubMessage {
     pub data: String
 }
 
@@ -10,26 +15,10 @@ pub struct PubsubMessage {
 #[serde(rename_all = "camelCase")]
 pub struct DeveloperNotification {
     pub version: String,
-    pub package_name: String,
-    pub event_time_millis: u64,
     pub one_time_product_notification: Option<OneTimeProductNotification>,
     pub subscription_notification: Option<SubscriptionNotification>,
     pub test_notification: Option<TestNotification>,
 }
-
-// (1) SUBSCRIPTION_RECOVERED - A subscription was recovered from account hold.
-// (2) SUBSCRIPTION_RENEWED - An active subscription was renewed.
-// (3) SUBSCRIPTION_CANCELED - A subscription was either voluntariy or involuntarily cancelled. For voluntary cancellation, sent when the user cancels.
-// (4) SUBSCRIPTION_PURCHASED - A new subscription was purchased.
-// (5) SUBSCRIPTION_ON_HOLD - A subscription has entered account hold (if enabled).
-// (6) SUBSCRIPTION_IN_GRACE_PERIOD - A subscription has entered grace period (if enabled).
-// (7) SUBSCRIPTION_RESTARTED - User has restored their subscription from Play > Account > Subscriptions. The subscription was canceled but had not expired yet when the user restores. For more information, see [Restorations](/google/play/billing/subscriptions#restore).
-// (8) SUBSCRIPTION_PRICE_CHANGE_CONFIRMED - A subscription price change has successfully been confirmed by the user.
-// (9) SUBSCRIPTION_DEFERRED - A subscription's recurrence time has been extended.
-// (10) SUBSCRIPTION_PAUSED - A subscription has been paused.
-// (11) SUBSCRIPTION_PAUSE_SCHEDULE_CHANGED - A subscription pause schedule has been changed.
-// (12) SUBSCRIPTION_REVOKED - A subscription has been revoked from the user before the expiration time.
-// (13) SUBSCRIPTION_EXPIRED - A subscription has expired.
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
