@@ -3,7 +3,7 @@ use gtk::prelude::*;
 
 pub enum OnboardOp {
     CreateAccount { uname: String, api_url: String },
-    ImportAccount(String),
+    ImportAccount { account_string: String },
 }
 
 pub enum OnboardRoute {
@@ -21,32 +21,19 @@ pub struct OnboardScreen {
     pub cntr: gtk::Box,
 }
 
-#[derive(Clone)]
-pub struct Status {
-    spinner: gtk::Spinner,
-    title: gtk::Label,
-    pub caption: gtk::Label,
-    cntr: gtk::Box,
-}
-
 impl OnboardScreen {
     pub fn new(op_chan: &glib::Sender<OnboardOp>) -> Self {
-        let heading = gtk::Label::builder()
-            .css_classes(vec!["onboard-heading".to_string()])
-            .label("Lockbook")
+        let heading = gtk::Label::new(Some("Lockbook"));
+        heading.add_css_class("onboard-heading");
+
+        let uname_entry = gtk::Entry::builder()
+            .placeholder_text("Pick a username...")
             .build();
-
-        let stack = gtk::Stack::new();
-
-        let error_create = gtk::Label::new(None);
-
-        let uname_entry = gtk::Entry::new();
-        uname_entry.set_placeholder_text(Some("Pick a username..."));
         uname_entry.connect_activate({
             let op_chan = op_chan.clone();
 
             move |entry| {
-                let uname = entry.buffer().text();
+                let uname = entry.text().to_string();
                 let api_url = std::env::var("API_URL")
                     .unwrap_or_else(|_| lb::DEFAULT_API_LOCATION.to_string());
                 op_chan
@@ -55,30 +42,38 @@ impl OnboardScreen {
             }
         });
 
+        let error_create = gtk::Label::builder().wrap(true).build();
+
         let create = gtk::Box::new(gtk::Orientation::Vertical, 0);
         create.append(&uname_entry);
         create.append(&error_create);
-        stack.add_titled(&create, Some("create"), "Create Account");
 
-        let error_import = gtk::Label::new(None);
-
-        let acct_str_entry = gtk::Entry::new();
-        acct_str_entry.set_placeholder_text(Some("Account string..."));
+        let acct_str_entry = gtk::PasswordEntry::builder()
+            .placeholder_text("Account string...")
+            .show_peek_icon(true)
+            .build();
         acct_str_entry.connect_activate({
             let op_chan = op_chan.clone();
 
             move |entry| {
-                let acct_str = entry.buffer().text();
-                op_chan.send(OnboardOp::ImportAccount(acct_str)).unwrap();
+                let account_string = entry.text().to_string();
+                op_chan
+                    .send(OnboardOp::ImportAccount { account_string })
+                    .unwrap();
             }
         });
+
+        let error_import = gtk::Label::builder().wrap(true).build();
 
         let import = gtk::Box::new(gtk::Orientation::Vertical, 0);
         import.append(&acct_str_entry);
         import.append(&error_import);
-        stack.add_titled(&import, Some("import"), "Import Account");
 
         let status = Status::new();
+
+        let stack = gtk::Stack::new();
+        stack.add_titled(&create, Some("create"), "Create Account");
+        stack.add_titled(&import, Some("import"), "Import Account");
         stack.add_named(&status.cntr, Some("status"));
 
         let switcher = gtk::StackSwitcher::builder().stack(&stack).build();
@@ -165,11 +160,19 @@ impl OnboardScreen {
     }
 }
 
+#[derive(Clone)]
+pub struct Status {
+    spinner: gtk::Spinner,
+    title: gtk::Label,
+    pub caption: gtk::Label,
+    cntr: gtk::Box,
+}
+
 impl Status {
     fn new() -> Self {
         let spinner = gtk::Spinner::new();
         let title = gtk::Label::new(None);
-        let caption = gtk::Label::new(None);
+        let caption = gtk::Label::builder().wrap(true).build();
 
         let cntr = gtk::Box::new(gtk::Orientation::Vertical, 16);
         cntr.append(&{
