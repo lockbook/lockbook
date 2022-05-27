@@ -67,7 +67,6 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
 
     // never called
     func pasteboard(_ pasteboard: NSPasteboard?, item: NSPasteboardItem, provideDataForType type: NSPasteboard.PasteboardType) {
-        print("pasteboard inspected")
         let s = "Outline Pasteboard Item"
         item.setString(s, forType: type)
     }

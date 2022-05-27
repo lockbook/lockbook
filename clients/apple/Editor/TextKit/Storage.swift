@@ -14,19 +14,6 @@ public class Storage: NSTextStorage {
     var myChangeInLength: Int = 0
     var us: Bool = true
     var parser: Parser?
-
-    override init() {
-        super.init()
-        print("INIT")
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-    
-    required init?(pasteboardPropertyList propertyList: Any, ofType type: NSPasteboard.PasteboardType) {
-        fatalError("init(pasteboardPropertyList:ofType:) has not been implemented")
-    }
     
     public override var string: String {
         get {

@@ -41,8 +41,4 @@ class FileItemView: NSTableCellView {
             imageView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
         ])
     }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
 }
