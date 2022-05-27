@@ -70,7 +70,6 @@ protocol MenuOutlineViewDelegate : NSOutlineViewDelegate {
 class MenuOutlineView: NSOutlineView {
 
     init() {
-        print("INIT")
         super.init(frame: .zero)
         target = self
         action = #selector(outlineViewClicked(_:))
