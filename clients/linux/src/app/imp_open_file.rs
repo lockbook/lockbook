@@ -33,7 +33,7 @@ impl super::App {
         tab.set_name(&doc.name);
 
         if ui::SUPPORTED_IMAGE_FORMATS.contains(&doc.ext) {
-            tab.set_content(&self.image_content(doc)?);
+            tab.set_content(&image_content(doc)?);
         } else {
             tab.set_content(&self.text_content(doc));
         }
@@ -66,8 +66,8 @@ impl super::App {
         buf.set_language(lang_guess.as_ref());
 
         if doc.ext == "md" {
-            connect_sview_clipboard_paste(self, &txt_ed, &buf, doc.id);
-            connect_sview_drop_controller(self, &txt_ed, &buf, doc.id);
+            connect_sview_clipboard_paste(self, &txt_ed, doc.id);
+            connect_sview_drop_controller(self, &txt_ed, doc.id);
             connect_sview_click_controller(self, &txt_ed);
         }
 
@@ -82,18 +82,18 @@ impl super::App {
 
         txt_ed
     }
+}
 
-    fn image_content(&self, doc: Document) -> Result<ui::ImageTab, String> {
-        let pbuf = Pixbuf::from_read(io::Cursor::new(doc.data)).map_err(|err| err.to_string())?;
-        let pic = gtk::Picture::for_pixbuf(&pbuf);
-        pic.set_halign(gtk::Align::Center);
-        pic.set_valign(gtk::Align::Center);
+fn image_content(doc: Document) -> Result<ui::ImageTab, String> {
+    let pbuf = Pixbuf::from_read(io::Cursor::new(doc.data)).map_err(|err| err.to_string())?;
+    let pic = gtk::Picture::for_pixbuf(&pbuf);
+    pic.set_halign(gtk::Align::Center);
+    pic.set_valign(gtk::Align::Center);
 
-        let img_content = ui::ImageTab::new();
-        img_content.set_picture(&pic);
+    let img_content = ui::ImageTab::new();
+    img_content.set_picture(&pic);
 
-        Ok(img_content)
-    }
+    Ok(img_content)
 }
 
 struct Document {
@@ -109,8 +109,8 @@ fn load_doc(api: &Arc<dyn lb::Api>, id: lb::Uuid) -> Result<Document, String> {
         .file_by_id(id)
         .map(|fm| fm.decrypted_name)
         .map_err(|err| match err {
-            lb::Error::UiError(NoFileWithThatId) => format!("no file with id '{}'", id),
-            lb::Error::Unexpected(msg) => msg,
+            lb::UiError(NoFileWithThatId) => format!("no file with id '{}'", id),
+            lb::Unexpected(msg) => msg,
         })?;
 
     let ext = std::path::Path::new(&name)
@@ -121,84 +121,75 @@ fn load_doc(api: &Arc<dyn lb::Api>, id: lb::Uuid) -> Result<Document, String> {
 
     use lb::ReadDocumentError::*;
     let data = api.read_document(id).map_err(|err| match err {
-        lb::Error::UiError(err) => match err {
+        lb::UiError(err) => match err {
             TreatedFolderAsDocument => "treated folder as document",
             NoAccount => "no account",
             FileDoesNotExist => "file does not exist",
         }
         .to_string(),
-        lb::Error::Unexpected(msg) => msg,
+        lb::Unexpected(msg) => msg,
     })?;
 
     Ok(Document { id, name, ext, data })
 }
 
-fn connect_sview_clipboard_paste(
-    app: &super::App, txt_ed: &ui::TextEditor, buf: &sv5::Buffer, id: lb::Uuid,
-) {
+fn connect_sview_clipboard_paste(app: &super::App, txt_ed: &ui::TextEditor, id: lb::Uuid) {
     let app = app.clone();
-    let buf = buf.clone();
-    txt_ed.editor().connect_paste_clipboard(move |_| {
+    txt_ed.editor().connect_paste_clipboard(move |text_view| {
         let clip = gdk::Display::default().unwrap().clipboard();
+        let buf = text_view.buffer().downcast::<sv5::Buffer>().unwrap();
         let app = app.clone();
-        let buf = buf.clone();
-        clip.clone()
-            .read_texture_async(None::<gio::Cancellable>.as_ref(), move |res| {
-                if let Ok(Some(texture)) = res {
-                    app.sview_insert_texture(id, &buf, texture);
-                    return;
-                }
-                clip.read_value_async(
-                    gdk::FileList::static_type(),
-                    glib::PRIORITY_DEFAULT,
-                    None::<gio::Cancellable>.as_ref(),
-                    move |res| {
-                        if let Ok(value) = res {
-                            if let Ok(flist) = value.get::<gdk::FileList>() {
-                                buf.undo();
-                                app.sview_insert_file_list(id, &buf, flist);
-                            }
+        clip.read_texture_async(None::<gio::Cancellable>.as_ref(), move |res| {
+            if let Ok(Some(texture)) = res {
+                app.sview_insert_texture(id, &buf, texture);
+                return;
+            }
+            let clip = gdk::Display::default().unwrap().clipboard();
+            clip.read_value_async(
+                gdk::FileList::static_type(),
+                glib::PRIORITY_DEFAULT,
+                None::<gio::Cancellable>.as_ref(),
+                move |res| {
+                    if let Ok(value) = res {
+                        if let Ok(flist) = value.get::<gdk::FileList>() {
+                            buf.undo();
+                            app.sview_insert_file_list(id, &buf, flist);
                         }
-                    },
-                );
-            });
+                    }
+                },
+            );
+        });
     });
 }
 
-fn connect_sview_drop_controller(
-    app: &super::App, txt_ed: &ui::TextEditor, buf: &sv5::Buffer, id: lb::Uuid,
-) {
-    txt_ed.editor().add_controller(&{
-        let drop = gtk::DropTarget::new(gdk::FileList::static_type(), gtk::gdk::DragAction::COPY);
+fn connect_sview_drop_controller(app: &super::App, txt_ed: &ui::TextEditor, id: lb::Uuid) {
+    let drop = gtk::DropTarget::new(gdk::FileList::static_type(), gdk::DragAction::COPY);
 
-        let app = app.clone();
-        let buf = buf.clone();
-        drop.connect_drop(move |_, value, _x, _y| {
-            if let Ok(flist) = value.get::<gdk::FileList>() {
-                app.sview_insert_file_list(id, &buf, flist);
-                true
-            } else {
-                false
-            }
-        });
-
-        drop
+    let buf = txt_ed.editor().buffer().downcast::<sv5::Buffer>().unwrap();
+    let app = app.clone();
+    drop.connect_drop(move |_, value, _x, _y| {
+        if let Ok(flist) = value.get::<gdk::FileList>() {
+            app.sview_insert_file_list(id, &buf, flist);
+            true
+        } else {
+            false
+        }
     });
+
+    txt_ed.editor().add_controller(&drop);
 }
 
 fn connect_sview_click_controller(app: &super::App, txt_ed: &ui::TextEditor) {
-    txt_ed.editor().add_controller(&{
-        let g = gtk::GestureClick::new();
-        g.set_button(gtk::gdk::ffi::GDK_BUTTON_PRIMARY as u32);
+    let click = gtk::GestureClick::new();
+    click.set_button(gdk::ffi::GDK_BUTTON_PRIMARY as u32);
 
-        let app = app.clone();
-        let sview = txt_ed.editor().clone();
-        g.connect_pressed(move |g, _, x, y| {
-            if g.current_event_state() == gdk::ModifierType::CONTROL_MASK {
-                app.handle_sview_ctrl_click(g, x as i32, y as i32, &sview);
-            }
-        });
-
-        g
+    let app = app.clone();
+    let sview = txt_ed.editor().clone();
+    click.connect_pressed(move |click, _, x, y| {
+        if click.current_event_state() == gdk::ModifierType::CONTROL_MASK {
+            app.handle_sview_ctrl_click(click, x as i32, y as i32, &sview);
+        }
     });
+
+    txt_ed.editor().add_controller(&click);
 }
