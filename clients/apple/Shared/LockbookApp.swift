@@ -10,7 +10,7 @@ import SwiftLockbookCore
         WindowGroup {
             AppView()
                 .realDI()
-                .buttonStyle(PlainButtonStyle())
+                .buttonStyle(PlainButtonStyle())    
                 .ignoresSafeArea()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onBackground {
@@ -20,6 +20,8 @@ import SwiftLockbookCore
                     DI.sync.sync()
                 }
         }.commands {
+            CommandGroup(replacing: CommandGroupPlacement.newItem) {
+            }
             CommandMenu("Lockbook") {
                 Button("Sync", action: { DI.sync.sync() }).keyboardShortcut("S", modifiers: .command)
             }
