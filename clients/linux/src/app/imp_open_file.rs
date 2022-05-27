@@ -66,9 +66,10 @@ impl super::App {
         buf.set_language(lang_guess.as_ref());
 
         if doc.ext == "md" {
-            connect_sview_clipboard_paste(self, &txt_ed, doc.id);
-            connect_sview_drop_controller(self, &txt_ed, doc.id);
-            connect_sview_click_controller(self, &txt_ed);
+            let account_op_tx = &self.account.op_chan;
+            connect_sview_clipboard_paste(account_op_tx, &txt_ed, doc.id);
+            connect_sview_drop_controller(account_op_tx, &txt_ed, doc.id);
+            connect_sview_click_controller(account_op_tx, &txt_ed);
         }
 
         let id = doc.id;
@@ -133,17 +134,24 @@ fn load_doc(api: &Arc<dyn lb::Api>, id: lb::Uuid) -> Result<Document, String> {
     Ok(Document { id, name, ext, data })
 }
 
-fn connect_sview_clipboard_paste(app: &super::App, txt_ed: &ui::TextEditor, id: lb::Uuid) {
-    let app = app.clone();
+fn connect_sview_clipboard_paste(
+    op_chan: &glib::Sender<ui::AccountOp>, txt_ed: &ui::TextEditor, id: lb::Uuid,
+) {
+    let op_chan = op_chan.clone();
     txt_ed.editor().connect_paste_clipboard(move |text_view| {
-        let clip = gdk::Display::default().unwrap().clipboard();
+        let op_chan = op_chan.clone();
         let buf = text_view.buffer().downcast::<sv5::Buffer>().unwrap();
-        let app = app.clone();
+
+        let clip = gdk::Display::default().unwrap().clipboard();
         clip.read_texture_async(None::<gio::Cancellable>.as_ref(), move |res| {
             if let Ok(Some(texture)) = res {
-                app.sview_insert_texture(id, &buf, texture);
+                op_chan
+                    .send(ui::AccountOp::SviewInsertTexture { id, buf, texture })
+                    .unwrap();
                 return;
             }
+
+            let buf = buf.clone();
             let clip = gdk::Display::default().unwrap().clipboard();
             clip.read_value_async(
                 gdk::FileList::static_type(),
@@ -153,7 +161,9 @@ fn connect_sview_clipboard_paste(app: &super::App, txt_ed: &ui::TextEditor, id: 
                     if let Ok(value) = res {
                         if let Ok(flist) = value.get::<gdk::FileList>() {
                             buf.undo();
-                            app.sview_insert_file_list(id, &buf, flist);
+                            op_chan
+                                .send(ui::AccountOp::SviewInsertFileList { id, buf, flist })
+                                .unwrap();
                         }
                     }
                 },
@@ -162,14 +172,19 @@ fn connect_sview_clipboard_paste(app: &super::App, txt_ed: &ui::TextEditor, id: 
     });
 }
 
-fn connect_sview_drop_controller(app: &super::App, txt_ed: &ui::TextEditor, id: lb::Uuid) {
+fn connect_sview_drop_controller(
+    op_chan: &glib::Sender<ui::AccountOp>, txt_ed: &ui::TextEditor, id: lb::Uuid,
+) {
     let drop = gtk::DropTarget::new(gdk::FileList::static_type(), gdk::DragAction::COPY);
 
+    let op_chan = op_chan.clone();
     let buf = txt_ed.editor().buffer().downcast::<sv5::Buffer>().unwrap();
-    let app = app.clone();
     drop.connect_drop(move |_, value, _x, _y| {
         if let Ok(flist) = value.get::<gdk::FileList>() {
-            app.sview_insert_file_list(id, &buf, flist);
+            let buf = buf.clone();
+            op_chan
+                .send(ui::AccountOp::SviewInsertFileList { id, buf, flist })
+                .unwrap();
             true
         } else {
             false
@@ -179,15 +194,21 @@ fn connect_sview_drop_controller(app: &super::App, txt_ed: &ui::TextEditor, id: 
     txt_ed.editor().add_controller(&drop);
 }
 
-fn connect_sview_click_controller(app: &super::App, txt_ed: &ui::TextEditor) {
+fn connect_sview_click_controller(op_chan: &glib::Sender<ui::AccountOp>, txt_ed: &ui::TextEditor) {
     let click = gtk::GestureClick::new();
     click.set_button(gdk::ffi::GDK_BUTTON_PRIMARY as u32);
 
-    let app = app.clone();
+    let op_chan = op_chan.clone();
     let sview = txt_ed.editor().clone();
     click.connect_pressed(move |click, _, x, y| {
         if click.current_event_state() == gdk::ModifierType::CONTROL_MASK {
-            app.handle_sview_ctrl_click(click, x as i32, y as i32, &sview);
+            let op_msg = ui::AccountOp::SviewCtrlClick {
+                click: click.clone(),
+                x: x as i32,
+                y: y as i32,
+                sview: sview.clone(),
+            };
+            op_chan.send(op_msg).unwrap();
         }
     });
 
