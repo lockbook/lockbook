@@ -35,6 +35,7 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
         let parent = item as? DecryptedFileMetadata
         let siblings = DI.files.childrenOf(parent)
         let node = siblings[index]
+        print(node.decryptedName)
         return node
     }
 
@@ -96,7 +97,6 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
         }
         return menu
     }
-
 
     func outlineView(
             _ outlineView: NSOutlineView,

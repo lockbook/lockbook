@@ -14,6 +14,19 @@ public class Storage: NSTextStorage {
     var myChangeInLength: Int = 0
     var us: Bool = true
     var parser: Parser?
+
+    override init() {
+        super.init()
+        print("INIT")
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    required init?(pasteboardPropertyList propertyList: Any, ofType type: NSPasteboard.PasteboardType) {
+        fatalError("init(pasteboardPropertyList:ofType:) has not been implemented")
+    }
     
     public override var string: String {
         get {
@@ -31,7 +44,7 @@ public class Storage: NSTextStorage {
         myEditedRange = range
         myChangeInLength = string.utf16.count - range.length
         
-        self.edited(.editedCharacters, range: range, changeInLength: myChangeInLength)
+        edited(.editedCharacters, range: range, changeInLength: myChangeInLength)
     }
     
     public func syntaxHighlight() {
@@ -80,6 +93,6 @@ public class Storage: NSTextStorage {
         if us {
             backingStore.setAttributes(attrs, range: range)
         }
-        self.edited(.editedAttributes, range: range, changeInLength: 0)
+        edited(.editedAttributes, range: range, changeInLength: 0)
     }
 }

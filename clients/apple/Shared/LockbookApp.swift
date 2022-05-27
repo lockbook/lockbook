@@ -10,7 +10,7 @@ import SwiftLockbookCore
         WindowGroup {
             AppView()
                 .realDI()
-                .buttonStyle(PlainButtonStyle())    
+                .buttonStyle(PlainButtonStyle())
                 .ignoresSafeArea()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onBackground {
