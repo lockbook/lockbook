@@ -22,6 +22,7 @@ public struct DecryptedFileMetadata: Codable, Identifiable, Equatable, Hashable,
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
+        hasher.combine(decryptedName)
     }
 
     public static func <(lhs: DecryptedFileMetadata, rhs: DecryptedFileMetadata) -> Bool {

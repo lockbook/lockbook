@@ -3,8 +3,6 @@ import SwiftLockbookCore
 
 struct FileTreeView: NSViewRepresentable {
 
-    @Binding var currentSelection: DecryptedFileMetadata?
-
     let scrollView = NSScrollView()
     let treeView = MenuOutlineView()
     let delegate = TreeDelegate()
@@ -14,18 +12,21 @@ struct FileTreeView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         
-        delegate.documentSelected = { currentSelection = $0 }
+        delegate.documentSelected = {
+            DI.currentDoc.selectedItem = $0
+        }
         
         scrollView.documentView = treeView
         scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalRuler = true
+        scrollView.horizontalScrollElasticity = .none
+        scrollView.hasHorizontalScroller = false
+        scrollView.hasHorizontalRuler = false
         scrollView.drawsBackground = false
 
         treeView.autoresizesOutlineColumn = true
         treeView.headerView = nil
         treeView.usesAutomaticRowHeights = true
-        treeView.style = .fullWidth
-        treeView.backgroundColor = .clear
+
         treeView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
 
         treeView.registerForDraggedTypes([NSPasteboard.PasteboardType(DataSource.REORDER_PASTEBOARD_TYPE)])
@@ -37,6 +38,7 @@ struct FileTreeView: NSViewRepresentable {
         
         let onlyColumn = NSTableColumn()
         onlyColumn.resizingMask = .autoresizingMask
+        onlyColumn.minWidth = 100
         treeView.addTableColumn(onlyColumn)
 
         treeView.dataSource = dataSource
@@ -48,6 +50,16 @@ struct FileTreeView: NSViewRepresentable {
     
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         treeView.reloadData()
+        // Should this happen in the delegate?
+        for row in 0...treeView.numberOfRows {
+            if let item = treeView.item(atRow: row) as? DecryptedFileMetadata {
+                if let selection = DI.currentDoc.selectedItem {
+                    if item.id == selection.id {
+                        treeView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                    }
+                }
+            }
+        }
     }
 }
 
