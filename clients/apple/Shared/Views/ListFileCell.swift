@@ -13,6 +13,7 @@ struct FileCell: View {
     var body: some View {
         cell
                 .contextMenu(menuItems: {
+                    // TODO: disast: https://stackoverflow.com/questions/70159437/context-menu-not-updating-in-swiftui
                     Button(action: handleDelete) {
                         Label("Delete", systemImage: "trash.fill")
                     }
