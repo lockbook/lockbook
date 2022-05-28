@@ -35,6 +35,7 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
         let parent = item as? DecryptedFileMetadata
         let siblings = DI.files.childrenOf(parent)
         let node = siblings[index]
+        print(node.decryptedName)
         return node
     }
 
@@ -66,7 +67,6 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
 
     // never called
     func pasteboard(_ pasteboard: NSPasteboard?, item: NSPasteboardItem, provideDataForType type: NSPasteboard.PasteboardType) {
-        print("pasteboard inspected")
         let s = "Outline Pasteboard Item"
         item.setString(s, forType: type)
     }
@@ -96,7 +96,6 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
         }
         return menu
     }
-
 
     func outlineView(
             _ outlineView: NSOutlineView,

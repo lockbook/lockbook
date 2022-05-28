@@ -2,18 +2,24 @@ import SwiftUI
 import SwiftLockbookCore
 
 struct FileListView: View {
-    
-    @State var currentSelection: DecryptedFileMetadata? = nil
-    
+
     var body: some View {
         VStack {
-            FileTreeView(currentSelection: $currentSelection)
+            FileTreeView()
             VStack (spacing: 3) {
                 BottomBar()
             }
         }
         
-        if let selected = currentSelection {
+        DetailView()
+    }
+}
+
+struct DetailView: View {
+    @EnvironmentObject var currentSelection: CurrentDocument
+
+    var body: some View {
+        if let selected = currentSelection.selectedItem {
             DocumentView(meta: selected)
         }
     }

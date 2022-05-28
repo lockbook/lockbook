@@ -240,7 +240,7 @@ class DocumentLoader: ObservableObject {
             #else
             return .Drawing
             #endif
-        } else if name.lowercased().hasSuffix(".md") || name.lowercased().hasSuffix(".markdown") {
+        } else if name.lowercased().hasSuffix(".md") || name.lowercased().hasSuffix(".markdown") || name.lowercased().hasSuffix(".txt") {
             return .Markdown
         } else {
             return .Unknown

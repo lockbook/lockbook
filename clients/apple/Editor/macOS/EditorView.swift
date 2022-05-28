@@ -2,12 +2,12 @@ import Foundation
 import SwiftUI
 
 struct EditorView: NSViewRepresentable {
-    
+
     @EnvironmentObject var model: DocumentLoader
     let frame: CGRect
-    let storage = Storage()
-    
+
     func makeNSView(context: Context) -> NSScrollView {
+        let storage = Storage()
         let scrollView = NSScrollView()
 
         let layoutManager = NSLayoutManager()
@@ -17,11 +17,11 @@ struct EditorView: NSViewRepresentable {
         let textContainer = NSTextContainer(containerSize: scrollView.frame.size)
         textContainer.widthTracksTextView = true
         textContainer.containerSize = NSSize(
-            width: scrollView.contentSize.width,
-            height: CGFloat.greatestFiniteMagnitude
+                width: scrollView.contentSize.width,
+                height: CGFloat.greatestFiniteMagnitude
         )
         layoutManager.addTextContainer(textContainer)
-        
+
         let textView = CustomNSTextView(frame: .zero, textContainer: textContainer)
         textView.autoresizingMask = .width
         textView.isVerticallyResizable = true
@@ -31,38 +31,42 @@ struct EditorView: NSViewRepresentable {
         textView.textContainerInset = NSSize(width: horizontalInset(), height: 20)
         textView.string = model.textDocument!
         textView.allowsUndo = true
+        storage.name = model.meta!.decryptedName
         storage.syntaxHighlight()
-        
+
         scrollView.documentView = textView
         scrollView.hasVerticalScroller = true
         return scrollView
     }
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator(textChange: updateModel)
     }
-    
+
     func updateModel(update: String) {
         model.textDocument = update
     }
-    
+
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         if let nsView = scroll.documentView as? NSTextView {
             nsView.textContainerInset = NSSize(width: horizontalInset(), height: 20)
             if model.reloadContent {
                 model.reloadContent = false
                 nsView.string = model.textDocument!
-                
+
+                let storage = (nsView.textStorage as! Storage)
+
                 // Seems like that let doesn't store the same ref
-                (nsView.textStorage as! Storage).syntaxHighlight()
+                storage.name = model.meta!.decryptedName
+                storage.syntaxHighlight()
             }
         }
     }
-    
+
     func horizontalInset() -> CGFloat {
         let maxDocumentWidth = 600
         let minInset = 25
-        
+
         var inset = minInset
         print(frame.width, CGFloat(maxDocumentWidth + minInset * 2))
         if frame.width > CGFloat(maxDocumentWidth + minInset * 2) {
@@ -74,11 +78,11 @@ struct EditorView: NSViewRepresentable {
 
 class Coordinator: NSObject, NSTextViewDelegate {
     public var onTextChange: (String) -> Void
-    
+
     init(textChange: @escaping (String) -> Void) {
-        self.onTextChange = textChange
+        onTextChange = textChange
     }
-    
+
     public func textDidChange(_ notification: Notification) {
         guard let textView = notification.object as? NSTextView else {
             print("textview not a textview")
@@ -88,9 +92,9 @@ class Coordinator: NSObject, NSTextViewDelegate {
             print("Wrong storage type attached to this textview")
             return
         }
-        
+
         storage.syntaxHighlight()
-        
+
         onTextChange(textView.string)
     }
 }
