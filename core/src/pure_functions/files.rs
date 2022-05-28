@@ -155,13 +155,13 @@ fn validate_file_name(name: &str) -> Result<(), CoreError> {
 }
 
 pub fn suggest_non_conflicting_filename(
-    id: Uuid, files: &[DecryptedFileMetadata], staged_changes: &[DecryptedFileMetadata],
+    id: Uuid, files: &HashMap<Uuid, DecryptedFileMetadata>, staged_changes: &[DecryptedFileMetadata],
 ) -> Result<String, CoreError> {
-    let files: Vec<DecryptedFileMetadata> = files
-        .stage(staged_changes)
-        .iter()
-        .map(|(f, _)| f.clone())
-        .collect();
+    let files: HashMap<Uuid, DecryptedFileMetadata> = files
+        .stage(metadata_changes)
+        .into_iter()
+        .map(|(id, (f, _))| (id, f))
+        .collect::<HashMap<Uuid, DecryptedFileMetadata>>();
 
     let file = files.find(id)?;
     let sibblings = files.find_children(file.parent);
@@ -169,7 +169,7 @@ pub fn suggest_non_conflicting_filename(
     let mut new_name = NameComponents::from(&file.decrypted_name).generate_next();
     loop {
         if !sibblings
-            .iter()
+            .values()
             .any(|f| f.decrypted_name == new_name.to_name())
         {
             return Ok(new_name.to_name());
@@ -207,7 +207,7 @@ pub fn maybe_find_state<Fm: FileMetadata>(
     } == target_id).cloned()
 }
 
-pub fn find_ancestors<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Vec<Fm> {
+pub fn find_ancestors<Fm: FileMetadata>(files: &HashMap::<Uuid, Fm>, target_id: Uuid) -> HashMap::<Uuid, Fm> {
     let mut result = Vec::new();
     let mut current_target_id = target_id;
     while let Some(target) = files.maybe_find(current_target_id) {

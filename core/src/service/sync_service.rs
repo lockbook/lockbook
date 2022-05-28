@@ -12,7 +12,7 @@ use lockbook_models::api::{
 };
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
-use lockbook_models::tree::FileMetaExt;
+use lockbook_models::tree::{FileMetaExt, TEMP_FileMetaExt};
 use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
 use std::fmt;
@@ -330,8 +330,8 @@ fn get_resolved_document(
             copied_local_metadata.id,
             &all_metadata_state
                 .iter()
-                .map(|rs| rs.clone().local())
-                .collect::<Vec<DecryptedFileMetadata>>(),
+                .map(|rs| (rs.local().id, rs.clone().local()))
+                .collect::<HashMap<Uuid, DecryptedFileMetadata>>(),
             &[copied_local_metadata.clone()],
         )?;
     }
@@ -404,7 +404,7 @@ impl Tx<'_> {
         let account = &self.get_account()?;
         let base_metadata = self.get_all_metadata(RepoSource::Base)?;
         let base_max_metadata_version = base_metadata
-            .iter()
+            .values()
             .map(|f| f.metadata_version)
             .max()
             .unwrap_or(0);
@@ -438,9 +438,9 @@ impl Tx<'_> {
             .count();
         update_sync_progress(SyncProgressOperation::IncrementTotalWork(num_documents_to_pull));
 
-        let mut base_metadata_updates = Vec::new();
+        let mut base_metadata_updates = HashMap::new();
+        let mut local_metadata_updates = HashMap::new();
         let mut base_document_updates = Vec::new();
-        let mut local_metadata_updates = Vec::new();
         let mut local_document_updates = Vec::new();
 
         // iterate changes
@@ -463,8 +463,8 @@ impl Tx<'_> {
                 maybe_local_metadatum.clone(),
                 Some(remote_metadatum.clone()),
             )?;
-            base_metadata_updates.push(remote_metadatum.clone()); // update base to remote
-            local_metadata_updates.push(merged_metadatum.clone()); // update local to merged
+            base_metadata_updates.put(remote_metadatum.id, remote_metadatum.clone()); // update base to remote
+            local_metadata_updates.put(merged_metadatum.id, merged_metadatum.clone()); // update local to merged
 
             // merge document content
             if should_pull_document(
@@ -502,9 +502,9 @@ impl Tx<'_> {
                     } => {
                         base_document_updates
                             .push((remote_metadata.clone(), remote_document.clone())); // update base to remote
-                        local_metadata_updates.push(remote_metadata.clone()); // reset conflicted local
+                        local_metadata_updates.put(remote_metadata.id, remote_metadata.clone()); // reset conflicted local
                         local_document_updates.push((remote_metadata.clone(), remote_document)); // reset conflicted local
-                        local_metadata_updates.push(copied_local_metadata.clone()); // new local metadata from merge
+                        local_metadata_updates.put(copied_local_metadata.id, copied_local_metadata.clone()); // new local metadata from merge
                         local_document_updates
                             .push((copied_local_metadata.clone(), copied_local_document));
                         // new local document from merge
@@ -514,23 +514,23 @@ impl Tx<'_> {
         }
 
         // deleted orphaned updates
-        for orphan in remote_orphans {
-            if let Some(mut metadatum) = base_metadata.maybe_find(orphan.id) {
-                if let Some(mut metadatum_update) = base_metadata_updates.maybe_find_mut(orphan.id)
+        for (id, _) in remote_orphans {
+            if let Some(mut metadatum) = base_metadata.maybe_find(id) {
+                if let Some(mut metadatum_update) = base_metadata_updates.maybe_find_mut(id)
                 {
                     metadatum_update.deleted = true;
                 } else {
                     metadatum.deleted = true;
-                    base_metadata_updates.push(metadatum);
+                    base_metadata_updates.put(metadatum.id, metadatum);
                 }
             }
-            if let Some(mut metadatum) = local_metadata.maybe_find(orphan.id) {
-                if let Some(mut metadatum_update) = local_metadata_updates.maybe_find_mut(orphan.id)
+            if let Some(mut metadatum) = local_metadata.maybe_find(id) {
+                if let Some(mut metadatum_update) = local_metadata_updates.maybe_find_mut(id)
                 {
                     metadatum_update.deleted = true;
                 } else {
                     metadatum.deleted = true;
-                    local_metadata_updates.push(metadatum);
+                    local_metadata_updates.put(metadatum.id, metadatum);
                 }
             }
         }
@@ -547,7 +547,7 @@ impl Tx<'_> {
                         existing_update.parent = base.parent;
                     } else {
                         local.parent = base.parent;
-                        local_metadata_updates.push(local);
+                        local_metadata_updates.put(local.id, local);
                     }
                 }
             }
@@ -569,7 +569,7 @@ impl Tx<'_> {
             } else {
                 let mut new_metadatum_update = local_metadata.find(path_conflict.existing)?;
                 new_metadatum_update.decrypted_name = conflict_name;
-                local_metadata_updates.push(new_metadatum_update);
+                local_metadata_updates.put(new_metadatum_update.id, new_metadatum_update);
             }
         }
 
@@ -663,7 +663,7 @@ impl Tx<'_> {
         let account = &self.get_account()?;
         let base_metadata = self.get_all_metadata(RepoSource::Base)?;
         let base_max_metadata_version = base_metadata
-            .iter()
+            .values()
             .map(|f| f.metadata_version)
             .max()
             .unwrap_or(0);

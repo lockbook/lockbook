@@ -360,7 +360,7 @@ pub trait TEMP_FileMetaExt<T: FileMetadata> {
     fn filter_documents(&self) -> HashMap<Uuid, T>;
     fn get_invalid_cycles(
         &self, staged_changes: &HashMap<Uuid, T>,
-    ) -> Result<HashMap<Uuid, T>, TreeError>;
+    ) -> Result<Vec<Uuid>, TreeError>;
     fn get_path_conflicts(
         &self, staged_changes: &HashMap<Uuid, T>,
     ) -> Result<Vec<PathConflict>, TreeError>;
@@ -499,16 +499,16 @@ where
 
     fn get_invalid_cycles(
         &self, staged_changes: &HashMap<Uuid, Fm>,
-    ) -> Result<HashMap<Uuid, Fm>, TreeError> {
+    ) -> Result<Vec<Uuid>, TreeError> {
         let mut prev_checked = HashMap::new();
-        let mut result = HashMap::new();
+        let mut result = Vec::new();
         for (_, f) in staged_changes.clone().into_iter() {
             let mut checking = HashMap::new();
             let mut cur = &f;
             while cur.parent() != cur.id() && prev_checked.get(&cur.id()).is_none() {
                 // if it isn't root
                 if checking.contains_key(&cur.id()) {
-                    result.extend(checking.clone());
+                    result.extend(checking.keys());
                     break;
                 }
                 checking.insert(cur.id(), cur.clone());
@@ -571,7 +571,7 @@ where
             .into_iter()
             .next();
         if let Some(self_descendant) = maybe_self_descendant {
-            return Err(TestFileTreeError::CycleDetected(self_descendant.0));
+            return Err(TestFileTreeError::CycleDetected(self_descendant));
         }
 
         let maybe_doc_with_children = self

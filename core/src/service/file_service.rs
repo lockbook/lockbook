@@ -47,12 +47,12 @@ impl Tx<'_> {
     pub fn insert_metadatum(
         &mut self, config: &Config, source: RepoSource, metadata: &DecryptedFileMetadata,
     ) -> Result<(), CoreError> {
-        self.insert_metadata(config, source, HashMap::from([(metadata.id, metadata.clone())]))
+        self.insert_metadata(config, source, &HashMap::from([(metadata.id, metadata.clone())]))
     }
 
     pub fn insert_metadata(
         &mut self, config: &Config, source: RepoSource,
-        metadata_changes: HashMap<Uuid, DecryptedFileMetadata>,
+        metadata_changes: &HashMap<Uuid, DecryptedFileMetadata>,
     ) -> Result<(), CoreError> {
         let all_metadata = self.get_all_metadata(source)?;
         self.insert_metadata_given_decrypted_metadata(
@@ -286,9 +286,9 @@ impl Tx<'_> {
 
         // exclude files with not deleted descendants i.e. exclude files that are the ancestors of not deleted files
         let all_ids = all_base_metadata
-            .iter()
-            .chain(all_local_metadata.iter())
-            .map(|f| f.id)
+            .keys()
+            .chain(all_local_metadata.keys())
+            .cloned()
             .collect::<HashSet<Uuid>>();
         let not_deleted_either_ids = all_ids
             .into_iter()
@@ -296,13 +296,11 @@ impl Tx<'_> {
             .collect::<HashSet<Uuid>>();
         let ancestors_of_not_deleted_base_ids = not_deleted_either_ids
             .iter()
-            .flat_map(|&id| files::find_ancestors(&all_base_metadata, id))
-            .map(|f| f.id)
+            .flat_map(|&id| files::find_ancestors(&all_base_metadata, id).into_keys())
             .collect::<HashSet<Uuid>>();
         let ancestors_of_not_deleted_local_ids = not_deleted_either_ids
             .iter()
-            .flat_map(|&id| files::find_ancestors(&all_local_metadata, id))
-            .map(|f| f.id)
+            .flat_map(|&id| files::find_ancestors(&all_local_metadata, id).into_keys())
             .collect::<HashSet<Uuid>>();
         let deleted_both_without_deleted_descendants_ids =
             prune_eligible_metadata.into_iter().filter(|f| {
@@ -399,7 +397,7 @@ impl Tx<'_> {
     }
 
     pub fn get_all_metadata_with_encrypted_changes(
-        &self, source: RepoSource, changes: &HashMap<Uuid, EncryptedFileMetadata>,
+        &self, source: RepoSource, changes: &[EncryptedFileMetadata],
     ) -> Result<
         (HashMap<Uuid, DecryptedFileMetadata>, HashMap<Uuid, EncryptedFileMetadata>),
         CoreError,
@@ -418,6 +416,7 @@ impl Tx<'_> {
             }
             RepoSource::Base => base,
         };
+
 
         let staged = sourced
             .stage(changes)
@@ -505,7 +504,7 @@ impl Tx<'_> {
         Ok(())
     }
 
-    pub fn get_all_metadata_changes(&self) -> Result<HashMap<Uuid, FileMetadataDiff>, CoreError> {
+    pub fn get_all_metadata_changes(&self) -> Result<Vec<FileMetadataDiff>, CoreError> {
         let local = self.local_metadata.get_all().into_values().collect_vec();
         let base = self.base_metadata.get_all().into_values().collect_vec();
 
