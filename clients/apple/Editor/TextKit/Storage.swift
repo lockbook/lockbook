@@ -7,7 +7,8 @@ import AppKit
 import Down
 
 public class Storage: NSTextStorage {
-    
+
+    var name: String?
     var backingStore = NSMutableAttributedString()
     var currentStyles: [AttributeRange] = []
     var myEditedRange: NSRange?
@@ -35,6 +36,12 @@ public class Storage: NSTextStorage {
     }
     
     public func syntaxHighlight() {
+        if let name = name {
+            if name.hasSuffix(".txt") || name.hasSuffix(".text") {
+                return
+            }
+        }
+
         us = true
         print()
         var startingPoint = Date()
