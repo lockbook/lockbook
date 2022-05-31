@@ -13,9 +13,10 @@ import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.SerializersModuleBuilder
 import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
+import timber.log.Timber
 
 object CoreModel {
-    private const val PROD_API_URL = "https://814b-2601-86-680-28c0-00-86f0.ngrok.io"
+    private const val PROD_API_URL = "https://b69a-76-117-52-200.ngrok.io"
     private fun getAPIURL(): String = System.getenv("API_URL") ?: PROD_API_URL
 
     private fun <O, E : Enum<E>> SerializersModuleBuilder.createPolyRelation(
@@ -33,9 +34,9 @@ object CoreModel {
         }
     }
 
-    private inline fun <reified C, reified E> Json.tryParse(json: String): Result<C, CoreError<E>>
+    private inline fun <reified C, reified E> Json.tryParse(json: String, isNullable: Boolean  = false): Result<C, CoreError<E>>
             where E : Enum<E>, E : UiCoreError = try {
-        decodeFromString<IntermCoreResult<C, E>>(json).toResult()
+        decodeFromString<IntermCoreResult<C, E>>(json).toResult(isNullable)
     } catch (e: Exception) {
         Err(CoreError.Unexpected("Cannot parse json."))
     }
@@ -310,15 +311,15 @@ object CoreModel {
             app.lockbook.core.calculateWork()
         )
 
-    private val confirmAndroidSubscriptionParser = Json {
+    private val upgradeAccountAndroidParser = Json {
         serializersModule = SerializersModule {
-            createPolyRelation(Unit.serializer(), ConfirmAndroidSubscriptionError.serializer())
+            createPolyRelation(Unit.serializer(), UpgradeAccountAndroid.serializer())
         }
     }
 
-    fun confirmAndroidSubscription(purchaseToken: String): Result<Boolean, CoreError<ConfirmAndroidSubscriptionError>> =
-        confirmAndroidSubscriptionParser.tryParse(
-            app.lockbook.core.confirmAndroidSubscription(purchaseToken)
+    fun upgradeAccountAndroid(purchaseToken: String, accountID: String): Result<Boolean, CoreError<UpgradeAccountAndroid>> =
+        upgradeAccountAndroidParser.tryParse(
+            app.lockbook.core.upgradeAccountAndroid(purchaseToken, accountID)
         )
 
     private val cancelSubscriptionParser = Json {
@@ -334,12 +335,17 @@ object CoreModel {
 
     private val getSubscriptionInfoParser = Json {
         serializersModule = SerializersModule {
-            createPolyRelation(Unit.serializer(), GetSubscriptionInfoError.serializer())
+            createPolyRelation(SubscriptionInfo.serializer(), GetSubscriptionInfoError.serializer())
+            ignoreUnknownKeys = true
         }
     }
 
-    fun getSubscriptionInfo(): Result<SubscriptionInfo, CoreError<GetSubscriptionInfoError>> =
-        getSubscriptionInfoParser.tryParse(
-            app.lockbook.core.getSubscriptionInfo()
+    fun getSubscriptionInfo(): Result<SubscriptionInfo?, CoreError<GetSubscriptionInfoError>> {
+        Timber.e("THE SUB INFO: ${app.lockbook.core.getSubscriptionInfo()}")
+
+        return getSubscriptionInfoParser.tryParse(
+            app.lockbook.core.getSubscriptionInfo(),
+            true
         )
+    }
 }

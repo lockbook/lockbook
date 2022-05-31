@@ -89,8 +89,8 @@ pub fn core_routes(
         .or(core_req!(DeleteAccountRequest, delete_account, server_state))
         .or(core_req!(GetCreditCardRequest, get_credit_card, server_state))
         .or(core_req!(
-            ConfirmAndroidSubscriptionRequest,
-            confirm_android_subscription,
+            UpgradeAccountAndroidRequest,
+            upgrade_account_android,
             server_state
         ))
         .or(core_req!(CancelSubscriptionRequest, cancel_subscription, server_state))

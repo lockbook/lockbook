@@ -127,6 +127,7 @@
 
     <string name="settings_cancel_sub_confirmation_title">Cancel Subscription</string>
     <string name="settings_cancel_sub_confirmation_details">Are you sure you want to cancel your lockbook subscription?</string>
+    <string name="settings_cancel_completed">Your lockbook subscription has been canceled.</string>
     <string name="yes">Yes</string>
     <string name="no">No</string>
 
@@ -137,6 +138,9 @@
     <string name="before_you_start">Before you start…</string>
     <string name="before_you_start_description">Lockbook <a href="https://en.wikipedia.org/wiki/End-to-end_encryption">encrypts</a> your notes with a key that stays on your Lockbook devices. This makes your notes unreadable to anyone but you. If you lose the key, your notes are not recoverable, so we recommend you make a backup in case something happens to this device.</string>
     <string name="drawing_parse_error">Could not open drawing.</string>
+    <string name="payment_platform">Payment Platform:</string>
+    <string name="next_renewal_day">Next Renewal Date:</string>
+    <string name="expiration_day">Expiration Day:</string>
 
     <!-- Errors -->
     <string name="no_account">You have no account.</string>
@@ -169,7 +173,7 @@
     <string name="new_account_disabled">This server is not accepting any new accounts at this moment. Please try again another time.</string>
     <string name="already_premium">Error, you are already premium.</string>
     <string name="invalid_purchase_token">Failed to verify purchase..</string>
-    <string name="concurrent_requests_are_too_soon">You are accessing billing too quickly, please try again in a minute.</string>
+    <string name="too_many_requests_too_soon">You are accessing billing too quickly, please try again in a minute.</string>
     <string name="not_premium">Error, you are not premium.</string>
     <string name="usage_is_over_free_tier_data_cap">Your totally data usage exceeds free tier, please remove some data.</string>
 

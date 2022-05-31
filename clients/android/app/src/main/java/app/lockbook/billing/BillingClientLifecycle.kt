@@ -10,31 +10,39 @@ import app.lockbook.util.LbError
 import app.lockbook.util.SingleMutableLiveData
 import com.android.billingclient.api.*
 import com.android.billingclient.api.BillingClient.BillingResponseCode
+import timber.log.Timber
+import java.util.*
 
 class BillingClientLifecycle private constructor(
     private val applicationContext: Context
 ) : DefaultLifecycleObserver,
     PurchasesUpdatedListener,
     BillingClientStateListener,
-    ProductDetailsResponseListener {
+    ProductDetailsResponseListener,
+    PurchasesResponseListener{
 
-    private lateinit var billingClient: BillingClient
+    private val billingClient: BillingClient by lazy {
+        BillingClient.newBuilder(applicationContext)
+            .setListener(this)
+            .enablePendingPurchases()
+            .build()
+    }
     private var productDetails: ProductDetails? = null
-
     private val _billingEvent = SingleMutableLiveData<BillingEvent>()
 
     val billingEvent: LiveData<BillingEvent>
         get() = _billingEvent
 
     override fun onCreate(owner: LifecycleOwner) {
-        billingClient = BillingClient.newBuilder(applicationContext)
-            .setListener(this)
-            .enablePendingPurchases()
-            .build()
 
         if (!billingClient.isReady) {
             billingClient.startConnection(this)
         }
+    }
+
+    fun showInAppMessaging(activity: Activity) {
+        val inAppMessageParams = InAppMessageParams.newBuilder().addInAppMessageCategoryToShow(InAppMessageParams.InAppMessageCategoryId.TRANSACTIONAL).addAllInAppMessageCategoriesToShow().build()
+        billingClient.showInAppMessages(activity, inAppMessageParams) {}
     }
 
     override fun onDestroy(owner: LifecycleOwner) {
@@ -43,28 +51,48 @@ class BillingClientLifecycle private constructor(
         }
     }
 
-    override fun onPurchasesUpdated(
+    private fun consumePurchase(
         billingResult: BillingResult,
         purchases: MutableList<Purchase>?
     ) {
-        when (billingResult.responseCode) {
-            BillingResponseCode.OK -> {
-                when {
-                    purchases?.size == 1 && purchases[0].purchaseToken == PREMIUM_PRODUCT_ID -> {
-                        _billingEvent.postValue(BillingEvent.SuccessfulPurchase(purchases[0].purchaseToken))
-                    }
-                    else -> {
-                        _billingEvent.postValue(BillingEvent.NotifyError(LbError.basicError(applicationContext.resources)))
-                    }
+        val billingResponse = BillingResponse(billingResult.responseCode)
+        Timber.e(billingResult.debugMessage)
+
+        when {
+            billingResponse.isOk && purchases?.size == 1 && purchases[0].accountIdentifiers?.obfuscatedAccountId != null-> {
+                if (!purchases[0].isAcknowledged) {
+                    _billingEvent.postValue(BillingEvent.SuccessfulPurchase(purchases[0].purchaseToken, purchases[0].accountIdentifiers!!.obfuscatedAccountId!!))
                 }
             }
-            BillingResponseCode.USER_CANCELED -> _billingEvent.postValue(BillingEvent.Canceled)
-            else -> _billingEvent.postValue(BillingEvent.NotifyError(LbError.basicError(applicationContext.resources)))
+            billingResponse.isUnRecoverableError -> {
+                _billingEvent.postValue(BillingEvent.NotifyUnrecoverableError)
+            }
+            billingResponse.isCancelable -> {}
+            else -> {
+                _billingEvent.postValue(
+                    BillingEvent.NotifyError(
+                        LbError.basicError(
+                            applicationContext.resources
+                        )
+                    )
+                )
+            }
         }
     }
 
     override fun onBillingServiceDisconnected() {
         billingClient.startConnection(this)
+    }
+
+    override fun onPurchasesUpdated(
+        billingResult: BillingResult,
+        purchases: MutableList<Purchase>?
+    ) {
+        consumePurchase(billingResult, purchases)
+    }
+
+    override fun onQueryPurchasesResponse(billingResult: BillingResult, purchases: MutableList<Purchase>) {
+        consumePurchase(billingResult, purchases)
     }
 
     override fun onBillingSetupFinished(billingResult: BillingResult) {
@@ -78,7 +106,12 @@ class BillingClientLifecycle private constructor(
                 }
             ).build()
 
+            val queryPurchasesParams = QueryPurchasesParams.newBuilder()
+                .setProductType(BillingClient.ProductType.SUBS)
+                .build()
+
             billingClient.queryProductDetailsAsync(queryProductParams, this)
+            billingClient.queryPurchasesAsync(queryPurchasesParams, this)
         }
     }
 
@@ -128,11 +161,12 @@ class BillingClientLifecycle private constructor(
                         .build()
                 )
             )
+            .setObfuscatedAccountId(UUID.randomUUID().toString())
             .build()
     }
 
     companion object {
-        const val PREMIUM_PRODUCT_ID = "app.lockbook.premium_subscription"
+        private const val PREMIUM_PRODUCT_ID = "app.lockbook.premium_subscription"
 
         const val PREMIUM_MONTHLY_OFFER_ID = "monthly"
 
@@ -151,8 +185,7 @@ class BillingClientLifecycle private constructor(
 }
 
 sealed class BillingEvent {
-    data class SuccessfulPurchase(val purchaseToken: String) : BillingEvent()
-    object Canceled : BillingEvent()
+    data class SuccessfulPurchase(val purchaseToken: String, val accountId: String) : BillingEvent()
     object NotifyUnrecoverableError : BillingEvent()
     data class NotifyError(val error: LbError) : BillingEvent()
 }
@@ -162,9 +195,11 @@ private value class BillingResponse(val code: Int) {
     val isOk: Boolean
         get() = code == BillingResponseCode.OK
 
+    val isCancelable: Boolean
+        get() = code == BillingResponseCode.USER_CANCELED
+
     val isRecoverableError: Boolean
         get() = code in setOf(
-            BillingResponseCode.ERROR,
             BillingResponseCode.SERVICE_DISCONNECTED,
         )
 

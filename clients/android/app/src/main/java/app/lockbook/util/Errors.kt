@@ -25,9 +25,15 @@ abstract class IntermCoreResult<O, E>
     class CoreErr<E>(val content: IntermCoreError<E>) : IntermCoreResult<Unit, E>()
             where E : Enum<E>, E : UiCoreError
 
-    fun toResult(): Result<O, CoreError<E>> {
+    fun toResult(isNullable: Boolean = false): Result<O, CoreError<E>> {
         return when (this) {
-            is CoreOk -> Ok(content ?: Unit as O)
+            is CoreOk -> {
+                if(isNullable) {
+                    Ok(content as O)
+                } else {
+                    Ok(content ?: Unit as O)
+                }
+            }
             is CoreErr -> when (content) {
                 is IntermCoreError.UiError -> {
                     Err(CoreError.UiError(content.content))
@@ -339,15 +345,15 @@ enum class CalculateWorkError : UiCoreError {
 }
 
 @Serializable
-enum class ConfirmAndroidSubscriptionError : UiCoreError {
+enum class UpgradeAccountAndroid : UiCoreError {
     AlreadyPremium,
     InvalidPurchaseToken,
-    ConcurrentRequestsAreTooSoon;
+    TooManyRequestsTooSoon;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         AlreadyPremium -> LbError.newUserError(getString(res, R.string.already_premium))
         InvalidPurchaseToken -> LbError.newUserError(getString(res, R.string.invalid_purchase_token))
-        ConcurrentRequestsAreTooSoon -> LbError.newUserError(getString(res, R.string.concurrent_requests_are_too_soon))
+        TooManyRequestsTooSoon -> LbError.newUserError(getString(res, R.string.too_many_requests_too_soon))
     }
 }
 
@@ -355,20 +361,23 @@ enum class ConfirmAndroidSubscriptionError : UiCoreError {
 enum class CancelSubscriptionError : UiCoreError {
     NotPremium,
     UsageIsOverFreeTierDataCap,
-    ConcurrentRequestsAreTooSoon;
+    TooManyRequestsTooSoon;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         NotPremium -> LbError.newUserError(getString(res, R.string.not_premium))
         UsageIsOverFreeTierDataCap -> LbError.newUserError(getString(res, R.string.usage_is_over_free_tier_data_cap))
-        ConcurrentRequestsAreTooSoon -> LbError.newUserError(getString(res, R.string.concurrent_requests_are_too_soon))
+        TooManyRequestsTooSoon -> LbError.newUserError(getString(res, R.string.too_many_requests_too_soon))
     }
 }
 
 @Serializable
 enum class GetSubscriptionInfoError : UiCoreError {
-    NotPremium;
+    CouldNotReachServer,
+    ClientUpdateRequired;
+
     override fun toLbError(res: Resources): LbError = when (this) {
-        NotPremium -> LbError.newUserError(getString(res, R.string.not_premium))
+        CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
+        ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
     }
 }
 

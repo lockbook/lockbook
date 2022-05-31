@@ -71,6 +71,7 @@ pub fn verify_client_version<Req: Request>(
         "0.3.17" => Ok(()),
         "0.4.0" => Ok(()),
         "0.4.1" => Ok(()),
+        "0.4.2" => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
         _ => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
     }
 }

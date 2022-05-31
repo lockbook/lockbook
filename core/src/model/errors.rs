@@ -79,7 +79,6 @@ pub enum CoreError {
     AccountNonexistent,
     AccountStringCorrupted,
     AlreadyPremium,
-    ConcurrentRequestsAreTooSoon,
     CardDecline,
     CardHasInsufficientFunds,
     TryAgain,
@@ -116,6 +115,7 @@ pub enum CoreError {
     RootModificationInvalid,
     RootNonexistent,
     ServerUnreachable,
+    TooManyRequestsTooSoon,
     UsageIsOverFreeTierDataCap,
     UsernameInvalid,
     UsernamePublicKeyMismatch,
@@ -738,7 +738,7 @@ pub enum UpgradeAccountStripeError {
     ExpiredCard,
     ClientUpdateRequired,
     CurrentUsageIsMoreThanNewTier,
-    ConcurrentRequestsAreTooSoon,
+    TooManyRequestsTooSoon,
 }
 
 impl From<CoreError> for Error<UpgradeAccountStripeError> {
@@ -766,8 +766,8 @@ impl From<CoreError> for Error<UpgradeAccountStripeError> {
                 UiError(UpgradeAccountStripeError::CurrentUsageIsMoreThanNewTier)
             }
             CoreError::AccountNonexistent => UiError(UpgradeAccountStripeError::NoAccount),
-            CoreError::ConcurrentRequestsAreTooSoon => {
-                UiError(UpgradeAccountStripeError::ConcurrentRequestsAreTooSoon)
+            CoreError::TooManyRequestsTooSoon => {
+                UiError(UpgradeAccountStripeError::TooManyRequestsTooSoon)
             }
             CoreError::ClientUpdateRequired => {
                 UiError(UpgradeAccountStripeError::ClientUpdateRequired)
@@ -798,26 +798,26 @@ impl From<CoreError> for Error<GetCreditCard> {
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum ConfirmAndroidSubscriptionError {
+pub enum UpgradeAccountAndroidError {
     AlreadyPremium,
     InvalidPurchaseToken,
-    ConcurrentRequestsAreTooSoon,
+    TooManyRequestsTooSoon,
     CouldNotReachServer,
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<ConfirmAndroidSubscriptionError> {
+impl From<CoreError> for Error<UpgradeAccountAndroidError> {
     fn from(e: CoreError) -> Self {
         match e {
-            CoreError::AlreadyPremium => UiError(ConfirmAndroidSubscriptionError::AlreadyPremium),
+            CoreError::AlreadyPremium => UiError(UpgradeAccountAndroidError::AlreadyPremium),
             CoreError::InvalidPurchaseToken => {
-                UiError(ConfirmAndroidSubscriptionError::InvalidPurchaseToken)
+                UiError(UpgradeAccountAndroidError::InvalidPurchaseToken)
             }
-            CoreError::ConcurrentRequestsAreTooSoon => {
-                UiError(ConfirmAndroidSubscriptionError::ConcurrentRequestsAreTooSoon)
+            CoreError::TooManyRequestsTooSoon => {
+                UiError(UpgradeAccountAndroidError::TooManyRequestsTooSoon)
             }
-            CoreError::ServerUnreachable => UiError(ConfirmAndroidSubscriptionError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => UiError(ConfirmAndroidSubscriptionError::ClientUpdateRequired),
+            CoreError::ServerUnreachable => UiError(UpgradeAccountAndroidError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(UpgradeAccountAndroidError::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -827,7 +827,7 @@ impl From<CoreError> for Error<ConfirmAndroidSubscriptionError> {
 pub enum CancelSubscriptionError {
     NotPremium,
     UsageIsOverFreeTierDataCap,
-    ConcurrentRequestsAreTooSoon,
+    TooManyRequestsTooSoon,
     CouldNotReachServer,
     ClientUpdateRequired,
 }
@@ -839,8 +839,8 @@ impl From<CoreError> for Error<CancelSubscriptionError> {
             CoreError::UsageIsOverFreeTierDataCap => {
                 UiError(CancelSubscriptionError::UsageIsOverFreeTierDataCap)
             }
-            CoreError::ConcurrentRequestsAreTooSoon => {
-                UiError(CancelSubscriptionError::ConcurrentRequestsAreTooSoon)
+            CoreError::TooManyRequestsTooSoon => {
+                UiError(CancelSubscriptionError::TooManyRequestsTooSoon)
             }
             CoreError::ServerUnreachable => UiError(CancelSubscriptionError::CouldNotReachServer),
             CoreError::ClientUpdateRequired => UiError(CancelSubscriptionError::ClientUpdateRequired),
@@ -851,7 +851,6 @@ impl From<CoreError> for Error<CancelSubscriptionError> {
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum GetSubscriptionInfoError {
-    NotPremium,
     CouldNotReachServer,
     ClientUpdateRequired,
 }
@@ -859,7 +858,6 @@ pub enum GetSubscriptionInfoError {
 impl From<CoreError> for Error<GetSubscriptionInfoError> {
     fn from(e: CoreError) -> Self {
         match e {
-            CoreError::NotPremium => UiError(GetSubscriptionInfoError::NotPremium),
             CoreError::ServerUnreachable => UiError(GetSubscriptionInfoError::CouldNotReachServer),
             CoreError::ClientUpdateRequired => UiError(GetSubscriptionInfoError::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),

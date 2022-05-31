@@ -295,7 +295,7 @@ pub enum GetCreditCardError {
 impl Request for GetCreditCardRequest {
     type Response = GetCreditCardResponse;
     type Error = GetCreditCardError;
-    const METHOD: Method = Method::POST;
+    const METHOD: Method = Method::GET;
     const ROUTE: &'static str = "/get-credit-card";
 }
 
@@ -331,7 +331,7 @@ pub enum UpgradeAccountStripeError {
     InvalidCardExpYear,
     InvalidCardExpMonth,
     InvalidCardCvc,
-    ConcurrentRequestsAreTooSoon,
+    TooManyRequestsTooSoon,
     UserNotFound,
 }
 
@@ -343,23 +343,24 @@ impl Request for UpgradeAccountStripeRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct ConfirmAndroidSubscriptionRequest {
+pub struct UpgradeAccountAndroidRequest {
     pub purchase_token: String,
+    pub account_id: String
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct ConfirmAndroidSubscriptionResponse {}
+pub struct UpgradeAccountAndroidResponse {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum ConfirmAndroidSubscriptionError {
+pub enum UpgradeAccountAndroidError {
     InvalidPurchaseToken,
     AlreadyPremium,
-    ConcurrentRequestsAreTooSoon,
+    TooManyRequestsTooSoon,
 }
 
-impl Request for ConfirmAndroidSubscriptionRequest {
-    type Response = ConfirmAndroidSubscriptionResponse;
-    type Error = ConfirmAndroidSubscriptionError;
+impl Request for UpgradeAccountAndroidRequest {
+    type Response = UpgradeAccountAndroidResponse;
+    type Error = UpgradeAccountAndroidError;
     const METHOD: Method = Method::POST;
     const ROUTE: &'static str = "/confirm-android-subscription";
 }
@@ -374,7 +375,7 @@ pub struct CancelSubscriptionResponse {}
 pub enum CancelSubscriptionError {
     NotPremium,
     UsageIsOverFreeTierDataCap,
-    ConcurrentRequestsAreTooSoon,
+    TooManyRequestsTooSoon,
 }
 
 impl Request for CancelSubscriptionRequest {
@@ -388,21 +389,33 @@ impl Request for CancelSubscriptionRequest {
 pub struct GetSubscriptionInfoRequest {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum PaymentPlatform {
-    Stripe { card_last_4_digits: String },
-    GooglePlay,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct GetSubscriptionInfoResponse {
+pub struct SubscriptionInfo {
     pub payment_platform: PaymentPlatform,
     pub period_end: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum GetSubscriptionInfoError {
-    NotPremium,
+#[serde(tag = "tag")]
+pub enum PaymentPlatform {
+    Stripe { card_last_4_digits: String },
+    GooglePlay { account_state: GooglePlayAccountState },
 }
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum GooglePlayAccountState {
+    Ok,
+    Canceled,
+    AccountHold,
+    Other
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetSubscriptionInfoResponse {
+    pub subscription_info: Option<SubscriptionInfo>
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum GetSubscriptionInfoError {}
 
 impl Request for GetSubscriptionInfoRequest {
     type Response = GetSubscriptionInfoResponse;

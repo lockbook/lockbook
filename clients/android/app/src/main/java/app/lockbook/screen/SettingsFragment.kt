@@ -10,6 +10,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.PopupWindow
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
@@ -20,6 +21,8 @@ import app.lockbook.model.*
 import app.lockbook.ui.NumberPickerPreference
 import app.lockbook.ui.NumberPickerPreferenceDialog
 import app.lockbook.ui.UsageBarPreference
+import app.lockbook.util.GooglePlayAccountState
+import app.lockbook.util.PaymentPlatform
 import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -29,11 +32,19 @@ import java.io.File
 import java.lang.ref.WeakReference
 
 class SettingsFragment : PreferenceFragmentCompat() {
+
+    val onUpgrade =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            if(it.resultCode == SUCCESSFUL_SUBSCRIPTION_PURCHASE) {
+                model.updateUsage()
+            }
+        }
+
     val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
     }
 
-    private val model: SettingsViewModel by viewModels(
+    val model: SettingsViewModel by viewModels(
         factoryProducer = {
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -50,13 +61,15 @@ class SettingsFragment : PreferenceFragmentCompat() {
         setUpPreferences()
     }
 
+
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
         model.canceledSubscription.observe(
             viewLifecycleOwner
         ) {
-
+            alertModel.notify(getString(R.string.settings_cancel_completed))
         }
 
         model.determineSettingsInfo.observe(
@@ -64,6 +77,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
         ) { settingsInfo ->
             addDataToPreferences(settingsInfo)
         }
+
         model.notifyError.observe(
             viewLifecycleOwner
         ) { error ->
@@ -72,8 +86,14 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun addDataToPreferences(settingsInfo: SettingsInfo) {
-        findPreference<PreferenceCategory>(getString(R.string.premium_key))!!.isVisible = settingsInfo.usage.dataCap.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES
-        findPreference<UsageBarPreference>(getString(R.string.usage_bar_key))!!.setUpUsagePreference(settingsInfo.usage, settingsInfo.uncompressedUsage)
+        if(settingsInfo.usage.dataCap.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES) {
+            findPreference<PreferenceCategory>(getString(R.string.premium_key))!!.isVisible = true
+            findPreference<Preference>(getString(R.string.cancel_subscription_key))!!.isVisible = (settingsInfo.subscriptionInfo?.paymentPlatform as? PaymentPlatform.GooglePlay)?.accountState == GooglePlayAccountState.Ok
+
+            if((settingsInfo.subscriptionInfo?.paymentPlatform as? PaymentPlatform.GooglePlay)?.accountState == GooglePlayAccountState.OnHold) {
+                
+            }
+        }
     }
 
     private fun setUpPreferences() {

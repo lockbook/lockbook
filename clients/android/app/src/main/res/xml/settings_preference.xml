@@ -5,18 +5,6 @@
     android:layout_height="match_parent">
 
     <PreferenceCategory
-        android:key="@string/premium_key"
-        android:icon="@drawable/ic_baseline_paid_24"
-        android:title="@string/settings_premium">
-        <Preference
-            android:key="@string/cancel_subscription_key"
-            app:title="@string/settings_cancel_subscription"/>
-        <Preference
-            android:key="@string/subscription_info_key"
-            app:layout="@layout/preference_subscription_info" />
-    </PreferenceCategory>
-
-    <PreferenceCategory
         android:icon="@drawable/ic_baseline_bug_report_24"
         android:title="@string/settings_preference_debug">
         <Preference
@@ -107,5 +95,20 @@
             android:title="@string/settings_open_new_document_automatically"
             app:iconSpaceReserved="false" />
 
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="@string/premium_key"
+        android:icon="@drawable/ic_baseline_paid_24"
+        android:title="@string/settings_premium"
+        app:isPreferenceVisible="false">
+        <Preference
+            android:key="@string/cancel_subscription_key"
+            app:title="@string/settings_cancel_subscription"
+            app:iconSpaceReserved="false" />
+
+        <app.lockbook.ui.SubscriptionInfoPreference
+            android:key="@string/subscription_info_key"
+            app:iconSpaceReserved="false" />
     </PreferenceCategory>
 </PreferenceScreen>

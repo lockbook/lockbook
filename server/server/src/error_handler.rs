@@ -5,7 +5,7 @@ use crate::{
 };
 use deadpool_redis::PoolError;
 use lockbook_models::api::{
-    CancelSubscriptionError, ConfirmAndroidSubscriptionError, GetUsageError,
+    CancelSubscriptionError, UpgradeAccountAndroidError, GetUsageError,
     UpgradeAccountStripeError,
 };
 use redis::RedisError;
@@ -69,7 +69,7 @@ impl From<GetUsageHelperError> for ServerError<GetUsageError> {
     }
 }
 
-impl From<SimpleGCPError> for ServerError<ConfirmAndroidSubscriptionError> {
+impl From<SimpleGCPError> for ServerError<UpgradeAccountAndroidError> {
     fn from(e: SimpleGCPError) -> Self {
         match e {
             SimpleGCPError::Unexpected(msg) => internal!("{}", msg),
@@ -84,12 +84,6 @@ impl From<SimpleGCPError> for ServerError<CancelSubscriptionError> {
         }
     }
 }
-
-// impl From<RedisError> for LockBillingWorkflowError {
-//     fn from(err: RedisError) -> Self {
-//         LockBillingWorkflowError::Unexpected(format!("Redis Error: {:?}", err))
-//     }
-// }
 
 impl From<SimplifiedStripeError> for ServerError<UpgradeAccountStripeError> {
     fn from(e: SimplifiedStripeError) -> Self {

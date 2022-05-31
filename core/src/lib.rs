@@ -4,7 +4,7 @@ extern crate reqwest;
 #[macro_use]
 extern crate tracing;
 
-use crate::billing_service::{CreditCardLast4Digits, SubscriptionInfo};
+use crate::billing_service::CreditCardLast4Digits;
 use crate::model::errors::*;
 use crate::model::repo::RepoSource;
 use crate::path_service::Filter;
@@ -22,7 +22,7 @@ use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
-use lockbook_models::api::{StripeAccountTier};
+use lockbook_models::api::{StripeAccountTier, SubscriptionInfo};
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
@@ -372,12 +372,12 @@ impl Core {
     }
 
     #[instrument(level = "debug", skip(purchase_token), err(Debug))]
-    pub fn confirm_android_subscription(
-        &self, purchase_token: &str,
-    ) -> Result<(), Error<ConfirmAndroidSubscriptionError>> {
+    pub fn upgrade_account_android(
+        &self, purchase_token: &str, account_id: &str
+    ) -> Result<(), Error<UpgradeAccountAndroidError>> {
         let val = self
             .db
-            .transaction(|tx| tx.confirm_android_subscription(purchase_token))?;
+            .transaction(|tx| tx.upgrade_account_android(purchase_token, account_id))?;
         Ok(val?)
     }
 
@@ -390,7 +390,7 @@ impl Core {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn get_subscription_info(
         &self,
-    ) -> Result<SubscriptionInfo, Error<GetSubscriptionInfoError>> {
+    ) -> Result<Option<SubscriptionInfo>, Error<GetSubscriptionInfoError>> {
         let val = self.db.transaction(|tx| tx.get_subscription_info())?;
         Ok(val?)
     }

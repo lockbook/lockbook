@@ -31,8 +31,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         updateUsage()
     }
 
-    private fun updateUsage() {
+    fun updateUsage() {
         viewModelScope.launch(Dispatchers.IO) {
+            computeUsage()
+        }
+    }
+
+    private fun computeUsage() {
             when (val usageResult = CoreModel.getUsage()) {
                 is Ok -> when (val uncompressedUsageResult = CoreModel.getUncompressedUsage()) {
                     is Ok ->
@@ -48,13 +53,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 }
                 is Err -> _notifyError.postValue(usageResult.error.toLbError(getRes()))
             }
-        }
     }
 
     fun cancelSubscription() {
         viewModelScope.launch(Dispatchers.IO) {
             when(val cancelResult = CoreModel.cancelSubscription()) {
-                is Ok -> _canceledSubscription.postValue(Unit)
+                is Ok -> {
+                    _canceledSubscription.postValue(Unit)
+                    computeUsage()
+                }
                 is Err -> _notifyError.postValue(cancelResult.error.toLbError(getRes()))
             }
         }

@@ -2,6 +2,7 @@ package app.lockbook.util
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonClassDiscriminator
 
 @Serializable
 data class DecryptedFileMetadata(
@@ -77,29 +78,36 @@ data class FileUsage(
     val sizeBytes: Int,
 )
 
-// pub struct SubscriptionInfo {
-//    pub payment_platform: PaymentPlatform,
-//    pub period_end: u64
-// }
-
 @Serializable
 data class SubscriptionInfo(
     @SerialName("payment_platform")
     val paymentPlatform: PaymentPlatform,
     @SerialName("period_end")
-    val periodEnd: Int
+    val periodEnd: Long
 )
 
 @Serializable
+@JsonClassDiscriminator("tag")
 sealed class PaymentPlatform {
-    object GooglePlay : PaymentPlatform()
+    @Serializable
+    @SerialName("GooglePlay")
+    data class GooglePlay(
+        @SerialName("account_state")
+        val accountState: GooglePlayAccountState
+    ): PaymentPlatform()
+
+    @Serializable
+    @SerialName("Stripe")
     data class Stripe(
         @SerialName("card_last_4_digits")
         val cardLast4Digits: String
-    ) : PaymentPlatform()
-
-    fun intoAccountTier() = when (this) {
-        is GooglePlay -> {}
-        is Stripe -> {}
-    }
+    ): PaymentPlatform()
 }
+
+enum class GooglePlayAccountState {
+    Ok,
+    Canceled,
+    OnHold,
+    Other
+}
+

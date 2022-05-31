@@ -2,21 +2,9 @@ use crate::model::errors::core_err_unexpected;
 use crate::service::api_service;
 use crate::service::api_service::ApiError;
 use crate::{CoreError, Tx};
-use lockbook_models::api::{
-    CancelSubscriptionError, CancelSubscriptionRequest, ConfirmAndroidSubscriptionError,
-    ConfirmAndroidSubscriptionRequest, GetCreditCardError, GetCreditCardRequest,
-    GetSubscriptionInfoError, GetSubscriptionInfoRequest, PaymentPlatform,
-    StripeAccountTier, UpgradeAccountStripeError, UpgradeAccountStripeRequest,
-};
-use serde::Serialize;
+use lockbook_models::api::{CancelSubscriptionError, CancelSubscriptionRequest, UpgradeAccountAndroidError, UpgradeAccountAndroidRequest, GetCreditCardError, GetCreditCardRequest, GetSubscriptionInfoRequest, StripeAccountTier, UpgradeAccountStripeError, UpgradeAccountStripeRequest, SubscriptionInfo};
 
 pub type CreditCardLast4Digits = String;
-
-#[derive(Serialize)]
-pub struct SubscriptionInfo {
-    pub payment_platform: PaymentPlatform,
-    pub period_end: u64,
-}
 
 impl Tx<'_> {
     pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> Result<(), CoreError> {
@@ -42,8 +30,8 @@ impl Tx<'_> {
                     UpgradeAccountStripeError::TryAgain => CoreError::TryAgain,
                     UpgradeAccountStripeError::CardNotSupported => CoreError::CardNotSupported,
                     UpgradeAccountStripeError::ExpiredCard => CoreError::ExpiredCard,
-                    UpgradeAccountStripeError::ConcurrentRequestsAreTooSoon => {
-                        CoreError::ConcurrentRequestsAreTooSoon
+                    UpgradeAccountStripeError::TooManyRequestsTooSoon => {
+                        CoreError::TooManyRequestsTooSoon
                     }
                     UpgradeAccountStripeError::UserNotFound => CoreError::AccountNonexistent,
                 },
@@ -69,22 +57,22 @@ impl Tx<'_> {
             .credit_card_last_4_digits)
     }
 
-    pub fn confirm_android_subscription(&self, purchase_token: &str) -> Result<(), CoreError> {
+    pub fn upgrade_account_android(&self, purchase_token: &str, account_id: &str) -> Result<(), CoreError> {
         let account = self.get_account()?;
 
         api_service::request(
             &account,
-            ConfirmAndroidSubscriptionRequest { purchase_token: purchase_token.to_string() },
+            UpgradeAccountAndroidRequest { purchase_token: purchase_token.to_string(), account_id: account_id.to_string() },
         )
         .map_err(|err| match err {
-            ApiError::Endpoint(ConfirmAndroidSubscriptionError::AlreadyPremium) => {
+            ApiError::Endpoint(UpgradeAccountAndroidError::AlreadyPremium) => {
                 CoreError::AlreadyPremium
             }
-            ApiError::Endpoint(ConfirmAndroidSubscriptionError::InvalidPurchaseToken) => {
+            ApiError::Endpoint(UpgradeAccountAndroidError::InvalidPurchaseToken) => {
                 CoreError::InvalidPurchaseToken
             }
-            ApiError::Endpoint(ConfirmAndroidSubscriptionError::ConcurrentRequestsAreTooSoon) => {
-                CoreError::ConcurrentRequestsAreTooSoon
+            ApiError::Endpoint(UpgradeAccountAndroidError::TooManyRequestsTooSoon) => {
+                CoreError::TooManyRequestsTooSoon
             }
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
@@ -102,8 +90,8 @@ impl Tx<'_> {
             ApiError::Endpoint(CancelSubscriptionError::UsageIsOverFreeTierDataCap) => {
                 CoreError::UsageIsOverFreeTierDataCap
             }
-            ApiError::Endpoint(CancelSubscriptionError::ConcurrentRequestsAreTooSoon) => {
-                CoreError::ConcurrentRequestsAreTooSoon
+            ApiError::Endpoint(CancelSubscriptionError::TooManyRequestsTooSoon) => {
+                CoreError::TooManyRequestsTooSoon
             }
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
@@ -113,20 +101,15 @@ impl Tx<'_> {
         Ok(())
     }
 
-    pub fn get_subscription_info(&self) -> Result<SubscriptionInfo, CoreError> {
+    pub fn get_subscription_info(&self) -> Result<Option<SubscriptionInfo>, CoreError> {
         let account = self.get_account()?;
 
-        api_service::request(&account, GetSubscriptionInfoRequest {})
+        Ok(api_service::request(&account, GetSubscriptionInfoRequest {})
             .map_err(|err| match err {
-                ApiError::Endpoint(GetSubscriptionInfoError::NotPremium) => CoreError::NotPremium,
                 ApiError::SendFailed(_) => CoreError::ServerUnreachable,
                 ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
-            })
-            .map(|resp| SubscriptionInfo {
-                payment_platform: resp.payment_platform,
-                period_end: resp.period_end,
-            })
+            })?.subscription_info)
     }
 }
 

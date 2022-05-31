@@ -4,7 +4,7 @@ use std::sync::Mutex;
 pub use uuid::Uuid;
 
 pub use lockbook_models::account::Account;
-pub use lockbook_models::api::AccountTier;
+pub use lockbook_models::api::StripeAccountTier;
 pub use lockbook_models::api::PaymentMethod;
 pub use lockbook_models::crypto::DecryptedDocument;
 pub use lockbook_models::file_metadata::DecryptedFileMetadata as FileMetadata;
@@ -36,7 +36,7 @@ pub use lockbook_core::model::errors::ImportFileError;
 pub use lockbook_core::model::errors::MoveFileError;
 pub use lockbook_core::model::errors::ReadDocumentError;
 pub use lockbook_core::model::errors::RenameFileError;
-pub use lockbook_core::model::errors::SwitchAccountTierError;
+pub use lockbook_core::model::errors::UpgradeAccountStripeError;
 pub use lockbook_core::model::errors::SyncAllError;
 pub use lockbook_core::model::errors::WriteToDocumentError as WriteDocumentError;
 
@@ -101,9 +101,9 @@ pub trait Api: Send + Sync {
     fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError>;
 
     fn get_credit_card(&self) -> Result<Option<CreditCardLast4Digits>, String>;
-    fn switch_account_tier(
-        &self, new_tier: AccountTier,
-    ) -> Result<(), Error<SwitchAccountTierError>>;
+    fn upgrade_account(
+        &self, new_tier: StripeAccountTier,
+    ) -> Result<(), Error<UpgradeAccountStripeError>>;
 }
 
 pub enum SyncProgressReport {
@@ -288,17 +288,17 @@ impl Api for DefaultApi {
                     ClientUpdateRequired => {
                         Err("You are using an out-of-date app. Please upgrade!".to_string())
                     }
-                    NotAStripeCustomer => Ok(None),
+                    NoCardAdded => Ok(None),
                 },
                 Unexpected(err) => Err(err),
             },
         }
     }
 
-    fn switch_account_tier(
-        &self, new_tier: AccountTier,
-    ) -> Result<(), Error<SwitchAccountTierError>> {
-        self.core.switch_account_tier(new_tier)
+    fn upgrade_account(
+        &self, new_tier: StripeAccountTier,
+    ) -> Result<(), Error<UpgradeAccountStripeError>> {
+        self.core.upgrade_account_stripe(new_tier)
     }
 }
 

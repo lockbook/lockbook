@@ -167,8 +167,8 @@ impl super::App {
                         let api = api.clone();
 
                         move || {
-                            let new_tier = lb::AccountTier::Premium(method);
-                            let result = api.switch_account_tier(new_tier);
+                            let new_tier = lb::StripeAccountTier::Premium(method);
+                            let result = api.upgrade_account(new_tier);
                             tx.send(result).unwrap();
                         }
                     });
@@ -379,8 +379,8 @@ fn grid_val(txt: &str) -> gtk::Label {
         .build()
 }
 
-fn payment_err_to_string(err: lb::Error<lb::SwitchAccountTierError>) -> String {
-    use lb::SwitchAccountTierError::*;
+fn payment_err_to_string(err: lb::Error<lb::UpgradeAccountStripeError>) -> String {
+    use lb::UpgradeAccountStripeError::*;
     match err {
         lb::UiError(err) => match err {
             NoAccount => "No account!",
@@ -400,7 +400,7 @@ fn payment_err_to_string(err: lb::Error<lb::SwitchAccountTierError>) -> String {
             CurrentUsageIsMoreThanNewTier => {
                 "Your current usage is greater than the data cap of your desired subscription tier."
             }
-            ConcurrentRequestsAreTooSoon => "ConcurrentRequestsAreTooSoon",
+            TooManyRequestsTooSoon => "ConcurrentRequestsAreTooSoon",
         }
         .to_string(),
         lb::Unexpected(err) => err,

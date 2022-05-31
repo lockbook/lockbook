@@ -1,15 +1,16 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use lockbook_models::api::GooglePlayAccountState;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct BillingLock {
+pub struct SubscriptionHistory {
     pub info: Vec<BillingInfo>,
     pub last_in_payment_flow: u64,
 }
 
-impl Default for BillingLock {
+impl Default for SubscriptionHistory {
     fn default() -> Self {
-        BillingLock { info: vec![], last_in_payment_flow: 0 }
+        SubscriptionHistory { info: vec![], last_in_payment_flow: 0 }
     }
 }
 
@@ -25,6 +26,7 @@ pub struct GooglePlayUserInfo {
     pub subscription_product_id: String,
     pub subscription_offer_id: String,
     pub expiration_time: u64,
+    pub account_state: GooglePlayAccountState
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

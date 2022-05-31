@@ -25,6 +25,6 @@ external fun syncAll(fragment: Any): String
 external fun backgroundSync(): String
 external fun calculateWork(): String
 external fun getAllErrorVariants(): String
-external fun confirmAndroidSubscription(purchaseToken: String): String
+external fun upgradeAccountAndroid(purchaseToken: String, obfuscatedID: String): String
 external fun cancelSubscription(): String
 external fun getSubscriptionInfo(): String

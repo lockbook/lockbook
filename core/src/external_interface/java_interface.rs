@@ -519,10 +519,15 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateWork(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_confirmAndroidSubscription(
-    env: JNIEnv, _: JClass, jpurchase_token: JString,
+pub extern "system" fn Java_app_lockbook_core_CoreKt_upgradeAccountAndroid(
+    env: JNIEnv, _: JClass, jpurchase_token: JString, jaccount_id: JString
 ) -> jstring {
     let purchase_token = &match jstring_to_string(&env, jpurchase_token, "purchase token") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let account_id = &match jstring_to_string(&env, jaccount_id, "account id") {
         Ok(ok) => ok,
         Err(err) => return err,
     };
@@ -530,14 +535,14 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_confirmAndroidSubscription(
     string_to_jstring(
         &env,
         match static_state::get() {
-            Ok(core) => translate(core.confirm_android_subscription(purchase_token)),
+            Ok(core) => translate(core.upgrade_account_android(purchase_token, account_id)),
             e => translate(e.map(|_| ())),
         },
     )
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_cancel_subscription(
+pub extern "system" fn Java_app_lockbook_core_CoreKt_cancelSubscription(
     env: JNIEnv, _: JClass,
 ) -> jstring {
     string_to_jstring(
@@ -550,7 +555,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_cancel_subscription(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_get_subscription_info(
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getSubscriptionInfo(
     env: JNIEnv, _: JClass,
 ) -> jstring {
     string_to_jstring(

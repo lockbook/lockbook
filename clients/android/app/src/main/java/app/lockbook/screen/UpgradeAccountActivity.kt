@@ -9,15 +9,12 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.res.ResourcesCompat
 import app.lockbook.App
 import app.lockbook.R
-import app.lockbook.billing.BillingClientLifecycle
 import app.lockbook.billing.BillingEvent
 import app.lockbook.databinding.ActivityUpgradeAccountBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
-import app.lockbook.util.Animate
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import com.google.android.material.bottomsheet.BottomSheetDialog
 import kotlinx.coroutines.*
 import java.lang.ref.WeakReference
 
@@ -74,30 +71,28 @@ class UpgradeAccountActivity : AppCompatActivity() {
 
     private fun handleBillingEvent(billingEvent: BillingEvent) {
         when (billingEvent) {
-            BillingEvent.Canceled -> {}
-            BillingEvent.NotifyUnrecoverableError -> alertModel.notify(resources.getString(R.string.unrecoverable_billing_error))
+            BillingEvent.NotifyUnrecoverableError -> alertModel.notify(resources.getString(R.string.unrecoverable_billing_error)) {
+                finish()
+            }
             is BillingEvent.SuccessfulPurchase -> {
                 uiScope.launch {
-                    Animate.animateVisibility(binding.progressOverlay, View.VISIBLE, 102, 500)
+                    binding.progressOverlay.visibility = View.VISIBLE
+                    binding.subscribeToPlan.isEnabled = false
 
                     withContext(Dispatchers.IO) {
                         val confirmResult =
-                            CoreModel.confirmAndroidSubscription(billingEvent.purchaseToken)
+                            CoreModel.upgradeAccountAndroid(billingEvent.purchaseToken, billingEvent.accountId)
                         withContext(Dispatchers.Main) {
 
                             when (confirmResult) {
                                 is Ok -> {
-                                    Animate.animateVisibility(
-                                        binding.progressOverlay,
-                                        View.GONE,
-                                        0,
-                                        500
-                                    )
+                                    binding.progressOverlay.visibility = View.GONE
+                                    binding.subscribeToPlan.isEnabled = true
 
-                                    val successfulPurchaseDialog =
-                                        BottomSheetDialog(this@UpgradeAccountActivity)
-                                    successfulPurchaseDialog.setContentView(R.layout.purchased_premium)
-                                    successfulPurchaseDialog.show()
+                                    alertModel.notifySuccessfulPurchaseConfirm {
+                                        setResult(SUCCESSFUL_SUBSCRIPTION_PURCHASE)
+                                        this@UpgradeAccountActivity.finish()
+                                    }
                                 }
                                 is Err -> alertModel.notifyError(
                                     confirmResult.error.toLbError(
@@ -143,12 +138,8 @@ class UpgradeAccountActivity : AppCompatActivity() {
     }
 
     private fun launchPurchaseFlow(selectedTier: AccountTier) {
-        if (originTier != selectedTier) {
-            if (selectedTier == AccountTier.Free) {
-                CoreModel.cancelSubscription()
-            } else {
-                BillingClientLifecycle.getInstance(this).launchBillingFlow(this, selectedTier)
-            }
+        if (selectedTier == AccountTier.PremiumMonthly) {
+            (application as App).billingClientLifecycle.launchBillingFlow(this, selectedTier)
         }
     }
 
@@ -165,3 +156,5 @@ class UpgradeAccountActivity : AppCompatActivity() {
         const val SELECTED_TIER_KEY = "selected_tier_key"
     }
 }
+
+const val SUCCESSFUL_SUBSCRIPTION_PURCHASE = 1

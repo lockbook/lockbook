@@ -10,11 +10,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.preference.Preference
 import androidx.preference.PreferenceManager
 import androidx.work.*
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
 import app.lockbook.billing.BillingClientLifecycle
 import app.lockbook.model.CoreModel
+import app.lockbook.screen.SettingsActivity
+import app.lockbook.screen.SettingsFragment
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -125,4 +128,8 @@ fun AndroidViewModel.getString(
     vararg formatArgs: Any = emptyArray()
 ): String {
     return getString(this.getRes(), stringRes, *formatArgs)
+}
+
+fun Preference.getSettingsFragment(): SettingsFragment {
+    return (context as SettingsActivity).supportFragmentManager.fragments[0] as SettingsFragment
 }
