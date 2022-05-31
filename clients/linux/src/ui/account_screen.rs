@@ -1,6 +1,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
+use gtk::gdk;
 use gtk::glib;
 use gtk::prelude::*;
 
@@ -9,20 +10,28 @@ use crate::ui;
 pub enum AccountOp {
     NewDocument,
     NewFolder,
+
     OpenFile(lb::Uuid),
     RenameFile,
     DeleteFiles,
     ExportFiles,
+
     CutFiles,
     CopyFiles,
     PasteFiles,
+
     TreeReceiveDrop(glib::Value, f64, f64),
     TabSwitched(ui::Tab),
     AllTabsClosed,
+
+    SviewCtrlClick { click: gtk::GestureClick, x: i32, y: i32, sview: sv5::View },
+    SviewInsertFileList { id: lb::Uuid, buf: sv5::Buffer, flist: gdk::FileList },
+    SviewInsertTexture { id: lb::Uuid, buf: sv5::Buffer, texture: gdk::Texture },
 }
 
 #[derive(Clone)]
 pub struct AccountScreen {
+    pub op_chan: glib::Sender<AccountOp>,
     pub tree: ui::FileTree,
     pub sync: ui::SyncPanel,
     pub lang_mngr: sv5::LanguageManager,
@@ -33,8 +42,7 @@ pub struct AccountScreen {
 
 impl AccountScreen {
     pub fn new(
-        account_op_tx: glib::Sender<AccountOp>, lang_mngr: sv5::LanguageManager,
-        hidden_cols: &[String],
+        op_chan: glib::Sender<AccountOp>, lang_mngr: sv5::LanguageManager, hidden_cols: &[String],
     ) -> Self {
         let stack = gtk::Stack::new();
 
@@ -49,28 +57,28 @@ impl AccountScreen {
             }
         });
         tabs.connect_page_removed({
-            let account_op_tx = account_op_tx.clone();
+            let op_chan = op_chan.clone();
             let stack = stack.clone();
 
             move |tabs, _, _| {
                 let n_tabs = tabs.n_pages();
                 tabs.set_show_tabs(n_tabs > 1);
                 if n_tabs == 0 {
-                    account_op_tx.send(AccountOp::AllTabsClosed).unwrap();
+                    op_chan.send(AccountOp::AllTabsClosed).unwrap();
                     stack.set_visible_child_name("logo");
                 }
             }
         });
         tabs.connect_switch_page({
-            let account_op_tx = account_op_tx.clone();
+            let op_chan = op_chan.clone();
 
             move |_, w, _| {
                 let tab = w.clone().downcast::<ui::Tab>().unwrap();
-                account_op_tx.send(AccountOp::TabSwitched(tab)).unwrap();
+                op_chan.send(AccountOp::TabSwitched(tab)).unwrap();
             }
         });
 
-        let tree = ui::FileTree::new(account_op_tx, hidden_cols);
+        let tree = ui::FileTree::new(&op_chan, hidden_cols);
         let tree_scroll = gtk::ScrolledWindow::new();
         tree_scroll.set_child(Some(&tree.overlay));
 
@@ -91,7 +99,7 @@ impl AccountScreen {
 
         let scheme_name = Rc::new(Cell::new("classic"));
 
-        Self { tree, sync, lang_mngr, scheme_name, tabs, cntr }
+        Self { op_chan, tree, sync, lang_mngr, scheme_name, tabs, cntr }
     }
 
     pub fn tab_by_id(&self, id: lb::Uuid) -> Option<ui::Tab> {

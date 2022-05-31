@@ -27,8 +27,8 @@ pub enum FileTreeCol {
 }
 
 impl FileTree {
-    pub fn new(account_op_tx: glib::Sender<ui::AccountOp>, hidden_cols: &[String]) -> Self {
-        let menu = FileTreeMenu::new(&account_op_tx);
+    pub fn new(account_op_tx: &glib::Sender<ui::AccountOp>, hidden_cols: &[String]) -> Self {
+        let menu = FileTreeMenu::new(account_op_tx);
 
         let cut_files = Rc::new(RefCell::new(None));
 
@@ -113,6 +113,7 @@ impl FileTree {
         // Controller for receiving drops.
         let drop = gtk::DropTarget::new(glib::types::Type::STRING, gdk::DragAction::COPY);
         drop.connect_motion(|_, _x, _y| gdk::DragAction::COPY);
+        let account_op_tx = account_op_tx.clone();
         drop.connect_drop(move |_, val, x, y| {
             account_op_tx
                 .send(ui::AccountOp::TreeReceiveDrop(val.clone(), x, y))

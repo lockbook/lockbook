@@ -3,7 +3,7 @@ use gtk::subclass::prelude::*;
 
 glib::wrapper! {
     pub struct TextEditor(ObjectSubclass<imp::TextEditor>)
-        @extends gtk::Widget, gtk::Box,
+        @extends gtk::Widget,
         @implements gtk::Accessible;
 }
 
@@ -42,7 +42,6 @@ mod imp {
         type ParentType = gtk::Widget;
 
         fn class_init(c: &mut Self::Class) {
-            // The layout manager determines how child widgets are laid out.
             c.set_layout_manager_type::<gtk::BinLayout>();
         }
     }

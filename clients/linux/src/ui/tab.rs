@@ -4,7 +4,7 @@ use gtk::subclass::prelude::*;
 
 glib::wrapper! {
     pub struct Tab(ObjectSubclass<imp::Tab>)
-        @extends gtk::Widget, gtk::Box,
+        @extends gtk::Widget,
         @implements gtk::Accessible;
 }
 
@@ -17,7 +17,7 @@ impl Tab {
         self.imp().id.get()
     }
 
-    pub fn set_content<W: IsA<gtk::Widget>>(&self, w: &W) {
+    pub fn set_content(&self, w: &impl IsA<gtk::Widget>) {
         self.imp().content.set_child(Some(w));
     }
 
@@ -44,7 +44,7 @@ impl Tab {
 #[derive(Debug)]
 pub struct TabLabel {
     text_lbl: gtk::Label,
-    pub close_btn: gtk::Button,
+    close_btn: gtk::Button,
     pub cntr: gtk::Box,
 }
 
@@ -52,9 +52,7 @@ impl Default for TabLabel {
     fn default() -> Self {
         let text_lbl = gtk::Label::new(None);
 
-        let close_btn = gtk::Button::builder()
-            .icon_name("window-close-symbolic")
-            .build();
+        let close_btn = gtk::Button::from_icon_name("window-close-symbolic");
         close_btn.add_css_class("flat");
 
         let cntr = gtk::Box::new(gtk::Orientation::Horizontal, 8);
@@ -62,6 +60,12 @@ impl Default for TabLabel {
         cntr.append(&close_btn);
 
         Self { text_lbl, close_btn, cntr }
+    }
+}
+
+impl TabLabel {
+    pub fn connect_closed<F: Fn() + 'static>(&self, f: F) {
+        self.close_btn.connect_clicked(move |_| f());
     }
 }
 
@@ -86,7 +90,6 @@ mod imp {
         type ParentType = gtk::Widget;
 
         fn class_init(c: &mut Self::Class) {
-            // The layout manager determines how child widgets are laid out.
             c.set_layout_manager_type::<gtk::BinLayout>();
         }
     }
@@ -94,6 +97,12 @@ mod imp {
     impl ObjectImpl for Tab {
         fn constructed(&self, obj: &Self::Type) {
             self.parent_constructed(obj);
+            let spinner = gtk::Spinner::builder()
+                .spinning(true)
+                .halign(gtk::Align::Center)
+                .width_request(32)
+                .build();
+            self.content.set_child(Some(&spinner));
             self.content.set_parent(obj);
         }
 

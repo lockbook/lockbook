@@ -140,6 +140,15 @@ impl super::App {
                 TreeReceiveDrop(val, x, y) => self.tree_receive_drop(&val, x, y),
                 TabSwitched(tab) => self.titlebar.set_title(&tab.name()),
                 AllTabsClosed => self.titlebar.set_title("Lockbook"),
+                SviewCtrlClick { click, x, y, sview } => {
+                    self.handle_sview_ctrl_click(&click, x, y, &sview)
+                }
+                SviewInsertFileList { id, buf, flist } => {
+                    self.sview_insert_file_list(id, &buf, flist)
+                }
+                SviewInsertTexture { id, buf, texture } => {
+                    self.sview_insert_texture(id, &buf, texture)
+                }
             }
             glib::Continue(true)
         });
