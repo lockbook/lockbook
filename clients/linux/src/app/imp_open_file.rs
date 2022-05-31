@@ -27,66 +27,106 @@ impl super::App {
     }
 
     fn read_file_and_open_tab(&self, id: lb::Uuid) -> Result<(), String> {
-        let doc = load_doc(&self.api, id)?;
+        let info = load_doc_info(&self.api, id)?;
 
-        let tab = ui::Tab::new(doc.id);
-        tab.set_name(&doc.name);
-
-        if ui::SUPPORTED_IMAGE_FORMATS.contains(&doc.ext) {
-            tab.set_content(&image_content(doc)?);
-        } else {
-            tab.set_content(&self.text_content(doc));
-        }
+        let tab = ui::Tab::new(id);
+        tab.set_name(&info.name);
 
         let tab_lbl = tab.tab_label();
-
-        let click = gtk::GestureClick::new();
-        click.connect_pressed({
+        tab_lbl.connect_closed({
             let tabs = self.account.tabs.clone();
             let tab = tab.clone();
 
-            move |_, _, _, _| tabs.remove_page(tabs.page_num(&tab))
+            move || tabs.remove_page(tabs.page_num(&tab))
         });
-        tab_lbl.close_btn.add_controller(&click);
 
         self.account.tabs.append_page(&tab, Some(&tab_lbl.cntr));
         self.account.focus_tab_by_id(id);
 
+        // Load the document's content in a separate thread to prevent any UI locking.
+        let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        let api = self.api.clone();
+        std::thread::spawn(move || tx.send(api.read_document(id)).unwrap());
+
+        // Receive the Result of reading the document and set the tab page content accordingly.
+        let app = self.clone();
+        let tab = tab.clone();
+        rx.attach(None, move |read_doc_result| {
+            match read_doc_result {
+                Ok(data) => {
+                    if ui::SUPPORTED_IMAGE_FORMATS.contains(&info.ext) {
+                        tab.set_content(&image_content(data));
+                    } else {
+                        tab.set_content(&text_content(&app, &info, &data));
+                    }
+                }
+                Err(err) => {
+                    let msg = read_doc_err_to_string(err);
+                    tab.set_content(&err_content(&msg));
+                }
+            }
+            glib::Continue(false)
+        });
+
         Ok(())
-    }
-
-    fn text_content(&self, doc: Document) -> ui::TextEditor {
-        let txt_ed = ui::TextEditor::new();
-
-        let buf = txt_ed.editor().buffer().downcast::<sv5::Buffer>().unwrap();
-        buf.set_text(&String::from_utf8_lossy(&doc.data).to_string());
-        buf.set_highlight_syntax(true);
-
-        let lang_guess = self.account.lang_mngr.guess_language(Some(&doc.name), None);
-        buf.set_language(lang_guess.as_ref());
-
-        if doc.ext == "md" {
-            let account_op_tx = &self.account.op_chan;
-            connect_sview_clipboard_paste(account_op_tx, &txt_ed, doc.id);
-            connect_sview_drop_controller(account_op_tx, &txt_ed, doc.id);
-            connect_sview_click_controller(account_op_tx, &txt_ed);
-        }
-
-        let id = doc.id;
-        let edit_alert_tx = self.bg_state.track(id);
-        buf.connect_changed(move |_| edit_alert_tx.send(id).unwrap());
-
-        let scheme_name = self.account.scheme_name.get();
-        if let Some(ref scheme) = sv5::StyleSchemeManager::default().scheme(scheme_name) {
-            buf.set_style_scheme(Some(scheme));
-        }
-
-        txt_ed
     }
 }
 
-fn image_content(doc: Document) -> Result<ui::ImageTab, String> {
-    let pbuf = Pixbuf::from_read(io::Cursor::new(doc.data)).map_err(|err| err.to_string())?;
+fn text_content(app: &super::App, info: &DocInfo, data: &[u8]) -> ui::TextEditor {
+    let txt_ed = ui::TextEditor::new();
+
+    let buf = txt_ed.editor().buffer().downcast::<sv5::Buffer>().unwrap();
+    buf.set_text(&String::from_utf8_lossy(data));
+    buf.set_highlight_syntax(true);
+
+    let lang_guess = app.account.lang_mngr.guess_language(Some(&info.name), None);
+    buf.set_language(lang_guess.as_ref());
+
+    if info.ext == "md" {
+        let account_op_tx = &app.account.op_chan;
+        connect_sview_clipboard_paste(account_op_tx, &txt_ed, info.id);
+        connect_sview_drop_controller(account_op_tx, &txt_ed, info.id);
+        connect_sview_click_controller(account_op_tx, &txt_ed);
+    }
+
+    let id = info.id;
+    let edit_alert_tx = app.bg_state.track(id);
+    buf.connect_changed(move |_| edit_alert_tx.send(id).unwrap());
+
+    let scheme_name = app.account.scheme_name.get();
+    if let Some(ref scheme) = sv5::StyleSchemeManager::default().scheme(scheme_name) {
+        buf.set_style_scheme(Some(scheme));
+    }
+
+    txt_ed
+}
+
+fn read_doc_err_to_string(err: lb::Error<lb::ReadDocumentError>) -> String {
+    use lb::ReadDocumentError::*;
+    match err {
+        lb::UiError(err) => match err {
+            TreatedFolderAsDocument => "treated folder as document",
+            NoAccount => "no account",
+            FileDoesNotExist => "file does not exist",
+        }
+        .to_string(),
+        lb::Unexpected(msg) => msg,
+    }
+}
+
+fn err_content(msg: &str) -> gtk::Label {
+    gtk::Label::builder()
+        .halign(gtk::Align::Center)
+        .label(msg)
+        .build()
+}
+
+fn image_content(data: Vec<u8>) -> gtk::Widget {
+    let pbuf = match Pixbuf::from_read(io::Cursor::new(data)) {
+        Ok(pbuf) => pbuf,
+        Err(err) => return err_content(&err.to_string()).upcast::<gtk::Widget>(),
+    };
+
     let pic = gtk::Picture::for_pixbuf(&pbuf);
     pic.set_halign(gtk::Align::Center);
     pic.set_valign(gtk::Align::Center);
@@ -94,17 +134,16 @@ fn image_content(doc: Document) -> Result<ui::ImageTab, String> {
     let img_content = ui::ImageTab::new();
     img_content.set_picture(&pic);
 
-    Ok(img_content)
+    img_content.upcast::<gtk::Widget>()
 }
 
-struct Document {
+struct DocInfo {
     id: lb::Uuid,
     name: String,
     ext: String,
-    data: Vec<u8>,
 }
 
-fn load_doc(api: &Arc<dyn lb::Api>, id: lb::Uuid) -> Result<Document, String> {
+fn load_doc_info(api: &Arc<dyn lb::Api>, id: lb::Uuid) -> Result<DocInfo, String> {
     use lb::GetFileByIdError::*;
     let name = api
         .file_by_id(id)
@@ -120,18 +159,7 @@ fn load_doc(api: &Arc<dyn lb::Api>, id: lb::Uuid) -> Result<Document, String> {
         .unwrap_or_default()
         .to_lowercase();
 
-    use lb::ReadDocumentError::*;
-    let data = api.read_document(id).map_err(|err| match err {
-        lb::UiError(err) => match err {
-            TreatedFolderAsDocument => "treated folder as document",
-            NoAccount => "no account",
-            FileDoesNotExist => "file does not exist",
-        }
-        .to_string(),
-        lb::Unexpected(msg) => msg,
-    })?;
-
-    Ok(Document { id, name, ext, data })
+    Ok(DocInfo { id, name, ext })
 }
 
 fn connect_sview_clipboard_paste(
