@@ -15,7 +15,7 @@ import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
 
 object CoreModel {
-    private const val PROD_API_URL = "https://5a16-2601-86-680-28c0-00-6b7a.ngrok.io"
+    private const val PROD_API_URL = "https://api.prod.lockbook.net"
     private fun getAPIURL(): String = System.getenv("API_URL") ?: PROD_API_URL
 
     private fun <O, E : Enum<E>> SerializersModuleBuilder.createPolyRelation(
