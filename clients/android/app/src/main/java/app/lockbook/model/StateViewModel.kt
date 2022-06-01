@@ -102,7 +102,7 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
             val confirmSubscriptionResult =
                 CoreModel.upgradeAccountAndroid(purchaseToken, accountID)
 
-            when(confirmSubscriptionResult) {
+            when (confirmSubscriptionResult) {
                 is Ok -> {
                     _updateMainScreenUI.postValue(UpdateMainScreenUI.ShowSubscriptionConfirmed)
                 }

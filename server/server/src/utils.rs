@@ -1,9 +1,9 @@
 use crate::ServerError;
 use lockbook_models::api::{GetBuildInfoError, GetBuildInfoResponse};
 
-use shadow_rs::shadow;
-use google_androidpublisher3::{hyper, hyper_rustls};
 use crate::config::Config;
+use google_androidpublisher3::{hyper, hyper_rustls};
+use shadow_rs::shadow;
 
 shadow!(build_info);
 
@@ -24,24 +24,25 @@ pub fn get_build_info() -> Result<GetBuildInfoResponse, ServerError<GetBuildInfo
 
 pub async fn get_android_client(config: &Config) -> google_androidpublisher3::AndroidPublisher {
     let auth = match &config.google.service_account_cred_path {
-        None => {
-            google_androidpublisher3::oauth2::InstalledFlowAuthenticator::builder(
-                google_androidpublisher3::oauth2::ApplicationSecret::default(),
-                google_androidpublisher3::oauth2::InstalledFlowReturnMethod::HTTPRedirect,
-            ).build().await.unwrap()
-        },
+        None => google_androidpublisher3::oauth2::InstalledFlowAuthenticator::builder(
+            google_androidpublisher3::oauth2::ApplicationSecret::default(),
+            google_androidpublisher3::oauth2::InstalledFlowReturnMethod::HTTPRedirect,
+        )
+        .build()
+        .await
+        .unwrap(),
         Some(cred_path) => {
             let service_account_key: google_androidpublisher3::oauth2::ServiceAccountKey =
-                google_androidpublisher3::oauth2::read_service_account_key(
-                    cred_path,
-                )
+                google_androidpublisher3::oauth2::read_service_account_key(cred_path)
                     .await
                     .unwrap();
 
-            google_androidpublisher3::oauth2::ServiceAccountAuthenticator::builder(service_account_key)
-                .build()
-                .await
-                .unwrap()
+            google_androidpublisher3::oauth2::ServiceAccountAuthenticator::builder(
+                service_account_key,
+            )
+            .build()
+            .await
+            .unwrap()
         }
     };
 
@@ -55,4 +56,3 @@ pub async fn get_android_client(config: &Config) -> google_androidpublisher3::An
 
     google_androidpublisher3::AndroidPublisher::new(client, auth)
 }
-

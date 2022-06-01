@@ -50,7 +50,7 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
         usageBar.progress = (usage.serverUsage.exact / ROUND_DECIMAL_PLACES).toInt()
 
         // necessary to reset it for rendering successful billings
-        premiumInfoForFree.visibility = if(usage.dataCap.exact != PAID_TIER_USAGE_BYTES) {
+        premiumInfoForFree.visibility = if (usage.dataCap.exact != PAID_TIER_USAGE_BYTES) {
             View.VISIBLE
         } else {
             View.GONE

@@ -2,7 +2,11 @@ use crate::model::errors::core_err_unexpected;
 use crate::service::api_service;
 use crate::service::api_service::ApiError;
 use crate::{CoreError, Tx};
-use lockbook_models::api::{CancelSubscriptionError, CancelSubscriptionRequest, UpgradeAccountAndroidError, UpgradeAccountAndroidRequest, GetCreditCardError, GetCreditCardRequest, GetSubscriptionInfoRequest, StripeAccountTier, UpgradeAccountStripeError, UpgradeAccountStripeRequest, SubscriptionInfo};
+use lockbook_models::api::{
+    CancelSubscriptionError, CancelSubscriptionRequest, GetCreditCardError, GetCreditCardRequest,
+    GetSubscriptionInfoRequest, StripeAccountTier, SubscriptionInfo, UpgradeAccountAndroidError,
+    UpgradeAccountAndroidRequest, UpgradeAccountStripeError, UpgradeAccountStripeRequest,
+};
 
 pub type CreditCardLast4Digits = String;
 
@@ -57,12 +61,17 @@ impl Tx<'_> {
             .credit_card_last_4_digits)
     }
 
-    pub fn upgrade_account_android(&self, purchase_token: &str, account_id: &str) -> Result<(), CoreError> {
+    pub fn upgrade_account_android(
+        &self, purchase_token: &str, account_id: &str,
+    ) -> Result<(), CoreError> {
         let account = self.get_account()?;
 
         api_service::request(
             &account,
-            UpgradeAccountAndroidRequest { purchase_token: purchase_token.to_string(), account_id: account_id.to_string() },
+            UpgradeAccountAndroidRequest {
+                purchase_token: purchase_token.to_string(),
+                account_id: account_id.to_string(),
+            },
         )
         .map_err(|err| match err {
             ApiError::Endpoint(UpgradeAccountAndroidError::AlreadyPremium) => {
@@ -109,7 +118,7 @@ impl Tx<'_> {
                 ApiError::SendFailed(_) => CoreError::ServerUnreachable,
                 ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
-            })?.subscription_info)
+            })?
+            .subscription_info)
     }
 }
-

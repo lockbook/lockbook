@@ -45,9 +45,9 @@ class UpgradeAccountActivity : AppCompatActivity() {
         if (savedInstanceState != null) {
             selectedTier = AccountTier.valueOf(savedInstanceState.getString(SELECTED_TIER_KEY, AccountTier.Free.name))
         }
-        
-        binding.switchAccountTierFree.setOnClickListener(clickListener)
-        binding.switchAccountTierPremiumMonthly.setOnClickListener(clickListener)
+
+        binding.upgradeAccountTierFree.setOnClickListener(clickListener)
+        binding.upgradeAccountTierPremiumMonthly.setOnClickListener(clickListener)
 
         binding.exitBilling.setOnClickListener {
             finish()
@@ -58,8 +58,8 @@ class UpgradeAccountActivity : AppCompatActivity() {
         }
 
         val selectedTierCardView = when (selectedTier) {
-            AccountTier.Free -> binding.switchAccountTierFree
-            AccountTier.PremiumMonthly -> binding.switchAccountTierPremiumMonthly
+            AccountTier.Free -> binding.upgradeAccountTierFree
+            AccountTier.PremiumMonthly -> binding.upgradeAccountTierPremiumMonthly
         }
 
         animateTierSelectionToggle(selectedTierCardView, true)
@@ -122,14 +122,14 @@ class UpgradeAccountActivity : AppCompatActivity() {
         val oldSelectedTier = selectedTier
 
         selectedTier = when (tierCardView) {
-            binding.switchAccountTierFree -> AccountTier.Free
-            binding.switchAccountTierPremiumMonthly -> AccountTier.PremiumMonthly
+            binding.upgradeAccountTierFree -> AccountTier.Free
+            binding.upgradeAccountTierPremiumMonthly -> AccountTier.PremiumMonthly
             else -> AccountTier.Free
         }
 
         val oldTierCardView = when (oldSelectedTier) {
-            AccountTier.Free -> binding.switchAccountTierFree
-            AccountTier.PremiumMonthly -> binding.switchAccountTierPremiumMonthly
+            AccountTier.Free -> binding.upgradeAccountTierFree
+            AccountTier.PremiumMonthly -> binding.upgradeAccountTierPremiumMonthly
         }
 
         toggleSubscribeButton()

@@ -17,6 +17,7 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.preference.PreferenceManager
+import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentFilesListBinding
 import app.lockbook.model.*
@@ -190,6 +191,8 @@ class FilesListFragment : Fragment(), FilesFragment {
             updateUI(UpdateFilesUI.ShowSyncSnackBar(syncStatus.syncStepInfo.total))
             updateSyncProgress(syncStatus.syncStepInfo)
         }
+
+        (requireActivity().application as App).billingClientLifecycle.showInAppMessaging(requireActivity())
     }
 
     private fun setUpToolbar() {

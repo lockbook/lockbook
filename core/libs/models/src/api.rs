@@ -345,7 +345,7 @@ impl Request for UpgradeAccountStripeRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct UpgradeAccountAndroidRequest {
     pub purchase_token: String,
-    pub account_id: String
+    pub account_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -405,13 +405,13 @@ pub enum PaymentPlatform {
 pub enum GooglePlayAccountState {
     Ok,
     Canceled,
-    AccountHold,
-    Other
+    GracePeriod,
+    OnHold,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetSubscriptionInfoResponse {
-    pub subscription_info: Option<SubscriptionInfo>
+    pub subscription_info: Option<SubscriptionInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

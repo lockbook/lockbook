@@ -11,9 +11,9 @@ use lockbook_server_lib::ServerState;
 
 use crate::feature_flags::handle_feature_flag;
 use lockbook_server_lib::content::file_content_client;
+use lockbook_server_lib::utils::get_android_client;
 use s3::bucket::Bucket;
 use structopt::StructOpt;
-use lockbook_server_lib::utils::get_android_client;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A utility for a lockbook server administrator.")]
@@ -53,13 +53,8 @@ async fn main() {
 
     let android_publisher = get_android_client(&config).await;
 
-    let server_state = ServerState {
-        config,
-        index_db_pool,
-        stripe_client,
-        files_db_client,
-        android_publisher,
-    };
+    let server_state =
+        ServerState { config, index_db_pool, stripe_client, files_db_client, android_publisher };
 
     let ok = match Subcommands::from_args() {
         DeleteAccount { username: user } => delete_account(server_state, &user).await,

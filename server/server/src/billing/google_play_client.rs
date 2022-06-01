@@ -10,11 +10,16 @@ pub enum SimpleGCPError {
 const PACKAGE_NAME: &str = "app.lockbook";
 
 pub async fn acknowledge_subscription(
-    client: &AndroidPublisher, subscription_id: &str, purchase_token: &str
+    client: &AndroidPublisher, subscription_id: &str, purchase_token: &str,
 ) -> Result<(), SimpleGCPError> {
     match client
         .purchases()
-        .subscriptions_acknowledge(SubscriptionPurchasesAcknowledgeRequest { developer_payload: None }, PACKAGE_NAME, subscription_id, purchase_token)
+        .subscriptions_acknowledge(
+            SubscriptionPurchasesAcknowledgeRequest { developer_payload: None },
+            PACKAGE_NAME,
+            subscription_id,
+            purchase_token,
+        )
         .doit()
         .await
     {

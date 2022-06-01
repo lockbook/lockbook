@@ -94,20 +94,19 @@ sealed class PaymentPlatform {
     data class GooglePlay(
         @SerialName("account_state")
         val accountState: GooglePlayAccountState
-    ): PaymentPlatform()
+    ) : PaymentPlatform()
 
     @Serializable
     @SerialName("Stripe")
     data class Stripe(
         @SerialName("card_last_4_digits")
         val cardLast4Digits: String
-    ): PaymentPlatform()
+    ) : PaymentPlatform()
 }
 
 enum class GooglePlayAccountState {
     Ok,
     Canceled,
-    OnHold,
-    Other
+    GracePeriod,
+    OnHold
 }
-

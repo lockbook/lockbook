@@ -36,7 +36,7 @@
         app:strokeWidth="1dp">
 
         <LinearLayout
-            android:id="@+id/switch_account_tier_free"
+            android:id="@+id/upgrade_account_tier_free"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:padding="10dp"
@@ -89,7 +89,7 @@
         android:layout_marginVertical="30dp">
 
         <LinearLayout
-            android:id="@+id/switch_account_tier_premium_monthly"
+            android:id="@+id/upgrade_account_tier_premium_monthly"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:padding="10dp"

@@ -1,14 +1,13 @@
 use serde::Deserialize;
 
-
 #[derive(Debug, Deserialize)]
 pub struct PubSubNotification {
-    pub message: PubSubMessage
+    pub message: PubSubMessage,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct PubSubMessage {
-    pub data: String
+    pub data: String,
 }
 
 #[derive(Debug, Deserialize)]

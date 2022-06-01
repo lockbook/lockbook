@@ -520,7 +520,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateWork(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_upgradeAccountAndroid(
-    env: JNIEnv, _: JClass, jpurchase_token: JString, jaccount_id: JString
+    env: JNIEnv, _: JClass, jpurchase_token: JString, jaccount_id: JString,
 ) -> jstring {
     let purchase_token = &match jstring_to_string(&env, jpurchase_token, "purchase token") {
         Ok(ok) => ok,

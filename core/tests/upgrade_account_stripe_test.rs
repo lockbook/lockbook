@@ -18,11 +18,7 @@ fn switch_to_premium_and_back() {
     .unwrap();
 
     // switch account tier back to free
-    api_service::request(
-        &account,
-        CancelSubscriptionRequest { },
-    )
-    .unwrap();
+    api_service::request(&account, CancelSubscriptionRequest {}).unwrap();
 }
 
 #[test]

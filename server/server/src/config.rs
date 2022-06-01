@@ -162,8 +162,12 @@ impl GoogleConfig {
     pub fn from_env_vars() -> GoogleConfig {
         GoogleConfig {
             service_account_cred_path: env_or_empty("GOOGLE_CLOUD_SERVICE_ACCOUNT_CRED_PATH"),
-            premium_subscription_product_id: env_or_panic("GOOGLE_PLAY_PREMIUM_SUBSCRIPTION_PRODUCT_ID"),
-            premium_subscription_offer_id: env_or_panic("GOOGLE_PLAY_PREMIUM_SUBSCRIPTION_OFFER_ID"),
+            premium_subscription_product_id: env_or_panic(
+                "GOOGLE_PLAY_PREMIUM_SUBSCRIPTION_PRODUCT_ID",
+            ),
+            premium_subscription_offer_id: env_or_panic(
+                "GOOGLE_PLAY_PREMIUM_SUBSCRIPTION_OFFER_ID",
+            ),
             pubsub_token: env_or_panic("GOOGLE_CLOUD_PUBSUB_NOTIFICATION_TOKEN"),
         }
     }

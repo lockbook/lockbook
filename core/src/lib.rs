@@ -373,7 +373,7 @@ impl Core {
 
     #[instrument(level = "debug", skip(purchase_token), err(Debug))]
     pub fn upgrade_account_android(
-        &self, purchase_token: &str, account_id: &str
+        &self, purchase_token: &str, account_id: &str,
     ) -> Result<(), Error<UpgradeAccountAndroidError>> {
         let val = self
             .db

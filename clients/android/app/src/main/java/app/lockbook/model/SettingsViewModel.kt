@@ -38,26 +38,26 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun computeUsage() {
-            when (val usageResult = CoreModel.getUsage()) {
-                is Ok -> when (val uncompressedUsageResult = CoreModel.getUncompressedUsage()) {
-                    is Ok ->
-                        if (usageResult.value.dataCap.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES) {
-                            when (val subscriptionResult = CoreModel.getSubscriptionInfo()) {
-                                is Ok -> _determineSettingsInfo.postValue(SettingsInfo(usageResult.value, uncompressedUsageResult.value, subscriptionResult.value))
-                                is Err -> _notifyError.postValue(subscriptionResult.error.toLbError(getRes()))
-                            }
-                        } else {
-                            _determineSettingsInfo.postValue(SettingsInfo(usageResult.value, uncompressedUsageResult.value, null))
+        when (val usageResult = CoreModel.getUsage()) {
+            is Ok -> when (val uncompressedUsageResult = CoreModel.getUncompressedUsage()) {
+                is Ok ->
+                    if (usageResult.value.dataCap.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES) {
+                        when (val subscriptionResult = CoreModel.getSubscriptionInfo()) {
+                            is Ok -> _determineSettingsInfo.postValue(SettingsInfo(usageResult.value, uncompressedUsageResult.value, subscriptionResult.value))
+                            is Err -> _notifyError.postValue(subscriptionResult.error.toLbError(getRes()))
                         }
-                    is Err -> _notifyError.postValue(uncompressedUsageResult.error.toLbError(getRes()))
-                }
-                is Err -> _notifyError.postValue(usageResult.error.toLbError(getRes()))
+                    } else {
+                        _determineSettingsInfo.postValue(SettingsInfo(usageResult.value, uncompressedUsageResult.value, null))
+                    }
+                is Err -> _notifyError.postValue(uncompressedUsageResult.error.toLbError(getRes()))
             }
+            is Err -> _notifyError.postValue(usageResult.error.toLbError(getRes()))
+        }
     }
 
     fun cancelSubscription() {
         viewModelScope.launch(Dispatchers.IO) {
-            when(val cancelResult = CoreModel.cancelSubscription()) {
+            when (val cancelResult = CoreModel.cancelSubscription()) {
                 is Ok -> {
                     _canceledSubscription.postValue(Unit)
                     computeUsage()

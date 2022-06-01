@@ -28,7 +28,7 @@ abstract class IntermCoreResult<O, E>
     fun toResult(isNullable: Boolean = false): Result<O, CoreError<E>> {
         return when (this) {
             is CoreOk -> {
-                if(isNullable) {
+                if (isNullable) {
                     Ok(content as O)
                 } else {
                     Ok(content ?: Unit as O)

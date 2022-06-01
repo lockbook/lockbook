@@ -35,7 +35,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     val onUpgrade =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            if(it.resultCode == SUCCESSFUL_SUBSCRIPTION_PURCHASE) {
+            if (it.resultCode == SUCCESSFUL_SUBSCRIPTION_PURCHASE) {
                 model.updateUsage()
             }
         }
@@ -61,8 +61,6 @@ class SettingsFragment : PreferenceFragmentCompat() {
         setUpPreferences()
     }
 
-
-
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -86,13 +84,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun addDataToPreferences(settingsInfo: SettingsInfo) {
-        if(settingsInfo.usage.dataCap.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES) {
+        if (settingsInfo.usage.dataCap.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES) {
             findPreference<PreferenceCategory>(getString(R.string.premium_key))!!.isVisible = true
             findPreference<Preference>(getString(R.string.cancel_subscription_key))!!.isVisible = (settingsInfo.subscriptionInfo?.paymentPlatform as? PaymentPlatform.GooglePlay)?.accountState == GooglePlayAccountState.Ok
-
-            if((settingsInfo.subscriptionInfo?.paymentPlatform as? PaymentPlatform.GooglePlay)?.accountState == GooglePlayAccountState.OnHold) {
-                
-            }
         }
     }
 

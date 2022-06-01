@@ -78,11 +78,10 @@ class MainScreenActivity : AppCompatActivity() {
             false
         )
 
-
         (application as App).billingClientLifecycle.apply {
             this@MainScreenActivity.lifecycle.addObserver(this)
             billingEvent.observe(this@MainScreenActivity) { billingEvent ->
-                when(billingEvent) {
+                when (billingEvent) {
                     is BillingEvent.SuccessfulPurchase -> {
                         model.confirmSubscription(billingEvent.purchaseToken, billingEvent.accountId)
                     }
@@ -90,7 +89,6 @@ class MainScreenActivity : AppCompatActivity() {
                     BillingEvent.NotifyUnrecoverableError -> {}
                 }.exhaustive
             }
-            showInAppMessaging(this@MainScreenActivity)
         }
 
         if (model.shareModel.isLoadingOverlayVisible) {

@@ -816,8 +816,12 @@ impl From<CoreError> for Error<UpgradeAccountAndroidError> {
             CoreError::TooManyRequestsTooSoon => {
                 UiError(UpgradeAccountAndroidError::TooManyRequestsTooSoon)
             }
-            CoreError::ServerUnreachable => UiError(UpgradeAccountAndroidError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => UiError(UpgradeAccountAndroidError::ClientUpdateRequired),
+            CoreError::ServerUnreachable => {
+                UiError(UpgradeAccountAndroidError::CouldNotReachServer)
+            }
+            CoreError::ClientUpdateRequired => {
+                UiError(UpgradeAccountAndroidError::ClientUpdateRequired)
+            }
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -843,7 +847,9 @@ impl From<CoreError> for Error<CancelSubscriptionError> {
                 UiError(CancelSubscriptionError::TooManyRequestsTooSoon)
             }
             CoreError::ServerUnreachable => UiError(CancelSubscriptionError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => UiError(CancelSubscriptionError::ClientUpdateRequired),
+            CoreError::ClientUpdateRequired => {
+                UiError(CancelSubscriptionError::ClientUpdateRequired)
+            }
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -859,7 +865,9 @@ impl From<CoreError> for Error<GetSubscriptionInfoError> {
     fn from(e: CoreError) -> Self {
         match e {
             CoreError::ServerUnreachable => UiError(GetSubscriptionInfoError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => UiError(GetSubscriptionInfoError::ClientUpdateRequired),
+            CoreError::ClientUpdateRequired => {
+                UiError(GetSubscriptionInfoError::ClientUpdateRequired)
+            }
             _ => unexpected!("{:#?}", e),
         }
     }

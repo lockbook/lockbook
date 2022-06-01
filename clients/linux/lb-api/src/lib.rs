@@ -4,8 +4,8 @@ use std::sync::Mutex;
 pub use uuid::Uuid;
 
 pub use lockbook_models::account::Account;
-pub use lockbook_models::api::StripeAccountTier;
 pub use lockbook_models::api::PaymentMethod;
+pub use lockbook_models::api::StripeAccountTier;
 pub use lockbook_models::crypto::DecryptedDocument;
 pub use lockbook_models::file_metadata::DecryptedFileMetadata as FileMetadata;
 pub use lockbook_models::file_metadata::FileType;
@@ -36,8 +36,8 @@ pub use lockbook_core::model::errors::ImportFileError;
 pub use lockbook_core::model::errors::MoveFileError;
 pub use lockbook_core::model::errors::ReadDocumentError;
 pub use lockbook_core::model::errors::RenameFileError;
-pub use lockbook_core::model::errors::UpgradeAccountStripeError;
 pub use lockbook_core::model::errors::SyncAllError;
+pub use lockbook_core::model::errors::UpgradeAccountStripeError;
 pub use lockbook_core::model::errors::WriteToDocumentError as WriteDocumentError;
 
 pub use lockbook_core::service::billing_service::CreditCardLast4Digits;

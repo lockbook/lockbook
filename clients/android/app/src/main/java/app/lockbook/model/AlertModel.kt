@@ -72,7 +72,7 @@ class AlertModel(private val activity: WeakReference<Activity>, view: View? = nu
         successfulPurchaseDialog.show()
         successfulPurchaseDialog.setCanceledOnTouchOutside(true)
 
-        if(onFinish != null) {
+        if (onFinish != null) {
             successfulPurchaseDialog.setOnDismissListener {
                 onFinish()
             }

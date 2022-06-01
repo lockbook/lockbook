@@ -1,7 +1,11 @@
 use crate::account_service::GetUsageHelperError;
-use crate::billing::billing_model::{BillingInfo, SubscriptionHistory, GooglePlayUserInfo, StripeUserInfo};
+use crate::billing::billing_model::{
+    BillingInfo, GooglePlayUserInfo, StripeUserInfo, SubscriptionHistory,
+};
 use crate::billing::google_play_client::SimpleGCPError;
-use crate::billing::google_play_model::{DeveloperNotification, NotificationType, PubSubNotification};
+use crate::billing::google_play_model::{
+    DeveloperNotification, NotificationType, PubSubNotification,
+};
 use crate::billing::{google_play_client, stripe_client};
 use crate::keys::{data_cap, public_key_from_stripe_customer_id};
 use crate::ServerError::{ClientError, InternalError};
@@ -11,23 +15,30 @@ use crate::{
 };
 use base64::DecodeError;
 use deadpool_redis::redis::AsyncCommands;
+use deadpool_redis::Connection;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
-use lockbook_models::api::{CancelSubscriptionError, CancelSubscriptionRequest, CancelSubscriptionResponse, UpgradeAccountAndroidError, UpgradeAccountAndroidRequest, UpgradeAccountAndroidResponse, GetCreditCardError, GetCreditCardRequest, GetCreditCardResponse, GetSubscriptionInfoError, GetSubscriptionInfoRequest, GetSubscriptionInfoResponse, PaymentMethod, PaymentPlatform, StripeAccountTier, UpgradeAccountStripeError, UpgradeAccountStripeRequest, UpgradeAccountStripeResponse, SubscriptionInfo, GooglePlayAccountState};
+use lockbook_models::api::{
+    CancelSubscriptionError, CancelSubscriptionRequest, CancelSubscriptionResponse,
+    GetCreditCardError, GetCreditCardRequest, GetCreditCardResponse, GetSubscriptionInfoError,
+    GetSubscriptionInfoRequest, GetSubscriptionInfoResponse, GooglePlayAccountState, PaymentMethod,
+    PaymentPlatform, StripeAccountTier, SubscriptionInfo, UpgradeAccountAndroidError,
+    UpgradeAccountAndroidRequest, UpgradeAccountAndroidResponse, UpgradeAccountStripeError,
+    UpgradeAccountStripeRequest, UpgradeAccountStripeResponse,
+};
 use log::{error, info, warn};
 use redis_utils::converters::{JsonGet, JsonSet, PipelineJsonSet};
 use redis_utils::tx;
+use std::borrow::Borrow;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
-use deadpool_redis::Connection;
 use stripe::Invoice;
 use uuid::Uuid;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
-use std::borrow::Borrow;
-use std::collections::HashMap;
 
 #[derive(Debug)]
 pub enum LockBillingWorkflowError {
@@ -70,12 +81,15 @@ async fn lock_billing_workflow(
     Ok(sub_hist)
 }
 
-async fn reset_billing_lock<E: Debug>(public_key: &PublicKey, con: &mut deadpool_redis::Connection, sub_hist: &mut SubscriptionHistory) -> Result<(), ServerError<E>> {
+async fn reset_billing_lock<E: Debug>(
+    public_key: &PublicKey, con: &mut deadpool_redis::Connection,
+    sub_hist: &mut SubscriptionHistory,
+) -> Result<(), ServerError<E>> {
     sub_hist.last_in_payment_flow = 0;
-    Ok(con.json_set(keys::subscription_history(&public_key), &sub_hist).await?)
+    Ok(con
+        .json_set(keys::subscription_history(public_key), &sub_hist)
+        .await?)
 }
-
-
 
 pub async fn get_subscription_info(
     context: RequestContext<'_, GetSubscriptionInfoRequest>,
@@ -83,43 +97,37 @@ pub async fn get_subscription_info(
     let server_state = context.server_state;
     let mut con = server_state.index_db_pool.get().await?;
 
-    let sub_hist: SubscriptionHistory = con
+    let sub_hist: SubscriptionHistory = match con
         .maybe_json_get(keys::subscription_history(&context.public_key))
         .await?
-        .ok_or_else(|| {
-            internal!(
-                "No billing lock despite being a premium tier. public_key: {:?}",
-                context.public_key
-            )
-        })?;
+    {
+        Some(sub_hist) => sub_hist,
+        None => return Ok(GetSubscriptionInfoResponse { subscription_info: None }),
+    };
 
     let current_data_cap: u64 = con.get(data_cap(&context.public_key)).await?;
 
     let subscription_info = match (current_data_cap, sub_hist.info.last()) {
-        (FREE_TIER_USAGE_SIZE, _) => {
-            None
+        (FREE_TIER_USAGE_SIZE, _) => None,
+        (PREMIUM_TIER_USAGE_SIZE, Some(BillingInfo::Stripe(info))) => Some(SubscriptionInfo {
+            payment_platform: PaymentPlatform::Stripe { card_last_4_digits: info.last_4.clone() },
+            period_end: info.expiration_time,
+        }),
+        (PREMIUM_TIER_USAGE_SIZE, Some(BillingInfo::GooglePlay(info))) => Some(SubscriptionInfo {
+            payment_platform: PaymentPlatform::GooglePlay {
+                account_state: info.account_state.clone(),
+            },
+            period_end: info.expiration_time,
+        }),
+        (_, _) => {
+            return Err(internal!(
+                "No billing information despite being a premium tier. public_key: {:?}",
+                context.public_key
+            ))
         }
-        (PREMIUM_TIER_USAGE_SIZE, Some(BillingInfo::Stripe(info))) => {
-             Some(SubscriptionInfo {
-                 payment_platform: PaymentPlatform::Stripe { card_last_4_digits: info.last_4.clone() },
-                 period_end: info.expiration_time,
-             })
-        }
-        (PREMIUM_TIER_USAGE_SIZE, Some(BillingInfo::GooglePlay(info))) => {
-            Some(SubscriptionInfo {
-                payment_platform: PaymentPlatform::GooglePlay { account_state: info.account_state.clone() },
-                period_end: info.expiration_time,
-            })
-        }
-        (_, _) => return Err(internal!(
-            "No billing information despite being a premium tier. public_key: {:?}",
-            context.public_key
-        ))
     };
 
-    Ok(GetSubscriptionInfoResponse {
-        subscription_info
-    })
+    Ok(GetSubscriptionInfoResponse { subscription_info })
 }
 
 pub async fn upgrade_account_android(
@@ -154,31 +162,50 @@ pub async fn upgrade_account_android(
     )
     .await?;
 
-    con.set(data_cap(&context.public_key), PREMIUM_TIER_USAGE_SIZE).await?;
+    con.set(data_cap(&context.public_key), PREMIUM_TIER_USAGE_SIZE)
+        .await?;
 
     let subscription = google_play_client::get_subscription(
         &server_state.android_publisher,
         &server_state.config.google.premium_subscription_product_id,
         &request.purchase_token,
     )
-        .await
-        .map_err(|e| match e {
-            SimpleGCPError::Unexpected(msg) => internal!("{:#?}", msg),
-        })?;
+    .await
+    .map_err(|e| match e {
+        SimpleGCPError::Unexpected(msg) => internal!("{:#?}", msg),
+    })?;
 
     sub_hist
         .info
         .push(BillingInfo::GooglePlay(GooglePlayUserInfo {
             purchase_token: request.purchase_token.clone(),
-            subscription_product_id: server_state.config.google.premium_subscription_product_id.clone(),
-            subscription_offer_id: server_state.config.google.premium_subscription_offer_id.clone(),
-            expiration_time: subscription.borrow().expiry_time_millis.as_ref().ok_or_else(|| internal!("Cannot get expiration time of a recovered subscription. public_key {:?}", &context.public_key))?.parse().map_err(|e| internal!("Cannot parse millis into int: {:?}", e))?,
-            account_state: GooglePlayAccountState::Ok
+            subscription_product_id: server_state
+                .config
+                .google
+                .premium_subscription_product_id
+                .clone(),
+            subscription_offer_id: server_state
+                .config
+                .google
+                .premium_subscription_offer_id
+                .clone(),
+            expiration_time: subscription
+                .borrow()
+                .expiry_time_millis
+                .as_ref()
+                .ok_or_else(|| {
+                    internal!(
+                        "Cannot get expiration time of a recovered subscription. public_key {:?}",
+                        &context.public_key
+                    )
+                })?
+                .parse()
+                .map_err(|e| internal!("Cannot parse millis into int: {:?}", e))?,
+            account_state: GooglePlayAccountState::Ok,
         }));
     reset_billing_lock(&context.public_key, &mut con, &mut sub_hist).await?;
-    con.json_set(keys::public_key_from_gp_account_id(&request.account_id), context.public_key).await?;
-
-    println!("SUCCESSFULLY FINISHED");
+    con.json_set(keys::public_key_from_gp_account_id(&request.account_id), context.public_key)
+        .await?;
 
     Ok(UpgradeAccountAndroidResponse {})
 }
@@ -263,6 +290,8 @@ pub async fn upgrade_account_stripe(
     context: RequestContext<'_, UpgradeAccountStripeRequest>,
 ) -> Result<UpgradeAccountStripeResponse, ServerError<UpgradeAccountStripeError>> {
     let (request, server_state) = (&context.request, context.server_state);
+
+    info!("IT HAS GOTTEN HERE NICE");
 
     let fmt_public_key = keys::stringify_public_key(&context.public_key);
 
@@ -511,7 +540,6 @@ pub async fn stripe_webhooks(
     match (&event.event_type, &event.data.object) {
         (stripe::EventType::InvoicePaymentFailed, stripe::EventObject::Invoice(invoice)) => {
             if let Some(stripe::InvoiceBillingReason::SubscriptionCycle) = invoice.billing_reason {
-
                 let public_key = get_public_key(&mut con, invoice).await?;
 
                 info!(
@@ -527,7 +555,8 @@ pub async fn stripe_webhooks(
                         &mut con,
                         server_state.config.stripe.millis_between_user_payment_flows,
                     )
-                    .await {
+                    .await
+                    {
                         Ok(sub_hist) => {
                             if let Some(size) = billing_hist_size {
                                 if size != sub_hist.info.len() {
@@ -540,7 +569,10 @@ pub async fn stripe_webhooks(
                         }
                         Err(ClientError(LockBillingWorkflowError::TooManyRequestsTooSoon)) => {}
                         Err(err) => {
-                            return Err(Abort(internal!("Cannot get billing lock in stripe webhooks: {:#?}", err)));
+                            return Err(Abort(internal!(
+                                "Cannot get billing lock in stripe webhooks: {:#?}",
+                                err
+                            )));
                         }
                     }
                     Ok(&mut pipe)
@@ -549,9 +581,7 @@ pub async fn stripe_webhooks(
             }
         }
         (stripe::EventType::InvoicePaid, stripe::EventObject::Invoice(invoice)) => {
-            if let Some(stripe::InvoiceBillingReason::SubscriptionCycle) =
-                invoice.billing_reason
-            {
+            if let Some(stripe::InvoiceBillingReason::SubscriptionCycle) = invoice.billing_reason {
                 let public_key = get_public_key(&mut con, invoice).await?;
 
                 let subscription_period_end = match &invoice.subscription {
@@ -578,7 +608,8 @@ pub async fn stripe_webhooks(
                         &mut con,
                         server_state.config.stripe.millis_between_user_payment_flows,
                     )
-                    .await {
+                    .await
+                    {
                         Ok(mut sub_hist) => {
                             if let Some(BillingInfo::Stripe(info)) = sub_hist.info.last_mut() {
                                 (*info).expiration_time = subscription_period_end as u64;
@@ -587,8 +618,13 @@ pub async fn stripe_webhooks(
                             sub_hist.last_in_payment_flow = 0;
                             pipe.json_set(keys::subscription_history(&public_key), &sub_hist)
                         }
-                        Err(ClientError(LockBillingWorkflowError::TooManyRequestsTooSoon)) => Ok(&mut pipe),
-                        Err(err) => Err(Abort(internal!("Cannot get billing lock in stripe webhooks: {:#?}", err)))
+                        Err(ClientError(LockBillingWorkflowError::TooManyRequestsTooSoon)) => {
+                            Ok(&mut pipe)
+                        }
+                        Err(err) => Err(Abort(internal!(
+                            "Cannot get billing lock in stripe webhooks: {:#?}",
+                            err
+                        ))),
                     }
                 });
                 return_if_error!(tx_result);
@@ -607,7 +643,9 @@ pub async fn stripe_webhooks(
     Ok(())
 }
 
-async fn get_public_key(con: &mut Connection, invoice: &Invoice) -> Result<PublicKey, ServerError<StripeWebhookError>> {
+async fn get_public_key(
+    con: &mut Connection, invoice: &Invoice,
+) -> Result<PublicKey, ServerError<StripeWebhookError>> {
     let customer_id = match invoice
         .customer
         .as_ref()
@@ -626,10 +664,7 @@ async fn get_public_key(con: &mut Connection, invoice: &Invoice) -> Result<Publi
         .maybe_json_get(public_key_from_stripe_customer_id(&customer_id))
         .await?
         .ok_or_else(|| {
-            internal!(
-                "There is no public_key related to this customer_id: {:?}",
-                customer_id
-            )
+            internal!("There is no public_key related to this customer_id: {:?}", customer_id)
         })?;
 
     Ok(public_key)
@@ -646,20 +681,21 @@ pub enum GooglePlayWebhookError {
 }
 
 pub async fn android_notification_webhooks(
-    server_state: &Arc<ServerState>, request_body: Bytes, query_parameters: HashMap<String, String>
+    server_state: &Arc<ServerState>, request_body: Bytes, query_parameters: HashMap<String, String>,
 ) -> Result<(), ServerError<GooglePlayWebhookError>> {
     if !constant_time_eq::constant_time_eq(
-        query_parameters.get("token").ok_or(ClientError(GooglePlayWebhookError::InvalidToken))?.as_bytes(),
+        query_parameters
+            .get("token")
+            .ok_or(ClientError(GooglePlayWebhookError::InvalidToken))?
+            .as_bytes(),
         server_state.config.google.pubsub_token.as_bytes(),
     ) {
         return Err(ClientError(GooglePlayWebhookError::InvalidToken));
     }
 
     let pubsub_notif = serde_json::from_slice::<PubSubNotification>(&request_body)?;
-    let data = base64::decode(
-        pubsub_notif.message.data
-    )
-    .map_err(|e| ClientError(GooglePlayWebhookError::CannotDecodePubSubData(e)))?;
+    let data = base64::decode(pubsub_notif.message.data)
+        .map_err(|e| ClientError(GooglePlayWebhookError::CannotDecodePubSubData(e)))?;
 
     let notification = serde_json::from_slice::<DeveloperNotification>(&data)?;
 
@@ -682,20 +718,18 @@ pub async fn android_notification_webhooks(
         }
 
         error!("Subscription: {:?} \n \n \n Notification: {:?} \n", subscription, sub_notif);
-        let account_id =
-            &subscription.obfuscated_external_account_id.clone().ok_or_else(|| internal!(
-                "There should be an account id attached to a purchase: {:?}",
-                sub_notif
-            ))?;
+        let account_id = &subscription
+            .obfuscated_external_account_id
+            .clone()
+            .ok_or_else(|| {
+                internal!("There should be an account id attached to a purchase: {:?}", sub_notif)
+            })?;
 
         let public_key: PublicKey = con
-            .maybe_json_get(keys::public_key_from_gp_account_id(&account_id))
+            .maybe_json_get(keys::public_key_from_gp_account_id(account_id))
             .await?
             .ok_or_else(|| {
-                internal!(
-                "There is no public_key related to this account_id: {:?}",
-                account_id
-            )
+                internal!("There is no public_key related to this account_id: {:?}", account_id)
             })?;
 
         let mut billing_hist_size: Option<usize> = None;
@@ -706,7 +740,8 @@ pub async fn android_notification_webhooks(
                 &mut con,
                 server_state.config.stripe.millis_between_user_payment_flows,
             )
-            .await {
+            .await
+            {
                 Ok(mut sub_hist) => {
                     if let Some(size) = billing_hist_size {
                         if size != sub_hist.info.len() {
@@ -721,30 +756,35 @@ pub async fn android_notification_webhooks(
                                 info.account_state = GooglePlayAccountState::Ok;
                                 sub_hist.last_in_payment_flow = 0;
                                 info.expiration_time = subscription.borrow().expiry_time_millis.as_ref().ok_or_else(|| Abort(internal!("Cannot get expiration time of a recovered subscription. public_key {:?}, subscription notification type: {:?}", public_key, notification_type)))?.parse().map_err(|e| Abort(internal!("Cannot parse millis into int: {:?}", e)))?;
-                                pipe.set(data_cap(&public_key), PREMIUM_TIER_USAGE_SIZE).json_set(keys::subscription_history(&public_key), &sub_hist)
+                                pipe.set(data_cap(&public_key), PREMIUM_TIER_USAGE_SIZE)
+                                    .json_set(keys::subscription_history(&public_key), &sub_hist)
                                 // give back premium and update time exp
                             }
-                            NotificationType::SubscriptionRenewed | NotificationType::SubscriptionRestarted => {
+                            NotificationType::SubscriptionRenewed
+                            | NotificationType::SubscriptionRestarted => {
+                                info.account_state = GooglePlayAccountState::Ok;
                                 sub_hist.last_in_payment_flow = 0;
                                 info.expiration_time = subscription.borrow().expiry_time_millis.as_ref().ok_or_else(|| Abort(internal!("Cannot get expiration time of a recovered subscription. public_key {:?}, subscription notification type: {:?}", public_key, notification_type)))?.parse().map_err(|e| Abort(internal!("Cannot parse millis into int: {:?}", e)))?;
                                 pipe.json_set(keys::subscription_history(&public_key), &sub_hist)
                                 // change expiry time
                             }
                             NotificationType::SubscriptionInGracePeriod => {
-                                Ok(&mut pipe)
+                                info.account_state = GooglePlayAccountState::GracePeriod;
+                                pipe.json_set(keys::subscription_history(&public_key), &sub_hist)
                             }
                             NotificationType::SubscriptionOnHold => {
+                                info.account_state = GooglePlayAccountState::OnHold;
                                 sub_hist.last_in_payment_flow = 0;
-                                info.account_state = GooglePlayAccountState::AccountHold;
                                 info.expiration_time = subscription.borrow().expiry_time_millis.as_ref().ok_or_else(|| Abort(internal!("Cannot get expiration time of a recovered subscription. public_key {:?}, subscription notification type: {:?}", public_key, notification_type)))?.parse().map_err(|e| Abort(internal!("Cannot parse millis into int: {:?}", e)))?;
-                                pipe.set(data_cap(&public_key), FREE_TIER_USAGE_SIZE).json_set(keys::subscription_history(&public_key), &sub_hist)
+                                pipe.set(data_cap(&public_key), FREE_TIER_USAGE_SIZE)
+                                    .json_set(keys::subscription_history(&public_key), &sub_hist)
                             }
                             NotificationType::SubscriptionExpired
                             | NotificationType::SubscriptionRevoked => {
-                                info.account_state = GooglePlayAccountState::Other;
                                 sub_hist.last_in_payment_flow = 0;
                                 info.expiration_time = subscription.borrow().expiry_time_millis.as_ref().ok_or_else(|| Abort(internal!("Cannot get expiration time of a recovered subscription. public_key {:?}, subscription notification type: {:?}", public_key, notification_type)))?.parse().map_err(|e| Abort(internal!("Cannot parse millis into int: {:?}", e)))?;
-                                pipe.set(data_cap(&public_key), FREE_TIER_USAGE_SIZE).json_set(keys::subscription_history(&public_key), &sub_hist)
+                                pipe.set(data_cap(&public_key), FREE_TIER_USAGE_SIZE)
+                                    .json_set(keys::subscription_history(&public_key), &sub_hist)
                                 // remove premium data cap and update exp date to past (for hold)
                             }
                             NotificationType::SubscriptionCanceled => {
@@ -757,25 +797,28 @@ pub async fn android_notification_webhooks(
                             | NotificationType::SubscriptionDeferred
                             | NotificationType::SubscriptionPaused
                             | NotificationType::SubscriptionPausedScheduleChanged => {
-                                info!("Unexpected subscription notification: {:?}, public_key: {:?}",
-                                    notification_type,
-                                    public_key
+                                info!(
+                                    "Unexpected subscription notification: {:?}, public_key: {:?}",
+                                    notification_type, public_key
                                 );
                                 Ok(&mut pipe)
                             }
-                            NotificationType::Unknown => {
-                                Err(Abort(internal!(
-                                    "Unknown subscription change. public_key: {:?}",
-                                    public_key
-                                )))
-                            }
+                            NotificationType::Unknown => Err(Abort(internal!(
+                                "Unknown subscription change. public_key: {:?}",
+                                public_key
+                            ))),
                         }
                     } else {
-                        Err(Abort(internal!("Cannot get any billing info for user. public_key: {:?}", public_key)))
+                        Err(Abort(internal!(
+                            "Cannot get any billing info for user. public_key: {:?}",
+                            public_key
+                        )))
                     }
                 }
                 Err(ClientError(LockBillingWorkflowError::TooManyRequestsTooSoon)) => Ok(&mut pipe),
-                Err(err) => Err(Abort(internal!("Cannot get billing lock in stripe webhooks: {:#?}", err)))
+                Err(err) => {
+                    Err(Abort(internal!("Cannot get billing lock in stripe webhooks: {:#?}", err)))
+                }
             }
         });
         return_if_error!(tx_result);

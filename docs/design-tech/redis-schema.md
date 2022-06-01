@@ -35,11 +35,12 @@ Values are json encoded.
 
 # Billing
 
-+ `public_key:x:billing_lock`
++ `public_key:x:subscription_history`
   + `x` is the `public_key`.
-  + `billing_lock` contains a user's info for a platform they may have.
 + `stripe_customer_id:x:public_key`.
   + `x` is the stripe `customer_id`.
++ `google_play_account_id:x:public_key`
+  + `x` is the obfuscated `account_id` of a google play user.
 
 # Document Content (TODO)
 

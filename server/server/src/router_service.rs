@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use crate::account_service::*;
 use crate::billing::billing_service;
 use crate::billing::billing_service::*;
@@ -13,6 +12,7 @@ use log::{error, warn};
 use prometheus::{register_histogram_vec, HistogramVec, TextEncoder};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::sync::Arc;
 use warp::http::{HeaderValue, Method, StatusCode};
 use warp::hyper::body::Bytes;
@@ -88,11 +88,8 @@ pub fn core_routes(
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
         .or(core_req!(DeleteAccountRequest, delete_account, server_state))
         .or(core_req!(GetCreditCardRequest, get_credit_card, server_state))
-        .or(core_req!(
-            UpgradeAccountAndroidRequest,
-            upgrade_account_android,
-            server_state
-        ))
+        .or(core_req!(UpgradeAccountAndroidRequest, upgrade_account_android, server_state))
+        .or(core_req!(UpgradeAccountStripeRequest, upgrade_account_stripe, server_state))
         .or(core_req!(CancelSubscriptionRequest, cancel_subscription, server_state))
         .or(core_req!(GetSubscriptionInfoRequest, get_subscription_info, server_state))
 }

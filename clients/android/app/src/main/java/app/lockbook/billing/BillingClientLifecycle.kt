@@ -19,7 +19,7 @@ class BillingClientLifecycle private constructor(
     PurchasesUpdatedListener,
     BillingClientStateListener,
     ProductDetailsResponseListener,
-    PurchasesResponseListener{
+    PurchasesResponseListener {
 
     private val billingClient: BillingClient by lazy {
         BillingClient.newBuilder(applicationContext)
@@ -41,7 +41,12 @@ class BillingClientLifecycle private constructor(
     }
 
     fun showInAppMessaging(activity: Activity) {
-        val inAppMessageParams = InAppMessageParams.newBuilder().addInAppMessageCategoryToShow(InAppMessageParams.InAppMessageCategoryId.TRANSACTIONAL).addAllInAppMessageCategoriesToShow().build()
+        val inAppMessageParams = InAppMessageParams
+            .newBuilder()
+            .addInAppMessageCategoryToShow(InAppMessageParams.InAppMessageCategoryId.TRANSACTIONAL)
+            .addAllInAppMessageCategoriesToShow()
+            .build()
+
         billingClient.showInAppMessages(activity, inAppMessageParams) {}
     }
 
@@ -59,7 +64,7 @@ class BillingClientLifecycle private constructor(
         Timber.e(billingResult.debugMessage)
 
         when {
-            billingResponse.isOk && purchases?.size == 1 && purchases[0].accountIdentifiers?.obfuscatedAccountId != null-> {
+            billingResponse.isOk && purchases?.size == 1 && purchases[0].accountIdentifiers?.obfuscatedAccountId != null -> {
                 if (!purchases[0].isAcknowledged) {
                     _billingEvent.postValue(BillingEvent.SuccessfulPurchase(purchases[0].purchaseToken, purchases[0].accountIdentifiers!!.obfuscatedAccountId!!))
                 }
@@ -170,6 +175,8 @@ class BillingClientLifecycle private constructor(
 
         const val PREMIUM_MONTHLY_OFFER_ID = "monthly"
 
+        const val SUBSCRIPTION_URI = "https://play.google.com/store/account/subscriptions?sku=$PREMIUM_PRODUCT_ID&package=app.lockbook"
+
         private val LIST_OF_PRODUCTS = listOf(
             PREMIUM_PRODUCT_ID
         )
@@ -196,7 +203,10 @@ private value class BillingResponse(val code: Int) {
         get() = code == BillingResponseCode.OK
 
     val isCancelable: Boolean
-        get() = code == BillingResponseCode.USER_CANCELED
+        get() = code in setOf(
+            BillingResponseCode.USER_CANCELED,
+            BillingResponseCode.ERROR
+        )
 
     val isRecoverableError: Boolean
         get() = code in setOf(
