@@ -21,6 +21,7 @@ impl super::App {
             .build();
 
         let parent_entry = gtk::Entry::builder()
+            .primary_icon_name("folder-symbolic")
             .text(&parent_path)
             .sensitive(false)
             .hexpand(true)
@@ -82,9 +83,14 @@ impl super::App {
 
         name_entry.grab_focus();
 
-        let display_error = move |err_msg: &str| {
-            err_lbl.set_text(err_msg);
-            err_lbl.show();
+        let display_error = {
+            let name_entry = name_entry.clone();
+
+            move |err_msg: &str| {
+                err_lbl.set_text(err_msg);
+                err_lbl.show();
+                name_entry.grab_focus();
+            }
         };
 
         let app = self.clone();
@@ -130,12 +136,25 @@ fn new_file_dialog(parent: &impl IsA<gtk::Window>) -> gtk::Dialog {
     titlebar.set_title_widget(Some(&title));
     titlebar.pack_start(&new_icon);
 
+    let cancel = gtk::Button::builder()
+        .margin_end(8)
+        .margin_bottom(8)
+        .label("Cancel")
+        .build();
+
+    let create = gtk::Button::builder()
+        .margin_end(8)
+        .margin_bottom(8)
+        .label("Create")
+        .build();
+
     let d = gtk::Dialog::builder()
         .transient_for(parent)
         .titlebar(&titlebar)
         .modal(true)
         .build();
-    d.add_button("Ok", gtk::ResponseType::Ok);
+    d.add_action_widget(&cancel, gtk::ResponseType::Cancel);
+    d.add_action_widget(&create, gtk::ResponseType::Ok);
     d.set_default_response(gtk::ResponseType::Ok);
     d
 }
