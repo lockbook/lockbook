@@ -6,8 +6,6 @@
     <uses-sdk tools:overrideLibrary="com.google.zxing.client.android" />
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="com.android.vending.BILLING" />
-<!--    // shouldn't be neccessary-->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!--
         allowBackup is set to false because it may backup keys in plaintext to google drive
@@ -30,10 +28,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".screen.OnBoardingActivity" />
-        <activity
-            android:name=".screen.ImportAccountActivity" />
+        <activity android:name=".screen.OnBoardingActivity" />
+        <activity android:name=".screen.ImportAccountActivity" />
         <activity android:name=".screen.MainScreenActivity" />
         <activity android:name=".screen.SettingsActivity" />
         <activity android:name=".screen.LogActivity" />

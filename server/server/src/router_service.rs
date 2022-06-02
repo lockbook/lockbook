@@ -175,9 +175,7 @@ pub fn android_notification_webhooks(
                         | ServerError::ClientError(
                             GooglePlayWebhookError::CannotDecodePubSubData(_),
                         ) => StatusCode::BAD_REQUEST,
-                        ServerError::ClientError(
-                            GooglePlayWebhookError::CannotRetrieveUserInfo,
-                        )
+                        ServerError::ClientError(GooglePlayWebhookError::CannotRetrieveUserInfo)
                         | ServerError::ClientError(
                             GooglePlayWebhookError::CannotRetrievePublicKey,
                         )

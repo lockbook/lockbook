@@ -34,7 +34,6 @@ class BillingClientLifecycle private constructor(
         get() = _billingEvent
 
     override fun onCreate(owner: LifecycleOwner) {
-
         if (!billingClient.isReady) {
             billingClient.startConnection(this)
         }
@@ -66,7 +65,17 @@ class BillingClientLifecycle private constructor(
         when {
             billingResponse.isOk && purchases?.size == 1 && purchases[0].accountIdentifiers?.obfuscatedAccountId != null -> {
                 if (!purchases[0].isAcknowledged) {
-                    _billingEvent.postValue(BillingEvent.SuccessfulPurchase(purchases[0].purchaseToken, purchases[0].accountIdentifiers!!.obfuscatedAccountId!!))
+                    _billingEvent.postValue(
+                        BillingEvent.SuccessfulPurchase(
+                            purchases[0].purchaseToken,
+                            purchases[0].accountIdentifiers?.obfuscatedAccountId
+                                ?: return _billingEvent.postValue(
+                                    BillingEvent.NotifyError(
+                                        LbError.basicError(applicationContext.resources)
+                                    )
+                                )
+                        )
+                    )
                 }
             }
             billingResponse.isUnRecoverableError -> {
@@ -130,7 +139,6 @@ class BillingClientLifecycle private constructor(
                 }
             }
             response.isUnRecoverableError -> _billingEvent.postValue(BillingEvent.NotifyUnrecoverableError)
-            else -> {}
         }
     }
 
@@ -193,8 +201,8 @@ class BillingClientLifecycle private constructor(
 
 sealed class BillingEvent {
     data class SuccessfulPurchase(val purchaseToken: String, val accountId: String) : BillingEvent()
-    object NotifyUnrecoverableError : BillingEvent()
     data class NotifyError(val error: LbError) : BillingEvent()
+    object NotifyUnrecoverableError : BillingEvent()
 }
 
 @JvmInline

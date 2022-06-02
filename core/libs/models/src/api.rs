@@ -353,8 +353,8 @@ pub struct UpgradeAccountAndroidResponse {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum UpgradeAccountAndroidError {
-    InvalidPurchaseToken,
     AlreadyPremium,
+    InvalidPurchaseToken,
     TooManyRequestsTooSoon,
 }
 
