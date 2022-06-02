@@ -38,3 +38,17 @@
 .green {
 	color: green;
 }
+
+.toggle_btn_group button:first-child {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+}
+.toggle_btn_group button:last-child {
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+}
+.toggle_btn_group button:not(:first-child):not(:last-child) {
+	border-radius: 0;
+	border-left: none;
+	border-right: none;
+}
