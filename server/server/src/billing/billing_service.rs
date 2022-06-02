@@ -26,7 +26,7 @@ use lockbook_models::api::{
     UpgradeAccountAndroidRequest, UpgradeAccountAndroidResponse, UpgradeAccountStripeError,
     UpgradeAccountStripeRequest, UpgradeAccountStripeResponse,
 };
-use log::{error, info, warn};
+use log::{info, warn};
 use redis_utils::converters::{JsonGet, JsonSet, PipelineJsonSet};
 use redis_utils::tx;
 use std::borrow::Borrow;
@@ -142,6 +142,11 @@ pub async fn upgrade_account_android(
         return Err(ClientError(UpgradeAccountAndroidError::AlreadyPremium));
     }
 
+    info!(
+        "Upgrading the account of a user through google play billing. public_key: {:?}.",
+        context.public_key
+    );
+
     let mut sub_hist = lock_billing_workflow(
         &context.public_key,
         &mut con,
@@ -155,6 +160,8 @@ pub async fn upgrade_account_android(
         InternalError(msg) => InternalError(msg),
     })?;
 
+    info!("Acknowledging a user's google play subscription.");
+
     google_play_client::acknowledge_subscription(
         &server_state.android_publisher,
         &server_state.config.google.premium_subscription_product_id,
@@ -164,6 +171,8 @@ pub async fn upgrade_account_android(
 
     con.set(data_cap(&context.public_key), PREMIUM_TIER_USAGE_SIZE)
         .await?;
+
+    info!("Getting a user's google play subscription to determine the expiry time.");
 
     let subscription = google_play_client::get_subscription(
         &server_state.android_publisher,
@@ -203,9 +212,15 @@ pub async fn upgrade_account_android(
                 .map_err(|e| internal!("Cannot parse millis into int: {:?}", e))?,
             account_state: GooglePlayAccountState::Ok,
         }));
+
     reset_billing_lock(&context.public_key, &mut con, &mut sub_hist).await?;
     con.json_set(keys::public_key_from_gp_account_id(&request.account_id), context.public_key)
         .await?;
+
+    info!(
+        "Successfully upgraded a user through a google play subscription. public_key: {:?}",
+        context.public_key
+    );
 
     Ok(UpgradeAccountAndroidResponse {})
 }
@@ -215,8 +230,6 @@ pub async fn cancel_subscription(
 ) -> Result<CancelSubscriptionResponse, ServerError<CancelSubscriptionError>> {
     let server_state = context.server_state;
     let mut con = server_state.index_db_pool.get().await?;
-
-    let fmt_public_key = keys::stringify_public_key(&context.public_key);
 
     let current_data_cap: u64 = con.get(data_cap(&context.public_key)).await?;
 
@@ -249,15 +262,17 @@ pub async fn cancel_subscription(
 
     if usage > FREE_TIER_USAGE_SIZE {
         info!(
-            "Cannot downgrade user to free since they are over the data cap. public_key: {}",
-            fmt_public_key
+            "Cannot downgrade user to free since they are over the data cap. public_key: {:?}",
+            context.public_key
         );
         return Err(ClientError(CancelSubscriptionError::UsageIsOverFreeTierDataCap));
     }
 
     match sub_hist.info.last_mut() {
-        None => return Err(internal!("A user somehow has premium tier usage, but no billing information on redis. public_key: {}", fmt_public_key)),
+        None => return Err(internal!("A user somehow has premium tier usage, but no billing information on redis. public_key: {:?}", context.public_key)),
         Some(BillingInfo::GooglePlay(info)) => {
+            info!("Canceling google play subscription of user. public_key: {:?}.", context.public_key);
+
             google_play_client::cancel_subscription(
                 &server_state.android_publisher,
                 &info.subscription_product_id,
@@ -265,9 +280,13 @@ pub async fn cancel_subscription(
             ).await?;
 
             info.account_state = GooglePlayAccountState::Canceled;
+            info!("Successfully canceled google play subscription of user. public_key: {:?}.", context.public_key);
+
             // You do not get rid of the data cap until they have used up the rest of their time.
         }
         Some(BillingInfo::Stripe(info)) => {
+            info!("Canceling stripe subscription of user. public_key: {:?}.", context.public_key);
+
             stripe_client::cancel_subscription(
                 &server_state.stripe_client,
                 &stripe::SubscriptionId::from_str(&info.subscription_id)?,
@@ -276,7 +295,7 @@ pub async fn cancel_subscription(
                 .map_err(|err| internal!("{:?}", err))?;
 
             con.set(data_cap(&context.public_key), FREE_TIER_USAGE_SIZE).await?;
-            info!("Successfully canceled stripe subscription. public_key: {}", fmt_public_key);
+            info!("Successfully canceled stripe subscription. public_key: {:?}", context.public_key);
 
         }
     }
@@ -693,6 +712,8 @@ pub async fn android_notification_webhooks(
         return Err(ClientError(GooglePlayWebhookError::InvalidToken));
     }
 
+    info!("Parsing pubsub notification and extracting the developer notification.");
+
     let pubsub_notif = serde_json::from_slice::<PubSubNotification>(&request_body)?;
     let data = base64::decode(pubsub_notif.message.data)
         .map_err(|e| ClientError(GooglePlayWebhookError::CannotDecodePubSubData(e)))?;
@@ -702,6 +723,8 @@ pub async fn android_notification_webhooks(
     let mut con = server_state.index_db_pool.get().await?;
 
     if let Some(sub_notif) = notification.subscription_notification {
+        info!("Notification is for a subscription: {:?}", sub_notif);
+
         let subscription = google_play_client::get_subscription(
             &server_state.android_publisher,
             &sub_notif.subscription_id,
@@ -717,13 +740,14 @@ pub async fn android_notification_webhooks(
             return Ok(());
         }
 
-        error!("Subscription: {:?} \n \n \n Notification: {:?} \n", subscription, sub_notif);
         let account_id = &subscription
             .obfuscated_external_account_id
             .clone()
             .ok_or_else(|| {
                 internal!("There should be an account id attached to a purchase: {:?}", sub_notif)
             })?;
+
+        info!("Retrieved full subscription info for notification event {:?} with an obfuscated id of {:?}", notification_type, account_id);
 
         let public_key: PublicKey = con
             .maybe_json_get(keys::public_key_from_gp_account_id(account_id))
@@ -733,6 +757,8 @@ pub async fn android_notification_webhooks(
             })?;
 
         let mut billing_hist_size: Option<usize> = None;
+
+        info!("Updating subscription history to match new subscription state.");
 
         let tx_result = tx!(&mut con, pipe, &[keys::subscription_history(&public_key)], {
             match lock_billing_workflow(
