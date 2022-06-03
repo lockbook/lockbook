@@ -136,27 +136,23 @@ fn new_file_dialog(parent: &impl IsA<gtk::Window>) -> gtk::Dialog {
     titlebar.set_title_widget(Some(&title));
     titlebar.pack_start(&new_icon);
 
-    let cancel = gtk::Button::builder()
-        .margin_end(8)
-        .margin_bottom(8)
-        .label("Cancel")
-        .build();
-
-    let create = gtk::Button::builder()
-        .margin_end(8)
-        .margin_bottom(8)
-        .label("Create")
-        .build();
-
     let d = gtk::Dialog::builder()
         .transient_for(parent)
         .titlebar(&titlebar)
         .modal(true)
         .build();
-    d.add_action_widget(&cancel, gtk::ResponseType::Cancel);
-    d.add_action_widget(&create, gtk::ResponseType::Ok);
+    d.add_action_widget(&action_btn("Cancel"), gtk::ResponseType::Cancel);
+    d.add_action_widget(&action_btn("Create"), gtk::ResponseType::Ok);
     d.set_default_response(gtk::ResponseType::Ok);
     d
+}
+
+fn action_btn(text: &str) -> gtk::Button {
+    gtk::Button::builder()
+        .margin_end(8)
+        .margin_bottom(8)
+        .label(text)
+        .build()
 }
 
 #[derive(Clone, Copy, PartialEq)]
