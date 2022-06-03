@@ -117,7 +117,23 @@ impl super::App {
                         Err(err) => display_error(&err),
                     }
                 }
-                Err(err) => display_error(&format!("{:?}", err)), //todo
+                Err(err) => display_error(&{
+                    use lb::CreateFileError::*;
+                    match err {
+                        lb::UiError(err) => match err {
+                            NoAccount => "No account!",
+                            DocumentTreatedAsFolder => {
+                                "Can only create files within folders, not documents."
+                            }
+                            CouldNotFindAParent => "That parent folder does not exist.",
+                            FileNameNotAvailable => "That file name is alrady taken.",
+                            FileNameEmpty => "File names cannot be empty.",
+                            FileNameContainsSlash => "File names cannot contain a slash (/).",
+                        }
+                        .to_string(),
+                        lb::Unexpected(msg) => msg,
+                    }
+                }),
             }
         });
 
