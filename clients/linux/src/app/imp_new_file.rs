@@ -1,48 +1,85 @@
 use gtk::prelude::*;
 
+use crate::ui;
+
 impl super::App {
-    pub fn new_file(&self, ftype: lb::FileType) {
-        let ftype_str = format!("{:?}", ftype);
+    pub fn prompt_new_file(&self) {
+        let selected_id = self.account.tree.get_selected_uuid();
 
-        let lbl = gtk::Label::builder()
-            .label(&format!("Enter {} name:", ftype_str.to_lowercase()))
-            .halign(gtk::Align::Start)
+        let (parent_id, parent_path) = match lb::parent_info(&self.api, selected_id) {
+            Ok(v) => v,
+            Err(err) => {
+                self.show_err_dialog(&err);
+                return;
+            }
+        };
+
+        let parent_entry = gtk::Entry::builder()
+            .primary_icon_name("folder-symbolic")
+            .text(&parent_path)
+            .sensitive(false)
+            .hexpand(true)
             .build();
 
-        let errlbl = gtk::Label::builder()
-            .name("err")
-            .halign(gtk::Align::Start)
-            .margin_top(16)
-            .margin_bottom(8)
-            .build();
-
-        let entry = gtk::Entry::builder()
+        let name_entry = gtk::Entry::builder()
             .activates_default(true)
-            .margin_top(16)
+            .hexpand(true)
             .build();
 
-        let content = gtk::Box::builder()
-            .orientation(gtk::Orientation::Vertical)
-            .margin_start(8)
-            .margin_end(8)
-            .margin_top(8)
-            .margin_bottom(8)
+        let ext_lbl = gtk::Label::builder().visible(false).build();
+
+        let name_and_ext = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+        name_and_ext.append(&name_entry);
+        name_and_ext.append(&ext_lbl);
+
+        let ftype_choices = ui::ToggleGroup::with_buttons(&[
+            ("Folder", NewFileType::Folder),
+            ("Plain Text", NewFileType::PlainText),
+            ("Markdown", NewFileType::Markdown),
+        ]);
+        ftype_choices.connect_changed(move |value: NewFileType| {
+            if let Some(ext) = value.ext() {
+                ext_lbl.set_text(ext);
+                ext_lbl.show();
+            } else {
+                ext_lbl.hide();
+            }
+        });
+
+        let form = gtk::Grid::builder()
+            .column_spacing(16)
+            .row_spacing(16)
             .build();
+        form.attach(&form_lbl("Parent:"), 0, 0, 1, 1);
+        form.attach(&parent_entry, 1, 0, 1, 1);
+        form.attach(&form_lbl("Name:"), 0, 1, 1, 1);
+        form.attach(&name_and_ext, 1, 1, 1, 1);
 
-        content.append(&lbl);
-        content.append(&entry);
+        let err_lbl = gtk::Label::builder().visible(false).name("err").build();
 
-        let d = gtk::Dialog::builder()
-            .title(&format!("New {}", ftype_str))
-            .transient_for(&self.window)
-            .default_width(300)
-            .modal(true)
-            .build();
+        let d = new_file_dialog(&self.window);
+        let ca = d.content_area();
+        ca.set_orientation(gtk::Orientation::Vertical);
+        ca.set_spacing(16);
+        ca.set_margin_top(16);
+        ca.set_margin_bottom(16);
+        ca.set_margin_start(16);
+        ca.set_margin_end(16);
+        ca.append(&ftype_choices.cntr);
+        ca.append(&form);
+        ca.append(&err_lbl);
 
-        d.content_area().set_orientation(gtk::Orientation::Vertical);
-        d.content_area().append(&content);
-        d.add_button("Ok", gtk::ResponseType::Ok);
-        d.set_default_response(gtk::ResponseType::Ok);
+        name_entry.grab_focus();
+
+        let display_error = {
+            let name_entry = name_entry.clone();
+
+            move |err_msg: &str| {
+                err_lbl.set_text(err_msg);
+                err_lbl.show();
+                name_entry.grab_focus();
+            }
+        };
 
         let app = self.clone();
         d.connect_response(move |d, resp| {
@@ -51,42 +88,110 @@ impl super::App {
                 return;
             }
 
-            let parent_id = match app.account.tree.get_selected_uuid() {
-                Some(id) => match app.api.file_by_id(id) {
-                    Ok(file) => match file.file_type {
-                        lb::FileType::Document => file.parent,
-                        lb::FileType::Folder => file.id,
-                    },
-                    Err(err) => {
-                        errlbl.set_text(&format!("{:?}", err));
-                        content.append(&errlbl);
-                        entry.set_sensitive(false);
-                        return;
-                    }
-                },
-                None => {
-                    eprintln!("no destination is selected to create from!");
-                    return;
-                }
-            };
+            let ftype = ftype_choices.value();
+            let mut fname = name_entry.text().to_string();
+            if let Some(ext) = ftype.ext() {
+                fname = format!("{}{}", fname, ext);
+            }
 
-            let fname = entry.buffer().text();
-
-            match app.api.create_file(&fname, parent_id, ftype) {
+            match app.api.create_file(&fname, parent_id, ftype.lb_type()) {
                 Ok(new_file) => {
-                    d.close();
                     match app.account.tree.add_file(&new_file) {
                         Ok(_) => {
                             app.update_sync_status();
+                            d.close();
                             //open the file if doc?
                         }
-                        Err(err) => eprintln!("{}", err),
+                        Err(err) => display_error(&err),
                     }
                 }
-                Err(err) => eprintln!("{:?}", err),
+                Err(err) => display_error(&{
+                    use lb::CreateFileError::*;
+                    match err {
+                        lb::UiError(err) => match err {
+                            NoAccount => "No account!",
+                            DocumentTreatedAsFolder => {
+                                "Can only create files within folders, not documents."
+                            }
+                            CouldNotFindAParent => "That parent folder does not exist.",
+                            FileNameNotAvailable => "That file name is alrady taken.",
+                            FileNameEmpty => "File names cannot be empty.",
+                            FileNameContainsSlash => "File names cannot contain a slash (/).",
+                        }
+                        .to_string(),
+                        lb::Unexpected(msg) => msg,
+                    }
+                }),
             }
         });
 
         d.show();
+    }
+}
+
+fn form_lbl(text: &str) -> gtk::Label {
+    gtk::Label::builder()
+        .label(text)
+        .margin_start(6)
+        .halign(gtk::Align::Start)
+        .build()
+}
+
+fn new_file_dialog(parent: &impl IsA<gtk::Window>) -> gtk::Dialog {
+    let new_icon = gtk::Image::from_icon_name("emblem-new");
+    new_icon.set_pixel_size(28);
+
+    let title = gtk::Label::new(None);
+    title.set_markup("<b>New File</b>");
+
+    let titlebar = gtk::HeaderBar::new();
+    titlebar.set_title_widget(Some(&title));
+    titlebar.pack_start(&new_icon);
+
+    let d = gtk::Dialog::builder()
+        .transient_for(parent)
+        .titlebar(&titlebar)
+        .modal(true)
+        .build();
+    d.add_action_widget(&action_btn("Cancel"), gtk::ResponseType::Cancel);
+    d.add_action_widget(&action_btn("Create"), gtk::ResponseType::Ok);
+    d.set_default_response(gtk::ResponseType::Ok);
+    d
+}
+
+fn action_btn(text: &str) -> gtk::Button {
+    gtk::Button::builder()
+        .margin_end(8)
+        .margin_bottom(8)
+        .label(text)
+        .build()
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum NewFileType {
+    Folder,
+    PlainText,
+    Markdown,
+}
+
+impl Default for NewFileType {
+    fn default() -> Self {
+        Self::Folder
+    }
+}
+
+impl NewFileType {
+    fn lb_type(&self) -> lb::FileType {
+        match self {
+            Self::PlainText | Self::Markdown => lb::FileType::Document,
+            Self::Folder => lb::FileType::Folder,
+        }
+    }
+
+    fn ext(&self) -> Option<&str> {
+        match self {
+            Self::PlainText | Self::Folder => None,
+            Self::Markdown => Some(".md"),
+        }
     }
 }
