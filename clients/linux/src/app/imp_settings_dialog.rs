@@ -386,7 +386,7 @@ fn payment_err_to_string(err: lb::Error<lb::UpgradeAccountStripeError>) -> Strin
             NoAccount => "No account!",
             CouldNotReachServer => "Unable to connect to server.",
             OldCardDoesNotExist => "Could not find your current card.",
-            NewTierIsOldTier => "You are already subscribed for this tier.",
+            AlreadyPremium => "You are already subscribed for this tier.",
             InvalidCardNumber => "Invalid card number.",
             InvalidCardCvc => "Invalid CVC.",
             InvalidCardExpYear => "Invalid expiration year.",
@@ -400,7 +400,9 @@ fn payment_err_to_string(err: lb::Error<lb::UpgradeAccountStripeError>) -> Strin
             CurrentUsageIsMoreThanNewTier => {
                 "Your current usage is greater than the data cap of your desired subscription tier."
             }
-            TooManyRequestsTooSoon => "ConcurrentRequestsAreTooSoon",
+            TooManyRequestsTooSoon => {
+                "Too many requests. Please wait a little while before trying again."
+            }
         }
         .to_string(),
         lb::Unexpected(err) => err,

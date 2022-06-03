@@ -4,11 +4,11 @@ use lockbook_models::api::*;
 use test_utils::*;
 
 #[test]
-fn switch_to_premium_and_back() {
+fn upgrade_account_to_premium() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 
-    // switch account tier to premium
+    // upgrade account tier to premium
     api_service::request(
         &account,
         UpgradeAccountStripeRequest {
@@ -16,9 +16,6 @@ fn switch_to_premium_and_back() {
         },
     )
     .unwrap();
-
-    // switch account tier back to free
-    api_service::request(&account, CancelSubscriptionRequest {}).unwrap();
 }
 
 #[test]
@@ -26,7 +23,7 @@ fn new_tier_is_old_tier() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 
-    // switch account tier to premium
+    // upgrade account tier to premium
     api_service::request(
         &account,
         UpgradeAccountStripeRequest {
@@ -35,7 +32,7 @@ fn new_tier_is_old_tier() {
     )
     .unwrap();
 
-    // switch account tier to premium
+    // upgrade account tier to premium
     let result = api_service::request(
         &account,
         UpgradeAccountStripeRequest {
@@ -46,7 +43,7 @@ fn new_tier_is_old_tier() {
     assert_matches!(
         result,
         Err(ApiError::<UpgradeAccountStripeError>::Endpoint(
-            UpgradeAccountStripeError::NewTierIsOldTier
+            UpgradeAccountStripeError::AlreadyPremium
         ))
     );
 }
@@ -56,7 +53,7 @@ fn card_does_not_exist() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 
-    // switch account tier to premium using an "old card"
+    // upgrade account tier to premium using an "old card"
     let result = api_service::request(
         &account,
         UpgradeAccountStripeRequest {
@@ -89,7 +86,7 @@ fn card_decline() {
     ];
 
     for (card_number, expected_err) in scenarios {
-        // switch account tier to premium using bad card number
+        // upgrade account tier to premium using bad card number
         let result = api_service::request(
             &account,
             UpgradeAccountStripeRequest {
@@ -143,7 +140,7 @@ fn invalid_cards() {
     ];
 
     for (card_number, maybe_exp_year, maybe_exp_month, maybe_cvc, expected_err) in scenarios {
-        // switch account tier to premium using bad card information
+        // upgrade account tier to premium using bad card information
         let result = api_service::request(
             &account,
             UpgradeAccountStripeRequest {

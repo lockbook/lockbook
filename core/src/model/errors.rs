@@ -104,7 +104,6 @@ pub enum CoreError {
     InvalidCardExpMonth,
     InvalidCardCvc,
     InvalidPurchaseToken,
-    NewTierIsOldTier,
     NoCardAdded,
     NotPremium,
     PathContainsEmptyFileName,
@@ -726,7 +725,7 @@ pub enum UpgradeAccountStripeError {
     NoAccount,
     CouldNotReachServer,
     OldCardDoesNotExist,
-    NewTierIsOldTier,
+    AlreadyPremium,
     InvalidCardNumber,
     InvalidCardCvc,
     InvalidCardExpYear,
@@ -753,7 +752,7 @@ impl From<CoreError> for Error<UpgradeAccountStripeError> {
                 UiError(UpgradeAccountStripeError::InvalidCardExpMonth)
             }
             CoreError::InvalidCardCvc => UiError(UpgradeAccountStripeError::InvalidCardCvc),
-            CoreError::NewTierIsOldTier => UiError(UpgradeAccountStripeError::NewTierIsOldTier),
+            CoreError::AlreadyPremium => UiError(UpgradeAccountStripeError::AlreadyPremium),
             CoreError::ServerUnreachable => UiError(UpgradeAccountStripeError::CouldNotReachServer),
             CoreError::CardDecline => UiError(UpgradeAccountStripeError::CardDecline),
             CoreError::CardHasInsufficientFunds => {

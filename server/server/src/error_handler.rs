@@ -71,6 +71,9 @@ impl From<GetUsageHelperError> for ServerError<GetUsageError> {
 impl From<SimpleGCPError> for ServerError<UpgradeAccountAndroidError> {
     fn from(e: SimpleGCPError) -> Self {
         match e {
+            SimpleGCPError::PurchaseTokenNotFound => {
+                ClientError(UpgradeAccountAndroidError::InvalidPurchaseToken)
+            }
             SimpleGCPError::Unexpected(msg) => internal!("{}", msg),
         }
     }
@@ -78,9 +81,7 @@ impl From<SimpleGCPError> for ServerError<UpgradeAccountAndroidError> {
 
 impl From<SimpleGCPError> for ServerError<CancelSubscriptionError> {
     fn from(e: SimpleGCPError) -> Self {
-        match e {
-            SimpleGCPError::Unexpected(msg) => internal!("{}", msg),
-        }
+        internal!("{:#?}", e)
     }
 }
 

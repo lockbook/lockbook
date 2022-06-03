@@ -2,7 +2,6 @@ use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_model::{
     BillingInfo, GooglePlayUserInfo, StripeUserInfo, SubscriptionHistory,
 };
-use crate::billing::google_play_client::SimpleGCPError;
 use crate::billing::google_play_model::{
     DeveloperNotification, NotificationType, PubSubNotification,
 };
@@ -179,10 +178,7 @@ pub async fn upgrade_account_android(
         &server_state.config.google.premium_subscription_product_id,
         &request.purchase_token,
     )
-    .await
-    .map_err(|e| match e {
-        SimpleGCPError::Unexpected(msg) => internal!("{:#?}", msg),
-    })?;
+    .await?;
 
     sub_hist
         .info
@@ -310,18 +306,14 @@ pub async fn upgrade_account_stripe(
 ) -> Result<UpgradeAccountStripeResponse, ServerError<UpgradeAccountStripeError>> {
     let (request, server_state) = (&context.request, context.server_state);
 
-    info!("IT HAS GOTTEN HERE NICE");
-
-    let fmt_public_key = keys::stringify_public_key(&context.public_key);
-
-    info!("Attempting to switch account tier of {} to premium", fmt_public_key);
+    info!("Attempting to switch account tier of {:?} to premium", context.public_key);
 
     let mut con = server_state.index_db_pool.get().await?;
 
     let current_data_cap: u64 = con.get(data_cap(&context.public_key)).await?;
 
     if current_data_cap == PREMIUM_TIER_USAGE_SIZE {
-        return Err(ClientError(UpgradeAccountStripeError::NewTierIsOldTier));
+        return Err(ClientError(UpgradeAccountStripeError::AlreadyPremium));
     }
 
     let mut sub_hist = lock_billing_workflow(
@@ -349,7 +341,6 @@ pub async fn upgrade_account_stripe(
         server_state,
         &mut con,
         &context.public_key,
-        &fmt_public_key,
         &request.account_tier,
         maybe_user_info,
     )
@@ -360,15 +351,17 @@ pub async fn upgrade_account_stripe(
     con.set(data_cap(&context.public_key), new_data_cap).await?;
     reset_billing_lock(&context.public_key, &mut con, &mut sub_hist).await?;
 
-    info!("Successfully switched the account tier of {} from free to premium.", fmt_public_key);
+    info!(
+        "Successfully switched the account tier of {:?} from free to premium.",
+        context.public_key
+    );
 
     Ok(UpgradeAccountStripeResponse {})
 }
 
 async fn create_subscription(
     server_state: &ServerState, con: &mut deadpool_redis::Connection, public_key: &PublicKey,
-    fmt_public_key: &str, account_tier: &StripeAccountTier,
-    maybe_user_info: Option<StripeUserInfo>,
+    account_tier: &StripeAccountTier, maybe_user_info: Option<StripeUserInfo>,
 ) -> Result<(StripeUserInfo, u64), ServerError<UpgradeAccountStripeError>> {
     let (payment_method, data_cap) = match account_tier {
         StripeAccountTier::Premium(payment_method) => (payment_method, PREMIUM_TIER_USAGE_SIZE),
@@ -376,7 +369,7 @@ async fn create_subscription(
 
     let (customer_id, customer_name, payment_method_id, last_4) = match payment_method {
         PaymentMethod::NewCard { number, exp_year, exp_month, cvc } => {
-            info!("Creating a new card for public_key: {}", fmt_public_key);
+            info!("Creating a new card for public_key: {:?}", public_key);
             let payment_method_resp = stripe_client::create_payment_method(
                 &server_state.stripe_client,
                 number,
@@ -398,10 +391,7 @@ async fn create_subscription(
                 .last4
                 .clone();
 
-            info!(
-                "Created a new payment method. last_4: {}, public_key: {}",
-                last_4, fmt_public_key
-            );
+            info!("Created a new payment method. last_4: {}, public_key: {:?}", last_4, public_key);
 
             let (customer_id, customer_name) = match &maybe_user_info {
                 None => {
@@ -419,7 +409,7 @@ async fn create_subscription(
                     .await?;
                     let customer_id = customer_resp.id.to_string();
 
-                    info!("Created customer_id: {}. public_key: {}", customer_id, fmt_public_key);
+                    info!("Created customer_id: {}. public_key: {:?}", customer_id, public_key);
 
                     con.json_set(public_key_from_stripe_customer_id(&customer_id), public_key)
                         .await?;
@@ -428,16 +418,15 @@ async fn create_subscription(
                 }
                 Some(user_info) => {
                     info!(
-                        "User already has customer_id: {} public_key: {}",
-                        user_info.customer_id, fmt_public_key
+                        "User already has customer_id: {} public_key: {:?}",
+                        user_info.customer_id, public_key
                     );
 
                     let customer_id = stripe::CustomerId::from_str(&user_info.customer_id)?;
 
                     info!(
-                        "Disabling card with a payment method of {} since a new card has just been added. public_key: {}",
-                        user_info.customer_id,
-                        fmt_public_key
+                        "Disabling old card since a new card has just been added. public_key: {:?}",
+                        public_key
                     );
 
                     stripe_client::detach_payment_method_from_customer(
@@ -451,8 +440,8 @@ async fn create_subscription(
             };
 
             info!(
-                "Creating a setup intent to confirm a users payment method for their subscription. public_key: {}",
-                fmt_public_key
+                "Creating a setup intent to confirm a users payment method for their subscription. public_key: {:?}",
+                public_key
             );
 
             let setup_intent_resp = stripe_client::create_setup_intent(
@@ -463,15 +452,15 @@ async fn create_subscription(
             .await?;
 
             info!(
-                "Created a setup intent: {}, public_key: {}",
+                "Created a setup intent: {}, public_key: {:?}",
                 setup_intent_resp.id.to_string(),
-                fmt_public_key
+                public_key
             );
 
             (customer_id, customer_name, payment_method_resp.id.to_string(), last_4)
         }
         PaymentMethod::OldCard => {
-            info!("Using an old card stored on redis for public_key: {}", fmt_public_key);
+            info!("Using an old card stored on redis for public_key: {:?}", public_key);
 
             let user_info = maybe_user_info
                 .ok_or(ClientError(UpgradeAccountStripeError::OldCardDoesNotExist))?;
@@ -485,15 +474,15 @@ async fn create_subscription(
         }
     };
 
-    info!("Successfully retrieved card for public_key: {}", fmt_public_key);
+    info!("Successfully retrieved card for public_key: {:?}", public_key);
 
     let subscription_resp =
         stripe_client::create_subscription(server_state, customer_id.clone(), &payment_method_id)
             .await?;
 
     info!(
-        "Successfully create subscription: {}, public_key: {}",
-        subscription_resp.id, fmt_public_key
+        "Successfully create subscription: {}, public_key: {:?}",
+        subscription_resp.id, public_key
     );
 
     Ok((
@@ -731,9 +720,7 @@ pub async fn android_notification_webhooks(
             &sub_notif.purchase_token,
         )
         .await
-        .map_err(|e| match e {
-            SimpleGCPError::Unexpected(msg) => internal!("{:#?}", msg),
-        })?;
+        .map_err(|e| internal!("{:#?}", e))?;
 
         let notification_type = sub_notif.notification_type();
         if let NotificationType::SubscriptionPurchased = notification_type {

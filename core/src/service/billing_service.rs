@@ -20,7 +20,7 @@ impl Tx<'_> {
                     UpgradeAccountStripeError::OldCardDoesNotExist => {
                         CoreError::OldCardDoesNotExist
                     }
-                    UpgradeAccountStripeError::NewTierIsOldTier => CoreError::NewTierIsOldTier,
+                    UpgradeAccountStripeError::AlreadyPremium => CoreError::AlreadyPremium,
                     UpgradeAccountStripeError::InvalidCardNumber => CoreError::InvalidCardNumber,
                     UpgradeAccountStripeError::InvalidCardExpYear => CoreError::InvalidCardExpYear,
                     UpgradeAccountStripeError::InvalidCardExpMonth => {

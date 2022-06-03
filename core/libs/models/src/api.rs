@@ -321,7 +321,7 @@ pub struct UpgradeAccountStripeResponse {}
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum UpgradeAccountStripeError {
     OldCardDoesNotExist,
-    NewTierIsOldTier,
+    AlreadyPremium,
     CardDecline,
     InsufficientFunds,
     TryAgain,
