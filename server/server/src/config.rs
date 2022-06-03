@@ -160,7 +160,7 @@ pub struct GoogleConfig {
 
 impl GoogleConfig {
     pub fn from_env_vars() -> Self {
-        GoogleConfig {
+        Self {
             service_account_cred_path: env_or_empty("GOOGLE_CLOUD_SERVICE_ACCOUNT_CRED_PATH"),
             premium_subscription_product_id: env_or_panic(
                 "GOOGLE_PLAY_PREMIUM_SUBSCRIPTION_PRODUCT_ID",
