@@ -1,6 +1,3 @@
-use std::path::PathBuf;
-use std::sync::Mutex;
-
 pub use uuid::Uuid;
 
 pub use lockbook_models::account::Account;
@@ -50,9 +47,12 @@ pub use lockbook_core::service::usage_service::bytes_to_human;
 pub use lockbook_core::service::usage_service::UsageItemMetric;
 pub use lockbook_core::service::usage_service::UsageMetrics;
 
-use lockbook_core::Core;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use lockbook_core::model::filename::NameComponents;
+use lockbook_core::Core;
 
 pub trait Api: Send + Sync {
     fn create_account(
@@ -300,6 +300,24 @@ impl Api for DefaultApi {
     ) -> Result<(), Error<SwitchAccountTierError>> {
         self.core.switch_account_tier(new_tier)
     }
+}
+
+pub fn parent_info(api: &Arc<dyn Api>, maybe_id: Option<Uuid>) -> Result<(Uuid, String), String> {
+    let id = match maybe_id {
+        Some(id) => {
+            let meta = api.file_by_id(id).map_err(|e| format!("{:?}", e))?;
+
+            match meta.file_type {
+                FileType::Document => meta.parent,
+                FileType::Folder => meta.id,
+            }
+        }
+        None => api.root().map_err(|e| format!("{:?}", e))?.id,
+    };
+
+    let path = api.path_by_id(id).map_err(|e| format!("{:?}", e))?;
+
+    Ok((id, format!("/{}", path)))
 }
 
 pub fn get_non_conflicting_name(siblings: &[FileMetadata], proposed_name: &str) -> String {
