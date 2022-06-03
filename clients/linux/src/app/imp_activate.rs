@@ -72,6 +72,13 @@ impl super::App {
     fn add_app_actions(&self, a: &gtk::Application) {
         {
             let app = self.clone();
+            let save_file = gio::SimpleAction::new("new-file", None);
+            save_file.connect_activate(move |_, _| app.prompt_new_file());
+            a.add_action(&save_file);
+            a.set_accels_for_action("app.new-file", &["<Ctrl>N"]);
+        }
+        {
+            let app = self.clone();
             let save_file = gio::SimpleAction::new("save-file", None);
             save_file.connect_activate(move |_, _| app.save_file(None));
             a.add_action(&save_file);
@@ -128,8 +135,7 @@ impl super::App {
         account_op_rx.attach(None, move |op| {
             use ui::AccountOp::*;
             match op {
-                NewDocument => self.new_file(lb::FileType::Document),
-                NewFolder => self.new_file(lb::FileType::Folder),
+                NewFile => self.prompt_new_file(),
                 OpenFile(id) => self.open_file(id),
                 RenameFile => self.rename_file(),
                 DeleteFiles => self.delete_files(),

@@ -8,9 +8,7 @@ use gtk::prelude::*;
 use crate::ui;
 
 pub enum AccountOp {
-    NewDocument,
-    NewFolder,
-
+    NewFile,
     OpenFile(lb::Uuid),
     RenameFile,
     DeleteFiles,

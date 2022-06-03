@@ -16,6 +16,7 @@ mod usage_upgrade;
 mod image_tab;
 mod tab;
 mod text_editor;
+mod toggle_group;
 
 pub use account_screen::AccountOp;
 pub use account_screen::AccountScreen;
@@ -41,6 +42,7 @@ pub use usage_upgrade::UpgradePaymentFlow;
 pub use image_tab::ImageTab;
 pub use tab::Tab;
 pub use text_editor::TextEditor;
+pub use toggle_group::ToggleGroup;
 
 pub mod about_dialog;
 
@@ -148,8 +150,6 @@ pub mod icons {
     pub const DELETE: &str = "edit-delete-symbolic";
     pub const ERROR_RED: &str = "dialog-error-symbolic";
     pub const EXPORT: &str = "document-save-symbolic";
-    pub const NEW_DOC: &str = "document-new-symbolic";
-    pub const NEW_FOLDER: &str = "folder-new-symbolic";
     pub const PASTE: &str = "edit-paste-symbolic";
     pub const RENAME: &str = "go-jump-symbolic";
     pub const SEARCH: &str = "system-search-symbolic";
