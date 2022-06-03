@@ -14,23 +14,11 @@ impl super::App {
             }
         };
 
-        let parent_lbl = gtk::Label::builder()
-            .label("Parent:")
-            .margin_start(6)
-            .halign(gtk::Align::Start)
-            .build();
-
         let parent_entry = gtk::Entry::builder()
             .primary_icon_name("folder-symbolic")
             .text(&parent_path)
             .sensitive(false)
             .hexpand(true)
-            .build();
-
-        let name_lbl = gtk::Label::builder()
-            .label("Name:")
-            .margin_start(6)
-            .halign(gtk::Align::Start)
             .build();
 
         let name_entry = gtk::Entry::builder()
@@ -62,9 +50,9 @@ impl super::App {
             .column_spacing(16)
             .row_spacing(16)
             .build();
-        form.attach(&parent_lbl, 0, 0, 1, 1);
+        form.attach(&form_lbl("Parent:"), 0, 0, 1, 1);
         form.attach(&parent_entry, 1, 0, 1, 1);
-        form.attach(&name_lbl, 0, 1, 1, 1);
+        form.attach(&form_lbl("Name:"), 0, 1, 1, 1);
         form.attach(&name_and_ext, 1, 1, 1, 1);
 
         let err_lbl = gtk::Label::builder().visible(false).name("err").build();
@@ -139,6 +127,14 @@ impl super::App {
 
         d.show();
     }
+}
+
+fn form_lbl(text: &str) -> gtk::Label {
+    gtk::Label::builder()
+        .label(text)
+        .margin_start(6)
+        .halign(gtk::Align::Start)
+        .build()
 }
 
 fn new_file_dialog(parent: &impl IsA<gtk::Window>) -> gtk::Dialog {
