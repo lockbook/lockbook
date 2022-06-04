@@ -104,7 +104,6 @@ pub enum CoreError {
     InvalidCardExpMonth,
     InvalidCardCvc,
     InvalidPurchaseToken,
-    NoCardAdded,
     NotPremium,
     PathContainsEmptyFileName,
     PathNonexistent,
@@ -771,26 +770,6 @@ impl From<CoreError> for Error<UpgradeAccountStripeError> {
             CoreError::ClientUpdateRequired => {
                 UiError(UpgradeAccountStripeError::ClientUpdateRequired)
             }
-            _ => unexpected!("{:#?}", e),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetCreditCard {
-    NoAccount,
-    CouldNotReachServer,
-    NoCardAdded,
-    ClientUpdateRequired,
-}
-
-impl From<CoreError> for Error<GetCreditCard> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::AccountNonexistent => UiError(GetCreditCard::NoAccount),
-            CoreError::ServerUnreachable => UiError(GetCreditCard::CouldNotReachServer),
-            CoreError::NoCardAdded => UiError(GetCreditCard::NoCardAdded),
-            CoreError::ClientUpdateRequired => UiError(GetCreditCard::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
         }
     }

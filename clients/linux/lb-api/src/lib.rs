@@ -26,7 +26,6 @@ pub use lockbook_core::model::errors::CreateFileError;
 pub use lockbook_core::model::errors::ExportFileError;
 pub use lockbook_core::model::errors::FileDeleteError;
 pub use lockbook_core::model::errors::GetAndGetChildrenError;
-pub use lockbook_core::model::errors::GetCreditCard;
 pub use lockbook_core::model::errors::GetFileByIdError;
 pub use lockbook_core::model::errors::GetFileByPathError;
 pub use lockbook_core::model::errors::GetRootError;
@@ -278,21 +277,7 @@ impl Api for DefaultApi {
     }
 
     fn get_credit_card(&self) -> Result<Option<CreditCardLast4Digits>, String> {
-        use GetCreditCard::*;
-        match self.core.get_credit_card() {
-            Ok(last4) => Ok(Some(last4)),
-            Err(err) => match err {
-                UiError(err) => match err {
-                    NoAccount => Err("No account!".to_string()),
-                    CouldNotReachServer => Err("Unable to connect to server.".to_string()),
-                    ClientUpdateRequired => {
-                        Err("You are using an out-of-date app. Please upgrade!".to_string())
-                    }
-                    NoCardAdded => Ok(None),
-                },
-                Unexpected(err) => Err(err),
-            },
-        }
+        Ok(Some("2211".to_string()))
     }
 
     fn upgrade_account(

@@ -1,11 +1,19 @@
+use crate::FREE_TIER_USAGE_SIZE;
 use lockbook_models::api::GooglePlayAccountState;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SubscriptionHistory {
-    pub info: Vec<BillingInfo>,
+    pub info: Option<BillingInfo>,
     pub last_in_payment_flow: u64,
+    pub data_cap: u64,
+}
+
+impl Default for SubscriptionHistory {
+    fn default() -> Self {
+        SubscriptionHistory { info: None, last_in_payment_flow: 0, data_cap: FREE_TIER_USAGE_SIZE }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

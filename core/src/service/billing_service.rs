@@ -3,9 +3,9 @@ use crate::service::api_service;
 use crate::service::api_service::ApiError;
 use crate::{CoreError, Tx};
 use lockbook_models::api::{
-    CancelSubscriptionError, CancelSubscriptionRequest, GetCreditCardError, GetCreditCardRequest,
-    GetSubscriptionInfoRequest, StripeAccountTier, SubscriptionInfo, UpgradeAccountAndroidError,
-    UpgradeAccountAndroidRequest, UpgradeAccountStripeError, UpgradeAccountStripeRequest,
+    CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequest,
+    StripeAccountTier, SubscriptionInfo, UpgradeAccountAndroidError, UpgradeAccountAndroidRequest,
+    UpgradeAccountStripeError, UpgradeAccountStripeRequest,
 };
 
 pub type CreditCardLast4Digits = String;
@@ -46,19 +46,6 @@ impl Tx<'_> {
         )?;
 
         Ok(())
-    }
-
-    pub fn get_credit_card(&self) -> Result<CreditCardLast4Digits, CoreError> {
-        let account = self.get_account()?;
-
-        Ok(api_service::request(&account, GetCreditCardRequest {})
-            .map_err(|err| match err {
-                ApiError::Endpoint(GetCreditCardError::NoCardAdded) => CoreError::NoCardAdded,
-                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-                _ => core_err_unexpected(err),
-            })?
-            .credit_card_last_4_digits)
     }
 
     pub fn upgrade_account_android(

@@ -14,10 +14,6 @@ pub fn owned_files(pk: &PublicKey) -> String {
     format!("public_key:{}:owned_files", stringify_public_key(pk))
 }
 
-pub fn data_cap(pk: &PublicKey) -> String {
-    format!("public_key:{}:data_cap", stringify_public_key(pk))
-}
-
 pub fn file(id: Uuid) -> String {
     format!("file_id:{}:metadata", id)
 }

@@ -235,7 +235,7 @@
     <string name="upgrade_pitch">If you upgraded to premium, your usage would be:</string>
     <string name="settings_premium">Premium</string>
     <string name="settings_miscellaneous">Miscellaneous</string>
-    <string name="payment_issue">Your renewal has been declined due to a payment issue. Please click the button bellow to resolve it.</string>
+    <string name="payment_issue">Your renewal has been declined due to a payment issue. Please click the button below to resolve it.</string>
     <string name="update_payment_method">Update Payment Method</string>
     <string name="payment_platform">Payment Platform:</string>
     <string name="next_renewal_day">Next Renewal Date:</string>

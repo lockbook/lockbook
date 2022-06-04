@@ -280,26 +280,6 @@ impl Request for DeleteAccountRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct GetCreditCardRequest {}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct GetCreditCardResponse {
-    pub credit_card_last_4_digits: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum GetCreditCardError {
-    NoCardAdded,
-}
-
-impl Request for GetCreditCardRequest {
-    type Response = GetCreditCardResponse;
-    type Error = GetCreditCardError;
-    const METHOD: Method = Method::GET;
-    const ROUTE: &'static str = "/get-credit-card";
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum PaymentMethod {
     NewCard { number: String, exp_year: i32, exp_month: i32, cvc: String },
     OldCard,

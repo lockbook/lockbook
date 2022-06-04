@@ -4,7 +4,6 @@ extern crate reqwest;
 #[macro_use]
 extern crate tracing;
 
-use crate::billing_service::CreditCardLast4Digits;
 use crate::model::errors::*;
 use crate::model::repo::RepoSource;
 use crate::path_service::Filter;
@@ -362,12 +361,6 @@ impl Core {
         let val = self
             .db
             .transaction(|tx| tx.upgrade_account_stripe(account_tier))?;
-        Ok(val?)
-    }
-
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_credit_card(&self) -> Result<CreditCardLast4Digits, Error<GetCreditCard>> {
-        let val = self.db.transaction(|tx| tx.get_credit_card())?;
         Ok(val?)
     }
 
