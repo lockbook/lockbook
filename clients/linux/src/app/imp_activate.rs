@@ -57,8 +57,6 @@ impl super::App {
 
         let app = Self { api, settings, window, overlay, titlebar, onboard, account, bg_state };
 
-        app.add_app_actions(a);
-
         app.clone().listen_for_theme_changes();
         app.clone().listen_for_onboard_ops(onboard_op_rx);
         app.clone().listen_for_account_ops(account_op_rx);
@@ -67,57 +65,6 @@ impl super::App {
 
         app.setup_window();
         app.window.present();
-    }
-
-    fn add_app_actions(&self, a: &gtk::Application) {
-        {
-            let app = self.clone();
-            let save_file = gio::SimpleAction::new("new-file", None);
-            save_file.connect_activate(move |_, _| app.prompt_new_file());
-            a.add_action(&save_file);
-            a.set_accels_for_action("app.new-file", &["<Ctrl>N"]);
-        }
-        {
-            let app = self.clone();
-            let save_file = gio::SimpleAction::new("save-file", None);
-            save_file.connect_activate(move |_, _| app.save_file(None));
-            a.add_action(&save_file);
-            a.set_accels_for_action("app.save-file", &["<Ctrl>S"]);
-        }
-        {
-            let app = self.clone();
-            let close_file = gio::SimpleAction::new("close-file", None);
-            close_file.connect_activate(move |_, _| app.close_file());
-            a.add_action(&close_file);
-            a.set_accels_for_action("app.close-file", &["<Ctrl>W"]);
-        }
-        {
-            let app = self.clone();
-            let prompt_search = gio::SimpleAction::new("open-search", None);
-            prompt_search.connect_activate(move |_, _| app.open_search());
-            a.add_action(&prompt_search);
-            a.set_accels_for_action("app.open-search", &["<Ctrl>space", "<Ctrl>L"]);
-        }
-        {
-            let app = self.clone();
-            let sync = gio::SimpleAction::new("sync", None);
-            sync.connect_activate(move |_, _| app.perform_sync());
-            a.add_action(&sync);
-            a.set_accels_for_action("app.sync", &["<Alt>S"]);
-        }
-        {
-            let app = self.clone();
-            let open_settings = gio::SimpleAction::new("settings", None);
-            open_settings.connect_activate(move |_, _| app.open_settings_dialog());
-            a.add_action(&open_settings);
-            a.set_accels_for_action("app.settings", &["<Ctrl>comma"]);
-        }
-        {
-            let app = self.clone();
-            let open_about = gio::SimpleAction::new("about", None);
-            open_about.connect_activate(move |_, _| ui::about_dialog::open(&app.window));
-            a.add_action(&open_about);
-        }
     }
 
     fn listen_for_onboard_ops(self, onboard_op_rx: glib::Receiver<ui::OnboardOp>) {
@@ -204,7 +151,59 @@ impl super::App {
 
         self.update_sync_status();
         self.bg_state.begin_work(&self.api, &self.settings);
-        self.overlay.set_child(Some(&self.account.cntr))
+        self.overlay.set_child(Some(&self.account.cntr));
+        self.add_app_actions(&self.window.application().unwrap());
+    }
+
+    fn add_app_actions(&self, a: &gtk::Application) {
+        {
+            let app = self.clone();
+            let save_file = gio::SimpleAction::new("new-file", None);
+            save_file.connect_activate(move |_, _| app.prompt_new_file());
+            a.add_action(&save_file);
+            a.set_accels_for_action("app.new-file", &["<Ctrl>N"]);
+        }
+        {
+            let app = self.clone();
+            let save_file = gio::SimpleAction::new("save-file", None);
+            save_file.connect_activate(move |_, _| app.save_file(None));
+            a.add_action(&save_file);
+            a.set_accels_for_action("app.save-file", &["<Ctrl>S"]);
+        }
+        {
+            let app = self.clone();
+            let close_file = gio::SimpleAction::new("close-file", None);
+            close_file.connect_activate(move |_, _| app.close_file());
+            a.add_action(&close_file);
+            a.set_accels_for_action("app.close-file", &["<Ctrl>W"]);
+        }
+        {
+            let app = self.clone();
+            let prompt_search = gio::SimpleAction::new("open-search", None);
+            prompt_search.connect_activate(move |_, _| app.open_search());
+            a.add_action(&prompt_search);
+            a.set_accels_for_action("app.open-search", &["<Ctrl>space", "<Ctrl>L"]);
+        }
+        {
+            let app = self.clone();
+            let sync = gio::SimpleAction::new("sync", None);
+            sync.connect_activate(move |_, _| app.perform_sync());
+            a.add_action(&sync);
+            a.set_accels_for_action("app.sync", &["<Alt>S"]);
+        }
+        {
+            let app = self.clone();
+            let open_settings = gio::SimpleAction::new("settings", None);
+            open_settings.connect_activate(move |_, _| app.open_settings_dialog());
+            a.add_action(&open_settings);
+            a.set_accels_for_action("app.settings", &["<Ctrl>comma"]);
+        }
+        {
+            let app = self.clone();
+            let open_about = gio::SimpleAction::new("about", None);
+            open_about.connect_activate(move |_, _| ui::about_dialog::open(&app.window));
+            a.add_action(&open_about);
+        }
     }
 }
 
