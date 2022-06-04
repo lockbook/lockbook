@@ -362,7 +362,7 @@ impl Request for UpgradeAccountAndroidRequest {
     type Response = UpgradeAccountAndroidResponse;
     type Error = UpgradeAccountAndroidError;
     const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/confirm-android-subscription";
+    const ROUTE: &'static str = "/upgrade-account-android";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
