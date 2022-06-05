@@ -1,4 +1,5 @@
 use libsecp256k1::PublicKey;
+use std::collections;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -118,7 +119,7 @@ pub fn apply_move(
 /// Validates a delete operation for a file in the context of all files and returns a version of the
 /// file with the operation applied. This is a pure function.
 pub fn apply_delete(
-    files: &[DecryptedFileMetadata], target_id: Uuid,
+    files: &HashMap<Uuid, DecryptedFileMetadata>, target_id: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let mut file = files.find(target_id)?;
     validate_not_root(&file)?;
@@ -155,10 +156,11 @@ fn validate_file_name(name: &str) -> Result<(), CoreError> {
 }
 
 pub fn suggest_non_conflicting_filename(
-    id: Uuid, files: &HashMap<Uuid, DecryptedFileMetadata>, staged_changes: &[DecryptedFileMetadata],
+    id: Uuid, files: &HashMap<Uuid, DecryptedFileMetadata>,
+    staged_changes: &HashMap<Uuid, DecryptedFileMetadata>,
 ) -> Result<String, CoreError> {
     let files: HashMap<Uuid, DecryptedFileMetadata> = files
-        .stage(metadata_changes)
+        .stage(staged_changes)
         .into_iter()
         .map(|(id, (f, _))| (id, f))
         .collect::<HashMap<Uuid, DecryptedFileMetadata>>();
@@ -207,11 +209,13 @@ pub fn maybe_find_state<Fm: FileMetadata>(
     } == target_id).cloned()
 }
 
-pub fn find_ancestors<Fm: FileMetadata>(files: &HashMap::<Uuid, Fm>, target_id: Uuid) -> HashMap::<Uuid, Fm> {
-    let mut result = Vec::new();
+pub fn find_ancestors<Fm: FileMetadata>(
+    files: &HashMap<Uuid, Fm>, target_id: Uuid,
+) -> HashMap<Uuid, Fm> {
+    let mut result = HashMap::new();
     let mut current_target_id = target_id;
     while let Some(target) = files.maybe_find(current_target_id) {
-        result.push(target.clone());
+        result.insert(target.id(), target.clone());
         if target.id() == target.parent() {
             break;
         }
@@ -229,21 +233,37 @@ pub fn find_children<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Vec<Fm>
 }
 
 pub fn find_with_descendants<Fm: FileMetadata>(
-    files: &[Fm], target_id: Uuid,
-) -> Result<Vec<Fm>, CoreError> {
-    let mut result = vec![files.find(target_id)?];
-    let mut i = 0;
-    while i < result.len() {
-        let target = result.get(i).ok_or_else(|| {
-            CoreError::Unexpected(String::from("find_with_descendants: missing target"))
-        })?;
-        let children = files.find_children(target.id());
-        for child in children {
-            if child.id() != target_id {
-                result.push(child);
+    files: &HashMap<Uuid, Fm>, target_id: Uuid,
+) -> Result<HashMap<Uuid, Fm>, CoreError> {
+    let mut result = HashMap::new();
+    let mut next_children = HashMap::from([(target_id, files.find(target_id)?)]);
+    let mut prev_children = HashMap::new();
+    // let mut i = 0;
+    // while i < result.len() {
+    //     let target = result.get(i).ok_or_else(|| {
+    //         CoreError::Unexpected(String::from("find_with_descendants: missing target"))
+    //     })?;
+    //     let children = files.find_children(target.id());
+    //     for (id, child) in children {
+    //         if id != target_id {
+    //             result.insert(id, child);
+    //         }
+    //     }
+    //     i += 1;
+    // }
+    while !next_children.is_empty() {
+        result.extend(next_children.clone());
+        prev_children = next_children;
+        next_children = HashMap::new();
+        for prev_child in prev_children {
+            let children = files.find_children(prev_child.0);
+            for (id, child) in children.iter() {
+                if id != &target_id {
+                    result.insert(*id, child.clone());
+                }
             }
+            next_children.extend(children);
         }
-        i += 1;
     }
     Ok(result)
 }

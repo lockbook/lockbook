@@ -358,9 +358,8 @@ pub trait TEMP_FileMetaExt<T: FileMetadata> {
     fn filter_deleted(&self) -> Result<HashMap<Uuid, T>, TreeError>;
     fn filter_not_deleted(&self) -> Result<HashMap<Uuid, T>, TreeError>;
     fn filter_documents(&self) -> HashMap<Uuid, T>;
-    fn get_invalid_cycles(
-        &self, staged_changes: &HashMap<Uuid, T>,
-    ) -> Result<Vec<Uuid>, TreeError>;
+    fn get_invalid_cycles(&self, staged_changes: &HashMap<Uuid, T>)
+        -> Result<Vec<Uuid>, TreeError>;
     fn get_path_conflicts(
         &self, staged_changes: &HashMap<Uuid, T>,
     ) -> Result<Vec<PathConflict>, TreeError>;
@@ -434,9 +433,14 @@ where
     }
 
     fn find_children(&self, id: Uuid) -> HashMap<Uuid, Fm> {
-        self.clone()
-            .into_iter()
-            .filter(|(f_id, f)| f.parent() == id && f_id != &f.parent())
+        self.iter()
+            .filter_map(|f| {
+                if f.1.parent() == *f.0 && f.0 != &f.1.parent() {
+                    Some((*f.0, f.1.clone()))
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 

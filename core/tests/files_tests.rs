@@ -3,7 +3,7 @@ use lockbook_core::CoreError;
 use lockbook_models::file_metadata::FileType;
 use lockbook_models::tree::{FileMetaExt, PathConflict, TEMP_FileMetaExt};
 use std::collections::HashMap;
-use test_utils::test_core_with_account;
+use test_utils::{convert_list_to_hashmap, test_core_with_account};
 
 #[test]
 fn apply_rename() {
@@ -80,7 +80,8 @@ fn apply_move() {
 
     let folder_id = folder.id;
     let document_id = document.id;
-    files::apply_move(&[root, folder, document], document_id, folder_id).unwrap();
+    files::apply_move(&convert_list_to_hashmap(&[root, folder, document]), document_id, folder_id)
+        .unwrap();
 }
 
 #[test]
@@ -93,7 +94,11 @@ fn apply_move_not_found() {
 
     let folder_id = folder.id;
     let document_id = document.id;
-    let result = files::apply_move(&[root, folder], document_id, folder_id);
+    let result = files::apply_move(
+        &convert_list_to_hashmap(&[root.clone(), folder.clone()]),
+        document_id,
+        folder_id,
+    );
     assert_eq!(result, Err(CoreError::FileNonexistent));
 }
 
@@ -107,7 +112,8 @@ fn apply_move_parent_not_found() {
 
     let folder_id = folder.id;
     let document_id = document.id;
-    let result = files::apply_move(&[root, document], document_id, folder_id);
+    let result =
+        files::apply_move(&convert_list_to_hashmap(&[root, document]), document_id, folder_id);
     assert_eq!(result, Err(CoreError::FileParentNonexistent));
 }
 
@@ -121,7 +127,11 @@ fn apply_move_parent_document() {
 
     let document1_id = document1.id;
     let document2_id = document2.id;
-    let result = files::apply_move(&[root, document1, document2], document2_id, document1_id);
+    let result = files::apply_move(
+        &convert_list_to_hashmap(&[root, document1, document2]),
+        document2_id,
+        document1_id,
+    );
     assert_eq!(result, Err(CoreError::FileNotFolder));
 }
 
@@ -135,7 +145,8 @@ fn apply_move_root() {
 
     let folder_id = folder.id;
     let root_id = root.id;
-    let result = files::apply_move(&[root, folder, document], root_id, folder_id);
+    let result =
+        files::apply_move(&convert_list_to_hashmap(&[root, folder, document]), root_id, folder_id);
     assert_eq!(result, Err(CoreError::RootModificationInvalid));
 }
 
@@ -150,7 +161,11 @@ fn apply_move_path_conflict() {
 
     let folder_id = folder.id;
     let document1_id = document1.id;
-    let result = files::apply_move(&[root, folder, document1, document2], document1_id, folder_id);
+    let result = files::apply_move(
+        &convert_list_to_hashmap(&[root, folder, document1, document2]),
+        document1_id,
+        folder_id,
+    );
     assert_eq!(result, Err(CoreError::PathTaken));
 }
 
@@ -164,7 +179,11 @@ fn apply_move_2cycle() {
 
     let folder1_id = folder1.id;
     let folder2_id = folder2.id;
-    let result = files::apply_move(&[root, folder1, folder2], folder1_id, folder2_id);
+    let result = files::apply_move(
+        &convert_list_to_hashmap(&[root, folder1, folder2]),
+        folder1_id,
+        folder2_id,
+    );
     assert_eq!(result, Err(CoreError::FolderMovedIntoSelf));
 }
 
@@ -183,7 +202,7 @@ fn hash_map_apply_move_2cycle() {
     let result = all_files
         .get_invalid_cycles(&all_files)
         .unwrap()
-        .contains_key(&folder1.id);
+        .contains(&folder1.id);
     assert_eq!(result, true);
 }
 
@@ -195,7 +214,8 @@ fn apply_move_1cycle() {
     let folder = files::create(FileType::Folder, root.id, "folder1", &account.public_key());
 
     let folder1_id = folder.id;
-    let result = files::apply_move(&[root, folder], folder1_id, folder1_id);
+    let result =
+        files::apply_move(&convert_list_to_hashmap(&[root, folder]), folder1_id, folder1_id);
     assert_eq!(result, Err(CoreError::FolderMovedIntoSelf));
 }
 
@@ -208,7 +228,7 @@ fn apply_delete() {
     let document = files::create(FileType::Document, root.id, "document", &account.public_key());
 
     let document_id = document.id;
-    files::apply_delete(&[root, folder, document], document_id).unwrap();
+    files::apply_delete(&convert_list_to_hashmap(&[root, folder, document]), document_id).unwrap();
 }
 
 #[test]
@@ -220,7 +240,7 @@ fn apply_delete_root() {
     let document = files::create(FileType::Document, root.id, "document", &account.public_key());
 
     let root_id = root.id;
-    let result = files::apply_delete(&[root, folder, document], root_id);
+    let result = files::apply_delete(&convert_list_to_hashmap(&[root, folder, document]), root_id);
     assert_eq!(result, Err(CoreError::RootModificationInvalid));
 }
 
@@ -231,7 +251,12 @@ fn get_nonconflicting_filename() {
     let root = files::create_root(&account);
     let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
     assert_eq!(
-        files::suggest_non_conflicting_filename(folder.id, &[root, folder], &[]).unwrap(),
+        files::suggest_non_conflicting_filename(
+            folder.id,
+            &convert_list_to_hashmap(&[root, folder]),
+            &HashMap::new()
+        )
+        .unwrap(),
         "folder-1"
     );
 }
@@ -244,8 +269,12 @@ fn get_nonconflicting_filename2() {
     let folder1 = files::create(FileType::Folder, root.id, "folder", &account.public_key());
     let folder2 = files::create(FileType::Folder, root.id, "folder-1", &account.public_key());
     assert_eq!(
-        files::suggest_non_conflicting_filename(folder1.id, &[root, folder1, folder2], &[])
-            .unwrap(),
+        files::suggest_non_conflicting_filename(
+            folder1.id,
+            &convert_list_to_hashmap(&[root, folder1, folder2]),
+            &HashMap::new()
+        )
+        .unwrap(),
         "folder-2"
     );
 }

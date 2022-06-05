@@ -6,6 +6,7 @@ use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata};
+use lockbook_models::tree::TEMP_FileMetaExt;
 
 use crate::model::errors::{core_err_unexpected, CoreError};
 
@@ -37,21 +38,19 @@ pub fn encrypt_metadatum(
 /// included in files. Sharing is not supported; user access keys are encrypted for the provided
 /// account. This is a pure function.
 /// TODO perf n2
+/// This is O(n) now with hashmaps
 pub fn encrypt_metadata(
     account: &Account, files: &HashMap<Uuid, DecryptedFileMetadata>,
-) -> Result<Vec<EncryptedFileMetadata>, CoreError> {
-    let mut result = Vec::new();
+) -> Result<HashMap<Uuid, EncryptedFileMetadata>, CoreError> {
+    let mut result = HashMap::new();
     for target in files.values() {
-        let parent_key = files
-            .iter()
-            .find(|(&id, &m)| id == target.parent)
-            .ok_or_else(|| {
+        let parent_key = files.maybe_find(target.parent).ok_or_else(|| {
                 CoreError::Unexpected(String::from(
                     "parent metadata missing during call to file_encrpytion_service::encrypt_metadata",
                 ))
             })?
             .decrypted_access_key;
-        result.push(encrypt_metadatum(account, &parent_key, target)?);
+        result.insert(target.id, encrypt_metadatum(account, &parent_key, target)?);
     }
     Ok(result)
 }
@@ -116,8 +115,8 @@ pub fn decrypt_metadata(
 
     for target in files.values() {
         let parent_key = decrypt_file_key(account, target.parent, files, &mut key_cache)?;
-        let decrypted_metadatum = decrypt_metadatum(&parent_key, target)?
-        result.insert(decrypted_metadatum.id(), decrypteed_metadatum);
+        let decrypted_metadatum = decrypt_metadatum(&parent_key, target)?;
+        result.insert(decrypted_metadatum.id, decrypted_metadatum);
     }
     Ok(result)
 }
@@ -125,7 +124,8 @@ pub fn decrypt_metadata(
 /// Decrypts the file key given a target and its ancestors. All ancestors of target, as well as
 /// target itself, must be included in target_with_ancestors.
 fn decrypt_file_key(
-    account: &Account, target_id: Uuid, target_with_ancestors: &HashMap<Uuid, EncryptedFileMetadata.,
+    account: &Account, target_id: Uuid,
+    target_with_ancestors: &HashMap<Uuid, EncryptedFileMetadata>,
     key_cache: &mut HashMap<Uuid, AESKey>,
 ) -> Result<AESKey, CoreError> {
     if let Some(key) = key_cache.get(&target_id) {
@@ -133,8 +133,7 @@ fn decrypt_file_key(
     }
 
     let target = target_with_ancestors
-        .iter()
-        .find(|&m| m.id == target_id)
+        .maybe_find((target_id))
         .ok_or_else(|| {
             CoreError::Unexpected(String::from(
             "target or ancestor missing during call to file_encryption_service::decrypt_file_key",

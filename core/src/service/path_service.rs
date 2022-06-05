@@ -1,9 +1,11 @@
 use crate::model::repo::RepoSource;
 use crate::pure_functions::files;
 use crate::{Config, CoreError, Tx};
+use collections::HashMap;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
-use lockbook_models::tree::FileMetaExt;
+use lockbook_models::tree::{FileMetaExt, TEMP_FileMetaExt};
+use std::collections;
 use uuid::Uuid;
 
 impl Tx<'_> {
@@ -38,7 +40,7 @@ impl Tx<'_> {
 
             let next_name = path_components[index + 1];
 
-            for child in children {
+            for (_, child) in children {
                 if child.decrypted_name == next_name {
                     // If we're at the end and we find this child, that means this path already exists
                     if child.id != root_id && index == path_components.len() - 2 {
@@ -65,7 +67,7 @@ impl Tx<'_> {
                 next_name,
                 &account.public_key(),
             )?;
-            files.push(current.clone());
+            files.insert(current.id, current.clone());
             self.insert_metadatum(config, RepoSource::Local, &current)?;
         }
         Ok(current)
@@ -89,7 +91,7 @@ impl Tx<'_> {
             let children = files.find_children(current.id);
             let mut found_child = false;
 
-            for child in children {
+            for (_, child) in children {
                 if child.decrypted_name == paths[i + 1] {
                     current = child;
                     found_child = true;
@@ -110,7 +112,7 @@ impl Tx<'_> {
     }
 
     pub fn path_by_id_helper(
-        files: &[DecryptedFileMetadata], id: Uuid,
+        files: &HashMap<Uuid, DecryptedFileMetadata>, id: Uuid,
     ) -> Result<String, CoreError> {
         let mut current_metadata = files.find(id)?;
         let mut path = String::from("");
@@ -139,15 +141,16 @@ impl Tx<'_> {
 
         if let Some(filter) = &filter {
             match filter {
-                Filter::DocumentsOnly => filtered_files.retain(|f| f.file_type == Document),
-                Filter::FoldersOnly => filtered_files.retain(|f| f.file_type == Folder),
-                Filter::LeafNodesOnly => filtered_files
-                    .retain(|parent| !files.iter().any(|child| child.parent == parent.id)),
+                Filter::DocumentsOnly => filtered_files.retain(|_, f| f.file_type == Document),
+                Filter::FoldersOnly => filtered_files.retain(|_, f| f.file_type == Folder),
+                Filter::LeafNodesOnly => filtered_files.retain(|parent_id, parent| {
+                    !files.iter().any(|child| &child.1.parent == parent_id)
+                }),
             }
         }
 
         let mut paths: Vec<String> = vec![];
-        for file in filtered_files {
+        for (id, file) in filtered_files {
             let mut current = file.clone();
             let mut current_path = String::from("");
             while current.id != current.parent {

@@ -2,7 +2,8 @@ use crate::model::filename::NameComponents;
 use crate::model::repo::RepoSource;
 use crate::{Config, CoreError, Tx};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
-use lockbook_models::tree::FileMetaExt;
+use lockbook_models::tree::{FileMetaExt, TEMP_FileMetaExt};
+use std::collections::HashMap;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -110,7 +111,7 @@ impl Tx<'_> {
         let mut new_name = NameComponents::from(proposed_name);
         loop {
             if !sibblings
-                .iter()
+                .values()
                 .any(|f| f.decrypted_name == new_name.to_name())
             {
                 return Ok(new_name.to_name());
@@ -120,7 +121,7 @@ impl Tx<'_> {
     }
 
     fn export_file_recursively(
-        &self, config: &Config, all: &[DecryptedFileMetadata],
+        &self, config: &Config, all: &HashMap<Uuid, DecryptedFileMetadata>,
         parent_file_metadata: &DecryptedFileMetadata, disk_path: &Path, edit: bool,
         export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> Result<(), CoreError> {
@@ -138,7 +139,7 @@ impl Tx<'_> {
                 let children = all.find_children(parent_file_metadata.id);
                 fs::create_dir(dest_with_new.clone()).map_err(CoreError::from)?;
 
-                for child in children.iter() {
+                for child in children.values() {
                     self.export_file_recursively(
                         config,
                         all,

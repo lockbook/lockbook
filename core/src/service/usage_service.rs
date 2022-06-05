@@ -1,7 +1,7 @@
 use serde::Serialize;
 
 use lockbook_models::api::{FileUsage, GetUsageRequest, GetUsageResponse};
-use lockbook_models::tree::FileMetaExt;
+use lockbook_models::tree::{FileMetaExt, TEMP_FileMetaExt};
 
 use crate::model::repo::RepoSource;
 use crate::service::{api_service, file_service};
@@ -59,7 +59,7 @@ impl Tx<'_> {
         let docs = files.filter_documents();
 
         let mut local_usage: u64 = 0;
-        for doc in docs {
+        for (_, doc) in docs {
             local_usage += file_service::get_document(config, RepoSource::Local, &doc)?.len() as u64
         }
 
