@@ -179,7 +179,7 @@ where
 
     fn get_invalid_cycles(&self, staged_changes: &[Fm]) -> Result<Vec<Uuid>, TreeError> {
         let maybe_root = self.maybe_find_root();
-        let files_with_sources = self.stage(staged_changes); // why bother with this
+        let files_with_sources = self.stage(staged_changes);
         let files = &files_with_sources
             .iter()
             .map(|(f, _)| f.clone())
@@ -388,14 +388,6 @@ where
                 .into_iter()
                 .map(|(id, file)| (id, (file, StageSource::Staged))),
         );
-        // for (id, file) in self {
-        //     if let None = staged.maybe_find(file.id()) {
-        //         result.insert(id.clone(), (file.clone(), StageSource::Base));
-        //     }
-        // }
-        // for (id, staged) in staged {
-        //     result.insert(id.clone(), (staged.clone(), StageSource::Staged));
-        // }
         result
     }
 
@@ -435,7 +427,7 @@ where
     fn find_children(&self, id: Uuid) -> HashMap<Uuid, Fm> {
         self.iter()
             .filter_map(|f| {
-                if f.1.parent() == *f.0 && f.0 != &f.1.parent() {
+                if f.1.parent() == id && f.0 != &f.1.parent() {
                     Some((*f.0, f.1.clone()))
                 } else {
                     None
@@ -455,18 +447,14 @@ where
                 if not_deleted.get(&ancestor.id()).is_none() // check it isn't confirmed as not deleted
                     && (ancestor.deleted() || result.get(&ancestor.id()).is_some())
                 {
-                    for (prev_ancestor_id, prev_ancestor) in ancestors {
-                        result.insert(prev_ancestor_id, prev_ancestor);
-                    }
+                    result.extend(ancestors);
                     break;
                 }
 
                 let parent = self.find(ancestor.parent())?;
                 // first case is root, second case is a cycle (not our problem)
                 if parent.id() == ancestor.id() || &parent.id() == id {
-                    for (prev_ancestor_id, prev_ancestor) in ancestors {
-                        not_deleted.insert(prev_ancestor_id, prev_ancestor);
-                    }
+                    not_deleted.extend(ancestors);
                     break; // root
                 }
                 ancestors.insert(parent.id(), parent.clone());
