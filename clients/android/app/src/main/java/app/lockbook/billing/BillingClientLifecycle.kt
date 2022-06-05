@@ -55,58 +55,8 @@ class BillingClientLifecycle private constructor(
         }
     }
 
-    private fun consumePurchase(
-        billingResult: BillingResult,
-        purchases: MutableList<Purchase>?
-    ) {
-        val billingResponse = BillingResponse(billingResult.responseCode)
-        Timber.e(billingResult.debugMessage)
-
-        when {
-            billingResponse.isOk && purchases?.size == 1 && purchases[0].accountIdentifiers?.obfuscatedAccountId != null -> {
-                if (!purchases[0].isAcknowledged) {
-                    _billingEvent.postValue(
-                        BillingEvent.SuccessfulPurchase(
-                            purchases[0].purchaseToken,
-                            purchases[0].accountIdentifiers?.obfuscatedAccountId
-                                ?: return _billingEvent.postValue(
-                                    BillingEvent.NotifyError(
-                                        LbError.basicError(applicationContext.resources)
-                                    )
-                                )
-                        )
-                    )
-                }
-            }
-            billingResponse.isUnRecoverableError -> {
-                _billingEvent.postValue(BillingEvent.NotifyUnrecoverableError)
-            }
-            billingResponse.isCancelable -> {}
-            else -> {
-                _billingEvent.postValue(
-                    BillingEvent.NotifyError(
-                        LbError.basicError(
-                            applicationContext.resources
-                        )
-                    )
-                )
-            }
-        }
-    }
-
     override fun onBillingServiceDisconnected() {
         billingClient.startConnection(this)
-    }
-
-    override fun onPurchasesUpdated(
-        billingResult: BillingResult,
-        purchases: MutableList<Purchase>?
-    ) {
-        consumePurchase(billingResult, purchases)
-    }
-
-    override fun onQueryPurchasesResponse(billingResult: BillingResult, purchases: MutableList<Purchase>) {
-        consumePurchase(billingResult, purchases)
     }
 
     override fun onBillingSetupFinished(billingResult: BillingResult) {
@@ -158,15 +108,13 @@ class BillingClientLifecycle private constructor(
         }
     }
 
-    private fun getSubscriptionOffers(): List<ProductDetails.SubscriptionOfferDetails>? = productDetails?.subscriptionOfferDetails
-
     private fun billingFlowParamsBuilder(newTier: UpgradeAccountActivity.AccountTier): BillingFlowParams? {
         val offerTag = when (newTier) {
             UpgradeAccountActivity.AccountTier.Free -> return null
             UpgradeAccountActivity.AccountTier.PremiumMonthly -> PREMIUM_MONTHLY_OFFER_ID
         }
 
-        val offerToken = getSubscriptionOffers()?.filter { it.offerTags[0] == offerTag }?.map { it.offerToken }?.get(0) ?: return null
+        val offerToken = productDetails?.subscriptionOfferDetails?.filter { it.offerTags[0] == offerTag }?.map { it.offerToken }?.get(0) ?: return null
 
         return BillingFlowParams.newBuilder()
             .setProductDetailsParamsList(
@@ -181,10 +129,59 @@ class BillingClientLifecycle private constructor(
             .build()
     }
 
+    override fun onPurchasesUpdated(
+        billingResult: BillingResult,
+        purchases: MutableList<Purchase>?
+    ) {
+        consumePurchase(billingResult, purchases)
+    }
+
+    override fun onQueryPurchasesResponse(billingResult: BillingResult, purchases: MutableList<Purchase>) {
+        consumePurchase(billingResult, purchases)
+    }
+
+    private fun consumePurchase(
+        billingResult: BillingResult,
+        purchases: MutableList<Purchase>?
+    ) {
+        val billingResponse = BillingResponse(billingResult.responseCode)
+        Timber.e(billingResult.debugMessage)
+
+        when {
+            billingResponse.isOk && purchases?.size == 1 && purchases[0].accountIdentifiers?.obfuscatedAccountId != null -> {
+                if (!purchases[0].isAcknowledged) {
+                    _billingEvent.postValue(
+                        BillingEvent.SuccessfulPurchase(
+                            purchases[0].purchaseToken,
+                            purchases[0].accountIdentifiers?.obfuscatedAccountId
+                                ?: return _billingEvent.postValue(
+                                    BillingEvent.NotifyError(
+                                        LbError.basicError(applicationContext.resources)
+                                    )
+                                )
+                        )
+                    )
+                }
+            }
+            billingResponse.isUnRecoverableError -> {
+                _billingEvent.postValue(BillingEvent.NotifyUnrecoverableError)
+            }
+            billingResponse.isCancelable -> {}
+            else -> {
+                _billingEvent.postValue(
+                    BillingEvent.NotifyError(
+                        LbError.basicError(
+                            applicationContext.resources
+                        )
+                    )
+                )
+            }
+        }
+    }
+
     companion object {
         private const val PREMIUM_PRODUCT_ID = "app.lockbook.premium_subscription"
-
-        const val PREMIUM_MONTHLY_OFFER_ID = "monthly"
+        private const val PREMIUM_MONTHLY_OFFER_ID = "monthly"
 
         const val SUBSCRIPTION_URI = "https://play.google.com/store/account/subscriptions?sku=$PREMIUM_PRODUCT_ID&package=app.lockbook"
 

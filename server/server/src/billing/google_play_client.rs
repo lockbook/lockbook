@@ -4,6 +4,8 @@ use google_androidpublisher3::api::{
 use google_androidpublisher3::hyper::StatusCode;
 use google_androidpublisher3::{AndroidPublisher, Error};
 
+const PACKAGE_NAME: &str = "app.lockbook";
+
 #[derive(Debug)]
 pub enum SimpleGCPError {
     PurchaseTokenNotFound,
@@ -24,8 +26,6 @@ impl From<google_androidpublisher3::Error> for SimpleGCPError {
         }
     }
 }
-
-const PACKAGE_NAME: &str = "app.lockbook";
 
 pub async fn acknowledge_subscription(
     client: &AndroidPublisher, subscription_id: &str, purchase_token: &str,

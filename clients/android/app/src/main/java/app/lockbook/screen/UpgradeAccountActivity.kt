@@ -34,7 +34,6 @@ class UpgradeAccountActivity : AppCompatActivity() {
     // This property is only valid between onCreateView and
     // onDestroyView.
     val binding get() = _binding!!
-    private val originTier = AccountTier.Free
     var selectedTier = AccountTier.Free
 
     override fun onCreate(savedInstanceState: Bundle?) {

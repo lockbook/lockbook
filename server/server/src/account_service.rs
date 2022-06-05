@@ -116,13 +116,13 @@ pub async fn get_usage(
     let (_request, server_state) = (&context.request, context.server_state);
     let mut con = server_state.index_db_pool.get().await?;
 
-    let sub_hist: SubscriptionProfile = con
+    let sub_profile: SubscriptionProfile = con
         .json_get(keys::subscription_profile(&context.public_key))
         .await?;
 
     let usages = get_usage_helper(&mut con, &context.public_key).await?;
 
-    Ok(GetUsageResponse { usages, cap: sub_hist.data_cap })
+    Ok(GetUsageResponse { usages, cap: sub_profile.data_cap })
 }
 
 #[derive(Debug)]

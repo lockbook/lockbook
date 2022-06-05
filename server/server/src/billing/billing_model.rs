@@ -5,14 +5,18 @@ use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubscriptionProfile {
-    pub info: Option<BillingPlatform>,
+    pub billing_platform: Option<BillingPlatform>,
     pub last_in_payment_flow: u64,
     pub data_cap: u64,
 }
 
 impl Default for SubscriptionProfile {
     fn default() -> Self {
-        SubscriptionProfile { info: None, last_in_payment_flow: 0, data_cap: FREE_TIER_USAGE_SIZE }
+        SubscriptionProfile {
+            billing_platform: None,
+            last_in_payment_flow: 0,
+            data_cap: FREE_TIER_USAGE_SIZE,
+        }
     }
 }
 
