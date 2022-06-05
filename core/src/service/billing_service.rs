@@ -34,8 +34,8 @@ impl Tx<'_> {
                     UpgradeAccountStripeError::TryAgain => CoreError::TryAgain,
                     UpgradeAccountStripeError::CardNotSupported => CoreError::CardNotSupported,
                     UpgradeAccountStripeError::ExpiredCard => CoreError::ExpiredCard,
-                    UpgradeAccountStripeError::TooManyRequestsTooSoon => {
-                        CoreError::TooManyRequestsTooSoon
+                    UpgradeAccountStripeError::ExistingRequestPending => {
+                        CoreError::ExistingRequestPending
                     }
                     UpgradeAccountStripeError::UserNotFound => CoreError::AccountNonexistent,
                 },
@@ -67,8 +67,8 @@ impl Tx<'_> {
             ApiError::Endpoint(UpgradeAccountAndroidError::InvalidPurchaseToken) => {
                 CoreError::InvalidPurchaseToken
             }
-            ApiError::Endpoint(UpgradeAccountAndroidError::TooManyRequestsTooSoon) => {
-                CoreError::TooManyRequestsTooSoon
+            ApiError::Endpoint(UpgradeAccountAndroidError::ExistingRequestPending) => {
+                CoreError::ExistingRequestPending
             }
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
@@ -86,8 +86,8 @@ impl Tx<'_> {
             ApiError::Endpoint(CancelSubscriptionError::UsageIsOverFreeTierDataCap) => {
                 CoreError::UsageIsOverFreeTierDataCap
             }
-            ApiError::Endpoint(CancelSubscriptionError::TooManyRequestsTooSoon) => {
-                CoreError::TooManyRequestsTooSoon
+            ApiError::Endpoint(CancelSubscriptionError::ExistingRequestPending) => {
+                CoreError::ExistingRequestPending
             }
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,

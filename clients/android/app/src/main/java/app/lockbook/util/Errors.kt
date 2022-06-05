@@ -348,12 +348,12 @@ enum class CalculateWorkError : UiCoreError {
 enum class UpgradeAccountAndroid : UiCoreError {
     AlreadyPremium,
     InvalidPurchaseToken,
-    TooManyRequestsTooSoon;
+    ExistingRequestPending;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         AlreadyPremium -> LbError.newUserError(getString(res, R.string.already_premium))
         InvalidPurchaseToken -> LbError.newUserError(getString(res, R.string.invalid_purchase_token))
-        TooManyRequestsTooSoon -> LbError.newUserError(getString(res, R.string.too_many_requests_too_soon))
+        ExistingRequestPending -> LbError.newUserError(getString(res, R.string.existing_request_pending))
     }
 }
 
@@ -361,12 +361,12 @@ enum class UpgradeAccountAndroid : UiCoreError {
 enum class CancelSubscriptionError : UiCoreError {
     NotPremium,
     UsageIsOverFreeTierDataCap,
-    TooManyRequestsTooSoon;
+    ExistingRequestPending;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         NotPremium -> LbError.newUserError(getString(res, R.string.not_premium))
         UsageIsOverFreeTierDataCap -> LbError.newUserError(getString(res, R.string.usage_is_over_free_tier_data_cap))
-        TooManyRequestsTooSoon -> LbError.newUserError(getString(res, R.string.too_many_requests_too_soon))
+        ExistingRequestPending -> LbError.newUserError(getString(res, R.string.existing_request_pending))
     }
 }
 

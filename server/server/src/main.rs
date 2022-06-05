@@ -14,7 +14,7 @@ use std::sync::Arc;
 use warp::Filter;
 
 use lockbook_server_lib::router_service::{
-    android_notification_webhooks, build_info, core_routes, get_metrics, stripe_webhooks,
+    google_play_notification_webhooks, build_info, core_routes, get_metrics, stripe_webhooks,
 };
 use lockbook_server_lib::utils::get_android_client;
 
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .or(build_info())
         .or(get_metrics())
         .or(stripe_webhooks(&server_state))
-        .or(android_notification_webhooks(&server_state));
+        .or(google_play_notification_webhooks(&server_state));
 
     let server = warp::serve(routes);
 

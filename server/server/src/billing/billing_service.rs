@@ -39,7 +39,7 @@ use warp::hyper::body::Bytes;
 
 #[derive(Debug)]
 pub enum LockBillingWorkflowError {
-    TooManyRequestsTooSoon,
+    ExistingRequestPending,
 }
 
 async fn lock_billing_workflow(
@@ -61,7 +61,7 @@ async fn lock_billing_workflow(
                 keys::stringify_public_key(public_key)
             );
 
-            return Err(Abort(ClientError(LockBillingWorkflowError::TooManyRequestsTooSoon)));
+            return Err(Abort(ClientError(LockBillingWorkflowError::ExistingRequestPending)));
         }
 
         sub_hist.last_in_payment_flow = current_time;
@@ -140,8 +140,8 @@ pub async fn upgrade_account_android(
     )
     .await
     .map_err(|err| match err {
-        ClientError(LockBillingWorkflowError::TooManyRequestsTooSoon) => {
-            ClientError(UpgradeAccountAndroidError::TooManyRequestsTooSoon)
+        ClientError(LockBillingWorkflowError::ExistingRequestPending) => {
+            ClientError(UpgradeAccountAndroidError::ExistingRequestPending)
         }
         InternalError(msg) => InternalError(msg),
     })?;
@@ -224,8 +224,8 @@ pub async fn cancel_subscription(
     )
     .await
     .map_err(|err| match err {
-        ClientError(LockBillingWorkflowError::TooManyRequestsTooSoon) => {
-            ClientError(CancelSubscriptionError::TooManyRequestsTooSoon)
+        ClientError(LockBillingWorkflowError::ExistingRequestPending) => {
+            ClientError(CancelSubscriptionError::ExistingRequestPending)
         }
         InternalError(msg) => InternalError(msg),
     })?;
@@ -305,8 +305,8 @@ pub async fn upgrade_account_stripe(
     )
     .await
     .map_err(|err| match err {
-        ClientError(LockBillingWorkflowError::TooManyRequestsTooSoon) => {
-            ClientError(UpgradeAccountStripeError::TooManyRequestsTooSoon)
+        ClientError(LockBillingWorkflowError::ExistingRequestPending) => {
+            ClientError(UpgradeAccountStripeError::ExistingRequestPending)
         }
         InternalError(msg) => InternalError(msg),
     })?;
@@ -535,7 +535,7 @@ pub async fn stripe_webhooks(
 
                             pipe.json_set(keys::subscription_profile(&public_key), &sub_hist)
                         }
-                        Err(ClientError(LockBillingWorkflowError::TooManyRequestsTooSoon)) => {
+                        Err(ClientError(LockBillingWorkflowError::ExistingRequestPending)) => {
                             Ok(&mut pipe)
                         }
                         Err(err) => Err(Abort(internal!(
@@ -585,7 +585,7 @@ pub async fn stripe_webhooks(
                             sub_hist.last_in_payment_flow = 0;
                             pipe.json_set(keys::subscription_profile(&public_key), &sub_hist)
                         }
-                        Err(ClientError(LockBillingWorkflowError::TooManyRequestsTooSoon)) => {
+                        Err(ClientError(LockBillingWorkflowError::ExistingRequestPending)) => {
                             Ok(&mut pipe)
                         }
                         Err(err) => Err(Abort(internal!(
@@ -647,7 +647,7 @@ pub enum GooglePlayWebhookError {
     CannotParseTime,
 }
 
-pub async fn android_notification_webhooks(
+pub async fn google_play_notification_webhooks(
     server_state: &Arc<ServerState>, request_body: Bytes, query_parameters: HashMap<String, String>,
 ) -> Result<(), ServerError<GooglePlayWebhookError>> {
     if !constant_time_eq::constant_time_eq(
@@ -788,7 +788,7 @@ pub async fn android_notification_webhooks(
                         )))
                     }
                 }
-                Err(ClientError(LockBillingWorkflowError::TooManyRequestsTooSoon)) => Ok(&mut pipe),
+                Err(ClientError(LockBillingWorkflowError::ExistingRequestPending)) => Ok(&mut pipe),
                 Err(err) => {
                     Err(Abort(internal!("Cannot get billing lock in stripe webhooks: {:#?}", err)))
                 }

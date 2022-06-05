@@ -1,5 +1,5 @@
 use crate::FREE_TIER_USAGE_SIZE;
-use lockbook_models::api::GooglePlayAccountState;
+use lockbook_models::api::{GooglePlayAccountState, UnixTime};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -27,7 +27,7 @@ pub struct GooglePlayUserInfo {
     pub purchase_token: String,
     pub subscription_product_id: String,
     pub subscription_offer_id: String,
-    pub expiration_time: u64,
+    pub expiration_time: UnixTime,
     pub account_state: GooglePlayAccountState,
 }
 
@@ -38,5 +38,5 @@ pub struct StripeUserInfo {
     pub payment_method_id: String,
     pub last_4: String,
     pub subscription_id: String,
-    pub expiration_time: u64,
+    pub expiration_time: UnixTime,
 }

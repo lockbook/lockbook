@@ -113,7 +113,7 @@ pub enum CoreError {
     RootModificationInvalid,
     RootNonexistent,
     ServerUnreachable,
-    TooManyRequestsTooSoon,
+    ExistingRequestPending,
     UsageIsOverFreeTierDataCap,
     UsernameInvalid,
     UsernamePublicKeyMismatch,
@@ -736,7 +736,7 @@ pub enum UpgradeAccountStripeError {
     ExpiredCard,
     ClientUpdateRequired,
     CurrentUsageIsMoreThanNewTier,
-    TooManyRequestsTooSoon,
+    ExistingRequestPending,
 }
 
 impl From<CoreError> for Error<UpgradeAccountStripeError> {
@@ -764,8 +764,8 @@ impl From<CoreError> for Error<UpgradeAccountStripeError> {
                 UiError(UpgradeAccountStripeError::CurrentUsageIsMoreThanNewTier)
             }
             CoreError::AccountNonexistent => UiError(UpgradeAccountStripeError::NoAccount),
-            CoreError::TooManyRequestsTooSoon => {
-                UiError(UpgradeAccountStripeError::TooManyRequestsTooSoon)
+            CoreError::ExistingRequestPending => {
+                UiError(UpgradeAccountStripeError::ExistingRequestPending)
             }
             CoreError::ClientUpdateRequired => {
                 UiError(UpgradeAccountStripeError::ClientUpdateRequired)
@@ -779,7 +779,7 @@ impl From<CoreError> for Error<UpgradeAccountStripeError> {
 pub enum UpgradeAccountAndroidError {
     AlreadyPremium,
     InvalidPurchaseToken,
-    TooManyRequestsTooSoon,
+    ExistingRequestPending,
     CouldNotReachServer,
     ClientUpdateRequired,
 }
@@ -791,8 +791,8 @@ impl From<CoreError> for Error<UpgradeAccountAndroidError> {
             CoreError::InvalidPurchaseToken => {
                 UiError(UpgradeAccountAndroidError::InvalidPurchaseToken)
             }
-            CoreError::TooManyRequestsTooSoon => {
-                UiError(UpgradeAccountAndroidError::TooManyRequestsTooSoon)
+            CoreError::ExistingRequestPending => {
+                UiError(UpgradeAccountAndroidError::ExistingRequestPending)
             }
             CoreError::ServerUnreachable => {
                 UiError(UpgradeAccountAndroidError::CouldNotReachServer)
@@ -809,7 +809,7 @@ impl From<CoreError> for Error<UpgradeAccountAndroidError> {
 pub enum CancelSubscriptionError {
     NotPremium,
     UsageIsOverFreeTierDataCap,
-    TooManyRequestsTooSoon,
+    ExistingRequestPending,
     CouldNotReachServer,
     ClientUpdateRequired,
 }
@@ -821,8 +821,8 @@ impl From<CoreError> for Error<CancelSubscriptionError> {
             CoreError::UsageIsOverFreeTierDataCap => {
                 UiError(CancelSubscriptionError::UsageIsOverFreeTierDataCap)
             }
-            CoreError::TooManyRequestsTooSoon => {
-                UiError(CancelSubscriptionError::TooManyRequestsTooSoon)
+            CoreError::ExistingRequestPending => {
+                UiError(CancelSubscriptionError::ExistingRequestPending)
             }
             CoreError::ServerUnreachable => UiError(CancelSubscriptionError::CouldNotReachServer),
             CoreError::ClientUpdateRequired => {

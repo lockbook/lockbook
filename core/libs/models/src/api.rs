@@ -311,7 +311,7 @@ pub enum UpgradeAccountStripeError {
     InvalidCardExpYear,
     InvalidCardExpMonth,
     InvalidCardCvc,
-    TooManyRequestsTooSoon,
+    ExistingRequestPending,
     UserNotFound,
 }
 
@@ -335,7 +335,7 @@ pub struct UpgradeAccountAndroidResponse {}
 pub enum UpgradeAccountAndroidError {
     AlreadyPremium,
     InvalidPurchaseToken,
-    TooManyRequestsTooSoon,
+    ExistingRequestPending,
 }
 
 impl Request for UpgradeAccountAndroidRequest {
@@ -355,13 +355,13 @@ pub struct CancelSubscriptionResponse {}
 pub enum CancelSubscriptionError {
     NotPremium,
     UsageIsOverFreeTierDataCap,
-    TooManyRequestsTooSoon,
+    ExistingRequestPending,
 }
 
 impl Request for CancelSubscriptionRequest {
     type Response = CancelSubscriptionResponse;
     type Error = CancelSubscriptionError;
-    const METHOD: Method = Method::POST;
+    const METHOD: Method = Method::DELETE;
     const ROUTE: &'static str = "/cancel-subscription";
 }
 
@@ -371,7 +371,7 @@ pub struct GetSubscriptionInfoRequest {}
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct SubscriptionInfo {
     pub payment_platform: PaymentPlatform,
-    pub period_end: u64,
+    pub period_end: UnixTime,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -400,6 +400,9 @@ pub enum GetSubscriptionInfoError {}
 impl Request for GetSubscriptionInfoRequest {
     type Response = GetSubscriptionInfoResponse;
     type Error = GetSubscriptionInfoError;
-    const METHOD: Method = Method::POST;
+    const METHOD: Method = Method::GET;
     const ROUTE: &'static str = "/get-subscription-info";
 }
+
+// number of milliseconds that have elapsed since the unix epoch
+pub type UnixTime = u64;

@@ -400,7 +400,7 @@ fn payment_err_to_string(err: lb::Error<lb::UpgradeAccountStripeError>) -> Strin
             CurrentUsageIsMoreThanNewTier => {
                 "Your current usage is greater than the data cap of your desired subscription tier."
             }
-            TooManyRequestsTooSoon => {
+            ExistingRequestPending => {
                 "Too many requests. Please wait a little while before trying again."
             }
         }

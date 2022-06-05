@@ -151,7 +151,7 @@ pub fn stripe_webhooks(
         })
 }
 
-pub fn android_notification_webhooks(
+pub fn google_play_notification_webhooks(
     server_state: &Arc<ServerState>,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     let cloned_state = Arc::clone(server_state);
@@ -162,7 +162,7 @@ pub fn android_notification_webhooks(
         .and(warp::body::bytes())
         .and(warp::query::query::<HashMap<String, String>>())
         .then(|state: Arc<ServerState>, request: Bytes, query_parameters: HashMap<String, String>| async move {
-            match billing_service::android_notification_webhooks(&state, request, query_parameters).await
+            match billing_service::google_play_notification_webhooks(&state, request, query_parameters).await
             {
                 Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
                 Err(e) => {
