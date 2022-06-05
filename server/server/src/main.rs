@@ -14,7 +14,7 @@ use std::sync::Arc;
 use warp::Filter;
 
 use lockbook_server_lib::router_service::{
-    google_play_notification_webhooks, build_info, core_routes, get_metrics, stripe_webhooks,
+    build_info, core_routes, get_metrics, google_play_notification_webhooks, stripe_webhooks,
 };
 use lockbook_server_lib::utils::get_android_client;
 
