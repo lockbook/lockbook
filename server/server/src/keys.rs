@@ -18,8 +18,8 @@ pub fn file(id: Uuid) -> String {
     format!("file_id:{}:metadata", id)
 }
 
-pub fn subscription_history(pk: &PublicKey) -> String {
-    format!("public_key:{}:subscription_history", stringify_public_key(pk))
+pub fn subscription_profile(pk: &PublicKey) -> String {
+    format!("public_key:{}:subscription_profile", stringify_public_key(pk))
 }
 
 pub fn public_key_from_stripe_customer_id(customer_id: &str) -> String {

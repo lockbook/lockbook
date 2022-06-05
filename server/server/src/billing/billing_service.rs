@@ -1,6 +1,6 @@
 use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_model::{
-    BillingInfo, GooglePlayUserInfo, StripeUserInfo, SubscriptionHistory,
+    BillingPlatform, GooglePlayUserInfo, StripeUserInfo, SubscriptionProfile,
 };
 use crate::billing::google_play_model::{
     DeveloperNotification, NotificationType, PubSubNotification,
@@ -44,12 +44,12 @@ pub enum LockBillingWorkflowError {
 
 async fn lock_billing_workflow(
     public_key: &PublicKey, con: &mut deadpool_redis::Connection, millis_between_payment_flows: u64,
-) -> Result<SubscriptionHistory, ServerError<LockBillingWorkflowError>> {
-    let mut sub_hist = SubscriptionHistory::default();
+) -> Result<SubscriptionProfile, ServerError<LockBillingWorkflowError>> {
+    let mut sub_hist = SubscriptionProfile::default();
 
-    let tx_result = tx!(con, pipe, &[keys::subscription_history(public_key)], {
+    let tx_result = tx!(con, pipe, &[keys::subscription_profile(public_key)], {
         sub_hist = con
-            .maybe_json_get(keys::subscription_history(public_key))
+            .maybe_json_get(keys::subscription_profile(public_key))
             .await?
             .unwrap_or_default();
 
@@ -66,7 +66,7 @@ async fn lock_billing_workflow(
 
         sub_hist.last_in_payment_flow = current_time;
 
-        pipe.json_set(keys::subscription_history(public_key), &sub_hist)
+        pipe.json_set(keys::subscription_profile(public_key), &sub_hist)
     });
     return_if_error!(tx_result);
 
@@ -80,11 +80,11 @@ async fn lock_billing_workflow(
 
 async fn reset_billing_lock<E: Debug>(
     public_key: &PublicKey, con: &mut deadpool_redis::Connection,
-    sub_hist: &mut SubscriptionHistory,
+    sub_hist: &mut SubscriptionProfile,
 ) -> Result<(), ServerError<E>> {
     sub_hist.last_in_payment_flow = 0;
     Ok(con
-        .json_set(keys::subscription_history(public_key), &sub_hist)
+        .json_set(keys::subscription_profile(public_key), &sub_hist)
         .await?)
 }
 
@@ -94,8 +94,8 @@ pub async fn get_subscription_info(
     let server_state = context.server_state;
     let mut con = server_state.index_db_pool.get().await?;
 
-    let sub_hist: SubscriptionHistory = match con
-        .maybe_json_get(keys::subscription_history(&context.public_key))
+    let sub_hist: SubscriptionProfile = match con
+        .maybe_json_get(keys::subscription_profile(&context.public_key))
         .await?
     {
         Some(sub_hist) => sub_hist,
@@ -104,16 +104,18 @@ pub async fn get_subscription_info(
 
     let subscription_info = match (sub_hist.data_cap, sub_hist.info) {
         (FREE_TIER_USAGE_SIZE, _) => None,
-        (PREMIUM_TIER_USAGE_SIZE, Some(BillingInfo::Stripe(info))) => Some(SubscriptionInfo {
+        (PREMIUM_TIER_USAGE_SIZE, Some(BillingPlatform::Stripe(info))) => Some(SubscriptionInfo {
             payment_platform: PaymentPlatform::Stripe { card_last_4_digits: info.last_4.clone() },
             period_end: info.expiration_time,
         }),
-        (PREMIUM_TIER_USAGE_SIZE, Some(BillingInfo::GooglePlay(info))) => Some(SubscriptionInfo {
-            payment_platform: PaymentPlatform::GooglePlay {
-                account_state: info.account_state.clone(),
-            },
-            period_end: info.expiration_time,
-        }),
+        (PREMIUM_TIER_USAGE_SIZE, Some(BillingPlatform::GooglePlay(info))) => {
+            Some(SubscriptionInfo {
+                payment_platform: PaymentPlatform::GooglePlay {
+                    account_state: info.account_state.clone(),
+                },
+                period_end: info.expiration_time,
+            })
+        }
         (_, _) => {
             return Err(internal!(
                 "No billing information despite being a premium tier. public_key: {:?}",
@@ -169,7 +171,7 @@ pub async fn upgrade_account_android(
     )
     .await?;
 
-    sub_hist.info = Some(BillingInfo::GooglePlay(GooglePlayUserInfo {
+    sub_hist.info = Some(BillingPlatform::GooglePlay(GooglePlayUserInfo {
         purchase_token: request.purchase_token.clone(),
         subscription_product_id: server_state
             .config
@@ -252,7 +254,7 @@ pub async fn cancel_subscription(
 
     match sub_hist.info {
         None => return Err(internal!("A user somehow has premium tier usage, but no billing information on redis. public_key: {:?}", context.public_key)),
-        Some(BillingInfo::GooglePlay(ref mut info)) => {
+        Some(BillingPlatform::GooglePlay(ref mut info)) => {
             info!("Canceling google play subscription of user. public_key: {:?}.", context.public_key);
 
             google_play_client::cancel_subscription(
@@ -266,7 +268,7 @@ pub async fn cancel_subscription(
 
             // You do not get rid of the data cap until they have used up the rest of their time.
         }
-        Some(BillingInfo::Stripe(ref info)) => {
+        Some(BillingPlatform::Stripe(ref info)) => {
             info!("Canceling stripe subscription of user. public_key: {:?}.", context.public_key);
 
             stripe_client::cancel_subscription(
@@ -314,8 +316,8 @@ pub async fn upgrade_account_stripe(
     }
 
     let maybe_user_info = sub_hist.info.and_then(|info| {
-        if let BillingInfo::Stripe(stripe_info) = info {
-            Some(stripe_info.clone())
+        if let BillingPlatform::Stripe(stripe_info) = info {
+            Some(stripe_info)
         } else {
             None
         }
@@ -330,7 +332,7 @@ pub async fn upgrade_account_stripe(
     )
     .await?;
 
-    sub_hist.info = Some(BillingInfo::Stripe(user_info));
+    sub_hist.info = Some(BillingPlatform::Stripe(user_info));
     sub_hist.data_cap = new_data_cap;
 
     reset_billing_lock(&context.public_key, &mut con, &mut sub_hist).await?;
@@ -519,7 +521,7 @@ pub async fn stripe_webhooks(
                     keys::stringify_public_key(&public_key)
                 );
 
-                let tx_result = tx!(&mut con, pipe, &[keys::subscription_history(&public_key)], {
+                let tx_result = tx!(&mut con, pipe, &[keys::subscription_profile(&public_key)], {
                     match lock_billing_workflow(
                         &public_key,
                         &mut con,
@@ -531,7 +533,7 @@ pub async fn stripe_webhooks(
                             sub_hist.data_cap = FREE_TIER_USAGE_SIZE;
                             sub_hist.info = None;
 
-                            pipe.json_set(keys::subscription_history(&public_key), &sub_hist)
+                            pipe.json_set(keys::subscription_profile(&public_key), &sub_hist)
                         }
                         Err(ClientError(LockBillingWorkflowError::TooManyRequestsTooSoon)) => {
                             Ok(&mut pipe)
@@ -567,7 +569,7 @@ pub async fn stripe_webhooks(
                     }
                 };
 
-                let tx_result = tx!(&mut con, pipe, &[keys::subscription_history(&public_key)], {
+                let tx_result = tx!(&mut con, pipe, &[keys::subscription_profile(&public_key)], {
                     match lock_billing_workflow(
                         &public_key,
                         &mut con,
@@ -576,12 +578,12 @@ pub async fn stripe_webhooks(
                     .await
                     {
                         Ok(ref mut sub_hist) => {
-                            if let Some(BillingInfo::Stripe(ref mut info)) = sub_hist.info {
+                            if let Some(BillingPlatform::Stripe(ref mut info)) = sub_hist.info {
                                 info.expiration_time = subscription_period_end as u64;
                             }
 
                             sub_hist.last_in_payment_flow = 0;
-                            pipe.json_set(keys::subscription_history(&public_key), &sub_hist)
+                            pipe.json_set(keys::subscription_profile(&public_key), &sub_hist)
                         }
                         Err(ClientError(LockBillingWorkflowError::TooManyRequestsTooSoon)) => {
                             Ok(&mut pipe)
@@ -702,7 +704,7 @@ pub async fn android_notification_webhooks(
 
         info!("Updating subscription history to match new subscription state.");
 
-        let tx_result = tx!(&mut con, pipe, &[keys::subscription_history(&public_key)], {
+        let tx_result = tx!(&mut con, pipe, &[keys::subscription_profile(&public_key)], {
             match lock_billing_workflow(
                 &public_key,
                 &mut con,
@@ -711,7 +713,7 @@ pub async fn android_notification_webhooks(
             .await
             {
                 Ok(mut sub_hist) => {
-                    if let Some(BillingInfo::GooglePlay(ref mut info)) = sub_hist.info {
+                    if let Some(BillingPlatform::GooglePlay(ref mut info)) = sub_hist.info {
                         match notification_type {
                             NotificationType::SubscriptionRecovered => {
                                 info.account_state = GooglePlayAccountState::Ok;
@@ -719,7 +721,7 @@ pub async fn android_notification_webhooks(
                                 sub_hist.data_cap = PREMIUM_TIER_USAGE_SIZE;
 
                                 sub_hist.last_in_payment_flow = 0;
-                                pipe.json_set(keys::subscription_history(&public_key), &sub_hist)
+                                pipe.json_set(keys::subscription_profile(&public_key), &sub_hist)
                                 // give back premium and update time exp
                             }
                             NotificationType::SubscriptionRenewed
@@ -728,12 +730,12 @@ pub async fn android_notification_webhooks(
                                 info.expiration_time = subscription.borrow().expiry_time_millis.as_ref().ok_or_else(|| Abort(internal!("Cannot get expiration time of a recovered subscription. public_key {:?}, subscription notification type: {:?}", public_key, notification_type)))?.parse().map_err(|e| Abort(internal!("Cannot parse millis into int: {:?}", e)))?;
 
                                 sub_hist.last_in_payment_flow = 0;
-                                pipe.json_set(keys::subscription_history(&public_key), &sub_hist)
+                                pipe.json_set(keys::subscription_profile(&public_key), &sub_hist)
                                 // change expiry time
                             }
                             NotificationType::SubscriptionInGracePeriod => {
                                 info.account_state = GooglePlayAccountState::GracePeriod;
-                                pipe.json_set(keys::subscription_history(&public_key), &sub_hist)
+                                pipe.json_set(keys::subscription_profile(&public_key), &sub_hist)
                             }
                             NotificationType::SubscriptionOnHold => {
                                 info.account_state = GooglePlayAccountState::OnHold;
@@ -741,7 +743,7 @@ pub async fn android_notification_webhooks(
                                 sub_hist.data_cap = FREE_TIER_USAGE_SIZE;
 
                                 sub_hist.last_in_payment_flow = 0;
-                                pipe.json_set(keys::subscription_history(&public_key), &sub_hist)
+                                pipe.json_set(keys::subscription_profile(&public_key), &sub_hist)
                             }
                             NotificationType::SubscriptionExpired
                             | NotificationType::SubscriptionRevoked => {
@@ -750,14 +752,18 @@ pub async fn android_notification_webhooks(
                                 sub_hist.info = None;
 
                                 sub_hist.last_in_payment_flow = 0;
-                                pipe.json_set(keys::subscription_history(&public_key), &sub_hist)
+                                pipe.json_set(keys::subscription_profile(&public_key), &sub_hist)
                                 // remove premium data cap and update exp date to past (for hold)
                             }
                             NotificationType::SubscriptionCanceled => {
                                 info.account_state = GooglePlayAccountState::Canceled;
+                                info!(
+                                    "Reason of cancellation reason of user: {:?}",
+                                    subscription.cancel_survey_result
+                                );
 
                                 sub_hist.last_in_payment_flow = 0;
-                                pipe.json_set(keys::subscription_history(&public_key), &sub_hist)
+                                pipe.json_set(keys::subscription_profile(&public_key), &sub_hist)
                             }
                             NotificationType::SubscriptionPurchased => Ok(&mut pipe),
                             NotificationType::SubscriptionPriceChangeConfirmed

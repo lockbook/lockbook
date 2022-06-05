@@ -13,7 +13,7 @@ use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
 use crate::service::search_service::SearchResultItem;
 use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
-use crate::service::{billing_service, path_service, sync_service};
+use crate::service::{path_service, sync_service};
 use crate::sync_service::WorkCalculated;
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;

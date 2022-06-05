@@ -10,9 +10,9 @@ use redis_utils::converters::{JsonGet, PipelineJsonSet};
 use redis_utils::tx;
 use uuid::Uuid;
 
-use crate::billing::billing_model::SubscriptionHistory;
+use crate::billing::billing_model::SubscriptionProfile;
 use crate::content::document_service;
-use crate::keys::{file, meta, owned_files, public_key, size, subscription_history, username};
+use crate::keys::{file, meta, owned_files, public_key, size, subscription_profile, username};
 use crate::ServerError::ClientError;
 use lockbook_models::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
 use lockbook_models::api::{
@@ -81,7 +81,7 @@ pub async fn new_account(
         pipe.json_set(public_key(&request.username), request.public_key)?
             .json_set(username(&request.public_key), &request.username)?
             .json_set(owned_files(&request.public_key), [request.root_folder.id])?
-            .json_set(subscription_history(&request.public_key), SubscriptionHistory::default())?
+            .json_set(subscription_profile(&request.public_key), SubscriptionProfile::default())?
             .json_set(meta(&root), &root)
     });
     return_if_error!(tx_result);
@@ -116,8 +116,8 @@ pub async fn get_usage(
     let (_request, server_state) = (&context.request, context.server_state);
     let mut con = server_state.index_db_pool.get().await?;
 
-    let sub_hist: SubscriptionHistory = con
-        .json_get(keys::subscription_history(&context.public_key))
+    let sub_hist: SubscriptionProfile = con
+        .json_get(keys::subscription_profile(&context.public_key))
         .await?;
 
     let usages = get_usage_helper(&mut con, &context.public_key).await?;
@@ -202,6 +202,6 @@ pub async fn free_username(
     debug!("purging username: {}", username);
     con.del(keys::username(pk)).await?;
     con.del(public_key(&username)).await?;
-    con.del(subscription_history(pk)).await?;
+    con.del(subscription_profile(pk)).await?;
     Ok(())
 }

@@ -35,7 +35,7 @@ Values are json encoded.
 
 # Billing
 
-+ `public_key:x:subscription_history`
++ `public_key:x:subscription_profile`
   + `x` is the `public_key`.
 + `stripe_customer_id:x:public_key`.
   + `x` is the stripe `customer_id`.
