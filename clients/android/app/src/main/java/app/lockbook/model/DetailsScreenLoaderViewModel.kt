@@ -17,7 +17,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import timber.log.Timber
 
 class DetailsScreenLoaderViewModel(application: Application, loadingInfo: DetailsScreen.Loading) :
     AndroidViewModel(application) {
@@ -79,8 +78,6 @@ class DetailsScreenLoaderViewModel(application: Application, loadingInfo: Detail
                         ))
                     )
                 }
-
-                Timber.e("THIS IS WEIRD ${bytes.size}")
 
                 UpdateDetailScreenLoaderUI.NotifyFinished(
                     DetailsScreen.ImageViewer(

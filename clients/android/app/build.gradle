@@ -98,7 +98,6 @@ dependencies {
 
     // Miscellaneous
     implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:$json_parser_version"
-//    implementation "org.jetbrains.kotlinx:kotlinx-serialization-cbor$json_parser_version"
     implementation "org.jetbrains.kotlin:kotlin-reflect:$kotlin_reflect"
     implementation "com.journeyapps:zxing-android-embedded:$qr_embedded_version"
     implementation "com.google.zxing:core:$qr_core_version"
@@ -110,6 +109,7 @@ dependencies {
     implementation "com.github.tingyik90:snackprogressbar:$snackprogressbar_version"
     implementation "com.android.billingclient:billing:$billing_version"
     implementation "com.github.MikeOrtiz:TouchImageView:$image_viewer_version"
+    implementation "com.github.barteksc:android-pdf-viewer:$pdf_viewer_version"
 
     implementation project(':core')
 }
