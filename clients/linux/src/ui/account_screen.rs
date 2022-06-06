@@ -86,8 +86,8 @@ impl AccountScreen {
 
         let cntr = gtk::Paned::new(gtk::Orientation::Horizontal);
         cntr.set_position(325);
-        cntr.set_start_child(&sidebar);
-        cntr.set_end_child(&stack);
+        cntr.set_start_child(Some(&sidebar));
+        cntr.set_end_child(Some(&stack));
 
         let scheme_name = Rc::new(Cell::new("classic"));
 
