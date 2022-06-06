@@ -213,11 +213,12 @@ impl SelectPayMethod {
         if let Some(subscription) = maybe_subscription {
             match subscription.payment_platform {
                 lb::PaymentPlatform::Stripe { card_last_4_digits } => {
-                    current_method.set_label(Some(&format!("Current Card ({})", card_last_4_digits)));
-                },
+                    current_method
+                        .set_label(Some(&format!("Current Card ({})", card_last_4_digits)));
+                }
                 lb::PaymentPlatform::GooglePlay { account_state } => {
-                    current_method.set_label(Some(&format!("Google Play ({:?})", account_state )));
-                },
+                    current_method.set_label(Some(&format!("Google Play ({:?})", account_state)));
+                }
             }
 
             current_method.set_group(Some(&group));
