@@ -36,7 +36,7 @@ pub use titlebar::SearchOp;
 pub use titlebar::Titlebar;
 pub use usage_settings::UsageSettings;
 pub use usage_tier::UsageTier;
-pub use usage_upgrade::UpgradePaymentFlow;
+pub use usage_upgrade::PurchaseFlow;
 
 pub use image_tab::ImageTab;
 pub use tab::Tab;

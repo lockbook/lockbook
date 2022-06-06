@@ -7,7 +7,7 @@ use gtk::prelude::*;
 use crate::ui;
 
 #[derive(Clone)]
-pub struct UpgradePaymentFlow {
+pub struct PurchaseFlow {
     header: UpgradeHeader,
     payment_method: SelectPayMethod,
     confirm_details: ConfirmDetails,
@@ -15,12 +15,12 @@ pub struct UpgradePaymentFlow {
     pub cntr: gtk::Box,
 }
 
-impl UpgradePaymentFlow {
-    pub fn new(maybe_card: Option<lb::CreditCardLast4Digits>) -> Self {
+impl PurchaseFlow {
+    pub fn new(maybe_subscription: Option<lb::SubscriptionInfo>) -> Self {
         let header = UpgradeHeader::new();
         header.payment_method.mark_active();
 
-        let payment_method = SelectPayMethod::new(maybe_card);
+        let payment_method = SelectPayMethod::new(maybe_subscription);
         let confirm_details = ConfirmDetails::new();
 
         let pages = gtk::Stack::new();
@@ -190,7 +190,7 @@ impl HeaderSection {
 
 #[derive(Clone)]
 struct SelectPayMethod {
-    old_card: gtk::CheckButton,
+    current_method: gtk::CheckButton,
     new_card: gtk::CheckButton,
     new_card_input: ui::CreditCardInput,
     btn_cancel: gtk::Button,
@@ -199,10 +199,10 @@ struct SelectPayMethod {
 }
 
 impl SelectPayMethod {
-    fn new(maybe_existing_card: Option<lb::CreditCardLast4Digits>) -> Self {
+    fn new(maybe_subscription: Option<lb::SubscriptionInfo>) -> Self {
         let group = gtk::CheckButton::new();
 
-        let old_card = gtk::CheckButton::new();
+        let current_method = gtk::CheckButton::new();
 
         let new_card_input = ui::CreditCardInput::new();
         let new_card = gtk::CheckButton::with_label("New Card");
@@ -210,10 +210,18 @@ impl SelectPayMethod {
         let methods = gtk::Box::new(gtk::Orientation::Vertical, 8);
         methods.set_vexpand(true);
 
-        if let Some(card_last4) = maybe_existing_card {
-            old_card.set_label(Some(&format!("Current Card ({})", card_last4)));
-            old_card.set_group(Some(&group));
-            old_card.set_active(true);
+        if let Some(subscription) = maybe_subscription {
+            match subscription.payment_platform {
+                lb::PaymentPlatform::Stripe { card_last_4_digits } => {
+                    current_method.set_label(Some(&format!("Current Card ({})", card_last_4_digits)));
+                },
+                lb::PaymentPlatform::GooglePlay { account_state } => {
+                    current_method.set_label(Some(&format!("Google Play ({:?})", account_state )));
+                },
+            }
+
+            current_method.set_group(Some(&group));
+            current_method.set_active(true);
 
             new_card.set_group(Some(&group));
             new_card.connect_toggled({
@@ -226,7 +234,7 @@ impl SelectPayMethod {
                 }
             });
 
-            methods.append(&old_card);
+            methods.append(&current_method);
             methods.append(&new_card);
             methods.append(&new_card_input.revealer);
         } else {
@@ -245,7 +253,7 @@ impl SelectPayMethod {
         cntr.append(&methods);
         cntr.append(&btn_grid(&[&btn_cancel, &btn_continue]));
 
-        Self { old_card, new_card, new_card_input, btn_cancel, btn_continue, cntr }
+        Self { current_method, new_card, new_card_input, btn_cancel, btn_continue, cntr }
     }
 
     fn payment_method(&self) -> Option<lb::PaymentMethod> {
@@ -263,7 +271,7 @@ impl SelectPayMethod {
                 }
             };
         }
-        if self.old_card.is_active() {
+        if self.current_method.is_active() {
             return Some(lb::PaymentMethod::OldCard);
         }
         None

@@ -140,15 +140,15 @@ impl super::App {
         let settings_win = settings_win.clone();
         let api = self.api.clone();
         usage.connect_begin_upgrade(move |usage| {
-            let maybe_card = match api.get_credit_card() {
-                Ok(maybe_last4) => maybe_last4,
-                Err(err_msg) => {
-                    ui::show_err_dialog(&settings_win, &err_msg);
+            let maybe_subscription = match api.get_subscription_info() {
+                Ok(maybe_subscription) => maybe_subscription,
+                Err(err) => {
+                    ui::show_err_dialog(&settings_win, &format!("{:?}", err));
                     return;
                 }
             };
 
-            let upgrading = ui::UpgradePaymentFlow::new(maybe_card);
+            let upgrading = ui::PurchaseFlow::new(maybe_subscription);
             upgrading.connect_cancelled({
                 let pages = usage.pages.clone();
 

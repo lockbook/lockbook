@@ -3,6 +3,8 @@ use std::sync::Mutex;
 
 pub use uuid::Uuid;
 
+pub use lockbook_models::api::PaymentPlatform;
+pub use lockbook_models::api::SubscriptionInfo;
 pub use lockbook_models::account::Account;
 pub use lockbook_models::api::PaymentMethod;
 pub use lockbook_models::api::StripeAccountTier;
@@ -29,6 +31,7 @@ pub use lockbook_core::model::errors::GetAndGetChildrenError;
 pub use lockbook_core::model::errors::GetFileByIdError;
 pub use lockbook_core::model::errors::GetFileByPathError;
 pub use lockbook_core::model::errors::GetRootError;
+pub use lockbook_core::model::errors::GetSubscriptionInfoError;
 pub use lockbook_core::model::errors::GetUsageError;
 pub use lockbook_core::model::errors::ImportError as ImportAccountError;
 pub use lockbook_core::model::errors::ImportFileError;
@@ -39,7 +42,6 @@ pub use lockbook_core::model::errors::SyncAllError;
 pub use lockbook_core::model::errors::UpgradeAccountStripeError;
 pub use lockbook_core::model::errors::WriteToDocumentError as WriteDocumentError;
 
-pub use lockbook_core::service::billing_service::CreditCardLast4Digits;
 pub use lockbook_core::service::import_export_service::ImportExportFileInfo;
 pub use lockbook_core::service::import_export_service::ImportStatus;
 pub use lockbook_core::service::search_service::SearchResultItem;
@@ -99,7 +101,7 @@ pub trait Api: Send + Sync {
 
     fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError>;
 
-    fn get_credit_card(&self) -> Result<Option<CreditCardLast4Digits>, String>;
+    fn get_subscription_info(&self) -> Result<Option<SubscriptionInfo>, Error<GetSubscriptionInfoError>>;
     fn upgrade_account(
         &self, new_tier: StripeAccountTier,
     ) -> Result<(), Error<UpgradeAccountStripeError>>;
@@ -276,8 +278,8 @@ impl Api for DefaultApi {
         self.core.search_file_paths(input)
     }
 
-    fn get_credit_card(&self) -> Result<Option<CreditCardLast4Digits>, String> {
-        Ok(Some("2211".to_string()))
+    fn get_subscription_info(&self) -> Result<Option<SubscriptionInfo>, Error<GetSubscriptionInfoError>> {
+        self.core.get_subscription_info()
     }
 
     fn upgrade_account(
