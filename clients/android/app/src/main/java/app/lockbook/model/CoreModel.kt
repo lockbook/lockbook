@@ -3,8 +3,9 @@ package app.lockbook.model
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.map
 import kotlinx.serialization.KSerializer
-import kotlinx.serialization.builtins.ByteArraySerializer
+import kotlinx.serialization.builtins.ArraySerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.decodeFromString
@@ -14,7 +15,6 @@ import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.SerializersModuleBuilder
 import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
-import timber.log.Timber
 
 object CoreModel {
     private const val PROD_API_URL = "https://api.prod.lockbook.net"
@@ -196,21 +196,27 @@ object CoreModel {
             app.lockbook.core.getFileById(id)
         )
 
-    private val readDocumentParser = Json {
+    private val readDocument = Json {
         serializersModule = SerializersModule {
-            createPolyRelation(ByteArraySerializer(), ReadDocumentError.serializer())
+            createPolyRelation(String.serializer(), ReadDocumentError.serializer())
         }
     }
 
     fun readDocument(
         id: String
-    ): Result<ByteArray, CoreError<ReadDocumentError>> {
-        val a = app.lockbook.core.readDocument(id)
+    ): Result<String, CoreError<ReadDocumentError>> =
+        readDocument.tryParse(app.lockbook.core.readDocument(id))
 
-        Timber.e("THIS IS A: $a")
-
-        return readDocumentParser.tryParse(a)
+    private val readDocumentBytes = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(ArraySerializer(Int.serializer()), ReadDocumentError.serializer())
+        }
     }
+
+    fun readDocumentBytes(
+        id: String
+    ): Result<ByteArray, CoreError<ReadDocumentError>> =
+        readDocumentBytes.tryParse<Array<Int>, ReadDocumentError>(app.lockbook.core.readDocumentBytes(id)).map{ it.map(Int::toByte).toByteArray() }
 
     private val saveDocumentToDiskParser = Json {
         serializersModule = SerializersModule {

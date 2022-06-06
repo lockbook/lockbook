@@ -311,6 +311,24 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
     string_to_jstring(
         &env,
         match static_state::get() {
+            Ok(core) => translate(core.read_document(id).map(|b| String::from(String::from_utf8_lossy(&b)))),
+            e => translate(e.map(|_| ())),
+        },
+    )
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocumentBytes(
+    env: JNIEnv, _: JClass, jid: JString,
+) -> jstring {
+    let id = match deserialize_id(&env, jid) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    string_to_jstring(
+        &env,
+        match static_state::get() {
             Ok(core) => translate(core.read_document(id)),
             e => translate(e.map(|_| ())),
         },
