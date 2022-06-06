@@ -23,7 +23,6 @@ import app.lockbook.util.FilesFragment
 import app.lockbook.util.exhaustive
 import java.io.File
 import java.lang.ref.WeakReference
-import java.util.ArrayList
 
 class MainScreenActivity : AppCompatActivity() {
     private var _binding: ActivityMainScreenBinding? = null
@@ -137,11 +136,10 @@ class MainScreenActivity : AppCompatActivity() {
         }
 
         model.updateMainScreenUI.observe(
-            this,
-            { update ->
-                updateMainScreenUI(update)
-            }
-        )
+            this
+        ) { update ->
+            updateMainScreenUI(update)
+        }
     }
 
     private fun updateMainScreenUI(update: UpdateMainScreenUI) {
@@ -207,13 +205,14 @@ class MainScreenActivity : AppCompatActivity() {
                 is DetailsScreen.Loading -> replace<DetailsScreenLoaderFragment>(R.id.detail_container)
                 is DetailsScreen.TextEditor -> replace<TextEditorFragment>(R.id.detail_container)
                 is DetailsScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
+                is DetailsScreen.ImageViewer -> replace<ImageViewerFragment>(R.id.detail_container)
                 null -> {
                     (supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment).syncBasedOnPreferences()
                     supportFragmentManager.findFragmentById(R.id.detail_container)?.let {
                         remove(it)
                     }
                 }
-            }
+            }.exhaustive
 
             if (slidingPaneLayout.isOpen) {
                 setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE)

@@ -1,6 +1,7 @@
 package app.lockbook.model
 
 import android.app.Application
+import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
@@ -17,7 +18,7 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
     var detailsScreen: DetailsScreen? = null
     var transientScreen: TransientScreen? = null
 
-    val _launchDetailsScreen = SingleMutableLiveData<DetailsScreen?>()
+    private val _launchDetailsScreen = SingleMutableLiveData<DetailsScreen?>()
     private val _launchTransientScreen = SingleMutableLiveData<TransientScreen>()
     private val _updateMainScreenUI = SingleMutableLiveData<UpdateMainScreenUI>()
 
@@ -105,6 +106,11 @@ sealed class DetailsScreen(open val fileMetadata: DecryptedFileMetadata) {
     data class Drawing(
         override val fileMetadata: DecryptedFileMetadata,
         val drawing: app.lockbook.util.Drawing
+    ) : DetailsScreen(fileMetadata)
+
+    data class ImageViewer(
+        override val fileMetadata: DecryptedFileMetadata,
+        val bitMap: Bitmap
     ) : DetailsScreen(fileMetadata)
 }
 

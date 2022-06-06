@@ -8,7 +8,6 @@ external fun getAccount(): String
 external fun convertToHumanDuration(metadataVersion: Long): String
 external fun getUsage(): String
 external fun getUncompressedUsage(): String
-external fun makeBytesReadable(bytes: Long): String
 external fun getRoot(): String
 external fun getChildren(id: String): String
 external fun getFileById(id: String): String

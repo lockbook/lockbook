@@ -1,6 +1,7 @@
 package app.lockbook.model
 
 import android.app.Application
+import android.graphics.BitmapFactory
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
@@ -16,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import timber.log.Timber
 
 class DetailsScreenLoaderViewModel(application: Application, loadingInfo: DetailsScreen.Loading) : AndroidViewModel(application) {
     private val _updateDetailScreenLoaderUI = SingleMutableLiveData<UpdateDetailScreenLoaderUI>()
@@ -25,29 +27,75 @@ class DetailsScreenLoaderViewModel(application: Application, loadingInfo: Detail
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            val getContentsResults = CoreModel.readDocument(loadingInfo.fileMetadata.id)
-            _updateDetailScreenLoaderUI.postValue(
-                when (getContentsResults) {
-                    is Ok -> {
-                        when (loadingInfo.fileMetadata.decryptedName.endsWith(".draw")) {
-                            true -> {
-                                if (getContentsResults.value.isEmpty()) {
-                                    UpdateDetailScreenLoaderUI.NotifyFinished(DetailsScreen.Drawing(loadingInfo.fileMetadata, Drawing()))
-                                } else {
-                                    try {
-                                        UpdateDetailScreenLoaderUI.NotifyFinished(DetailsScreen.Drawing(loadingInfo.fileMetadata, Json.decodeFromString(getContentsResults.value)))
-                                    } catch (e: Exception) {
-                                        UpdateDetailScreenLoaderUI.NotifyError(LbError.newUserError(getString(R.string.drawing_parse_error)))
-                                    }
-                                }
+            loadContent(loadingInfo)
+        }
+    }
+
+    private fun loadContent(loadingInfo: DetailsScreen.Loading) {
+        Timber.e("1 HERE")
+        val updateDetailScreenLoaderUI = when(val readDocumentResult = CoreModel.readDocument(loadingInfo.fileMetadata.id)) {
+            is Ok -> {
+                when {
+                    loadingInfo.fileMetadata.decryptedName.endsWith(".draw") -> {
+                        Timber.e("2 HERE")
+
+                        val content = String(readDocumentResult.value)
+                        Timber.e("3 HERE")
+                        if(content.isEmpty()) {
+                            UpdateDetailScreenLoaderUI.NotifyFinished(
+                                DetailsScreen.Drawing(
+                                    loadingInfo.fileMetadata,
+                                    Drawing()
+                                )
+                            )
+                        } else {
+                            try {
+                                val a = UpdateDetailScreenLoaderUI.NotifyFinished(
+                                    DetailsScreen.Drawing(
+                                        loadingInfo.fileMetadata,
+                                        Json.decodeFromString(content)
+                                    )
+                                )
+                                Timber.e("4 HERE")
+
+                                a
+                            } catch (e: Exception) {
+                                UpdateDetailScreenLoaderUI.NotifyError(
+                                    LbError.newUserError(
+                                        getString(R.string.drawing_parse_error)
+                                    )
+                                )
                             }
-                            false -> UpdateDetailScreenLoaderUI.NotifyFinished(DetailsScreen.TextEditor(loadingInfo.fileMetadata, getContentsResults.value))
                         }
                     }
-                    is Err -> UpdateDetailScreenLoaderUI.NotifyError(getContentsResults.error.toLbError(getRes()))
+                    loadingInfo.fileMetadata.decryptedName.endsWith(".jpeg")
+                            || loadingInfo.fileMetadata.decryptedName.endsWith(".png")
+                            || loadingInfo.fileMetadata.decryptedName.endsWith(".jpg") -> {
+                                UpdateDetailScreenLoaderUI.NotifyFinished(
+                                    DetailsScreen.ImageViewer(
+                                        loadingInfo.fileMetadata,
+                                        BitmapFactory.decodeByteArray(readDocumentResult.value, 0, readDocumentResult.value.size)
+                                    )
+                                )
+                            }
+                    else -> {
+                        UpdateDetailScreenLoaderUI.NotifyFinished(
+                            DetailsScreen.TextEditor(
+                                loadingInfo.fileMetadata,
+                                String(readDocumentResult.value)
+                            )
+                        )
+                    }
                 }
+            }
+            is Err -> UpdateDetailScreenLoaderUI.NotifyError(
+                readDocumentResult.error.toLbError(
+                    getRes()
+                )
             )
         }
+
+        _updateDetailScreenLoaderUI.postValue(updateDetailScreenLoaderUI)
     }
 }
 
@@ -55,3 +103,5 @@ sealed class UpdateDetailScreenLoaderUI {
     data class NotifyFinished(val newScreen: DetailsScreen) : UpdateDetailScreenLoaderUI()
     data class NotifyError(val error: LbError) : UpdateDetailScreenLoaderUI()
 }
+
+

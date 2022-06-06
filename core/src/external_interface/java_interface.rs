@@ -311,10 +311,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
     string_to_jstring(
         &env,
         match static_state::get() {
-            Ok(core) => translate(
-                core.read_document(id)
-                    .map(|d| String::from(String::from_utf8_lossy(&d))),
-            ),
+            Ok(core) => translate(core.read_document(id)),
             e => translate(e.map(|_| ())),
         },
     )

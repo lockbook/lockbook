@@ -4,6 +4,7 @@ import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.builtins.ByteArraySerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.decodeFromString
@@ -13,6 +14,7 @@ import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.SerializersModuleBuilder
 import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
+import timber.log.Timber
 
 object CoreModel {
     private const val PROD_API_URL = "https://api.prod.lockbook.net"
@@ -37,6 +39,7 @@ object CoreModel {
             where E : Enum<E>, E : UiCoreError = try {
         decodeFromString<IntermCoreResult<C, E>>(json).toResult()
     } catch (e: Exception) {
+        throw e
         Err(CoreError.Unexpected("Cannot parse json."))
     }
 
@@ -195,16 +198,19 @@ object CoreModel {
 
     private val readDocumentParser = Json {
         serializersModule = SerializersModule {
-            createPolyRelation(String.serializer(), ReadDocumentError.serializer())
+            createPolyRelation(ByteArraySerializer(), ReadDocumentError.serializer())
         }
     }
 
     fun readDocument(
         id: String
-    ): Result<String, CoreError<ReadDocumentError>> =
-        readDocumentParser.tryParse(
-            app.lockbook.core.readDocument(id)
-        )
+    ): Result<ByteArray, CoreError<ReadDocumentError>> {
+        val a = app.lockbook.core.readDocument(id)
+
+        Timber.e("THIS IS A: $a")
+
+        return readDocumentParser.tryParse(a)
+    }
 
     private val saveDocumentToDiskParser = Json {
         serializersModule = SerializersModule {
