@@ -109,7 +109,7 @@ dependencies {
     implementation "com.github.tingyik90:snackprogressbar:$snackprogressbar_version"
     implementation "com.android.billingclient:billing:$billing_version"
     implementation "com.github.MikeOrtiz:TouchImageView:$image_viewer_version"
-    implementation "com.github.barteksc:android-pdf-viewer:$pdf_viewer_version"
+    implementation "com.dmitryborodin:pdfview-android:1.1.0"
 
     implementation project(':core')
 }

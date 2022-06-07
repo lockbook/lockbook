@@ -1,9 +1,11 @@
 #![allow(non_snake_case)]
 
+use std::path::PathBuf;
+use std::str::FromStr;
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use jni::objects::{JClass, JObject, JString, JValue};
-use jni::sys::{jlong, jstring};
+use jni::sys::{jarray, jboolean, jbyteArray, jintArray, jlong, jsize, jstring};
 use jni::JNIEnv;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -320,19 +322,16 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocumentBytes(
     env: JNIEnv, _: JClass, jid: JString,
-) -> jstring {
+) -> jbyteArray {
     let id = match deserialize_id(&env, jid) {
         Ok(ok) => ok,
         Err(err) => return err,
     };
 
-    string_to_jstring(
-        &env,
-        match static_state::get() {
-            Ok(core) => translate(core.read_document(id)),
-            e => translate(e.map(|_| ())),
-        },
-    )
+    let mut document_bytes = static_state::get().unwrap().read_document(id).ok().unwrap();
+
+    env.byte_array_from_slice(document_bytes.as_slice()).unwrap()
+
 }
 
 #[no_mangle]
@@ -353,29 +352,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_saveDocumentToDisk(
         &env,
         match static_state::get() {
             Ok(core) => translate(core.save_document_to_disk(id, &location)),
-            e => translate(e.map(|_| ())),
-        },
-    )
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawing(
-    env: JNIEnv, _: JClass, jid: JString, jformat: JString,
-) -> jstring {
-    let id = match deserialize_id(&env, jid) {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    let format = match deserialize::<SupportedImageFormats>(&env, jformat, "image format") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    string_to_jstring(
-        &env,
-        match static_state::get() {
-            Ok(core) => translate(core.export_drawing(id, format, None)),
             e => translate(e.map(|_| ())),
         },
     )
@@ -527,6 +503,34 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateWork(
         &env,
         match static_state::get() {
             Ok(core) => translate(core.calculate_work()),
+            e => translate(e.map(|_| ())),
+        },
+    )
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_exportFile(
+    env: JNIEnv, _: JClass, jid: JString, jdestination: JString, jedit: jboolean
+) -> jstring {
+    let id = match deserialize_id(&env, jid) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let destination = match jstring_to_string(&env, jdestination, "path").and_then(|destination_str| {
+        PathBuf::from_str(&destination_str).map_err(|_| string_to_jstring(&env, "Could not parse destination as PathBuf.".to_string()))
+    }) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    println!("YO WHAT THE {}", jedit);
+    let edit = jedit == 1;
+
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.export_file(id, destination, edit, None)),
             e => translate(e.map(|_| ())),
         },
     )

@@ -112,6 +112,11 @@ sealed class DetailsScreen(open val fileMetadata: DecryptedFileMetadata) {
         override val fileMetadata: DecryptedFileMetadata,
         val bitMap: Bitmap
     ) : DetailsScreen(fileMetadata)
+
+    data class PdfViewer(
+        override val fileMetadata: DecryptedFileMetadata,
+        val location: File
+    ) : DetailsScreen(fileMetadata)
 }
 
 sealed class TransientScreen {

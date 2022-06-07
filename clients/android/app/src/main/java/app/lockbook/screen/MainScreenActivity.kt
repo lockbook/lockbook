@@ -53,7 +53,7 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 
-    val onShare =
+    private val onShare =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             val filesFragment =
                 (supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment)
@@ -198,7 +198,6 @@ class MainScreenActivity : AppCompatActivity() {
     private fun launchDetailsScreen(screen: DetailsScreen?) {
         supportFragmentManager.commit {
             setReorderingAllowed(true)
-
             doOnDetailsExit()
 
             when (screen) {
@@ -206,6 +205,7 @@ class MainScreenActivity : AppCompatActivity() {
                 is DetailsScreen.TextEditor -> replace<TextEditorFragment>(R.id.detail_container)
                 is DetailsScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
                 is DetailsScreen.ImageViewer -> replace<ImageViewerFragment>(R.id.detail_container)
+                is DetailsScreen.PdfViewer -> replace<PdfViewerFragment>(R.id.detail_container)
                 null -> {
                     (supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment).syncBasedOnPreferences()
                     supportFragmentManager.findFragmentById(R.id.detail_container)?.let {
@@ -234,6 +234,7 @@ class MainScreenActivity : AppCompatActivity() {
             fragment.saveOnExit()
         }
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? TextEditorFragment)?.saveOnExit()
+        (supportFragmentManager.findFragmentById(R.id.detail_container) as? PdfViewerFragment)?.deleteLocalPdfInstance()
     }
 
     override fun onBackPressed() {

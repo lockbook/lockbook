@@ -3,7 +3,6 @@ package app.lockbook.model
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
-import com.github.michaelbull.result.map
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ArraySerializer
 import kotlinx.serialization.builtins.ListSerializer
@@ -215,8 +214,7 @@ object CoreModel {
 
     fun readDocumentBytes(
         id: String
-    ): Result<ByteArray, CoreError<ReadDocumentError>> =
-        readDocumentBytes.tryParse<Array<Int>, ReadDocumentError>(app.lockbook.core.readDocumentBytes(id)).map{ it.map(Int::toByte).toByteArray() }
+    ): ByteArray = app.lockbook.core.readDocumentBytes(id)
 
     private val saveDocumentToDiskParser = Json {
         serializersModule = SerializersModule {
@@ -320,5 +318,16 @@ object CoreModel {
     fun calculateWork(): Result<WorkCalculated, CoreError<CalculateWorkError>> =
         calculateWorkParser.tryParse(
             app.lockbook.core.calculateWork()
+        )
+
+    private val exportFileParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), ExportFileError.serializer())
+        }
+    }
+
+    fun exportFile(id: String, destination: String, edit: Boolean): Result<Unit, CoreError<ExportFileError>> =
+        exportFileParser.tryParse(
+            app.lockbook.core.exportFile(id, destination, edit)
         )
 }

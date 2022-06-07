@@ -6,8 +6,10 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import app.lockbook.R
+import app.lockbook.getContext
 import app.lockbook.getRes
 import app.lockbook.getString
+import app.lockbook.util.CoreError
 import app.lockbook.util.Drawing
 import app.lockbook.util.LbError
 import app.lockbook.util.SingleMutableLiveData
@@ -17,6 +19,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import timber.log.Timber
+import java.io.File
 
 class DetailsScreenLoaderViewModel(application: Application, loadingInfo: DetailsScreen.Loading) :
     AndroidViewModel(application) {
@@ -32,14 +36,14 @@ class DetailsScreenLoaderViewModel(application: Application, loadingInfo: Detail
     }
 
     private fun loadContent(loadingInfo: DetailsScreen.Loading) {
+        val extensionHelper = ExtensionHelper(File(loadingInfo.fileMetadata.decryptedName).extension)
+
         val updateUI = when {
-            loadingInfo.fileMetadata.decryptedName.endsWith(".draw") -> {
+            extensionHelper.isDrawing -> {
                 val json = when(val readDocumentResult = CoreModel.readDocument(loadingInfo.fileMetadata.id)) {
                     is Ok -> readDocumentResult.value
                     is Err -> return _updateDetailScreenLoaderUI.postValue(UpdateDetailScreenLoaderUI.NotifyError(
-                        readDocumentResult.error.toLbError(
-                            getRes()
-                        ))
+                        readDocumentResult.error.toLbError(getRes()))
                     )
                 }
 
@@ -67,17 +71,8 @@ class DetailsScreenLoaderViewModel(application: Application, loadingInfo: Detail
                     }
                 }
             }
-            loadingInfo.fileMetadata.decryptedName.endsWith(".jpeg")
-                    || loadingInfo.fileMetadata.decryptedName.endsWith(".png")
-                    || loadingInfo.fileMetadata.decryptedName.endsWith(".jpg") -> {
-                val bytes = when(val readDocumentResult = CoreModel.readDocumentBytes(loadingInfo.fileMetadata.id)) {
-                    is Ok -> readDocumentResult.value
-                    is Err -> return _updateDetailScreenLoaderUI.postValue(UpdateDetailScreenLoaderUI.NotifyError(
-                        readDocumentResult.error.toLbError(
-                            getRes()
-                        ))
-                    )
-                }
+            extensionHelper.isImage -> {
+                val bytes = CoreModel.readDocumentBytes(loadingInfo.fileMetadata.id)
 
                 UpdateDetailScreenLoaderUI.NotifyFinished(
                     DetailsScreen.ImageViewer(
@@ -86,25 +81,31 @@ class DetailsScreenLoaderViewModel(application: Application, loadingInfo: Detail
                     )
                 )
             }
+            extensionHelper.isPdf -> {
+                val child = File(getContext().cacheDir, OPENED_FILE_FOLDER)
+                child.mkdir()
+
+                when(val exportFileResult = CoreModel.exportFile(loadingInfo.fileMetadata.id, child.toString(), true)) {
+                    is Ok -> UpdateDetailScreenLoaderUI.NotifyFinished(DetailsScreen.PdfViewer(loadingInfo.fileMetadata, child))
+                    is Err -> {
+                        Timber.e("THE ERROR: ${child.path} ${(exportFileResult.error as CoreError.UiError).content.name}")
+                        UpdateDetailScreenLoaderUI.NotifyError(exportFileResult.error.toLbError(getRes()))
+                    }
+                }
+            }
             else -> {
                 val text = when(val readDocumentResult = CoreModel.readDocument(loadingInfo.fileMetadata.id)) {
                     is Ok -> readDocumentResult.value
                     is Err -> return _updateDetailScreenLoaderUI.postValue(UpdateDetailScreenLoaderUI.NotifyError(
-                        readDocumentResult.error.toLbError(
-                            getRes()
-                        ))
+                        readDocumentResult.error.toLbError(getRes()))
                     )
                 }
 
                 UpdateDetailScreenLoaderUI.NotifyFinished(
-                    DetailsScreen.TextEditor(
-                        loadingInfo.fileMetadata,
-                        text
-                    )
+                    DetailsScreen.TextEditor(loadingInfo.fileMetadata, text)
                 )
             }
         }
-
 
         _updateDetailScreenLoaderUI.postValue(updateUI)
     }
@@ -115,4 +116,17 @@ sealed class UpdateDetailScreenLoaderUI {
     data class NotifyError(val error: LbError) : UpdateDetailScreenLoaderUI()
 }
 
+class ExtensionHelper(val extension: String) {
+    val isImage: Boolean
+    get() = extension in setOf(
+            "jpeg",
+            "jpg",
+            "png"
+        )
 
+    val isDrawing: Boolean get() = extension == "draw"
+
+    val isPdf: Boolean get() = extension == "pdf"
+}
+
+const val OPENED_FILE_FOLDER = "opened-files/"

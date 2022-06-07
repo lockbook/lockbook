@@ -11,8 +11,8 @@
         android:minHeight="?attr/actionBarSize"
         android:theme="@style/Main.Widget.Actionbar" />
 
-    <com.github.barteksc.pdfviewer.PDFView
-        android:id="@+id/image_viewer"
+    <com.pdfview.PDFView
+        android:id="@+id/pdf_viewer"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1" />

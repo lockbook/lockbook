@@ -36,7 +36,7 @@ buildscript {
         safe_args_gradle_plugin = '2.3.5'
         billing_version = '4.1.0'
         image_viewer_version = '3.2.0'
-        pdf_viewer_version = '3.0.0-beta.5'
+        pdf_viewer_version = '3.0.0-beta.1'
     }
 
     repositories {
