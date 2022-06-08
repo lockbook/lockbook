@@ -4,7 +4,6 @@ import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
 import kotlinx.serialization.KSerializer
-import kotlinx.serialization.builtins.ArraySerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.decodeFromString
@@ -206,15 +205,9 @@ object CoreModel {
     ): Result<String, CoreError<ReadDocumentError>> =
         readDocument.tryParse(app.lockbook.core.readDocument(id))
 
-    private val readDocumentBytes = Json {
-        serializersModule = SerializersModule {
-            createPolyRelation(ArraySerializer(Int.serializer()), ReadDocumentError.serializer())
-        }
-    }
-
     fun readDocumentBytes(
         id: String
-    ): ByteArray = app.lockbook.core.readDocumentBytes(id)
+    ): ByteArray? = app.lockbook.core.readDocumentBytes(id)
 
     private val saveDocumentToDiskParser = Json {
         serializersModule = SerializersModule {

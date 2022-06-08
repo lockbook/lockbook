@@ -9,7 +9,6 @@ import app.lockbook.R
 import app.lockbook.getContext
 import app.lockbook.getRes
 import app.lockbook.getString
-import app.lockbook.util.CoreError
 import app.lockbook.util.Drawing
 import app.lockbook.util.LbError
 import app.lockbook.util.SingleMutableLiveData
@@ -19,7 +18,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import timber.log.Timber
 import java.io.File
 
 class DetailsScreenLoaderViewModel(application: Application, loadingInfo: DetailsScreen.Loading) :
@@ -40,11 +38,14 @@ class DetailsScreenLoaderViewModel(application: Application, loadingInfo: Detail
 
         val updateUI = when {
             extensionHelper.isDrawing -> {
-                val json = when(val readDocumentResult = CoreModel.readDocument(loadingInfo.fileMetadata.id)) {
+                val json = when (val readDocumentResult = CoreModel.readDocument(loadingInfo.fileMetadata.id)) {
                     is Ok -> readDocumentResult.value
-                    is Err -> return _updateDetailScreenLoaderUI.postValue(UpdateDetailScreenLoaderUI.NotifyError(
-                        readDocumentResult.error.toLbError(getRes()))
-                    )
+                    is Err ->
+                        return _updateDetailScreenLoaderUI.postValue(
+                            UpdateDetailScreenLoaderUI.NotifyError(
+                                readDocumentResult.error.toLbError(getRes())
+                            )
+                        )
                 }
 
                 if (json.isEmpty()) {
@@ -74,31 +75,38 @@ class DetailsScreenLoaderViewModel(application: Application, loadingInfo: Detail
             extensionHelper.isImage -> {
                 val bytes = CoreModel.readDocumentBytes(loadingInfo.fileMetadata.id)
 
-                UpdateDetailScreenLoaderUI.NotifyFinished(
-                    DetailsScreen.ImageViewer(
-                        loadingInfo.fileMetadata,
-                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                if (bytes == null) {
+                    UpdateDetailScreenLoaderUI.NotifyError(LbError.basicError(getRes()))
+                } else {
+                    UpdateDetailScreenLoaderUI.NotifyFinished(
+                        DetailsScreen.ImageViewer(
+                            loadingInfo.fileMetadata,
+                            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        )
                     )
-                )
+                }
             }
             extensionHelper.isPdf -> {
                 val child = File(getContext().cacheDir, OPENED_FILE_FOLDER)
                 child.mkdir()
+                child.deleteOnExit()
 
-                when(val exportFileResult = CoreModel.exportFile(loadingInfo.fileMetadata.id, child.toString(), true)) {
+                when (val exportFileResult = CoreModel.exportFile(loadingInfo.fileMetadata.id, child.toString(), true)) {
                     is Ok -> UpdateDetailScreenLoaderUI.NotifyFinished(DetailsScreen.PdfViewer(loadingInfo.fileMetadata, child))
                     is Err -> {
-                        Timber.e("THE ERROR: ${child.path} ${(exportFileResult.error as CoreError.UiError).content.name}")
                         UpdateDetailScreenLoaderUI.NotifyError(exportFileResult.error.toLbError(getRes()))
                     }
                 }
             }
             else -> {
-                val text = when(val readDocumentResult = CoreModel.readDocument(loadingInfo.fileMetadata.id)) {
+                val text = when (val readDocumentResult = CoreModel.readDocument(loadingInfo.fileMetadata.id)) {
                     is Ok -> readDocumentResult.value
-                    is Err -> return _updateDetailScreenLoaderUI.postValue(UpdateDetailScreenLoaderUI.NotifyError(
-                        readDocumentResult.error.toLbError(getRes()))
-                    )
+                    is Err ->
+                        return _updateDetailScreenLoaderUI.postValue(
+                            UpdateDetailScreenLoaderUI.NotifyError(
+                                readDocumentResult.error.toLbError(getRes())
+                            )
+                        )
                 }
 
                 UpdateDetailScreenLoaderUI.NotifyFinished(
@@ -116,9 +124,9 @@ sealed class UpdateDetailScreenLoaderUI {
     data class NotifyError(val error: LbError) : UpdateDetailScreenLoaderUI()
 }
 
-class ExtensionHelper(val extension: String) {
+class ExtensionHelper(private val extension: String) {
     val isImage: Boolean
-    get() = extension in setOf(
+        get() = extension in setOf(
             "jpeg",
             "jpg",
             "png"

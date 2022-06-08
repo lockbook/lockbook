@@ -1,5 +1,6 @@
 package app.lockbook.screen
 
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -10,6 +11,7 @@ import app.lockbook.databinding.FragmentPdfViewerBinding
 import app.lockbook.model.DetailsScreen
 import app.lockbook.model.OPENED_FILE_FOLDER
 import app.lockbook.model.StateViewModel
+import com.github.barteksc.pdfviewer.link.DefaultLinkHandler
 import java.io.File
 
 class PdfViewerFragment : Fragment() {
@@ -28,9 +30,14 @@ class PdfViewerFragment : Fragment() {
         val pdfViewerInfo = activityModel.detailsScreen as DetailsScreen.PdfViewer
         fileName = pdfViewerInfo.fileMetadata.decryptedName
 
-
-        binding.imageViewToolbar.title = fileName
-        binding.pdfViewer.fromFile(File(pdfViewerInfo.location, fileName)).show()
+        binding.pdfViewToolbar.title = fileName
+        binding.pdfViewer.fromFile(File(pdfViewerInfo.location, fileName))
+            .enableDoubletap(true)
+            .enableAnnotationRendering(true)
+            .enableAntialiasing(true)
+            .linkHandler(DefaultLinkHandler(binding.pdfViewer))
+            .nightMode((resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES)
+            .load()
 
         return binding.root
     }

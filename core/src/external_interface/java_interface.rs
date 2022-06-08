@@ -1,14 +1,14 @@
 #![allow(non_snake_case)]
 
-use std::path::PathBuf;
-use std::str::FromStr;
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use jni::objects::{JClass, JObject, JString, JValue};
-use jni::sys::{jarray, jboolean, jbyteArray, jintArray, jlong, jsize, jstring};
+use jni::sys::{jboolean, jbyteArray, jlong, jstring};
 use jni::JNIEnv;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::path::PathBuf;
+use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::{
@@ -313,7 +313,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
     string_to_jstring(
         &env,
         match static_state::get() {
-            Ok(core) => translate(core.read_document(id).map(|b| String::from(String::from_utf8_lossy(&b)))),
+            Ok(core) => translate(
+                core.read_document(id)
+                    .map(|b| String::from(String::from_utf8_lossy(&b))),
+            ),
             e => translate(e.map(|_| ())),
         },
     )
@@ -328,10 +331,15 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocumentBytes(
         Err(err) => return err,
     };
 
-    let mut document_bytes = static_state::get().unwrap().read_document(id).ok().unwrap();
-
-    env.byte_array_from_slice(document_bytes.as_slice()).unwrap()
-
+    match static_state::get()
+        .ok()
+        .and_then(|core| core.read_document(id).ok())
+    {
+        None => ::std::ptr::null_mut() as jbyteArray,
+        Some(document_bytes) => env
+            .byte_array_from_slice(document_bytes.as_slice())
+            .unwrap(),
+    }
 }
 
 #[no_mangle]
@@ -510,19 +518,22 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateWork(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_exportFile(
-    env: JNIEnv, _: JClass, jid: JString, jdestination: JString, jedit: jboolean
+    env: JNIEnv, _: JClass, jid: JString, jdestination: JString, jedit: jboolean,
 ) -> jstring {
     let id = match deserialize_id(&env, jid) {
         Ok(ok) => ok,
         Err(err) => return err,
     };
 
-    let destination = match jstring_to_string(&env, jdestination, "path").and_then(|destination_str| {
-        PathBuf::from_str(&destination_str).map_err(|_| string_to_jstring(&env, "Could not parse destination as PathBuf.".to_string()))
-    }) {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
+    let destination =
+        match jstring_to_string(&env, jdestination, "path").and_then(|destination_str| {
+            PathBuf::from_str(&destination_str).map_err(|_| {
+                string_to_jstring(&env, "Could not parse destination as PathBuf.".to_string())
+            })
+        }) {
+            Ok(ok) => ok,
+            Err(err) => return err,
+        };
 
     println!("YO WHAT THE {}", jedit);
     let edit = jedit == 1;
