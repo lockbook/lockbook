@@ -27,6 +27,7 @@ pub enum TreeError {
     Unexpected(String),
 }
 
+#[derive(Clone)]
 pub enum StageSource {
     Base,
     Staged,
@@ -493,8 +494,9 @@ where
         &self, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<Uuid>, TreeError> {
         let mut prev_checked = HashMap::new();
+        let staged_changes = self.stage(staged_changes);
         let mut result = Vec::new();
-        for (_, f) in staged_changes.clone().into_iter() {
+        for (_, (f, _)) in staged_changes.clone().into_iter() {
             let mut checking = HashMap::new();
             let mut cur = &f;
             while cur.parent() != cur.id() && prev_checked.get(&cur.id()).is_none() {
@@ -504,7 +506,7 @@ where
                     break;
                 }
                 checking.insert(cur.id(), cur.clone());
-                cur = staged_changes.get(&cur.parent()).unwrap();
+                cur = &staged_changes.get(&cur.parent()).unwrap().0;
             }
             prev_checked.extend(checking);
         }
