@@ -24,6 +24,15 @@ pub fn get_build_info() -> Result<GetBuildInfoResponse, ServerError<GetBuildInfo
 
 pub async fn get_android_client(config: &Config) -> AndroidPublisher {
     let auth = match &config.google.service_account_cred_path {
+        Some(cred_path) => {
+            let service_account_key: oauth2::ServiceAccountKey =
+                oauth2::read_service_account_key(cred_path).await.unwrap();
+
+            oauth2::ServiceAccountAuthenticator::builder(service_account_key)
+                .build()
+                .await
+                .unwrap()
+        }
         None => {
             // creating dummy AndroidPublisher since no service account was provided
 
@@ -34,15 +43,6 @@ pub async fn get_android_client(config: &Config) -> AndroidPublisher {
             .build()
             .await
             .unwrap()
-        }
-        Some(cred_path) => {
-            let service_account_key: oauth2::ServiceAccountKey =
-                oauth2::read_service_account_key(cred_path).await.unwrap();
-
-            oauth2::ServiceAccountAuthenticator::builder(service_account_key)
-                .build()
-                .await
-                .unwrap()
         }
     };
 

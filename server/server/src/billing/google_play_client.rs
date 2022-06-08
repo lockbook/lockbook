@@ -12,17 +12,17 @@ pub enum SimpleGCPError {
     Unexpected(String),
 }
 
-impl From<google_androidpublisher3::Error> for SimpleGCPError {
+impl From<Error> for SimpleGCPError {
     fn from(err: Error) -> Self {
         match err {
             Error::Failure(err) => {
                 if err.status() == StatusCode::NOT_FOUND {
-                    SimpleGCPError::PurchaseTokenNotFound
+                    Self::PurchaseTokenNotFound
                 } else {
-                    SimpleGCPError::Unexpected(format!("{:#?}", err))
+                    Self::Unexpected(format!("{:#?}", err))
                 }
             }
-            _ => SimpleGCPError::Unexpected(format!("{:#?}", err)),
+            _ => Self::Unexpected(format!("{:#?}", err)),
         }
     }
 }

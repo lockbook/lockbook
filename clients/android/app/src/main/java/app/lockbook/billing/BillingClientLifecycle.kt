@@ -60,7 +60,7 @@ class BillingClientLifecycle private constructor(
     }
 
     override fun onBillingSetupFinished(billingResult: BillingResult) {
-        Timber.e(billingResult.debugMessage)
+        Timber.i(billingResult.debugMessage)
 
         if (billingResult.responseCode == BillingResponseCode.OK) {
             val queryProductParams = QueryProductDetailsParams.newBuilder().setProductList(
@@ -83,7 +83,7 @@ class BillingClientLifecycle private constructor(
 
     override fun onProductDetailsResponse(billingResult: BillingResult, productDetailsList: MutableList<ProductDetails>) {
         val response = BillingResponse(billingResult.responseCode)
-        Timber.e(billingResult.debugMessage)
+        Timber.i(billingResult.debugMessage)
 
         when {
             response.isOk -> {
@@ -145,7 +145,7 @@ class BillingClientLifecycle private constructor(
         purchases: MutableList<Purchase>?
     ) {
         val billingResponse = BillingResponse(billingResult.responseCode)
-        Timber.e(billingResult.debugMessage)
+        Timber.i(billingResult.debugMessage)
 
         when {
             billingResponse.isOk && purchases?.size == 1 && purchases[0].accountIdentifiers?.obfuscatedAccountId != null -> {

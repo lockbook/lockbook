@@ -3,11 +3,11 @@ use std::sync::Mutex;
 
 pub use uuid::Uuid;
 
-pub use lockbook_models::api::PaymentPlatform;
-pub use lockbook_models::api::SubscriptionInfo;
 pub use lockbook_models::account::Account;
 pub use lockbook_models::api::PaymentMethod;
+pub use lockbook_models::api::PaymentPlatform;
 pub use lockbook_models::api::StripeAccountTier;
+pub use lockbook_models::api::SubscriptionInfo;
 pub use lockbook_models::crypto::DecryptedDocument;
 pub use lockbook_models::file_metadata::DecryptedFileMetadata as FileMetadata;
 pub use lockbook_models::file_metadata::FileType;
@@ -101,7 +101,9 @@ pub trait Api: Send + Sync {
 
     fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError>;
 
-    fn get_subscription_info(&self) -> Result<Option<SubscriptionInfo>, Error<GetSubscriptionInfoError>>;
+    fn get_subscription_info(
+        &self,
+    ) -> Result<Option<SubscriptionInfo>, Error<GetSubscriptionInfoError>>;
     fn upgrade_account(
         &self, new_tier: StripeAccountTier,
     ) -> Result<(), Error<UpgradeAccountStripeError>>;
@@ -278,7 +280,9 @@ impl Api for DefaultApi {
         self.core.search_file_paths(input)
     }
 
-    fn get_subscription_info(&self) -> Result<Option<SubscriptionInfo>, Error<GetSubscriptionInfoError>> {
+    fn get_subscription_info(
+        &self,
+    ) -> Result<Option<SubscriptionInfo>, Error<GetSubscriptionInfoError>> {
         self.core.get_subscription_info()
     }
 

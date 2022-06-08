@@ -40,7 +40,7 @@ Values are json encoded.
 + `stripe_customer_id:x:public_key`.
   + `x` is the stripe `customer_id`.
 + `google_play_account_id:x:public_key`
-  + `x` is the obfuscated `account_id` of a google play user.
+  + `x` is the obfuscated `account_id` of a Google Play user.
 
 # Document Content (TODO)
 
