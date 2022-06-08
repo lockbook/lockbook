@@ -163,8 +163,10 @@ impl Tx<'_> {
 
         let changes = metadata_changes.clone();
         let mut parents = HashMap::new();
+
         for (_, f) in changes.iter() {
-            parents.insert(f.parent, all_metadata_with_changes_staged.find(f.parent)?);
+            let ancestors = files::find_ancestors(&all_metadata_with_changes_staged, f.parent);
+            parents.extend(ancestors);
         }
 
         let changes_and_parents = changes.into_iter().chain(parents.into_iter()).collect();
