@@ -2,7 +2,7 @@ use crate::model::filename::NameComponents;
 use crate::model::repo::RepoSource;
 use crate::{Config, CoreError, Tx};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
-use lockbook_models::tree::{TEMP_FileMetaExt};
+use lockbook_models::tree::TEMP_FileMetaExt;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::OpenOptions;

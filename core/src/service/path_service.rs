@@ -4,7 +4,7 @@ use crate::{Config, CoreError, Tx};
 use collections::HashMap;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
-use lockbook_models::tree::{TEMP_FileMetaExt};
+use lockbook_models::tree::TEMP_FileMetaExt;
 use std::collections;
 use uuid::Uuid;
 

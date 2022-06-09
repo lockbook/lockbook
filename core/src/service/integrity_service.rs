@@ -5,7 +5,7 @@ use crate::service::file_service;
 use crate::service::integrity_service::TestRepoError::DocumentReadError;
 use crate::{Config, OneKey, Tx};
 use itertools::Itertools;
-use lockbook_models::file_metadata::{FileType};
+use lockbook_models::file_metadata::FileType;
 use lockbook_models::tree::{TEMP_FileMetaExt, TestFileTreeError};
 
 use std::path::Path;

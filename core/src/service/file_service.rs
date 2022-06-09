@@ -14,7 +14,7 @@ use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::file_metadata::EncryptedFileMetadata;
 use lockbook_models::file_metadata::FileMetadataDiff;
 use lockbook_models::file_metadata::FileType;
-use lockbook_models::tree::{TEMP_FileMetaExt};
+use lockbook_models::tree::TEMP_FileMetaExt;
 use lockbook_models::utils;
 use sha2::Digest;
 use sha2::Sha256;
