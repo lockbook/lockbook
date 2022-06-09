@@ -4,8 +4,8 @@ use lazy_static::lazy_static;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::FileUsage;
-use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
-use lockbook_models::tree::{FileMetaExt, TEMP_FileMetaExt};
+use lockbook_models::file_metadata::{EncryptedFileMetadata, EncryptedFiles, FileType};
+use lockbook_models::tree::FileMetaMapExt;
 use log::{error, info};
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
@@ -164,7 +164,7 @@ pub async fn get_owned(
 pub async fn get_metadatas_and_user_activity_state(
     con: &mut deadpool_redis::Connection, public_key: &PublicKey, ids: &[Uuid],
     time_between_redis_calls: &Duration,
-) -> Result<(HashMap<Uuid, EncryptedFileMetadata>, bool), ServerError<MetricsError>> {
+) -> Result<(EncryptedFiles, bool), ServerError<MetricsError>> {
     let mut metadatas = HashMap::new();
 
     for id in ids {
@@ -194,7 +194,7 @@ pub async fn get_metadatas_and_user_activity_state(
 }
 
 pub async fn calculate_total_document_bytes(
-    con: &mut deadpool_redis::Connection, metadatas: &HashMap<Uuid, EncryptedFileMetadata>,
+    con: &mut deadpool_redis::Connection, metadatas: &EncryptedFiles,
     time_between_redis_calls: &Duration,
 ) -> Result<i64, ServerError<MetricsError>> {
     let mut total_size: u64 = 0;

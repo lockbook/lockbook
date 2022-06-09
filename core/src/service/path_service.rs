@@ -1,11 +1,9 @@
 use crate::model::repo::RepoSource;
 use crate::pure_functions::files;
 use crate::{Config, CoreError, Tx};
-use collections::HashMap;
-use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
-use lockbook_models::tree::TEMP_FileMetaExt;
-use std::collections;
+use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
+use lockbook_models::tree::FileMetaMapExt;
 use uuid::Uuid;
 
 impl Tx<'_> {
@@ -111,9 +109,7 @@ impl Tx<'_> {
         Self::path_by_id_helper(&files, id)
     }
 
-    pub fn path_by_id_helper(
-        files: &HashMap<Uuid, DecryptedFileMetadata>, id: Uuid,
-    ) -> Result<String, CoreError> {
+    pub fn path_by_id_helper(files: &DecryptedFiles, id: Uuid) -> Result<String, CoreError> {
         let mut current_metadata = files.find(id)?;
         let mut path = String::from("");
 

@@ -20,9 +20,9 @@ use lockbook_models::api::{
     GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse, NewAccountError,
     NewAccountRequest, NewAccountResponse,
 };
-use lockbook_models::file_metadata::EncryptedFileMetadata;
 use lockbook_models::file_metadata::FileType::Document;
-use lockbook_models::tree::{FileMetaExt, TEMP_FileMetaExt};
+use lockbook_models::file_metadata::{EncryptedFileMetadata, EncryptedFiles};
+use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt};
 
 /// Create a new account given a username, public_key, and root folder.
 /// Checks that username is valid, and that username, public_key and root_folder are new.
@@ -152,7 +152,7 @@ pub async fn delete_account(
     context: RequestContext<'_, DeleteAccountRequest>,
 ) -> Result<(), ServerError<DeleteAccountError>> {
     let mut con = context.server_state.index_db_pool.get().await?;
-    let mut all_files: HashMap<Uuid, EncryptedFileMetadata> = HashMap::new();
+    let mut all_files: EncryptedFiles = HashMap::new();
 
     let tx = tx!(&mut con, pipe, &[owned_files(&context.public_key)], {
         let files: Vec<Uuid> = con

@@ -5,8 +5,10 @@ use uuid::Uuid;
 use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata};
-use lockbook_models::tree::TEMP_FileMetaExt;
+use lockbook_models::file_metadata::{
+    DecryptedFileMetadata, DecryptedFiles, EncryptedFileMetadata, EncryptedFiles,
+};
+use lockbook_models::tree::FileMetaMapExt;
 
 use crate::model::errors::{core_err_unexpected, CoreError};
 
@@ -40,8 +42,8 @@ pub fn encrypt_metadatum(
 /// TODO perf n2
 /// This is O(n) now with hashmaps
 pub fn encrypt_metadata(
-    account: &Account, files: &HashMap<Uuid, DecryptedFileMetadata>,
-) -> Result<HashMap<Uuid, EncryptedFileMetadata>, CoreError> {
+    account: &Account, files: &DecryptedFiles,
+) -> Result<EncryptedFiles, CoreError> {
     let mut result = HashMap::new();
     for target in files.values() {
         let parent_key = files.maybe_find(target.parent).ok_or_else(|| {
@@ -108,8 +110,8 @@ pub fn decrypt_metadatum(
 /// included in files. Sharing is not supported; user access keys not for the provided account are
 /// ignored. This is a pure function.
 pub fn decrypt_metadata(
-    account: &Account, files: &HashMap<Uuid, EncryptedFileMetadata>,
-) -> Result<HashMap<Uuid, DecryptedFileMetadata>, CoreError> {
+    account: &Account, files: &EncryptedFiles,
+) -> Result<DecryptedFiles, CoreError> {
     let mut result = HashMap::new();
     let mut key_cache = HashMap::new();
 
@@ -124,8 +126,7 @@ pub fn decrypt_metadata(
 /// Decrypts the file key given a target and its ancestors. All ancestors of target, as well as
 /// target itself, must be included in target_with_ancestors.
 fn decrypt_file_key(
-    account: &Account, target_id: Uuid,
-    target_with_ancestors: &HashMap<Uuid, EncryptedFileMetadata>,
+    account: &Account, target_id: Uuid, target_with_ancestors: &EncryptedFiles,
     key_cache: &mut HashMap<Uuid, AESKey>,
 ) -> Result<AESKey, CoreError> {
     if let Some(key) = key_cache.get(&target_id) {

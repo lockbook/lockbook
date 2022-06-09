@@ -11,13 +11,14 @@ use lockbook_models::api::{
     ChangeDocumentContentRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,
 };
 use lockbook_models::crypto::DecryptedDocument;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
-use lockbook_models::tree::TEMP_FileMetaExt;
+use lockbook_models::file_metadata::{
+    DecryptedFileMetadata, DecryptedFiles, EncryptedFiles, FileType,
+};
+use lockbook_models::tree::FileMetaMapExt;
 use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fmt;
-use uuid::Uuid;
 
 use super::file_compression_service;
 
@@ -336,7 +337,7 @@ fn get_resolved_document(
                     let rs_c = rs.clone().local();
                     (rs_c.id, rs_c)
                 })
-                .collect::<HashMap<Uuid, DecryptedFileMetadata>>(),
+                .collect::<DecryptedFiles>(),
             &HashMap::from([(copied_local_metadata.id, copied_local_metadata.clone())]),
         )?;
     }
@@ -689,8 +690,7 @@ impl Tx<'_> {
     }
 
     fn calculate_work_from_updates(
-        &self, config: &Config, server_updates: &HashMap<Uuid, EncryptedFileMetadata>,
-        mut last_sync: u64,
+        &self, config: &Config, server_updates: &EncryptedFiles, mut last_sync: u64,
     ) -> Result<WorkCalculated, CoreError> {
         let mut work_units: Vec<WorkUnit> = vec![];
         let (all_metadata, _) =

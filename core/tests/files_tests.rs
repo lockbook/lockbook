@@ -1,7 +1,7 @@
 use lockbook_core::pure_functions::files;
 use lockbook_core::CoreError;
 use lockbook_models::file_metadata::FileType;
-use lockbook_models::tree::{FileMetaExt, PathConflict, TEMP_FileMetaExt};
+use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, PathConflict};
 use std::collections::HashMap;
 use test_utils::{convert_list_to_hashmap, test_core_with_account};
 

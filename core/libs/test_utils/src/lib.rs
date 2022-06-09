@@ -7,8 +7,8 @@ use lockbook_core::service::api_service::ApiError;
 use lockbook_core::service::path_service::Filter::DocumentsOnly;
 use lockbook_core::{Config, Core};
 use lockbook_models::api::{AccountTier, FileMetadataUpsertsError, PaymentMethod};
-use lockbook_models::file_metadata::DecryptedFileMetadata;
-use lockbook_models::tree::{FileMetaExt, FileMetadata, TEMP_FileMetaExt};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
+use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
 use lockbook_models::work_unit::WorkUnit;
 use std::collections::HashMap;
 use std::env;
@@ -262,12 +262,12 @@ pub fn assert_server_work_paths(
                     _ => None,
                 })
                 .filter(|f| all_local_files.maybe_find(f.0).is_none())
-                .collect::<HashMap<Uuid, DecryptedFileMetadata>>();
+                .collect::<DecryptedFiles>();
             all_local_files
                 .stage(&new_server_files)
                 .into_iter()
                 .map(|s| (s.0, s.1 .0))
-                .collect::<HashMap<Uuid, DecryptedFileMetadata>>()
+                .collect::<DecryptedFiles>()
         })
         .unwrap();
 

@@ -1,5 +1,5 @@
 use lockbook_core::Core;
-use lockbook_models::tree::{FileMetaExt, TEMP_FileMetaExt};
+use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt};
 
 use crate::error::CliError;
 

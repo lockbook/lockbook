@@ -1,9 +1,8 @@
 use crate::model::filename::NameComponents;
 use crate::model::repo::RepoSource;
 use crate::{Config, CoreError, Tx};
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
-use lockbook_models::tree::TEMP_FileMetaExt;
-use std::collections::HashMap;
+use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles, FileType};
+use lockbook_models::tree::FileMetaMapExt;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -121,9 +120,8 @@ impl Tx<'_> {
     }
 
     fn export_file_recursively(
-        &self, config: &Config, all: &HashMap<Uuid, DecryptedFileMetadata>,
-        parent_file_metadata: &DecryptedFileMetadata, disk_path: &Path, edit: bool,
-        export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
+        &self, config: &Config, all: &DecryptedFiles, parent_file_metadata: &DecryptedFileMetadata,
+        disk_path: &Path, edit: bool, export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> Result<(), CoreError> {
         let dest_with_new = disk_path.join(&parent_file_metadata.decrypted_name);
 

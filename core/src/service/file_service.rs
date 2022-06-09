@@ -10,11 +10,11 @@ use crate::{Config, CoreError};
 use itertools::Itertools;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::crypto::EncryptedDocument;
-use lockbook_models::file_metadata::DecryptedFileMetadata;
-use lockbook_models::file_metadata::EncryptedFileMetadata;
 use lockbook_models::file_metadata::FileMetadataDiff;
 use lockbook_models::file_metadata::FileType;
-use lockbook_models::tree::TEMP_FileMetaExt;
+use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFiles};
+use lockbook_models::file_metadata::{DecryptedFiles, EncryptedFileMetadata};
+use lockbook_models::tree::FileMetaMapExt;
 use lockbook_models::utils;
 use sha2::Digest;
 use sha2::Sha256;
@@ -51,8 +51,7 @@ impl Tx<'_> {
     }
 
     pub fn insert_metadata(
-        &mut self, config: &Config, source: RepoSource,
-        metadata_changes: &HashMap<Uuid, DecryptedFileMetadata>,
+        &mut self, config: &Config, source: RepoSource, metadata_changes: &DecryptedFiles,
     ) -> Result<(), CoreError> {
         let all_metadata = self.get_all_metadata(source)?;
         self.insert_metadata_given_decrypted_metadata(source, &all_metadata, metadata_changes)?;
@@ -71,21 +70,19 @@ impl Tx<'_> {
 
     pub fn get_all_not_deleted_metadata(
         &self, source: RepoSource,
-    ) -> Result<HashMap<Uuid, DecryptedFileMetadata>, CoreError> {
+    ) -> Result<DecryptedFiles, CoreError> {
         Ok(self.get_all_metadata(source)?.filter_not_deleted()?)
     }
 
     // TODO: should this even exist? Could impl get on a tx with a source and it will do the lookup
     //       at that point in time
-    pub fn get_all_metadata(
-        &self, source: RepoSource,
-    ) -> Result<HashMap<Uuid, DecryptedFileMetadata>, CoreError> {
+    pub fn get_all_metadata(&self, source: RepoSource) -> Result<DecryptedFiles, CoreError> {
         let account = self.get_account()?;
-        let base: HashMap<Uuid, EncryptedFileMetadata> = self.base_metadata.get_all();
+        let base: EncryptedFiles = self.base_metadata.get_all();
         match source {
             RepoSource::Base => file_encryption_service::decrypt_metadata(&account, &base),
             RepoSource::Local => {
-                let local: HashMap<Uuid, EncryptedFileMetadata> = self.local_metadata.get_all();
+                let local: EncryptedFiles = self.local_metadata.get_all();
                 let staged = base
                     .stage(&local)
                     .into_iter()
@@ -146,8 +143,8 @@ impl Tx<'_> {
     /// Disk optimization opportunity: this function needlessly writes to disk when setting local metadata = base metadata.
     /// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
     fn insert_metadata_given_decrypted_metadata(
-        &mut self, source: RepoSource, all_metadata: &HashMap<Uuid, DecryptedFileMetadata>,
-        metadata_changes: &HashMap<Uuid, DecryptedFileMetadata>,
+        &mut self, source: RepoSource, all_metadata: &DecryptedFiles,
+        metadata_changes: &DecryptedFiles,
     ) -> Result<(), CoreError> {
         // encrypt metadata
         let account = self.get_account()?;
@@ -155,7 +152,7 @@ impl Tx<'_> {
             .stage(metadata_changes)
             .into_iter()
             .map(|(id, (f, _))| (id, f))
-            .collect::<HashMap<Uuid, DecryptedFileMetadata>>();
+            .collect::<DecryptedFiles>();
         // let all_metadata_encrypted =
         //     file_encryption_service::encrypt_metadata(&account, &all_metadata_with_changes_staged)?;
 
@@ -211,8 +208,8 @@ impl Tx<'_> {
     }
 
     fn insert_new_docs(
-        &mut self, config: &Config, local_metadata: &HashMap<Uuid, DecryptedFileMetadata>,
-        metadata_changes: &HashMap<Uuid, DecryptedFileMetadata>,
+        &mut self, config: &Config, local_metadata: &DecryptedFiles,
+        metadata_changes: &DecryptedFiles,
     ) -> Result<(), CoreError> {
         for metadatum in metadata_changes.values() {
             if metadatum.file_type == FileType::Document
@@ -245,16 +242,12 @@ impl Tx<'_> {
         Ok(all_not_deleted_metadata.maybe_find(id))
     }
 
-    pub fn get_children(
-        &self, id: Uuid,
-    ) -> Result<HashMap<Uuid, DecryptedFileMetadata>, CoreError> {
+    pub fn get_children(&self, id: Uuid) -> Result<DecryptedFiles, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
         Ok(files.find_children(id))
     }
 
-    pub fn get_and_get_children_recursively(
-        &self, id: Uuid,
-    ) -> Result<HashMap<Uuid, DecryptedFileMetadata>, CoreError> {
+    pub fn get_and_get_children_recursively(&self, id: Uuid) -> Result<DecryptedFiles, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
         let file_and_descendants = files::find_with_descendants(&files, id)?;
         Ok(file_and_descendants)
@@ -285,7 +278,7 @@ impl Tx<'_> {
         let deleted_local_metadata = all_local_metadata.filter_deleted()?;
         let deleted_both_metadata = deleted_base_metadata
             .into_iter()
-            .filter(|id| deleted_local_metadata.maybe_find(id.0.clone()).is_some());
+            .filter(|id| deleted_local_metadata.maybe_find(id.0).is_some());
         let prune_eligible_metadata = deleted_local_metadata
             .iter()
             .filter_map(|(&id, f)| {
@@ -296,7 +289,7 @@ impl Tx<'_> {
                 }
             })
             .chain(deleted_both_metadata)
-            .collect::<HashMap<Uuid, DecryptedFileMetadata>>();
+            .collect::<DecryptedFiles>();
 
         // exclude files with not deleted descendants i.e. exclude files that are the ancestors of not deleted files
         let all_ids = all_base_metadata
@@ -318,8 +311,8 @@ impl Tx<'_> {
             .collect::<HashSet<Uuid>>();
         let deleted_both_without_deleted_descendants_ids =
             prune_eligible_metadata.into_iter().filter(|(id, _)| {
-                !ancestors_of_not_deleted_base_ids.contains(&id)
-                    && !ancestors_of_not_deleted_local_ids.contains(&id)
+                !ancestors_of_not_deleted_base_ids.contains(id)
+                    && !ancestors_of_not_deleted_local_ids.contains(id)
             });
 
         // remove files from disk
@@ -352,16 +345,14 @@ impl Tx<'_> {
     }
 
     pub fn get_not_deleted_document(
-        &self, config: &Config, source: RepoSource,
-        metadata: &HashMap<Uuid, DecryptedFileMetadata>, id: Uuid,
+        &self, config: &Config, source: RepoSource, metadata: &DecryptedFiles, id: Uuid,
     ) -> Result<DecryptedDocument, CoreError> {
         self.maybe_get_not_deleted_document(config, source, metadata, id)
             .and_then(|f| f.ok_or(CoreError::FileNonexistent))
     }
 
     pub fn maybe_get_not_deleted_document(
-        &self, config: &Config, source: RepoSource,
-        metadata: &HashMap<Uuid, DecryptedFileMetadata>, id: Uuid,
+        &self, config: &Config, source: RepoSource, metadata: &DecryptedFiles, id: Uuid,
     ) -> Result<Option<DecryptedDocument>, CoreError> {
         if let Some(metadata) = metadata.filter_not_deleted()?.maybe_find(id) {
             maybe_get_document(config, source, &metadata)
@@ -413,11 +404,8 @@ impl Tx<'_> {
     }
 
     pub fn get_all_metadata_with_encrypted_changes(
-        &self, source: RepoSource, changes: &HashMap<Uuid, EncryptedFileMetadata>,
-    ) -> Result<
-        (HashMap<Uuid, DecryptedFileMetadata>, HashMap<Uuid, EncryptedFileMetadata>),
-        CoreError,
-    > {
+        &self, source: RepoSource, changes: &EncryptedFiles,
+    ) -> Result<(DecryptedFiles, EncryptedFiles), CoreError> {
         let account = self.get_account()?;
         let base = self.base_metadata.get_all();
         let sourced = match source {
@@ -435,7 +423,7 @@ impl Tx<'_> {
             .stage(changes)
             .into_iter()
             .map(|(id, (f, _))| (id, f))
-            .collect::<HashMap<Uuid, EncryptedFileMetadata>>();
+            .collect::<EncryptedFiles>();
 
         let root = staged.find_root()?;
         let non_orphans = files::find_with_descendants(&staged, root.id)?;
@@ -469,12 +457,12 @@ impl Tx<'_> {
                 .stage(&local_encrypted)
                 .into_iter()
                 .map(|(id, (f, _))| (id, f))
-                .collect::<HashMap<Uuid, EncryptedFileMetadata>>();
+                .collect::<EncryptedFiles>();
             let decrypted = file_encryption_service::decrypt_metadata(&account, &staged)?;
             decrypted
                 .into_iter()
                 .filter(|(d_id, _)| local_encrypted.keys().any(|l_id| l_id == d_id))
-                .collect::<HashMap<Uuid, DecryptedFileMetadata>>()
+                .collect::<DecryptedFiles>()
         };
 
         let new = local
@@ -583,8 +571,8 @@ impl Tx<'_> {
     }
 
     pub fn insert_metadata_both_repos(
-        &mut self, config: &Config, base_metadata_changes: &HashMap<Uuid, DecryptedFileMetadata>,
-        local_metadata_changes: &HashMap<Uuid, DecryptedFileMetadata>,
+        &mut self, config: &Config, base_metadata_changes: &DecryptedFiles,
+        local_metadata_changes: &DecryptedFiles,
     ) -> Result<(), CoreError> {
         let base_metadata = self.get_all_metadata(RepoSource::Base)?;
         let local_metadata = self.get_all_metadata(RepoSource::Local)?;
@@ -634,14 +622,14 @@ impl Tx<'_> {
 }
 
 pub fn get_not_deleted_document(
-    config: &Config, source: RepoSource, metadata: &HashMap<Uuid, DecryptedFileMetadata>, id: Uuid,
+    config: &Config, source: RepoSource, metadata: &DecryptedFiles, id: Uuid,
 ) -> Result<DecryptedDocument, CoreError> {
     maybe_get_not_deleted_document(config, source, metadata, id)
         .and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
 pub fn maybe_get_not_deleted_document(
-    config: &Config, source: RepoSource, metadata: &HashMap<Uuid, DecryptedFileMetadata>, id: Uuid,
+    config: &Config, source: RepoSource, metadata: &DecryptedFiles, id: Uuid,
 ) -> Result<Option<DecryptedDocument>, CoreError> {
     if let Some(metadata) = metadata.filter_not_deleted()?.maybe_find(id) {
         maybe_get_document(config, source, &metadata)

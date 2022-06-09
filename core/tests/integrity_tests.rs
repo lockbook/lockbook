@@ -8,7 +8,7 @@ use lockbook_core::model::repo::RepoSource;
 use lockbook_core::pure_functions::files;
 use lockbook_models::file_metadata::FileType::Document;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
-use lockbook_models::tree::{FileMetaExt, TEMP_FileMetaExt, TestFileTreeError};
+use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, TestFileTreeError};
 use test_utils::*;
 
 #[test]

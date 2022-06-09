@@ -8,6 +8,7 @@ use lockbook_crypto::clock_service::get_time;
 use lockbook_crypto::pubkey;
 use lockbook_models::account::Account;
 use lockbook_models::api::{GetPublicKeyRequest, NewAccountRequest};
+use lockbook_models::tree::FileMetaMapExt;
 use std::collections;
 
 impl Tx<'_> {
@@ -25,7 +26,7 @@ impl Tx<'_> {
         let mut root_metadata = files::create_root(&account);
         let encrypted_metadata = file_encryption_service::encrypt_metadata(
             &account,
-            &HashMap::from([(root_metadata.id.clone(), root_metadata.clone())]),
+            &HashMap::with(root_metadata.clone()),
         )?;
         let encrypted_metadatum = if encrypted_metadata.len() == 1 {
             Ok(encrypted_metadata.into_values().next().unwrap())
@@ -34,12 +35,6 @@ impl Tx<'_> {
                 "create_account: multiple metadata decrypted from root",
             )))
         }?;
-        // files::single_or(
-        //     encrypted_metadata,
-        //     CoreError::Unexpected(String::from(
-        //         "create_account: multiple metadata decrypted from root",
-        //     )),
-        // )?;
 
         root_metadata.metadata_version =
             api_service::request(&account, NewAccountRequest::new(&account, &encrypted_metadatum))?
@@ -47,7 +42,7 @@ impl Tx<'_> {
 
         let root = file_encryption_service::encrypt_metadata(
             &account,
-            &HashMap::from([(root_metadata.id.clone(), root_metadata.clone())]),
+            &HashMap::with(root_metadata.clone()),
         )?
         .get(&root_metadata.id)
         .ok_or_else(|| CoreError::Unexpected("Failed to encrypt root".to_string()))?

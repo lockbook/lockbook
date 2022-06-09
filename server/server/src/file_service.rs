@@ -4,7 +4,6 @@ use crate::ServerError;
 use crate::ServerError::{ClientError, InternalError};
 use crate::{keys, RequestContext};
 use deadpool_redis::Connection;
-use std::collections::HashMap;
 
 use crate::content::document_service;
 use crate::file_service::OwnershipCheck::{FileMissing, NotOwned};
@@ -16,8 +15,10 @@ use lockbook_models::api::FileMetadataUpsertsError::{
 };
 use lockbook_models::api::*;
 use lockbook_models::file_metadata::FileType::Document;
-use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadataDiff, Owner};
-use lockbook_models::tree::{FileMetaExt, TEMP_FileMetaExt};
+use lockbook_models::file_metadata::{
+    EncryptedFileMetadata, EncryptedFiles, FileMetadataDiff, Owner,
+};
+use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt};
 use log::info;
 use redis_utils::converters::{JsonGet, PipelineJsonSet};
 use redis_utils::TxError::Abort;
@@ -49,7 +50,7 @@ pub async fn upsert_file_metadata(
             .verify_integrity()
             .map_err(|_| Abort(ClientError(GetUpdatesRequired)))?;
 
-        for (_, the_file) in &files {
+        for the_file in files.values() {
             pipe.json_set(file(the_file.id), the_file)?;
             if the_file.deleted && the_file.file_type == Document {
                 pipe.del(size(the_file.id));
@@ -101,7 +102,7 @@ fn check_for_changed_root(
 
 async fn apply_changes(
     con: &mut Connection, now: u64, owner: &Owner, changes: &[FileMetadataDiff],
-    metas: &mut HashMap<Uuid, EncryptedFileMetadata>,
+    metas: &mut EncryptedFiles,
 ) -> Result<Vec<EncryptedFileMetadata>, TxError<ServerError<FileMetadataUpsertsError>>> {
     let mut deleted_documents = vec![];
     let mut new_files = vec![];

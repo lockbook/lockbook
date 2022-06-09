@@ -1,3 +1,4 @@
+use crate::file_metadata::FileType::{Document, Folder};
 use crate::file_metadata::{FileType, Owner};
 use crate::tree::TreeError::{FileNonexistent, RootNonexistent};
 use std::collections::HashMap;
@@ -17,6 +18,14 @@ pub trait FileMetadata: Clone + Display {
     fn content_version(&self) -> u64;
     fn deleted(&self) -> bool;
     fn display(&self) -> String;
+
+    fn is_folder(&self) -> bool {
+        self.file_type() == Folder
+    }
+
+    fn is_document(&self) -> bool {
+        self.file_type() == Document
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -49,11 +58,11 @@ pub enum TestFileTreeError {
     Tree(TreeError),
 }
 
-pub trait FileMetaExt<T: FileMetadata> {
+pub trait FileMetaVecExt<T: FileMetadata> {
     fn to_map(&self) -> HashMap<Uuid, T>;
 }
 
-impl<Fm> FileMetaExt<Fm> for [Fm]
+impl<Fm> FileMetaVecExt<Fm> for [Fm]
 where
     Fm: FileMetadata,
 {
@@ -64,36 +73,49 @@ where
     }
 }
 
-pub trait TEMP_FileMetaExt<T: FileMetadata> {
+pub trait FileMetaMapExt<Fm: FileMetadata> {
+    fn with(fm: Fm) -> HashMap<Uuid, Fm>;
     fn ids(&self) -> Vec<Uuid>;
-    fn stage(&self, staged: &HashMap<Uuid, T>) -> HashMap<Uuid, (T, StageSource)>;
-    fn find(&self, id: Uuid) -> Result<T, TreeError>;
-    fn find_mut(&mut self, id: Uuid) -> Result<&mut T, TreeError>;
-    fn find_root(&self) -> Result<T, TreeError>;
-    fn maybe_find_root(&self) -> Option<T>;
-    fn maybe_find(&self, id: Uuid) -> Option<T>;
-    fn maybe_find_mut(&mut self, id: Uuid) -> Option<&mut T>;
-    fn find_parent(&self, id: Uuid) -> Result<T, TreeError>;
-    fn maybe_find_parent(&self, id: Uuid) -> Option<T>;
-    fn find_children(&self, id: Uuid) -> HashMap<Uuid, T>;
-    fn filter_deleted(&self) -> Result<HashMap<Uuid, T>, TreeError>;
-    fn filter_not_deleted(&self) -> Result<HashMap<Uuid, T>, TreeError>;
-    fn filter_documents(&self) -> HashMap<Uuid, T>;
-    fn get_invalid_cycles(&self, staged_changes: &HashMap<Uuid, T>)
-        -> Result<Vec<Uuid>, TreeError>;
+    fn push(&mut self, fm: Fm);
+    fn stage(&self, staged: &HashMap<Uuid, Fm>) -> HashMap<Uuid, (Fm, StageSource)>;
+    fn find(&self, id: Uuid) -> Result<Fm, TreeError>;
+    fn find_mut(&mut self, id: Uuid) -> Result<&mut Fm, TreeError>;
+    fn find_root(&self) -> Result<Fm, TreeError>;
+    fn maybe_find_root(&self) -> Option<Fm>;
+    fn maybe_find(&self, id: Uuid) -> Option<Fm>;
+    fn maybe_find_mut(&mut self, id: Uuid) -> Option<&mut Fm>;
+    fn find_parent(&self, id: Uuid) -> Result<Fm, TreeError>;
+    fn maybe_find_parent(&self, id: Uuid) -> Option<Fm>;
+    fn find_children(&self, id: Uuid) -> HashMap<Uuid, Fm>;
+    fn filter_deleted(&self) -> Result<HashMap<Uuid, Fm>, TreeError>;
+    fn filter_not_deleted(&self) -> Result<HashMap<Uuid, Fm>, TreeError>;
+    fn filter_documents(&self) -> HashMap<Uuid, Fm>;
+    fn get_invalid_cycles(
+        &self, staged_changes: &HashMap<Uuid, Fm>,
+    ) -> Result<Vec<Uuid>, TreeError>;
     fn get_path_conflicts(
-        &self, staged_changes: &HashMap<Uuid, T>,
+        &self, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<PathConflict>, TreeError>;
     fn verify_integrity(&self) -> Result<(), TestFileTreeError>;
     fn pretty_print(&self) -> String;
 }
 
-impl<Fm> TEMP_FileMetaExt<Fm> for HashMap<Uuid, Fm>
+impl<Fm> FileMetaMapExt<Fm> for HashMap<Uuid, Fm>
 where
     Fm: FileMetadata,
 {
+    fn with(fm: Fm) -> HashMap<Uuid, Fm> {
+        let mut hash = HashMap::new();
+        hash.push(fm);
+        hash
+    }
+
     fn ids(&self) -> Vec<Uuid> {
         self.keys().cloned().collect()
+    }
+
+    fn push(&mut self, fm: Fm) {
+        self.insert(fm.id(), fm);
     }
 
     fn stage(&self, staged: &HashMap<Uuid, Fm>) -> HashMap<Uuid, (Fm, StageSource)> {
@@ -360,16 +382,3 @@ where
         print_branch(self, &root, &self.find_children(root.id()), "", "", "")
     }
 }
-
-//
-// #[test]
-// fn test_add() {
-//     let core = test_core_with_account();
-//     let account = core.get_account().unwrap();
-//     let root = files::create_root(&account);
-//     let folder1 = files::create(FileType::Folder, root.id, "folder", &account.public_key());
-//     let folder2 = files::create(FileType::Folder, folder1.id, "folder", &account.public_key());
-//     let folder3 = files::create(FileType::Folder, folder2.id, "folder", &account.public_key());
-//
-//     assert_eq!(add(1, 2), 3);
-// }
