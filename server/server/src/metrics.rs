@@ -5,13 +5,13 @@ use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::FileUsage;
 use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
-use lockbook_models::tree::FileMetaExt;
+use lockbook_models::tree::{FileMetaExt, TEMP_FileMetaExt};
 use log::{error, info};
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
 use redis::{AsyncCommands, AsyncIter};
 use redis_utils::converters::JsonGet;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
@@ -164,8 +164,8 @@ pub async fn get_owned(
 pub async fn get_metadatas_and_user_activity_state(
     con: &mut deadpool_redis::Connection, public_key: &PublicKey, ids: &[Uuid],
     time_between_redis_calls: &Duration,
-) -> Result<(Vec<EncryptedFileMetadata>, bool), ServerError<MetricsError>> {
-    let mut metadatas = vec![];
+) -> Result<(HashMap<Uuid, EncryptedFileMetadata>, bool), ServerError<MetricsError>> {
+    let mut metadatas = HashMap::new();
 
     for id in ids {
         let metadata: EncryptedFileMetadata = con
@@ -173,14 +173,14 @@ pub async fn get_metadatas_and_user_activity_state(
             .await?
             .ok_or_else(|| internal!("Cannot retrieve encrypted file metadata for id: {:?}", id))?;
 
-        metadatas.push(metadata);
+        metadatas.insert(metadata.id, metadata);
 
         tokio::time::sleep(*time_between_redis_calls).await;
     }
 
     let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
 
-    let is_user_active = metadatas.iter().any(|metadata| {
+    let is_user_active = metadatas.values().any(|metadata| {
         metadata.metadata_version > time_two_days_ago
             || metadata.content_version > time_two_days_ago
     });
@@ -194,12 +194,12 @@ pub async fn get_metadatas_and_user_activity_state(
 }
 
 pub async fn calculate_total_document_bytes(
-    con: &mut deadpool_redis::Connection, metadatas: &[EncryptedFileMetadata],
+    con: &mut deadpool_redis::Connection, metadatas: &HashMap<Uuid, EncryptedFileMetadata>,
     time_between_redis_calls: &Duration,
 ) -> Result<i64, ServerError<MetricsError>> {
     let mut total_size: u64 = 0;
 
-    for metadata in metadatas {
+    for metadata in metadatas.values() {
         if metadata.file_type == FileType::Document && metadata.content_version != 0 {
             let file_usage: FileUsage = match con.maybe_json_get(keys::size(metadata.id)).await? {
                 Some(usage) => usage,

@@ -51,14 +51,11 @@ pub enum TestFileTreeError {
 
 pub trait FileMetaExt<T: FileMetadata> {
     fn to_map(&self) -> HashMap<Uuid, T>;
-    fn ids(&self) -> Vec<Uuid>;
     fn stage(&self, staged: &[T]) -> Vec<(T, StageSource)>;
     fn find(&self, id: Uuid) -> Result<T, TreeError>;
-    fn find_mut(&mut self, id: Uuid) -> Result<&mut T, TreeError>;
     fn find_root(&self) -> Result<T, TreeError>;
     fn maybe_find_root(&self) -> Option<T>;
     fn maybe_find(&self, id: Uuid) -> Option<T>;
-    fn maybe_find_mut(&mut self, id: Uuid) -> Option<&mut T>;
     fn find_parent(&self, id: Uuid) -> Result<T, TreeError>;
     fn maybe_find_parent(&self, id: Uuid) -> Option<T>;
     fn find_children(&self, id: Uuid) -> Vec<T>;
@@ -79,10 +76,6 @@ where
         self.iter()
             .map(|f| (f.id(), f.clone()))
             .collect::<HashMap<Uuid, Fm>>()
-    }
-
-    fn ids(&self) -> Vec<Uuid> {
-        self.iter().map(|f| f.id()).collect()
     }
 
     fn stage(&self, staged_changes: &[Fm]) -> Vec<(Fm, StageSource)> {
@@ -106,10 +99,6 @@ where
         self.maybe_find(id).ok_or(FileNonexistent)
     }
 
-    fn find_mut(&mut self, id: Uuid) -> Result<&mut Fm, TreeError> {
-        self.maybe_find_mut(id).ok_or(FileNonexistent)
-    }
-
     fn find_root(&self) -> Result<Fm, TreeError> {
         self.maybe_find_root().ok_or(RootNonexistent)
     }
@@ -120,9 +109,6 @@ where
 
     fn maybe_find(&self, id: Uuid) -> Option<Fm> {
         self.iter().find(|f| f.id() == id).cloned()
-    }
-    fn maybe_find_mut(&mut self, id: Uuid) -> Option<&mut Fm> {
-        self.iter_mut().find(|f| f.id() == id)
     }
 
     fn find_parent(&self, id: Uuid) -> Result<Fm, TreeError> {

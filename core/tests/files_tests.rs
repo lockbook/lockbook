@@ -14,7 +14,7 @@ fn apply_rename() {
     let document = files::create(FileType::Document, root.id, "document", &account.public_key());
 
     let document_id = document.id;
-    files::apply_rename(&[root, folder, document], document_id, "document2").unwrap();
+    files::apply_rename(&[root, folder, document].to_map(), document_id, "document2").unwrap();
 }
 
 #[test]
@@ -25,7 +25,7 @@ fn apply_rename_not_found() {
     let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
     let document = files::create(FileType::Document, root.id, "document", &account.public_key());
 
-    let result = files::apply_rename(&[root, folder], document.id, "document2");
+    let result = files::apply_rename(&[root, folder].to_map(), document.id, "document2");
     assert_eq!(result, Err(CoreError::FileNonexistent));
 }
 
@@ -38,7 +38,7 @@ fn apply_rename_root() {
     let document = files::create(FileType::Document, root.id, "document", &account.public_key());
 
     let root_id = root.id;
-    let result = files::apply_rename(&[root, folder, document], root_id, "root2");
+    let result = files::apply_rename(&[root, folder, document].to_map(), root_id, "root2");
     assert_eq!(result, Err(CoreError::RootModificationInvalid));
 }
 
@@ -51,7 +51,8 @@ fn apply_rename_invalid_name() {
     let document = files::create(FileType::Document, root.id, "document", &account.public_key());
 
     let document_id = document.id;
-    let result = files::apply_rename(&[root, folder, document], document_id, "invalid/name");
+    let result =
+        files::apply_rename(&[root, folder, document].to_map(), document_id, "invalid/name");
     assert_eq!(result, Err(CoreError::FileNameContainsSlash));
 }
 
@@ -65,8 +66,11 @@ fn apply_rename_path_conflict() {
     let document2 = files::create(FileType::Document, root.id, "document2", &account.public_key());
 
     let document1_id = document1.id;
-    let result =
-        files::apply_rename(&[root, folder, document1, document2], document1_id, "document2");
+    let result = files::apply_rename(
+        &[root, folder, document1, document2].to_map(),
+        document1_id,
+        "document2",
+    );
     assert_eq!(result, Err(CoreError::PathTaken));
 }
 

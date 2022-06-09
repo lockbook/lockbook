@@ -79,14 +79,17 @@ pub fn apply_create(
 
 /// Validates a rename operation for a file in the context of all files and returns a version of the file with the operation applied. This is a pure function.
 pub fn apply_rename(
-    files: &[DecryptedFileMetadata], target_id: Uuid, new_name: &str,
+    files: &HashMap<Uuid, DecryptedFileMetadata>, target_id: Uuid, new_name: &str,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let mut file = files.find(target_id)?;
     validate_not_root(&file)?;
     validate_file_name(new_name)?;
 
     file.decrypted_name = String::from(new_name);
-    if !files.get_path_conflicts(&[file.clone()])?.is_empty() {
+    if !files
+        .get_path_conflicts(&[file.clone()].to_map())?
+        .is_empty()
+    {
         return Err(CoreError::PathTaken);
     }
 
@@ -266,11 +269,4 @@ pub fn find_with_descendants<Fm: FileMetadata>(
         }
     }
     Ok(result)
-}
-
-pub fn is_deleted<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Result<bool, CoreError> {
-    Ok(files
-        .filter_deleted()?
-        .into_iter()
-        .any(|f| f.id() == target_id))
 }

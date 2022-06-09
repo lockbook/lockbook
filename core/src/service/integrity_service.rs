@@ -7,6 +7,7 @@ use crate::{Config, OneKey, Tx};
 use itertools::Itertools;
 use lockbook_models::file_metadata::{EncryptedFileMetadata, FileType};
 use lockbook_models::tree::{FileMetaExt, TEMP_FileMetaExt, TestFileTreeError};
+use std::collections::HashMap;
 use std::path::Path;
 
 const UTF8_SUFFIXES: [&str; 12] =
@@ -18,17 +19,10 @@ impl Tx<'_> {
             return Err(TestRepoError::NoAccount);
         }
 
-        let local_meta = self.local_metadata.get_all().into_values().collect_vec();
+        let local_meta = self.local_metadata.get_all();
 
-        let files_encrypted = &self
-            .base_metadata
-            .get_all()
-            .into_values()
-            .collect_vec()
-            .stage(&local_meta)
-            .into_iter()
-            .map(|(f, _)| f)
-            .collect::<Vec<EncryptedFileMetadata>>();
+        let mut files_encrypted = self.base_metadata.get_all();
+        files_encrypted.extend(local_meta);
 
         if self.last_synced.get(&OneKey {}).unwrap_or(0) != 0
             && files_encrypted.maybe_find_root().is_none()

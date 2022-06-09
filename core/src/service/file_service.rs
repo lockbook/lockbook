@@ -384,14 +384,7 @@ impl Tx<'_> {
     ) -> Result<(), CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
         let files = files.filter_not_deleted()?;
-        let file = files::apply_rename(
-            &files
-                .values()
-                .cloned()
-                .collect::<Vec<DecryptedFileMetadata>>(),
-            id,
-            new_name,
-        )?;
+        let file = files::apply_rename(&files, id, new_name)?;
         self.insert_metadatum(config, RepoSource::Local, &file)
     }
 
@@ -504,13 +497,13 @@ impl Tx<'_> {
     /// Updates base metadata to match local metadata.
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn promote_metadata(&mut self) -> Result<(), CoreError> {
-        let base_metadata = self.base_metadata.get_all().into_values().collect_vec();
-        let local_metadata = self.local_metadata.get_all().into_values().collect_vec();
+        let base_metadata = self.base_metadata.get_all();
+        let local_metadata = self.local_metadata.get_all();
         let staged_metadata = base_metadata.stage(&local_metadata);
 
         self.base_metadata.clear();
 
-        for (metadata, _) in staged_metadata {
+        for (metadata, _) in staged_metadata.values() {
             self.base_metadata.insert(metadata.id, metadata.clone());
         }
 
@@ -538,11 +531,11 @@ impl Tx<'_> {
     /// Updates base documents to match local documents.
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn promote_documents(&mut self, config: &Config) -> Result<(), CoreError> {
-        let base_metadata = self.base_metadata.get_all().into_values().collect_vec();
-        let local_metadata = self.local_metadata.get_all().into_values().collect_vec();
+        let base_metadata = self.base_metadata.get_all();
+        let local_metadata = self.local_metadata.get_all();
         let staged_metadata = base_metadata.stage(&local_metadata);
         let staged_everything = staged_metadata
-            .into_iter()
+            .values()
             .map(|(f, _)| {
                 Ok((
                     f.clone(),
