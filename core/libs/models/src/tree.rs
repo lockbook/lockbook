@@ -520,13 +520,16 @@ where
         &self, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<PathConflict>, TreeError> {
         let files_with_sources = self.stage(staged_changes);
-        let mut tree: HashMap<Uuid, HashMap<Fm::Name, Uuid>> = HashMap::new();
+        let mut name_tree: HashMap<Uuid, HashMap<Fm::Name, Uuid>> = HashMap::new();
         let mut result = Vec::new();
 
         for (id, (f, source)) in files_with_sources.iter() {
             let parent_id = f.parent();
+            if id == &parent_id {
+                continue;
+            };
             let name = f.name();
-            let parent_children = tree.entry(parent_id).or_insert_with(HashMap::new); //from([(id, f)]));
+            let parent_children = name_tree.entry(parent_id).or_insert_with(HashMap::new); //from([(id, f)]));
             let cloned_id = *id;
 
             if let Some(conflicting_child_id) = parent_children.get(&name) {
