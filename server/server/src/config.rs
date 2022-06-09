@@ -152,7 +152,7 @@ impl MetricsConfig {
 
 #[derive(Clone)]
 pub struct GoogleConfig {
-    pub service_account_cred_path: Option<String>,
+    pub service_account_key: Option<String>,
     pub premium_subscription_product_id: String,
     pub premium_subscription_offer_id: String,
     pub pubsub_token: String,
@@ -161,7 +161,7 @@ pub struct GoogleConfig {
 impl GoogleConfig {
     pub fn from_env_vars() -> Self {
         Self {
-            service_account_cred_path: env_or_empty("GOOGLE_CLOUD_SERVICE_ACCOUNT_CRED_PATH"),
+            service_account_key: Some(env_or_panic("GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY")),
             premium_subscription_product_id: env_or_panic(
                 "GOOGLE_PLAY_PREMIUM_SUBSCRIPTION_PRODUCT_ID",
             ),

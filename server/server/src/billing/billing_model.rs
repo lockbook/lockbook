@@ -12,11 +12,7 @@ pub struct SubscriptionProfile {
 
 impl Default for SubscriptionProfile {
     fn default() -> Self {
-        SubscriptionProfile {
-            billing_platform: None,
-            last_in_payment_flow: 0,
-            data_cap: FREE_TIER_USAGE_SIZE,
-        }
+        Self { billing_platform: None, last_in_payment_flow: 0, data_cap: FREE_TIER_USAGE_SIZE }
     }
 }
 
