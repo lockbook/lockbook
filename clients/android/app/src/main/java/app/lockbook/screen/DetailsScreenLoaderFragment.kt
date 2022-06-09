@@ -11,6 +11,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.databinding.FragmentLoadingScreenBinding
 import app.lockbook.model.*
+import java.io.File
 import java.lang.ref.WeakReference
 
 class DetailsScreenLoaderFragment : Fragment() {
@@ -43,6 +44,12 @@ class DetailsScreenLoaderFragment : Fragment() {
                 is UpdateDetailScreenLoaderUI.NotifyError -> alertModel.notifyError(it.error)
                 is UpdateDetailScreenLoaderUI.NotifyFinished -> activityModel.launchDetailsScreen(it.newScreen)
             }
+        }
+    }
+
+    fun deleteDownloadedFileIfExists() {
+        model.loadingInfo.let {
+            File(requireContext().cacheDir, OPENED_FILE_FOLDER + it.fileMetadata.decryptedName).delete()
         }
     }
 

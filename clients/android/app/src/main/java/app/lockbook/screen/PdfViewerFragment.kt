@@ -50,12 +50,12 @@ class PdfViewerFragment : Fragment() {
                 } else if (oldPage == 0 && page == 1) {
                     Animate.animateVisibility(binding.pdfViewToolbar, View.GONE, 0, 200)
                 }
-                binding.pdfPageIndicator.text = getString(R.string.pdf_page_indicator, page, pageCount)
+                binding.pdfPageIndicator.text = getString(R.string.pdf_page_indicator, page + 1, pageCount)
                 oldPage = page
             }
             .load()
 
-        binding.pdfViewer.maxZoom = 15f
+        binding.pdfViewer.maxZoom = 6f
         return binding.root
     }
 

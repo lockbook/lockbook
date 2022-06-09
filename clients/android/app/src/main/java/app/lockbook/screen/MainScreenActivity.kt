@@ -45,9 +45,7 @@ class MainScreenActivity : AppCompatActivity() {
             when (f) {
                 is MoveFileDialogFragment,
                 is RenameFileDialogFragment -> filesFragment.refreshFiles()
-                is CreateFileDialogFragment -> {
-                    filesFragment.onNewFileCreated(f.newFile)
-                }
+                is CreateFileDialogFragment -> filesFragment.onNewFileCreated(f.newFile)
                 is FileInfoDialogFragment -> filesFragment.unselectFiles()
             }
         }
@@ -182,12 +180,7 @@ class MainScreenActivity : AppCompatActivity() {
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
 
-        onShare.launch(
-            Intent.createChooser(
-                intent,
-                "Send multiple files."
-            )
-        )
+        onShare.launch(Intent.createChooser(intent, "Send multiple files."))
     }
 
     override fun onDestroy() {
@@ -198,7 +191,7 @@ class MainScreenActivity : AppCompatActivity() {
     private fun launchDetailsScreen(screen: DetailsScreen?) {
         supportFragmentManager.commit {
             setReorderingAllowed(true)
-            doOnDetailsExit()
+            doOnDetailsExit(screen)
 
             when (screen) {
                 is DetailsScreen.Loading -> replace<DetailsScreenLoaderFragment>(R.id.detail_container)
@@ -222,19 +215,23 @@ class MainScreenActivity : AppCompatActivity() {
         if (screen == null) {
             slidingPaneLayout.closePane()
         } else {
-
             slidingPaneLayout.openPane()
             binding.detailContainer.requestFocus()
         }
     }
 
-    private fun doOnDetailsExit() {
+    private fun doOnDetailsExit(newScreen: DetailsScreen?) {
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? DrawingFragment)?.let { fragment ->
             fragment.binding.drawingView.stopThread()
             fragment.saveOnExit()
         }
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? TextEditorFragment)?.saveOnExit()
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? PdfViewerFragment)?.deleteLocalPdfInstance()
+        (supportFragmentManager.findFragmentById(R.id.detail_container) as? DetailsScreenLoaderFragment)?.let { fragment ->
+            if (newScreen !is DetailsScreen.PdfViewer) {
+                fragment.deleteDownloadedFileIfExists()
+            }
+        }
     }
 
     override fun onBackPressed() {

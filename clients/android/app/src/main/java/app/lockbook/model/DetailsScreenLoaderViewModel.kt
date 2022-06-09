@@ -20,7 +20,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import java.io.File
 
-class DetailsScreenLoaderViewModel(application: Application, loadingInfo: DetailsScreen.Loading) :
+class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: DetailsScreen.Loading) :
     AndroidViewModel(application) {
     private val _updateDetailScreenLoaderUI = SingleMutableLiveData<UpdateDetailScreenLoaderUI>()
 
@@ -88,8 +88,8 @@ class DetailsScreenLoaderViewModel(application: Application, loadingInfo: Detail
             }
             extensionHelper.isPdf -> {
                 val child = File(getContext().cacheDir, OPENED_FILE_FOLDER)
+                child.deleteRecursively()
                 child.mkdir()
-                child.deleteOnExit()
 
                 when (val exportFileResult = CoreModel.exportFile(loadingInfo.fileMetadata.id, child.toString(), true)) {
                     is Ok -> UpdateDetailScreenLoaderUI.NotifyFinished(DetailsScreen.PdfViewer(loadingInfo.fileMetadata, child))
