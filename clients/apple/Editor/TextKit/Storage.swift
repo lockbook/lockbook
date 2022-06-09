@@ -7,12 +7,14 @@ import AppKit
 import Down
 
 public class Storage: NSTextStorage {
-    
+
+    var name: String?
     var backingStore = NSMutableAttributedString()
     var currentStyles: [AttributeRange] = []
     var myEditedRange: NSRange?
     var myChangeInLength: Int = 0
-    var us: Bool = false
+    var us: Bool = true
+    var parser: Parser?
     
     public override var string: String {
         get {
@@ -30,15 +32,23 @@ public class Storage: NSTextStorage {
         myEditedRange = range
         myChangeInLength = string.utf16.count - range.length
         
-        self.edited(.editedCharacters, range: range, changeInLength: myChangeInLength)
+        edited(.editedCharacters, range: range, changeInLength: myChangeInLength)
     }
     
     public func syntaxHighlight() {
+        if let name = name {
+            if name.hasSuffix(".txt") || name.hasSuffix(".text") {
+                return
+            }
+        }
+
         us = true
         print()
         var startingPoint = Date()
 
-        let newStyles = Parser(backingStore.string).processedDocument
+        let parser = Parser(backingStore.string)
+        self.parser = parser
+        let newStyles = parser.processedDocument
         adjustCurrentStyles()
         print("parser perf: \(startingPoint.timeIntervalSinceNow * -1)")
 
@@ -53,7 +63,7 @@ public class Storage: NSTextStorage {
                 }
             }
         }
-        
+
         if dirty {
             print("DIRT")
             currentStyles = newStyles
@@ -76,7 +86,7 @@ public class Storage: NSTextStorage {
     public override func setAttributes(_ attrs: [NSAttributedString.Key : Any]?, range: NSRange) {
         if us {
             backingStore.setAttributes(attrs, range: range)
-            self.edited(.editedAttributes, range: range, changeInLength: 0)
         }
+        edited(.editedAttributes, range: range, changeInLength: 0)
     }
 }

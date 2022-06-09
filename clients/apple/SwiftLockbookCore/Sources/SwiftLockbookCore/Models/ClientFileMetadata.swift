@@ -1,7 +1,8 @@
 import Foundation
 
-public struct DecryptedFileMetadata: Codable, Identifiable, Equatable, Hashable {
+public struct DecryptedFileMetadata: Codable, Identifiable, Equatable, Hashable, Comparable {
     public var fileType: FileType
+
     public var id: UUID
     public var parent: UUID
     public var decryptedName: String
@@ -9,7 +10,6 @@ public struct DecryptedFileMetadata: Codable, Identifiable, Equatable, Hashable 
     public var contentVersion: UInt64
     public var metadataVersion: UInt64
     public var isRoot: Bool { parent == id }
-    
     public static func == (lhs: DecryptedFileMetadata, rhs: DecryptedFileMetadata) -> Bool {
         return lhs.fileType == rhs.fileType &&
             lhs.id == rhs.id &&
@@ -22,6 +22,21 @@ public struct DecryptedFileMetadata: Codable, Identifiable, Equatable, Hashable 
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
+        hasher.combine(decryptedName)
+    }
+
+    public static func <(lhs: DecryptedFileMetadata, rhs: DecryptedFileMetadata) -> Bool {
+        // If the types are different, group folders higher
+        if lhs.fileType == .Folder && rhs.fileType == .Document {
+            return true
+        }
+
+        if rhs.fileType == .Folder && lhs.fileType == .Document {
+            return false
+        }
+
+        // Otherwise sort alphabetically
+        return lhs.decryptedName < rhs.decryptedName
     }
 }
 

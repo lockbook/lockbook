@@ -1,15 +1,22 @@
 mod account_screen;
 mod onboard_screen;
 
+mod errors;
+
+mod credit_card_input;
 mod filetree;
 mod menu_item;
 mod search_row;
 mod sync_panel;
 mod titlebar;
+mod usage_settings;
+mod usage_tier;
+mod usage_upgrade;
 
 mod image_tab;
 mod tab;
 mod text_editor;
+mod toggle_group;
 
 pub use account_screen::AccountOp;
 pub use account_screen::AccountScreen;
@@ -17,6 +24,9 @@ pub use onboard_screen::OnboardOp;
 pub use onboard_screen::OnboardRoute;
 pub use onboard_screen::OnboardScreen;
 
+pub use errors::show_err_dialog;
+
+pub use credit_card_input::CreditCardInput;
 pub use filetree::FileTree;
 pub use filetree::FileTreeCol;
 pub use menu_item::menu_separator;
@@ -25,10 +35,14 @@ pub use search_row::SearchRow;
 pub use sync_panel::SyncPanel;
 pub use titlebar::SearchOp;
 pub use titlebar::Titlebar;
+pub use usage_settings::UsageSettings;
+pub use usage_tier::UsageTier;
+pub use usage_upgrade::UpgradePaymentFlow;
 
 pub use image_tab::ImageTab;
 pub use tab::Tab;
 pub use text_editor::TextEditor;
+pub use toggle_group::ToggleGroup;
 
 pub mod about_dialog;
 
@@ -46,6 +60,16 @@ pub static SUPPORTED_IMAGE_FORMATS: Lazy<Vec<String>> = Lazy::new(|| {
     exts.push("cr2".to_string());
     exts
 });
+
+pub fn clear<W>(w: &W)
+where
+    W: IsA<gtk::Widget>,
+    W: IsA<gtk::Box>,
+{
+    while let Some(child) = w.first_child() {
+        w.remove(&child);
+    }
+}
 
 pub fn id_from_tpath(model: &impl IsA<gtk::TreeModel>, tpath: &gtk::TreePath) -> lb::Uuid {
     let col = filetree::FileTreeCol::Id.as_tree_store_index();
@@ -126,12 +150,10 @@ pub mod icons {
     pub const DELETE: &str = "edit-delete-symbolic";
     pub const ERROR_RED: &str = "dialog-error-symbolic";
     pub const EXPORT: &str = "document-save-symbolic";
-    pub const NEW_DOC: &str = "document-new-symbolic";
-    pub const NEW_FOLDER: &str = "folder-new-symbolic";
     pub const PASTE: &str = "edit-paste-symbolic";
     pub const RENAME: &str = "go-jump-symbolic";
     pub const SEARCH: &str = "system-search-symbolic";
     pub const SETTINGS: &str = "preferences-system-symbolic";
     pub const SYNC: &str = "emblem-synchronizing-symbolic";
-    pub const USAGE: &str = "utilities-system-monitor-symbolic";
+    pub const USAGE: &str = "media-floppy-symbolic";
 }

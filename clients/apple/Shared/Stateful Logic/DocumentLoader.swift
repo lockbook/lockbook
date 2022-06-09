@@ -15,28 +15,28 @@ public enum ViewType {
 
 class DocumentLoader: ObservableObject {
     let core: LockbookApi
-    
+
     @Published var meta: DecryptedFileMetadata?
     @Published var type: ViewType?
     @Published var deleted: Bool = false
     @Published var loading: Bool = true
     @Published var reloadContent: Bool = false
     @Published var error: String = ""
-    
+
     @Published var textDocument: String?
     @Published var drawing: PKDrawing?
     @Published var image: Image? = .none
-    
+
     private var cancellables = Set<AnyCancellable>()
-    
+
     init(_ core: LockbookApi) {
         self.core = core
         setupAutoSavers()
     }
-    
+
     func startLoading(_ meta: DecryptedFileMetadata) {
         let type = DocumentLoader.getType(name: meta.decryptedName)
-        
+
         self.meta = meta
         self.type = type
         self.deleted = false
@@ -46,37 +46,36 @@ class DocumentLoader: ObservableObject {
         self.drawing = nil
         self.image = nil
         self.error = ""
-        
+
         if self.type == .Unknown {
             self.loading = false
             return
         }
-        
+
         switch type {
         case .Markdown:
             loadText()
-        #if os(iOS)
+            #if os(iOS)
         case .Drawing:
             loadDrawing()
-        #endif
+            #endif
         case .Image:
             loadImage()
         case .Unknown:
             self.loading = false
         }
     }
-    
+
     func updatesFromCoreAvailable(_ newMeta: DecryptedFileMetadata) {
         self.meta = newMeta
         if
-            let type = self.type,
-            let meta = self.meta
-        {
+                let type = self.type,
+                let meta = self.meta {
             switch type {
             case .Markdown: // For markdown we're able to do a check before reloading the doc
                 DispatchQueue.global(qos: .userInitiated).async {
                     let operation = self.core.getFile(id: meta.id)
-                    
+
                     DispatchQueue.main.async {
                         switch operation {
                         case .success(let txt):
@@ -89,11 +88,11 @@ class DocumentLoader: ObservableObject {
                         }
                     }
                 }
-            #if os(iOS)
+                #if os(iOS)
             case .Drawing:
                 self.reloadContent = true
                 loadDrawing()
-            #endif
+                #endif
             case .Image:
                 self.reloadContent = true
                 loadImage()
@@ -103,36 +102,36 @@ class DocumentLoader: ObservableObject {
         } else {
             print("should not be reached")
         }
-        
+
     }
-    
+
     private func setupAutoSavers() {
         print("autosaver setup")
         $textDocument
-            .debounce(for: .seconds(1), scheduler: DispatchQueue.global(qos: .userInitiated))
-            .sink(receiveValue: {
-                if let text = $0 { // TODO don't write if a reload or delete is required
-                    self.writeDocument(content: text)
-                }
-            })
-            .store(in: &cancellables)
-        
+                .debounce(for: .seconds(1), scheduler: DispatchQueue.global(qos: .userInitiated))
+                .sink(receiveValue: {
+                    if let text = $0 { // TODO don't write if a reload or delete is required
+                        self.writeDocument(content: text)
+                    }
+                })
+                .store(in: &cancellables)
+
         $drawing
-            .debounce(for: .seconds(1), scheduler: DispatchQueue.global(qos: .userInitiated))
-            .sink(receiveValue: {
-                if let text = $0 { // TODO don't write if a reload or delete is required
-                    self.writeDrawing(drawing: text)
-                }
-            })
-            .store(in: &cancellables)
+                .debounce(for: .seconds(1), scheduler: DispatchQueue.global(qos: .userInitiated))
+                .sink(receiveValue: {
+                    if let text = $0 { // TODO don't write if a reload or delete is required
+                        self.writeDrawing(drawing: text)
+                    }
+                })
+                .store(in: &cancellables)
     }
-    
+
     private func loadText() {
         if let meta = self.meta {
-            
+
             DispatchQueue.global(qos: .userInitiated).async {
                 let operation = self.core.getFile(id: meta.id)
-                
+
                 DispatchQueue.main.async {
                     switch operation {
                     case .success(let txt):
@@ -144,9 +143,9 @@ class DocumentLoader: ObservableObject {
                 }
             }
         }
-        
+
     }
-    
+
     private func writeDocument(content: String) {
         if let meta = self.meta {
             print("write called: \(meta.decryptedName)")
@@ -161,13 +160,13 @@ class DocumentLoader: ObservableObject {
             }
         }
     }
-    
+
     private func loadImage() {
         if let meta = self.meta {
-            
+
             DispatchQueue.global(qos: .userInitiated).async {
                 let operation = self.core.exportDrawing(id: meta.id)
-                
+
                 DispatchQueue.main.async {
                     switch operation {
                     case .success(let data):
@@ -184,7 +183,7 @@ class DocumentLoader: ObservableObject {
             }
         }
     }
-    
+
     private func getImage(from: Data) -> Image? {
         #if os(macOS)
         if let nsImage = NSImage(data: from) {
@@ -200,7 +199,7 @@ class DocumentLoader: ObservableObject {
         }
         #endif
     }
-    
+
     private func loadDrawing() {
         if let meta = self.meta {
             DispatchQueue.global(qos: .userInitiated).async {
@@ -216,23 +215,23 @@ class DocumentLoader: ObservableObject {
                 }
             }
         }
-        
+
     }
-    
+
     private func writeDrawing(drawing: PKDrawing) {
         if let meta = self.meta {
-            
+
             switch self.core.writeDrawing(id: meta.id, content: Drawing(from: drawing)) {
             case .success(_):
                 print("drawing saved successfully")
             case .failure(let error):
                 DI.errors.handleError(error)
             }
-            
+
             DI.sync.documentChangeHappened()
         }
     }
-    
+
     // TODO we need the swift clients to accept Data back as files, then we can read arbitary images
     private static func getType(name: String) -> ViewType {
         if name.lowercased().hasSuffix(".draw") {
@@ -241,7 +240,7 @@ class DocumentLoader: ObservableObject {
             #else
             return .Drawing
             #endif
-        } else if name.lowercased().hasSuffix(".md") || name.lowercased().hasSuffix(".markdown") {
+        } else if name.lowercased().hasSuffix(".md") || name.lowercased().hasSuffix(".markdown") || name.lowercased().hasSuffix(".txt") {
             return .Markdown
         } else {
             return .Unknown

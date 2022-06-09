@@ -12,15 +12,13 @@ struct AppView: View {
         let view = VStack {
             switch accounts.account {
             case .none:
-                AnyView(OnboardingView())
+                OnboardingView()
             case .some(let account):
                 switch files.root {
                 case .some(let root):
-                    AnyView(BookView(currentFolder: root, account: account))
-                        .onAppear {
-                            sync.sync()
-                        }
+                    BookView(currentFolder: root, account: account)
                 case .none:
+
                     Label("Please sync!", systemImage: "arrow.right.arrow.left.circle.fill")
                 }
             }

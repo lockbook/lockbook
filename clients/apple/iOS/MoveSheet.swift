@@ -1,18 +1,51 @@
 import SwiftUI
 import SwiftLockbookCore
 
+struct MoveSheet: View {
+    
+    @EnvironmentObject var fileService: FileService
+    @EnvironmentObject var sheets: SheetState
+
+    @Environment(\.presentationMode) var presentationMode
+    
+    var body: some View {
+        if let meta = sheets.movingInfo {
+            let root = fileService.files.first(where: { $0.parent == $0.id })!
+            let wc = WithChild(root, fileService.files, { $0.id == $1.parent && $0.id != $1.id && $1.fileType == .Folder })
+            
+            ScrollView {
+                VStack {
+                    Text("Moving \(meta.decryptedName)").font(.headline)
+                    NestedList(
+                        node: wc,
+                        row: { dest in
+                            Button(action: {
+                                fileService.moveFile(id: meta.id, newParent: dest.id)
+                                presentationMode.wrappedValue.dismiss()
+                            }, label: {
+                                Label(dest.decryptedName, systemImage: "folder")
+                            })
+                        }
+                    )
+                    Spacer()
+                }.padding()
+            }
+        }
+    }
+}
+
 struct NestedList<T: Identifiable, V: View>: View {
     let node: WithChild<T>
     let row: (T) -> V
     @State var expanded: Bool
-
+    
     init(node: WithChild<T>, row: @escaping (T) -> V) {
         self.node = node
         self.row = row
         // Start expanded up to 3 levels deep!
         self._expanded = .init(initialValue: node.level < 3)
     }
-
+    
     var body: some View {
         VStack(spacing: 10) {
             HStack {
@@ -41,17 +74,17 @@ struct WithChild<T>: Identifiable where T: Identifiable {
     var id: T.ID {
         value.id
     }
-
+    
     let value: T
     let children: [WithChild<T>]
     let level: Int
-
+    
     init(_ value: T, _ children: [WithChild<T>], level: Int = 0) {
         self.value = value
         self.children = children
         self.level = level
     }
-
+    
     init(_ value: T, _ ts: [T], _ desc: (T, T) -> Bool, level: Int = 0) {
         self.value = value
         self.level = level

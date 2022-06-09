@@ -55,12 +55,11 @@ impl Tx<'_> {
         metadata_changes: &HashMap<Uuid, DecryptedFileMetadata>,
     ) -> Result<(), CoreError> {
         let all_metadata = self.get_all_metadata(source)?;
-        self.insert_metadata_given_decrypted_metadata(
-            config,
-            source,
-            &all_metadata,
-            metadata_changes,
-        )
+        self.insert_metadata_given_decrypted_metadata(source, &all_metadata, metadata_changes)?;
+        if source == RepoSource::Local {
+            self.insert_new_docs(config, &all_metadata, metadata_changes)?;
+        }
+        Ok(())
     }
 
     pub fn get_metadata(
@@ -147,8 +146,7 @@ impl Tx<'_> {
     /// Disk optimization opportunity: this function needlessly writes to disk when setting local metadata = base metadata.
     /// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
     fn insert_metadata_given_decrypted_metadata(
-        &mut self, config: &Config, source: RepoSource,
-        all_metadata: &HashMap<Uuid, DecryptedFileMetadata>,
+        &mut self, source: RepoSource, all_metadata: &HashMap<Uuid, DecryptedFileMetadata>,
         metadata_changes: &HashMap<Uuid, DecryptedFileMetadata>,
     ) -> Result<(), CoreError> {
         // encrypt metadata
@@ -177,10 +175,6 @@ impl Tx<'_> {
             let encrypted_metadata = necessary_metadata_encrypted.find(id)?;
 
             // perform insertion
-            let new_doc = source == RepoSource::Local
-                && metadatum.file_type == FileType::Document
-                && self.maybe_get_metadata(RepoSource::Local, id)?.is_none();
-
             match source {
                 RepoSource::Local => {
                     self.local_metadata
@@ -192,16 +186,12 @@ impl Tx<'_> {
                 }
             }
 
-            if new_doc {
-                self.insert_document(config, RepoSource::Local, &metadatum, &[])?;
-            }
-
+            // remove local if local == base
             let opposite_metadata = match source.opposite() {
                 RepoSource::Local => self.local_metadata.get(&encrypted_metadata.id),
                 RepoSource::Base => self.base_metadata.get(&encrypted_metadata.id),
             };
 
-            // remove local if local == base
             if let Some(opposite) = opposite_metadata {
                 if utils::slices_equal(&opposite.name.hmac, &encrypted_metadata.name.hmac)
                     && opposite.parent == metadatum.parent
@@ -217,6 +207,20 @@ impl Tx<'_> {
             }
         }
 
+        Ok(())
+    }
+
+    fn insert_new_docs(
+        &mut self, config: &Config, local_metadata: &HashMap<Uuid, DecryptedFileMetadata>,
+        metadata_changes: &HashMap<Uuid, DecryptedFileMetadata>,
+    ) -> Result<(), CoreError> {
+        for metadatum in metadata_changes.values() {
+            if metadatum.file_type == FileType::Document
+                && local_metadata.maybe_find(metadatum.id).is_none()
+            {
+                self.insert_document(config, RepoSource::Local, metadatum, &[])?;
+            }
+        }
         Ok(())
     }
 
@@ -592,17 +596,16 @@ impl Tx<'_> {
         let base_metadata = self.get_all_metadata(RepoSource::Base)?;
         let local_metadata = self.get_all_metadata(RepoSource::Local)?;
         self.insert_metadata_given_decrypted_metadata(
-            config,
             RepoSource::Base,
             &base_metadata,
             base_metadata_changes,
         )?;
         self.insert_metadata_given_decrypted_metadata(
-            config,
             RepoSource::Local,
             &local_metadata,
             local_metadata_changes,
-        )
+        )?;
+        self.insert_new_docs(config, &local_metadata, local_metadata_changes)
     }
 
     pub fn get_metadata_state(
