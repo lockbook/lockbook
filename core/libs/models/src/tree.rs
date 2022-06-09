@@ -50,6 +50,7 @@ pub enum TestFileTreeError {
 }
 
 pub trait FileMetaExt<T: FileMetadata> {
+    fn to_map(&self) -> HashMap<Uuid, T>;
     fn ids(&self) -> Vec<Uuid>;
     fn stage(&self, staged: &[T]) -> Vec<(T, StageSource)>;
     fn find(&self, id: Uuid) -> Result<T, TreeError>;
@@ -74,6 +75,12 @@ impl<Fm> FileMetaExt<Fm> for [Fm]
 where
     Fm: FileMetadata,
 {
+    fn to_map(&self) -> HashMap<Uuid, Fm> {
+        self.iter()
+            .map(|f| (f.id(), f.clone()))
+            .collect::<HashMap<Uuid, Fm>>()
+    }
+
     fn ids(&self) -> Vec<Uuid> {
         self.iter().map(|f| f.id()).collect()
     }
