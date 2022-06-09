@@ -293,7 +293,7 @@ fn get_path_conflicts_no_conflicts() {
 
     let path_conflicts = &[root, folder1]
         .to_map()
-        .get_path_conflicts(&[folder2])
+        .get_path_conflicts(&[folder2].to_map())
         .unwrap();
 
     assert_eq!(path_conflicts.len(), 0);
