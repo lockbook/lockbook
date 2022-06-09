@@ -291,7 +291,10 @@ fn get_path_conflicts_no_conflicts() {
     let folder1 = files::create(FileType::Folder, root.id, "folder", &account.public_key());
     let folder2 = files::create(FileType::Folder, root.id, "folder2", &account.public_key());
 
-    let path_conflicts = &[root, folder1].get_path_conflicts(&[folder2]).unwrap();
+    let path_conflicts = &[root, folder1]
+        .to_map()
+        .get_path_conflicts(&[folder2])
+        .unwrap();
 
     assert_eq!(path_conflicts.len(), 0);
 }
@@ -305,7 +308,8 @@ fn get_path_conflicts_one_conflict() {
     let folder2 = files::create(FileType::Folder, root.id, "folder", &account.public_key());
 
     let path_conflicts = &[root, folder1.clone()]
-        .get_path_conflicts(&[folder2.clone()])
+        .to_map()
+        .get_path_conflicts(&[folder2.clone()].to_map())
         .unwrap();
 
     assert_eq!(path_conflicts.len(), 1);

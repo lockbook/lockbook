@@ -8,7 +8,7 @@ use lockbook_core::model::repo::RepoSource;
 use lockbook_core::pure_functions::files;
 use lockbook_models::file_metadata::FileType::Document;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
-use lockbook_models::tree::{FileMetaExt, TestFileTreeError};
+use lockbook_models::tree::{FileMetaExt, TEMP_FileMetaExt, TestFileTreeError};
 use test_utils::*;
 
 #[test]
@@ -179,7 +179,7 @@ fn test_invalid_drawing() {
 #[test]
 fn test_file_tree_integrity_empty() {
     let files: Vec<DecryptedFileMetadata> = vec![];
-    let result = files.verify_integrity();
+    let result = files.to_map().verify_integrity();
 
     assert_eq!(result, Ok(()));
 }
@@ -191,7 +191,7 @@ fn test_file_tree_integrity_nonempty_ok() {
     let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
     let document = files::create(FileType::Document, folder.id, "document", &account.public_key());
 
-    let result = [root, folder, document].verify_integrity();
+    let result = [root, folder, document].to_map().verify_integrity();
 
     assert_eq!(result, Ok(()));
 }
@@ -204,7 +204,7 @@ fn test_file_tree_integrity_no_root() {
     let document = files::create(FileType::Document, folder.id, "document", &account.public_key());
     root.parent = folder.id;
 
-    let result = [root, folder, document].verify_integrity();
+    let result = [root, folder, document].to_map().verify_integrity();
 
     assert_eq!(result, Err(TestFileTreeError::NoRootFolder));
 }
@@ -219,7 +219,7 @@ fn test_file_tree_integrity_orphan() {
     document.parent = Uuid::new_v4();
     let document_id = document.id;
 
-    let result = [root, folder, document].verify_integrity();
+    let result = [root, folder, document].to_map().verify_integrity();
 
     assert_eq!(result, Err(TestFileTreeError::FileOrphaned(document_id)));
 }
@@ -231,7 +231,7 @@ fn test_file_tree_integrity_1cycle() {
     let mut folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
     folder.parent = folder.id;
 
-    let result = [root, folder].verify_integrity();
+    let result = [root, folder].to_map().verify_integrity();
 
     assert_matches!(result, Err(TestFileTreeError::CycleDetected(_)));
 }
@@ -245,7 +245,7 @@ fn test_file_tree_integrity_2cycle() {
     folder1.parent = folder2.id;
     folder2.parent = folder1.id;
 
-    let result = [root, folder1, folder2].verify_integrity();
+    let result = [root, folder1, folder2].to_map().verify_integrity();
 
     assert_matches!(result, Err(TestFileTreeError::CycleDetected(_)));
 }
@@ -259,7 +259,7 @@ fn test_file_tree_integrity_document_treated_as_folder() {
         files::create(FileType::Document, document1.id, "document2", &account.public_key());
     let document1_id = document1.id;
 
-    let result = [root, document1, document2].verify_integrity();
+    let result = [root, document1, document2].to_map().verify_integrity();
 
     assert_eq!(result, Err(TestFileTreeError::DocumentTreatedAsFolder(document1_id)));
 }
@@ -271,7 +271,7 @@ fn test_file_tree_integrity_path_conflict() {
     let folder = files::create(FileType::Folder, root.id, "file", &account.public_key());
     let document = files::create(FileType::Document, root.id, "file", &account.public_key());
 
-    let result = [root, folder, document].verify_integrity();
+    let result = [root, folder, document].to_map().verify_integrity();
 
     assert_matches!(result, Err(TestFileTreeError::NameConflictDetected(_)));
 }
