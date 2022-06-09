@@ -7,7 +7,8 @@ import AppKit
 import Down
 
 public class Storage: NSTextStorage {
-    
+
+    var name: String?
     var backingStore = NSMutableAttributedString()
     var currentStyles: [AttributeRange] = []
     var myEditedRange: NSRange?
@@ -31,10 +32,16 @@ public class Storage: NSTextStorage {
         myEditedRange = range
         myChangeInLength = string.utf16.count - range.length
         
-        self.edited(.editedCharacters, range: range, changeInLength: myChangeInLength)
+        edited(.editedCharacters, range: range, changeInLength: myChangeInLength)
     }
     
     public func syntaxHighlight() {
+        if let name = name {
+            if name.hasSuffix(".txt") || name.hasSuffix(".text") {
+                return
+            }
+        }
+
         us = true
         print()
         var startingPoint = Date()
@@ -80,6 +87,6 @@ public class Storage: NSTextStorage {
         if us {
             backingStore.setAttributes(attrs, range: range)
         }
-        self.edited(.editedAttributes, range: range, changeInLength: 0)
+        edited(.editedAttributes, range: range, changeInLength: 0)
     }
 }

@@ -1,8 +1,7 @@
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_models::api::{
-    CancelSubscriptionError, CancelSubscriptionRequest, UpgradeAccountAndroidRequest,
-    UpgradeAccountStripeRequest,
+    CancelSubscriptionError, CancelSubscriptionRequest, UpgradeAccountStripeRequest,
 };
 use lockbook_models::file_metadata::FileType;
 use rand::RngCore;

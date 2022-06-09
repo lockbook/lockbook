@@ -27,8 +27,6 @@ services:
     image: server:$HASH
     env_file:
       - ../containers/test.env
-    environment:
-      GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY: ${GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY}
     depends_on:
       - config_filesdb
       - indexdb

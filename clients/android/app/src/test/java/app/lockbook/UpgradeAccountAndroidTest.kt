@@ -5,6 +5,7 @@ import app.lockbook.util.Config
 import app.lockbook.util.UpgradeAccountAndroid
 import org.junit.Before
 import org.junit.BeforeClass
+import org.junit.Ignore
 import org.junit.Test
 
 class UpgradeAccountAndroidTest {
@@ -22,6 +23,7 @@ class UpgradeAccountAndroidTest {
         CoreModel.init(Config(false, createRandomPath()))
     }
 
+    @Ignore("Does not work unless the environment variable GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY is defined in server.")
     @Test
     fun upgradeAccountAndroidInvalidPurchaseToken() {
         CoreModel.createAccount(generateAlphaString()).unwrapOk()

@@ -146,7 +146,6 @@ jobs:
     needs: [Prep-Core-Server-Db, Prep-Server-DB, Prep-Kotlin-Core, Prep-Swift-Core, Prep-CSharp-Core]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY }}
     steps:
       - uses: actions/checkout@v2
       - name: Spin up dev stack
