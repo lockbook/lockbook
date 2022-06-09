@@ -67,7 +67,10 @@ pub fn request_helper<
         .request(T::METHOD, format!("{}{}", account.api_url, T::ROUTE).as_str())
         .body(serialized_request)
         .send()
-        .map_err(|err| ApiError::SendFailed(err.to_string()))?
+        .map_err(|err| {
+            warn!("Send failed: {:#?}", err);
+            ApiError::SendFailed(err.to_string())
+        })?
         .bytes()
         .map_err(|err| ApiError::ReceiveFailed(err.to_string()))?;
     let response: Result<T::Response, ErrorWrapper<T::Error>> =

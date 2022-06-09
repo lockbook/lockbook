@@ -15,4 +15,5 @@
   <bool name="windowLightStatusBar">true</bool>
 
   <color name="imagePdfToolbarColor">#99FFFFFF</color>
+  <color name="pdfPageIndicatorBackgroundColor">#22000000</color>
 </resources>
