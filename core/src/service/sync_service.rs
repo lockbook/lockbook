@@ -12,7 +12,7 @@ use lockbook_models::api::{
 };
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
-use lockbook_models::tree::{FileMetaExt, TEMP_FileMetaExt};
+use lockbook_models::tree::{TEMP_FileMetaExt};
 use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
 use std::collections::HashMap;

@@ -133,7 +133,7 @@ fn decrypt_file_key(
     }
 
     let target = target_with_ancestors
-        .maybe_find((target_id))
+        .maybe_find(target_id)
         .ok_or_else(|| {
             CoreError::Unexpected(String::from(
             "target or ancestor missing during call to file_encryption_service::decrypt_file_key",

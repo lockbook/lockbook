@@ -1,5 +1,5 @@
 use libsecp256k1::PublicKey;
-use std::collections;
+
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;

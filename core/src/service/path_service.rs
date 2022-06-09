@@ -4,7 +4,7 @@ use crate::{Config, CoreError, Tx};
 use collections::HashMap;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
-use lockbook_models::tree::{FileMetaExt, TEMP_FileMetaExt};
+use lockbook_models::tree::{TEMP_FileMetaExt};
 use std::collections;
 use uuid::Uuid;
 
@@ -143,14 +143,14 @@ impl Tx<'_> {
             match filter {
                 Filter::DocumentsOnly => filtered_files.retain(|_, f| f.file_type == Document),
                 Filter::FoldersOnly => filtered_files.retain(|_, f| f.file_type == Folder),
-                Filter::LeafNodesOnly => filtered_files.retain(|parent_id, parent| {
+                Filter::LeafNodesOnly => filtered_files.retain(|parent_id, _parent| {
                     !files.iter().any(|child| &child.1.parent == parent_id)
                 }),
             }
         }
 
         let mut paths: Vec<String> = vec![];
-        for (id, file) in filtered_files {
+        for (_id, file) in filtered_files {
             let mut current = file.clone();
             let mut current_path = String::from("");
             while current.id != current.parent {
