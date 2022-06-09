@@ -224,14 +224,6 @@ where
             .collect()
     }
 
-    // fn filter_documents(&self) -> HashMap<Uuid, Fm> {
-    //     self.iter()
-    //         .filter(|(_, f)| f.file_type() == FileType::Document)
-    //         .map(|a| (a.0.clone(), a.1.clone()))
-    //         // .map(|a| a.clone())
-    //         .collect()
-    // }
-
     fn get_invalid_cycles(
         &self, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<Uuid>, TreeError> {

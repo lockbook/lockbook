@@ -1,8 +1,8 @@
 use lockbook_core::pure_functions::files;
 use lockbook_core::CoreError;
 use lockbook_models::file_metadata::FileType;
-
-use test_utils::{convert_list_to_hashmap, test_core_with_account};
+use lockbook_models::tree::FileMetaVecExt;
+use test_utils::test_core_with_account;
 
 #[test]
 fn apply_move_path_conflict() {
@@ -16,10 +16,7 @@ fn apply_move_path_conflict() {
     let folder_id = folder.id;
     let document1_id = document1.id;
     // don't know what to do here yet
-    let result = files::apply_move(
-        &convert_list_to_hashmap(&[root, folder, document1, document2]),
-        document1_id,
-        folder_id,
-    );
+    let result =
+        files::apply_move(&[root, folder, document1, document2].to_map(), document1_id, folder_id);
     assert_eq!(result, Err(CoreError::PathTaken));
 }

@@ -153,8 +153,6 @@ impl Tx<'_> {
             .into_iter()
             .map(|(id, (f, _))| (id, f))
             .collect::<DecryptedFiles>();
-        // let all_metadata_encrypted =
-        //     file_encryption_service::encrypt_metadata(&account, &all_metadata_with_changes_staged)?;
 
         let changes = metadata_changes.clone();
         let mut parents = HashMap::new();

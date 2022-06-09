@@ -8,7 +8,7 @@ use lockbook_core::service::path_service::Filter::DocumentsOnly;
 use lockbook_core::{Config, Core};
 use lockbook_models::api::{AccountTier, FileMetadataUpsertsError, PaymentMethod};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
-use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
+use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use lockbook_models::work_unit::WorkUnit;
 use std::collections::HashMap;
 use std::env;
@@ -455,13 +455,6 @@ fn get_frequencies<T: Hash + Eq>(a: &[T]) -> HashMap<&T, i32> {
 
 pub fn slices_equal_ignore_order<T: Hash + Eq>(a: &[T], b: &[T]) -> bool {
     get_frequencies(a) == get_frequencies(b)
-}
-
-pub fn convert_list_to_hashmap<Fm: FileMetadata>(files: &[Fm]) -> HashMap<Uuid, Fm> {
-    return files
-        .iter()
-        .map(|f| (f.id(), f.clone()))
-        .collect::<HashMap<Uuid, Fm>>();
 }
 
 #[cfg(test)]
