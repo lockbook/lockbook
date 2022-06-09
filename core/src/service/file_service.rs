@@ -276,7 +276,7 @@ impl Tx<'_> {
         let deleted_local_metadata = all_local_metadata.filter_deleted()?;
         let deleted_both_metadata = deleted_base_metadata
             .into_iter()
-            .filter(|id| deleted_local_metadata.maybe_find(id.0).is_some());
+            .filter(|(id, _)| deleted_local_metadata.maybe_find(*id).is_some());
         let prune_eligible_metadata = deleted_local_metadata
             .iter()
             .filter_map(|(&id, f)| {

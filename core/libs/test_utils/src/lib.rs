@@ -261,7 +261,7 @@ pub fn assert_server_work_paths(
                     WorkUnit::ServerChange { metadata } => Some((metadata.id, metadata)),
                     _ => None,
                 })
-                .filter(|f| all_local_files.maybe_find(f.0).is_none())
+                .filter(|(id, _)| all_local_files.maybe_find(*id).is_none())
                 .collect::<DecryptedFiles>();
             all_local_files
                 .stage(&new_server_files)

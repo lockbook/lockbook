@@ -167,11 +167,11 @@ where
         self.get(&self.get(&id)?.parent()).cloned()
     }
 
-    fn find_children(&self, id: Uuid) -> HashMap<Uuid, Fm> {
+    fn find_children(&self, folder_id: Uuid) -> HashMap<Uuid, Fm> {
         self.iter()
-            .filter_map(|f| {
-                if f.1.parent() == id && f.0 != &f.1.parent() {
-                    Some((*f.0, f.1.clone()))
+            .filter_map(|(id, file)| {
+                if file.parent() == folder_id && id != &file.parent() {
+                    Some((*id, file.clone()))
                 } else {
                     None
                 }
@@ -311,9 +311,9 @@ where
         let maybe_doc_with_children = self
             .filter_documents()
             .into_iter()
-            .find(|doc| !self.find_children(doc.0).is_empty());
-        if let Some(doc) = maybe_doc_with_children {
-            return Err(TestFileTreeError::DocumentTreatedAsFolder(doc.0));
+            .find(|(id, _)| !self.find_children(*id).is_empty());
+        if let Some((id, _)) = maybe_doc_with_children {
+            return Err(TestFileTreeError::DocumentTreatedAsFolder(id));
         }
 
         let maybe_path_conflict = self

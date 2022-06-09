@@ -39,12 +39,12 @@ impl Tx<'_> {
         let matcher = SkimMatcherV2::default();
 
         let mut results = Vec::new();
-        for f in self.get_all_not_deleted_metadata(RepoSource::Local)? {
-            let path = self.get_path_by_id(f.0)?;
+        for (id, _) in self.get_all_not_deleted_metadata(RepoSource::Local)? {
+            let path = self.get_path_by_id(id)?;
             let path_without_root = path.strip_prefix(&root_name).unwrap_or(&path).to_string();
 
             if let Some(score) = matcher.fuzzy_match(&path_without_root, input) {
-                results.push(SearchResultItem { id: f.0, path: path_without_root, score });
+                results.push(SearchResultItem { id, path: path_without_root, score });
             }
         }
         results.sort();
