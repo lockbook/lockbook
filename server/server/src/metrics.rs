@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::FileUsage;
-use lockbook_models::file_metadata::{EncryptedFileMetadata, EncryptedFiles, FileType};
+use lockbook_models::file_metadata::{EncryptedFileMetadata, EncryptedFiles};
 use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use log::{error, info};
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
