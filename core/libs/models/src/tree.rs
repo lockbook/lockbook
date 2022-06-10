@@ -180,11 +180,10 @@ where
     }
 
     fn filter_deleted(&self) -> Result<HashMap<Uuid, Fm>, TreeError> {
-        // todo!() //look into optimizing. Optimized: I think it's O(n) instead of O(n^2) now
         let mut result = HashMap::new();
         let mut not_deleted = HashMap::new();
         for (id, file) in self {
-            let mut ancestors = HashMap::from([(*id, file.clone())]);
+            let mut ancestors = HashMap::with(file.clone());
             let mut ancestor = file.clone();
             loop {
                 if not_deleted.get(&ancestor.id()).is_none() // check it isn't confirmed as not deleted

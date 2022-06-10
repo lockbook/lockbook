@@ -67,7 +67,7 @@ pub fn apply_create(
         .ok_or(CoreError::FileParentNonexistent)?;
     validate_is_folder(&parent)?;
 
-    let staged_changes = HashMap::from([(file.id(), file.clone())]);
+    let staged_changes = HashMap::with(file.clone());
     if !files.get_path_conflicts(&staged_changes)?.is_empty() {
         return Err(CoreError::PathTaken);
     }
