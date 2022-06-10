@@ -82,8 +82,8 @@ macro_rules! assert_document_count (
             .unwrap()
             .iter()
             .filter(
-                |&f| document_repo::maybe_get(&$core.config, $source, f.id).unwrap().is_some()
-                    || document_repo::maybe_get(&$core.config, RepoSource::Base, f.id).unwrap().is_some()
+                |(id, _)| document_repo::maybe_get(&$core.config, $source, **id).unwrap().is_some()
+                    || document_repo::maybe_get(&$core.config, RepoSource::Base, **id).unwrap().is_some()
                 )
             .count(),
             $total
