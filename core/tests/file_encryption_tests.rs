@@ -2,7 +2,7 @@ use lockbook_core::pure_functions::files;
 use lockbook_core::service::file_encryption_service;
 use lockbook_crypto::symkey;
 use lockbook_models::file_metadata::FileType;
-use lockbook_models::tree::FileMetaExt;
+use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt};
 use test_utils::*;
 use uuid::Uuid;
 
@@ -26,7 +26,7 @@ fn encrypt_decrypt_metadata() {
     let root = files::create_root(&account);
     let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
     let document = files::create(FileType::Folder, folder.id, "document", &account.public_key());
-    let files = [root.clone(), folder.clone(), document.clone()];
+    let files = [root.clone(), folder.clone(), document.clone()].to_map();
 
     let encrypted_files = file_encryption_service::encrypt_metadata(&account, &files).unwrap();
     let decrypted_files =

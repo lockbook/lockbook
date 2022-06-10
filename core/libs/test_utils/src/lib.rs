@@ -7,8 +7,8 @@ use lockbook_core::service::api_service::ApiError;
 use lockbook_core::service::path_service::Filter::DocumentsOnly;
 use lockbook_core::{Config, Core};
 use lockbook_models::api::{AccountTier, FileMetadataUpsertsError, PaymentMethod};
-use lockbook_models::file_metadata::DecryptedFileMetadata;
-use lockbook_models::tree::{FileMetaExt, FileMetadata};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
+use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use lockbook_models::work_unit::WorkUnit;
 use std::collections::HashMap;
 use std::env;
@@ -258,16 +258,16 @@ pub fn assert_server_work_paths(
                 .work_units
                 .into_iter()
                 .filter_map(|wu| match wu {
-                    WorkUnit::ServerChange { metadata } => Some(metadata),
+                    WorkUnit::ServerChange { metadata } => Some((metadata.id, metadata)),
                     _ => None,
                 })
-                .filter(|f| all_local_files.maybe_find(f.id).is_none())
-                .collect::<Vec<DecryptedFileMetadata>>();
+                .filter(|(id, _)| all_local_files.maybe_find(*id).is_none())
+                .collect::<DecryptedFiles>();
             all_local_files
                 .stage(&new_server_files)
                 .into_iter()
-                .map(|s| s.0)
-                .collect::<Vec<DecryptedFileMetadata>>()
+                .map(|(_, (meta, _))| (meta.id, meta))
+                .collect::<DecryptedFiles>()
         })
         .unwrap();
 
@@ -323,7 +323,7 @@ pub fn assert_deleted_files_pruned(core: &Core) {
         for source in [RepoSource::Local, RepoSource::Base] {
             let all_metadata = tx.get_all_metadata(source).unwrap();
             let not_deleted_metadata = tx.get_all_not_deleted_metadata(source).unwrap();
-            if !slices_equal_ignore_order(&all_metadata, &not_deleted_metadata) {
+            if !slices_equal_ignore_order(&all_metadata.values().cloned().collect::<Vec<DecryptedFileMetadata>>(), &not_deleted_metadata.values().cloned().collect::<Vec<DecryptedFileMetadata>>()) {
                 panic!(
                     "some deleted files are not pruned. not_deleted_metadata={:?}; all_metadata={:?}",
                     not_deleted_metadata, all_metadata
