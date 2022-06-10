@@ -11,10 +11,13 @@ use lockbook_models::api::{
     ChangeDocumentContentRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,
 };
 use lockbook_models::crypto::DecryptedDocument;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, EncryptedFileMetadata, FileType};
-use lockbook_models::tree::FileMetaExt;
+use lockbook_models::file_metadata::{
+    DecryptedFileMetadata, DecryptedFiles, EncryptedFiles, FileType,
+};
+use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::fmt;
 
 use super::file_compression_service;
@@ -330,9 +333,12 @@ fn get_resolved_document(
             copied_local_metadata.id,
             &all_metadata_state
                 .iter()
-                .map(|rs| rs.clone().local())
-                .collect::<Vec<DecryptedFileMetadata>>(),
-            &[copied_local_metadata.clone()],
+                .map(|rs| {
+                    let rs_c = rs.clone().local();
+                    (rs_c.id, rs_c)
+                })
+                .collect::<DecryptedFiles>(),
+            &HashMap::from([(copied_local_metadata.id, copied_local_metadata.clone())]),
         )?;
     }
 
@@ -344,7 +350,7 @@ fn should_pull_document(
     maybe_remote: &Option<DecryptedFileMetadata>,
 ) -> bool {
     if let Some(remote) = maybe_remote {
-        remote.file_type == FileType::Document
+        remote.is_document()
             && if let Some(local) = maybe_local {
                 remote.content_version > local.content_version
             } else if let Some(base) = maybe_base {
@@ -404,7 +410,7 @@ impl Tx<'_> {
         let account = &self.get_account()?;
         let base_metadata = self.get_all_metadata(RepoSource::Base)?;
         let base_max_metadata_version = base_metadata
-            .iter()
+            .values()
             .map(|f| f.metadata_version)
             .max()
             .unwrap_or(0);
@@ -416,7 +422,10 @@ impl Tx<'_> {
             GetUpdatesRequest { since_metadata_version: base_max_metadata_version },
         )
         .map_err(CoreError::from)?
-        .file_metadata;
+        .file_metadata
+        .iter()
+        .map(|f| (f.id, f.clone()))
+        .collect();
 
         let local_metadata = self.get_all_metadata(RepoSource::Local)?;
         let (remote_metadata, remote_orphans) = self
@@ -424,11 +433,11 @@ impl Tx<'_> {
         let all_metadata_state = self.get_all_metadata_state()?;
 
         let num_documents_to_pull = remote_metadata_changes
-            .iter()
-            .filter(|&f| {
-                let maybe_remote_metadatum = remote_metadata.maybe_find(f.id);
-                let maybe_base_metadatum = base_metadata.maybe_find(f.id);
-                let maybe_local_metadatum = local_metadata.maybe_find(f.id);
+            .keys()
+            .filter(|&id| {
+                let maybe_remote_metadatum = remote_metadata.maybe_find(*id);
+                let maybe_base_metadatum = base_metadata.maybe_find(*id);
+                let maybe_local_metadatum = local_metadata.maybe_find(*id);
                 should_pull_document(
                     &maybe_base_metadatum,
                     &maybe_local_metadatum,
@@ -438,13 +447,13 @@ impl Tx<'_> {
             .count();
         update_sync_progress(SyncProgressOperation::IncrementTotalWork(num_documents_to_pull));
 
-        let mut base_metadata_updates = Vec::new();
+        let mut base_metadata_updates = HashMap::new();
+        let mut local_metadata_updates = HashMap::new();
         let mut base_document_updates = Vec::new();
-        let mut local_metadata_updates = Vec::new();
         let mut local_document_updates = Vec::new();
 
         // iterate changes
-        for encrypted_remote_metadatum in remote_metadata_changes {
+        for encrypted_remote_metadatum in remote_metadata_changes.values() {
             // skip filtered changes
             if remote_metadata
                 .maybe_find(encrypted_remote_metadatum.id)
@@ -514,19 +523,17 @@ impl Tx<'_> {
         }
 
         // deleted orphaned updates
-        for orphan in remote_orphans {
-            if let Some(mut metadatum) = base_metadata.maybe_find(orphan.id) {
-                if let Some(mut metadatum_update) = base_metadata_updates.maybe_find_mut(orphan.id)
-                {
+        for (id, _) in remote_orphans {
+            if let Some(mut metadatum) = base_metadata.maybe_find(id) {
+                if let Some(mut metadatum_update) = base_metadata_updates.maybe_find_mut(id) {
                     metadatum_update.deleted = true;
                 } else {
                     metadatum.deleted = true;
                     base_metadata_updates.push(metadatum);
                 }
             }
-            if let Some(mut metadatum) = local_metadata.maybe_find(orphan.id) {
-                if let Some(mut metadatum_update) = local_metadata_updates.maybe_find_mut(orphan.id)
-                {
+            if let Some(mut metadatum) = local_metadata.maybe_find(id) {
+                if let Some(mut metadatum_update) = local_metadata_updates.maybe_find_mut(id) {
                     metadatum_update.deleted = true;
                 } else {
                     metadatum.deleted = true;
@@ -663,7 +670,7 @@ impl Tx<'_> {
         let account = &self.get_account()?;
         let base_metadata = self.get_all_metadata(RepoSource::Base)?;
         let base_max_metadata_version = base_metadata
-            .iter()
+            .values()
             .map(|f| f.metadata_version)
             .max()
             .unwrap_or(0);
@@ -673,20 +680,23 @@ impl Tx<'_> {
             GetUpdatesRequest { since_metadata_version: base_max_metadata_version },
         )
         .map_err(CoreError::from)?
-        .file_metadata;
+        .file_metadata
+        .iter()
+        .map(|f| (f.id, f.clone()))
+        .collect();
 
         self.calculate_work_from_updates(config, &server_updates, base_max_metadata_version)
     }
 
     fn calculate_work_from_updates(
-        &self, config: &Config, server_updates: &[EncryptedFileMetadata], mut last_sync: u64,
+        &self, config: &Config, server_updates: &EncryptedFiles, mut last_sync: u64,
     ) -> Result<WorkCalculated, CoreError> {
         let mut work_units: Vec<WorkUnit> = vec![];
         let (all_metadata, _) =
             self.get_all_metadata_with_encrypted_changes(RepoSource::Local, server_updates)?;
-        for metadata in server_updates {
+        for (&id, metadata) in server_updates {
             // skip filtered changes
-            if all_metadata.maybe_find(metadata.id).is_none() {
+            if all_metadata.maybe_find(id).is_none() {
                 continue;
             }
 
@@ -694,20 +704,16 @@ impl Tx<'_> {
                 last_sync = metadata.metadata_version;
             }
 
-            match self.maybe_get_metadata(RepoSource::Local, metadata.id)? {
+            match self.maybe_get_metadata(RepoSource::Local, id)? {
                 None => {
                     if !metadata.deleted {
                         // no work for files we don't have that have been deleted
-                        work_units.push(WorkUnit::ServerChange {
-                            metadata: all_metadata.find(metadata.id)?,
-                        })
+                        work_units.push(WorkUnit::ServerChange { metadata: all_metadata.find(id)? })
                     }
                 }
                 Some(local_metadata) => {
                     if metadata.metadata_version != local_metadata.metadata_version {
-                        work_units.push(WorkUnit::ServerChange {
-                            metadata: all_metadata.find(metadata.id)?,
-                        })
+                        work_units.push(WorkUnit::ServerChange { metadata: all_metadata.find(id)? })
                     }
                 }
             };

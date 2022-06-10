@@ -1,5 +1,5 @@
 use lockbook_core::Core;
-use lockbook_models::tree::FileMetaExt;
+use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt};
 
 use crate::error::CliError;
 
@@ -10,7 +10,7 @@ pub fn tree(core: &Core) -> Result<(), CliError> {
         .list_metadatas()
         .map_err(|err| CliError::unexpected(format!("{}", err)))?;
 
-    println!("{}", files.pretty_print());
+    println!("{}", files.to_map().pretty_print());
 
     Ok(())
 }
