@@ -7,6 +7,7 @@ use lockbook_core::Core;
 use lockbook_core::Error::UiError;
 use lockbook_models::file_metadata::DecryptedFileMetadata;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
+use lockbook_models::tree::FileMetadata;
 use rand::distributions::{Alphanumeric, Distribution, Standard};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -215,7 +216,7 @@ impl Actions {
 
     fn pick_random_parent(core: &Core, rng: &mut StdRng) -> DecryptedFileMetadata {
         let mut possible_parents = core.list_metadatas().unwrap();
-        possible_parents.retain(|meta| meta.file_type == Folder);
+        possible_parents.retain(|meta| meta.is_folder());
         possible_parents.sort_by(Self::deterministic_sort());
 
         let parent_index = rng.gen_range(0..possible_parents.len());
@@ -224,7 +225,7 @@ impl Actions {
 
     fn pick_random_document(core: &Core, rng: &mut StdRng) -> Option<DecryptedFileMetadata> {
         let mut possible_documents = core.list_metadatas().unwrap();
-        possible_documents.retain(|meta| meta.file_type == Document);
+        possible_documents.retain(|meta| meta.is_document());
         possible_documents.sort_by(Self::deterministic_sort());
 
         if !possible_documents.is_empty() {

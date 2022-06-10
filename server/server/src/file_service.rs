@@ -14,9 +14,10 @@ use lockbook_models::api::FileMetadataUpsertsError::{
     GetUpdatesRequired, NewFileHasOldParentAndName, NotPermissioned, RootImmutable,
 };
 use lockbook_models::api::*;
-use lockbook_models::file_metadata::FileType::Document;
-use lockbook_models::file_metadata::{EncryptedFileMetadata, FileMetadataDiff, Owner};
-use lockbook_models::tree::FileMetaExt;
+use lockbook_models::file_metadata::{
+    EncryptedFileMetadata, EncryptedFiles, FileMetadataDiff, Owner,
+};
+use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
 use log::info;
 use redis_utils::converters::{JsonGet, PipelineJsonSet};
 use redis_utils::TxError::Abort;
@@ -39,7 +40,8 @@ pub async fn upsert_file_metadata(
             .await?
             .ok_or(Abort(ClientError(FileMetadataUpsertsError::UserNotFound)))?;
         let keys: Vec<String> = files.into_iter().map(keys::file).collect();
-        let mut files: Vec<EncryptedFileMetadata> = con.watch_json_mget(keys).await?;
+        let files: Vec<EncryptedFileMetadata> = con.watch_json_mget(keys).await?;
+        let mut files = files.to_map();
 
         docs_to_delete = apply_changes(&mut con, now, &owner, &request.updates, &mut files).await?;
 
@@ -47,9 +49,9 @@ pub async fn upsert_file_metadata(
             .verify_integrity()
             .map_err(|_| Abort(ClientError(GetUpdatesRequired)))?;
 
-        for the_file in &files {
+        for the_file in files.values() {
             pipe.json_set(file(the_file.id), the_file)?;
-            if the_file.deleted && the_file.file_type == Document {
+            if the_file.deleted && the_file.is_document() {
                 pipe.del(size(the_file.id));
             }
         }
@@ -99,7 +101,7 @@ fn check_for_changed_root(
 
 async fn apply_changes(
     con: &mut Connection, now: u64, owner: &Owner, changes: &[FileMetadataDiff],
-    metas: &mut Vec<EncryptedFileMetadata>,
+    metas: &mut EncryptedFiles,
 ) -> Result<Vec<EncryptedFileMetadata>, TxError<ServerError<FileMetadataUpsertsError>>> {
     let mut deleted_documents = vec![];
     let mut new_files = vec![];
@@ -122,7 +124,7 @@ async fn apply_changes(
                 meta.folder_access_keys = change.new_folder_access_keys.clone();
                 meta.metadata_version = now;
 
-                if change.new_deleted && meta.file_type == Document {
+                if change.new_deleted && meta.is_document() {
                     deleted_documents.push(meta.clone());
                 }
             }
@@ -143,14 +145,14 @@ async fn apply_changes(
         .filter_deleted()
         .map_err(|_| Abort(ClientError(GetUpdatesRequired)))? // TODO this could be more descriptive
         .into_iter()
-        .filter(|f| !f.deleted)
-        .map(|f| f.id);
+        .filter(|(_, f)| !f.deleted)
+        .map(|(_, f)| f.id);
 
     for id in implicitly_deleted_ids {
         if let Some(implicitly_deleted) = metas.maybe_find_mut(id) {
             implicitly_deleted.deleted = true;
             implicitly_deleted.metadata_version = now;
-            if implicitly_deleted.file_type == Document {
+            if implicitly_deleted.is_document() {
                 deleted_documents.push(implicitly_deleted.clone());
             }
         }

@@ -6,7 +6,7 @@ use lockbook_core::model::errors::GetAndGetChildrenError;
 use lockbook_core::model::errors::GetFileByPathError;
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
-use lockbook_models::file_metadata::FileType;
+use lockbook_models::tree::FileMetadata;
 
 use crate::error::CliError;
 
@@ -18,7 +18,7 @@ pub fn remove(core: &Core, lb_path: &str, force: bool) -> Result<(), CliError> {
         LbError::Unexpected(msg) => CliError::unexpected(msg),
     })?;
 
-    if meta.file_type == FileType::Folder && !force {
+    if meta.is_folder() && !force {
         let children = core
             .get_and_get_children_recursively(meta.id)
             .map_err(|err| match err {
@@ -35,7 +35,7 @@ pub fn remove(core: &Core, lb_path: &str, force: bool) -> Result<(), CliError> {
             "Are you sure you want to delete {} documents? [y/n]: ",
             children
                 .into_iter()
-                .filter(|child| child.file_type == FileType::Document)
+                .filter(|child| child.is_document())
                 .count()
         );
         io::stdout().flush().unwrap();

@@ -12,6 +12,9 @@ use crate::account::{Account, Username};
 use crate::crypto::{AESKey, EncryptedFolderAccessKey, SecretFileName, UserAccessInfo};
 use crate::tree::FileMetadata;
 
+pub type EncryptedFiles = HashMap<Uuid, EncryptedFileMetadata>;
+pub type DecryptedFiles = HashMap<Uuid, DecryptedFileMetadata>;
+
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Deserialize, Serialize, Copy)]
 pub enum FileType {
     Document,

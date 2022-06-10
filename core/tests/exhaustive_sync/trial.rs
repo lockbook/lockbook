@@ -8,6 +8,7 @@ use lockbook_core::Core;
 use lockbook_core::Error::UiError;
 use lockbook_models::api::DeleteAccountRequest;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
+use lockbook_models::tree::FileMetadata;
 use std::time::Instant;
 use std::{fs, thread};
 use test_utils::*;
@@ -212,10 +213,10 @@ impl Trial {
             let all_files = client.list_metadatas().unwrap();
 
             let mut folders = all_files.clone();
-            folders.retain(|f| f.file_type == Folder);
+            folders.retain(|f| f.is_folder());
 
             let mut docs = all_files.clone();
-            docs.retain(|f| f.file_type == Document);
+            docs.retain(|f| f.is_document());
 
             for file in all_files {
                 if file.id != file.parent {

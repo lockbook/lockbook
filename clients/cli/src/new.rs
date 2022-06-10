@@ -4,7 +4,7 @@ use lockbook_core::model::errors::CreateFileAtPathError;
 use lockbook_core::model::errors::FileDeleteError;
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
-use lockbook_models::file_metadata::FileType::Folder;
+use lockbook_models::tree::FileMetadata;
 
 use crate::error::CliError;
 use crate::utils::{
@@ -28,12 +28,12 @@ pub fn new(core: &Core, lb_path: &str) -> Result<(), CliError> {
     })?;
 
     let mut temp_file_path = get_directory_location()?;
-    temp_file_path.push(file_metadata.decrypted_name);
+    temp_file_path.push(&file_metadata.decrypted_name);
     let _ = fs::File::create(&temp_file_path).map_err(|err| {
         CliError::unexpected(format!("couldn't open temporary file for writing: {:#?}", err))
     })?;
 
-    if file_metadata.file_type == Folder {
+    if file_metadata.is_folder() {
         println!("Folder created.");
         return Ok(());
     }
