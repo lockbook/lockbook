@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use reqwest::blocking::Client as ReqwestClient;
+use reqwest::blocking::Client as RequestClient;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -39,7 +39,7 @@ pub enum ApiError<E> {
 }
 
 lazy_static! {
-    static ref CLIENT: ReqwestClient = ReqwestClient::new();
+    static ref CLIENT: RequestClient = RequestClient::new();
 }
 
 pub fn request<
