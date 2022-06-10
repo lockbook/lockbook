@@ -51,7 +51,7 @@ pub fn encrypt_metadata(
                 ))
             })?
             .decrypted_access_key;
-        result.insert(target.id, encrypt_metadatum(account, &parent_key, target)?);
+        result.push(encrypt_metadatum(account, &parent_key, target)?);
     }
     Ok(result)
 }
@@ -117,7 +117,7 @@ pub fn decrypt_metadata(
     for target in files.values() {
         let parent_key = decrypt_file_key(account, target.parent, files, &mut key_cache)?;
         let decrypted_metadatum = decrypt_metadatum(&parent_key, target)?;
-        result.insert(decrypted_metadatum.id, decrypted_metadatum);
+        result.push(decrypted_metadatum);
     }
     Ok(result)
 }

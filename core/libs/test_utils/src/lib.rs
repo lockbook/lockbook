@@ -266,7 +266,7 @@ pub fn assert_server_work_paths(
             all_local_files
                 .stage(&new_server_files)
                 .into_iter()
-                .map(|s| (s.0, s.1 .0))
+                .map(|(_, (meta, _))| (meta.id, meta))
                 .collect::<DecryptedFiles>()
         })
         .unwrap();

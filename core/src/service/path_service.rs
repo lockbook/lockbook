@@ -3,7 +3,7 @@ use crate::pure_functions::files;
 use crate::{Config, CoreError, Tx};
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
-use lockbook_models::tree::FileMetaMapExt;
+use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use uuid::Uuid;
 
 impl Tx<'_> {
@@ -45,7 +45,7 @@ impl Tx<'_> {
                         return Err(CoreError::PathTaken);
                     }
 
-                    if child.file_type == Folder {
+                    if child.is_folder() {
                         current = child;
                         continue 'path; // Child exists, onto the next one
                     } else {
@@ -113,7 +113,7 @@ impl Tx<'_> {
         let mut current_metadata = files.find(id)?;
         let mut path = String::from("");
 
-        let is_folder = current_metadata.file_type == Folder;
+        let is_folder = current_metadata.is_folder();
 
         while current_metadata.parent != current_metadata.id {
             path = format!("{}/{}", current_metadata.decrypted_name, path);
@@ -137,8 +137,8 @@ impl Tx<'_> {
 
         if let Some(filter) = &filter {
             match filter {
-                Filter::DocumentsOnly => filtered_files.retain(|_, f| f.file_type == Document),
-                Filter::FoldersOnly => filtered_files.retain(|_, f| f.file_type == Folder),
+                Filter::DocumentsOnly => filtered_files.retain(|_, f| f.is_document()),
+                Filter::FoldersOnly => filtered_files.retain(|_, f| f.is_folder()),
                 Filter::LeafNodesOnly => filtered_files.retain(|parent_id, _parent| {
                     !files.iter().any(|child| &child.1.parent == parent_id)
                 }),
@@ -150,7 +150,7 @@ impl Tx<'_> {
             let mut current = file.clone();
             let mut current_path = String::from("");
             while current.id != current.parent {
-                if current.file_type == Document {
+                if current.is_document() {
                     current_path = current.decrypted_name;
                 } else {
                     current_path = format!("{}/{}", current.decrypted_name, current_path);

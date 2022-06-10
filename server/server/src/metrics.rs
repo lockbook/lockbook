@@ -5,7 +5,7 @@ use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::FileUsage;
 use lockbook_models::file_metadata::{EncryptedFileMetadata, EncryptedFiles, FileType};
-use lockbook_models::tree::FileMetaMapExt;
+use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use log::{error, info};
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
@@ -173,7 +173,7 @@ pub async fn get_metadatas_and_user_activity_state(
             .await?
             .ok_or_else(|| internal!("Cannot retrieve encrypted file metadata for id: {:?}", id))?;
 
-        metadatas.insert(metadata.id, metadata);
+        metadatas.push(metadata);
 
         tokio::time::sleep(*time_between_redis_calls).await;
     }
@@ -200,7 +200,7 @@ pub async fn calculate_total_document_bytes(
     let mut total_size: u64 = 0;
 
     for metadata in metadatas.values() {
-        if metadata.file_type == FileType::Document && metadata.content_version != 0 {
+        if metadata.is_document() && metadata.content_version != 0 {
             let file_usage: FileUsage = match con.maybe_json_get(keys::size(metadata.id)).await? {
                 Some(usage) => usage,
                 None => continue,

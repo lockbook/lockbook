@@ -14,7 +14,7 @@ use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::{
     DecryptedFileMetadata, DecryptedFiles, EncryptedFiles, FileType,
 };
-use lockbook_models::tree::FileMetaMapExt;
+use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
 use std::collections::HashMap;
@@ -350,7 +350,7 @@ fn should_pull_document(
     maybe_remote: &Option<DecryptedFileMetadata>,
 ) -> bool {
     if let Some(remote) = maybe_remote {
-        remote.file_type == FileType::Document
+        remote.is_document()
             && if let Some(local) = maybe_local {
                 remote.content_version > local.content_version
             } else if let Some(base) = maybe_base {
@@ -472,8 +472,8 @@ impl Tx<'_> {
                 maybe_local_metadatum.clone(),
                 Some(remote_metadatum.clone()),
             )?;
-            base_metadata_updates.insert(remote_metadatum.id, remote_metadatum.clone()); // update base to remote
-            local_metadata_updates.insert(merged_metadatum.id, merged_metadatum.clone()); // update local to merged
+            base_metadata_updates.push(remote_metadatum.clone()); // update base to remote
+            local_metadata_updates.push(merged_metadatum.clone()); // update local to merged
 
             // merge document content
             if should_pull_document(
@@ -511,10 +511,9 @@ impl Tx<'_> {
                     } => {
                         base_document_updates
                             .push((remote_metadata.clone(), remote_document.clone())); // update base to remote
-                        local_metadata_updates.insert(remote_metadata.id, remote_metadata.clone()); // reset conflicted local
+                        local_metadata_updates.push(remote_metadata.clone()); // reset conflicted local
                         local_document_updates.push((remote_metadata.clone(), remote_document)); // reset conflicted local
-                        local_metadata_updates
-                            .insert(copied_local_metadata.id, copied_local_metadata.clone()); // new local metadata from merge
+                        local_metadata_updates.push(copied_local_metadata.clone()); // new local metadata from merge
                         local_document_updates
                             .push((copied_local_metadata.clone(), copied_local_document));
                         // new local document from merge
@@ -530,7 +529,7 @@ impl Tx<'_> {
                     metadatum_update.deleted = true;
                 } else {
                     metadatum.deleted = true;
-                    base_metadata_updates.insert(metadatum.id, metadatum);
+                    base_metadata_updates.push(metadatum);
                 }
             }
             if let Some(mut metadatum) = local_metadata.maybe_find(id) {
@@ -538,7 +537,7 @@ impl Tx<'_> {
                     metadatum_update.deleted = true;
                 } else {
                     metadatum.deleted = true;
-                    local_metadata_updates.insert(metadatum.id, metadatum);
+                    local_metadata_updates.push(metadatum);
                 }
             }
         }
@@ -555,7 +554,7 @@ impl Tx<'_> {
                         existing_update.parent = base.parent;
                     } else {
                         local.parent = base.parent;
-                        local_metadata_updates.insert(local.id, local);
+                        local_metadata_updates.push(local);
                     }
                 }
             }
@@ -577,7 +576,7 @@ impl Tx<'_> {
             } else {
                 let mut new_metadatum_update = local_metadata.find(path_conflict.existing)?;
                 new_metadatum_update.decrypted_name = conflict_name;
-                local_metadata_updates.insert(new_metadatum_update.id, new_metadatum_update);
+                local_metadata_updates.push(new_metadatum_update);
             }
         }
 

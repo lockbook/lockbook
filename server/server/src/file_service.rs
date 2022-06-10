@@ -14,11 +14,10 @@ use lockbook_models::api::FileMetadataUpsertsError::{
     GetUpdatesRequired, NewFileHasOldParentAndName, NotPermissioned, RootImmutable,
 };
 use lockbook_models::api::*;
-use lockbook_models::file_metadata::FileType::Document;
 use lockbook_models::file_metadata::{
     EncryptedFileMetadata, EncryptedFiles, FileMetadataDiff, Owner,
 };
-use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt};
+use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
 use log::info;
 use redis_utils::converters::{JsonGet, PipelineJsonSet};
 use redis_utils::TxError::Abort;
@@ -52,7 +51,7 @@ pub async fn upsert_file_metadata(
 
         for the_file in files.values() {
             pipe.json_set(file(the_file.id), the_file)?;
-            if the_file.deleted && the_file.file_type == Document {
+            if the_file.deleted && the_file.is_document() {
                 pipe.del(size(the_file.id));
             }
         }
@@ -125,7 +124,7 @@ async fn apply_changes(
                 meta.folder_access_keys = change.new_folder_access_keys.clone();
                 meta.metadata_version = now;
 
-                if change.new_deleted && meta.file_type == Document {
+                if change.new_deleted && meta.is_document() {
                     deleted_documents.push(meta.clone());
                 }
             }
@@ -134,7 +133,7 @@ async fn apply_changes(
                     return Err(Abort(ClientError(NewFileHasOldParentAndName)));
                 }
                 let new_meta = new_meta(now, change, owner);
-                metas.insert(new_meta.id, new_meta.clone());
+                metas.push(new_meta.clone());
                 new_files.push(new_meta);
             }
         }
@@ -153,7 +152,7 @@ async fn apply_changes(
         if let Some(implicitly_deleted) = metas.maybe_find_mut(id) {
             implicitly_deleted.deleted = true;
             implicitly_deleted.metadata_version = now;
-            if implicitly_deleted.file_type == Document {
+            if implicitly_deleted.is_document() {
                 deleted_documents.push(implicitly_deleted.clone());
             }
         }

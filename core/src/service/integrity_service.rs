@@ -4,8 +4,7 @@ use crate::pure_functions::drawing;
 use crate::service::file_service;
 use crate::service::integrity_service::TestRepoError::DocumentReadError;
 use crate::{Config, OneKey, Tx};
-use lockbook_models::file_metadata::FileType;
-use lockbook_models::tree::{FileMetaMapExt, TestFileTreeError};
+use lockbook_models::tree::{FileMetaMapExt, FileMetadata, TestFileTreeError};
 
 use std::path::Path;
 
@@ -59,7 +58,7 @@ impl Tx<'_> {
 
         let mut warnings = Vec::new();
         for (id, file) in files.filter_not_deleted().map_err(TestRepoError::Tree)? {
-            if file.file_type == FileType::Document {
+            if file.is_document() {
                 let file_content = file_service::get_document(config, RepoSource::Local, &file)
                     .map_err(|err| DocumentReadError(id, err))?;
 

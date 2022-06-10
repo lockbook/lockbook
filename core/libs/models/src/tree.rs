@@ -199,7 +199,7 @@ where
                     not_deleted.extend(ancestors);
                     break; // root
                 }
-                ancestors.insert(parent.id(), parent.clone());
+                ancestors.push(parent.clone());
                 ancestor = parent;
             }
         }
@@ -218,7 +218,7 @@ where
     fn filter_documents(&self) -> HashMap<Uuid, Fm> {
         self.clone()
             .into_iter()
-            .filter(|(_, f)| f.file_type() == FileType::Document)
+            .filter(|(_, f)| f.is_document())
             .collect()
     }
 
@@ -240,7 +240,7 @@ where
                     result.extend(checking.keys());
                     break;
                 }
-                checking.insert(cur.id(), cur.clone());
+                checking.push(cur.clone());
                 cur = &staged_changes.get(&cur.parent()).unwrap().0;
             }
             prev_checked.extend(checking);

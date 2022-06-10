@@ -20,9 +20,8 @@ use lockbook_models::api::{
     GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse, NewAccountError,
     NewAccountRequest, NewAccountResponse,
 };
-use lockbook_models::file_metadata::FileType::Document;
 use lockbook_models::file_metadata::{EncryptedFileMetadata, EncryptedFiles};
-use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt};
+use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
 
 /// Create a new account given a username, public_key, and root folder.
 /// Checks that username is valid, and that username, public_key and root_folder are new.
@@ -166,7 +165,7 @@ pub async fn delete_account(
 
         for the_file in &files {
             pipe.del(file(the_file.id));
-            if the_file.file_type == Document {
+            if the_file.is_document() {
                 pipe.del(size(the_file.id));
             }
         }

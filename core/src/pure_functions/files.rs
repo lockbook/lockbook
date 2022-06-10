@@ -139,7 +139,7 @@ fn validate_not_root(file: &DecryptedFileMetadata) -> Result<(), CoreError> {
 }
 
 fn validate_is_folder(file: &DecryptedFileMetadata) -> Result<(), CoreError> {
-    if file.file_type == FileType::Folder {
+    if file.is_folder() {
         Ok(())
     } else {
         Err(CoreError::FileNotFolder)
@@ -215,7 +215,7 @@ pub fn find_ancestors<Fm: FileMetadata>(
     let mut result = HashMap::new();
     let mut current_target_id = target_id;
     while let Some(target) = files.maybe_find(current_target_id) {
-        result.insert(target.id(), target.clone());
+        result.push(target.clone());
         if target.id() == target.parent() {
             break;
         }

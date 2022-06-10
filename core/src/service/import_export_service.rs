@@ -2,7 +2,7 @@ use crate::model::filename::NameComponents;
 use crate::model::repo::RepoSource;
 use crate::{Config, CoreError, Tx};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles, FileType};
-use lockbook_models::tree::FileMetaMapExt;
+use lockbook_models::tree::{FileMetadata, FileMetaMapExt};
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -21,7 +21,7 @@ impl Tx<'_> {
         &mut self, config: &Config, sources: &[PathBuf], dest: Uuid, update_status: &F,
     ) -> Result<(), CoreError> {
         let parent = self.get_not_deleted_metadata(RepoSource::Local, dest)?;
-        if parent.file_type == FileType::Document {
+        if parent.is_document() {
             return Err(CoreError::FileNotFolder);
         }
 

@@ -14,7 +14,7 @@ use lockbook_models::file_metadata::FileMetadataDiff;
 use lockbook_models::file_metadata::FileType;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
 use lockbook_models::file_metadata::{EncryptedFileMetadata, EncryptedFiles};
-use lockbook_models::tree::FileMetaMapExt;
+use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use lockbook_models::utils;
 use sha2::Digest;
 use sha2::Sha256;
@@ -101,7 +101,7 @@ impl Tx<'_> {
     ) -> Result<(), CoreError> {
         // check that document exists and is a document
         self.get_metadata(RepoSource::Local, metadata.id)?;
-        if metadata.file_type == FileType::Folder {
+        if metadata.is_folder() {
             return Err(CoreError::FileNotDocument);
         }
 
@@ -209,9 +209,7 @@ impl Tx<'_> {
         metadata_changes: &DecryptedFiles,
     ) -> Result<(), CoreError> {
         for metadatum in metadata_changes.values() {
-            if metadatum.file_type == FileType::Document
-                && local_metadata.maybe_find(metadatum.id).is_none()
-            {
+            if metadatum.is_document() && local_metadata.maybe_find(metadatum.id).is_none() {
                 self.insert_document(config, RepoSource::Local, metadatum, &[])?;
             }
         }
@@ -315,7 +313,7 @@ impl Tx<'_> {
         // remove files from disk
         for (id, file) in deleted_both_without_deleted_descendants_ids {
             self.delete_metadata(id);
-            if file.file_type == FileType::Document {
+            if file.is_document() {
                 self.delete_document(config, id)?;
             }
         }
@@ -429,10 +427,10 @@ impl Tx<'_> {
         for (id, f) in staged {
             if non_orphans.maybe_find(id).is_some() {
                 // only decrypt non-orphans
-                staged_non_orphans.insert(id, f);
+                staged_non_orphans.push(f);
             } else {
                 // deleted orphaned files
-                encrypted_orphans.insert(id, f);
+                encrypted_orphans.push(f);
             }
         }
 
@@ -606,7 +604,7 @@ impl Tx<'_> {
         let doc_metadata: Vec<RepoState<DecryptedFileMetadata>> = self
             .get_all_metadata_state()?
             .into_iter()
-            .filter(|r| r.clone().local().file_type == FileType::Document)
+            .filter(|r| r.clone().local().is_document())
             .collect();
         let mut result = Vec::new();
         for doc_metadatum in doc_metadata {
