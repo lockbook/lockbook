@@ -322,6 +322,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
     )
 }
 
+// Unlike readDocument, this function does not return any specific type of error. Any error will result in this function returning null.
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocumentBytes(
     env: JNIEnv, _: JClass, jid: JString,
@@ -338,7 +339,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocumentBytes(
         None => ::std::ptr::null_mut() as jbyteArray,
         Some(document_bytes) => env
             .byte_array_from_slice(document_bytes.as_slice())
-            .unwrap(),
+            .unwrap_or(::std::ptr::null_mut() as jbyteArray),
     }
 }
 
@@ -535,7 +536,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportFile(
             Err(err) => return err,
         };
 
-    println!("YO WHAT THE {}", jedit);
     let edit = jedit == 1;
 
     string_to_jstring(
