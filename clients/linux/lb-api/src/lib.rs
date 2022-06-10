@@ -47,6 +47,7 @@ pub use lockbook_core::service::usage_service::bytes_to_human;
 pub use lockbook_core::service::usage_service::UsageItemMetric;
 pub use lockbook_core::service::usage_service::UsageMetrics;
 
+use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -139,10 +140,7 @@ pub struct DefaultApi {
 
 impl DefaultApi {
     pub fn new() -> Result<Self, String> {
-        let lockbook_dir = std::env::var("LOCKBOOK_PATH")
-            .unwrap_or_else(|_| format!("{}/.lockbook", std::env::var("HOME").unwrap()));
-
-        let writeable_path = format!("{}/linux", lockbook_dir);
+        let writeable_path = format!("{}/linux", data_dir());
 
         let core = Core::init(&Config { logs: true, writeable_path }).map_err(|e| e.0)?;
 
@@ -300,6 +298,15 @@ impl Api for DefaultApi {
     ) -> Result<(), Error<SwitchAccountTierError>> {
         self.core.switch_account_tier(new_tier)
     }
+}
+
+pub fn data_dir() -> String {
+    const ERR_MSG: &str = "Unable to determine a Lockbook data directory.\
+ Please consider setting the LOCKBOOK_PATH environment variable.";
+
+    env::var("LOCKBOOK_PATH").unwrap_or_else(|_| {
+        format!("{}/.lockbook", env::var("HOME").unwrap_or_else(|_| env::var("HOMEPATH").expect(ERR_MSG)))
+    })
 }
 
 pub fn parent_info(api: &Arc<dyn Api>, maybe_id: Option<Uuid>) -> Result<(Uuid, String), String> {
