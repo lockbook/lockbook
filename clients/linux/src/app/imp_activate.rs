@@ -1,4 +1,3 @@
-use std::env;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
@@ -13,8 +12,7 @@ use crate::ui;
 
 impl super::App {
     pub fn activate(api: Arc<dyn lb::Api>, a: &gtk::Application) {
-        let writeable_path =
-            env::var("LOCKBOOK_PATH").unwrap_or(format!("{}/.lockbook", env::var("HOME").unwrap()));
+        let data_dir = lb::data_dir();
 
         let titlebar = ui::Titlebar::new();
 
@@ -24,7 +22,7 @@ impl super::App {
         let window = gtk::ApplicationWindow::new(a);
         window.set_child(Some(&overlay));
 
-        let settings = match Settings::from_data_dir(&writeable_path) {
+        let settings = match Settings::from_data_dir(&data_dir) {
             Ok(s) => Arc::new(RwLock::new(s)),
             Err(err) => {
                 let msg = format!("unable to read settings file: {}", err);
@@ -33,7 +31,7 @@ impl super::App {
             }
         };
 
-        let lang_mngr = match new_language_manager(&writeable_path) {
+        let lang_mngr = match new_language_manager(&data_dir) {
             Ok(lm) => lm,
             Err(err) => {
                 let msg = format!("unable to write custom language file: {}", err);
