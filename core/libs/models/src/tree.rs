@@ -263,7 +263,7 @@ where
                 continue;
             };
             let name = f.name();
-            let parent_children = name_tree.entry(parent_id).or_insert_with(HashMap::new); //from([(id, f)]));
+            let parent_children = name_tree.entry(parent_id).or_insert_with(HashMap::new);
             let cloned_id = *id;
 
             if let Some(conflicting_child_id) = parent_children.get(&name) {
