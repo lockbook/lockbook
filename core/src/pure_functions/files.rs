@@ -10,8 +10,7 @@ use uuid::Uuid;
 use lockbook_crypto::symkey;
 use lockbook_models::account::Account;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles, FileType, Owner};
-use lockbook_models::tree::FileMetadata;
-use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt};
+use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
 
 use crate::model::filename::NameComponents;
 use crate::{model::repo::RepoState, CoreError};
