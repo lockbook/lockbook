@@ -208,7 +208,6 @@ where
     }
 
     fn filter_not_deleted(&self) -> Result<HashMap<Uuid, Fm>, TreeError> {
-        // need rework, especially if allowed to change output of filter_deleted
         let deleted = self.filter_deleted()?;
         Ok(self
             .clone()
