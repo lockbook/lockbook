@@ -110,7 +110,7 @@ sealed class DetailsScreen(open val fileMetadata: DecryptedFileMetadata) {
 
     data class ImageViewer(
         override val fileMetadata: DecryptedFileMetadata,
-        val bitMap: Bitmap
+        val bitmap: Bitmap
     ) : DetailsScreen(fileMetadata)
 
     data class PdfViewer(

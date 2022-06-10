@@ -194,7 +194,7 @@ object CoreModel {
             app.lockbook.core.getFileById(id)
         )
 
-    private val readDocument = Json {
+    private val readDocumentParser = Json {
         serializersModule = SerializersModule {
             createPolyRelation(String.serializer(), ReadDocumentError.serializer())
         }
@@ -203,7 +203,7 @@ object CoreModel {
     fun readDocument(
         id: String
     ): Result<String, CoreError<ReadDocumentError>> =
-        readDocument.tryParse(app.lockbook.core.readDocument(id))
+        readDocumentParser.tryParse(app.lockbook.core.readDocument(id))
 
     fun readDocumentBytes(
         id: String

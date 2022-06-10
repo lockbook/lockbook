@@ -36,7 +36,7 @@ class ImageViewerFragment : Fragment() {
         savedInstanceState: Bundle?
     ) {
         binding.imageViewToolbar.title = imageViewerInfo.fileMetadata.decryptedName
-        binding.imageViewer.setImageBitmap(imageViewerInfo.bitMap)
+        binding.imageViewer.setImageBitmap(imageViewerInfo.bitmap)
         binding.imageViewer.setOnClickListener {
             if (isToolbarVisible) {
                 isToolbarVisible = false
