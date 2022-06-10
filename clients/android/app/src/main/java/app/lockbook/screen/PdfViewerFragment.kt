@@ -124,6 +124,5 @@ class PdfViewerFragment : Fragment() {
 }
 
 const val PDF_PAGE_KEY = "pdf_page_key"
-const val IS_TOOLBAR_VISIBLE_KEY = "is_toolbar_visible_key"
 const val IS_TOOLBAR_VISIBLE_BY_CLICK_KEY = "is_toolbar_visible_by_click_key"
 const val TOOLBAR_VISIBILITY_OFFSET = 0.01

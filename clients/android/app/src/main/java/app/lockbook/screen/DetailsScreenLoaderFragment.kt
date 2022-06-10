@@ -67,3 +67,5 @@ class DetailsScreenLoaderFragment : Fragment() {
         return binding.root
     }
 }
+
+const val IS_TOOLBAR_VISIBLE_KEY = "is_toolbar_visible_key"

@@ -34,7 +34,7 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
     }
 
     private fun loadContent(loadingInfo: DetailsScreen.Loading) {
-        val extensionHelper = ExtensionHelper(File(loadingInfo.fileMetadata.decryptedName).extension)
+        val extensionHelper = ExtensionHelper(loadingInfo.fileMetadata.decryptedName)
 
         val updateUI = when {
             extensionHelper.isDrawing -> {
@@ -124,7 +124,9 @@ sealed class UpdateDetailScreenLoaderUI {
     data class NotifyError(val error: LbError) : UpdateDetailScreenLoaderUI()
 }
 
-class ExtensionHelper(private val extension: String) {
+class ExtensionHelper(fileName: String) {
+    val extension = File(fileName).extension
+
     val isImage: Boolean
         get() = extension in setOf(
             "jpeg",

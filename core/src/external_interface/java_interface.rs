@@ -322,7 +322,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
     )
 }
 
-// Unlike readDocument, this function does not return any specific type of error. Any error will result in this function returning null.
+// Unlike readDocument, this function does not return any specific type  of error. Any error will result in this function returning null.
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocumentBytes(
     env: JNIEnv, _: JClass, jid: JString,
