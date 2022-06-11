@@ -6,6 +6,7 @@ use std::io;
 pub struct Settings {
     pub hidden_tree_cols: Vec<String>,
     pub window_maximize: bool,
+    pub open_new_files: bool,
     pub auto_save: bool,
     pub auto_sync: bool,
     #[serde(skip_serializing, skip_deserializing)]
@@ -37,6 +38,7 @@ impl Default for Settings {
         Self {
             hidden_tree_cols: vec!["Id".to_string(), "Type".to_string()],
             window_maximize: false,
+            open_new_files: true,
             auto_save: true,
             auto_sync: true,
             path: "".to_string(),

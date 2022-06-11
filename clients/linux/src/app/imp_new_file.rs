@@ -95,16 +95,18 @@ impl super::App {
             }
 
             match app.api.create_file(&fname, parent_id, ftype.lb_type()) {
-                Ok(new_file) => {
-                    match app.account.tree.add_file(&new_file) {
-                        Ok(_) => {
-                            app.update_sync_status();
-                            d.close();
-                            //open the file if doc?
+                Ok(new_file) => match app.account.tree.add_file(&new_file) {
+                    Ok(_) => {
+                        app.update_sync_status();
+                        d.close();
+                        if new_file.file_type == lb::FileType::Document
+                            && app.settings.read().unwrap().open_new_files
+                        {
+                            app.open_file(new_file.id)
                         }
-                        Err(err) => display_error(&err),
                     }
-                }
+                    Err(err) => display_error(&err),
+                },
                 Err(err) => display_error(&{
                     use lb::CreateFileError::*;
                     match err {
