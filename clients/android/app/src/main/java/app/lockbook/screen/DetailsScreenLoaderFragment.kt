@@ -11,6 +11,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.databinding.FragmentLoadingScreenBinding
 import app.lockbook.model.*
+import java.io.File
 import java.lang.ref.WeakReference
 
 class DetailsScreenLoaderFragment : Fragment() {
@@ -46,6 +47,10 @@ class DetailsScreenLoaderFragment : Fragment() {
         }
     }
 
+    fun deleteDownloadedFileIfExists() {
+        File(requireContext().cacheDir, OPENED_FILE_FOLDER + model.loadingInfo.fileMetadata.decryptedName).delete()
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -60,3 +65,5 @@ class DetailsScreenLoaderFragment : Fragment() {
         return binding.root
     }
 }
+
+const val IS_TOOLBAR_VISIBLE_KEY = "is_toolbar_visible_key"
