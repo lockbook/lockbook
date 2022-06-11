@@ -1,0 +1,60 @@
+package app.lockbook.screen
+
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
+import app.lockbook.databinding.FragmentImageViewerBinding
+import app.lockbook.model.DetailsScreen
+import app.lockbook.model.StateViewModel
+import app.lockbook.util.Animate
+
+class ImageViewerFragment : Fragment() {
+    private var _binding: FragmentImageViewerBinding? = null
+    private val binding get() = _binding!!
+
+    private val activityModel: StateViewModel by activityViewModels()
+    private var isToolbarVisible = true
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentImageViewerBinding.inflate(inflater, container, false)
+        val imageViewerInfo = activityModel.detailsScreen as DetailsScreen.ImageViewer
+
+        setUpImageAndToolbar(imageViewerInfo, savedInstanceState)
+
+        return binding.root
+    }
+
+    private fun setUpImageAndToolbar(
+        imageViewerInfo: DetailsScreen.ImageViewer,
+        savedInstanceState: Bundle?
+    ) {
+        binding.imageViewToolbar.title = imageViewerInfo.fileMetadata.decryptedName
+        binding.imageViewer.setImageBitmap(imageViewerInfo.bitmap)
+        binding.imageViewer.setOnClickListener {
+            if (isToolbarVisible) {
+                isToolbarVisible = false
+                Animate.animateVisibility(binding.imageViewToolbar, View.GONE, 0, 200)
+            } else {
+                isToolbarVisible = true
+                Animate.animateVisibility(binding.imageViewToolbar, View.VISIBLE, 255, 200)
+            }
+        }
+
+        if (savedInstanceState?.getBoolean(IS_TOOLBAR_VISIBLE_KEY) == false) {
+            isToolbarVisible = false
+            Animate.animateVisibility(binding.imageViewToolbar, View.GONE, 0, 200)
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean(IS_TOOLBAR_VISIBLE_KEY, isToolbarVisible)
+        super.onSaveInstanceState(outState)
+    }
+}
