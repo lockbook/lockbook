@@ -156,4 +156,16 @@
         <item name="android:textColor">@color/colorPrimary</item>
         <item name="android:textAllCaps">false</item>
     </style>
+
+    <style name="Main.Pdf.PageIndicator" parent="Widget.MaterialComponents.CardView">
+        <item name="shapeAppearanceOverlay">@style/Main.Pdf.PageIndicator.Overlay</item>
+        <item name="cardBackgroundColor">@color/pdfPageIndicatorBackgroundColor</item>
+    </style>
+
+    <style name="Main.Pdf.PageIndicator.Overlay" parent="">
+        <item name="cornerSizeTopLeft">5dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
+        <item name="cornerSizeTopRight">0dp</item>
+    </style>
 </resources>

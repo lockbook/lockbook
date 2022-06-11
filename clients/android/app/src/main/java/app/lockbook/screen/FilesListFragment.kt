@@ -6,7 +6,9 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.method.LinkMovementMethod
-import android.view.*
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
 import androidx.fragment.app.Fragment
@@ -20,7 +22,6 @@ import app.lockbook.databinding.FragmentFilesListBinding
 import app.lockbook.model.*
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
-import app.lockbook.util.FilesFragment
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.viewholder.isSelected
 import com.afollestad.recyclical.withItem
@@ -275,20 +276,27 @@ class FilesListFragment : Fragment(), FilesFragment {
                         CoreModel.convertToHumanDuration(item.metadataVersion)
                     )
 
-                    when {
+                    val extensionHelper = ExtensionHelper(item.decryptedName)
+
+                    val imageResource = when {
                         isSelected() -> {
-                            icon.setImageResource(R.drawable.ic_baseline_check_24)
+                            R.drawable.ic_baseline_check_24
                         }
-                        item.fileType == FileType.Document && item.decryptedName.endsWith(".draw") -> {
-                            icon.setImageResource(R.drawable.ic_baseline_border_color_24)
+                        item.fileType == FileType.Document && extensionHelper.isDrawing -> {
+                            R.drawable.ic_baseline_border_color_24
+                        }
+                        item.fileType == FileType.Document && extensionHelper.isImage -> {
+                            R.drawable.ic_baseline_image_24
                         }
                         item.fileType == FileType.Document -> {
-                            icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
+                            R.drawable.ic_baseline_insert_drive_file_24
                         }
                         else -> {
-                            icon.setImageResource(R.drawable.round_folder_white_18dp)
+                            R.drawable.round_folder_white_18dp
                         }
                     }
+
+                    icon.setImageResource(imageResource)
 
                     itemView.background.setTint(
                         ResourcesCompat.getColor(

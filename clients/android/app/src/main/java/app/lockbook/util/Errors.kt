@@ -336,6 +336,22 @@ enum class CalculateWorkError : UiCoreError {
     }
 }
 
+@Serializable
+enum class ExportFileError : UiCoreError {
+    NoAccount,
+    ParentDoesNotExist,
+    DiskPathTaken,
+    DiskPathInvalid;
+
+    override fun toLbError(res: Resources): LbError = when (this) {
+        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
+        ParentDoesNotExist -> LbError.newUserError(getString(res, R.string.could_not_find_a_parent))
+        // Used basic errors since specific errors are not useful to the user
+        DiskPathTaken -> LbError.newUserError(getString(res, R.string.basic_error))
+        DiskPathInvalid -> LbError.newUserError(getString(res, R.string.basic_error))
+    }
+}
+
 val <T> T.exhaustive: T
     get() = this
 
