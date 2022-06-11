@@ -4,7 +4,7 @@ use crate::service::api_service::ApiError;
 use crate::{CoreError, Tx};
 use lockbook_models::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequest,
-    StripeAccountTier, SubscriptionInfo, UpgradeAccountAndroidError, UpgradeAccountAndroidRequest,
+    StripeAccountTier, SubscriptionInfo, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,
     UpgradeAccountStripeError, UpgradeAccountStripeRequest,
 };
 
@@ -48,26 +48,26 @@ impl Tx<'_> {
         Ok(())
     }
 
-    pub fn upgrade_account_android(
+    pub fn upgrade_account_google_play(
         &self, purchase_token: &str, account_id: &str,
     ) -> Result<(), CoreError> {
         let account = self.get_account()?;
 
         api_service::request(
             &account,
-            UpgradeAccountAndroidRequest {
+            UpgradeAccountGooglePlayRequest {
                 purchase_token: purchase_token.to_string(),
                 account_id: account_id.to_string(),
             },
         )
         .map_err(|err| match err {
-            ApiError::Endpoint(UpgradeAccountAndroidError::AlreadyPremium) => {
+            ApiError::Endpoint(UpgradeAccountGooglePlayError::AlreadyPremium) => {
                 CoreError::AlreadyPremium
             }
-            ApiError::Endpoint(UpgradeAccountAndroidError::InvalidPurchaseToken) => {
+            ApiError::Endpoint(UpgradeAccountGooglePlayError::InvalidPurchaseToken) => {
                 CoreError::InvalidPurchaseToken
             }
-            ApiError::Endpoint(UpgradeAccountAndroidError::ExistingRequestPending) => {
+            ApiError::Endpoint(UpgradeAccountGooglePlayError::ExistingRequestPending) => {
                 CoreError::ExistingRequestPending
             }
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,

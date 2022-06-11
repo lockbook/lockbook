@@ -122,7 +122,7 @@ pub async fn get_usage(
 
     let usages = get_usage_helper(&mut con, &context.public_key).await?;
 
-    Ok(GetUsageResponse { usages, cap: sub_profile.data_cap })
+    Ok(GetUsageResponse { usages, cap: sub_profile.data_cap() })
 }
 
 #[derive(Debug)]

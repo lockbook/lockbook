@@ -1,7 +1,7 @@
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_models::api::{
-    UpgradeAccountAndroidError, UpgradeAccountAndroidRequest, UpgradeAccountStripeRequest,
+    UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest, UpgradeAccountStripeRequest,
 };
 use test_utils::{
     assert_matches, generate_premium_account_tier, test_core_with_account, test_credit_cards,
@@ -24,13 +24,13 @@ fn upgrade_account_android_already_premium() {
     // try to upgrade to premium with android
     let result = api_service::request(
         &account,
-        UpgradeAccountAndroidRequest { purchase_token: "".to_string(), account_id: "".to_string() },
+        UpgradeAccountGooglePlayRequest { purchase_token: "".to_string(), account_id: "".to_string() },
     );
 
     assert_matches!(
         result,
-        Err(ApiError::<UpgradeAccountAndroidError>::Endpoint(
-            UpgradeAccountAndroidError::AlreadyPremium
+        Err(ApiError::<UpgradeAccountGooglePlayError>::Endpoint(
+            UpgradeAccountGooglePlayError::AlreadyPremium
         ))
     );
 }
@@ -44,13 +44,13 @@ fn upgrade_account_android_invalid_purchase_token() {
     // upgrade with bad purchase token
     let result = api_service::request(
         &account,
-        UpgradeAccountAndroidRequest { purchase_token: "".to_string(), account_id: "".to_string() },
+        UpgradeAccountGooglePlayRequest { purchase_token: "".to_string(), account_id: "".to_string() },
     );
 
     assert_matches!(
         result,
-        Err(ApiError::<UpgradeAccountAndroidError>::Endpoint(
-            UpgradeAccountAndroidError::InvalidPurchaseToken
+        Err(ApiError::<UpgradeAccountGooglePlayError>::Endpoint(
+            UpgradeAccountGooglePlayError::InvalidPurchaseToken
         ))
     );
 }

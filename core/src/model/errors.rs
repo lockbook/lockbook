@@ -776,7 +776,7 @@ impl From<CoreError> for Error<UpgradeAccountStripeError> {
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum UpgradeAccountAndroidError {
+pub enum UpgradeAccountGooglePlayError {
     AlreadyPremium,
     InvalidPurchaseToken,
     ExistingRequestPending,
@@ -784,21 +784,21 @@ pub enum UpgradeAccountAndroidError {
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<UpgradeAccountAndroidError> {
+impl From<CoreError> for Error<UpgradeAccountGooglePlayError> {
     fn from(e: CoreError) -> Self {
         match e {
-            CoreError::AlreadyPremium => UiError(UpgradeAccountAndroidError::AlreadyPremium),
+            CoreError::AlreadyPremium => UiError(UpgradeAccountGooglePlayError::AlreadyPremium),
             CoreError::InvalidPurchaseToken => {
-                UiError(UpgradeAccountAndroidError::InvalidPurchaseToken)
+                UiError(UpgradeAccountGooglePlayError::InvalidPurchaseToken)
             }
             CoreError::ExistingRequestPending => {
-                UiError(UpgradeAccountAndroidError::ExistingRequestPending)
+                UiError(UpgradeAccountGooglePlayError::ExistingRequestPending)
             }
             CoreError::ServerUnreachable => {
-                UiError(UpgradeAccountAndroidError::CouldNotReachServer)
+                UiError(UpgradeAccountGooglePlayError::CouldNotReachServer)
             }
             CoreError::ClientUpdateRequired => {
-                UiError(UpgradeAccountAndroidError::ClientUpdateRequired)
+                UiError(UpgradeAccountGooglePlayError::ClientUpdateRequired)
             }
             _ => unexpected!("{:#?}", e),
         }

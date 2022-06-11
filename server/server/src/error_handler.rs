@@ -5,7 +5,7 @@ use crate::{
 };
 use deadpool_redis::PoolError;
 use lockbook_models::api::{
-    CancelSubscriptionError, GetUsageError, UpgradeAccountAndroidError, UpgradeAccountStripeError,
+    CancelSubscriptionError, GetUsageError, UpgradeAccountGooglePlayError, UpgradeAccountStripeError,
 };
 use redis::RedisError;
 use redis_utils::converters::{JsonGetError, JsonSetError};
@@ -68,11 +68,11 @@ impl From<GetUsageHelperError> for ServerError<GetUsageError> {
     }
 }
 
-impl From<SimpleGCPError> for ServerError<UpgradeAccountAndroidError> {
+impl From<SimpleGCPError> for ServerError<UpgradeAccountGooglePlayError> {
     fn from(e: SimpleGCPError) -> Self {
         match e {
             SimpleGCPError::PurchaseTokenNotFound => {
-                ClientError(UpgradeAccountAndroidError::InvalidPurchaseToken)
+                ClientError(UpgradeAccountGooglePlayError::InvalidPurchaseToken)
             }
             SimpleGCPError::Unexpected(msg) => internal!("{}", msg),
         }

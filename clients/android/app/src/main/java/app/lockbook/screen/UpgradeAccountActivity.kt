@@ -80,7 +80,7 @@ class UpgradeAccountActivity : AppCompatActivity() {
 
                     withContext(Dispatchers.IO) {
                         val confirmResult =
-                            CoreModel.upgradeAccountAndroid(billingEvent.purchaseToken, billingEvent.accountId)
+                            CoreModel.upgradeAccountGooglePlay(billingEvent.purchaseToken, billingEvent.accountId)
                         withContext(Dispatchers.Main) {
 
                             when (confirmResult) {

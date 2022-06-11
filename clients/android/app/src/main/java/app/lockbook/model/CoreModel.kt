@@ -15,7 +15,7 @@ import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
 
 object CoreModel {
-    private const val PROD_API_URL = "api.prod.lockbook.net"
+    private const val PROD_API_URL = "https://api.prod.lockbook.net"
     private fun getAPIURL(): String = System.getenv("API_URL") ?: PROD_API_URL
 
     private fun <O, E : Enum<E>> SerializersModuleBuilder.createPolyRelation(
@@ -310,15 +310,15 @@ object CoreModel {
             app.lockbook.core.calculateWork()
         )
 
-    private val upgradeAccountAndroidParser = Json {
+    private val upgradeAccountGooglePlayParser = Json {
         serializersModule = SerializersModule {
             createPolyRelation(Unit.serializer(), UpgradeAccountAndroid.serializer())
         }
     }
 
-    fun upgradeAccountAndroid(purchaseToken: String, accountID: String): Result<Boolean, CoreError<UpgradeAccountAndroid>> =
-        upgradeAccountAndroidParser.tryParse(
-            app.lockbook.core.upgradeAccountAndroid(purchaseToken, accountID)
+    fun upgradeAccountGooglePlay(purchaseToken: String, accountID: String): Result<Boolean, CoreError<UpgradeAccountAndroid>> =
+        upgradeAccountGooglePlayParser.tryParse(
+            app.lockbook.core.upgradeAccountGooglePlay(purchaseToken, accountID)
         )
 
     private val cancelSubscriptionParser = Json {

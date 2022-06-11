@@ -87,7 +87,7 @@ pub fn core_routes(
         .or(core_req!(GetUsageRequest, get_usage, server_state))
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
         .or(core_req!(DeleteAccountRequest, delete_account, server_state))
-        .or(core_req!(UpgradeAccountAndroidRequest, upgrade_account_android, server_state))
+        .or(core_req!(UpgradeAccountGooglePlayRequest, upgrade_account_google_play, server_state))
         .or(core_req!(UpgradeAccountStripeRequest, upgrade_account_stripe, server_state))
         .or(core_req!(CancelSubscriptionRequest, cancel_subscription, server_state))
         .or(core_req!(GetSubscriptionInfoRequest, get_subscription_info, server_state))

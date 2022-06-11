@@ -519,7 +519,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateWork(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_upgradeAccountAndroid(
+pub extern "system" fn Java_app_lockbook_core_CoreKt_upgradeAccountGooglePlay(
     env: JNIEnv, _: JClass, jpurchase_token: JString, jaccount_id: JString,
 ) -> jstring {
     let purchase_token = &match jstring_to_string(&env, jpurchase_token, "purchase token") {
@@ -535,7 +535,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_upgradeAccountAndroid(
     string_to_jstring(
         &env,
         match static_state::get() {
-            Ok(core) => translate(core.upgrade_account_android(purchase_token, account_id)),
+            Ok(core) => translate(core.upgrade_account_google_play(purchase_token, account_id)),
             e => translate(e.map(|_| ())),
         },
     )

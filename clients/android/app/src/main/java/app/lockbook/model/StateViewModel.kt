@@ -100,7 +100,7 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
     fun confirmSubscription(purchaseToken: String, accountID: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val confirmSubscriptionResult =
-                CoreModel.upgradeAccountAndroid(purchaseToken, accountID)
+                CoreModel.upgradeAccountGooglePlay(purchaseToken, accountID)
 
             when (confirmSubscriptionResult) {
                 is Ok -> {

@@ -28,6 +28,6 @@ class UpgradeAccountAndroidTest {
     fun upgradeAccountAndroidInvalidPurchaseToken() {
         CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        CoreModel.upgradeAccountAndroid("", "").unwrapErrorType(UpgradeAccountAndroid.InvalidPurchaseToken)
+        CoreModel.upgradeAccountGooglePlay("", "").unwrapErrorType(UpgradeAccountAndroid.InvalidPurchaseToken)
     }
 }

@@ -323,26 +323,26 @@ impl Request for UpgradeAccountStripeRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct UpgradeAccountAndroidRequest {
+pub struct UpgradeAccountGooglePlayRequest {
     pub purchase_token: String,
     pub account_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct UpgradeAccountAndroidResponse {}
+pub struct UpgradeAccountGooglePlayResponse {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum UpgradeAccountAndroidError {
+pub enum UpgradeAccountGooglePlayError {
     AlreadyPremium,
     InvalidPurchaseToken,
     ExistingRequestPending,
 }
 
-impl Request for UpgradeAccountAndroidRequest {
-    type Response = UpgradeAccountAndroidResponse;
-    type Error = UpgradeAccountAndroidError;
+impl Request for UpgradeAccountGooglePlayRequest {
+    type Response = UpgradeAccountGooglePlayResponse;
+    type Error = UpgradeAccountGooglePlayError;
     const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/upgrade-account-android";
+    const ROUTE: &'static str = "/upgrade-account-google-play";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -371,7 +371,7 @@ pub struct GetSubscriptionInfoRequest {}
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct SubscriptionInfo {
     pub payment_platform: PaymentPlatform,
-    pub period_end: UnixTime,
+    pub period_end: UnixTimeMillis,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -405,4 +405,4 @@ impl Request for GetSubscriptionInfoRequest {
 }
 
 // number of milliseconds that have elapsed since the unix epoch
-pub type UnixTime = u64;
+pub type UnixTimeMillis = u64;

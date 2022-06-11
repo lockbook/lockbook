@@ -365,12 +365,12 @@ impl Core {
     }
 
     #[instrument(level = "debug", skip(purchase_token), err(Debug))]
-    pub fn upgrade_account_android(
+    pub fn upgrade_account_google_play(
         &self, purchase_token: &str, account_id: &str,
-    ) -> Result<(), Error<UpgradeAccountAndroidError>> {
+    ) -> Result<(), Error<UpgradeAccountGooglePlayError>> {
         let val = self
             .db
-            .transaction(|tx| tx.upgrade_account_android(purchase_token, account_id))?;
+            .transaction(|tx| tx.upgrade_account_google_play(purchase_token, account_id))?;
         Ok(val?)
     }
 
