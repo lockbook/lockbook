@@ -33,9 +33,9 @@ impl super::App {
         name_and_ext.append(&ext_lbl);
 
         let ftype_choices = ui::ToggleGroup::with_buttons(&[
-            ("Folder", NewFileType::Folder),
-            ("Plain Text", NewFileType::PlainText),
             ("Markdown", NewFileType::Markdown),
+            ("Plain Text", NewFileType::PlainText),
+            ("Folder", NewFileType::Folder),
         ]);
         ftype_choices.connect_changed(move |value: NewFileType| {
             if let Some(ext) = value.ext() {
@@ -171,14 +171,14 @@ fn action_btn(text: &str) -> gtk::Button {
 
 #[derive(Clone, Copy, PartialEq)]
 enum NewFileType {
-    Folder,
-    PlainText,
     Markdown,
+    PlainText,
+    Folder,
 }
 
 impl Default for NewFileType {
     fn default() -> Self {
-        Self::Folder
+        Self::Markdown
     }
 }
 
@@ -192,8 +192,9 @@ impl NewFileType {
 
     fn ext(&self) -> Option<&str> {
         match self {
-            Self::PlainText | Self::Folder => None,
             Self::Markdown => Some(".md"),
+            Self::PlainText => Some(".txt"),
+            Self::Folder => None,
         }
     }
 }
