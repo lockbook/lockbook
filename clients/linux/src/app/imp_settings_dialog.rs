@@ -247,6 +247,13 @@ impl super::App {
         });
 
         let s = self.settings.clone();
+        let open_new_files = gtk::CheckButton::with_label("Open newly created files");
+        open_new_files.set_active(s.read().unwrap().open_new_files);
+        open_new_files.connect_toggled(move |open_new_files| {
+            s.write().unwrap().open_new_files = open_new_files.is_active();
+        });
+
+        let s = self.settings.clone();
         let auto_save = gtk::CheckButton::with_label("Auto-save");
         auto_save.set_active(s.read().unwrap().auto_save);
         auto_save.connect_toggled(move |auto_save| {
@@ -262,6 +269,7 @@ impl super::App {
 
         let general = section();
         general.append(&maximize);
+        general.append(&open_new_files);
         general.append(&auto_save);
         general.append(&auto_sync);
         general
