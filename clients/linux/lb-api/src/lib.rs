@@ -4,6 +4,7 @@ pub use lockbook_models::account::Account;
 pub use lockbook_models::api::AccountTier;
 pub use lockbook_models::api::PaymentMethod;
 pub use lockbook_models::crypto::DecryptedDocument;
+pub use lockbook_models::drawing::{ColorAlias, ColorRGB};
 pub use lockbook_models::file_metadata::DecryptedFileMetadata as FileMetadata;
 pub use lockbook_models::file_metadata::FileType;
 pub use lockbook_models::work_unit::ClientWorkUnit;
@@ -20,6 +21,7 @@ pub use lockbook_core::model::errors::AccountExportError as ExportAccountError;
 pub use lockbook_core::model::errors::CalculateWorkError;
 pub use lockbook_core::model::errors::CreateAccountError;
 pub use lockbook_core::model::errors::CreateFileError;
+pub use lockbook_core::model::errors::ExportDrawingError;
 pub use lockbook_core::model::errors::ExportFileError;
 pub use lockbook_core::model::errors::FileDeleteError;
 pub use lockbook_core::model::errors::GetAndGetChildrenError;
@@ -37,6 +39,8 @@ pub use lockbook_core::model::errors::SwitchAccountTierError;
 pub use lockbook_core::model::errors::SyncAllError;
 pub use lockbook_core::model::errors::WriteToDocumentError as WriteDocumentError;
 
+pub use lockbook_core::pure_functions::drawing::SupportedImageFormats;
+
 pub use lockbook_core::service::billing_service::CreditCardLast4Digits;
 pub use lockbook_core::service::import_export_service::ImportExportFileInfo;
 pub use lockbook_core::service::import_export_service::ImportStatus;
@@ -47,6 +51,7 @@ pub use lockbook_core::service::usage_service::bytes_to_human;
 pub use lockbook_core::service::usage_service::UsageItemMetric;
 pub use lockbook_core::service::usage_service::UsageMetrics;
 
+use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -91,6 +96,11 @@ pub trait Api: Send + Sync {
         &self, id: Uuid, dest: PathBuf, edit: bool,
         export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> Result<(), Error<ExportFileError>>;
+
+    fn export_drawing(
+        &self, id: Uuid, format: SupportedImageFormats,
+        render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
+    ) -> Result<Vec<u8>, Error<ExportDrawingError>>;
 
     fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>>;
     fn last_synced(&self) -> Result<i64, UnexpectedError>;
@@ -246,6 +256,13 @@ impl Api for DefaultApi {
         self.core.export_file(id, dest, edit, export_progress)
     }
 
+    fn export_drawing(
+        &self, id: Uuid, format: SupportedImageFormats,
+        render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
+    ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
+        self.core.export_drawing(id, format, render_theme)
+    }
+
     fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>> {
         self.core.calculate_work()
     }
@@ -305,7 +322,10 @@ pub fn data_dir() -> String {
  Please consider setting the LOCKBOOK_PATH environment variable.";
 
     env::var("LOCKBOOK_PATH").unwrap_or_else(|_| {
-        format!("{}/.lockbook", env::var("HOME").unwrap_or_else(|_| env::var("HOMEPATH").expect(ERR_MSG)))
+        format!(
+            "{}/.lockbook",
+            env::var("HOME").unwrap_or_else(|_| env::var("HOMEPATH").expect(ERR_MSG))
+        )
     })
 }
 
