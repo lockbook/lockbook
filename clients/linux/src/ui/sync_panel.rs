@@ -1,5 +1,7 @@
 use gtk::prelude::*;
 
+use crate::ui::icons;
+
 #[derive(Clone)]
 pub struct SyncPanel {
     status: gtk::Label,
@@ -17,8 +19,9 @@ impl SyncPanel {
 
         let button = gtk::Button::builder()
             .action_name("app.sync")
-            .label("Sync")
+            .icon_name(icons::SYNC)
             .halign(gtk::Align::End)
+            .tooltip_text("Sync (Alt - S)")
             .build();
 
         let progress = gtk::ProgressBar::builder().margin_top(4).build();
@@ -30,7 +33,6 @@ impl SyncPanel {
             .margin_bottom(8)
             .margin_end(8)
             .build();
-
         cntr.append(&status);
         cntr.append(&button);
 
@@ -66,10 +68,6 @@ impl SyncPanel {
     pub fn set_done(&self, result: Result<String, String>) {
         self.cntr.remove(&self.progress);
         self.cntr.set_orientation(gtk::Orientation::Horizontal);
-        // Adding the sync button back to the panel triggers an uninformative gtk critical message.
-        // This is (likely) fixed in future releases of gtk.
-        // - issue: https://gitlab.gnome.org/GNOME/gtk/-/issues/4421
-        // - patch: https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/4136
         self.cntr.append(&self.button);
         self.set_status(result);
     }
