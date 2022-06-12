@@ -27,18 +27,14 @@ impl UsageSettings {
         compr_stats.attach(&grid_key("Compression ratio: "), 0, 1, 1, 1);
         compr_stats.attach(&lbl_compr_ratio, 1, 1, 1, 1);
 
-        let info_popover = gtk::Popover::new();
-        info_popover.set_child(Some(&compr_stats));
-
-        let info_btn = gtk::MenuButton::builder()
-            .direction(gtk::ArrowType::Right)
-            .popover(&info_popover)
-            .child(&gtk::Image::from_icon_name("dialog-information-symbolic"))
-            .build();
-
         let current_title = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         current_title.append(&heading("Current"));
-        current_title.append(&info_btn);
+        current_title.append(&gtk::Image::from_icon_name("dialog-information-symbolic"));
+        current_title.set_has_tooltip(true);
+        current_title.connect_query_tooltip(move |_, _, _, _, tt| {
+            tt.set_custom(Some(&compr_stats));
+            true
+        });
 
         let current_usage = ui::UsageTier::new();
         current_usage.set_title(&current_title);
