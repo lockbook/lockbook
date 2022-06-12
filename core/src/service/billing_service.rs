@@ -4,8 +4,8 @@ use crate::service::api_service::ApiError;
 use crate::{CoreError, Tx};
 use lockbook_models::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequest,
-    StripeAccountTier, SubscriptionInfo, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,
-    UpgradeAccountStripeError, UpgradeAccountStripeRequest,
+    StripeAccountTier, SubscriptionInfo, UpgradeAccountGooglePlayError,
+    UpgradeAccountGooglePlayRequest, UpgradeAccountStripeError, UpgradeAccountStripeRequest,
 };
 
 pub type CreditCardLast4Digits = String;

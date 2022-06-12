@@ -24,7 +24,10 @@ fn upgrade_account_android_already_premium() {
     // try to upgrade to premium with android
     let result = api_service::request(
         &account,
-        UpgradeAccountGooglePlayRequest { purchase_token: "".to_string(), account_id: "".to_string() },
+        UpgradeAccountGooglePlayRequest {
+            purchase_token: "".to_string(),
+            account_id: "".to_string(),
+        },
     );
 
     assert_matches!(
@@ -44,7 +47,10 @@ fn upgrade_account_android_invalid_purchase_token() {
     // upgrade with bad purchase token
     let result = api_service::request(
         &account,
-        UpgradeAccountGooglePlayRequest { purchase_token: "".to_string(), account_id: "".to_string() },
+        UpgradeAccountGooglePlayRequest {
+            purchase_token: "".to_string(),
+            account_id: "".to_string(),
+        },
     );
 
     assert_matches!(

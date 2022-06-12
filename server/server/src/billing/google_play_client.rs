@@ -2,9 +2,43 @@ use google_androidpublisher3::api::{
     SubscriptionPurchase, SubscriptionPurchasesAcknowledgeRequest,
 };
 use google_androidpublisher3::hyper::StatusCode;
-use google_androidpublisher3::{AndroidPublisher, Error};
+use google_androidpublisher3::{hyper, hyper_rustls, oauth2, AndroidPublisher, Error};
 
 const PACKAGE_NAME: &str = "app.lockbook";
+
+pub async fn get_google_play_client(service_account_key: &Option<String>) -> AndroidPublisher {
+    let auth = match service_account_key {
+        Some(key) => {
+            let service_account_key: oauth2::ServiceAccountKey =
+                oauth2::parse_service_account_key(key).unwrap();
+
+            oauth2::ServiceAccountAuthenticator::builder(service_account_key)
+                .build()
+                .await
+                .unwrap()
+        }
+        None => {
+            // creating dummy AndroidPublisher since no service account was provided
+            oauth2::InstalledFlowAuthenticator::builder(
+                oauth2::ApplicationSecret::default(),
+                oauth2::InstalledFlowReturnMethod::HTTPRedirect,
+            )
+            .build()
+            .await
+            .unwrap()
+        }
+    };
+
+    let client = hyper::Client::builder().build(
+        hyper_rustls::HttpsConnectorBuilder::with_native_roots(Default::default())
+            .https_or_http()
+            .enable_http1()
+            .enable_http2()
+            .build(),
+    );
+
+    AndroidPublisher::new(client, auth)
+}
 
 #[derive(Debug)]
 pub enum SimpleGCPError {

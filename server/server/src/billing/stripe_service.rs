@@ -1,12 +1,17 @@
-use libsecp256k1::PublicKey;
-use lockbook_models::api::{PaymentMethod, StripeAccountTier, UpgradeAccountStripeError};
-use uuid::Uuid;
-use redis_utils::converters::JsonSet;
-use std::str::FromStr;
 use crate::billing::billing_model::StripeUserInfo;
-use crate::{ClientError, ServerError, ServerState};
 use crate::billing::stripe_client;
 use crate::keys::public_key_from_stripe_customer_id;
+use crate::{keys, StripeWebhookError};
+use crate::{ClientError, ServerError, ServerState};
+use deadpool_redis::Connection;
+use libsecp256k1::PublicKey;
+use lockbook_models::api::{PaymentMethod, StripeAccountTier, UpgradeAccountStripeError};
+use log::info;
+use redis_utils::converters::{JsonGet, JsonSet};
+use std::ops::Deref;
+use std::str::FromStr;
+use stripe::Invoice;
+use uuid::Uuid;
 
 pub async fn create_subscription(
     server_state: &ServerState, con: &mut deadpool_redis::Connection, public_key: &PublicKey,
@@ -137,9 +142,36 @@ pub async fn create_subscription(
     Ok(StripeUserInfo {
         customer_id: customer_id.to_string(),
         customer_name,
-            payment_method_id: payment_method_id.to_string(),
-            last_4,
-            subscription_id: subscription_resp.id.to_string(),
-            expiration_time: subscription_resp.current_period_end as u64,
-        })
+        payment_method_id: payment_method_id.to_string(),
+        last_4,
+        subscription_id: subscription_resp.id.to_string(),
+        expiration_time: subscription_resp.current_period_end as u64,
+    })
+}
+
+pub async fn get_public_key(
+    con: &mut Connection, invoice: &Invoice,
+) -> Result<PublicKey, ServerError<StripeWebhookError>> {
+    let customer_id = match invoice
+        .customer
+        .as_ref()
+        .ok_or_else(|| {
+            ClientError(StripeWebhookError::InvalidBody(
+                "Cannot retrieve the customer_id.".to_string(),
+            ))
+        })?
+        .deref()
+    {
+        stripe::Expandable::Id(id) => id.to_string(),
+        stripe::Expandable::Object(customer) => customer.id.to_string(),
+    };
+
+    let public_key: PublicKey = con
+        .maybe_json_get(public_key_from_stripe_customer_id(&customer_id))
+        .await?
+        .ok_or_else(|| {
+            internal!("There is no public_key related to this customer_id: {:?}", customer_id)
+        })?;
+
+    Ok(public_key)
 }

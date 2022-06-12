@@ -19,7 +19,7 @@ impl SubscriptionProfile {
     pub fn data_cap(&self) -> u64 {
         match self.billing_platform {
             Some(_) => PREMIUM_TIER_USAGE_SIZE,
-            None => FREE_TIER_USAGE_SIZE
+            None => FREE_TIER_USAGE_SIZE,
         }
     }
 }

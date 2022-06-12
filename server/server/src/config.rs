@@ -172,6 +172,7 @@ impl GoogleConfig {
 #[derive(Clone)]
 pub struct BillingConfig {
     pub millis_between_user_payment_flows: u64,
+    pub millis_between_lock_attempt_retrievals: u64,
 }
 
 impl BillingConfig {
@@ -180,6 +181,11 @@ impl BillingConfig {
             millis_between_user_payment_flows: env_or_panic("MILLIS_BETWEEN_PAYMENT_FLOWS")
                 .parse()
                 .unwrap(),
+            millis_between_lock_attempt_retrievals: env_or_panic(
+                "MILLIS_BETWEEN_LOCK_ATTEMPT_RETRIEVALS",
+            )
+            .parse()
+            .unwrap(),
         }
     }
 }
@@ -204,7 +210,7 @@ impl Config {
             stripe: StripeConfig::from_env_vars(),
             metrics: MetricsConfig::from_env_vars(),
             google: GoogleConfig::from_env_vars(),
-            billing: BillingConfig::from_env_vars()
+            billing: BillingConfig::from_env_vars(),
         }
     }
 

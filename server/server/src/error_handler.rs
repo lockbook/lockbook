@@ -5,7 +5,8 @@ use crate::{
 };
 use deadpool_redis::PoolError;
 use lockbook_models::api::{
-    CancelSubscriptionError, GetUsageError, UpgradeAccountGooglePlayError, UpgradeAccountStripeError,
+    CancelSubscriptionError, GetUsageError, UpgradeAccountGooglePlayError,
+    UpgradeAccountStripeError,
 };
 use redis::RedisError;
 use redis_utils::converters::{JsonGetError, JsonSetError};

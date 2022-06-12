@@ -10,8 +10,8 @@ use lockbook_server_lib::config::Config;
 use lockbook_server_lib::ServerState;
 
 use crate::feature_flags::handle_feature_flag;
+use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::content::file_content_client;
-use lockbook_server_lib::utils::get_android_client;
 use s3::bucket::Bucket;
 use structopt::StructOpt;
 
@@ -51,7 +51,7 @@ async fn main() {
     let (index_db_pool, files_db_client) = connect_to_state(&config).await;
     let stripe_client = stripe::Client::new(&config.stripe.stripe_secret);
 
-    let android_publisher = get_android_client(&config).await;
+    let android_publisher = get_google_play_client(&config.google.service_account_key).await;
 
     let server_state =
         ServerState { config, index_db_pool, stripe_client, files_db_client, android_publisher };

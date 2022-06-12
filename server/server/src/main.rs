@@ -13,10 +13,10 @@ use log::info;
 use std::sync::Arc;
 use warp::Filter;
 
+use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::router_service::{
     build_info, core_routes, get_metrics, google_play_notification_webhooks, stripe_webhooks,
 };
-use lockbook_server_lib::utils::get_android_client;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .unwrap();
 
     let stripe_client = stripe::Client::new(&config.stripe.stripe_secret);
-    let android_publisher = get_android_client(&config).await;
+    let android_publisher = get_google_play_client(&config.google.service_account_key).await;
 
     let server_state = Arc::new(ServerState {
         config: config.clone(),
