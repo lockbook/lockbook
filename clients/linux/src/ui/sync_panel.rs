@@ -1,5 +1,7 @@
 use gtk::prelude::*;
 
+use crate::ui::icons;
+
 #[derive(Clone)]
 pub struct SyncPanel {
     status: gtk::Label,
@@ -17,8 +19,9 @@ impl SyncPanel {
 
         let button = gtk::Button::builder()
             .action_name("app.sync")
-            .label("Sync")
+            .icon_name(icons::SYNC)
             .halign(gtk::Align::End)
+            .tooltip_text("Sync (Alt - S)")
             .build();
 
         let progress = gtk::ProgressBar::builder().margin_top(4).build();
@@ -30,7 +33,6 @@ impl SyncPanel {
             .margin_bottom(8)
             .margin_end(8)
             .build();
-
         cntr.append(&status);
         cntr.append(&button);
 
