@@ -68,10 +68,6 @@ impl SyncPanel {
     pub fn set_done(&self, result: Result<String, String>) {
         self.cntr.remove(&self.progress);
         self.cntr.set_orientation(gtk::Orientation::Horizontal);
-        // Adding the sync button back to the panel triggers an uninformative gtk critical message.
-        // This is (likely) fixed in future releases of gtk.
-        // - issue: https://gitlab.gnome.org/GNOME/gtk/-/issues/4421
-        // - patch: https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/4136
         self.cntr.append(&self.button);
         self.set_status(result);
     }
