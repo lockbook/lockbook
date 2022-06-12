@@ -46,24 +46,30 @@ impl super::App {
         // Load the document's content in a separate thread to prevent any UI locking.
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
         let api = self.api.clone();
-        std::thread::spawn(move || tx.send(api.read_document(id)).unwrap());
+        let ext = info.ext.clone();
+        std::thread::spawn(move || {
+            let result = match ext.as_str() {
+                "draw" => api
+                    .export_drawing(id, lb::SupportedImageFormats::Png, None)
+                    .map_err(export_drawing_err_to_string),
+                _ => api.read_document(id).map_err(read_doc_err_to_string),
+            };
+            tx.send(result).unwrap();
+        });
 
         // Receive the Result of reading the document and set the tab page content accordingly.
         let app = self.clone();
         let tab = tab.clone();
-        rx.attach(None, move |read_doc_result| {
+        rx.attach(None, move |read_doc_result: Result<Vec<u8>, String>| {
             match read_doc_result {
                 Ok(data) => {
-                    if ui::SUPPORTED_IMAGE_FORMATS.contains(&info.ext) {
+                    if info.ext == "draw" || ui::SUPPORTED_IMAGE_FORMATS.contains(&info.ext) {
                         tab.set_content(&image_content(data));
                     } else {
                         tab.set_content(&text_content(&app, &info, &data));
                     }
                 }
-                Err(err) => {
-                    let msg = read_doc_err_to_string(err);
-                    tab.set_content(&err_content(&msg));
-                }
+                Err(msg) => tab.set_content(&err_content(&msg)),
             }
             glib::Continue(false)
         });
@@ -108,6 +114,20 @@ fn read_doc_err_to_string(err: lb::Error<lb::ReadDocumentError>) -> String {
             TreatedFolderAsDocument => "treated folder as document",
             NoAccount => "no account",
             FileDoesNotExist => "file does not exist",
+        }
+        .to_string(),
+        lb::Unexpected(msg) => msg,
+    }
+}
+
+fn export_drawing_err_to_string(err: lb::Error<lb::ExportDrawingError>) -> String {
+    use lb::ExportDrawingError::*;
+    match err {
+        lb::UiError(err) => match err {
+            FolderTreatedAsDrawing => "This is a folder, not a drawing.",
+            FileDoesNotExist => "File doesn't exist.",
+            NoAccount => "No account!",
+            InvalidDrawing => "Invalid drawing.",
         }
         .to_string(),
         lb::Unexpected(msg) => msg,
