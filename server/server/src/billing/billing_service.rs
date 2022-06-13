@@ -23,7 +23,6 @@ use redis_utils::tx;
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use warp::http::HeaderValue;
@@ -320,7 +319,7 @@ pub async fn cancel_subscription(
 
             stripe_client::cancel_subscription(
                 &server_state.stripe_client,
-                &stripe::SubscriptionId::from_str(&info.subscription_id)?,
+                &info.subscription_id.parse()?,
             )
                 .await
                 .map_err(|err| internal!("{:?}", err))?;
