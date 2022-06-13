@@ -172,7 +172,7 @@ impl GoogleConfig {
 #[derive(Clone)]
 pub struct BillingConfig {
     pub millis_between_user_payment_flows: u64,
-    pub millis_between_lock_attempt_retrievals: u64,
+    pub time_between_lock_attempts: Duration,
 }
 
 impl BillingConfig {
@@ -181,11 +181,11 @@ impl BillingConfig {
             millis_between_user_payment_flows: env_or_panic("MILLIS_BETWEEN_PAYMENT_FLOWS")
                 .parse()
                 .unwrap(),
-            millis_between_lock_attempt_retrievals: env_or_panic(
-                "MILLIS_BETWEEN_LOCK_ATTEMPT_RETRIEVALS",
-            )
-            .parse()
-            .unwrap(),
+            time_between_lock_attempts: Duration::from_secs(
+                env_or_panic("MILLIS_BETWEEN_LOCK_ATTEMPTS")
+                    .parse::<u64>()
+                    .unwrap(),
+            ),
         }
     }
 }

@@ -225,7 +225,7 @@
 
     <string name="update_to_premium">View Subscription Options</string>
     <string name="choose_your_plan">Choose your plan</string>
-    <string name="monthly_plan">Premium (Monthly)</string>
+    <string name="monthly_plan">Premium</string>
     <string name="exit">Exit</string>
     <string name="premium_space">Storage Space</string>
     <string name="subscribe">Subscribe</string>

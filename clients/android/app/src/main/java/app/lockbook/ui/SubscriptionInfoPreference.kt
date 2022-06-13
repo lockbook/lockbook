@@ -65,7 +65,7 @@ class SubscriptionInfoPreference(context: Context, attributeSet: AttributeSet?) 
 
             val accountState = (maybeSubscriptionInfo.paymentPlatform as? PaymentPlatform.GooglePlay)?.accountState
 
-            val gracePeriodViewsVisibility = if (accountState == GooglePlayAccountState.GracePeriod || accountState == GooglePlayAccountState.OnHold) {
+            val gracePeriodViewsVisibility = if (accountState == GooglePlayAccountState.GracePeriod) {
                 View.VISIBLE
             } else {
                 View.GONE

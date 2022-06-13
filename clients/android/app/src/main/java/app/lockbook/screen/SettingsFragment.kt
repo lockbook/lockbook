@@ -21,6 +21,8 @@ import app.lockbook.model.*
 import app.lockbook.ui.NumberPickerPreference
 import app.lockbook.ui.NumberPickerPreferenceDialog
 import app.lockbook.ui.UsageBarPreference
+import app.lockbook.util.GooglePlayAccountState
+import app.lockbook.util.PaymentPlatform
 import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -82,10 +84,13 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun addDataToPreferences(settingsInfo: SettingsInfo) {
+        val maybePaymentPlatform = settingsInfo.subscriptionInfo?.paymentPlatform
+
         val isPremium = settingsInfo.usage.dataCap.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES
+        val isOkState = (maybePaymentPlatform as? PaymentPlatform.GooglePlay)?.accountState == GooglePlayAccountState.Ok || (maybePaymentPlatform as? PaymentPlatform.Stripe) != null
 
         findPreference<PreferenceCategory>(getString(R.string.premium_key))!!.isVisible = isPremium
-        findPreference<Preference>(getString(R.string.cancel_subscription_key))!!.isVisible = isPremium
+        findPreference<Preference>(getString(R.string.cancel_subscription_key))!!.isVisible = isPremium && isOkState
     }
 
     private fun setUpPreferences() {

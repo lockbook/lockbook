@@ -17,7 +17,7 @@ use lockbook_models::api::{
     UpgradeAccountGooglePlayRequest, UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError,
     UpgradeAccountStripeRequest, UpgradeAccountStripeResponse,
 };
-use log::{error, info, warn};
+use log::{info, warn};
 use redis_utils::converters::{JsonGet, JsonSet, PipelineJsonSet};
 use redis_utils::tx;
 use std::borrow::Borrow;
@@ -25,6 +25,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
 
@@ -71,7 +72,7 @@ async fn lock_subscription_profile(
 
 async fn release_subscription_profile<E: Debug>(
     public_key: &PublicKey, con: &mut deadpool_redis::Connection,
-    mut sub_profile: SubscriptionProfile,
+    sub_profile: &mut SubscriptionProfile,
 ) -> Result<(), ServerError<E>> {
     sub_profile.last_in_payment_flow = 0;
     Ok(con
@@ -111,7 +112,7 @@ pub async fn upgrade_account_google_play(
     );
 
     google_play_client::acknowledge_subscription(
-        &server_state.android_publisher,
+        &server_state.google_play_client,
         &server_state.config.google.premium_subscription_product_id,
         &request.purchase_token,
     )
@@ -120,7 +121,7 @@ pub async fn upgrade_account_google_play(
     info!("Acknowledged a user's google play subscription. public_key {:?}", context.public_key);
 
     let subscription = google_play_client::get_subscription(
-        &server_state.android_publisher,
+        &server_state.google_play_client,
         &server_state.config.google.premium_subscription_product_id,
         &request.purchase_token,
     )
@@ -153,11 +154,9 @@ pub async fn upgrade_account_google_play(
         account_state: GooglePlayAccountState::Ok,
     }));
 
-    error!("CONFIRMING SUBSCRIPTION: {:#?} \n{:#?}", request, sub_profile);
-
     con.json_set(keys::public_key_from_gp_account_id(&request.account_id), context.public_key)
         .await?;
-    release_subscription_profile(&context.public_key, &mut con, sub_profile).await?;
+    release_subscription_profile(&context.public_key, &mut con, &mut sub_profile).await?;
 
     info!(
         "Successfully upgraded a user through a google play subscription. public_key: {:?}",
@@ -214,7 +213,7 @@ pub async fn upgrade_account_stripe(
     .await?;
 
     sub_profile.billing_platform = Some(BillingPlatform::Stripe(user_info));
-    release_subscription_profile(&context.public_key, &mut con, sub_profile).await?;
+    release_subscription_profile(&context.public_key, &mut con, &mut sub_profile).await?;
 
     info!(
         "Successfully switched the account tier of {:?} from free to premium.",
@@ -308,7 +307,7 @@ pub async fn cancel_subscription(
             }
 
             google_play_client::cancel_subscription(
-                &server_state.android_publisher,
+                &server_state.google_play_client,
                 &info.subscription_product_id,
                 &info.purchase_token,
             ).await?;
@@ -332,7 +331,7 @@ pub async fn cancel_subscription(
         }
     }
 
-    release_subscription_profile(&context.public_key, &mut con, sub_profile).await?;
+    release_subscription_profile(&context.public_key, &mut con, &mut sub_profile).await?;
 
     Ok(CancelSubscriptionResponse {})
 }
@@ -342,20 +341,18 @@ async fn save_billing_profile<
     F: Fn(&mut SubscriptionProfile) -> Result<(), ServerError<T>>,
 >(
     public_key: &PublicKey, con: &mut deadpool_redis::Connection,
-    millis_between_payment_flows: u64, f: F,
+    millis_between_payment_flows: u64, millis_between_lock_attempts: Duration,
+    update_subscription_profile: F,
 ) -> Result<(), ServerError<T>> {
     loop {
         match lock_subscription_profile(public_key, con, millis_between_payment_flows).await {
-            Ok(ref mut sub_prof) => {
-                f(sub_prof)?;
-                sub_prof.last_in_payment_flow = 0;
-                con.json_set(keys::subscription_profile(public_key), sub_prof)
-                    .await?;
-
+            Ok(ref mut sub_profile) => {
+                update_subscription_profile(sub_profile)?;
+                release_subscription_profile(public_key, con, sub_profile).await?;
                 break;
             }
             Err(ClientError(LockBillingWorkflowError::ExistingRequestPending)) => {
-                // tokio::time::sleep(server_state.config).await;
+                tokio::time::sleep(millis_between_lock_attempts).await;
                 continue;
             }
             Err(err) => return Err(internal!("Cannot get billing lock in webhooks: {:#?}", err)),
@@ -409,6 +406,7 @@ pub async fn stripe_webhooks(
                         .config
                         .billing
                         .millis_between_user_payment_flows,
+                    server_state.config.billing.time_between_lock_attempts,
                     |sub_profile| {
                         sub_profile.billing_platform = None;
                         Ok(())
@@ -440,6 +438,7 @@ pub async fn stripe_webhooks(
                         .config
                         .billing
                         .millis_between_user_payment_flows,
+                    server_state.config.billing.time_between_lock_attempts,
                     |sub_profile| {
                         if let Some(BillingPlatform::Stripe(ref mut info)) =
                             sub_profile.billing_platform
@@ -490,14 +489,12 @@ pub async fn google_play_notification_webhooks(
         info!("Notification is for a subscription: {:?}", sub_notif);
 
         let subscription = google_play_client::get_subscription(
-            &server_state.android_publisher,
+            &server_state.google_play_client,
             &sub_notif.subscription_id,
             &sub_notif.purchase_token,
         )
         .await
         .map_err(|e| internal!("{:#?}", e))?;
-
-        error!("NOTIFICATION CAME IN: {:#?} \n{:#?}", sub_notif, subscription);
 
         let notification_type = sub_notif.notification_type();
         if let NotificationType::SubscriptionPurchased = notification_type {
@@ -521,6 +518,7 @@ pub async fn google_play_notification_webhooks(
                 .config
                 .billing
                 .millis_between_user_payment_flows,
+            server_state.config.billing.time_between_lock_attempts,
             |sub_profile| {
                 if let Some(BillingPlatform::GooglePlay(ref mut info)) = sub_profile.billing_platform {
                     match notification_type {

@@ -51,10 +51,10 @@ async fn main() {
     let (index_db_pool, files_db_client) = connect_to_state(&config).await;
     let stripe_client = stripe::Client::new(&config.stripe.stripe_secret);
 
-    let android_publisher = get_google_play_client(&config.google.service_account_key).await;
+    let google_play_client = get_google_play_client(&config.google.service_account_key).await;
 
     let server_state =
-        ServerState { config, index_db_pool, stripe_client, files_db_client, android_publisher };
+        ServerState { config, index_db_pool, stripe_client, files_db_client, google_play_client };
 
     let ok = match Subcommands::from_args() {
         DeleteAccount { username: user } => delete_account(server_state, &user).await,

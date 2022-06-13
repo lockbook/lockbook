@@ -32,14 +32,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .unwrap();
 
     let stripe_client = stripe::Client::new(&config.stripe.stripe_secret);
-    let android_publisher = get_google_play_client(&config.google.service_account_key).await;
+    let google_play_client = get_google_play_client(&config.google.service_account_key).await;
 
     let server_state = Arc::new(ServerState {
         config: config.clone(),
         index_db_pool,
         stripe_client,
         files_db_client,
-        android_publisher,
+        google_play_client,
     });
 
     feature_flags::initialize_flags(&server_state).await;
