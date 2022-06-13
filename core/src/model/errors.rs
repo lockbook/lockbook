@@ -46,6 +46,12 @@ impl Serialize for UnexpectedError {
     }
 }
 
+impl From<UnexpectedError> for String {
+    fn from(v: UnexpectedError) -> Self {
+        v.0
+    }
+}
+
 #[derive(Debug, Serialize)]
 #[serde(tag = "tag", content = "content")]
 pub enum Error<U: Serialize> {
