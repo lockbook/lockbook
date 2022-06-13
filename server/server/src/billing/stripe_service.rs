@@ -1,6 +1,5 @@
 use crate::billing::billing_model::StripeUserInfo;
 use crate::billing::stripe_client;
-use crate::keys::public_key_from_stripe_customer_id;
 use crate::{keys, StripeWebhookError};
 use crate::{ClientError, ServerError, ServerState};
 use deadpool_redis::Connection;
@@ -17,9 +16,7 @@ pub async fn create_subscription(
     server_state: &ServerState, con: &mut deadpool_redis::Connection, public_key: &PublicKey,
     account_tier: &StripeAccountTier, maybe_user_info: Option<StripeUserInfo>,
 ) -> Result<StripeUserInfo, ServerError<UpgradeAccountStripeError>> {
-    let payment_method = match account_tier {
-        StripeAccountTier::Premium(payment_method) => payment_method,
-    };
+    let StripeAccountTier::Premium(payment_method) = account_tier;
 
     let (customer_id, customer_name, payment_method_id, last_4) = match payment_method {
         PaymentMethod::NewCard { number, exp_year, exp_month, cvc } => {
@@ -65,8 +62,11 @@ pub async fn create_subscription(
 
                     info!("Created customer_id: {}. public_key: {:?}", customer_id, public_key);
 
-                    con.json_set(public_key_from_stripe_customer_id(&customer_id), public_key)
-                        .await?;
+                    con.json_set(
+                        keys::public_key_from_stripe_customer_id(&customer_id),
+                        public_key,
+                    )
+                    .await?;
 
                     (customer_resp.id, customer_name)
                 }
@@ -167,7 +167,7 @@ pub async fn get_public_key(
     };
 
     let public_key: PublicKey = con
-        .maybe_json_get(public_key_from_stripe_customer_id(&customer_id))
+        .maybe_json_get(keys::public_key_from_stripe_customer_id(&customer_id))
         .await?
         .ok_or_else(|| {
             internal!("There is no public_key related to this customer_id: {:?}", customer_id)

@@ -354,6 +354,7 @@ pub struct CancelSubscriptionResponse {}
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum CancelSubscriptionError {
     NotPremium,
+    AlreadyCanceled,
     UsageIsOverFreeTierDataCap,
     ExistingRequestPending,
 }

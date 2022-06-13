@@ -78,6 +78,7 @@ pub enum CoreError {
     AccountExists,
     AccountNonexistent,
     AccountStringCorrupted,
+    AlreadyCanceled,
     AlreadyPremium,
     CardDecline,
     CardHasInsufficientFunds,
@@ -808,6 +809,7 @@ impl From<CoreError> for Error<UpgradeAccountGooglePlayError> {
 #[derive(Debug, Serialize, EnumIter)]
 pub enum CancelSubscriptionError {
     NotPremium,
+    AlreadyCanceled,
     UsageIsOverFreeTierDataCap,
     ExistingRequestPending,
     CouldNotReachServer,
@@ -818,6 +820,7 @@ impl From<CoreError> for Error<CancelSubscriptionError> {
     fn from(e: CoreError) -> Self {
         match e {
             CoreError::NotPremium => UiError(CancelSubscriptionError::NotPremium),
+            CoreError::AlreadyCanceled => UiError(CancelSubscriptionError::AlreadyCanceled),
             CoreError::UsageIsOverFreeTierDataCap => {
                 UiError(CancelSubscriptionError::UsageIsOverFreeTierDataCap)
             }

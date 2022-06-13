@@ -120,8 +120,12 @@ impl Core {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn get_children(&self, id: Uuid) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
-        let val = self.db.transaction(|tx| tx.get_children(id))?;
-        Ok(val?)
+        let val = self
+            .db
+            .transaction(|tx| tx.get_children(id))??
+            .into_values()
+            .collect();
+        Ok(val)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -130,9 +134,11 @@ impl Core {
     ) -> Result<Vec<DecryptedFileMetadata>, Error<GetAndGetChildrenError>> {
         let val = self
             .db
-            .transaction(|tx| tx.get_and_get_children_recursively(id))?;
+            .transaction(|tx| tx.get_and_get_children_recursively(id))??
+            .into_values()
+            .collect();
 
-        Ok(val?)
+        Ok(val)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -175,8 +181,10 @@ impl Core {
     pub fn list_metadatas(&self) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
         let val = self
             .db
-            .transaction(|tx| tx.get_all_not_deleted_metadata(RepoSource::Local))?;
-        Ok(val?)
+            .transaction(|tx| tx.get_all_not_deleted_metadata(RepoSource::Local))??
+            .into_values()
+            .collect();
+        Ok(val)
     }
 
     #[instrument(level = "debug", skip(self, new_name), err(Debug))]

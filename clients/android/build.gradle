@@ -16,7 +16,7 @@ buildscript {
         material_ui_version = '1.5.0'
         qr_embedded_version = '4.2.0'
         qr_core_version = '3.4.1'
-        json_parser_version = '1.3.2'
+        json_parser_version = '1.3.3'
         coroutine_version = '1.3.9'
         coroutine_android_version = '1.5.0-native-mt'
         lifecycle_version = '2.4.1'
@@ -34,6 +34,9 @@ buildscript {
         sliding_pane_layout_version = '1.2.0'
         recyclical_version = '1.1.0'
         safe_args_gradle_plugin = '2.3.5'
+        billing_version = '4.1.0'
+        image_viewer_version = '3.2.0'
+        pdf_viewer_version = '3.2.0-beta.3'
         billing_version = '5.0.0'
     }
 

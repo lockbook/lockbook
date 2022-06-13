@@ -60,18 +60,24 @@ class MoveFileDialogFragment : DialogFragment() {
                         R.string.last_synced,
                         CoreModel.convertToHumanDuration(item.metadataVersion)
                     )
+                    val extensionHelper = ExtensionHelper(item.decryptedName)
 
-                    when {
-                        item.fileType == FileType.Document && item.decryptedName.endsWith(".draw") -> {
-                            icon.setImageResource(R.drawable.ic_baseline_border_color_24)
+                    val imageResource = when {
+                        item.fileType == FileType.Document && extensionHelper.isDrawing -> {
+                            R.drawable.ic_baseline_border_color_24
+                        }
+                        item.fileType == FileType.Document && extensionHelper.isImage -> {
+                            R.drawable.ic_baseline_image_24
                         }
                         item.fileType == FileType.Document -> {
-                            icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
+                            R.drawable.ic_baseline_insert_drive_file_24
                         }
                         else -> {
-                            icon.setImageResource(R.drawable.round_folder_white_18dp)
+                            R.drawable.round_folder_white_18dp
                         }
                     }
+
+                    icon.setImageResource(imageResource)
                 }
                 onClick {
                     model.onItemClick(item)

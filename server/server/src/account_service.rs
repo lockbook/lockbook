@@ -6,6 +6,7 @@ use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
 use log::{debug, error};
 use redis_utils::converters::{JsonGet, PipelineJsonSet};
+use std::collections::HashMap;
 
 use redis_utils::tx;
 use uuid::Uuid;
@@ -20,9 +21,8 @@ use lockbook_models::api::{
     GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse, NewAccountError,
     NewAccountRequest, NewAccountResponse,
 };
-use lockbook_models::file_metadata::EncryptedFileMetadata;
-use lockbook_models::file_metadata::FileType::Document;
-use lockbook_models::tree::FileMetaExt;
+use lockbook_models::file_metadata::{EncryptedFileMetadata, EncryptedFiles};
+use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
 
 /// Create a new account given a username, public_key, and root folder.
 /// Checks that username is valid, and that username, public_key and root_folder are new.
@@ -153,7 +153,7 @@ pub async fn delete_account(
     context: RequestContext<'_, DeleteAccountRequest>,
 ) -> Result<(), ServerError<DeleteAccountError>> {
     let mut con = context.server_state.index_db_pool.get().await?;
-    let mut all_files: Vec<EncryptedFileMetadata> = vec![];
+    let mut all_files: EncryptedFiles = HashMap::new();
 
     let tx = tx!(&mut con, pipe, &[owned_files(&context.public_key)], {
         let files: Vec<Uuid> = con
@@ -163,11 +163,11 @@ pub async fn delete_account(
         let keys: Vec<String> = files.into_iter().map(keys::file).collect();
         let files: Vec<EncryptedFileMetadata> = con.watch_json_mget(keys).await?;
 
-        all_files = files.clone();
+        all_files = files.to_map();
 
         for the_file in &files {
             pipe.del(file(the_file.id));
-            if the_file.file_type == Document {
+            if the_file.is_document() {
                 pipe.del(size(the_file.id));
             }
         }
@@ -181,7 +181,7 @@ pub async fn delete_account(
         .map_err(|err| internal!("Could not get non-deleted files: {:?}", err))?
         .filter_documents();
 
-    for file in non_deleted_document {
+    for file in non_deleted_document.values() {
         document_service::delete(context.server_state, file.id, file.content_version).await?;
     }
 

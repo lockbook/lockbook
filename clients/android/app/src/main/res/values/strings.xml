@@ -111,6 +111,9 @@
     <string name="drawing_eraser_description">Eraser</string>
     <string name="settings_open_new_document_automatically">Automatically open new documents</string>
 
+    <string name="pdf_page_indicator">%1$d / %2$d</string>
+    <string name="could_not_load_pdf">This PDF could not be loaded.</string>
+
     <string name="settings_protect_account_biometric_summary">Secure your account with biometrics.</string>
 
     <string name="biometrics_title">Lockbook Biometric Verification</string>
@@ -172,6 +175,7 @@
     <string name="invalid_purchase_token">Failed to verify purchase.</string>
     <string name="existing_request_pending">You are accessing billing too quickly, please try again in a minute.</string>
     <string name="not_premium">Error, you are not premium.</string>
+    <string name="already_canceled">You have already canceled your subscription.</string>
     <string name="usage_is_over_free_tier_data_cap">Your totally data usage exceeds free tier, please remove some data.</string>
 
 
@@ -241,5 +245,7 @@
     <string name="next_renewal_day">Next Renewal Date:</string>
     <string name="expiration_day">Expiration Day:</string>
     <string name="grace_period">End of Grace Period:</string>
+    <string name="google_play">Google Play</string>
+    <string name="stripe">Stripe</string>
 
 </resources>

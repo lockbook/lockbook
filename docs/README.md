@@ -66,8 +66,8 @@ The Lockbook CLI will right into your favorite chain of piped-together unix comm
 | Text                  |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
 | Markdown              |   ✅     |    ✅     |     ✅      |     📆       |      ✅        |    ✅     |
 | Drawings              |   ✅     |    🏗     |     ✅      |     🏗       |      ✅        |    ✅     |
-| Images                |   ✅     |    🏗     |     📆      |     📆       |      📆        |    📆     |
-| PDFs                  |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
+| Images                |   ✅     |    ✅     |     ✅      |     📆       |      📆        |    📆     |
+| PDFs                  |   📆     |    📆     |     ✅      |     📆       |      📆        |    📆     |
 | Todo lists            |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
 | Document Linking      |   📆     |    ✅     |     📆      |     📆       |      📆        |    📆     |
 

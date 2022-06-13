@@ -1,4 +1,6 @@
 use libsecp256k1::PublicKey;
+
+use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
@@ -7,9 +9,8 @@ use uuid::Uuid;
 
 use lockbook_crypto::symkey;
 use lockbook_models::account::Account;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType, Owner};
-use lockbook_models::tree::FileMetaExt;
-use lockbook_models::tree::FileMetadata;
+use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles, FileType, Owner};
+use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
 
 use crate::model::filename::NameComponents;
 use crate::{model::repo::RepoState, CoreError};
@@ -56,8 +57,7 @@ pub fn create_root(account: &Account) -> DecryptedFileMetadata {
 /// Validates a create operation for a file in the context of all files and returns a version of
 /// the file with the operation applied. This is a pure function.
 pub fn apply_create(
-    files: &[DecryptedFileMetadata], file_type: FileType, parent: Uuid, name: &str,
-    owner: &PublicKey,
+    files: &DecryptedFiles, file_type: FileType, parent: Uuid, name: &str, owner: &PublicKey,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let file = create(file_type, parent, name, owner);
     validate_not_root(&file)?;
@@ -67,7 +67,8 @@ pub fn apply_create(
         .ok_or(CoreError::FileParentNonexistent)?;
     validate_is_folder(&parent)?;
 
-    if !files.get_path_conflicts(&[file.clone()])?.is_empty() {
+    let staged_changes = HashMap::with(file.clone());
+    if !files.get_path_conflicts(&staged_changes)?.is_empty() {
         return Err(CoreError::PathTaken);
     }
 
@@ -76,14 +77,17 @@ pub fn apply_create(
 
 /// Validates a rename operation for a file in the context of all files and returns a version of the file with the operation applied. This is a pure function.
 pub fn apply_rename(
-    files: &[DecryptedFileMetadata], target_id: Uuid, new_name: &str,
+    files: &DecryptedFiles, target_id: Uuid, new_name: &str,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let mut file = files.find(target_id)?;
     validate_not_root(&file)?;
     validate_file_name(new_name)?;
 
     file.decrypted_name = String::from(new_name);
-    if !files.get_path_conflicts(&[file.clone()])?.is_empty() {
+    if !files
+        .get_path_conflicts(&[file.clone()].to_map())?
+        .is_empty()
+    {
         return Err(CoreError::PathTaken);
     }
 
@@ -92,7 +96,7 @@ pub fn apply_rename(
 
 /// Validates a move operation for a file in the context of all files and returns a version of the file with the operation applied. This is a pure function.
 pub fn apply_move(
-    files: &[DecryptedFileMetadata], target_id: Uuid, new_parent: Uuid,
+    files: &DecryptedFiles, target_id: Uuid, new_parent: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let mut file = files.find(target_id)?;
     let parent = files
@@ -102,10 +106,11 @@ pub fn apply_move(
     validate_is_folder(&parent)?;
 
     file.parent = new_parent;
-    if !files.get_invalid_cycles(&[file.clone()])?.is_empty() {
+    let staged_changes = HashMap::with(file.clone());
+    if !files.get_invalid_cycles(&staged_changes)?.is_empty() {
         return Err(CoreError::FolderMovedIntoSelf);
     }
-    if !files.get_path_conflicts(&[file.clone()])?.is_empty() {
+    if !files.get_path_conflicts(&staged_changes)?.is_empty() {
         return Err(CoreError::PathTaken);
     }
 
@@ -115,7 +120,7 @@ pub fn apply_move(
 /// Validates a delete operation for a file in the context of all files and returns a version of the
 /// file with the operation applied. This is a pure function.
 pub fn apply_delete(
-    files: &[DecryptedFileMetadata], target_id: Uuid,
+    files: &DecryptedFiles, target_id: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let mut file = files.find(target_id)?;
     validate_not_root(&file)?;
@@ -134,7 +139,7 @@ fn validate_not_root(file: &DecryptedFileMetadata) -> Result<(), CoreError> {
 }
 
 fn validate_is_folder(file: &DecryptedFileMetadata) -> Result<(), CoreError> {
-    if file.file_type == FileType::Folder {
+    if file.is_folder() {
         Ok(())
     } else {
         Err(CoreError::FileNotFolder)
@@ -152,13 +157,13 @@ fn validate_file_name(name: &str) -> Result<(), CoreError> {
 }
 
 pub fn suggest_non_conflicting_filename(
-    id: Uuid, files: &[DecryptedFileMetadata], staged_changes: &[DecryptedFileMetadata],
+    id: Uuid, files: &DecryptedFiles, staged_changes: &DecryptedFiles,
 ) -> Result<String, CoreError> {
-    let files: Vec<DecryptedFileMetadata> = files
+    let files: DecryptedFiles = files
         .stage(staged_changes)
-        .iter()
-        .map(|(f, _)| f.clone())
-        .collect();
+        .into_iter()
+        .map(|(id, (f, _))| (id, f))
+        .collect::<DecryptedFiles>();
 
     let file = files.find(id)?;
     let sibblings = files.find_children(file.parent);
@@ -166,7 +171,7 @@ pub fn suggest_non_conflicting_filename(
     let mut new_name = NameComponents::from(&file.decrypted_name).generate_next();
     loop {
         if !sibblings
-            .iter()
+            .values()
             .any(|f| f.decrypted_name == new_name.to_name())
         {
             return Ok(new_name.to_name());
@@ -204,8 +209,10 @@ pub fn maybe_find_state<Fm: FileMetadata>(
     } == target_id).cloned()
 }
 
-pub fn find_ancestors<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Vec<Fm> {
-    let mut result = Vec::new();
+pub fn find_ancestors<Fm: FileMetadata>(
+    files: &HashMap<Uuid, Fm>, target_id: Uuid,
+) -> HashMap<Uuid, Fm> {
+    let mut result = HashMap::new();
     let mut current_target_id = target_id;
     while let Some(target) = files.maybe_find(current_target_id) {
         result.push(target.clone());
@@ -226,28 +233,21 @@ pub fn find_children<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Vec<Fm>
 }
 
 pub fn find_with_descendants<Fm: FileMetadata>(
-    files: &[Fm], target_id: Uuid,
-) -> Result<Vec<Fm>, CoreError> {
-    let mut result = vec![files.find(target_id)?];
-    let mut i = 0;
-    while i < result.len() {
-        let target = result.get(i).ok_or_else(|| {
-            CoreError::Unexpected(String::from("find_with_descendants: missing target"))
-        })?;
-        let children = files.find_children(target.id());
-        for child in children {
-            if child.id() != target_id {
-                result.push(child);
+    files: &HashMap<Uuid, Fm>, target_id: Uuid,
+) -> Result<HashMap<Uuid, Fm>, CoreError> {
+    let mut result = HashMap::new();
+    let mut unexplored: HashMap<Uuid, Fm> = HashMap::new();
+    unexplored.push(files.find(target_id)?);
+    while !unexplored.is_empty() {
+        let mut next_exploration = HashMap::new();
+        for file in unexplored.values() {
+            result.push(file.clone());
+            if file.is_folder() {
+                next_exploration.extend(files.find_children(file.id()));
             }
         }
-        i += 1;
+        unexplored = next_exploration;
     }
-    Ok(result)
-}
 
-pub fn is_deleted<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Result<bool, CoreError> {
-    Ok(files
-        .filter_deleted()?
-        .into_iter()
-        .any(|f| f.id() == target_id))
+    Ok(result)
 }

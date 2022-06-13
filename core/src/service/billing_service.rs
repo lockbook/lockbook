@@ -83,6 +83,9 @@ impl Tx<'_> {
 
         api_service::request(&account, CancelSubscriptionRequest {}).map_err(|err| match err {
             ApiError::Endpoint(CancelSubscriptionError::NotPremium) => CoreError::NotPremium,
+            ApiError::Endpoint(CancelSubscriptionError::AlreadyCanceled) => {
+                CoreError::AlreadyCanceled
+            }
             ApiError::Endpoint(CancelSubscriptionError::UsageIsOverFreeTierDataCap) => {
                 CoreError::UsageIsOverFreeTierDataCap
             }

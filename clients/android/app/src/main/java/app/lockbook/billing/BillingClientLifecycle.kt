@@ -148,7 +148,7 @@ class BillingClientLifecycle private constructor(
         Timber.i(billingResult.debugMessage)
 
         when {
-            billingResponse.isOk && purchases?.size == 1 && purchases[0].accountIdentifiers?.obfuscatedAccountId != null -> {
+            billingResponse.isOk && purchases?.size == 1 && purchases[0].accountIdentifiers?.obfuscatedAccountId?.isEmpty() == false -> {
                 if (!purchases[0].isAcknowledged) {
                     _billingEvent.postValue(
                         BillingEvent.SuccessfulPurchase(

@@ -279,20 +279,27 @@ class FilesListFragment : Fragment(), FilesFragment {
                         CoreModel.convertToHumanDuration(item.metadataVersion)
                     )
 
-                    when {
+                    val extensionHelper = ExtensionHelper(item.decryptedName)
+
+                    val imageResource = when {
                         isSelected() -> {
-                            icon.setImageResource(R.drawable.ic_baseline_check_24)
+                            R.drawable.ic_baseline_check_24
                         }
-                        item.fileType == FileType.Document && item.decryptedName.endsWith(".draw") -> {
-                            icon.setImageResource(R.drawable.ic_baseline_border_color_24)
+                        item.fileType == FileType.Document && extensionHelper.isDrawing -> {
+                            R.drawable.ic_baseline_border_color_24
+                        }
+                        item.fileType == FileType.Document && extensionHelper.isImage -> {
+                            R.drawable.ic_baseline_image_24
                         }
                         item.fileType == FileType.Document -> {
-                            icon.setImageResource(R.drawable.ic_baseline_insert_drive_file_24)
+                            R.drawable.ic_baseline_insert_drive_file_24
                         }
                         else -> {
-                            icon.setImageResource(R.drawable.round_folder_white_18dp)
+                            R.drawable.round_folder_white_18dp
                         }
                     }
+
+                    icon.setImageResource(imageResource)
 
                     itemView.background.setTint(
                         ResourcesCompat.getColor(

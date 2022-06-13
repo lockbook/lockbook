@@ -108,6 +108,9 @@ dependencies {
     implementation "androidx.work:work-runtime-ktx:$work_version"
     implementation "com.github.tingyik90:snackprogressbar:$snackprogressbar_version"
     implementation "com.android.billingclient:billing-ktx:$billing_version"
+    implementation "com.android.billingclient:billing:$billing_version"
+    implementation "com.github.MikeOrtiz:TouchImageView:$image_viewer_version"
+    implementation "com.github.mhiew:android-pdf-viewer:$pdf_viewer_version"
 
     implementation project(':core')
 }

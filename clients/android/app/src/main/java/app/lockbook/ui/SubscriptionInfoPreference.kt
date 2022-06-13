@@ -77,7 +77,7 @@ class SubscriptionInfoPreference(context: Context, attributeSet: AttributeSet?) 
             context.resources.apply {
                 subscriptionInfo.text = spannable {
                     getString(R.string.payment_platform).bold() + " " +
-                        maybeSubscriptionInfo.paymentPlatform.javaClass.simpleName + "\n" +
+                        maybeSubscriptionInfo.paymentPlatform.toReadableString(context.resources) + "\n" +
                         renewalOrExpirationText + " " + SimpleDateFormat(
                         "yyyy-MM-dd",
                         Locale.getDefault()

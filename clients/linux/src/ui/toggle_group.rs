@@ -62,6 +62,7 @@ where
     }
 
     pub fn connect_changed(&self, f: F) {
+        f(self.value());
         *self.on_changed.borrow_mut() = Some(f);
     }
 }

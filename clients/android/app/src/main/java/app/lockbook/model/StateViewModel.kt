@@ -1,6 +1,7 @@
 package app.lockbook.model
 
 import android.app.Application
+import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
@@ -128,6 +129,16 @@ sealed class DetailsScreen(open val fileMetadata: DecryptedFileMetadata) {
     data class Drawing(
         override val fileMetadata: DecryptedFileMetadata,
         val drawing: app.lockbook.util.Drawing
+    ) : DetailsScreen(fileMetadata)
+
+    data class ImageViewer(
+        override val fileMetadata: DecryptedFileMetadata,
+        val bitmap: Bitmap
+    ) : DetailsScreen(fileMetadata)
+
+    data class PdfViewer(
+        override val fileMetadata: DecryptedFileMetadata,
+        val location: File
     ) : DetailsScreen(fileMetadata)
 }
 

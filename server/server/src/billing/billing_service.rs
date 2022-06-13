@@ -17,7 +17,7 @@ use lockbook_models::api::{
     UpgradeAccountGooglePlayRequest, UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError,
     UpgradeAccountStripeRequest, UpgradeAccountStripeResponse,
 };
-use log::{info, warn};
+use log::{error, info, warn};
 use redis_utils::converters::{JsonGet, JsonSet, PipelineJsonSet};
 use redis_utils::tx;
 use std::borrow::Borrow;
@@ -48,7 +48,7 @@ async fn lock_subscription_profile(
 
         if current_time - sub_profile.last_in_payment_flow < millis_between_payment_flows {
             warn!(
-                "User is already in payment flow, or this not enough time has elapsed since a failed attempt. public_key: {}",
+                "User/Webhook is already in payment flow, or this not enough time has elapsed since a failed attempt. public_key: {}",
                 keys::stringify_public_key(public_key)
             );
 
@@ -71,42 +71,12 @@ async fn lock_subscription_profile(
 
 async fn release_subscription_profile<E: Debug>(
     public_key: &PublicKey, con: &mut deadpool_redis::Connection,
-    sub_profile: &mut SubscriptionProfile,
+    mut sub_profile: SubscriptionProfile,
 ) -> Result<(), ServerError<E>> {
     sub_profile.last_in_payment_flow = 0;
     Ok(con
-        .json_set(keys::subscription_profile(public_key), &sub_profile)
+        .json_set(keys::subscription_profile(public_key), sub_profile)
         .await?)
-}
-
-pub async fn get_subscription_info(
-    context: RequestContext<'_, GetSubscriptionInfoRequest>,
-) -> Result<GetSubscriptionInfoResponse, ServerError<GetSubscriptionInfoError>> {
-    let server_state = context.server_state;
-    let mut con = server_state.index_db_pool.get().await?;
-
-    let sub_profile: SubscriptionProfile = match con
-        .maybe_json_get(keys::subscription_profile(&context.public_key))
-        .await?
-    {
-        Some(sub_profile) => sub_profile,
-        None => return Ok(GetSubscriptionInfoResponse { subscription_info: None }),
-    };
-
-    let subscription_info = sub_profile.billing_platform.map(|info| match info {
-        BillingPlatform::Stripe(info) => SubscriptionInfo {
-            payment_platform: PaymentPlatform::Stripe { card_last_4_digits: info.last_4.clone() },
-            period_end: info.expiration_time,
-        },
-        BillingPlatform::GooglePlay(info) => SubscriptionInfo {
-            payment_platform: PaymentPlatform::GooglePlay {
-                account_state: info.account_state.clone(),
-            },
-            period_end: info.expiration_time,
-        },
-    });
-
-    Ok(GetSubscriptionInfoResponse { subscription_info })
 }
 
 pub async fn upgrade_account_google_play(
@@ -183,9 +153,11 @@ pub async fn upgrade_account_google_play(
         account_state: GooglePlayAccountState::Ok,
     }));
 
-    release_subscription_profile(&context.public_key, &mut con, &mut sub_profile).await?;
+    error!("CONFIRMING SUBSCRIPTION: {:#?} \n{:#?}", request, sub_profile);
+
     con.json_set(keys::public_key_from_gp_account_id(&request.account_id), context.public_key)
         .await?;
+    release_subscription_profile(&context.public_key, &mut con, sub_profile).await?;
 
     info!(
         "Successfully upgraded a user through a google play subscription. public_key: {:?}",
@@ -193,6 +165,93 @@ pub async fn upgrade_account_google_play(
     );
 
     Ok(UpgradeAccountGooglePlayResponse {})
+}
+
+pub async fn upgrade_account_stripe(
+    context: RequestContext<'_, UpgradeAccountStripeRequest>,
+) -> Result<UpgradeAccountStripeResponse, ServerError<UpgradeAccountStripeError>> {
+    let (request, server_state) = (&context.request, context.server_state);
+
+    info!("Attempting to switch account tier of {:?} to premium", context.public_key);
+
+    let mut con = server_state.index_db_pool.get().await?;
+
+    let mut sub_profile = lock_subscription_profile(
+        &context.public_key,
+        &mut con,
+        server_state
+            .config
+            .billing
+            .millis_between_user_payment_flows,
+    )
+    .await
+    .map_err(|err| match err {
+        ClientError(LockBillingWorkflowError::ExistingRequestPending) => {
+            ClientError(UpgradeAccountStripeError::ExistingRequestPending)
+        }
+        InternalError(msg) => InternalError(msg),
+    })?;
+
+    if sub_profile.data_cap() == PREMIUM_TIER_USAGE_SIZE {
+        return Err(ClientError(UpgradeAccountStripeError::AlreadyPremium));
+    }
+
+    let maybe_user_info = sub_profile.billing_platform.and_then(|info| {
+        if let BillingPlatform::Stripe(stripe_info) = info {
+            Some(stripe_info)
+        } else {
+            None
+        }
+    });
+
+    let user_info = stripe_service::create_subscription(
+        server_state,
+        &mut con,
+        &context.public_key,
+        &request.account_tier,
+        maybe_user_info,
+    )
+    .await?;
+
+    sub_profile.billing_platform = Some(BillingPlatform::Stripe(user_info));
+    release_subscription_profile(&context.public_key, &mut con, sub_profile).await?;
+
+    info!(
+        "Successfully switched the account tier of {:?} from free to premium.",
+        context.public_key
+    );
+
+    Ok(UpgradeAccountStripeResponse {})
+}
+
+pub async fn get_subscription_info(
+    context: RequestContext<'_, GetSubscriptionInfoRequest>,
+) -> Result<GetSubscriptionInfoResponse, ServerError<GetSubscriptionInfoError>> {
+    let server_state = context.server_state;
+    let mut con = server_state.index_db_pool.get().await?;
+
+    let sub_profile: SubscriptionProfile = match con
+        .maybe_json_get(keys::subscription_profile(&context.public_key))
+        .await?
+    {
+        Some(sub_profile) => sub_profile,
+        None => return Ok(GetSubscriptionInfoResponse { subscription_info: None }),
+    };
+
+    let subscription_info = sub_profile.billing_platform.map(|info| match info {
+        BillingPlatform::Stripe(info) => SubscriptionInfo {
+            payment_platform: PaymentPlatform::Stripe { card_last_4_digits: info.last_4.clone() },
+            period_end: info.expiration_time,
+        },
+        BillingPlatform::GooglePlay(info) => SubscriptionInfo {
+            payment_platform: PaymentPlatform::GooglePlay {
+                account_state: info.account_state.clone(),
+            },
+            period_end: info.expiration_time,
+        },
+    });
+
+    Ok(GetSubscriptionInfoResponse { subscription_info })
 }
 
 pub async fn cancel_subscription(
@@ -244,6 +303,10 @@ pub async fn cancel_subscription(
         Some(BillingPlatform::GooglePlay(ref mut info)) => {
             info!("Canceling google play subscription of user. public_key: {:?}.", context.public_key);
 
+            if let GooglePlayAccountState::Canceled = &info.account_state {
+                return Err(ClientError(CancelSubscriptionError::NotPremium))
+            }
+
             google_play_client::cancel_subscription(
                 &server_state.android_publisher,
                 &info.subscription_product_id,
@@ -269,66 +332,9 @@ pub async fn cancel_subscription(
         }
     }
 
-    release_subscription_profile(&context.public_key, &mut con, &mut sub_profile).await?;
+    release_subscription_profile(&context.public_key, &mut con, sub_profile).await?;
 
     Ok(CancelSubscriptionResponse {})
-}
-
-pub async fn upgrade_account_stripe(
-    context: RequestContext<'_, UpgradeAccountStripeRequest>,
-) -> Result<UpgradeAccountStripeResponse, ServerError<UpgradeAccountStripeError>> {
-    let (request, server_state) = (&context.request, context.server_state);
-
-    info!("Attempting to switch account tier of {:?} to premium", context.public_key);
-
-    let mut con = server_state.index_db_pool.get().await?;
-
-    let mut sub_profile = lock_subscription_profile(
-        &context.public_key,
-        &mut con,
-        server_state
-            .config
-            .billing
-            .millis_between_user_payment_flows,
-    )
-    .await
-    .map_err(|err| match err {
-        ClientError(LockBillingWorkflowError::ExistingRequestPending) => {
-            ClientError(UpgradeAccountStripeError::ExistingRequestPending)
-        }
-        InternalError(msg) => InternalError(msg),
-    })?;
-
-    if sub_profile.data_cap() == PREMIUM_TIER_USAGE_SIZE {
-        return Err(ClientError(UpgradeAccountStripeError::AlreadyPremium));
-    }
-
-    let maybe_user_info = sub_profile.billing_platform.and_then(|info| {
-        if let BillingPlatform::Stripe(stripe_info) = info {
-            Some(stripe_info)
-        } else {
-            None
-        }
-    });
-
-    let user_info = stripe_service::create_subscription(
-        server_state,
-        &mut con,
-        &context.public_key,
-        &request.account_tier,
-        maybe_user_info,
-    )
-    .await?;
-
-    sub_profile.billing_platform = Some(BillingPlatform::Stripe(user_info));
-    release_subscription_profile(&context.public_key, &mut con, &mut sub_profile).await?;
-
-    info!(
-        "Successfully switched the account tier of {:?} from free to premium.",
-        context.public_key
-    );
-
-    Ok(UpgradeAccountStripeResponse {})
 }
 
 async fn save_billing_profile<
@@ -343,12 +349,15 @@ async fn save_billing_profile<
             Ok(ref mut sub_prof) => {
                 f(sub_prof)?;
                 sub_prof.last_in_payment_flow = 0;
-                con.json_set(keys::subscription_profile(&public_key), sub_prof)
+                con.json_set(keys::subscription_profile(public_key), sub_prof)
                     .await?;
 
                 break;
             }
-            Err(ClientError(LockBillingWorkflowError::ExistingRequestPending)) => continue,
+            Err(ClientError(LockBillingWorkflowError::ExistingRequestPending)) => {
+                // tokio::time::sleep(server_state.config).await;
+                continue;
+            }
             Err(err) => return Err(internal!("Cannot get billing lock in webhooks: {:#?}", err)),
         }
     }
@@ -488,6 +497,8 @@ pub async fn google_play_notification_webhooks(
         .await
         .map_err(|e| internal!("{:#?}", e))?;
 
+        error!("NOTIFICATION CAME IN: {:#?} \n{:#?}", sub_notif, subscription);
+
         let notification_type = sub_notif.notification_type();
         if let NotificationType::SubscriptionPurchased = notification_type {
             return Ok(());
@@ -501,7 +512,7 @@ pub async fn google_play_notification_webhooks(
         )
         .await?;
 
-        info!("Updating subscription history to match new subscription state.");
+        info!("Updating subscription profile to match new subscription state.");
 
         save_billing_profile(
             &public_key,
@@ -511,21 +522,12 @@ pub async fn google_play_notification_webhooks(
                 .billing
                 .millis_between_user_payment_flows,
             |sub_profile| {
-                if let Some(BillingPlatform::GooglePlay(ref mut info)) =
-                    sub_profile.billing_platform
-                {
+                if let Some(BillingPlatform::GooglePlay(ref mut info)) = sub_profile.billing_platform {
                     match notification_type {
                         NotificationType::SubscriptionRecovered
-                        | NotificationType::SubscriptionRestarted => {
+                        | NotificationType::SubscriptionRestarted
+                        | NotificationType::SubscriptionRenewed => {
                             info.account_state = GooglePlayAccountState::Ok;
-                            info.expiration_time =
-                                google_play_service::get_subscription_period_end(
-                                    &subscription,
-                                    &notification_type,
-                                    public_key,
-                                )?;
-                        }
-                        NotificationType::SubscriptionRenewed => {
                             info.expiration_time =
                                 google_play_service::get_subscription_period_end(
                                     &subscription,
@@ -547,7 +549,11 @@ pub async fn google_play_notification_webhooks(
                         }
                         NotificationType::SubscriptionExpired
                         | NotificationType::SubscriptionRevoked => {
-                            sub_profile.billing_platform = None
+                            if info.purchase_token == sub_notif.purchase_token {
+                                sub_profile.billing_platform = None
+                            } else {
+                                info!("Expired or revoked subscription was tied to an old purchase_token. old purchase_token: {:?}, new purchase_token: {:?}", sub_notif.purchase_token, info.purchase_token);
+                            }
                         }
                         NotificationType::SubscriptionCanceled => {
                             info.account_state = GooglePlayAccountState::Canceled;
@@ -582,9 +588,8 @@ pub async fn google_play_notification_webhooks(
                         public_key
                     ))
                 }
-            },
-        )
-        .await?;
+            }
+        ).await?;
     }
 
     if let Some(test_notif) = notification.test_notification {

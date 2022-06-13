@@ -1,5 +1,7 @@
 package app.lockbook.util
 
+import android.content.res.Resources
+import app.lockbook.R
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonClassDiscriminator
@@ -102,6 +104,11 @@ sealed class PaymentPlatform {
         @SerialName("card_last_4_digits")
         val cardLast4Digits: String
     ) : PaymentPlatform()
+
+    fun toReadableString(resources: Resources): String = when (this) {
+        is GooglePlay -> resources.getString(R.string.google_play)
+        is Stripe -> resources.getString(R.string.stripe)
+    }
 }
 
 enum class GooglePlayAccountState {

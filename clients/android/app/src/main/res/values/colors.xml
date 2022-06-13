@@ -14,4 +14,7 @@
   <color name="bottomSheetBackgroundColor">@color/light</color>
   <color name="dialogBackgroundColor">@color/white</color>
   <bool name="windowLightStatusBar">true</bool>
+
+  <color name="imagePdfToolbarColor">#99FFFFFF</color>
+  <color name="pdfPageIndicatorBackgroundColor">#22000000</color>
 </resources>

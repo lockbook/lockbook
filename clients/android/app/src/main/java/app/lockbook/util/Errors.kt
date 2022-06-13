@@ -360,11 +360,13 @@ enum class UpgradeAccountAndroid : UiCoreError {
 @Serializable
 enum class CancelSubscriptionError : UiCoreError {
     NotPremium,
+    AlreadyCanceled,
     UsageIsOverFreeTierDataCap,
     ExistingRequestPending;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         NotPremium -> LbError.newUserError(getString(res, R.string.not_premium))
+        AlreadyCanceled -> LbError.newUserError(getString(res, R.string.already_canceled))
         UsageIsOverFreeTierDataCap -> LbError.newUserError(getString(res, R.string.usage_is_over_free_tier_data_cap))
         ExistingRequestPending -> LbError.newUserError(getString(res, R.string.existing_request_pending))
     }
@@ -378,6 +380,22 @@ enum class GetSubscriptionInfoError : UiCoreError {
     override fun toLbError(res: Resources): LbError = when (this) {
         CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
         ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
+    }
+}
+
+@Serializable
+enum class ExportFileError : UiCoreError {
+    NoAccount,
+    ParentDoesNotExist,
+    DiskPathTaken,
+    DiskPathInvalid;
+
+    override fun toLbError(res: Resources): LbError = when (this) {
+        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
+        ParentDoesNotExist -> LbError.newUserError(getString(res, R.string.could_not_find_a_parent))
+        // Used basic errors since specific errors are not useful to the user
+        DiskPathTaken -> LbError.newUserError(getString(res, R.string.basic_error))
+        DiskPathInvalid -> LbError.newUserError(getString(res, R.string.basic_error))
     }
 }
 

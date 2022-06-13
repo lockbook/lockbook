@@ -33,9 +33,9 @@ impl super::App {
         name_and_ext.append(&ext_lbl);
 
         let ftype_choices = ui::ToggleGroup::with_buttons(&[
-            ("Folder", NewFileType::Folder),
-            ("Plain Text", NewFileType::PlainText),
             ("Markdown", NewFileType::Markdown),
+            ("Plain Text", NewFileType::PlainText),
+            ("Folder", NewFileType::Folder),
         ]);
         ftype_choices.connect_changed(move |value: NewFileType| {
             if let Some(ext) = value.ext() {
@@ -95,16 +95,18 @@ impl super::App {
             }
 
             match app.api.create_file(&fname, parent_id, ftype.lb_type()) {
-                Ok(new_file) => {
-                    match app.account.tree.add_file(&new_file) {
-                        Ok(_) => {
-                            app.update_sync_status();
-                            d.close();
-                            //open the file if doc?
+                Ok(new_file) => match app.account.tree.add_file(&new_file) {
+                    Ok(_) => {
+                        app.update_sync_status();
+                        d.close();
+                        if new_file.file_type == lb::FileType::Document
+                            && app.settings.read().unwrap().open_new_files
+                        {
+                            app.open_file(new_file.id)
                         }
-                        Err(err) => display_error(&err),
                     }
-                }
+                    Err(err) => display_error(&err),
+                },
                 Err(err) => display_error(&{
                     use lb::CreateFileError::*;
                     match err {
@@ -169,14 +171,14 @@ fn action_btn(text: &str) -> gtk::Button {
 
 #[derive(Clone, Copy, PartialEq)]
 enum NewFileType {
-    Folder,
-    PlainText,
     Markdown,
+    PlainText,
+    Folder,
 }
 
 impl Default for NewFileType {
     fn default() -> Self {
-        Self::Folder
+        Self::Markdown
     }
 }
 
@@ -190,8 +192,9 @@ impl NewFileType {
 
     fn ext(&self) -> Option<&str> {
         match self {
-            Self::PlainText | Self::Folder => None,
             Self::Markdown => Some(".md"),
+            Self::PlainText => Some(".txt"),
+            Self::Folder => None,
         }
     }
 }

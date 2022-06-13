@@ -3,10 +3,12 @@
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use jni::objects::{JClass, JObject, JString, JValue};
-use jni::sys::{jlong, jstring};
+use jni::sys::{jboolean, jbyteArray, jlong, jstring};
 use jni::JNIEnv;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::path::PathBuf;
+use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::{
@@ -314,11 +316,32 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocument(
         match static_state::get() {
             Ok(core) => translate(
                 core.read_document(id)
-                    .map(|d| String::from(String::from_utf8_lossy(&d))),
+                    .map(|b| String::from(String::from_utf8_lossy(&b))),
             ),
             e => translate(e.map(|_| ())),
         },
     )
+}
+
+// Unlike readDocument, this function does not return any specific type  of error. Any error will result in this function returning null.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocumentBytes(
+    env: JNIEnv, _: JClass, jid: JString,
+) -> jbyteArray {
+    let id = match deserialize_id(&env, jid) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    match static_state::get()
+        .ok()
+        .and_then(|core| core.read_document(id).ok())
+    {
+        None => ::std::ptr::null_mut() as jbyteArray,
+        Some(document_bytes) => env
+            .byte_array_from_slice(document_bytes.as_slice())
+            .unwrap_or(::std::ptr::null_mut() as jbyteArray),
+    }
 }
 
 #[no_mangle]
@@ -339,29 +362,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_saveDocumentToDisk(
         &env,
         match static_state::get() {
             Ok(core) => translate(core.save_document_to_disk(id, &location)),
-            e => translate(e.map(|_| ())),
-        },
-    )
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawing(
-    env: JNIEnv, _: JClass, jid: JString, jformat: JString,
-) -> jstring {
-    let id = match deserialize_id(&env, jid) {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    let format = match deserialize::<SupportedImageFormats>(&env, jformat, "image format") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    string_to_jstring(
-        &env,
-        match static_state::get() {
-            Ok(core) => translate(core.export_drawing(id, format, None)),
             e => translate(e.map(|_| ())),
         },
     )
@@ -513,6 +513,36 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_calculateWork(
         &env,
         match static_state::get() {
             Ok(core) => translate(core.calculate_work()),
+            e => translate(e.map(|_| ())),
+        },
+    )
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_exportFile(
+    env: JNIEnv, _: JClass, jid: JString, jdestination: JString, jedit: jboolean,
+) -> jstring {
+    let id = match deserialize_id(&env, jid) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let destination =
+        match jstring_to_string(&env, jdestination, "path").and_then(|destination_str| {
+            PathBuf::from_str(&destination_str).map_err(|_| {
+                string_to_jstring(&env, "Could not parse destination as PathBuf.".to_string())
+            })
+        }) {
+            Ok(ok) => ok,
+            Err(err) => return err,
+        };
+
+    let edit = jedit == 1;
+
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.export_file(id, destination, edit, None)),
             e => translate(e.map(|_| ())),
         },
     )

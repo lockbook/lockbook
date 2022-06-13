@@ -33,7 +33,10 @@ object CoreModel {
         }
     }
 
-    private inline fun <reified C, reified E> Json.tryParse(json: String, isNullable: Boolean = false): Result<C, CoreError<E>>
+    private inline fun <reified C, reified E> Json.tryParse(
+        json: String,
+        isNullable: Boolean = false
+    ): Result<C, CoreError<E>>
             where E : Enum<E>, E : UiCoreError = try {
         decodeFromString<IntermCoreResult<C, E>>(json).toResult(isNullable)
     } catch (e: Exception) {
@@ -202,9 +205,11 @@ object CoreModel {
     fun readDocument(
         id: String
     ): Result<String, CoreError<ReadDocumentError>> =
-        readDocumentParser.tryParse(
-            app.lockbook.core.readDocument(id)
-        )
+        readDocumentParser.tryParse(app.lockbook.core.readDocument(id))
+
+    fun readDocumentBytes(
+        id: String
+    ): ByteArray? = app.lockbook.core.readDocumentBytes(id)
 
     private val saveDocumentToDiskParser = Json {
         serializersModule = SerializersModule {
@@ -308,6 +313,17 @@ object CoreModel {
     fun calculateWork(): Result<WorkCalculated, CoreError<CalculateWorkError>> =
         calculateWorkParser.tryParse(
             app.lockbook.core.calculateWork()
+        )
+
+    private val exportFileParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), ExportFileError.serializer())
+        }
+    }
+
+    fun exportFile(id: String, destination: String, edit: Boolean): Result<Unit, CoreError<ExportFileError>> =
+        exportFileParser.tryParse(
+            app.lockbook.core.exportFile(id, destination, edit)
         )
 
     private val upgradeAccountGooglePlayParser = Json {

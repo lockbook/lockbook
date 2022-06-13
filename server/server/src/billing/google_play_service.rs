@@ -60,7 +60,7 @@ pub async fn verify_request_and_get_notification(
 
     info!("Parsing pubsub notification and extracting the developer notification.");
 
-    let pubsub_notif = serde_json::from_slice::<PubSubNotification>(&request_body)?;
+    let pubsub_notif = serde_json::from_slice::<PubSubNotification>(request_body)?;
     let data = base64::decode(pubsub_notif.message.data)
         .map_err(|e| ClientError(GooglePlayWebhookError::CannotDecodePubSubData(e)))?;
 
