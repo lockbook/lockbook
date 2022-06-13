@@ -30,8 +30,20 @@ impl Titlebar {
         }
     }
 
-    pub fn set_searcher(&self, searcher: lb::Searcher) {
-        *self.imp().searcher.borrow_mut() = Some(searcher);
+    pub fn set_searcher(&self, searcher: Option<lb::Searcher>) {
+        *self.imp().searcher.borrow_mut() = searcher;
+        if self.imp().searcher.borrow().is_some()
+            && !self.imp().search_box.text().to_string().is_empty()
+        {
+            imp::search(
+                &self.imp().searcher,
+                &self.imp().search_box,
+                &self.imp().result_list,
+                &self.imp().loading,
+                &self.imp().no_results,
+            );
+        }
+        self.imp().loading.hide();
     }
 
     pub fn clear_search(&self) {
@@ -41,6 +53,7 @@ impl Titlebar {
         }
         self.imp().search_box.set_text("");
         *self.imp().real_input.borrow_mut() = "".to_string();
+        *self.imp().searcher.borrow_mut() = None;
     }
 
     pub fn receive_search_ops<F: FnMut(SearchOp) -> glib::Continue + 'static>(&self, f: F) {
@@ -96,9 +109,52 @@ mod imp {
         pub search_box: gtk::Entry,
         pub result_list_cntr: gtk::Box,
         pub result_list: gtk::ListBox,
+        pub loading: gtk::Spinner,
+        pub no_results: gtk::Label,
 
         pub center: gtk::Stack,
         pub base: gtk::HeaderBar,
+    }
+
+    pub fn search(
+        maybe_searcher: &Rc<RefCell<Option<lb::Searcher>>>, search_box: &gtk::Entry,
+        result_list: &gtk::ListBox, loading: &gtk::Spinner, no_results: &gtk::Label,
+    ) {
+        if let Some(searcher) = &*maybe_searcher.borrow() {
+            // clear any stale results.
+            while let Some(row) = result_list.row_at_index(0) {
+                result_list.remove(&row);
+            }
+
+            // if a searcher is present but there's no input, show and do nothing.
+            let input = search_box.text().to_string();
+            if input.is_empty() {
+                no_results.hide();
+                return;
+            }
+
+            let results = searcher.search(&input);
+            if results.is_empty() {
+                no_results.show();
+            } else {
+                no_results.hide();
+                for res in results {
+                    let row = ui::SearchRow::new();
+                    row.set_data(res.id, &res.path);
+                    result_list.append(&row);
+                }
+            }
+
+            if loading.is_spinning() {
+                loading.stop();
+            }
+            loading.hide();
+        } else {
+            if !loading.is_spinning() {
+                loading.start();
+            }
+            loading.show();
+        }
     }
 
     #[glib::object_subclass]
@@ -108,7 +164,6 @@ mod imp {
         type ParentType = gtk::Widget;
 
         fn class_init(c: &mut Self::Class) {
-            // The layout manager determines how child widgets are laid out.
             c.set_layout_manager_type::<gtk::BinLayout>();
         }
     }
@@ -206,6 +261,9 @@ mod imp {
                 let search_btn = self.search_btn.clone();
                 let result_list = self.result_list.clone();
                 let real_input = self.real_input.clone();
+                let searcher = self.searcher.clone();
+                let loading = self.loading.clone();
+                let no_results = self.no_results.clone();
 
                 move |_, key, code, _| {
                     if key == gdk::Key::Escape {
@@ -215,6 +273,9 @@ mod imp {
                         while let Some(row) = result_list.row_at_index(0) {
                             result_list.remove(&row);
                         }
+                        *searcher.borrow_mut() = None;
+                        loading.hide();
+                        no_results.hide();
                     } else if code == ARROW_DOWN {
                         let next_index = result_list
                             .selected_row()
@@ -244,28 +305,30 @@ mod imp {
                 let search_box = self.search_box.clone();
                 let maybe_searcher = self.searcher.clone();
                 let result_list = self.result_list.clone();
+                let loading = self.loading.clone();
+                let no_results = self.no_results.clone();
 
                 move |_, _, code, _| match code {
                     ALT_L | ALT_R | CTRL_L | CTRL_R | ARROW_DOWN | ARROW_UP | ENTER => {}
-                    _ => {
-                        if let Some(searcher) = &*maybe_searcher.borrow() {
-                            let input = search_box.text().to_string();
-                            let results = searcher.search(&input);
-
-                            while let Some(row) = result_list.row_at_index(0) {
-                                result_list.remove(&row);
-                            }
-
-                            for res in results {
-                                let row = ui::SearchRow::new();
-                                row.set_data(res.id, &res.path);
-                                result_list.append(&row);
-                            }
-                        }
-                    }
+                    _ => search(&maybe_searcher, &search_box, &result_list, &loading, &no_results),
                 }
             });
             self.search_box.add_controller(&search_key_press);
+
+            self.loading.hide();
+            self.loading.set_halign(gtk::Align::Start);
+            self.loading.set_margin_top(8);
+            self.loading.set_margin_bottom(8);
+            self.loading.set_margin_start(8);
+            self.result_list_cntr.append(&self.loading);
+
+            self.no_results.hide();
+            self.no_results.set_halign(gtk::Align::Start);
+            self.no_results.set_markup("<i>No matches found!</i>");
+            self.no_results.set_margin_top(8);
+            self.no_results.set_margin_bottom(8);
+            self.no_results.set_margin_start(8);
+            self.result_list_cntr.append(&self.no_results);
 
             self.center.set_transition_duration(350);
             self.center.add_named(&self.title, Some("title"));

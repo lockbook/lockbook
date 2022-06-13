@@ -15,6 +15,7 @@ impl super::App {
     }
 
     pub fn open_search(&self) {
+        self.titlebar.set_searcher(None);
         self.titlebar.toggle_search_on();
 
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
@@ -28,7 +29,7 @@ impl super::App {
         let app = self.clone();
         rx.attach(None, move |searcher_result| {
             match searcher_result {
-                Ok(searcher) => app.titlebar.set_searcher(searcher),
+                Ok(searcher) => app.titlebar.set_searcher(Some(searcher)),
                 Err(msg) => app.show_err_dialog(&msg),
             }
             glib::Continue(false)
