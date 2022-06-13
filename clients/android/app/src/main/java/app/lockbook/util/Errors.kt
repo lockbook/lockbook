@@ -345,15 +345,19 @@ enum class CalculateWorkError : UiCoreError {
 }
 
 @Serializable
-enum class UpgradeAccountAndroid : UiCoreError {
+enum class UpgradeAccountGooglePlayError : UiCoreError {
     AlreadyPremium,
     InvalidPurchaseToken,
-    ExistingRequestPending;
+    ExistingRequestPending,
+    CouldNotReachServer,
+    ClientUpdateRequired;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         AlreadyPremium -> LbError.newUserError(getString(res, R.string.already_premium))
         InvalidPurchaseToken -> LbError.newUserError(getString(res, R.string.invalid_purchase_token))
         ExistingRequestPending -> LbError.newUserError(getString(res, R.string.existing_request_pending))
+        CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
+        ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
     }
 }
 
@@ -362,13 +366,17 @@ enum class CancelSubscriptionError : UiCoreError {
     NotPremium,
     AlreadyCanceled,
     UsageIsOverFreeTierDataCap,
-    ExistingRequestPending;
+    ExistingRequestPending,
+    CouldNotReachServer,
+    ClientUpdateRequired;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         NotPremium -> LbError.newUserError(getString(res, R.string.not_premium))
         AlreadyCanceled -> LbError.newUserError(getString(res, R.string.already_canceled))
         UsageIsOverFreeTierDataCap -> LbError.newUserError(getString(res, R.string.usage_is_over_free_tier_data_cap))
         ExistingRequestPending -> LbError.newUserError(getString(res, R.string.existing_request_pending))
+        CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
+        ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
     }
 }
 

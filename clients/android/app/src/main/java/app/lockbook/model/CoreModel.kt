@@ -328,11 +328,11 @@ object CoreModel {
 
     private val upgradeAccountGooglePlayParser = Json {
         serializersModule = SerializersModule {
-            createPolyRelation(Unit.serializer(), UpgradeAccountAndroid.serializer())
+            createPolyRelation(Unit.serializer(), UpgradeAccountGooglePlayError.serializer())
         }
     }
 
-    fun upgradeAccountGooglePlay(purchaseToken: String, accountID: String): Result<Boolean, CoreError<UpgradeAccountAndroid>> =
+    fun upgradeAccountGooglePlay(purchaseToken: String, accountID: String): Result<Boolean, CoreError<UpgradeAccountGooglePlayError>> =
         upgradeAccountGooglePlayParser.tryParse(
             app.lockbook.core.upgradeAccountGooglePlay(purchaseToken, accountID)
         )

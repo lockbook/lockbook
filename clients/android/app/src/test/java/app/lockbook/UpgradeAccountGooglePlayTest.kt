@@ -2,13 +2,13 @@ package app.lockbook
 
 import app.lockbook.model.CoreModel
 import app.lockbook.util.Config
-import app.lockbook.util.UpgradeAccountAndroid
+import app.lockbook.util.UpgradeAccountGooglePlayError
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Ignore
 import org.junit.Test
 
-class UpgradeAccountAndroidTest {
+class UpgradeAccountGooglePlayTest {
 
     companion object {
         @BeforeClass
@@ -25,9 +25,9 @@ class UpgradeAccountAndroidTest {
 
     @Ignore("Does not work unless the environment variable GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY is defined in server.")
     @Test
-    fun upgradeAccountAndroidInvalidPurchaseToken() {
+    fun upgradeAccountGooglePlayInvalidPurchaseToken() {
         CoreModel.createAccount(generateAlphaString()).unwrapOk()
 
-        CoreModel.upgradeAccountGooglePlay("", "").unwrapErrorType(UpgradeAccountAndroid.InvalidPurchaseToken)
+        CoreModel.upgradeAccountGooglePlay("", "").unwrapErrorType(UpgradeAccountGooglePlayError.InvalidPurchaseToken)
     }
 }
