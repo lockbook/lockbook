@@ -22,7 +22,6 @@ use redis_utils::converters::{JsonGet, JsonSet, PipelineJsonSet};
 use redis_utils::tx;
 use std::fmt::Debug;
 use std::ops::Deref;
-use std::str::FromStr;
 use std::sync::Arc;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
@@ -92,7 +91,7 @@ pub async fn switch_account_tier(
 
             stripe_client::cancel_subscription(
                 &server_state.stripe_client,
-                &stripe::SubscriptionId::from_str(&user_info.subscriptions[pos].id)?,
+                &user_info.subscriptions[pos].id.parse()?,
             )
             .await?;
 
@@ -244,7 +243,7 @@ async fn create_subscription(
                         customer_id, fmt_public_key
                     );
 
-                    stripe::CustomerId::from_str(customer_id)?
+                    customer_id.parse()?
                 }
             };
 
@@ -261,7 +260,7 @@ async fn create_subscription(
 
                 stripe_client::detach_payment_method_from_customer(
                     &server_state.stripe_client,
-                    &stripe::PaymentMethodId::from_str(&info.id)?,
+                    &info.id.parse()?,
                 )
                 .await?;
             }
@@ -302,7 +301,7 @@ async fn create_subscription(
                 .ok_or(ClientError(SwitchAccountTierError::OldCardDoesNotExist))?;
 
             match &user_info.customer_id {
-                Some(customer_id) => (stripe::CustomerId::from_str(customer_id)?, payment_method.id.clone()),
+                Some(customer_id) => (customer_id.parse()?, payment_method.id.clone()),
                 None => return Err(internal!("StripeUserInfo is in an inconsistent state: has payment method but no customer id: {:?}", user_info))
             }
         }

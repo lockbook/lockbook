@@ -7,8 +7,6 @@ use jni::sys::{jboolean, jbyteArray, jlong, jstring};
 use jni::JNIEnv;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::path::PathBuf;
-use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::{
@@ -528,7 +526,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportFile(
 
     let destination =
         match jstring_to_string(&env, jdestination, "path").and_then(|destination_str| {
-            PathBuf::from_str(&destination_str).map_err(|_| {
+            destination_str.parse().map_err(|_| {
                 string_to_jstring(&env, "Could not parse destination as PathBuf.".to_string())
             })
         }) {

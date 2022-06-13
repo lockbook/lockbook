@@ -2,7 +2,6 @@ use crate::model::errors::core_err_unexpected;
 use crate::CoreError;
 use std::env;
 use std::path::Path;
-use std::str::FromStr;
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::{filter, fmt, prelude::*};
@@ -12,7 +11,7 @@ static LOG_FILE: &str = "lockbook.log";
 pub fn init<P: AsRef<Path>>(log_path: P) -> Result<(), CoreError> {
     let lockbook_log_level = env::var("LOG_LEVEL")
         .ok()
-        .and_then(|s| LevelFilter::from_str(s.as_str()).ok())
+        .and_then(|s| s.as_str().parse().ok())
         .unwrap_or(LevelFilter::DEBUG);
 
     let subscriber = tracing_subscriber::Registry::default().with(

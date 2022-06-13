@@ -1,6 +1,5 @@
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
-use std::str::FromStr;
 
 use serde::Serialize;
 use serde_json::json;
@@ -35,11 +34,13 @@ unsafe fn config_from_ptr(path: *const c_char, logs: bool) -> Config {
 }
 
 unsafe fn uuid_from_ptr(s: *const c_char) -> Uuid {
-    Uuid::from_str(&str_from_ptr(s)).expect("Could not String -> Uuid")
+    str_from_ptr(s).parse().expect("Could not String -> Uuid")
 }
 
 unsafe fn file_type_from_ptr(s: *const c_char) -> FileType {
-    FileType::from_str(&str_from_ptr(s)).expect("Could not String -> FileType")
+    str_from_ptr(s)
+        .parse()
+        .expect("Could not String -> FileType")
 }
 
 unsafe fn filter_from_ptr(s: *const c_char) -> Option<Filter> {
@@ -131,7 +132,7 @@ pub unsafe extern "C" fn write_document(
 ) -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.write_document(
-            Uuid::from_str(&str_from_ptr(id)).expect("Could not String -> Uuid"),
+            str_from_ptr(id).parse().expect("Could not String -> Uuid"),
             &str_from_ptr(content).into_bytes(),
         )),
         e => translate(e.map(|_| ())),
