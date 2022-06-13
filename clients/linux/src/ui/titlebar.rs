@@ -3,7 +3,6 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
 pub enum SearchOp {
-    Update,
     Exec,
 }
 
@@ -31,6 +30,10 @@ impl Titlebar {
         }
     }
 
+    pub fn set_searcher(&self, searcher: lb::Searcher) {
+        *self.imp().searcher.borrow_mut() = Some(searcher);
+    }
+
     pub fn clear_search(&self) {
         let btn = &self.imp().search_btn;
         if btn.is_active() {
@@ -50,10 +53,6 @@ impl Titlebar {
 
     pub fn search_result_area(&self) -> &gtk::Box {
         &self.imp().result_list_cntr
-    }
-
-    pub fn search_input(&self) -> String {
-        self.imp().search_box.text().to_string()
     }
 
     pub fn base(&self) -> &gtk::HeaderBar {
@@ -83,8 +82,10 @@ mod imp {
 
     #[derive(Debug, Default)]
     pub struct Titlebar {
-        pub search_op_rx: RefCell<Option<glib::Receiver<ui::SearchOp>>>,
-        pub search_op_tx: RefCell<Option<glib::Sender<ui::SearchOp>>>,
+        pub searcher: Rc<RefCell<Option<lb::Searcher>>>,
+
+        pub search_op_rx: RefCell<Option<glib::Receiver<SearchOp>>>,
+        pub search_op_tx: RefCell<Option<glib::Sender<SearchOp>>>,
 
         pub app_menu_btn: gtk::MenuButton,
         pub search_btn: gtk::ToggleButton,
@@ -205,7 +206,6 @@ mod imp {
                 let search_btn = self.search_btn.clone();
                 let result_list = self.result_list.clone();
                 let real_input = self.real_input.clone();
-                let search_op_tx = search_op_tx.clone();
 
                 move |_, key, code, _| {
                     if key == gdk::Key::Escape {
@@ -241,9 +241,28 @@ mod imp {
                 }
             });
             search_key_press.connect_key_released({
+                let search_box = self.search_box.clone();
+                let maybe_searcher = self.searcher.clone();
+                let result_list = self.result_list.clone();
+
                 move |_, _, code, _| match code {
                     ALT_L | ALT_R | CTRL_L | CTRL_R | ARROW_DOWN | ARROW_UP | ENTER => {}
-                    _ => search_op_tx.send(SearchOp::Update).unwrap(),
+                    _ => {
+                        if let Some(searcher) = &*maybe_searcher.borrow() {
+                            let input = search_box.text().to_string();
+                            let results = searcher.search(&input);
+
+                            while let Some(row) = result_list.row_at_index(0) {
+                                result_list.remove(&row);
+                            }
+
+                            for res in results {
+                                let row = ui::SearchRow::new();
+                                row.set_data(res.id, &res.path);
+                                result_list.append(&row);
+                            }
+                        }
+                    }
                 }
             });
             self.search_box.add_controller(&search_key_press);
