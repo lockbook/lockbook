@@ -8,7 +8,7 @@ use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::{
     DecryptedFileMetadata, DecryptedFiles, EncryptedFileMetadata, EncryptedFiles,
 };
-use lockbook_models::tree::FileMetaMapExt;
+use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 
 use crate::model::errors::{core_err_unexpected, CoreError};
 
@@ -17,7 +17,7 @@ use crate::model::errors::{core_err_unexpected, CoreError};
 pub fn encrypt_metadatum(
     account: &Account, parent_key: &AESKey, target: &DecryptedFileMetadata,
 ) -> Result<EncryptedFileMetadata, CoreError> {
-    let user_access_keys = if target.id == target.parent {
+    let user_access_keys = if target.is_root() {
         encrypt_user_access_keys(account, &target.decrypted_access_key)?
     } else {
         Default::default()

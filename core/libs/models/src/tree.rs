@@ -26,6 +26,10 @@ pub trait FileMetadata: Clone + Display {
     fn is_document(&self) -> bool {
         self.file_type() == Document
     }
+
+    fn is_root(&self) -> bool {
+        self.id() == self.parent()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -147,7 +151,7 @@ where
     }
 
     fn maybe_find_root(&self) -> Option<Fm> {
-        self.values().find(|f| f.id() == f.parent()).cloned()
+        self.values().find(|f| f.is_root()).cloned()
     }
 
     fn maybe_find(&self, id: Uuid) -> Option<Fm> {
@@ -257,7 +261,7 @@ where
 
         for (id, (f, source)) in files_with_sources.iter() {
             let parent_id = f.parent();
-            if id == &parent_id {
+            if f.is_root() {
                 continue;
             };
             let name = f.name();

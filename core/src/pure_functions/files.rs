@@ -216,7 +216,7 @@ pub fn find_ancestors<Fm: FileMetadata>(
     let mut current_target_id = target_id;
     while let Some(target) = files.maybe_find(current_target_id) {
         result.push(target.clone());
-        if target.id() == target.parent() {
+        if target.is_root() {
             break;
         }
         current_target_id = target.parent();
