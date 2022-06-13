@@ -22,9 +22,7 @@ impl Tx<'_> {
         let mut files_encrypted = self.base_metadata.get_all();
         files_encrypted.extend(local_meta);
 
-        if self.last_synced.get(&OneKey {}).unwrap_or(0) != 0
-            && files_encrypted.maybe_find_root().is_none()
-        {
+        if self.last_synced.get(&OneKey {}).unwrap_or(0) != 0 && self.root.get(&OneKey).is_none() {
             return Err(TestRepoError::NoRootFolder);
         }
 

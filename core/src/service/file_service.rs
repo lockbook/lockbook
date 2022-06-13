@@ -34,12 +34,14 @@ impl Tx<'_> {
         Ok(metadata)
     }
 
+    pub fn root_id(&self) -> Result<Uuid, CoreError> {
+        Ok(self.root.get(&OneKey).unwrap())
+    }
+
     pub fn root(&self) -> Result<DecryptedFileMetadata, CoreError> {
+        let root_id = self.root_id()?;
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-        match files.maybe_find_root() {
-            Some(file_metadata) => Ok(file_metadata),
-            None => Err(RootNonexistent),
-        }
+        files.maybe_find(root_id).ok_or(RootNonexistent)
     }
 
     /// Adds or updates the metadata of a file on disk.
@@ -197,6 +199,7 @@ impl Tx<'_> {
 
             // update root
             if metadatum.parent == id {
+                println!("ROOT INSERTED");
                 self.root.insert(OneKey {}, id);
             }
         }
@@ -420,7 +423,10 @@ impl Tx<'_> {
             .map(|(id, (f, _))| (id, f))
             .collect::<EncryptedFiles>();
 
-        let root = staged.find_root()?;
+        let root = match self.root.get(&OneKey) {
+            Some(id) => staged.find(id),
+            None => staged.find_root(),
+        }?;
         let non_orphans = files::find_with_descendants(&staged, root.id)?;
         let mut staged_non_orphans = HashMap::new();
         let mut encrypted_orphans = HashMap::new();

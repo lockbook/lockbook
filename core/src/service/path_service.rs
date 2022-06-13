@@ -20,7 +20,7 @@ impl Tx<'_> {
 
         let mut files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
 
-        let mut current = files.find_root()?;
+        let mut current = files.find(self.root_id()?)?;
         let root_id = current.id;
         let account = self.get_account()?;
 
@@ -75,7 +75,7 @@ impl Tx<'_> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
         let paths = split_path(path);
 
-        let mut current = files.find_root()?;
+        let mut current = files.find(self.root_id()?)?;
 
         for (i, &value) in paths.iter().enumerate() {
             if value != current.decrypted_name {

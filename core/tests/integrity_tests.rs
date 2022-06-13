@@ -34,6 +34,7 @@ fn test_no_account() {
 fn test_no_root() {
     let core = test_core_with_account();
     core.db.transaction(|tx| tx.base_metadata.clear()).unwrap();
+    core.db.transaction(|tx| tx.root.clear()).unwrap();
     assert_matches!(core.validate(), Err(NoRootFolder));
 }
 

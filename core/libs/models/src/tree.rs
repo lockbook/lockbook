@@ -229,17 +229,21 @@ where
     fn get_invalid_cycles(
         &self, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<Uuid>, TreeError> {
-        let root = match self.maybe_find_root() {
-            Some(root) => Ok(root),
-            None => staged_changes.find_root(),
-        }?;
+        let mut root_found = false;
         let mut prev_checked = HashMap::new();
         let staged_changes = self.stage(staged_changes);
         let mut result = Vec::new();
         for (_, (f, _)) in staged_changes.clone().into_iter() {
             let mut checking = HashMap::new();
             let mut cur = &f;
-            while cur.id() != root.id() && prev_checked.get(&cur.id()).is_none() {
+
+            if !root_found && cur.is_root() {
+                root_found = true;
+            } else if root_found && cur.is_root() {
+                result.push(cur.id());
+            }
+
+            while !cur.is_root() && prev_checked.get(&cur.id()).is_none() {
                 if checking.contains_key(&cur.id()) {
                     result.extend(checking.keys());
                     break;
