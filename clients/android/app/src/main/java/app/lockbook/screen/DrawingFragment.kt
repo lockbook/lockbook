@@ -15,11 +15,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.databinding.FragmentDrawingBinding
-import app.lockbook.model.*
+import app.lockbook.model.AlertModel
+import app.lockbook.model.DetailsScreen
+import app.lockbook.model.DrawingViewModel
+import app.lockbook.model.StateViewModel
 import app.lockbook.ui.DrawingView
 import app.lockbook.ui.PenState
 import app.lockbook.util.ColorAlias
 import app.lockbook.util.exhaustive
+import com.google.android.material.shape.CornerFamily
+import com.google.android.material.shape.ShapeAppearanceModel
 import java.lang.ref.WeakReference
 import java.util.*
 

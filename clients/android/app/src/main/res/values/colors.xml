@@ -4,7 +4,7 @@
   <color name="drawingTouchableBackground">@color/colorPrimaryDark</color>
   <color name="selectedFileBackground">#64B5F6</color>
   <color name="navigationBarColor">@color/white</color>
-  <color name="colorPrimary">@color/blue</color>
+  <color name="colorprimary">@color/blue</color>
   <color name="colorAccent">@color/blue</color>
   <color name="colorPrimaryDark">@color/white</color>
   <color name="windowBackground">@color/white</color>
@@ -13,6 +13,23 @@
   <color name="bottomSheetBackgroundColor">@color/light</color>
   <color name="dialogBackgroundColor">@color/white</color>
   <bool name="windowLightStatusBar">true</bool>
+
+  <color name="color_primary">@color/blue</color>
+  <color name="colorPrimaryVariant">@color/indigo</color>
+
+  <color name="colorSecondary">@color/black</color>
+  <color name="colorSecondaryVariant">@color/dark</color>
+
+  <color name="colorBackground">@color/black</color>
+  <color name="colorSurface">@color/black</color>
+  <color name="colorError">@color/red</color>
+
+  <color name="colorOnPrimary">@color/black</color>
+  <color name="colorOnSecondary">@color/black</color>
+
+  <color name="colorOnBackground">@color/white</color>
+  <color name="colorOnSurface">@color/white</color>
+  <color name="colorOnError">@color/black</color>
 
   <color name="imagePdfToolbarColor">#99FFFFFF</color>
   <color name="pdfPageIndicatorBackgroundColor">#22000000</color>
