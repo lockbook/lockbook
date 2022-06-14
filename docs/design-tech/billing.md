@@ -73,9 +73,13 @@ We listen for two particular events:
 
 Before this flow is completable we'll have to pre-register our [prices](https://stripe.com/docs/api/prices) with stripe.
 
+## Billing States
+
+Our current implementation is simple. A user is either subscribed, or not. When user misses a payment or chooses to cancel their subscription, their data cap is immediately reduced to 1mb.
+
 ## Testing
 
-TODO
+A stripe integration can only be tested if provided a [secret testing API key](https://stripe.com/docs/keys#obtain-api-keys). [`stripe_cli`](https://stripe.com/docs/stripe-cli) also provides a way to emulate webhook events locally.  
 
 # Apple Integration 
 
@@ -121,4 +125,22 @@ Exactly the same as apple's experience. [Overview](https://developer.android.com
 
 The verification happens like apple's, the token is a prompt for you to go and check with google about the status of a subscription, [details](https://medium.com/@emilieroberts/real-time-developer-notifications-happen-when-something-changes-with-a-users-subscription-cb46dc053495).
 
+## Billing States
+
+There are 4 states of a Google Play subscription (described by the `GooglePlayAccountState` enum in `core/libs/models/src/api.rs`):
+
+1. `Ok`: The user has a valid subscription that is renewing monthly.
+2. `Canceled`: The user's subscription has been canceled, but still has premium benefits until the end of their billing cycle.
+3. `GracePeriod`: The user's subscription is in grace period for failing to make a payment. They have premium benefits for 7 more days until they are `OnHold`.
+4. `OnHold`: The user let their subscription's grace period expire and has lost premium benefits.
+
+Once a subscription expires (either after being `OnHold` or `Canceled`), all remaining data about that subscription in will be deleted. Also, if a user does a chargeback, their subscription is immediately revoked.
+
+## Testing
+
+An integration can be tested locally if a user becomes a [license tester](https://developer.android.com/google/play/billing/test). This allows fake payments to be made on a verified Google Play developer account to test debug builds. Paired with a [PubSub subscription](https://developer.android.com/google/play/billing/getting-ready#configure-rtdn) pointing at your local server instance, you can emulate almost any user interaction involving subscriptions.
+
+# Platform Migrations
+
+Due to a small service fee on Stripe, there is a strong incentive to migrate users off payment platforms by Google Play and Apple. So reasonably, there needs to be provided solutions for migrating users. Although currently, migrations are unimplemented.
 
