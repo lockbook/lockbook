@@ -1,7 +1,7 @@
 use crate::file_metadata::FileType::{Document, Folder};
 use crate::file_metadata::{FileType, Owner};
 use crate::tree::TreeError::{FileNonexistent, RootNonexistent};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::hash::Hash;
 use uuid::Uuid;
@@ -93,7 +93,8 @@ pub trait FileMetaMapExt<Fm: FileMetadata> {
     fn find_children(&self, id: Uuid) -> HashMap<Uuid, Fm>;
     fn filter_deleted(&self) -> Result<HashMap<Uuid, Fm>, TreeError>;
     fn filter_not_deleted(&self) -> Result<HashMap<Uuid, Fm>, TreeError>;
-    fn filter_documents(&self) -> HashMap<Uuid, Fm>;
+    fn documents(&self) -> HashSet<Uuid>;
+    fn parents(&self) -> HashSet<Uuid>;
     fn get_invalid_cycles(
         &self, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<Uuid>, TreeError>;
@@ -219,11 +220,24 @@ where
             .collect())
     }
 
-    fn filter_documents(&self) -> HashMap<Uuid, Fm> {
-        self.clone()
-            .into_iter()
-            .filter(|(_, f)| f.is_document())
-            .collect()
+    fn documents(&self) -> HashSet<Uuid> {
+        let mut result = HashSet::new();
+        for meta in self.values() {
+            if meta.is_document() {
+                result.insert(meta.id());
+            }
+        }
+
+        result
+    }
+
+    fn parents(&self) -> HashSet<Uuid> {
+        let mut result = HashSet::new();
+        for meta in self.values() {
+            result.insert(meta.parent());
+        }
+
+        result
     }
 
     fn get_invalid_cycles(
@@ -314,11 +328,13 @@ where
             return Err(TestFileTreeError::CycleDetected(self_descendant));
         }
 
+        let docs = self.documents();
         let maybe_doc_with_children = self
-            .filter_documents()
+            .parents()
             .into_iter()
-            .find(|(id, _)| !self.find_children(*id).is_empty());
-        if let Some((id, _)) = maybe_doc_with_children {
+            .find(|id| docs.contains(id));
+        if let Some(id) = maybe_doc_with_children {
+            // Could find all of them if we wanted to
             return Err(TestFileTreeError::DocumentTreatedAsFolder(id));
         }
 

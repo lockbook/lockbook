@@ -56,10 +56,11 @@ impl Tx<'_> {
 
     pub fn get_uncompressed_usage(&self, config: &Config) -> Result<UsageItemMetric, CoreError> {
         let files = self.get_all_metadata(RepoSource::Local)?;
-        let docs = files.filter_documents();
+        let docs = files.documents();
 
         let mut local_usage: u64 = 0;
-        for (_, doc) in docs {
+        for id in docs {
+            let doc = files.find(id)?;
             local_usage += file_service::get_document(config, RepoSource::Local, &doc)?.len() as u64
         }
 
