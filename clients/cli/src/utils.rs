@@ -5,7 +5,6 @@ use hotwatch::{Event, Hotwatch};
 use uuid::Uuid;
 
 use lockbook_core::model::errors::WriteToDocumentError;
-use lockbook_core::pure_functions::drawing::SupportedImageFormats;
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
 
@@ -53,26 +52,6 @@ pub fn get_directory_location() -> Result<PathBuf, CliError> {
         CliError::unexpected(format!("couldn't open temporary file for writing: {:#?}", err))
     })?;
     Ok(dir)
-}
-
-pub fn get_image_format(image_format: &str) -> SupportedImageFormats {
-    use SupportedImageFormats::*;
-
-    match image_format.to_lowercase().as_str() {
-        "png" => Png,
-        "jpeg" | "jpg" => Jpeg,
-        "bmp" => Bmp,
-        "tga" => Tga,
-        "pnm" => Pnm,
-        "farbfeld" => Farbfeld,
-        _ => {
-            eprintln!(
-                "{} is not yet supported, make a github issue! Falling back to png.",
-                image_format
-            );
-            Png
-        }
-    }
 }
 
 use std::path::Path;
