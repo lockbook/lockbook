@@ -43,6 +43,22 @@ pub enum SupportedImageFormats {
     Bmp,
 }
 
+impl std::str::FromStr for SupportedImageFormats {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "png" => Ok(Self::Png),
+            "jpeg" | "jpg" => Ok(Self::Jpeg),
+            "bmp" => Ok(Self::Bmp),
+            "tga" => Ok(Self::Tga),
+            "pnm" => Ok(Self::Pnm),
+            "farbfeld" => Ok(Self::Farbfeld),
+            unsupp => Err(format!("unsupported image format '{}'", unsupp)),
+        }
+    }
+}
+
 pub fn export_drawing(
     drawing_bytes: &[u8], format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
