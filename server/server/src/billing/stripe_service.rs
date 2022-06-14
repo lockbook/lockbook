@@ -3,13 +3,16 @@ use crate::billing::stripe_client;
 use crate::{keys, StripeWebhookError};
 use crate::{ClientError, ServerError, ServerState};
 use deadpool_redis::Connection;
+use google_androidpublisher3::hyper::body::Bytes;
+use google_androidpublisher3::hyper::header::HeaderValue;
 use libsecp256k1::PublicKey;
 use lockbook_models::api::{PaymentMethod, StripeAccountTier, UpgradeAccountStripeError};
 use log::info;
 use redis_utils::converters::{JsonGet, JsonSet};
 use std::ops::Deref;
 use std::str::FromStr;
-use stripe::Invoice;
+use std::sync::Arc;
+use stripe::{Invoice, WebhookEvent};
 use uuid::Uuid;
 
 pub async fn create_subscription(
@@ -174,4 +177,20 @@ pub async fn get_public_key(
         })?;
 
     Ok(public_key)
+}
+
+pub fn verify_request_and_get_event(
+    server_state: &Arc<ServerState>, request_body: &Bytes, stripe_sig: HeaderValue,
+) -> Result<WebhookEvent, ServerError<StripeWebhookError>> {
+    let payload = std::str::from_utf8(request_body).map_err(|e| {
+        ClientError(StripeWebhookError::InvalidBody(format!("Cannot get body as str: {:?}", e)))
+    })?;
+
+    let sig = stripe_sig.to_str().map_err(|e| {
+        ClientError(StripeWebhookError::InvalidHeader(format!("Cannot get header as str: {:?}", e)))
+    })?;
+
+    info!("Verifying a stripe webhook request.");
+
+    Ok(stripe::Webhook::construct_event(payload, sig, &server_state.config.stripe.signing_secret)?)
 }

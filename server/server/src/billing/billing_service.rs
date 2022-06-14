@@ -48,7 +48,7 @@ async fn lock_subscription_profile(
 
         if current_time - sub_profile.last_in_payment_flow < millis_between_payment_flows {
             warn!(
-                "User/Webhook is already in payment flow, or this not enough time has elapsed since a failed attempt. public_key: {}",
+                "User/Webhook is already in payment flow, or not enough time that has elapsed since a failed attempt. public_key: {}",
                 keys::stringify_public_key(public_key)
             );
 
@@ -170,7 +170,7 @@ pub async fn upgrade_account_stripe(
 ) -> Result<UpgradeAccountStripeResponse, ServerError<UpgradeAccountStripeError>> {
     let (request, server_state) = (&context.request, context.server_state);
 
-    info!("Attempting to switch account tier of {:?} to premium", context.public_key);
+    info!("Attempting to upgrade the account tier of {:?} to premium", context.public_key);
 
     let mut con = server_state.index_db_pool.get().await?;
 
@@ -215,7 +215,7 @@ pub async fn upgrade_account_stripe(
     release_subscription_profile(&context.public_key, &mut con, &mut sub_profile).await?;
 
     info!(
-        "Successfully switched the account tier of {:?} from free to premium.",
+        "Successfully upgraded the account tier of {:?} from free to premium.",
         context.public_key
     );
 
@@ -372,17 +372,8 @@ pub enum StripeWebhookError {
 pub async fn stripe_webhooks(
     server_state: &Arc<ServerState>, request_body: Bytes, stripe_sig: HeaderValue,
 ) -> Result<(), ServerError<StripeWebhookError>> {
-    let payload = std::str::from_utf8(&request_body).map_err(|e| {
-        ClientError(StripeWebhookError::InvalidBody(format!("Cannot get body as str: {:?}", e)))
-    })?;
-    let sig = stripe_sig.to_str().map_err(|e| {
-        ClientError(StripeWebhookError::InvalidHeader(format!("Cannot get header as str: {:?}", e)))
-    })?;
-
-    info!("Verifying a stripe webhook request.");
-
     let event =
-        stripe::Webhook::construct_event(payload, sig, &server_state.config.stripe.signing_secret)?;
+        stripe_service::verify_request_and_get_event(server_state, &request_body, stripe_sig)?;
 
     info!("Verified stripe request. event: {:?}.", event.event_type);
 
@@ -394,7 +385,7 @@ pub async fn stripe_webhooks(
                 let public_key = stripe_service::get_public_key(&mut con, invoice).await?;
 
                 info!(
-                    "User tier being reduced due to failed renewal payment via stripe. public_key: {}",
+                    "User's tier is being reduced due to failed renewal payment in stripe. public_key: {}",
                     keys::stringify_public_key(&public_key)
                 );
 
@@ -417,6 +408,11 @@ pub async fn stripe_webhooks(
         (stripe::EventType::InvoicePaid, stripe::EventObject::Invoice(invoice)) => {
             if let Some(stripe::InvoiceBillingReason::SubscriptionCycle) = invoice.billing_reason {
                 let public_key = stripe_service::get_public_key(&mut con, invoice).await?;
+
+                info!(
+                    "User's subscription period_end is being changed after successful renewal. public_key: {}",
+                    keys::stringify_public_key(&public_key)
+                );
 
                 let subscription_period_end = match &invoice.subscription {
                     Some(stripe::Expandable::Object(subscription)) => {
@@ -448,15 +444,10 @@ pub async fn stripe_webhooks(
                     },
                 )
                 .await?;
-
-                info!(
-                    "User's subscription period_end is changed after successful renewal. public_key: {}",
-                    keys::stringify_public_key(&public_key)
-                );
             }
         }
         (_, _) => {
-            return Err(internal!("Unexpected and unhandled stripe event: {:?}", event.event_type));
+            return Err(internal!("Unexpected stripe event: {:?}", event.event_type));
         }
     }
 
@@ -508,7 +499,7 @@ pub async fn google_play_notification_webhooks(
         )
         .await?;
 
-        info!("Updating subscription profile to match new subscription state.");
+        info!("Updating google play user's subscription profile to match new subscription state. public_key: {:?}, notification_type: {:?}", public_key, notification_type);
 
         save_billing_profile(
             &public_key,
@@ -590,7 +581,7 @@ pub async fn google_play_notification_webhooks(
     }
 
     if let Some(test_notif) = notification.test_notification {
-        info!("Test notification hit: {}", test_notif.version)
+        info!("Test notification. version: {}", test_notif.version)
     }
 
     if let Some(otp_notif) = notification.one_time_product_notification {
