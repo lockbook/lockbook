@@ -10,7 +10,6 @@ use libsecp256k1::PublicKey;
 use lockbook_models::api::UnixTimeMillis;
 use log::info;
 use redis_utils::converters::JsonGet;
-use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -41,7 +40,7 @@ pub fn get_subscription_period_end(
     subscription: &SubscriptionPurchase, notification_type: &NotificationType,
     public_key: PublicKey,
 ) -> Result<UnixTimeMillis, ServerError<GooglePlayWebhookError>> {
-    subscription.borrow().expiry_time_millis.as_ref().ok_or_else(|| internal!("Cannot get expiration time of a recovered subscription. public_key {:?}, subscription notification type: {:?}", public_key, notification_type))?.parse().map_err(|e| internal!("Cannot parse millis into int: {:?}", e))
+    subscription.expiry_time_millis.as_ref().ok_or_else(|| internal!("Cannot get expiration time of a recovered subscription. public_key {:?}, subscription notification type: {:?}", public_key, notification_type))?.parse().map_err(|e| internal!("Cannot parse millis into int: {:?}", e))
 }
 
 pub async fn verify_request_and_get_notification(

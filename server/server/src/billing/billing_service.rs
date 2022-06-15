@@ -20,7 +20,6 @@ use lockbook_models::api::{
 use log::{info, warn};
 use redis_utils::converters::{JsonGet, JsonSet, PipelineJsonSet};
 use redis_utils::tx;
-use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -139,9 +138,7 @@ pub async fn upgrade_account_google_play(
             .premium_subscription_offer_id
             .clone(),
         expiration_time: subscription
-            .borrow()
             .expiry_time_millis
-            .as_ref()
             .ok_or_else(|| {
                 internal!(
                     "Cannot get expiration time of a recovered subscription. public_key {:?}",
@@ -194,12 +191,9 @@ pub async fn upgrade_account_stripe(
         return Err(ClientError(UpgradeAccountStripeError::AlreadyPremium));
     }
 
-    let maybe_user_info = sub_profile.billing_platform.and_then(|info| {
-        if let BillingPlatform::Stripe(stripe_info) = info {
-            Some(stripe_info)
-        } else {
-            None
-        }
+    let maybe_user_info = sub_profile.billing_platform.and_then(|info| match info {
+        BillingPlatform::Stripe(stripe_info) => Some(stripe_info),
+        _ => None,
     });
 
     let user_info = stripe_service::create_subscription(
@@ -335,7 +329,7 @@ pub async fn cancel_subscription(
     Ok(CancelSubscriptionResponse {})
 }
 
-async fn save_billing_profile<
+async fn save_subscription_profile<
     T: Debug,
     F: Fn(&mut SubscriptionProfile) -> Result<(), ServerError<T>>,
 >(
@@ -389,7 +383,7 @@ pub async fn stripe_webhooks(
                     keys::stringify_public_key(&public_key)
                 );
 
-                save_billing_profile(
+                save_subscription_profile(
                     &public_key,
                     &mut con,
                     server_state
@@ -426,7 +420,7 @@ pub async fn stripe_webhooks(
                     }
                 };
 
-                save_billing_profile(
+                save_subscription_profile(
                     &public_key,
                     &mut con,
                     server_state
@@ -501,7 +495,7 @@ pub async fn google_play_notification_webhooks(
 
         info!("Updating google play user's subscription profile to match new subscription state. public_key: {:?}, notification_type: {:?}", public_key, notification_type);
 
-        save_billing_profile(
+        save_subscription_profile(
             &public_key,
             &mut con,
             server_state
@@ -546,8 +540,9 @@ pub async fn google_play_notification_webhooks(
                         NotificationType::SubscriptionCanceled => {
                             info.account_state = GooglePlayAccountState::Canceled;
                             info!(
-                                "Reason of cancellation reason of user: {:?}",
-                                subscription.cancel_survey_result
+                                "Reason of cancellation: {:?}, public_key: {:?}",
+                                subscription.cancel_survey_result,
+                                public_key
                             );
                         }
                         NotificationType::SubscriptionPriceChangeConfirmed

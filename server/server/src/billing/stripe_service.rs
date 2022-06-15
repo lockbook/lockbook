@@ -10,7 +10,6 @@ use lockbook_models::api::{PaymentMethod, StripeAccountTier, UpgradeAccountStrip
 use log::info;
 use redis_utils::converters::{JsonGet, JsonSet};
 use std::ops::Deref;
-use std::str::FromStr;
 use std::sync::Arc;
 use stripe::{Invoice, WebhookEvent};
 use uuid::Uuid;
@@ -79,7 +78,7 @@ pub async fn create_subscription(
                         user_info.customer_id, public_key
                     );
 
-                    let customer_id = stripe::CustomerId::from_str(&user_info.customer_id)?;
+                    let customer_id = user_info.customer_id.parse()?;
 
                     info!(
                         "Disabling old card since a new card has just been added. public_key: {:?}",
@@ -88,7 +87,7 @@ pub async fn create_subscription(
 
                     stripe_client::detach_payment_method_from_customer(
                         &server_state.stripe_client,
-                        &stripe::PaymentMethodId::from_str(&user_info.payment_method_id)?,
+                        &user_info.payment_method_id.parse()?,
                     )
                     .await?;
 
@@ -123,7 +122,7 @@ pub async fn create_subscription(
                 .ok_or(ClientError(UpgradeAccountStripeError::OldCardDoesNotExist))?;
 
             (
-                stripe::CustomerId::from_str(&user_info.customer_id)?,
+                user_info.customer_id.parse()?,
                 user_info.customer_name,
                 user_info.payment_method_id,
                 user_info.last_4,

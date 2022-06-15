@@ -91,7 +91,7 @@ class BillingClientLifecycle private constructor(
                     productDetails = productDetailsList[0]
                 }
             }
-            response.isUnRecoverableError -> _billingEvent.postValue(BillingEvent.NotifyUnrecoverableError)
+            response.isUnrecoverableError -> _billingEvent.postValue(BillingEvent.NotifyUnrecoverableError)
         }
     }
 
@@ -163,7 +163,7 @@ class BillingClientLifecycle private constructor(
                     )
                 }
             }
-            billingResponse.isUnRecoverableError -> {
+            billingResponse.isUnrecoverableError -> {
                 _billingEvent.postValue(BillingEvent.NotifyUnrecoverableError)
             }
             billingResponse.isCancelable -> {}
@@ -221,7 +221,7 @@ private value class BillingResponse(val code: Int) {
             BillingResponseCode.SERVICE_DISCONNECTED,
         )
 
-    val isUnRecoverableError: Boolean
+    val isUnrecoverableError: Boolean
         get() = code in setOf(
             BillingResponseCode.SERVICE_UNAVAILABLE,
             BillingResponseCode.BILLING_UNAVAILABLE,
