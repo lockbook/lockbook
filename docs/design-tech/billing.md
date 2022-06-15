@@ -130,7 +130,7 @@ The verification happens like apple's, the token is a prompt for you to go and c
 There are 4 states of a Google Play subscription (described by the `GooglePlayAccountState` enum in `core/libs/models/src/api.rs`):
 
 1. `Ok`: The user has a valid subscription that is renewing monthly.
-2. `Canceled`: The user's subscription has been canceled, but still has premium benefits until the end of their billing cycle.
+2. `Canceled`: The user's subscription has been canceled, but they still have premium benefits until the end of their billing cycle.
 3. `GracePeriod`: The user's subscription is in grace period for failing to make a payment. They have premium benefits for 7 more days until they are `OnHold`.
 4. `OnHold`: The user let their subscription's grace period expire and has lost premium benefits.
 
