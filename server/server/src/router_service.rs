@@ -158,7 +158,7 @@ pub fn google_play_notification_webhooks(
 
     warp::post()
         .and(warp::path("android_notification_webhook"))
-        .and(warp::any().map(move || Arc::clone(&cloned_state)))
+        .and(warp::any().map(move || cloned_state.clone()))
         .and(warp::body::bytes())
         .and(warp::query::query::<HashMap<String, String>>())
         .then(|state: Arc<ServerState>, request: Bytes, query_parameters: HashMap<String, String>| async move {
