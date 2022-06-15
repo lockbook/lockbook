@@ -75,7 +75,7 @@ Before this flow is completable we'll have to pre-register our [prices](https://
 
 ## Billing States
 
-Our current implementation is simple. A user is either subscribed, or not. When user misses a payment or chooses to cancel their subscription, their data cap is immediately reduced to 1mb.
+Our current implementation is simple. A user is either subscribed or not. When a user misses a payment or chooses to cancel their subscription, their data cap is immediately reduced to 1 MB.
 
 ## Testing
 
