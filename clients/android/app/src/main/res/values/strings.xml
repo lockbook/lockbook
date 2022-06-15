@@ -173,7 +173,7 @@
     <string name="new_account_disabled">This server is not accepting any new accounts at this moment. Please try again another time.</string>
     <string name="already_premium">Error, you are already premium.</string>
     <string name="invalid_purchase_token">Failed to verify purchase.</string>
-    <string name="existing_request_pending">You are accessing billing too quickly, please try again in a minute.</string>
+    <string name="existing_request_pending">You are accessing billing too quickly. Please try again in a minute.</string>
     <string name="not_premium">Error, you are not premium.</string>
     <string name="already_canceled">You have already canceled your subscription.</string>
     <string name="usage_is_over_free_tier_data_cap">Your total data usage exceeds free tier. Please remove some data.</string>
