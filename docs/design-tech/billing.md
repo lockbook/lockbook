@@ -142,5 +142,5 @@ An integration can be tested locally if a user becomes a [license tester](https:
 
 # Platform Migrations
 
-Due to a small service fee on Stripe, there is a strong incentive to migrate users off payment platforms by Google Play and Apple. So reasonably, there needs to be provided solutions for migrating users. Although currently, migrations are unimplemented.
+Due to a smaller service fee on Stripe, there is a strong incentive to migrate users off payment platforms by Google Play and Apple. Therefore, in the future, payment migrations may be implemented.
 
