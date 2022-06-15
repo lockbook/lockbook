@@ -98,10 +98,10 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun confirmSubscription(purchaseToken: String, accountID: String) {
+    fun confirmSubscription(purchaseToken: String, accountId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val confirmSubscriptionResult =
-                CoreModel.upgradeAccountGooglePlay(purchaseToken, accountID)
+                CoreModel.upgradeAccountGooglePlay(purchaseToken, accountId)
 
             when (confirmSubscriptionResult) {
                 is Ok -> {

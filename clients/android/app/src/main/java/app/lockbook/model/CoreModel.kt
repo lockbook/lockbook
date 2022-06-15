@@ -332,9 +332,9 @@ object CoreModel {
         }
     }
 
-    fun upgradeAccountGooglePlay(purchaseToken: String, accountID: String): Result<Boolean, CoreError<UpgradeAccountGooglePlayError>> =
+    fun upgradeAccountGooglePlay(purchaseToken: String, accountId: String): Result<Boolean, CoreError<UpgradeAccountGooglePlayError>> =
         upgradeAccountGooglePlayParser.tryParse(
-            app.lockbook.core.upgradeAccountGooglePlay(purchaseToken, accountID)
+            app.lockbook.core.upgradeAccountGooglePlay(purchaseToken, accountId)
         )
 
     private val cancelSubscriptionParser = Json {
