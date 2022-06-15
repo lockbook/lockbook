@@ -134,7 +134,7 @@ There are 4 states of a Google Play subscription (described by the `GooglePlayAc
 3. `GracePeriod`: The user's subscription is in a grace period for failing to make a payment. They have premium benefits for 7 more days until they are `OnHold`.
 4. `OnHold`: The user let their subscription's grace period expire and has lost premium benefits.
 
-Once a subscription expires (either after being `OnHold` or `Canceled`), all remaining data about that subscription in will be deleted. Also, if a user does a chargeback, their subscription is immediately revoked.
+Once a subscription expires (either after being `OnHold` or `Canceled`), all remaining data about that subscription will be deleted. Also, if a user does a chargeback, their subscription is immediately revoked.
 
 ## Testing
 
