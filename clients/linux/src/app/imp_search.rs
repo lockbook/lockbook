@@ -8,7 +8,6 @@ impl super::App {
         let app = self.clone();
         self.titlebar.receive_search_ops(move |op| {
             match op {
-                ui::SearchOp::Update => app.update_search(),
                 ui::SearchOp::Exec => app.exec_search(),
             }
             glib::Continue(true)
@@ -16,26 +15,22 @@ impl super::App {
     }
 
     pub fn open_search(&self) {
+        self.titlebar.set_searcher(None);
         self.titlebar.toggle_search_on();
-    }
 
-    fn update_search(&self) {
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
-        // Do the work of getting the search results in a separate thread.
-        let input = self.titlebar.search_input();
         let api = self.api.clone();
         std::thread::spawn(move || {
-            let result = api.search_file_paths(&input);
+            let result = api.searcher(Some(lb::Filter::DocumentsOnly));
             tx.send(result).unwrap();
         });
 
-        // Act on the search results when they arrive.
         let app = self.clone();
-        rx.attach(None, move |result| {
-            match result {
-                Ok(data) => app.repopulate_search_results(&data),
-                Err(err) => app.show_err_dialog(&format!("{:?}", err)),
+        rx.attach(None, move |searcher_result| {
+            match searcher_result {
+                Ok(searcher) => app.titlebar.set_searcher(Some(searcher)),
+                Err(msg) => app.show_err_dialog(&msg),
             }
             glib::Continue(false)
         });

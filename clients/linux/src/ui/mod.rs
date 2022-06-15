@@ -14,6 +14,7 @@ mod usage_tier;
 mod usage_upgrade;
 
 mod image_tab;
+mod search_field;
 mod tab;
 mod text_editor;
 mod toggle_group;
@@ -40,6 +41,7 @@ pub use usage_tier::UsageTier;
 pub use usage_upgrade::UpgradePaymentFlow;
 
 pub use image_tab::ImageTab;
+pub use search_field::SearchField;
 pub use tab::Tab;
 pub use text_editor::TextEditor;
 pub use toggle_group::ToggleGroup;

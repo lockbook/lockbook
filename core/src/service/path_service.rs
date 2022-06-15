@@ -166,7 +166,7 @@ impl Tx<'_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Filter {
     DocumentsOnly,
     FoldersOnly,
