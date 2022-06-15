@@ -23,7 +23,7 @@ fn get_subscription_info() {
     .unwrap();
 
     // get existent subscription info
-    assert!(api_service::request(&account, GetSubscriptionInfoRequest {},)
+    assert!(api_service::request(&account, GetSubscriptionInfoRequest {})
         .unwrap()
         .subscription_info
         .is_some());
