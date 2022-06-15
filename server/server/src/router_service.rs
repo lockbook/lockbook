@@ -154,7 +154,7 @@ pub fn stripe_webhooks(
 pub fn google_play_notification_webhooks(
     server_state: &Arc<ServerState>,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    let cloned_state = Arc::clone(server_state);
+    let cloned_state = server_state.clone();
 
     warp::post()
         .and(warp::path("android_notification_webhook"))
