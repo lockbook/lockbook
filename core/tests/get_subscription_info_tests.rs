@@ -8,7 +8,7 @@ fn get_subscription_info() {
     let account = core.get_account().unwrap();
 
     // get no subscription info
-    assert!(api_service::request(&account, GetSubscriptionInfoRequest {},)
+    assert!(api_service::request(&account, GetSubscriptionInfoRequest {})
         .unwrap()
         .subscription_info
         .is_none());
