@@ -35,7 +35,7 @@ impl Tx<'_> {
     }
 
     pub fn root_id(&self) -> Result<Uuid, CoreError> {
-        Ok(self.root.get(&OneKey).unwrap())
+        self.root.get(&OneKey).ok_or(RootNonexistent)
     }
 
     pub fn root(&self) -> Result<DecryptedFileMetadata, CoreError> {
