@@ -635,7 +635,7 @@ pub fn maybe_get_not_deleted_document(
         .and_then(|id| metadata.get(id));
 
     if let Some(metadata) = maybe_doc_metadata {
-        maybe_get_document(config, source, &metadata)
+        maybe_get_document(config, source, metadata)
     } else {
         Ok(None)
     }
