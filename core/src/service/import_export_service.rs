@@ -163,13 +163,8 @@ impl Tx<'_> {
                 .map_err(CoreError::from)?;
 
                 file.write_all(
-                    self.get_not_deleted_document(
-                        config,
-                        RepoSource::Local,
-                        all,
-                        parent_file_metadata.id,
-                    )?
-                    .as_slice(),
+                    self.read_document(config, RepoSource::Local, parent_file_metadata.id)?
+                        .as_slice(),
                 )
                 .map_err(CoreError::from)?;
             }

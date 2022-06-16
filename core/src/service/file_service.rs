@@ -84,11 +84,7 @@ impl Tx<'_> {
             RepoSource::Base => file_encryption_service::decrypt_metadata(&account, &base),
             RepoSource::Local => {
                 let local: EncryptedFiles = self.local_metadata.get_all();
-                let staged = base
-                    .stage(&local)
-                    .into_iter()
-                    .map(|(id, (f, _))| (id, f))
-                    .collect();
+                let staged = base.stage(local);
                 file_encryption_service::decrypt_metadata(&account, &staged)
             }
         }
@@ -150,7 +146,7 @@ impl Tx<'_> {
         // encrypt metadata
         let account = self.get_account()?;
         let all_metadata_with_changes_staged = all_metadata
-            .stage(metadata_changes)
+            .stage_with_source(metadata_changes)
             .into_iter()
             .map(|(id, (f, _))| (id, f))
             .collect::<DecryptedFiles>();
@@ -199,7 +195,6 @@ impl Tx<'_> {
 
             // update root
             if metadatum.parent == id {
-                println!("ROOT INSERTED");
                 self.root.insert(OneKey {}, id);
             }
         }
@@ -271,23 +266,24 @@ impl Tx<'_> {
 
         // find files deleted on base and local; new deleted local files are also eligible
         let all_base_metadata = self.get_all_metadata(RepoSource::Base)?;
-        let deleted_base_metadata = all_base_metadata.filter_deleted()?;
+        let deleted_base_metadata = all_base_metadata.deleted()?.deleted;
         let all_local_metadata = self.get_all_metadata(RepoSource::Local)?;
-        let deleted_local_metadata = all_local_metadata.filter_deleted()?;
+        let deleted_local_metadata = all_local_metadata.deleted()?.deleted;
         let deleted_both_metadata = deleted_base_metadata
             .into_iter()
-            .filter(|(id, _)| deleted_local_metadata.maybe_find(*id).is_some());
-        let prune_eligible_metadata = deleted_local_metadata
-            .iter()
-            .filter_map(|(&id, f)| {
-                if all_base_metadata.maybe_find(id).is_none() {
-                    Some((id, f.clone()))
-                } else {
-                    None
-                }
-            })
-            .chain(deleted_both_metadata)
-            .collect::<DecryptedFiles>();
+            .filter(|id| deleted_local_metadata.contains(id));
+        let prune_eligible_ids =
+            deleted_local_metadata
+                .iter()
+                .filter_map(|id| {
+                    if all_base_metadata.maybe_find(*id).is_none() {
+                        Some(*id)
+                    } else {
+                        None
+                    }
+                })
+                .chain(deleted_both_metadata)
+                .collect::<HashSet<Uuid>>();
 
         // exclude files with not deleted descendants i.e. exclude files that are the ancestors of not deleted files
         let all_ids = all_base_metadata
@@ -297,7 +293,7 @@ impl Tx<'_> {
             .collect::<HashSet<Uuid>>();
         let not_deleted_either_ids = all_ids
             .into_iter()
-            .filter(|&id| prune_eligible_metadata.maybe_find(id).is_none())
+            .filter(|id| !prune_eligible_ids.contains(id))
             .collect::<HashSet<Uuid>>();
         let ancestors_of_not_deleted_base_ids = not_deleted_either_ids
             .iter()
@@ -308,15 +304,15 @@ impl Tx<'_> {
             .flat_map(|&id| files::find_ancestors(&all_local_metadata, id).into_keys())
             .collect::<HashSet<Uuid>>();
         let deleted_both_without_deleted_descendants_ids =
-            prune_eligible_metadata.into_iter().filter(|(id, _)| {
+            prune_eligible_ids.into_iter().filter(|id| {
                 !ancestors_of_not_deleted_base_ids.contains(id)
                     && !ancestors_of_not_deleted_local_ids.contains(id)
             });
 
         // remove files from disk
-        for (id, file) in deleted_both_without_deleted_descendants_ids {
+        for id in deleted_both_without_deleted_descendants_ids {
             self.delete_metadata(id);
-            if file.is_document() {
+            if all_local_metadata.find_ref(id)?.is_document() {
                 self.delete_document(config, id)?;
             }
         }
@@ -337,22 +333,26 @@ impl Tx<'_> {
         Ok(())
     }
 
-    pub fn read_document(&self, config: &Config, id: Uuid) -> Result<DecryptedDocument, CoreError> {
-        let all_metadata = self.get_all_metadata(RepoSource::Local)?;
-        self.get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)
+    pub fn read_document_old(
+        &self, config: &Config, id: Uuid,
+    ) -> Result<DecryptedDocument, CoreError> {
+        self.read_document(config, RepoSource::Local, id)
     }
 
-    pub fn get_not_deleted_document(
-        &self, config: &Config, source: RepoSource, metadata: &DecryptedFiles, id: Uuid,
+    pub fn read_document(
+        &self, config: &Config, source: RepoSource, id: Uuid,
     ) -> Result<DecryptedDocument, CoreError> {
-        self.maybe_get_not_deleted_document(config, source, metadata, id)
-            .and_then(|f| f.ok_or(CoreError::FileNonexistent))
+        let metas = self.get_all_metadata(source)?.filter_not_deleted()?;
+
+        let meta = metas.get(&id).ok_or(CoreError::FileNonexistent)?;
+
+        maybe_get_document(config, source, meta)?.ok_or(CoreError::FileNonexistent)
     }
 
     pub fn maybe_get_not_deleted_document(
         &self, config: &Config, source: RepoSource, metadata: &DecryptedFiles, id: Uuid,
     ) -> Result<Option<DecryptedDocument>, CoreError> {
-        if let Some(metadata) = metadata.filter_not_deleted()?.maybe_find(id) {
+        if let Some(metadata) = metadata.maybe_find(id) {
             maybe_get_document(config, source, &metadata)
         } else {
             Ok(None)
@@ -362,9 +362,7 @@ impl Tx<'_> {
     pub fn save_document_to_disk(
         &self, config: &Config, id: Uuid, location: &str,
     ) -> Result<(), CoreError> {
-        let all_metadata = self.get_all_metadata(RepoSource::Local)?;
-        let document =
-            self.get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
+        let document = self.read_document(config, RepoSource::Local, id)?;
         files::save_document_to_disk(&document, location.to_string())
     }
 
@@ -372,7 +370,6 @@ impl Tx<'_> {
         &mut self, config: &Config, id: Uuid, new_name: &str,
     ) -> Result<(), CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-        let files = files.filter_not_deleted()?;
         let file = files::apply_rename(&files, id, new_name)?;
         self.insert_metadatum(config, RepoSource::Local, &file)
     }
@@ -381,18 +378,17 @@ impl Tx<'_> {
         &mut self, config: &Config, id: Uuid, new_parent: Uuid,
     ) -> Result<(), CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-        let files = files.filter_not_deleted()?;
         let file = files::apply_move(&files, id, new_parent)?;
         self.insert_metadatum(config, RepoSource::Local, &file)
     }
 
     pub fn get_all_with_document_changes(&self, config: &Config) -> Result<Vec<Uuid>, CoreError> {
-        let all = self.get_all_metadata(RepoSource::Local)?;
-        let not_deleted = all.filter_not_deleted()?;
+        let not_deleted = self.get_all_not_deleted_metadata(RepoSource::Local)?;
         let not_deleted_with_document_changes = not_deleted
-            .into_values()
-            .map(|f| {
-                document_repo::maybe_get(config, RepoSource::Local, f.id).map(|r| r.map(|_| f.id))
+            .documents()
+            .iter()
+            .map(|id| {
+                document_repo::maybe_get(config, RepoSource::Local, *id).map(|r| r.map(|_| *id))
             })
             .collect::<Result<Vec<Option<Uuid>>, CoreError>>()?
             .into_iter()
@@ -409,7 +405,7 @@ impl Tx<'_> {
         let sourced = match source {
             RepoSource::Local => {
                 let local = self.local_metadata.get_all();
-                base.stage(&local)
+                base.stage_with_source(&local)
                     .into_iter()
                     .map(|(id, (f, _))| (id, f))
                     .collect()
@@ -418,7 +414,7 @@ impl Tx<'_> {
         };
 
         let staged = sourced
-            .stage(changes)
+            .stage_with_source(changes)
             .into_iter()
             .map(|(id, (f, _))| (id, f))
             .collect::<EncryptedFiles>();
@@ -455,7 +451,7 @@ impl Tx<'_> {
         let local = {
             let local_encrypted = self.local_metadata.get_all();
             let staged = base_encrypted
-                .stage(&local_encrypted)
+                .stage_with_source(&local_encrypted)
                 .into_iter()
                 .map(|(id, (f, _))| (id, f))
                 .collect::<EncryptedFiles>();
@@ -488,7 +484,7 @@ impl Tx<'_> {
     pub fn promote_metadata(&mut self) -> Result<(), CoreError> {
         let base_metadata = self.base_metadata.get_all();
         let local_metadata = self.local_metadata.get_all();
-        let staged_metadata = base_metadata.stage(&local_metadata);
+        let staged_metadata = base_metadata.stage_with_source(&local_metadata);
 
         self.base_metadata.clear();
 
@@ -522,7 +518,7 @@ impl Tx<'_> {
     pub fn promote_documents(&mut self, config: &Config) -> Result<(), CoreError> {
         let base_metadata = self.base_metadata.get_all();
         let local_metadata = self.local_metadata.get_all();
-        let staged_metadata = base_metadata.stage(&local_metadata);
+        let staged_metadata = base_metadata.stage_with_source(&local_metadata);
         let staged_everything = staged_metadata
             .values()
             .map(|(f, _)| {
@@ -632,7 +628,13 @@ pub fn get_not_deleted_document(
 pub fn maybe_get_not_deleted_document(
     config: &Config, source: RepoSource, metadata: &DecryptedFiles, id: Uuid,
 ) -> Result<Option<DecryptedDocument>, CoreError> {
-    if let Some(metadata) = metadata.filter_not_deleted()?.maybe_find(id) {
+    let maybe_doc_metadata = metadata
+        .deleted()?
+        .not_deleted
+        .get(&id)
+        .and_then(|id| metadata.get(id));
+
+    if let Some(metadata) = maybe_doc_metadata {
         maybe_get_document(config, source, &metadata)
     } else {
         Ok(None)

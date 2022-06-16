@@ -264,7 +264,7 @@ pub fn assert_server_work_paths(
                 .filter(|(id, _)| all_local_files.maybe_find(*id).is_none())
                 .collect::<DecryptedFiles>();
             all_local_files
-                .stage(&new_server_files)
+                .stage_with_source(&new_server_files)
                 .into_iter()
                 .map(|(_, (meta, _))| (meta.id, meta))
                 .collect::<DecryptedFiles>()

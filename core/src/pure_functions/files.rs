@@ -160,7 +160,7 @@ pub fn suggest_non_conflicting_filename(
     id: Uuid, files: &DecryptedFiles, staged_changes: &DecryptedFiles,
 ) -> Result<String, CoreError> {
     let files: DecryptedFiles = files
-        .stage(staged_changes)
+        .stage_with_source(staged_changes)
         .into_iter()
         .map(|(id, (f, _))| (id, f))
         .collect::<DecryptedFiles>();

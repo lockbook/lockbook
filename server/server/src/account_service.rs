@@ -174,10 +174,11 @@ pub async fn delete_account(
     });
     return_if_error!(tx);
 
-    let non_deleted_document_ids = all_files
+    let all_files = all_files
         .filter_not_deleted()
-        .map_err(|err| internal!("Could not get non-deleted files: {:?}", err))?
-        .documents();
+        .map_err(|err| internal!("Could not get non-deleted files: {:?}", err))?;
+
+    let non_deleted_document_ids = all_files.documents();
 
     for file in non_deleted_document_ids {
         let file = all_files

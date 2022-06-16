@@ -163,7 +163,7 @@ impl Core {
     pub fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
         let val = self
             .db
-            .transaction(|tx| tx.read_document(&self.config, id))?;
+            .transaction(|tx| tx.read_document(&self.config, RepoSource::Local, id))?;
         Ok(val?)
     }
 
