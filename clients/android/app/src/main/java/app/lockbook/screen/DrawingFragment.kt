@@ -6,8 +6,6 @@ import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.os.Bundle
 import android.view.*
-import android.widget.SeekBar
-import androidx.appcompat.widget.AppCompatSeekBar
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
@@ -23,8 +21,6 @@ import app.lockbook.ui.DrawingView
 import app.lockbook.ui.PenState
 import app.lockbook.util.ColorAlias
 import app.lockbook.util.exhaustive
-import com.google.android.material.shape.CornerFamily
-import com.google.android.material.shape.ShapeAppearanceModel
 import java.lang.ref.WeakReference
 import java.util.*
 
@@ -43,8 +39,7 @@ class DrawingFragment : Fragment() {
     private val redButton get() = binding.drawingToolbar.drawingColorRed
 
     private val eraser get() = binding.drawingToolbar.drawingErase
-    private val penSizeChooser get() = binding.drawingToolbar.drawingPenSize as AppCompatSeekBar
-    private val penSizeIndicator get() = binding.drawingToolbar.drawingPenSizeMarker
+    private val penSizeChooser get() = binding.drawingToolbar.drawingPenSize
 
     private val toolbar get() = binding.drawingToolbar.drawingToolsMenu
 
@@ -93,6 +88,8 @@ class DrawingFragment : Fragment() {
         initializeDrawing()
         setUpToolbarListeners()
         setUpToolbarDefaults()
+
+
 
         return binding.root
     }
@@ -168,11 +165,10 @@ class DrawingFragment : Fragment() {
             cyanButton
         )
         colorButtons.forEach { button ->
-            button.setStrokeColorResource(R.color.blue)
+            button.setStrokeColorResource(R.color.md_theme_onSecondary)
         }
 
         selectNewTool(model.selectedTool)
-        penSizeIndicator.text = drawingView.strokeState.penSizeMultiplier.toString()
     }
 
     private fun changeToolsVisibility(currentVisibility: Int) {
@@ -282,17 +278,9 @@ class DrawingFragment : Fragment() {
             selectNewTool(DrawingView.Tool.Eraser)
         }
 
-        penSizeChooser.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val adjustedProgress = progress + 1
-                penSizeIndicator.text = adjustedProgress.toString()
-                drawingView.strokeState.penSizeMultiplier = adjustedProgress
-            }
-
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
+        penSizeChooser.addOnChangeListener { _, value, _ ->
+             drawingView.strokeState.penSizeMultiplier = value.toInt()
+        }
 
         drawingView.setOnTouchListener { _, event ->
             if (event != null && event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER) {

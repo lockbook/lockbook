@@ -5,21 +5,21 @@
     android:orientation="vertical"
     android:gravity="center">
 
-    <ProgressBar
+    <com.google.android.material.progressindicator.LinearProgressIndicator
         android:id="@+id/import_account_progress_bar"
-        style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
         android:layout_height="80dp"
         android:paddingHorizontal="20dp"/>
 
-    <TextView
+    <com.google.android.material.textview.MaterialTextView
         android:id="@+id/import_info"
         android:paddingTop="10dp"
-        style="@style/Main.Text.Medium"
         android:textAlignment="center"
         android:paddingHorizontal="70dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginHorizontal="50dp"
+        style="@style/TextAppearance.Material3.LabelLarge"
         android:text="@string/import_account_starting_import"/>
 
 </LinearLayout>

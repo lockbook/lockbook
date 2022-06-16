@@ -63,7 +63,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         SnackProgressBarManager(
             requireView(),
             lifecycleOwner = this
-        ).setViewToMove(binding.listFilesFrameLayout)
+        ).setViewToMove(binding.fabsNewFile.root)
     }
 
     private val syncSnackProgressBar by lazy {
@@ -266,7 +266,7 @@ class FilesListFragment : Fragment(), FilesFragment {
     private fun setUpFilesList() {
         recyclerView.setup {
             withDataSource(model.selectableFiles)
-            withEmptyView(binding.listFilesFrameLayout.findViewById(R.id.files_empty_folder)!!)
+            withEmptyView(binding.filesEmptyFolder)
 
             withItem<DecryptedFileMetadata, HorizontalViewHolder>(R.layout.linear_layout_file_item) {
                 onBind(::HorizontalViewHolder) { _, item ->
@@ -283,7 +283,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                             R.drawable.ic_baseline_check_24
                         }
                         item.fileType == FileType.Document && extensionHelper.isDrawing -> {
-                            R.drawable.ic_baseline_border_color_24
+                            R.drawable.ic_baseline_draw_24
                         }
                         item.fileType == FileType.Document && extensionHelper.isImage -> {
                             R.drawable.ic_baseline_image_24
@@ -292,19 +292,23 @@ class FilesListFragment : Fragment(), FilesFragment {
                             R.drawable.ic_baseline_insert_drive_file_24
                         }
                         else -> {
-                            R.drawable.round_folder_white_18dp
+                            R.drawable.ic_baseline_folder_24
                         }
                     }
 
                     icon.setImageResource(imageResource)
 
-                    itemView.background.setTint(
-                        ResourcesCompat.getColor(
-                            resources,
-                            if (isSelected()) R.color.selectedFileBackground else R.color.colorPrimaryDark,
-                            itemView.context.theme
+                    if (isSelected()) {
+                        itemView.background.setTint(
+                            ResourcesCompat.getColor(
+                                resources,
+                                R.color.md_theme_onPrimary,
+                                itemView.context.theme
+                            )
                         )
-                    )
+                    } else {
+                        itemView.background.setTintList(null)
+                    }
                 }
                 onClick {
                     if (isSelected() || model.selectableFiles.hasSelection()) {
@@ -435,24 +439,24 @@ class FilesListFragment : Fragment(), FilesFragment {
 
     private fun closeFABMenu() {
         val fabsNewFile = binding.fabsNewFile
-        fabsNewFile.listFilesFab.animate().setDuration(200L).rotation(90f)
-        fabsNewFile.listFilesFab.setImageResource(R.drawable.ic_baseline_add_24)
+//        fabsNewFile.listFilesFab.animate().setDuration(300L).rotation(90f)
+//        fabsNewFile.listFilesFab.setImageResource(R.drawable.ic_baseline_add_24)
         fabsNewFile.listFilesFabFolder.hide()
         fabsNewFile.listFilesFabDocument.hide()
         fabsNewFile.listFilesFabDrawing.hide()
         binding.listFilesRefresh.alpha = 1f
-        binding.listFilesFrameLayout.isClickable = false
+        binding.listFilesRefresh.isClickable = false
     }
 
     private fun showFABMenu() {
         val fabsNewFile = binding.fabsNewFile
-        fabsNewFile.listFilesFab.animate().setDuration(200L).rotation(-90f)
+//        fabsNewFile.listFilesFab.animate().setDuration(300L).rotation(-90f)
         fabsNewFile.listFilesFabFolder.show()
         fabsNewFile.listFilesFabDocument.show()
         fabsNewFile.listFilesFabDrawing.show()
         binding.listFilesRefresh.alpha = 0.7f
-        binding.listFilesFrameLayout.isClickable = true
-        binding.listFilesFrameLayout.setOnClickListener {
+        binding.listFilesRefresh.isClickable = true
+        binding.listFilesRefresh.setOnClickListener {
             closeFABMenu()
         }
     }

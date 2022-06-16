@@ -64,7 +64,7 @@ class MoveFileDialogFragment : DialogFragment() {
 
                     val imageResource = when {
                         item.fileType == FileType.Document && extensionHelper.isDrawing -> {
-                            R.drawable.ic_baseline_border_color_24
+                            R.drawable.ic_baseline_draw_24
                         }
                         item.fileType == FileType.Document && extensionHelper.isImage -> {
                             R.drawable.ic_baseline_image_24
@@ -73,7 +73,7 @@ class MoveFileDialogFragment : DialogFragment() {
                             R.drawable.ic_baseline_insert_drive_file_24
                         }
                         else -> {
-                            R.drawable.round_folder_white_18dp
+                            R.drawable.ic_baseline_folder_24
                         }
                     }
 

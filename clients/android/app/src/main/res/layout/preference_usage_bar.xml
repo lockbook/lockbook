@@ -4,22 +4,20 @@
     android:layout_height="wrap_content"
     android:orientation="vertical">
 
-    <ProgressBar
+    <com.google.android.material.progressindicator.LinearProgressIndicator
         android:id="@+id/usage_bar"
-        style="?android:attr/progressBarStyleHorizontal"
-        android:layout_marginVertical="15dp"
-        android:layout_marginHorizontal="30dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:background="@color/transparent"/>
+        android:layout_marginVertical="20dp"
+        android:layout_marginHorizontal="30dp"
+        android:layout_gravity="center_horizontal" />
 
-    <TextView
+    <com.google.android.material.textview.MaterialTextView
         android:id="@+id/usage_info"
-        android:layout_marginBottom="15dp"
-        android:layout_marginHorizontal="20dp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginBottom="15dp"
+        android:layout_marginHorizontal="20dp"
         android:text="@string/default_value"/>
 
 </LinearLayout>

@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:padding="30dp">
 
     <NumberPicker
         android:id="@+id/duration_days"
@@ -36,8 +37,6 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/dialog_duration_days_label"
-        style="@style/Main.Text.Medium"
-        android:fontFamily="sans-serif"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="@+id/duration_days"
         app:layout_constraintStart_toStartOf="@+id/duration_days"
@@ -48,8 +47,6 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/dialog_duration_hours_label"
-        style="@style/Main.Text.Medium"
-        android:fontFamily="sans-serif"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="@+id/duration_hours"
         app:layout_constraintStart_toStartOf="@+id/duration_hours"
@@ -60,8 +57,6 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/dialog_duration_minutes_label"
-        style="@style/Main.Text.Medium"
-        android:fontFamily="sans-serif"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="@+id/duration_minutes"
         app:layout_constraintStart_toStartOf="@+id/duration_minutes"
@@ -73,7 +68,6 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="5dp"
         android:text="@string/dialog_duration_error"
-        android:textColor="@android:color/holo_red_light"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="@+id/duration_minutes"

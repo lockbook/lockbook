@@ -12,7 +12,6 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="20dp"
-        android:fontFamily="monospace"
         android:hint="@string/import_description"
         android:imeOptions="actionDone"
         android:inputType="textPassword"
@@ -20,17 +19,20 @@
         android:importantForAutofill="yes"
         android:layout_marginTop="20dp" />
 
-    <ImageButton
+    <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/on_boarding_qr_code_import"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="?android:selectableItemBackground"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:background="?android:selectableItemBackgroundBorderless"
         android:contentDescription="@string/qr_code_content_description"
         app:srcCompat="@drawable/ic_baseline_qr_code_scanner_24"  />
 
-    <Button
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/on_boarding_import_submit"
-        style="@style/Main.Button.Borderless.Colored"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        style="@style/Widget.Material3.Button.ElevatedButton"
         android:text="@string/lockbook_import" />
 
 </LinearLayout>

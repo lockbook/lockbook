@@ -67,7 +67,7 @@ class PdfViewerFragment : Fragment() {
                     binding.pdfPageIndicator.text =
                         getString(R.string.pdf_page_indicator, page + 1, pageCount)
                 }
-                .onPageScroll { page, positionOffset ->
+                .onPageScroll { _, positionOffset ->
                     if (positionOffset < TOOLBAR_VISIBILITY_OFFSET && !isToolbarVisible) {
                         isToolbarVisible = true
                         Animate.animateVisibility(binding.pdfViewToolbar, View.VISIBLE, 255, 200)

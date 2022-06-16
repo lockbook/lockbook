@@ -31,7 +31,7 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
     override fun onBindViewHolder(holder: PreferenceViewHolder) {
         super.onBindViewHolder(holder)
 
-        setUpUsagePreference(holder)
+//        setUpUsagePreference(holder)
     }
 
     private fun setUpUsagePreference(holder: PreferenceViewHolder) {

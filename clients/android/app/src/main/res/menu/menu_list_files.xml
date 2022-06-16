@@ -2,8 +2,7 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    app:popupTheme="@style/Main.Widget.Actionbar"
-    tools:context="app.lockbook.screen.OnBoardingActvity">
+    tools:context="app.lockbook.screen.OnBoardingActivity">
     <item
         android:id="@+id/menu_list_files_sort"
         android:icon="@drawable/ic_baseline_sort_24"
@@ -43,7 +42,7 @@
 
     <item
         android:id="@+id/menu_list_files_delete"
-        android:icon="@drawable/ic_baseline_delete_24"
+        android:icon="@drawable/ic_baseline_delete_forever_24"
         android:orderInCategory="2"
         android:title="@string/menu_list_files_delete"
         android:visible="false"

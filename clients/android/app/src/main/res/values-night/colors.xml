@@ -1,18 +1,18 @@
 <!--?xml version="1.0" encoding="UTF-8"?-->
 <resources>
-  <color name="drawingUntouchableBackground">@color/dark</color>
-  <color name="selectedFileBackground">#64B5F6</color>
-  <color name="navigationBarColor">@color/black</color>
-  <color name="colorPrimary">@color/blue</color>
-  <color name="colorAccent">@color/blue</color>
-  <color name="colorPrimaryDark">@color/black</color>
-  <color name="windowBackground">@color/black</color>
-  <color name="textColor">@color/light</color>
-  <color name="iconColor">@color/light</color>
-  <color name="bottomSheetBackgroundColor">@color/lightBlack</color>
-  <color name="dialogBackgroundColor">@color/black</color>
-  <bool name="windowLightStatusBar">false</bool>
+  <color name="md_theme_primary">@color/md_theme_dark_primary</color>
+  <color name="md_theme_onPrimary">@color/md_theme_dark_onPrimary</color>
+  <color name="md_theme_primaryContainer">@color/md_theme_dark_primaryContainer</color>
+  <color name="md_theme_onPrimaryContainer">@color/md_theme_dark_onPrimaryContainer</color>
+  <color name="md_theme_inversePrimary">@color/md_theme_dark_inversePrimary</color>
 
-  <color name="imagePdfToolbarColor">#99000000</color>
-  <color name="pdfPageIndicatorBackgroundColor">#22FFFFFF</color>
+  <color name="md_theme_secondary">@color/md_theme_dark_secondary</color>
+  <color name="md_theme_onSecondary">@color/md_theme_dark_onSecondary</color>
+  <color name="md_theme_secondaryContainer">@color/md_theme_dark_secondaryContainer</color>
+  <color name="md_theme_onSecondaryContainer">@color/md_theme_dark_onSecondaryContainer</color>
+
+  <color name="md_theme_tertiary">@color/md_theme_dark_tertiary</color>
+  <color name="md_theme_onTertiary">@color/md_theme_dark_onTertiary</color>
+  <color name="md_theme_tertiaryContainer">@color/md_theme_dark_tertiaryContainer</color>
+  <color name="md_theme_onTertiaryContainer">@color/md_theme_dark_onTertiaryContainer</color>
 </resources>

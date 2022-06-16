@@ -70,7 +70,7 @@ class BreadCrumbAdapter(var breadCrumbItemClickListener: BreadCrumbItemClickList
             }
 
             breadCrumbSeparator.setImageResource(arrowDrawable)
-            breadCrumbTitle.setTextColor(textColor)
+//            breadCrumbTitle.setTextColor(textColor)
             breadCrumbTitle.textSize = textSize.toFloat()
         }
     }

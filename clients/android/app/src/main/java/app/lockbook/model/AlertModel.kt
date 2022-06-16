@@ -6,7 +6,8 @@ import android.os.Looper
 import android.view.View
 import androidx.appcompat.app.AlertDialog
 import app.lockbook.R
-import app.lockbook.util.*
+import app.lockbook.util.LbError
+import app.lockbook.util.LbErrorKind
 import com.google.android.material.snackbar.Snackbar
 import timber.log.Timber
 import java.lang.ref.WeakReference
@@ -39,7 +40,7 @@ class AlertModel(private val activity: WeakReference<Activity>, view: View? = nu
 
     private fun notifyWithDialog(title: String, msg: String, onFinish: (() -> Unit)? = null) {
         Handler(Looper.getMainLooper()).post {
-            val dialog = AlertDialog.Builder(activity.get()!!, R.style.Main_Widget_Dialog)
+            val dialog = AlertDialog.Builder(activity.get()!!)
                 .setTitle(title)
                 .setMessage(msg)
 

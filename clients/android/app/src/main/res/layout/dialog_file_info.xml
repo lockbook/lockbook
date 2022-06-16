@@ -1,57 +1,116 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    style="@style/Main.Widget.Dialog"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="5dp">
+    android:paddingHorizontal="30dp"
+    android:paddingVertical="10dp">
 
     <TextView
-        style="@style/Main.Text.Medium"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        style="@style/TextAppearance.Material3.TitleMedium"
         android:layout_gravity="center_horizontal"
-        android:text="@string/popup_info_title" />
+        android:text="@string/popup_info_title"
+        android:padding="10dp"/>
 
-    <TextView
-        android:id="@+id/popup_info_name"
-        style="@style/Main.Text.Small"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="monospace"
-        android:paddingBottom="15dp"
-        android:text="@string/default_value" />
+        android:paddingVertical="6dp"
+        android:orientation="horizontal">
 
-    <TextView
-        android:id="@+id/popup_info_id"
-        style="@style/Main.Text.Small"
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            style="@style/TextAppearance.Material3.LabelLarge"
+            android:text="Name: " />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/popup_info_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/default_value" />
+
+    </LinearLayout>
+
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingBottom="15dp"
-        android:text="@string/default_value" />
+        android:paddingVertical="6dp"
+        android:orientation="horizontal">
 
-    <TextView
-        android:id="@+id/popup_info_file_type"
-        style="@style/Main.Text.Small"
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            style="@style/TextAppearance.Material3.LabelLarge"
+            android:text="Id: " />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/popup_info_id"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/default_value" />
+
+    </LinearLayout>
+
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingBottom="15dp"
-        android:text="@string/default_value" />
+        android:paddingVertical="6dp"
+        android:orientation="horizontal">
 
-    <TextView
-        android:id="@+id/popup_info_metadata_version"
-        style="@style/Main.Text.Small"
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            style="@style/TextAppearance.Material3.LabelLarge"
+            android:text="File Type: " />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/popup_info_file_type"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/default_value" />
+
+    </LinearLayout>
+
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingBottom="15dp"
-        android:text="@string/default_value" />
+        android:paddingVertical="6dp"
+        android:orientation="horizontal">
 
-    <TextView
-        android:id="@+id/popup_info_content_version"
-        style="@style/Main.Text.Small"
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            style="@style/TextAppearance.Material3.LabelLarge"
+            android:text="Metadata Version: " />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/popup_info_metadata_version"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/default_value" />
+
+    </LinearLayout>
+
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingBottom="15dp"
-        android:text="@string/default_value" />
+        android:paddingVertical="6dp"
+        android:orientation="horizontal">
 
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            style="@style/TextAppearance.Material3.LabelLarge"
+            android:text="Content Version: " />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/popup_info_content_version"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/default_value" />
+
+    </LinearLayout>
 </LinearLayout>

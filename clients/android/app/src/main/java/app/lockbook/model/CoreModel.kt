@@ -37,7 +37,6 @@ object CoreModel {
             where E : Enum<E>, E : UiCoreError = try {
         decodeFromString<IntermCoreResult<C, E>>(json).toResult()
     } catch (e: Exception) {
-        throw e
         Err(CoreError.Unexpected("Cannot parse json."))
     }
 

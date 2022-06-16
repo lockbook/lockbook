@@ -4,7 +4,6 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     app:cardCornerRadius="0dp"
-    android:backgroundTint="?attr/colorPrimaryDark"
     android:clickable="true"
     android:focusable="true"
     android:foreground="?android:attr/selectableItemBackground"
@@ -20,6 +19,8 @@
             android:id="@+id/linear_file_icon"
             android:layout_width="30dp"
             android:layout_height="50dp"
+            android:src="@drawable/ic_baseline_folder_24"
+            android:layout_marginEnd="10dp"
             android:contentDescription="@string/file_image_content_description"/>
 
         <LinearLayout
@@ -30,19 +31,21 @@
             android:orientation="vertical"
             android:paddingHorizontal="10dp" >
 
-            <TextView
+            <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/linear_file_name"
-                style="@style/Main.File.Title"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                style="@style/TextAppearance.Material3.LabelLarge"
                 android:maxLines="1"
                 android:ellipsize="end"
+                android:text="Apple"
                 android:layout_marginBottom="5dp"/>
 
-            <TextView
+            <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/linear_file_description"
-                style="@style/Main.File.SubSubTitle"
                 android:layout_width="match_parent"
+                android:text="cookie"
+                style="@style/TextAppearance.Material3.BodySmall"
                 android:layout_height="wrap_content" />
 
         </LinearLayout>
