@@ -1,6 +1,5 @@
 use crate::model::repo::RepoSource;
-use crate::CoreError;
-use crate::Tx;
+use crate::{CoreError, RequestContext};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use std::cmp::Ordering;
@@ -29,8 +28,8 @@ impl PartialOrd for SearchResultItem {
     }
 }
 
-impl Tx<'_> {
-    pub fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, CoreError> {
+impl RequestContext<'_, '_> {
+    pub fn search_file_paths(&mut self, input: &str) -> Result<Vec<SearchResultItem>, CoreError> {
         if input.is_empty() {
             return Ok(Vec::new());
         }

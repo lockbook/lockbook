@@ -15,6 +15,7 @@ macro_rules! assert_metadata_changes_count (
     ($core:expr, $total:literal) => {
         assert_eq!(
             $core.db.transaction(|tx| {
+                let tx = $core.context(tx).unwrap();
                 tx.get_all_metadata_changes()
                 .unwrap()
                 .len()
@@ -28,6 +29,7 @@ macro_rules! assert_document_changes_count (
     ($core:expr, $total:literal) => {
         assert_eq!(
             $core.db.transaction(|tx| {
+                let mut tx = $core.context(tx).unwrap();
                 tx.get_all_with_document_changes(&$core.config)
                 .unwrap()
                 .len()
@@ -41,7 +43,10 @@ macro_rules! assert_metadata_nonexistent (
     ($core:expr, $source:expr, $id:expr) => {
         assert!(
             $core.db
-                .transaction(|tx| tx.maybe_get_metadata($source, $id))
+                .transaction(|tx| {
+                    let mut tx = $core.context(tx).unwrap();
+                    tx.maybe_get_metadata($source, $id)
+                })
                 .unwrap()
                 .unwrap()
                 .is_none()
@@ -52,7 +57,10 @@ macro_rules! assert_metadata_nonexistent (
 macro_rules! assert_metadata_eq (
     ($core:expr, $source:expr, $id:expr, $metadata:expr) => {
         assert_eq!(
-            $core.db.transaction(|tx| tx.maybe_get_metadata($source, $id)).unwrap().unwrap(),
+            $core.db.transaction(|tx| {
+                let mut tx = $core.context(tx).unwrap();
+                tx.maybe_get_metadata($source, $id)
+            }).unwrap().unwrap(),
             Some($metadata.clone()),
         );
     }
@@ -70,7 +78,10 @@ macro_rules! assert_document_eq (
 macro_rules! assert_metadata_count (
 ($core:expr, $source:expr, $total:literal) => {
     assert_eq!(
-        $core.db.transaction(|tx| tx.get_all_metadata($source).unwrap().len()).unwrap(),
+        $core.db.transaction(|tx| {
+            let mut tx = $core.context(tx).unwrap();
+            tx.get_all_metadata($source).unwrap().len()
+        }).unwrap(),
         $total
     );
 });
@@ -78,7 +89,10 @@ macro_rules! assert_metadata_count (
 macro_rules! assert_document_count (
 ($core:expr, $source:expr, $total:literal) => {
     assert_eq!(
-        $core.db.transaction(|tx| tx.get_all_metadata($source).unwrap())
+        $core.db.transaction(|tx| {
+            let mut tx = $core.context(tx).unwrap();
+            tx.get_all_metadata($source).unwrap()
+        })
             .unwrap()
             .iter()
             .filter(
@@ -306,6 +320,7 @@ fn get_metadata() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             let root = tx.root().unwrap();
             tx.get_metadata(RepoSource::Local, root.id).unwrap()
         })
@@ -317,7 +332,10 @@ fn get_metadata_nonexistent() {
     let core = test_core_with_account();
 
     core.db
-        .transaction(|tx| assert!(tx.get_metadata(RepoSource::Local, Uuid::new_v4()).is_err()))
+        .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
+            assert!(tx.get_metadata(RepoSource::Local, Uuid::new_v4()).is_err())
+        })
         .unwrap();
 }
 
@@ -330,7 +348,10 @@ fn get_metadata_local_falls_back_to_base() {
 
     let result = core
         .db
-        .transaction(|tx| tx.get_metadata(RepoSource::Local, dir.id).unwrap())
+        .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
+            tx.get_metadata(RepoSource::Local, dir.id).unwrap()
+        })
         .unwrap();
 
     assert_eq!(result, dir);
@@ -347,6 +368,7 @@ fn get_metadata_local_prefers_local() {
     let initial_doc = core
         .db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             let root = tx.root().unwrap().id;
             let initial_doc = tx
                 .create_file(&core.config, "test", root, FileType::Folder)
@@ -376,6 +398,7 @@ fn maybe_get_metadata() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             let root = tx.root().unwrap().id;
             assert_matches!(tx.maybe_get_metadata(RepoSource::Local, root).unwrap(), Some(_));
             assert_matches!(tx.maybe_get_metadata(RepoSource::Base, root).unwrap(), Some(_));
@@ -403,6 +426,7 @@ fn insert_document() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &document)
                 .unwrap();
             tx.insert_document(&core.config, RepoSource::Local, &document, b"content")
@@ -425,6 +449,7 @@ fn get_document() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &document)
                 .unwrap();
             tx.insert_document(&core.config, RepoSource::Local, &document, b"content")
@@ -476,6 +501,7 @@ fn get_document_local_falls_back_to_base() {
     let result = core
         .db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
                 .unwrap();
             tx.insert_document(&core.config, RepoSource::Base, &document, b"content")
@@ -500,6 +526,7 @@ fn get_document_local_prefers_local() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
                 .unwrap();
             tx.insert_document(&core.config, RepoSource::Base, &document, b"document content")
@@ -529,6 +556,7 @@ fn maybe_get_document() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
                 .unwrap();
             tx.insert_document(&core.config, RepoSource::Local, &document, b"document content 2")
@@ -575,6 +603,7 @@ fn new_idempotent() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &document)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &document)
@@ -588,7 +617,10 @@ fn new_idempotent() {
     assert_document_changes_count!(core, 1);
     assert!(core
         .db
-        .transaction(|tx| tx.get_all_metadata_changes().unwrap())
+        .transaction(|tx| {
+            let tx = core.context(tx).unwrap();
+            tx.get_all_metadata_changes().unwrap()
+        })
         .unwrap()[0]
         .old_parent_and_name
         .is_none());
@@ -607,6 +639,7 @@ fn matching_base_and_local() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &document)
@@ -631,6 +664,7 @@ fn matching_local_and_base() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &document)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
@@ -657,6 +691,7 @@ fn move_unmove() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
@@ -677,7 +712,10 @@ fn move_unmove() {
 
     document.parent = folder.id;
     core.db
-        .transaction(|tx| tx.insert_metadatum(&core.config, RepoSource::Local, &document))
+        .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &document)
+        })
         .unwrap()
         .unwrap();
 
@@ -685,7 +723,10 @@ fn move_unmove() {
     assert_document_changes_count!(core, 0);
     assert!(core
         .db
-        .transaction(|tx| tx.get_all_metadata_changes().unwrap())
+        .transaction(|tx| {
+            let tx = core.context(tx).unwrap();
+            tx.get_all_metadata_changes().unwrap()
+        })
         .unwrap()[0]
         .old_parent_and_name
         .is_some());
@@ -696,7 +737,10 @@ fn move_unmove() {
 
     document.parent = root.id;
     core.db
-        .transaction(|tx| tx.insert_metadatum(&core.config, RepoSource::Local, &document))
+        .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &document)
+        })
         .unwrap()
         .unwrap();
     assert_metadata_changes_count!(core, 0);
@@ -718,6 +762,7 @@ fn rename_unrename() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
@@ -738,7 +783,10 @@ fn rename_unrename() {
 
     document.decrypted_name = String::from("document 2");
     core.db
-        .transaction(|tx| tx.insert_metadatum(&core.config, RepoSource::Local, &document))
+        .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &document)
+        })
         .unwrap()
         .unwrap();
 
@@ -746,7 +794,10 @@ fn rename_unrename() {
     assert_document_changes_count!(core, 0);
     assert!(core
         .db
-        .transaction(|tx| tx.get_all_metadata_changes().unwrap())
+        .transaction(|tx| {
+            let tx = core.context(tx).unwrap();
+            tx.get_all_metadata_changes().unwrap()
+        })
         .unwrap()[0]
         .old_parent_and_name
         .is_some());
@@ -757,7 +808,10 @@ fn rename_unrename() {
 
     document.decrypted_name = String::from("document");
     core.db
-        .transaction(|tx| tx.insert_metadatum(&core.config, RepoSource::Local, &document))
+        .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &document)
+        })
         .unwrap()
         .unwrap();
     assert_metadata_changes_count!(core, 0);
@@ -779,6 +833,7 @@ fn delete() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
@@ -799,7 +854,10 @@ fn delete() {
 
     document.deleted = true;
     core.db
-        .transaction(|tx| tx.insert_metadatum(&core.config, RepoSource::Local, &document))
+        .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Local, &document)
+        })
         .unwrap()
         .unwrap();
 
@@ -807,7 +865,10 @@ fn delete() {
     assert_document_changes_count!(core, 0);
     assert!(core
         .db
-        .transaction(|tx| tx.get_all_metadata_changes().unwrap())
+        .transaction(|tx| {
+            let tx = core.context(tx).unwrap();
+            tx.get_all_metadata_changes().unwrap()
+        })
         .unwrap()[0]
         .old_parent_and_name
         .is_some());
@@ -818,6 +879,7 @@ fn delete() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
                 .unwrap();
             tx.prune_deleted(&core.config).unwrap();
@@ -838,6 +900,7 @@ fn multiple_metadata_edits() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
@@ -862,6 +925,7 @@ fn multiple_metadata_edits() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &folder)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &document)
@@ -887,7 +951,10 @@ fn document_edit() {
     let document = files::create(FileType::Document, root.id, "document", &account.public_key());
 
     core.db
-        .transaction(|tx| tx.insert_metadatum(&core.config, RepoSource::Base, &document))
+        .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
+            tx.insert_metadatum(&core.config, RepoSource::Base, &document)
+        })
         .unwrap()
         .unwrap();
 
@@ -900,6 +967,7 @@ fn document_edit() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_document(&core.config, RepoSource::Local, &document, b"document content")
         })
         .unwrap()
@@ -909,7 +977,10 @@ fn document_edit() {
     assert_document_changes_count!(core, 1);
     assert_eq!(
         core.db
-            .transaction(|tx| tx.get_all_with_document_changes(&core.config).unwrap())
+            .transaction(|tx| {
+                let mut tx = core.context(tx).unwrap();
+                tx.get_all_with_document_changes(&core.config).unwrap()
+            })
             .unwrap()[0],
         document.id
     );
@@ -928,6 +999,7 @@ fn document_edit_idempotent() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
                 .unwrap()
         })
@@ -941,6 +1013,7 @@ fn document_edit_idempotent() {
     assert_document_count!(core, RepoSource::Local, 0);
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_document(&core.config, RepoSource::Local, &document, b"document content")
                 .unwrap();
             tx.insert_document(&core.config, RepoSource::Local, &document, b"document content")
@@ -954,7 +1027,10 @@ fn document_edit_idempotent() {
     assert_document_changes_count!(core, 1);
     assert_eq!(
         core.db
-            .transaction(|tx| tx.get_all_with_document_changes(&core.config).unwrap())
+            .transaction(|tx| {
+                let mut tx = core.context(tx).unwrap();
+                tx.get_all_with_document_changes(&core.config).unwrap()
+            })
             .unwrap()[0],
         document.id
     );
@@ -973,6 +1049,7 @@ fn document_edit_revert() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
                 .unwrap();
             tx.insert_document(&core.config, RepoSource::Base, &document, b"document content")
@@ -989,6 +1066,7 @@ fn document_edit_revert() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_document(&core.config, RepoSource::Local, &document, b"document content 2")
         })
         .unwrap()
@@ -998,7 +1076,10 @@ fn document_edit_revert() {
     assert_document_changes_count!(core, 1);
     assert_eq!(
         core.db
-            .transaction(|tx| tx.get_all_with_document_changes(&core.config).unwrap())
+            .transaction(|tx| {
+                let mut tx = core.context(tx).unwrap();
+                tx.get_all_with_document_changes(&core.config).unwrap()
+            })
             .unwrap()[0],
         document.id
     );
@@ -1009,6 +1090,7 @@ fn document_edit_revert() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_document(&core.config, RepoSource::Local, &document, b"document content")
         })
         .unwrap()
@@ -1030,6 +1112,7 @@ fn document_edit_manual_promote() {
     let document = files::create(FileType::Document, root.id, "document", &account.public_key());
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
                 .unwrap();
             tx.insert_document(&core.config, RepoSource::Base, &document, b"document content")
@@ -1045,6 +1128,7 @@ fn document_edit_manual_promote() {
     assert_document_count!(core, RepoSource::Local, 1);
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_document(&core.config, RepoSource::Local, &document, b"document content 2")
                 .unwrap();
         })
@@ -1054,7 +1138,10 @@ fn document_edit_manual_promote() {
     assert_document_changes_count!(core, 1);
     assert_eq!(
         core.db
-            .transaction(|tx| tx.get_all_with_document_changes(&core.config).unwrap())
+            .transaction(|tx| {
+                let mut tx = core.context(tx).unwrap();
+                tx.get_all_with_document_changes(&core.config).unwrap()
+            })
             .unwrap()[0],
         document.id
     );
@@ -1064,6 +1151,7 @@ fn document_edit_manual_promote() {
     assert_document_count!(core, RepoSource::Local, 1);
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_document(&core.config, RepoSource::Base, &document, b"document content 2")
                 .unwrap();
         })
@@ -1090,6 +1178,7 @@ fn promote() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
@@ -1116,6 +1205,7 @@ fn promote() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &folder)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &document)
@@ -1138,6 +1228,7 @@ fn promote() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.promote_metadata().unwrap();
             tx.promote_documents(&core.config).unwrap();
         })
@@ -1169,6 +1260,7 @@ fn prune_deleted() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
                 .unwrap();
         })
@@ -1184,6 +1276,7 @@ fn prune_deleted() {
     document.deleted = true;
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &document)
@@ -1212,6 +1305,7 @@ fn prune_deleted_document_edit() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
                 .unwrap();
             tx.insert_document(&core.config, RepoSource::Base, &document, b"document content")
@@ -1230,6 +1324,7 @@ fn prune_deleted_document_edit() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_document(&core.config, RepoSource::Local, &document, b"document content 2")
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
@@ -1260,6 +1355,7 @@ fn prune_deleted_document_in_deleted_folder() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
@@ -1279,6 +1375,7 @@ fn prune_deleted_document_in_deleted_folder() {
     folder.deleted = true;
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &folder)
@@ -1310,6 +1407,7 @@ fn prune_deleted_document_moved_from_deleted_folder() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
@@ -1330,6 +1428,7 @@ fn prune_deleted_document_moved_from_deleted_folder() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &folder)
@@ -1364,6 +1463,7 @@ fn prune_deleted_base_only() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
                 .unwrap();
             tx.insert_document(&core.config, RepoSource::Base, &document, b"document content")
@@ -1383,6 +1483,7 @@ fn prune_deleted_base_only() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &document_local)
                 .unwrap();
         })
@@ -1390,6 +1491,7 @@ fn prune_deleted_base_only() {
     document.deleted = true;
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
                 .unwrap();
             tx.prune_deleted(&core.config).unwrap();
@@ -1415,6 +1517,7 @@ fn prune_deleted_local_only() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
                 .unwrap();
             tx.insert_document(&core.config, RepoSource::Base, &document, b"document content")
@@ -1433,6 +1536,7 @@ fn prune_deleted_local_only() {
     document_deleted.deleted = true;
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &document_deleted)
                 .unwrap();
             tx.prune_deleted(&core.config).unwrap();
@@ -1459,6 +1563,7 @@ fn prune_deleted_document_moved_from_deleted_folder_local_only() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &folder)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
@@ -1481,6 +1586,7 @@ fn prune_deleted_document_moved_from_deleted_folder_local_only() {
     document_moved.parent = root.id;
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &folder_deleted)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &folder_deleted)
@@ -1519,6 +1625,7 @@ fn prune_deleted_new_local_deleted_folder() {
     deleted_folder.deleted = true;
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &deleted_folder)
                 .unwrap();
             tx.prune_deleted(&core.config).unwrap();
@@ -1542,6 +1649,7 @@ fn prune_deleted_new_local_deleted_folder_with_existing_moved_child() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
                 .unwrap();
             tx.insert_document(&core.config, RepoSource::Base, &document, b"document content")
@@ -1564,6 +1672,7 @@ fn prune_deleted_new_local_deleted_folder_with_existing_moved_child() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &deleted_folder)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &document_moved)
@@ -1591,6 +1700,7 @@ fn prune_deleted_new_local_deleted_folder_with_deleted_existing_moved_child() {
 
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Base, &document)
                 .unwrap();
             tx.insert_document(&core.config, RepoSource::Base, &document, b"document content")
@@ -1613,6 +1723,7 @@ fn prune_deleted_new_local_deleted_folder_with_deleted_existing_moved_child() {
     document_moved_and_deleted.deleted = true;
     core.db
         .transaction(|tx| {
+            let mut tx = core.context(tx).unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &deleted_folder)
                 .unwrap();
             tx.insert_metadatum(&core.config, RepoSource::Local, &document_moved_and_deleted)

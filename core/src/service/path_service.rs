@@ -1,12 +1,12 @@
 use crate::model::repo::RepoSource;
 use crate::pure_functions::files;
-use crate::{Config, CoreError, Tx};
+use crate::{Config, CoreError, RequestContext};
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
 use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use uuid::Uuid;
 
-impl Tx<'_> {
+impl RequestContext<'_, '_> {
     pub fn create_at_path(
         &mut self, config: &Config, path_and_name: &str,
     ) -> Result<DecryptedFileMetadata, CoreError> {
@@ -71,7 +71,7 @@ impl Tx<'_> {
         Ok(current)
     }
 
-    pub fn get_by_path(&self, path: &str) -> Result<DecryptedFileMetadata, CoreError> {
+    pub fn get_by_path(&mut self, path: &str) -> Result<DecryptedFileMetadata, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
         let paths = split_path(path);
 
@@ -104,7 +104,7 @@ impl Tx<'_> {
         Ok(current)
     }
 
-    pub fn get_path_by_id(&self, id: Uuid) -> Result<String, CoreError> {
+    pub fn get_path_by_id(&mut self, id: Uuid) -> Result<String, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
         Self::path_by_id_helper(&files, id)
     }
@@ -130,7 +130,7 @@ impl Tx<'_> {
         Ok(path)
     }
 
-    pub fn list_paths(&self, filter: Option<Filter>) -> Result<Vec<String>, CoreError> {
+    pub fn list_paths(&mut self, filter: Option<Filter>) -> Result<Vec<String>, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
 
         let mut filtered_files = files.clone();

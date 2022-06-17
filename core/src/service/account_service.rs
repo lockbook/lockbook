@@ -1,8 +1,9 @@
 use crate::model::errors::core_err_unexpected;
 use crate::pure_functions::files;
-use crate::repo::schema::{OneKey, Tx};
+use crate::repo::schema::OneKey;
 use crate::service::{api_service, file_encryption_service};
-use crate::CoreError;
+use crate::{CoreError, RequestContext};
+use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
 use lockbook_crypto::pubkey;
 use lockbook_models::account::Account;
@@ -10,21 +11,24 @@ use lockbook_models::api::{GetPublicKeyRequest, NewAccountRequest};
 use lockbook_models::tree::FileMetaMapExt;
 use std::collections::HashMap;
 
-impl Tx<'_> {
+impl RequestContext<'_, '_> {
     pub fn create_account(&mut self, username: &str, api_url: &str) -> Result<Account, CoreError> {
         let username = String::from(username).to_lowercase();
 
-        if self.account.get(&OneKey {}).is_some() {
+        if self.tx.account.get(&OneKey {}).is_some() {
             return Err(CoreError::AccountExists);
         }
 
         let keys = pubkey::generate_key();
 
         let account = Account { username, api_url: api_url.to_string(), private_key: keys };
+        let public_key = account.public_key();
+        self.data_cache.public_key = Some(public_key.clone());
 
         let mut root_metadata = files::create_root(&account);
         let encrypted_metadata = file_encryption_service::encrypt_metadata(
             &account,
+            &public_key,
             &HashMap::with(root_metadata.clone()),
         )?;
         let encrypted_metadatum = if encrypted_metadata.len() == 1 {
@@ -41,20 +45,21 @@ impl Tx<'_> {
 
         let root = file_encryption_service::encrypt_metadata(
             &account,
+            &public_key,
             &HashMap::with(root_metadata.clone()),
         )?
         .get(&root_metadata.id)
         .ok_or_else(|| CoreError::Unexpected("Failed to encrypt root".to_string()))?
         .clone();
-        self.account.insert(OneKey {}, account.clone());
-        self.base_metadata.insert(root.id, root.clone());
-        self.last_synced.insert(OneKey {}, get_time().0);
-        self.root.insert(OneKey {}, root.id);
+        self.tx.account.insert(OneKey {}, account.clone());
+        self.tx.base_metadata.insert(root.id, root.clone());
+        self.tx.last_synced.insert(OneKey {}, get_time().0);
+        self.tx.root.insert(OneKey {}, root.id);
         Ok(account)
     }
 
     pub fn import_account(&mut self, account_string: &str) -> Result<Account, CoreError> {
-        if self.account.get(&OneKey {}).is_some() {
+        if self.tx.account.get(&OneKey {}).is_some() {
             warn!("tried to import an account, but account exists already.");
             return Err(CoreError::AccountExists);
         }
@@ -79,17 +84,21 @@ impl Tx<'_> {
         )?
         .key;
 
-        if account.public_key() != server_public_key {
+        let account_public_key = account.public_key();
+
+        if account_public_key != server_public_key {
             return Err(CoreError::UsernamePublicKeyMismatch);
         }
 
-        self.account.insert(OneKey {}, account.clone());
+        self.data_cache.public_key = Some(account_public_key);
+        self.tx.account.insert(OneKey {}, account.clone());
 
         Ok(account)
     }
 
     pub fn export_account(&self) -> Result<String, CoreError> {
         let account = self
+            .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
@@ -98,8 +107,21 @@ impl Tx<'_> {
     }
 
     pub fn get_account(&self) -> Result<Account, CoreError> {
-        self.account
+        self.tx
+            .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)
+    }
+
+    pub fn get_public_key(&mut self) -> Result<PublicKey, CoreError> {
+        match self.data_cache.public_key {
+            Some(pk) => Ok(pk),
+            None => {
+                let account = self.get_account()?;
+                let pk = account.public_key();
+                self.data_cache.public_key = Some(pk);
+                Ok(pk)
+            }
+        }
     }
 }

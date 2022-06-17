@@ -1,6 +1,6 @@
 use crate::model::filename::NameComponents;
 use crate::model::repo::RepoSource;
-use crate::{Config, CoreError, Tx};
+use crate::{Config, CoreError, RequestContext};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles, FileType};
 use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use std::fs;
@@ -16,7 +16,7 @@ pub enum ImportStatus {
     FinishedItem(DecryptedFileMetadata),
 }
 
-impl Tx<'_> {
+impl RequestContext<'_, '_> {
     pub fn import_files<F: Fn(ImportStatus)>(
         &mut self, config: &Config, sources: &[PathBuf], dest: Uuid, update_status: &F,
     ) -> Result<(), CoreError> {
@@ -39,7 +39,7 @@ impl Tx<'_> {
     }
 
     pub fn export_file(
-        &self, config: &Config, id: Uuid, destination: PathBuf, edit: bool,
+        &mut self, config: &Config, id: Uuid, destination: PathBuf, edit: bool,
         export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> Result<(), CoreError> {
         if destination.is_file() {
@@ -104,7 +104,7 @@ impl Tx<'_> {
     }
 
     fn generate_non_conflicting_name(
-        &self, parent: &Uuid, proposed_name: &str,
+        &mut self, parent: &Uuid, proposed_name: &str,
     ) -> Result<String, CoreError> {
         let sibblings = self.get_children(*parent)?;
         let mut new_name = NameComponents::from(proposed_name);
@@ -120,8 +120,9 @@ impl Tx<'_> {
     }
 
     fn export_file_recursively(
-        &self, config: &Config, all: &DecryptedFiles, parent_file_metadata: &DecryptedFileMetadata,
-        disk_path: &Path, edit: bool, export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
+        &mut self, config: &Config, all: &DecryptedFiles,
+        parent_file_metadata: &DecryptedFileMetadata, disk_path: &Path, edit: bool,
+        export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> Result<(), CoreError> {
         let dest_with_new = disk_path.join(&parent_file_metadata.decrypted_name);
 
