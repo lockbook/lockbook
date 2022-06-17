@@ -7,17 +7,25 @@
     android:orientation="vertical"
     android:paddingHorizontal="25dp">
 
-    <EditText
-        android:id="@+id/on_boarding_account_string"
+    <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="20dp"
-        android:hint="@string/import_description"
-        android:imeOptions="actionDone"
-        android:inputType="textPassword"
-        android:autofillHints="password"
-        android:importantForAutofill="yes"
-        android:layout_marginTop="20dp" />
+        android:layout_marginTop="20dp"
+        app:endIconMode="password_toggle"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/on_boarding_account_string"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="20dp"
+            android:hint="@string/import_description"
+            android:imeOptions="actionDone"
+            android:inputType="textPassword"
+            android:autofillHints="password"
+            android:importantForAutofill="yes" />
+
+    </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/on_boarding_qr_code_import"
@@ -32,7 +40,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="5dp"
-        style="@style/Widget.Material3.Button.ElevatedButton"
+        style="@style/Widget.Material3.Button.TextButton"
         android:text="@string/lockbook_import" />
 
 </LinearLayout>

@@ -6,22 +6,29 @@
     android:orientation="vertical"
     android:paddingHorizontal="25dp">
 
-    <com.google.android.material.textfield.TextInputEditText
-        android:id="@+id/on_boarding_username"
+    <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="20dp"
-        android:hint="@string/new_account_username"
-        android:imeOptions="actionDone"
-        android:importantForAutofill="no"
-        android:inputType="textVisiblePassword"
-        android:layout_marginTop="20dp" />
+        android:layout_marginVertical="20dp"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/on_boarding_username"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/new_account_username"
+            android:imeOptions="actionDone"
+            android:importantForAutofill="no"
+            android:inputType="textVisiblePassword" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/on_boarding_create_submit"
-        style="@style/Widget.Material3.Button.ElevatedButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        style="@style/Widget.Material3.Button.TextButton"
         android:text="@string/create_account" />
 
 </LinearLayout>

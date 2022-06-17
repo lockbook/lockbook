@@ -89,8 +89,6 @@ class DrawingFragment : Fragment() {
         setUpToolbarListeners()
         setUpToolbarDefaults()
 
-
-
         return binding.root
     }
 
@@ -279,7 +277,7 @@ class DrawingFragment : Fragment() {
         }
 
         penSizeChooser.addOnChangeListener { _, value, _ ->
-             drawingView.strokeState.penSizeMultiplier = value.toInt()
+            drawingView.strokeState.penSizeMultiplier = value.toInt()
         }
 
         drawingView.setOnTouchListener { _, event ->

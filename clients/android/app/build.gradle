@@ -63,7 +63,6 @@ dependencies {
 
     // Ui Libraries
     implementation "com.google.android.material:material:$material_ui_version"
-    implementation "com.afollestad.material-dialogs:core:$dialog_version"
     implementation "androidx.preference:preference-ktx:$preference_version"
     implementation "androidx.fragment:fragment-ktx:$fragment_version"
     implementation "androidx.slidingpanelayout:slidingpanelayout:$sliding_pane_layout_version"

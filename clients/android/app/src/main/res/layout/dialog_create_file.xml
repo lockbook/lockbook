@@ -1,84 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/create_file_layout"
     style="@style/MaterialAlertDialog.Material3"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_gravity="center"
-    android:orientation="vertical">
+    android:weightSum="10"
+    android:padding="15dp"
+    android:orientation="horizontal">
 
-    <com.google.android.material.textview.MaterialTextView
-        android:id="@+id/create_file_title"
-        style="@style/TextAppearance.Material3.TitleMedium"
-        android:layout_width="match_parent"
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:paddingTop="8dp"
-        android:text="@string/new_file_title"
-        android:textAlignment="center" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="10dp"
-        android:gravity="end"
-        android:orientation="horizontal">
+        android:layout_weight="7"
+        app:startIconDrawable="@drawable/ic_baseline_insert_drive_file_24"
+        android:hint="Name"
+        android:layout_marginEnd="10dp"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/create_file_text_part"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="10dp"
-            android:layout_weight="1"
-            android:hint="@string/dialog_file_name"
-            android:imeOptions="actionNext"
-            android:importantForAutofill="no"
-            android:inputType="text" />
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="3"
+        android:hint="Ext."
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/create_file_extension"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="0.4"
-            android:hint="@string/dialog_file_extension"
-            android:imeOptions="actionDone"
-            android:importantForAutofill="no"
-            android:inputType="text" />
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/create_file_text"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="10dp"
-            android:layout_weight="1"
-            android:hint="@string/create_file_default_file_hint"
-            android:imeOptions="actionDone"
-            android:importantForAutofill="no"
-            android:inputType="text"
-            android:visibility="gone" />
+            />
 
-    </LinearLayout>
+    </com.google.android.material.textfield.TextInputLayout>
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="end"
-        android:orientation="horizontal">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/create_file_cancel"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_height="wrap_content"
-            android:layout_width="wrap_content"
-            android:layout_marginHorizontal="10dp"
-            android:text="@string/cancel" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/create_file_create"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_height="wrap_content"
-            android:layout_width="wrap_content"
-            android:layout_marginHorizontal="10dp"
-            android:text="@string/create_file_create" />
-    </LinearLayout>
 
 </LinearLayout>

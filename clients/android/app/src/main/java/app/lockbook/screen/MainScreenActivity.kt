@@ -45,7 +45,7 @@ class MainScreenActivity : AppCompatActivity() {
             when (f) {
                 is MoveFileDialogFragment,
                 is RenameFileDialogFragment -> filesFragment.refreshFiles()
-                is CreateFileDialogFragment -> filesFragment.onNewFileCreated(f.newFile)
+//                is CreateFileDialogFragment -> filesFragment.onNewFileCreated(f.newFile)
                 is FileInfoDialogFragment -> filesFragment.unselectFiles()
             }
         }

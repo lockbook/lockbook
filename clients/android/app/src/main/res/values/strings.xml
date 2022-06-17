@@ -8,7 +8,7 @@
     <string name="create_account">Create Account</string>
 
     <string name="import_description">Account string</string>
-    <string name="new_account_username">Choose a username: a–z, 0–9</string>
+    <string name="new_account_username">Username (a–z, 0–9)</string>
 
     <string name="popup_info_name">Name: %s</string>
     <string name="popup_info_id">ID: %s</string>
