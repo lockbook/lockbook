@@ -111,7 +111,10 @@ pub async fn upgrade_account_google_play(
 
     google_play_client::acknowledge_subscription(
         &server_state.google_play_client,
-        &server_state.config.google.premium_subscription_product_id,
+        &server_state
+            .config
+            .billing
+            .gp_premium_subscription_product_id,
         &request.purchase_token,
     )
     .await?;
@@ -120,35 +123,39 @@ pub async fn upgrade_account_google_play(
 
     let subscription = google_play_client::get_subscription(
         &server_state.google_play_client,
-        &server_state.config.google.premium_subscription_product_id,
+        &server_state
+            .config
+            .billing
+            .gp_premium_subscription_product_id,
         &request.purchase_token,
     )
     .await?;
 
-    sub_profile.billing_platform = Some(BillingPlatform::GooglePlay(GooglePlayUserInfo {
-        purchase_token: request.purchase_token.clone(),
-        subscription_product_id: server_state
-            .config
-            .google
-            .premium_subscription_product_id
-            .clone(),
-        subscription_offer_id: server_state
-            .config
-            .google
-            .premium_subscription_offer_id
-            .clone(),
-        expiration_time: subscription
-            .expiry_time_millis
-            .ok_or_else(|| {
-                internal!(
-                    "Cannot get expiration time of a recovered subscription. public_key {:?}",
-                    &context.public_key
-                )
-            })?
-            .parse()
-            .map_err(|e| internal!("Cannot parse millis into int: {:?}", e))?,
-        account_state: GooglePlayAccountState::Ok,
-    }));
+    subscription.sub_profile.billing_platform =
+        Some(BillingPlatform::GooglePlay(GooglePlayUserInfo {
+            purchase_token: request.purchase_token.clone(),
+            subscription_product_id: server_state
+                .config
+                .billing
+                .gp_premium_subscription_product_id
+                .clone(),
+            subscription_offer_id: server_state
+                .config
+                .billing
+                .gp_premium_subscription_offer_id
+                .clone(),
+            expiration_time: subscription
+                .expiry_time_millis
+                .ok_or_else(|| {
+                    internal!(
+                        "Cannot get expiration time of a recovered subscription. public_key {:?}",
+                        &context.public_key
+                    )
+                })?
+                .parse()
+                .map_err(|e| internal!("Cannot parse millis into int: {:?}", e))?,
+            account_state: GooglePlayAccountState::Ok,
+        }));
 
     con.json_set(keys::public_key_from_gp_account_id(&request.account_id), context.public_key)
         .await?;
@@ -463,10 +470,11 @@ pub async fn google_play_notification_webhooks(
 ) -> Result<(), ServerError<GooglePlayWebhookError>> {
     let notification = google_play_service::verify_request_and_get_notification(
         server_state,
-        &request_body,
+        request_body,
         query_parameters,
     )
     .await?;
+
     let mut con = server_state.index_db_pool.get().await?;
 
     if let Some(sub_notif) = notification.subscription_notification {

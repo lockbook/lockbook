@@ -18,7 +18,11 @@ pub async fn create_subscription(
     server_state: &ServerState, con: &mut deadpool_redis::Connection, public_key: &PublicKey,
     account_tier: &StripeAccountTier, maybe_user_info: Option<StripeUserInfo>,
 ) -> Result<StripeUserInfo, ServerError<UpgradeAccountStripeError>> {
-    let StripeAccountTier::Premium(payment_method) = account_tier;
+    let (payment_method, price_id) = match account_tier {
+        StripeAccountTier::Premium(payment_method) => {
+            (payment_method, &server_state.config.billing.stripe_premium_price_id)
+        }
+    };
 
     let (customer_id, customer_name, payment_method_id, last_4) = match payment_method {
         PaymentMethod::NewCard { number, exp_year, exp_month, cvc } => {
@@ -132,9 +136,13 @@ pub async fn create_subscription(
 
     info!("Successfully retrieved card for public_key: {:?}", public_key);
 
-    let subscription_resp =
-        stripe_client::create_subscription(server_state, customer_id.clone(), &payment_method_id)
-            .await?;
+    let subscription_resp = stripe_client::create_subscription(
+        &server_state.stripe_client,
+        customer_id.clone(),
+        &payment_method_id,
+        price_id,
+    )
+    .await?;
 
     info!(
         "Successfully create subscription: {}, public_key: {:?}",
@@ -144,6 +152,7 @@ pub async fn create_subscription(
     Ok(StripeUserInfo {
         customer_id: customer_id.to_string(),
         customer_name,
+        price_id: price_id.to_string(),
         payment_method_id: payment_method_id.to_string(),
         last_4,
         subscription_id: subscription_resp.id.to_string(),
@@ -191,5 +200,9 @@ pub fn verify_request_and_get_event(
 
     info!("Verifying a stripe webhook request.");
 
-    Ok(stripe::Webhook::construct_event(payload, sig, &server_state.config.stripe.signing_secret)?)
+    Ok(stripe::Webhook::construct_event(
+        payload,
+        sig,
+        &server_state.config.billing.stripe_signing_secret,
+    )?)
 }

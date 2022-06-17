@@ -8,7 +8,7 @@ use test_utils::{
 };
 
 #[test]
-fn upgrade_account_android_already_premium() {
+fn upgrade_account_google_play_already_premium() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 
@@ -40,7 +40,7 @@ fn upgrade_account_android_already_premium() {
 
 #[test]
 #[ignore]
-fn upgrade_account_android_invalid_purchase_token() {
+fn upgrade_account_google_play_invalid_purchase_token() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 

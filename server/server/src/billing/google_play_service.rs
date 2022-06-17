@@ -44,22 +44,21 @@ pub fn get_subscription_period_end(
 }
 
 pub async fn verify_request_and_get_notification(
-    server_state: &Arc<ServerState>, request_body: &Bytes,
-    query_parameters: HashMap<String, String>,
+    server_state: &Arc<ServerState>, request_body: Bytes, query_parameters: HashMap<String, String>,
 ) -> Result<DeveloperNotification, ServerError<GooglePlayWebhookError>> {
     if !constant_time_eq::constant_time_eq(
         query_parameters
             .get("token")
             .ok_or(ClientError(GooglePlayWebhookError::InvalidToken))?
             .as_bytes(),
-        server_state.config.google.pubsub_token.as_bytes(),
+        server_state.config.billing.gp_pubsub_token.as_bytes(),
     ) {
         return Err(ClientError(GooglePlayWebhookError::InvalidToken));
     }
 
     info!("Parsing pubsub notification and extracting the developer notification.");
 
-    let pubsub_notif = serde_json::from_slice::<PubSubNotification>(request_body)?;
+    let pubsub_notif = serde_json::from_slice::<PubSubNotification>(&request_body)?;
     let data = base64::decode(pubsub_notif.message.data)
         .map_err(|e| ClientError(GooglePlayWebhookError::CannotDecodePubSubData(e)))?;
 

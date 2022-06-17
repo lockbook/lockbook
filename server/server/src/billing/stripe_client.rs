@@ -1,7 +1,7 @@
 use log::{debug, info, warn};
 use std::fmt::Debug;
 
-use crate::{ServerState, StripeDeclineCodeCatcher, StripeKnownDeclineCode};
+use crate::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
 
 #[derive(Debug)]
 pub enum SimplifiedStripeError {
@@ -219,7 +219,8 @@ pub async fn create_setup_intent(
 }
 
 pub async fn create_subscription(
-    server_state: &ServerState, customer_id: stripe::CustomerId, payment_method_id: &str,
+    stripe_client: &stripe::Client, customer_id: stripe::CustomerId, payment_method_id: &str,
+    price_id: &str,
 ) -> Result<stripe::Subscription, SimplifiedStripeError> {
     info!(
         "Creating stripe subscription. customer_id: {}, payment_method_id: {}",
@@ -229,14 +230,13 @@ pub async fn create_subscription(
 
     let mut subscription_params = stripe::CreateSubscription::new(customer_id);
     let mut subscription_item_params = stripe::CreateSubscriptionItems::new();
-    subscription_item_params.price = Some(server_state.config.stripe.premium_price_id.clone());
+    subscription_item_params.price = Some(price_id.to_string());
 
     subscription_params.default_payment_method = Some(payment_method_id);
     subscription_params.items = Some(vec![subscription_item_params]);
     subscription_params.expand = &["latest_invoice", "latest_invoice.payment_intent"];
 
-    let subscription =
-        stripe::Subscription::create(&server_state.stripe_client, subscription_params).await?;
+    let subscription = stripe::Subscription::create(stripe_client, subscription_params).await?;
 
     debug!("Created stripe subscription: {:?}.", subscription);
 

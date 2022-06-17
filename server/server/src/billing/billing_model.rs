@@ -46,6 +46,7 @@ pub struct GooglePlayUserInfo {
 pub struct StripeUserInfo {
     pub customer_id: String,
     pub customer_name: Uuid,
+    pub price_id: String,
     pub payment_method_id: String,
     pub last_4: String,
     pub subscription_id: String,

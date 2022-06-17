@@ -157,7 +157,7 @@ pub fn google_play_notification_webhooks(
     let cloned_state = server_state.clone();
 
     warp::post()
-        .and(warp::path("android_notification_webhook"))
+        .and(warp::path("google_play_notification_webhook"))
         .and(warp::any().map(move || cloned_state.clone()))
         .and(warp::body::bytes())
         .and(warp::query::query::<HashMap<String, String>>())
