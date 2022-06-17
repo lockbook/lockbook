@@ -9,31 +9,31 @@
     android:orientation="horizontal">
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/list_files_fab_drawing"
+        android:id="@+id/fab_drawing"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="5dp"
         android:contentDescription="@string/list_files_create_document"
-        android:src="@drawable/ic_baseline_draw_24"
+        android:src="@drawable/ic_outline_draw_24"
         android:visibility="gone" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/list_files_fab_document"
+        android:id="@+id/fab_document"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:contentDescription="@string/list_files_create_document"
-        android:src="@drawable/ic_baseline_insert_drive_file_24"
+        android:src="@drawable/ic_outline_insert_drive_file_24"
         android:layout_margin="5dp"
-        app:layout_anchor="@id/list_files_fab_folder"
+        app:layout_anchor="@id/fab_folder"
         android:visibility="gone" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/list_files_fab_folder"
+        android:id="@+id/fab_folder"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:contentDescription="@string/list_files_create_folder"
         android:layout_margin="5dp"
-        android:src="@drawable/ic_baseline_folder_24"
+        android:src="@drawable/ic_outline_folder_24"
         android:visibility="gone" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton

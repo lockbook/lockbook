@@ -5,53 +5,134 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <LinearLayout
-        android:id="@+id/files_list_holder"
+    <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical">
+        android:layout_height="wrap_content"
+        app:liftOnScroll="true"
+        app:liftOnScrollTargetViewId="@id/files_list">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/files_toolbar"
             android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize" />
+            android:layout_height="?android:actionBarSize"
+            app:menu="@menu/menu_list_files"
+            app:title="Smail's"
+            app:subtitle="@string/lockbook_title"
+            app:subtitleTextAppearance="?attr/textAppearanceBodySmall"
+            app:layout_scrollFlags="scroll|enterAlways|snap" />
 
         <app.lockbook.ui.BreadCrumbView
             android:id="@+id/files_breadcrumb_bar"
             android:layout_width="match_parent"
-            android:layout_height="30dp"
-            android:layout_gravity="top"
+            android:layout_height="wrap_content"
             app:text_size="15"
             app:arrow_drawable="@drawable/ic_baseline_keyboard_arrow_right_24" />
 
-        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-            android:id="@+id/list_files_refresh"
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/list_files_refresh"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/files_list"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            app:layout_constraintTop_toBottomOf="@+id/files_breadcrumb_bar">
+            android:layout_height="match_parent"
+            android:scrollbars="vertical" />
 
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/files_list"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:scrollbars="vertical" />
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-    </LinearLayout>
-
-    <com.google.android.material.textview.MaterialTextView
+    <LinearLayout
         android:id="@+id/files_empty_folder"
-        android:layout_width="150dp"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:gravity="center"
-        android:text="@string/empty_folder"
-        app:layout_anchorGravity="center"
-        android:visibility="gone" />
+        android:orientation="vertical"
+        android:visibility="gone">
 
-    <include
-        android:id="@+id/fabs_new_file"
-        layout="@layout/fabs_new_file" />
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_outline_insert_drive_file_240"
+            android:contentDescription="@string/empty_folder" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="200dp"
+            android:layout_height="wrap_content"
+            android:text="@string/empty_folder"
+            android:gravity="center"
+            app:layout_anchorGravity="center"/>
+
+    </LinearLayout>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/fabs_holder"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="bottom|end"
+        android:orientation="vertical">
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fab_drawing"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="5dp"
+            android:layout_marginBottom="502dp"
+            android:contentDescription="@string/list_files_create_document"
+            android:src="@drawable/ic_outline_draw_24"
+            app:fabSize="mini"
+            app:layout_constraintBottom_toTopOf="@+id/fab_document"
+            app:layout_constraintEnd_toEndOf="@+id/fab_document"
+            app:layout_constraintStart_toStartOf="@+id/fab_document"
+            android:visibility="gone"/>
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fab_document"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="5dp"
+            android:contentDescription="@string/list_files_create_document"
+            android:src="@drawable/ic_outline_insert_drive_file_24"
+            app:fabSize="mini"
+            app:layout_constraintBottom_toTopOf="@+id/fab_folder"
+            app:layout_constraintEnd_toEndOf="@+id/fab_folder"
+            app:layout_constraintStart_toStartOf="@+id/fab_folder"
+            android:visibility="gone"/>
+
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fab_folder"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="@string/list_files_create_folder"
+            android:src="@drawable/ic_outline_folder_24"
+            app:fabSize="mini"
+            android:layout_marginBottom="10dp"
+            app:layout_constraintBottom_toTopOf="@+id/fab_file"
+            app:layout_constraintEnd_toEndOf="@+id/fab_file"
+            app:layout_constraintStart_toStartOf="@+id/fab_file"
+            android:visibility="gone"/>
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fab_file"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:contentDescription="@string/list_files_create_file"
+            android:src="@drawable/ic_baseline_add_24"
+            android:layout_marginEnd="15dp"
+            android:layout_marginBottom="15dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+
+    <!--    <include-->
+    <!--        android:id="@+id/fabs_new_file"-->
+    <!--        layout="@layout/fabs_new_file" />-->
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

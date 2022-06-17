@@ -39,7 +39,7 @@
     <string name="menu_list_files_last_changed">Sort by last changed</string>
     <string name="menu_list_files_sort_z_a">Sort from z-a</string>
     <string name="menu_list_files_sort_first_changed">Sort by first changed</string>
-    <string name="dialog_file_name">File name</string>
+    <string name="dialog_file_name">Name</string>
     <string name="new_file_title">New File</string>
 
     <string name="settings_sync_edit">Sync automatically in app</string>
@@ -90,8 +90,8 @@
     <string name="text_editor_hint">Type here</string>
     <string name="rename_file_rename">Rename</string>
     <string name="create_file_create">Create</string>
-    <string name="dialog_file_extension">File Ext.</string>
-    <string name="empty_folder">There are no files, please click the bottom right button to create a new file, folder, or drawing.</string>
+    <string name="dialog_file_extension">Ext.</string>
+    <string name="empty_folder">No files.</string>
     <string name="create_file_default_file_hint">ERROR, hint not correctly configured.</string>
     <string name="create_file_dialog_document_extension">.md</string>
     <string name="create_file_dialog_drawing_extension">.draw</string>

@@ -63,7 +63,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         SnackProgressBarManager(
             requireView(),
             lifecycleOwner = this
-        ).setViewToMove(binding.fabsNewFile.root)
+        ).setViewToMove(binding.fabFile)
     }
 
     private val syncSnackProgressBar by lazy {
@@ -149,19 +149,19 @@ class FilesListFragment : Fragment(), FilesFragment {
             30000
         )
 
-        binding.fabsNewFile.listFilesFab.setOnClickListener {
+        binding.fabFile.setOnClickListener {
             collapseExpandFAB()
         }
 
-        binding.fabsNewFile.listFilesFabFolder.setOnClickListener {
+        binding.fabFolder.setOnClickListener {
             onDocumentFolderFabClicked(ExtendedFileType.Folder)
         }
 
-        binding.fabsNewFile.listFilesFabDocument.setOnClickListener {
+        binding.fabDocument.setOnClickListener {
             onDocumentFolderFabClicked(ExtendedFileType.Text)
         }
 
-        binding.fabsNewFile.listFilesFabDrawing.setOnClickListener {
+        binding.fabDrawing.setOnClickListener {
             onDocumentFolderFabClicked(ExtendedFileType.Drawing)
         }
 
@@ -193,8 +193,6 @@ class FilesListFragment : Fragment(), FilesFragment {
     }
 
     private fun setUpToolbar() {
-        binding.filesToolbar.title = "Lockbook"
-        binding.filesToolbar.inflateMenu(R.menu.menu_list_files)
         binding.filesToolbar.setOnMenuItemClickListener { item ->
             val selectedFiles = model.selectableFiles.getSelectedItems()
 
@@ -283,16 +281,16 @@ class FilesListFragment : Fragment(), FilesFragment {
                             R.drawable.ic_baseline_check_24
                         }
                         item.fileType == FileType.Document && extensionHelper.isDrawing -> {
-                            R.drawable.ic_baseline_draw_24
+                            R.drawable.ic_outline_draw_24
                         }
                         item.fileType == FileType.Document && extensionHelper.isImage -> {
                             R.drawable.ic_baseline_image_24
                         }
                         item.fileType == FileType.Document -> {
-                            R.drawable.ic_baseline_insert_drive_file_24
+                            R.drawable.ic_outline_insert_drive_file_24
                         }
                         else -> {
-                            R.drawable.ic_baseline_folder_24
+                            R.drawable.ic_outline_folder_24
                         }
                     }
 
@@ -302,7 +300,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                         itemView.background.setTint(
                             ResourcesCompat.getColor(
                                 resources,
-                                R.color.md_theme_onPrimary,
+                                R.color.md_theme_inversePrimary,
                                 itemView.context.theme
                             )
                         )
@@ -430,7 +428,7 @@ class FilesListFragment : Fragment(), FilesFragment {
     }
 
     private fun collapseExpandFAB() {
-        if (binding.fabsNewFile.listFilesFabDocument.isOrWillBeHidden) {
+        if (binding.fabDocument.isOrWillBeHidden) {
             showFABMenu()
         } else {
             closeFABMenu()
@@ -438,25 +436,22 @@ class FilesListFragment : Fragment(), FilesFragment {
     }
 
     private fun closeFABMenu() {
-        val fabsNewFile = binding.fabsNewFile
-//        fabsNewFile.listFilesFab.animate().setDuration(300L).rotation(90f)
-//        fabsNewFile.listFilesFab.setImageResource(R.drawable.ic_baseline_add_24)
-        fabsNewFile.listFilesFabFolder.hide()
-        fabsNewFile.listFilesFabDocument.hide()
-        fabsNewFile.listFilesFabDrawing.hide()
+        binding.fabFile.animate().setDuration(300L).rotation(90f)
+        binding.fabFolder.hide()
+        binding.fabDocument.hide()
+        binding.fabDrawing.hide()
         binding.listFilesRefresh.alpha = 1f
-        binding.listFilesRefresh.isClickable = false
+        binding.fabsHolder.isClickable = false
     }
 
     private fun showFABMenu() {
-        val fabsNewFile = binding.fabsNewFile
-//        fabsNewFile.listFilesFab.animate().setDuration(300L).rotation(-90f)
-        fabsNewFile.listFilesFabFolder.show()
-        fabsNewFile.listFilesFabDocument.show()
-        fabsNewFile.listFilesFabDrawing.show()
-        binding.listFilesRefresh.alpha = 0.7f
+        binding.fabFile.animate().setDuration(300L).rotation(-90f)
+        binding.fabFolder.show()
+        binding.fabDocument.show()
+        binding.fabDrawing.show()
+        binding.listFilesRefresh.alpha = 0.3f
         binding.listFilesRefresh.isClickable = true
-        binding.listFilesRefresh.setOnClickListener {
+        binding.fabsHolder.setOnClickListener {
             closeFABMenu()
         }
     }

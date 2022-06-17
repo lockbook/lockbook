@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -7,9 +6,10 @@
     android:elevation="100dp"
     android:focusable="true"
     android:clipToPadding="false"
-    android:foreground="?android:attr/selectableItemBackground"
     android:orientation="horizontal"
-    android:padding="5dp">
+    android:paddingStart="?android:listPreferredItemPaddingStart"
+    android:paddingEnd="?android:listPreferredItemPaddingEnd"
+    android:paddingVertical="8dp">
 
     <ImageView
         android:id="@+id/linear_file_icon"
@@ -17,7 +17,7 @@
         android:layout_height="50dp"
         android:layout_marginEnd="10dp"
         android:contentDescription="@string/file_image_content_description"
-        android:src="@drawable/ic_baseline_folder_24" />
+        android:src="@drawable/ic_outline_folder_24" />
 
     <LinearLayout
         android:layout_width="0dp"

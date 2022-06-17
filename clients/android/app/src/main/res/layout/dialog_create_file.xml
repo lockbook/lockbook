@@ -11,16 +11,17 @@
     android:orientation="horizontal">
 
     <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/create_document_holder"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="7"
-        app:startIconDrawable="@drawable/ic_baseline_insert_drive_file_24"
-        android:hint="Name"
+        app:startIconDrawable="@drawable/ic_outline_insert_drive_file_24"
+        android:hint="@string/dialog_file_name"
         android:layout_marginEnd="10dp"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox" >
 
         <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/create_file_text_part"
+            android:id="@+id/create_document"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             />
@@ -29,17 +30,33 @@
 
 
     <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/create_document_extension_holder"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="3"
-        android:hint="Ext."
+        android:hint="@string/dialog_file_extension"
         style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
         <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/create_file_extension"
+            android:id="@+id/create_document_extension"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            />
+            android:layout_height="wrap_content" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/create_folder_holder"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_weight="3"
+        android:hint="@string/dialog_file_name"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        android:visibility="gone">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/create_folder"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
 
     </com.google.android.material.textfield.TextInputLayout>
 
