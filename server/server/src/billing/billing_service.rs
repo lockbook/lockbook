@@ -131,31 +131,30 @@ pub async fn upgrade_account_google_play(
     )
     .await?;
 
-    subscription.sub_profile.billing_platform =
-        Some(BillingPlatform::GooglePlay(GooglePlayUserInfo {
-            purchase_token: request.purchase_token.clone(),
-            subscription_product_id: server_state
-                .config
-                .billing
-                .gp_premium_subscription_product_id
-                .clone(),
-            subscription_offer_id: server_state
-                .config
-                .billing
-                .gp_premium_subscription_offer_id
-                .clone(),
-            expiration_time: subscription
-                .expiry_time_millis
-                .ok_or_else(|| {
-                    internal!(
-                        "Cannot get expiration time of a recovered subscription. public_key {:?}",
-                        &context.public_key
-                    )
-                })?
-                .parse()
-                .map_err(|e| internal!("Cannot parse millis into int: {:?}", e))?,
-            account_state: GooglePlayAccountState::Ok,
-        }));
+    sub_profile.billing_platform = Some(BillingPlatform::GooglePlay(GooglePlayUserInfo {
+        purchase_token: request.purchase_token.clone(),
+        subscription_product_id: server_state
+            .config
+            .billing
+            .gp_premium_subscription_product_id
+            .clone(),
+        subscription_offer_id: server_state
+            .config
+            .billing
+            .gp_premium_subscription_offer_id
+            .clone(),
+        expiration_time: subscription
+            .expiry_time_millis
+            .ok_or_else(|| {
+                internal!(
+                    "Cannot get expiration time of a recovered subscription. public_key {:?}",
+                    &context.public_key
+                )
+            })?
+            .parse()
+            .map_err(|e| internal!("Cannot parse millis into int: {:?}", e))?,
+        account_state: GooglePlayAccountState::Ok,
+    }));
 
     con.json_set(keys::public_key_from_gp_account_id(&request.account_id), context.public_key)
         .await?;
