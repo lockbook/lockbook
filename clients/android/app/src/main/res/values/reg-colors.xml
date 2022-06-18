@@ -29,7 +29,7 @@
     <color name="md_theme_light_shadow">#000000</color>
     <color name="md_theme_light_surfaceTint">#2F5DA8</color>
     <color name="md_theme_light_surfaceTintColor">#2F5DA8</color>
-    <color name="seed">#4069B0</color>
+
     <color name="md_theme_dark_primary">#ACC7FF</color>
     <color name="md_theme_dark_onPrimary">#002F67</color>
     <color name="md_theme_dark_primaryContainer">#0A458E</color>

@@ -7,8 +7,10 @@
     <string name="lockbook_import">Import Account</string>
     <string name="create_account">Create Account</string>
 
-    <string name="import_description">Account string</string>
+    <string name="import_description">Account key</string>
     <string name="new_account_username">Username (a–z, 0–9)</string>
+
+    <string name="import_qr_scanner_prompt">Place the account key QR code in view to scan.</string>
 
     <string name="popup_info_name">Name: %s</string>
     <string name="popup_info_id">ID: %s</string>
@@ -21,9 +23,9 @@
     <string name="last_synced">Last synced: %s</string>
     <string name="pop_up_info_never_synced">never synced</string>
 
-    <string name="settings_export_account_raw">Copy account string to clipboard</string>
-    <string name="settings_export_account_qr">Export account string (QR Code)</string>
-    <string name="settings_export_account_copied">Account string copied!</string>
+    <string name="settings_export_account_raw">Copy your account key to clipboard</string>
+    <string name="settings_export_account_qr">Export your account key (QR Code)</string>
+    <string name="settings_export_account_copied">Account key copied!</string>
     <string name="settings_protect_account_biometric">Biometric options</string>
 
     <string name="biometric_disabled">Disabled</string>
@@ -72,13 +74,15 @@
     <string name="settings_usage_current">Usage:</string>
     <string name="settings_usage_data_cap">Data Cap:</string>
     <string name="settings_usage_uncompressed_usage">Uncompressed Usage:</string>
-    <string name="menu_list_files_rename">Rename file</string>
-    <string name="menu_list_files_delete">Delete file</string>
+    <string name="menu_list_files_rename">Rename</string>
+    <string name="menu_list_files_delete">Delete</string>
     <string name="menu_list_files_info">File info</string>
-    <string name="menu_list_files_move">Move file</string>
+    <string name="menu_list_files_move">Move</string>
+    <string name="menu_list_files_share">Share</string>
     <string name="default_value">Loading…</string>
     <string name="dialog_rename_file_title">Rename File</string>
     <string name="popup_info_title">File Info</string>
+    <string name="move_file_title">Move File</string>
     <string name="menu_markdown_link">Insert link</string>
     <string name="menu_markdown_code">Insert code</string>
     <string name="menu_markdown_italics">Format italics</string>
@@ -86,7 +90,7 @@
     <string name="menu_markdown_title">Insert title</string>
     <string name="menu_markdown_image">Insert image</string>
     <string name="cancel">Cancel</string>
-    <string name="move_file_confirm">Move to this folder</string>
+    <string name="move_file_move">Move</string>
     <string name="text_editor_hint">Type here</string>
     <string name="rename_file_rename">Rename</string>
     <string name="create_file_create">Create</string>
@@ -108,8 +112,10 @@
     <string name="create_file_hint_document_extension">Document Ext.</string>
     <string name="create_file_hint_drawing_extension">Drawing Ext.</string>
 
+    <string name="files_list_items_selected">%1$d Selected</string>
+
     <string name="drawing_eraser_description">Eraser</string>
-    <string name="settings_open_new_document_automatically">Automatically open new documents</string>
+    <string name="settings_open_new_document_automatically">Automatically open new files.</string>
 
     <string name="pdf_page_indicator">%1$d / %2$d</string>
     <string name="could_not_load_pdf">This PDF could not be loaded.</string>
@@ -121,7 +127,7 @@
     <string name="username_taken">This username has been taken.</string>
     <string name="invalid_username">This username is invalid.</string>
     <string name="account_exists_already">An account already exists on this device.</string>
-    <string name="account_string_corrupted">Invalid account string.</string>
+    <string name="account_string_corrupted">Invalid account key.</string>
     <string name="account_does_not_exist">That account does not exist.</string>
     <string name="username_pk_mismatch">That username does not correspond with that public_key on this server.</string>
     <string name="file_does_not_exist">That file does not exist.</string>

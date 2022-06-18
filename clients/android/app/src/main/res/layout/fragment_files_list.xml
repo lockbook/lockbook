@@ -3,7 +3,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/fragment_list_files"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
 
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
@@ -16,9 +17,7 @@
             android:layout_width="match_parent"
             android:layout_height="?android:actionBarSize"
             app:menu="@menu/menu_list_files"
-            app:title="Smail's"
-            app:subtitle="@string/lockbook_title"
-            app:subtitleTextAppearance="?attr/textAppearanceBodySmall"
+            app:title="@string/lockbook_title"
             app:layout_scrollFlags="scroll|enterAlways|snap" />
 
         <app.lockbook.ui.BreadCrumbView

@@ -6,11 +6,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.method.LinkMovementMethod
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
+import android.view.*
 import android.widget.TextView
-import androidx.core.content.res.ResourcesCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
@@ -28,7 +25,6 @@ import com.afollestad.recyclical.withItem
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.tingyik90.snackprogressbar.SnackProgressBar
 import com.tingyik90.snackprogressbar.SnackProgressBarManager
-import timber.log.Timber
 import java.lang.ref.WeakReference
 import java.util.*
 
@@ -36,6 +32,70 @@ class FilesListFragment : Fragment(), FilesFragment {
     private var _binding: FragmentFilesListBinding? = null
     private val binding get() = _binding!!
     private val menu get() = binding.filesToolbar
+    private var actionModeMenu: ActionMode? = null
+    private val actionModeMenuCallback: ActionMode.Callback by lazy {
+        object : ActionMode.Callback {
+            override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
+                mode?.menuInflater?.inflate(R.menu.menu_files_list_selected, menu)
+                return true
+            }
+
+            override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?): Boolean = false
+
+            override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean {
+                val selectedFiles = model.selectableFiles.getSelectedItems()
+
+                return when(item?.itemId) {
+                    R.id.menu_list_files_rename -> {
+                        if (selectedFiles.size == 1) {
+                            activityModel.launchTransientScreen(TransientScreen.Rename(selectedFiles[0]))
+                        }
+
+                        true
+                    }
+                    R.id.menu_list_files_delete -> {
+                        activityModel.detailsScreen?.fileMetadata.let {
+                            if (model.selectableFiles.getSelectedItems().contains(it)) {
+                                activityModel.launchDetailsScreen(null)
+                            }
+                        }
+
+                        model.deleteSelectedFiles()
+                        alertModel.notify(getString(R.string.success_delete))
+
+                        true
+                    }
+                    R.id.menu_list_files_info -> {
+                        if (model.selectableFiles.getSelectionCount() == 1) {
+                            activityModel.launchTransientScreen(TransientScreen.Info(selectedFiles[0]))
+                        }
+
+                        true
+                    }
+                    R.id.menu_list_files_move -> {
+                        activityModel.launchTransientScreen(
+                            TransientScreen.Move(
+                                selectedFiles.map { it.id }
+                            )
+                        )
+
+                        true
+                    }
+                    R.id.menu_list_files_share -> {
+                        (activity as MainScreenActivity).model.shareSelectedFiles(model.selectableFiles.getSelectedItems(), requireActivity().cacheDir)
+
+                        true
+                    }
+                    else -> false
+                }
+            }
+
+            override fun onDestroyActionMode(mode: ActionMode?) {
+                model.selectableFiles.deselectAll()
+                actionModeMenu = null
+            }
+        }
+    }
 
     private val model: FilesListViewModel by viewModels(
         factoryProducer = {
@@ -83,12 +143,6 @@ class FilesListFragment : Fragment(), FilesFragment {
     ): View {
         _binding = FragmentFilesListBinding.inflate(inflater, container, false)
 
-        setUpToolbar()
-
-        if (model.breadcrumbItems.isNotEmpty()) {
-            updateUI(UpdateFilesUI.UpdateBreadcrumbBar(model.breadcrumbItems))
-        }
-
         model.notifyUpdateFilesUI.observe(
             viewLifecycleOwner
         ) { uiUpdates ->
@@ -103,11 +157,14 @@ class FilesListFragment : Fragment(), FilesFragment {
 
         setUpFilesList()
 
+        if (model.breadcrumbItems.isNotEmpty()) {
+            updateUI(UpdateFilesUI.UpdateBreadcrumbBar(model.breadcrumbItems))
+        }
+
         binding.filesBreadcrumbBar.setListener(object : BreadCrumbItemClickListener {
             override fun onItemClick(breadCrumbItem: View, position: Int) {
                 model.intoAncestralFolder(position)
-                model.selectableFiles.deselectAll()
-                toggleMenuBar()
+                unselectFiles()
             }
         })
 
@@ -127,7 +184,6 @@ class FilesListFragment : Fragment(), FilesFragment {
                     true
             getString(R.string.sort_files_type_value) -> menu.menu!!.findItem(R.id.menu_list_files_sort_type)?.isChecked = true
             else -> {
-                Timber.e("File sorting shared preference does not match every supposed option: $optionValue")
                 alertModel.notifyBasicError()
             }
         }.exhaustive
@@ -185,6 +241,8 @@ class FilesListFragment : Fragment(), FilesFragment {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        setUpToolbar()
+
         val syncStatus = model.syncModel.syncStatus
         if (syncStatus is SyncStatus.Syncing) {
             updateUI(UpdateFilesUI.ShowSyncSnackBar(syncStatus.syncStepInfo.total))
@@ -194,8 +252,6 @@ class FilesListFragment : Fragment(), FilesFragment {
 
     private fun setUpToolbar() {
         binding.filesToolbar.setOnMenuItemClickListener { item ->
-            val selectedFiles = model.selectableFiles.getSelectedItems()
-
             when (item.itemId) {
                 R.id.menu_list_files_settings -> startActivity(
                     Intent(
@@ -223,42 +279,14 @@ class FilesListFragment : Fragment(), FilesFragment {
                     model.changeFileSort(SortStyle.FileType)
                     menu.menu!!.findItem(R.id.menu_list_files_sort_type)?.isChecked = true
                 }
-                R.id.menu_list_files_rename -> {
-                    if (selectedFiles.size == 1) {
-                        activityModel.launchTransientScreen(TransientScreen.Rename(selectedFiles[0]))
-                    }
-                }
-                R.id.menu_list_files_delete -> {
-                    activityModel.detailsScreen?.fileMetadata.let {
-                        if (model.selectableFiles.getSelectedItems().contains(it)) {
-                            activityModel.launchDetailsScreen(null)
-                        }
-                    }
-
-                    model.deleteSelectedFiles()
-                    alertModel.notify(getString(R.string.success_delete))
-                }
-                R.id.menu_list_files_info -> {
-                    if (model.selectableFiles.getSelectionCount() == 1) {
-                        activityModel.launchTransientScreen(TransientScreen.Info(selectedFiles[0]))
-                    }
-                }
-                R.id.menu_list_files_move -> {
-                    activityModel.launchTransientScreen(
-                        TransientScreen.Move(
-                            selectedFiles.map { it.id }.toTypedArray()
-                        )
-                    )
-                }
-                R.id.menu_list_files_share -> {
-                    (activity as MainScreenActivity).model.shareSelectedFiles(model.selectableFiles.getSelectedItems(), requireActivity().cacheDir)
-                }
             }
 
             toggleMenuBar()
 
             true
         }
+
+        toggleMenuBar()
     }
 
     private fun setUpFilesList() {
@@ -273,7 +301,6 @@ class FilesListFragment : Fragment(), FilesFragment {
                         R.string.last_synced,
                         CoreModel.convertToHumanDuration(item.metadataVersion)
                     )
-
                     val extensionHelper = ExtensionHelper(item.decryptedName)
 
                     val imageResource = when {
@@ -284,7 +311,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                             R.drawable.ic_outline_draw_24
                         }
                         item.fileType == FileType.Document && extensionHelper.isImage -> {
-                            R.drawable.ic_baseline_image_24
+                            R.drawable.ic_outline_image_24
                         }
                         item.fileType == FileType.Document -> {
                             R.drawable.ic_outline_insert_drive_file_24
@@ -297,15 +324,9 @@ class FilesListFragment : Fragment(), FilesFragment {
                     icon.setImageResource(imageResource)
 
                     if (isSelected()) {
-                        itemView.background.setTint(
-                            ResourcesCompat.getColor(
-                                resources,
-                                R.color.md_theme_inversePrimary,
-                                itemView.context.theme
-                            )
-                        )
+                        fileItemHolder.setBackgroundResource(R.color.md_theme_inversePrimary)
                     } else {
-                        itemView.background.setTintList(null)
+                        fileItemHolder.setBackgroundResource(0)
                     }
                 }
                 onClick {
@@ -350,8 +371,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 )
             }
             UpdateFilesUI.StopProgressSpinner ->
-                binding.listFilesRefresh.isRefreshing =
-                    false
+                binding.listFilesRefresh.isRefreshing = false
             is UpdateFilesUI.UpdateBreadcrumbBar -> {
                 binding.filesBreadcrumbBar.setBreadCrumbItems(
                     uiUpdates.breadcrumbItems.toMutableList()
@@ -373,45 +393,28 @@ class FilesListFragment : Fragment(), FilesFragment {
     }
 
     private fun toggleMenuBar() {
-        when (model.selectableFiles.getSelectionCount()) {
+        when (val selectionCount = model.selectableFiles.getSelectionCount()) {
             0 -> {
-                for (menuItem in menuItemsOneOrMoreSelected) {
-                    menu.menu.findItem(menuItem)!!.isVisible = false
-                }
-
-                for (menuItem in menuItemsOneSelected) {
-                    menu.menu.findItem(menuItem)!!.isVisible = false
-                }
-
-                for (menuItem in menuItemsNoneSelected) {
-                    menu.menu.findItem(menuItem)!!.isVisible = true
-                }
+                actionModeMenu?.finish()
             }
             1 -> {
-                for (menuItem in menuItemsNoneSelected) {
-                    menu.menu.findItem(menuItem)!!.isVisible = false
+                if(actionModeMenu == null) {
+                    actionModeMenu = menu.startActionMode(actionModeMenuCallback)
                 }
 
-                for (menuItem in menuItemsOneOrMoreSelected) {
-                    menu.menu.findItem(menuItem)!!.isVisible = true
-                }
+                actionModeMenu?.title = getString(R.string.files_list_items_selected, selectionCount)
+                actionModeMenu?.menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
+                actionModeMenu?.menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
 
-                for (menuItem in menuItemsOneSelected) {
-                    menu.menu.findItem(menuItem)!!.isVisible = true
-                }
             }
             else -> {
-                for (menuItem in menuItemsOneSelected) {
-                    menu.menu.findItem(menuItem)!!.isVisible = false
+                if(actionModeMenu == null) {
+                    actionModeMenu = menu.startActionMode(actionModeMenuCallback)
                 }
 
-                for (menuItem in menuItemsNoneSelected) {
-                    menu.menu.findItem(menuItem)!!.isVisible = false
-                }
-
-                for (menuItem in menuItemsOneOrMoreSelected) {
-                    menu.menu.findItem(menuItem)!!.isVisible = true
-                }
+                actionModeMenu?.title = getString(R.string.files_list_items_selected, selectionCount)
+                actionModeMenu?.menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
+                actionModeMenu?.menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
             }
         }
     }
@@ -458,8 +461,7 @@ class FilesListFragment : Fragment(), FilesFragment {
 
     override fun onBackPressed(): Boolean = when {
         model.selectableFiles.hasSelection() -> {
-            model.selectableFiles.deselectAll()
-            toggleMenuBar()
+            unselectFiles()
             false
         }
         !model.fileModel.isAtRoot() -> {
@@ -508,19 +510,3 @@ sealed class UpdateFilesUI {
     object SyncImport : UpdateFilesUI()
     data class NotifyWithSnackbar(val msg: String) : UpdateFilesUI()
 }
-
-private val menuItemsNoneSelected = listOf(
-    R.id.menu_list_files_sort,
-    R.id.menu_list_files_settings
-)
-
-private val menuItemsOneOrMoreSelected = listOf(
-    R.id.menu_list_files_delete,
-    R.id.menu_list_files_move,
-    R.id.menu_list_files_share
-)
-
-private val menuItemsOneSelected = listOf(
-    R.id.menu_list_files_rename,
-    R.id.menu_list_files_info,
-)

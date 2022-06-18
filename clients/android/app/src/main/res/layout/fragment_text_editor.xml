@@ -76,7 +76,7 @@
                     android:layout_height="wrap_content"
                     style="@style/Widget.Material3.Button.IconButton"
                     android:contentDescription="@string/menu_markdown_image"
-                    app:icon="@drawable/ic_baseline_image_24" />
+                    app:icon="@drawable/ic_outline_image_24" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/menu_markdown_link"

@@ -99,7 +99,6 @@ dependencies {
     implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:$json_parser_version"
     implementation "org.jetbrains.kotlin:kotlin-reflect:$kotlin_reflect"
     implementation "com.journeyapps:zxing-android-embedded:$qr_embedded_version"
-    implementation "com.google.zxing:core:$qr_core_version"
     implementation "com.michael-bull.kotlin-result:kotlin-result:$result_version"
     implementation "androidx.biometric:biometric:$fingerprint_version"
     implementation "io.noties.markwon:editor:$markdown_version"

@@ -19,6 +19,7 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 class FilesListViewModel(application: Application, isThisANewAccount: Boolean) : AndroidViewModel(application) {
 
@@ -122,6 +123,7 @@ class FilesListViewModel(application: Application, isThisANewAccount: Boolean) :
         viewModelScope.launch(Dispatchers.IO) {
             syncWithSnackBar()
             refreshFiles()
+            Timber.e("GOT HERE")
             postUIUpdate(UpdateFilesUI.StopProgressSpinner)
         }
     }
@@ -186,9 +188,11 @@ class FilesListViewModel(application: Application, isThisANewAccount: Boolean) :
         viewModelScope.launch(Dispatchers.Main) {
             selectableFiles.deselectAll()
             selectableFiles.set(fileModel.children)
-        }
 
-        _notifyUpdateFilesUI.postValue(UpdateFilesUI.ToggleMenuBar)
+            Timber.e("GOT HERE - 2")
+
+            _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
+        }
     }
 
     fun deleteSelectedFiles() {

@@ -48,7 +48,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
             is Err -> when (val error = getAccountResult.error) {
                 is CoreError.UiError -> when (error.content) {
                     GetAccountError.NoAccount -> {
-                        startActivity(Intent(this, OnBoardingActvity::class.java))
+                        startActivity(Intent(this, OnBoardingActivity::class.java))
                         finish()
                     }
                 }

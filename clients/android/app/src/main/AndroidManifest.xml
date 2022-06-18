@@ -27,8 +27,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".screen.CaptureActivityAutoRotate"
+            android:screenOrientation="fullSensor"
+            tools:replace="screenOrientation" />
         <activity
-            android:name=".screen.OnBoardingActvity" />
+            android:name=".screen.OnBoardingActivity" />
         <activity
             android:name=".screen.ImportAccountActivity" />
         <activity android:name=".screen.MainScreenActivity" />

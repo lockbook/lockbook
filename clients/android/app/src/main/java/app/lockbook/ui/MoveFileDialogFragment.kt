@@ -1,10 +1,11 @@
 package app.lockbook.ui
 
+import android.app.AlertDialog
+import android.app.Dialog
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowManager
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
@@ -16,41 +17,40 @@ import app.lockbook.util.FileType
 import app.lockbook.util.HorizontalViewHolder
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.lang.ref.WeakReference
 
 class MoveFileDialogFragment : DialogFragment() {
 
-    private var _binding: DialogMoveFileBinding? = null
-    // This property is only valid between onCreateView and
-    // onDestroyView.
-    private val binding get() = _binding!!
-
-    private val alertModel by lazy {
-        AlertModel(WeakReference(requireActivity()), view)
-    }
+    private lateinit var binding: DialogMoveFileBinding
 
     private val activityModel: StateViewModel by activityViewModels()
     private val model: MoveFileViewModel by viewModels()
+    private val alertModel by lazy {
+        AlertModel(WeakReference(requireActivity()), view)
+    }
 
     companion object {
         const val MOVE_FILE_DIALOG_TAG = "MoveFileDialogFragment"
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        _binding = DialogMoveFileBinding.inflate(
-            inflater,
-            container,
-            false
-        )
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog = MaterialAlertDialogBuilder(requireContext())
+        .setTitle(R.string.move_file_title)
+        .apply {
+            binding = DialogMoveFileBinding.inflate(layoutInflater)
+            setUpView()
+            setView(binding.root)
+        }
+        .setNegativeButton(R.string.cancel, null)
+        .setPositiveButton(R.string.move_file_move, null)
+        .create()
+        .apply {
+            setOnShowListener {
+                getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener{ onButtonPositive() }
+            }
+        }
 
-        return binding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+    private fun setUpView() {
         binding.moveFileList.setup {
             withDataSource(model.files)
             withItem<DecryptedFileMetadata, HorizontalViewHolder>(R.layout.linear_layout_file_item) {
@@ -67,7 +67,7 @@ class MoveFileDialogFragment : DialogFragment() {
                             R.drawable.ic_outline_draw_24
                         }
                         item.fileType == FileType.Document && extensionHelper.isImage -> {
-                            R.drawable.ic_baseline_image_24
+                            R.drawable.ic_outline_image_24
                         }
                         item.fileType == FileType.Document -> {
                             R.drawable.ic_outline_insert_drive_file_24
@@ -85,22 +85,21 @@ class MoveFileDialogFragment : DialogFragment() {
             }
         }
 
-        binding.moveFileCancel.setOnClickListener {
-            dismiss()
-        }
-        binding.moveFileConfirm.setOnClickListener {
-            binding.moveFileProgressBar.visibility = View.VISIBLE
-            model.moveFilesToFolder((activityModel.transientScreen as TransientScreen.Move).ids)
-        }
+        model.ids = (activityModel.transientScreen as TransientScreen.Move).ids.toTypedArray()
+    }
 
-        dialog?.setCanceledOnTouchOutside(false) ?: alertModel.notifyBasicError()
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        return binding.root
+    }
 
-        model.ids = (activityModel.transientScreen as TransientScreen.Move).ids
-
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         model.closeDialog.observe(
             viewLifecycleOwner
         ) {
-            binding.moveFileProgressBar.visibility = View.GONE
             dismiss()
         }
 
@@ -108,14 +107,11 @@ class MoveFileDialogFragment : DialogFragment() {
             viewLifecycleOwner
         ) { error ->
             alertModel.notifyError(error)
+            dismiss()
         }
     }
 
-    override fun onStart() {
-        super.onStart()
-        dialog?.window?.setLayout(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT
-        )
+    private fun onButtonPositive() {
+        model.moveFilesToCurrentFolder()
     }
 }

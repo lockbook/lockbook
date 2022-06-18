@@ -1,6 +1,5 @@
-
-<resources>
-    <style name="AppTheme" parent="Theme.Material3.Light.NoActionBar">
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/md_theme_primary</item>
         <item name="colorOnPrimary">@color/md_theme_onPrimary</item>
         <item name="colorPrimaryContainer">@color/md_theme_primaryContainer</item>
@@ -17,6 +16,16 @@
         <item name="colorTertiaryContainer">@color/md_theme_tertiaryContainer</item>
         <item name="colorOnTertiaryContainer">@color/md_theme_onTertiaryContainer</item>
 
+        <item name="windowActionModeOverlay">true</item>
+        <item name="android:statusBarColor" tools:targetApi="23">?attr/colorSurface</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="23">?isLightTheme</item>
+        <item name="android:windowTranslucentNavigation">true</item>
+
+        <item name="materialAlertDialogTheme">@style/AppTheme.AlertDialog</item>
+    </style>
+
+    <style name="AppTheme.AlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog" >
+        <item name="android:windowTranslucentNavigation">false</item>
     </style>
 
     <style name="AppTheme.Button.DrawingFill" parent="Widget.Material3.Button">

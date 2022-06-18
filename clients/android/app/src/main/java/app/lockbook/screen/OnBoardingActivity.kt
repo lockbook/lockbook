@@ -1,7 +1,6 @@
 package app.lockbook.screen
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -11,7 +10,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.autofill.AutofillManager
 import android.view.inputmethod.EditorInfo
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.viewpager2.adapter.FragmentStateAdapter
@@ -25,11 +23,15 @@ import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.android.material.tabs.TabLayoutMediator
-import com.google.zxing.integration.android.IntentIntegrator
+import com.journeyapps.barcodescanner.CaptureActivity
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanIntentResult
+import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.*
 import java.lang.ref.WeakReference
 
-class OnBoardingActvity : AppCompatActivity() {
+
+class OnBoardingActivity : AppCompatActivity() {
     private var _binding: ActivityOnBoardingBinding? = null
 
     // This property is only valid between onCreateView and
@@ -86,17 +88,14 @@ class ImportFragment : Fragment() {
     private val uiScope = CoroutineScope(Dispatchers.Main + job)
 
     private var onQRCodeResult =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == Activity.RESULT_OK) {
-                val intentResult =
-                    IntentIntegrator.parseActivityResult(result.resultCode, result.data)
+        registerForActivityResult(
+            ScanContract()
+        ) { result: ScanIntentResult ->
+            if (result.contents != null) {
+                importBinding.onBoardingAccountString.setText(result.contents)
+                forceAutoFillCheckSave()
 
-                intentResult?.contents?.let { account ->
-                    importBinding.onBoardingAccountString.setText(account)
-                    forceAutoFillCheckSave()
-
-                    importBinding.onBoardingImportSubmit.performClick()
-                }
+                importBinding.onBoardingImportSubmit.performClick()
             }
         }
 
@@ -126,8 +125,15 @@ class ImportFragment : Fragment() {
         }
 
         importBinding.onBoardingQrCodeImport.setOnClickListener {
+
             onQRCodeResult.launch(
-                IntentIntegrator(requireActivity()).setOrientationLocked(false).createScanIntent()
+                ScanOptions()
+                    .setOrientationLocked(false)
+                    .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                    .setPrompt(getString(R.string.import_qr_scanner_prompt))
+                    .setBarcodeImageEnabled(true)
+                    .setCaptureActivity(CaptureActivityAutoRotate::class.java)
+                    .setBeepEnabled(false)
             )
         }
 
@@ -148,7 +154,7 @@ class ImportFragment : Fragment() {
     }
 
     private fun importAccount(account: String) {
-        val onBoardingActivity = (requireActivity() as OnBoardingActvity)
+        val onBoardingActivity = (requireActivity() as OnBoardingActivity)
 
         onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
 
@@ -204,7 +210,7 @@ class CreateFragment : Fragment() {
     }
 
     private fun createAccount(username: String) {
-        val onBoardingActivity = (requireActivity() as OnBoardingActvity)
+        val onBoardingActivity = (requireActivity() as OnBoardingActivity)
 
         onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
 
@@ -229,3 +235,5 @@ class CreateFragment : Fragment() {
         }
     }
 }
+
+class CaptureActivityAutoRotate: CaptureActivity()

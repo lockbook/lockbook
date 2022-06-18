@@ -15,4 +15,6 @@
   <color name="md_theme_onTertiary">@color/md_theme_light_onTertiary</color>
   <color name="md_theme_tertiaryContainer">@color/md_theme_light_tertiaryContainer</color>
   <color name="md_theme_onTertiaryContainer">@color/md_theme_light_onTertiaryContainer</color>
+
+  <color name="md_theme_error">@color/md_theme_light_error</color>
 </resources>

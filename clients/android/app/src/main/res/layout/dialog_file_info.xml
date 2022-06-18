@@ -6,14 +6,6 @@
     android:paddingHorizontal="30dp"
     android:paddingVertical="10dp">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        style="@style/TextAppearance.Material3.TitleMedium"
-        android:layout_gravity="center_horizontal"
-        android:text="@string/popup_info_title"
-        android:padding="10dp"/>
-
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

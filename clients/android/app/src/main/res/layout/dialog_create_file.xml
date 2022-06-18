@@ -2,13 +2,19 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/create_file_layout"
-    style="@style/MaterialAlertDialog.Material3"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_gravity="center"
     android:weightSum="10"
-    android:padding="15dp"
-    android:orientation="horizontal">
+    android:paddingHorizontal="15dp"
+    android:paddingTop="15dp"
+    android:orientation="vertical" >
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:baselineAligned="false">
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/create_document_holder"
@@ -50,6 +56,7 @@
         android:layout_height="wrap_content"
         android:layout_weight="3"
         android:hint="@string/dialog_file_name"
+        app:startIconDrawable="@drawable/ic_outline_folder_24"
         style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
         android:visibility="gone">
 
@@ -59,6 +66,13 @@
             android:layout_height="wrap_content"/>
 
     </com.google.android.material.textfield.TextInputLayout>
+    </LinearLayout>
 
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/create_file_error"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/md_theme_error"
+        android:layout_marginTop="5dp" />
 
 </LinearLayout>
