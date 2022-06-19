@@ -8,6 +8,7 @@ import android.os.Looper
 import android.text.method.LinkMovementMethod
 import android.view.*
 import android.widget.TextView
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
@@ -23,8 +24,6 @@ import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.viewholder.isSelected
 import com.afollestad.recyclical.withItem
 import com.google.android.material.bottomsheet.BottomSheetDialog
-import com.tingyik90.snackprogressbar.SnackProgressBar
-import com.tingyik90.snackprogressbar.SnackProgressBarManager
 import java.lang.ref.WeakReference
 import java.util.*
 
@@ -111,23 +110,6 @@ class FilesListFragment : Fragment(), FilesFragment {
 
     private var updatedLastSyncedDescription = Timer()
     private val handler = Handler(requireNotNull(Looper.myLooper()))
-
-    private val snackProgressBarManager by lazy {
-        SnackProgressBarManager(
-            requireView(),
-            lifecycleOwner = this
-        )
-    }
-
-    private val syncSnackProgressBar by lazy {
-        SnackProgressBar(
-            SnackProgressBar.TYPE_HORIZONTAL,
-            resources.getString(R.string.list_files_sync_snackbar_default)
-        )
-            .setIsIndeterminate(false)
-            .setSwipeToDismiss(false)
-            .setAllowUserInput(true)
-    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -219,14 +201,14 @@ class FilesListFragment : Fragment(), FilesFragment {
 
     private fun updateSyncProgress(syncStepInfo: SyncStepInfo) {
         if (syncStepInfo.progress == 0) {
-            snackProgressBarManager.dismiss()
-
+            binding.syncHolder.visibility = View.GONE
             updateUI(UpdateFilesUI.ShowSyncSnackBar(syncStepInfo.total))
         } else {
-            syncSnackProgressBar.setProgressMax(syncStepInfo.total)
-            snackProgressBarManager.setProgress(syncStepInfo.progress)
-            syncSnackProgressBar.setMessage(syncStepInfo.action.toMessage())
-            snackProgressBarManager.updateTo(syncSnackProgressBar)
+            binding.syncProgressIndicator.apply {
+                max = syncStepInfo.total
+                progress = syncStepInfo.progress
+            }
+            binding.syncText.text = syncStepInfo.action.toMessage()
         }
     }
 
@@ -352,15 +334,15 @@ class FilesListFragment : Fragment(), FilesFragment {
         when (uiUpdates) {
             is UpdateFilesUI.NotifyError -> alertModel.notifyError(uiUpdates.error)
             is UpdateFilesUI.NotifyWithSnackbar -> {
+                if(binding.syncHolder.isVisible) {
+                    binding.syncHolder.visibility = View.GONE
+                }
+
                 alertModel.notify(uiUpdates.msg)
             }
             is UpdateFilesUI.ShowSyncSnackBar -> {
-                snackProgressBarManager.dismiss()
-                syncSnackProgressBar.setMessage(resources.getString(R.string.list_files_sync_snackbar, uiUpdates.totalSyncItems.toString()))
-                snackProgressBarManager.show(
-                    syncSnackProgressBar,
-                    SnackProgressBarManager.LENGTH_INDEFINITE
-                )
+                binding.syncHolder.visibility = View.VISIBLE
+                binding.syncText.text = resources.getString(R.string.list_files_sync_snackbar, uiUpdates.totalSyncItems.toString())
             }
             UpdateFilesUI.StopProgressSpinner ->
                 binding.listFilesRefresh.isRefreshing = false

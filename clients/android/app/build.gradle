@@ -110,4 +110,9 @@ dependencies {
     implementation "com.github.mhiew:android-pdf-viewer:$pdf_viewer_version"
 
     implementation project(':core')
+    implementation "androidx.core:core-ktx:+"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+}
+repositories {
+    mavenCentral()
 }
