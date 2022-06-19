@@ -52,7 +52,7 @@ class MoveFileViewModel(application: Application) :
             for (id in ids) {
                 val moveFileResult = CoreModel.moveFile(id, currentParent.id)
 
-                if(moveFileResult is Err) {
+                if (moveFileResult is Err) {
                     _notifyError.postValue(moveFileResult.error.toLbError(getRes()))
                     return@launch
                 }

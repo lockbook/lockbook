@@ -42,7 +42,7 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
         .apply {
             binding = DialogCreateFileBinding.inflate(layoutInflater)
 
-            val title = when(info.extendedFileType) {
+            val title = when (info.extendedFileType) {
                 ExtendedFileType.Drawing -> {
                     binding.createDocument.setText("")
                     binding.createDocumentExtension.setText(".draw")
@@ -75,18 +75,18 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
         .setNegativeButton(R.string.cancel, null)
         .create()
         .apply {
-            when(info.extendedFileType.toFileType()) {
+            when (info.extendedFileType.toFileType()) {
                 FileType.Document -> window.requestKeyboardFocus(binding.createDocument)
                 FileType.Folder -> window.requestKeyboardFocus(binding.createFolder)
             }.exhaustive
             setOnShowListener {
-                getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener{ onButtonPositive() }
+                getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
             }
         }
 
     private fun onButtonPositive() {
         val fileType = info.extendedFileType.toFileType()
-        val fileName = when(fileType) {
+        val fileName = when (fileType) {
             FileType.Document -> "${binding.createDocument.text}${binding.createDocumentExtension.text}"
             FileType.Folder -> binding.createFolder.text.toString()
         }
@@ -94,14 +94,13 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
         uiScope.launch(Dispatchers.IO) {
             val createFileResult = CoreModel.createFile(info.parentId, fileName, fileType)
             withContext(Dispatchers.Main) {
-                when(createFileResult) {
+                when (createFileResult) {
                     is Ok -> {
                         newFile = createFileResult.value
                         dismiss()
                     }
                     is Err -> binding.createFileError.setText(createFileResult.error.toLbError(resources).msg)
                 }.exhaustive
-
             }
         }
     }

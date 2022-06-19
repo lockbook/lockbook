@@ -104,4 +104,3 @@ class SyncWork(appContext: Context, workerParams: WorkerParameters) :
         }
     }
 }
-

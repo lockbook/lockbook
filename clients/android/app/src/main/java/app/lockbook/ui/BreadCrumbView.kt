@@ -48,7 +48,7 @@ class BreadCrumbView : FrameLayout {
             }
         }
 
-        this.setPadding(40, 30, 40, 30)
+        this.setPadding(40, 20, 40, 20)
     }
 
     private fun createAndAddRecyclerView(context: Context) {

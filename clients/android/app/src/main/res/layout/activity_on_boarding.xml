@@ -33,7 +33,7 @@
             app:layout_constraintStart_toEndOf="@+id/on_boarding_lockbook_icon"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <TextView
+        <com.google.android.material.textview.MaterialTextView
             android:id="@+id/on_boarding_learn_more"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

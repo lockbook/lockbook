@@ -46,7 +46,7 @@ class MoveFileDialogFragment : DialogFragment() {
         .create()
         .apply {
             setOnShowListener {
-                getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener{ onButtonPositive() }
+                getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
             }
         }
 
@@ -56,10 +56,6 @@ class MoveFileDialogFragment : DialogFragment() {
             withItem<DecryptedFileMetadata, HorizontalViewHolder>(R.layout.linear_layout_file_item) {
                 onBind(::HorizontalViewHolder) { _, item ->
                     name.text = item.decryptedName
-                    description.text = resources.getString(
-                        R.string.last_synced,
-                        CoreModel.convertToHumanDuration(item.metadataVersion)
-                    )
                     val extensionHelper = ExtensionHelper(item.decryptedName)
 
                     val imageResource = when {

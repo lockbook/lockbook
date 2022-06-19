@@ -16,7 +16,7 @@ import app.lockbook.model.BiometricModel
 import app.lockbook.model.CoreModel
 import app.lockbook.model.VerificationItem
 import app.lockbook.ui.NumberPickerPreference
-import app.lockbook.ui.NumberPickerPreferenceDialog
+import app.lockbook.ui.NumberPickerPreferenceDialogFragment
 import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -66,7 +66,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
     override fun onDisplayPreferenceDialog(preference: Preference) {
         if (preference is NumberPickerPreference) {
             val numberPickerPreferenceDialog =
-                NumberPickerPreferenceDialog.newInstance(preference.key)
+                NumberPickerPreferenceDialogFragment.newInstance(preference.key)
             @Suppress("DEPRECATION")
             numberPickerPreferenceDialog.setTargetFragment(this, 0)
             numberPickerPreferenceDialog.show(parentFragmentManager, null)

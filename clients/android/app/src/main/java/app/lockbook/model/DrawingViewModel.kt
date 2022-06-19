@@ -10,11 +10,11 @@ import android.os.Looper
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
-import app.lockbook.util.getRes
 import app.lockbook.ui.DrawingStrokeState
 import app.lockbook.ui.DrawingView
 import app.lockbook.ui.DrawingView.Tool
 import app.lockbook.util.*
+import app.lockbook.util.getRes
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers

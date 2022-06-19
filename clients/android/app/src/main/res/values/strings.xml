@@ -46,7 +46,7 @@
 
     <string name="settings_sync_edit">Sync automatically in app</string>
     <string name="settings_preference_background_summary_sync_period">The time between each automatic sync.</string>
-    <string name="settings_preference_background_title_sync_period">Background sync period</string>
+    <string name="settings_preference_background_title_sync_period">Background Sync Period</string>
     <string name="settings_preference_background_title_background_sync_enabled">Background sync enabled</string>
     <string name="settings_preference_title_biometrics">Biometrics</string>
     <string name="settings_preference_title_account">Export Account</string>
@@ -90,6 +90,7 @@
     <string name="menu_markdown_title">Insert title</string>
     <string name="menu_markdown_image">Insert image</string>
     <string name="cancel">Cancel</string>
+    <string name="confirm">Confirm</string>
     <string name="move_file_move">Move</string>
     <string name="delete_file_delete">Delete</string>
     <string name="delete_file_title">Delete File</string>

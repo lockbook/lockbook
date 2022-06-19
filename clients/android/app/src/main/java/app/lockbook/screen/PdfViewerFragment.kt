@@ -133,4 +133,3 @@ class PdfViewerFragment : Fragment() {
         File(requireContext().cacheDir, OPENED_FILE_FOLDER + fileName).delete()
     }
 }
-

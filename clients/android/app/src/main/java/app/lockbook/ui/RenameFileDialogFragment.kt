@@ -31,7 +31,6 @@ class RenameFileDialogFragment : DialogFragment() {
         (activityModel.transientScreen as TransientScreen.Rename).file
     }
 
-
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.dialog_rename_file_title)
@@ -64,9 +63,7 @@ class RenameFileDialogFragment : DialogFragment() {
                         ).msg
                     )
                 }.exhaustive
-
             }
         }
     }
 }
-

@@ -32,7 +32,7 @@
         app:layout_constraintStart_toEndOf="@+id/duration_hours"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <TextView
+    <com.google.android.material.textview.MaterialTextView
         android:id="@+id/duration_days_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -42,7 +42,7 @@
         app:layout_constraintStart_toStartOf="@+id/duration_days"
         app:layout_constraintTop_toBottomOf="@+id/duration_days" />
 
-    <TextView
+    <com.google.android.material.textview.MaterialTextView
         android:id="@+id/duration_hours_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -52,7 +52,7 @@
         app:layout_constraintStart_toStartOf="@+id/duration_hours"
         app:layout_constraintTop_toBottomOf="@+id/duration_hours" />
 
-    <TextView
+    <com.google.android.material.textview.MaterialTextView
         android:id="@+id/duration_minutes_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -62,13 +62,14 @@
         app:layout_constraintStart_toStartOf="@+id/duration_minutes"
         app:layout_constraintTop_toBottomOf="@+id/duration_minutes" />
 
-    <TextView
+    <com.google.android.material.textview.MaterialTextView
         android:id="@+id/duration_error"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="5dp"
         android:text="@string/dialog_duration_error"
         android:visibility="gone"
+        android:textColor="@color/md_theme_error"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="@+id/duration_minutes"
         app:layout_constraintStart_toStartOf="@+id/duration_days"

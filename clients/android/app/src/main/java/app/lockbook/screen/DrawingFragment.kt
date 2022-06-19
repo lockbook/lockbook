@@ -138,7 +138,7 @@ class DrawingFragment : Fragment() {
                     ColorAlias.Cyan -> cyanButton
                 }.exhaustive
 
-                newButton.strokeWidth = 8
+                newButton.strokeWidth = 6
                 drawingView.strokeState.strokeColor = newTool.colorAlias
             }
             is DrawingView.Tool.Eraser -> {

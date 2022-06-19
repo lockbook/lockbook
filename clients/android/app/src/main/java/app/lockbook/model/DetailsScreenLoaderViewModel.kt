@@ -6,12 +6,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import app.lockbook.R
-import app.lockbook.util.getContext
-import app.lockbook.util.getRes
-import app.lockbook.util.getString
 import app.lockbook.util.Drawing
 import app.lockbook.util.LbError
 import app.lockbook.util.SingleMutableLiveData
+import app.lockbook.util.getContext
+import app.lockbook.util.getRes
+import app.lockbook.util.getString
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers

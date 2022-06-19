@@ -30,7 +30,6 @@ import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.*
 import java.lang.ref.WeakReference
 
-
 class OnBoardingActivity : AppCompatActivity() {
     private var _binding: ActivityOnBoardingBinding? = null
 
@@ -236,4 +235,4 @@ class CreateFragment : Fragment() {
     }
 }
 
-class CaptureActivityAutoRotate: CaptureActivity()
+class CaptureActivityAutoRotate : CaptureActivity()

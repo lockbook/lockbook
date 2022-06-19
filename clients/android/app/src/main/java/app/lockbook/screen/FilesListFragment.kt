@@ -44,7 +44,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean {
                 val selectedFiles = model.selectableFiles.getSelectedItems()
 
-                return when(item?.itemId) {
+                return when (item?.itemId) {
                     R.id.menu_list_files_rename -> {
                         if (selectedFiles.size == 1) {
                             activityModel.launchTransientScreen(TransientScreen.Rename(selectedFiles[0]))
@@ -334,7 +334,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         when (uiUpdates) {
             is UpdateFilesUI.NotifyError -> alertModel.notifyError(uiUpdates.error)
             is UpdateFilesUI.NotifyWithSnackbar -> {
-                if(binding.syncHolder.isVisible) {
+                if (binding.syncHolder.isVisible) {
                     binding.syncHolder.visibility = View.GONE
                 }
 
@@ -372,17 +372,16 @@ class FilesListFragment : Fragment(), FilesFragment {
                 actionModeMenu?.finish()
             }
             1 -> {
-                if(actionModeMenu == null) {
+                if (actionModeMenu == null) {
                     actionModeMenu = menu.startActionMode(actionModeMenuCallback)
                 }
 
                 actionModeMenu?.title = getString(R.string.files_list_items_selected, selectionCount)
                 actionModeMenu?.menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
                 actionModeMenu?.menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
-
             }
             else -> {
-                if(actionModeMenu == null) {
+                if (actionModeMenu == null) {
                     actionModeMenu = menu.startActionMode(actionModeMenuCallback)
                 }
 
