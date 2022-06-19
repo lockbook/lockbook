@@ -2,7 +2,6 @@ package app.lockbook.screen
 
 import android.animation.Animator
 import android.annotation.SuppressLint
-import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.os.Bundle
 import android.view.*
@@ -139,7 +138,7 @@ class DrawingFragment : Fragment() {
                     ColorAlias.Cyan -> cyanButton
                 }.exhaustive
 
-                newButton.strokeWidth = 4
+                newButton.strokeWidth = 8
                 drawingView.strokeState.strokeColor = newTool.colorAlias
             }
             is DrawingView.Tool.Eraser -> {
@@ -163,7 +162,7 @@ class DrawingFragment : Fragment() {
             cyanButton
         )
         colorButtons.forEach { button ->
-            button.setStrokeColorResource(R.color.md_theme_onSecondary)
+            button.setStrokeColorResource(R.color.md_theme_primary)
         }
 
         selectNewTool(model.selectedTool)
@@ -217,15 +216,14 @@ class DrawingFragment : Fragment() {
 
         drawingView.colorAliasInARGB = colorAliasInARGB
 
-        whiteButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(white))
-        blackButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(black))
-        redButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(red))
-        greenButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(green))
-        cyanButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(cyan))
-        magentaButton.backgroundTintList =
-            ColorStateList(arrayOf(intArrayOf()), intArrayOf(magenta))
-        blueButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(blue))
-        yellowButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(yellow))
+        whiteButton.background.setTint(white)
+        blackButton.background.setTint(black)
+        redButton.background.setTint(red)
+        greenButton.background.setTint(green)
+        cyanButton.background.setTint(cyan)
+        magentaButton.background.setTint(magenta)
+        blueButton.background.setTint(blue)
+        yellowButton.background.setTint(yellow)
 
         toolbar.visibility = View.VISIBLE
 
@@ -276,7 +274,7 @@ class DrawingFragment : Fragment() {
             selectNewTool(DrawingView.Tool.Eraser)
         }
 
-        penSizeChooser.addOnChangeListener { _, value, _ ->
+        penSizeChooser?.addOnChangeListener { _, value, _ ->
             drawingView.strokeState.penSizeMultiplier = value.toInt()
         }
 

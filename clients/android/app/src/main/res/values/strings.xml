@@ -91,6 +91,11 @@
     <string name="menu_markdown_image">Insert image</string>
     <string name="cancel">Cancel</string>
     <string name="move_file_move">Move</string>
+    <string name="delete_file_delete">Delete</string>
+    <string name="delete_file_title">Delete File</string>
+    <string name="delete_1_file_message">Are you sure you want to delete %s?</string>
+    <string name="delete_file_message">Are you sure you want to delete %d files?</string>
+
     <string name="text_editor_hint">Type here</string>
     <string name="rename_file_rename">Rename</string>
     <string name="create_file_create">Create</string>

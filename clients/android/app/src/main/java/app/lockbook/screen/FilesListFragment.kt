@@ -54,14 +54,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                         true
                     }
                     R.id.menu_list_files_delete -> {
-                        activityModel.detailsScreen?.fileMetadata.let {
-                            if (model.selectableFiles.getSelectedItems().contains(it)) {
-                                activityModel.launchDetailsScreen(null)
-                            }
-                        }
-
-                        model.deleteSelectedFiles()
-                        alertModel.notify(getString(R.string.success_delete))
+                        activityModel.launchTransientScreen(TransientScreen.Delete(model.selectableFiles.getSelectedItems()))
 
                         true
                     }
@@ -123,7 +116,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         SnackProgressBarManager(
             requireView(),
             lifecycleOwner = this
-        ).setViewToMove(binding.fabFile)
+        )
     }
 
     private val syncSnackProgressBar by lazy {
@@ -230,7 +223,6 @@ class FilesListFragment : Fragment(), FilesFragment {
 
             updateUI(UpdateFilesUI.ShowSyncSnackBar(syncStepInfo.total))
         } else {
-
             syncSnackProgressBar.setProgressMax(syncStepInfo.total)
             snackProgressBarManager.setProgress(syncStepInfo.progress)
             syncSnackProgressBar.setMessage(syncStepInfo.action.toMessage())

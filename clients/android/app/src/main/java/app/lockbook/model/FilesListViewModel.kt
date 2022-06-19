@@ -6,14 +6,9 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import app.lockbook.R
-import app.lockbook.getContext
-import app.lockbook.getRes
-import app.lockbook.getString
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.ui.BreadCrumbItem
-import app.lockbook.util.DecryptedFileMetadata
-import app.lockbook.util.SingleMutableLiveData
-import app.lockbook.util.exhaustive
+import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptySelectableDataSourceTyped
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok

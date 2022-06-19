@@ -3,10 +3,7 @@ package app.lockbook
 
 import android.app.Application
 import android.content.Context
-import android.content.res.Resources
-import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatDelegate
-import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -108,17 +105,3 @@ class SyncWork(appContext: Context, workerParams: WorkerParameters) :
     }
 }
 
-fun AndroidViewModel.getContext(): Context {
-    return this.getApplication<Application>()
-}
-
-fun AndroidViewModel.getRes(): Resources {
-    return this.getApplication<Application>().resources
-}
-
-fun AndroidViewModel.getString(
-    @StringRes stringRes: Int,
-    vararg formatArgs: Any = emptyArray()
-): String {
-    return getString(this.getRes(), stringRes, *formatArgs)
-}

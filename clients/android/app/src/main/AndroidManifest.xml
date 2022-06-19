@@ -28,6 +28,7 @@
             </intent-filter>
         </activity>
         <activity android:name=".screen.CaptureActivityAutoRotate"
+            android:theme="@style/AppTheme.QRCapture"
             android:screenOrientation="fullSensor"
             tools:replace="screenOrientation" />
         <activity

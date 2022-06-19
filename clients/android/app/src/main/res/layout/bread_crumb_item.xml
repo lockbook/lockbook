@@ -16,7 +16,7 @@
         tools:ignore="RtlSymmetry"
         android:contentDescription="@string/bread_crumb_folder" />
 
-    <TextView
+    <com.google.android.material.textview.MaterialTextView
         android:id="@+id/bread_crumb_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

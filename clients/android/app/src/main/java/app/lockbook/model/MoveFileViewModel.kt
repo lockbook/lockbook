@@ -5,14 +5,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
-import app.lockbook.getRes
 import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import timber.log.Timber
 
 class MoveFileViewModel(application: Application) :
     AndroidViewModel(application) {
@@ -51,20 +49,14 @@ class MoveFileViewModel(application: Application) :
 
     fun moveFilesToCurrentFolder() {
         viewModelScope.launch(Dispatchers.IO) {
-            Timber.e("GOT HRE 121 2")
             for (id in ids) {
-                when (val moveFileResult = CoreModel.moveFile(id, currentParent.id)) {
-                    is Ok -> {
-                    }
-                    is Err -> {
-                        Timber.e("GOT HRE 121 3")
+                val moveFileResult = CoreModel.moveFile(id, currentParent.id)
 
-                        _notifyError.postValue(moveFileResult.error.toLbError(getRes()))
-                        return@launch
-                    }
+                if(moveFileResult is Err) {
+                    _notifyError.postValue(moveFileResult.error.toLbError(getRes()))
+                    return@launch
                 }
             }
-            Timber.e("GOT HRE 121 4")
 
             _closeDialog.postValue(Unit)
         }

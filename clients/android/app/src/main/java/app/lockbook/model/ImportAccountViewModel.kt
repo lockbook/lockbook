@@ -4,7 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
-import app.lockbook.getRes
+import app.lockbook.util.getRes
 import app.lockbook.util.LbError
 import app.lockbook.util.SingleMutableLiveData
 import com.github.michaelbull.result.Err

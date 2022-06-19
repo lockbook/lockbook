@@ -59,7 +59,6 @@ class TextEditorFragment : Fragment() {
         val name = (activityModel.detailsScreen as DetailsScreen.TextEditor).fileMetadata.decryptedName
 
         textEditorToolbar.title = name
-        textEditorToolbar.inflateMenu(R.menu.menu_text_editor)
         textEditorToolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.menu_text_editor_view_md -> viewMarkdown()
@@ -73,7 +72,11 @@ class TextEditorFragment : Fragment() {
 
             true
         }
+        textEditorToolbar.setNavigationOnClickListener {
+            activityModel.launchDetailsScreen(null)
+        }
 
+        textEditorToolbar.menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = name.endsWith(".md")
         undoRedo.updateUndoRedoButtons()
 
         model.content.observe(
@@ -87,7 +90,7 @@ class TextEditorFragment : Fragment() {
                         CustomPunctuationSpan(
                             ResourcesCompat.getColor(
                                 resources,
-                                R.color.md_theme_secondary,
+                                R.color.md_theme_primary,
                                 null
                             )
                         )
@@ -95,7 +98,6 @@ class TextEditorFragment : Fragment() {
                     .build()
 
                 binding.markdownToolbar.visibility = View.VISIBLE
-                textEditorToolbar.menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
 
                 textField.addTextChangedListener(
                     MarkwonEditorTextWatcher.withPreRender(

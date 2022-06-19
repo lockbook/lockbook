@@ -14,10 +14,7 @@ import androidx.slidingpanelayout.widget.SlidingPaneLayout
 import app.lockbook.R
 import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.model.*
-import app.lockbook.ui.CreateFileDialogFragment
-import app.lockbook.ui.FileInfoDialogFragment
-import app.lockbook.ui.MoveFileDialogFragment
-import app.lockbook.ui.RenameFileDialogFragment
+import app.lockbook.ui.*
 import app.lockbook.util.Animate
 import app.lockbook.util.FilesFragment
 import app.lockbook.util.exhaustive
@@ -47,6 +44,7 @@ class MainScreenActivity : AppCompatActivity() {
                 is RenameFileDialogFragment -> filesFragment.refreshFiles()
                 is CreateFileDialogFragment -> filesFragment.onNewFileCreated(f.newFile)
                 is FileInfoDialogFragment -> filesFragment.unselectFiles()
+                is DeleteFilesDialogFragment -> filesFragment.refreshFiles()
             }
         }
     }
@@ -131,7 +129,13 @@ class MainScreenActivity : AppCompatActivity() {
                 is TransientScreen.Share -> {
                     finalizeShare(screen.files)
                 }
-            }
+                is TransientScreen.Delete -> {
+                    DeleteFilesDialogFragment().show(
+                        supportFragmentManager,
+                        DeleteFilesDialogFragment.DELETE_FILEs_DIALOG_FRAGMENT
+                    )
+                }
+            }.exhaustive
         }
 
         model.updateMainScreenUI.observe(
@@ -147,7 +151,7 @@ class MainScreenActivity : AppCompatActivity() {
             is UpdateMainScreenUI.ShareDocuments -> finalizeShare(update.files)
             is UpdateMainScreenUI.ShowHideProgressOverlay -> {
                 if (update.show) {
-                    Animate.animateVisibility(binding.progressOverlay, View.VISIBLE, 102, 500)
+                    Animate.animateVisibility(binding.progressOverlay, View.VISIBLE, 100, 500)
                 } else {
                     Animate.animateVisibility(binding.progressOverlay, View.GONE, 0, 500)
                 }

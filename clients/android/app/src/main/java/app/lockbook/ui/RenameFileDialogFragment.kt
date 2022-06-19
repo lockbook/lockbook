@@ -11,18 +11,13 @@ import app.lockbook.model.CoreModel
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TransientScreen
 import app.lockbook.util.exhaustive
+import app.lockbook.util.requestKeyboardFocus
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
 
-data class RenameFileInfo(
-    val id: String,
-    val name: String
-)
-
 class RenameFileDialogFragment : DialogFragment() {
-
     private lateinit var binding: DialogRenameFileBinding
     private val activityModel: StateViewModel by activityViewModels()
 
@@ -32,34 +27,46 @@ class RenameFileDialogFragment : DialogFragment() {
         const val RENAME_FILE_DIALOG_TAG = "RenameFileDialogFragment"
     }
 
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog = MaterialAlertDialogBuilder(requireContext())
-        .setTitle(R.string.dialog_rename_file_title)
-        .apply {
-            binding = DialogRenameFileBinding.inflate(layoutInflater)
-            setView(binding.root)
-        }
-        .setNegativeButton(R.string.cancel, null)
-        .setPositiveButton(R.string.rename_file_rename, null)
-        .create()
-        .apply {
-            setOnShowListener {
-                getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener{ onButtonPositive() }
+    val file by lazy {
+        (activityModel.transientScreen as TransientScreen.Rename).file
+    }
+
+
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.dialog_rename_file_title)
+            .apply {
+                binding = DialogRenameFileBinding.inflate(layoutInflater)
+                binding.renameFile.setText(file.decryptedName)
+                setView(binding.root)
             }
-        }
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.rename_file_rename, null)
+            .create()
+            .apply {
+                window.requestKeyboardFocus(binding.renameFile)
+
+                setOnShowListener {
+                    getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
+                }
+            }
 
     private fun onButtonPositive() {
-        val file = (activityModel.transientScreen as TransientScreen.Rename).file
-
         uiScope.launch(Dispatchers.IO) {
-            val createFileResult = CoreModel.renameFile(file.id, binding.renameFile.text.toString())
+            val renameFileResult = CoreModel.renameFile(file.id, binding.renameFile.text.toString())
 
             withContext(Dispatchers.Main) {
-                when(createFileResult) {
+                when (renameFileResult) {
                     is Ok -> dismiss()
-                    is Err -> binding.renameFileError.setText(createFileResult.error.toLbError(resources).msg)
+                    is Err -> binding.renameFileError.setText(
+                        renameFileResult.error.toLbError(
+                            resources
+                        ).msg
+                    )
                 }.exhaustive
 
             }
         }
     }
 }
+

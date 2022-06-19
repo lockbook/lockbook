@@ -4,7 +4,6 @@
     android:id="@+id/rename_file_layout"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_gravity="center"
     android:paddingHorizontal="12dp"
     android:paddingTop="15dp"
     android:orientation="vertical">

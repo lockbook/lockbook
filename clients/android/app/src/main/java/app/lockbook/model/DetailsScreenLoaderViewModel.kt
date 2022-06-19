@@ -6,9 +6,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import app.lockbook.R
-import app.lockbook.getContext
-import app.lockbook.getRes
-import app.lockbook.getString
+import app.lockbook.util.getContext
+import app.lockbook.util.getRes
+import app.lockbook.util.getString
 import app.lockbook.util.Drawing
 import app.lockbook.util.LbError
 import app.lockbook.util.SingleMutableLiveData

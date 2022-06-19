@@ -185,7 +185,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         strokeState.backgroundPaint.color = ResourcesCompat.getColor(
             resources,
-            R.color.drawingUntouchableBackground,
+            R.color.md_theme_dark_outline,
             context.theme
         )
 
@@ -193,7 +193,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         strokeState.backgroundPaint.color = ResourcesCompat.getColor(
             resources,
-            R.color.drawingTouchableBackground,
+            R.color.md_theme_inverseOnSurface,
             context.theme
         )
 

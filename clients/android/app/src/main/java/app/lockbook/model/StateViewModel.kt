@@ -5,7 +5,6 @@ import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
-import app.lockbook.getRes
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import kotlinx.coroutines.Dispatchers
@@ -125,6 +124,7 @@ sealed class TransientScreen {
     data class Create(val info: CreateFileInfo) : TransientScreen()
     data class Info(val file: DecryptedFileMetadata) : TransientScreen()
     data class Share(val files: List<File>) : TransientScreen()
+    data class Delete(val files: List<DecryptedFileMetadata>) : TransientScreen()
 }
 
 sealed class UpdateMainScreenUI {

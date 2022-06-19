@@ -16,6 +16,7 @@ import app.lockbook.model.TransientScreen
 import app.lockbook.util.DecryptedFileMetadata
 import app.lockbook.util.FileType
 import app.lockbook.util.exhaustive
+import app.lockbook.util.requestKeyboardFocus
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -74,6 +75,10 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
         .setNegativeButton(R.string.cancel, null)
         .create()
         .apply {
+            when(info.extendedFileType.toFileType()) {
+                FileType.Document -> window.requestKeyboardFocus(binding.createDocument)
+                FileType.Folder -> window.requestKeyboardFocus(binding.createFolder)
+            }.exhaustive
             setOnShowListener {
                 getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener{ onButtonPositive() }
             }
