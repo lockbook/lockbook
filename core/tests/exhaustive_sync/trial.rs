@@ -234,11 +234,8 @@ impl Trial {
             }
 
             for folder in folders.clone() {
-                let parent_name = if folder.id == folder.parent {
-                    "root".to_string()
-                } else {
-                    folder.decrypted_name
-                };
+                let parent_name =
+                    if folder.is_root() { "root".to_string() } else { folder.decrypted_name };
 
                 mutants.push(self.create_mutation(NewDocument {
                     parent: parent_name.clone(),
@@ -268,7 +265,7 @@ impl Trial {
 
                 for folder2 in folders.clone() {
                     if folder.id != folder.parent {
-                        let folder2_name = if folder2.id == folder2.parent {
+                        let folder2_name = if folder2.is_root() {
                             "root".to_string()
                         } else {
                             folder2.decrypted_name

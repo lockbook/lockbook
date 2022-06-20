@@ -1,6 +1,5 @@
 use crate::model::repo::RepoSource;
-use crate::CoreError;
-use crate::Tx;
+use crate::{CoreError, RequestContext};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use std::cmp::Ordering;
@@ -29,8 +28,8 @@ impl PartialOrd for SearchResultItem {
     }
 }
 
-impl Tx<'_> {
-    pub fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, CoreError> {
+impl RequestContext<'_, '_> {
+    pub fn search_file_paths(&mut self, input: &str) -> Result<Vec<SearchResultItem>, CoreError> {
         if input.is_empty() {
             return Ok(Vec::new());
         }
@@ -39,8 +38,9 @@ impl Tx<'_> {
         let matcher = SkimMatcherV2::default();
 
         let mut results = Vec::new();
-        for (id, _) in self.get_all_not_deleted_metadata(RepoSource::Local)? {
-            let path = self.get_path_by_id(id)?;
+        let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
+        for &id in files.keys() {
+            let path = Self::path_by_id_helper(&files, id)?;
             let path_without_root = path.strip_prefix(&root_name).unwrap_or(&path).to_string();
 
             if let Some(score) = matcher.fuzzy_match(&path_without_root, input) {

@@ -174,12 +174,16 @@ pub async fn delete_account(
     });
     return_if_error!(tx);
 
-    let non_deleted_document = all_files
+    let all_files = all_files
         .filter_not_deleted()
-        .map_err(|err| internal!("Could not get non-deleted files: {:?}", err))?
-        .filter_documents();
+        .map_err(|err| internal!("Could not get non-deleted files: {:?}", err))?;
 
-    for file in non_deleted_document.values() {
+    let non_deleted_document_ids = all_files.documents();
+
+    for file in non_deleted_document_ids {
+        let file = all_files
+            .find(file)
+            .map_err(|_| internal!("Could not find non-deleted file: {file}"))?;
         document_service::delete(context.server_state, file.id, file.content_version).await?;
     }
 

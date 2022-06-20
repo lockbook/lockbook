@@ -1,7 +1,7 @@
 use crate::file_metadata::FileType::{Document, Folder};
 use crate::file_metadata::{FileType, Owner};
 use crate::tree::TreeError::{FileNonexistent, RootNonexistent};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::hash::Hash;
 use uuid::Uuid;
@@ -25,6 +25,10 @@ pub trait FileMetadata: Clone + Display {
 
     fn is_document(&self) -> bool {
         self.file_type() == Document
+    }
+
+    fn is_root(&self) -> bool {
+        self.id() == self.parent()
     }
 }
 
@@ -73,23 +77,32 @@ where
     }
 }
 
+pub struct DeletedStatus {
+    pub deleted: HashSet<Uuid>,
+    pub not_deleted: HashSet<Uuid>,
+}
+
 pub trait FileMetaMapExt<Fm: FileMetadata> {
     fn with(fm: Fm) -> HashMap<Uuid, Fm>;
     fn ids(&self) -> Vec<Uuid>;
     fn push(&mut self, fm: Fm);
-    fn stage(&self, staged: &HashMap<Uuid, Fm>) -> HashMap<Uuid, (Fm, StageSource)>;
+    fn stage(self, staged: HashMap<Uuid, Fm>) -> HashMap<Uuid, Fm>;
+    fn stage_with_source(&self, staged: &HashMap<Uuid, Fm>) -> HashMap<Uuid, (Fm, StageSource)>;
     fn find(&self, id: Uuid) -> Result<Fm, TreeError>;
+    fn find_ref(&self, id: Uuid) -> Result<&Fm, TreeError>;
     fn find_mut(&mut self, id: Uuid) -> Result<&mut Fm, TreeError>;
     fn find_root(&self) -> Result<Fm, TreeError>;
     fn maybe_find_root(&self) -> Option<Fm>;
     fn maybe_find(&self, id: Uuid) -> Option<Fm>;
     fn maybe_find_mut(&mut self, id: Uuid) -> Option<&mut Fm>;
-    fn find_parent(&self, id: Uuid) -> Result<Fm, TreeError>;
-    fn maybe_find_parent(&self, id: Uuid) -> Option<Fm>;
+    fn find_parent(&self, id: Uuid) -> Result<&Fm, TreeError>;
+    fn maybe_find_parent(&self, id: Uuid) -> Option<&Fm>;
     fn find_children(&self, id: Uuid) -> HashMap<Uuid, Fm>;
-    fn filter_deleted(&self) -> Result<HashMap<Uuid, Fm>, TreeError>;
-    fn filter_not_deleted(&self) -> Result<HashMap<Uuid, Fm>, TreeError>;
-    fn filter_documents(&self) -> HashMap<Uuid, Fm>;
+    fn filter_deleted(self) -> Result<HashMap<Uuid, Fm>, TreeError>;
+    fn deleted_status(&self) -> Result<DeletedStatus, TreeError>;
+    fn filter_not_deleted(self) -> Result<HashMap<Uuid, Fm>, TreeError>;
+    fn documents(&self) -> HashSet<Uuid>;
+    fn parents(&self) -> HashSet<Uuid>;
     fn get_invalid_cycles(
         &self, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<Uuid>, TreeError>;
@@ -118,7 +131,13 @@ where
         self.insert(fm.id(), fm);
     }
 
-    fn stage(&self, staged: &HashMap<Uuid, Fm>) -> HashMap<Uuid, (Fm, StageSource)> {
+    fn stage(self, staged: HashMap<Uuid, Fm>) -> HashMap<Uuid, Fm> {
+        let mut base = self;
+        base.extend(staged);
+        base
+    }
+
+    fn stage_with_source(&self, staged: &HashMap<Uuid, Fm>) -> HashMap<Uuid, (Fm, StageSource)> {
         let mut result = HashMap::new();
         result.extend(
             self.clone()
@@ -138,6 +157,10 @@ where
         self.get(&id).cloned().ok_or(FileNonexistent)
     }
 
+    fn find_ref(&self, id: Uuid) -> Result<&Fm, TreeError> {
+        self.get(&id).ok_or(FileNonexistent)
+    }
+
     fn find_mut(&mut self, id: Uuid) -> Result<&mut Fm, TreeError> {
         self.maybe_find_mut(id).ok_or(FileNonexistent)
     }
@@ -147,7 +170,7 @@ where
     }
 
     fn maybe_find_root(&self) -> Option<Fm> {
-        self.values().find(|f| f.id() == f.parent()).cloned()
+        self.values().find(|f| f.is_root()).cloned()
     }
 
     fn maybe_find(&self, id: Uuid) -> Option<Fm> {
@@ -158,13 +181,13 @@ where
         self.get_mut(&id)
     }
 
-    fn find_parent(&self, id: Uuid) -> Result<Fm, TreeError> {
+    fn find_parent(&self, id: Uuid) -> Result<&Fm, TreeError> {
         self.maybe_find_parent(id)
             .ok_or(TreeError::FileParentNonexistent)
     }
 
-    fn maybe_find_parent(&self, id: Uuid) -> Option<Fm> {
-        self.get(&self.get(&id)?.parent()).cloned()
+    fn maybe_find_parent(&self, id: Uuid) -> Option<&Fm> {
+        self.get(&self.get(&id)?.parent())
     }
 
     fn find_children(&self, folder_id: Uuid) -> HashMap<Uuid, Fm> {
@@ -179,63 +202,118 @@ where
             .collect()
     }
 
-    fn filter_deleted(&self) -> Result<HashMap<Uuid, Fm>, TreeError> {
-        let mut result = HashMap::new();
-        let mut not_deleted = HashMap::new();
-        for (id, file) in self {
-            let mut ancestors = HashMap::with(file.clone());
-            let mut ancestor = file.clone();
-            loop {
-                if not_deleted.get(&ancestor.id()).is_none() // check it isn't confirmed as not deleted
-                    && (ancestor.deleted() || result.get(&ancestor.id()).is_some())
-                {
-                    result.extend(ancestors);
-                    break;
+    fn filter_deleted(self) -> Result<HashMap<Uuid, Fm>, TreeError> {
+        let mut tree = self;
+        for id in tree.deleted_status()?.not_deleted {
+            tree.remove(&id);
+        }
+
+        Ok(tree)
+    }
+
+    fn deleted_status(&self) -> Result<DeletedStatus, TreeError> {
+        let mut confirmed_not_delted = HashSet::new();
+        let mut confirmed_deleted = HashSet::new();
+        for meta in self.values() {
+            // Itself is explicitly deleted
+            if meta.deleted() {
+                confirmed_deleted.insert(meta.id());
+                continue;
+            }
+
+            // Parent is confirmed to be not deleted, and is not explicitly deleted
+            if confirmed_not_delted.contains(&meta.parent()) && !meta.deleted() {
+                confirmed_not_delted.insert(meta.id());
+                continue;
+            }
+
+            // Check all ancestors
+            let mut cur = self.find_ref(meta.parent())?;
+            let mut checked_path = vec![meta.id(), cur.id()];
+            let mut ancestor_deleted = false;
+            'ansestor_check: while !cur.is_root() {
+                if cur.deleted() {
+                    confirmed_deleted.extend(&checked_path);
+                    ancestor_deleted = true;
+                    break 'ansestor_check;
                 }
 
-                let parent = self.find(ancestor.parent())?;
-                // first case is root, second case is a cycle (not our problem)
-                if parent.id() == ancestor.id() || &parent.id() == id {
-                    not_deleted.extend(ancestors);
-                    break; // root
+                // Select the next node to explore
+                let parent = self.find_ref(cur.parent())?;
+                if confirmed_deleted.contains(&parent.id()) {
+                    confirmed_deleted.extend(&checked_path);
+                    ancestor_deleted = true;
+                    break 'ansestor_check;
+                } else if confirmed_not_delted.contains(&parent.id()) {
+                    confirmed_not_delted.extend(&checked_path);
+                    break 'ansestor_check;
+                } else {
+                    if checked_path.contains(&parent.id()) {
+                        // We've already checked this, it's likely a cycle or root, this is not the
+                        // place to detect this though, cycles are not deleted files, so we continue
+                        break 'ansestor_check;
+                    }
+                    checked_path.push(parent.id());
+                    cur = parent;
                 }
-                ancestors.push(parent.clone());
-                ancestor = parent;
+            }
+            if !ancestor_deleted {
+                confirmed_not_delted.extend(&checked_path);
             }
         }
-        Ok(result)
+
+        Ok(DeletedStatus { deleted: confirmed_deleted, not_deleted: confirmed_not_delted })
     }
 
-    fn filter_not_deleted(&self) -> Result<HashMap<Uuid, Fm>, TreeError> {
-        let deleted = self.filter_deleted()?;
-        Ok(self
-            .clone()
-            .into_iter()
-            .filter(|(id, _)| deleted.get(id).is_none())
-            .collect())
+    fn filter_not_deleted(self) -> Result<HashMap<Uuid, Fm>, TreeError> {
+        let mut tree = self;
+        for id in tree.deleted_status()?.deleted {
+            tree.remove(&id);
+        }
+
+        Ok(tree)
     }
 
-    fn filter_documents(&self) -> HashMap<Uuid, Fm> {
-        self.clone()
-            .into_iter()
-            .filter(|(_, f)| f.is_document())
-            .collect()
+    fn documents(&self) -> HashSet<Uuid> {
+        let mut result = HashSet::new();
+        for meta in self.values() {
+            if meta.is_document() {
+                result.insert(meta.id());
+            }
+        }
+
+        result
+    }
+
+    fn parents(&self) -> HashSet<Uuid> {
+        let mut result = HashSet::new();
+        for meta in self.values() {
+            result.insert(meta.parent());
+        }
+
+        result
     }
 
     fn get_invalid_cycles(
         &self, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<Uuid>, TreeError> {
-        let root = match self.maybe_find_root() {
-            Some(root) => Ok(root),
-            None => staged_changes.find_root(),
-        }?;
+        let mut root_found = false;
         let mut prev_checked = HashMap::new();
-        let staged_changes = self.stage(staged_changes);
+        let staged_changes = self.stage_with_source(staged_changes);
         let mut result = Vec::new();
         for (_, (f, _)) in staged_changes.clone().into_iter() {
             let mut checking = HashMap::new();
             let mut cur = &f;
-            while cur.id() != root.id() && prev_checked.get(&cur.id()).is_none() {
+
+            if cur.is_root() {
+                if root_found {
+                    result.push(cur.id());
+                } else {
+                    root_found = true;
+                }
+            }
+
+            while !cur.is_root() && prev_checked.get(&cur.id()).is_none() {
                 if checking.contains_key(&cur.id()) {
                     result.extend(checking.keys());
                     break;
@@ -251,13 +329,13 @@ where
     fn get_path_conflicts(
         &self, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<PathConflict>, TreeError> {
-        let files_with_sources = self.stage(staged_changes);
+        let files_with_sources = self.stage_with_source(staged_changes);
         let mut name_tree: HashMap<Uuid, HashMap<Fm::Name, Uuid>> = HashMap::new();
         let mut result = Vec::new();
 
         for (id, (f, source)) in files_with_sources.iter() {
             let parent_id = f.parent();
-            if id == &parent_id {
+            if f.is_root() {
                 continue;
             };
             let name = f.name();
@@ -292,7 +370,7 @@ where
         }
 
         for file in self.values() {
-            if self.maybe_find(file.parent()).is_none() {
+            if !self.contains_key(&file.parent()) {
                 return Err(TestFileTreeError::FileOrphaned(file.id()));
             }
         }
@@ -306,11 +384,10 @@ where
             return Err(TestFileTreeError::CycleDetected(self_descendant));
         }
 
-        let maybe_doc_with_children = self
-            .filter_documents()
-            .into_iter()
-            .find(|(id, _)| !self.find_children(*id).is_empty());
-        if let Some((id, _)) = maybe_doc_with_children {
+        let docs = self.documents();
+        let maybe_doc_with_children = self.parents().into_iter().find(|id| docs.contains(id));
+        if let Some(id) = maybe_doc_with_children {
+            // Could find all of them if we wanted to
             return Err(TestFileTreeError::DocumentTreatedAsFolder(id));
         }
 

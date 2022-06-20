@@ -2,9 +2,9 @@ use crate::model::filename::DocumentType;
 use crate::model::repo::RepoSource;
 use crate::model::repo::RepoState;
 use crate::pure_functions::files;
-use crate::repo::schema::{OneKey, Tx};
+use crate::repo::schema::OneKey;
 use crate::service::{api_service, file_encryption_service, file_service};
-use crate::{Config, CoreError};
+use crate::{Config, CoreError, RequestContext};
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::account::Account;
 use lockbook_models::api::{
@@ -369,7 +369,7 @@ enum SyncProgressOperation {
     StartWorkUnit(ClientWorkUnit),
 }
 
-impl Tx<'_> {
+impl RequestContext<'_, '_> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync<F: Fn(SyncProgress)>(
         &mut self, config: &Config, maybe_update_sync_progress: Option<F>,
@@ -397,7 +397,7 @@ impl Tx<'_> {
         self.push_documents(config, &mut update_sync_progress)?;
         self.pull(config, &mut update_sync_progress)?;
         self.prune_deleted(config)?;
-        self.last_synced.insert(OneKey {}, get_time().0);
+        self.tx.last_synced.insert(OneKey {}, get_time().0);
         Ok(())
     }
 
@@ -666,7 +666,7 @@ impl Tx<'_> {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn calculate_work(&self, config: &Config) -> Result<WorkCalculated, CoreError> {
+    pub fn calculate_work(&mut self, config: &Config) -> Result<WorkCalculated, CoreError> {
         let account = &self.get_account()?;
         let base_metadata = self.get_all_metadata(RepoSource::Base)?;
         let base_max_metadata_version = base_metadata
@@ -689,7 +689,7 @@ impl Tx<'_> {
     }
 
     fn calculate_work_from_updates(
-        &self, config: &Config, server_updates: &EncryptedFiles, mut last_sync: u64,
+        &mut self, config: &Config, server_updates: &EncryptedFiles, mut last_sync: u64,
     ) -> Result<WorkCalculated, CoreError> {
         let mut work_units: Vec<WorkUnit> = vec![];
         let (all_metadata, _) =
