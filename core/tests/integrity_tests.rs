@@ -57,10 +57,10 @@ fn test_invalid_file_name_slash() {
     let doc = core.create_at_path(&path(&core, "document1.md")).unwrap();
     core.db
         .transaction(|tx| {
-            let mut tx = core.context(tx).unwrap();
-            let mut doc = tx.get_metadata(RepoSource::Local, doc.id).unwrap();
+            let mut ctx = core.context(tx).unwrap();
+            let mut doc = ctx.get_metadata(RepoSource::Local, doc.id).unwrap();
             doc.decrypted_name = String::from("na/me.md");
-            tx.insert_metadatum(&core.config, RepoSource::Local, &doc)
+            ctx.insert_metadatum(&core.config, RepoSource::Local, &doc)
                 .unwrap();
         })
         .unwrap();
@@ -74,10 +74,10 @@ fn test_invalid_file_name_empty() {
     let mut doc = core.create_at_path(&path(&core, "document1.md")).unwrap();
     core.db
         .transaction(|tx| {
-            let mut tx = core.context(tx).unwrap();
-            tx.get_metadata(RepoSource::Local, doc.id).unwrap();
+            let mut ctx = core.context(tx).unwrap();
+            ctx.get_metadata(RepoSource::Local, doc.id).unwrap();
             doc.decrypted_name = String::from("");
-            tx.insert_metadatum(&core.config, RepoSource::Local, &doc)
+            ctx.insert_metadatum(&core.config, RepoSource::Local, &doc)
                 .unwrap();
         })
         .unwrap();
@@ -130,10 +130,10 @@ fn test_name_conflict() {
     core.create_at_path(&path(&core, "document2.md")).unwrap();
     core.db
         .transaction(|tx| {
-            let mut tx = core.context(tx).unwrap();
-            let mut doc = tx.get_metadata(RepoSource::Local, doc.id).unwrap();
+            let mut ctx = core.context(tx).unwrap();
+            let mut doc = ctx.get_metadata(RepoSource::Local, doc.id).unwrap();
             doc.decrypted_name = String::from("document2.md");
-            tx.insert_metadatum(&core.config, RepoSource::Local, &doc)
+            ctx.insert_metadatum(&core.config, RepoSource::Local, &doc)
                 .unwrap();
         })
         .unwrap();
