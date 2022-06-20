@@ -2,10 +2,9 @@ use chrono::Datelike;
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use lockbook_core::model::repo::RepoSource;
-use lockbook_core::repo::schema::Tx;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_core::service::path_service::Filter::DocumentsOnly;
-use lockbook_core::{Config, Core};
+use lockbook_core::{Config, Core, RequestContext};
 use lockbook_models::api::{AccountTier, FileMetadataUpsertsError, PaymentMethod};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
 use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
@@ -225,14 +224,14 @@ pub fn assert_local_work_paths(
 ) {
     let all_local_files = db
         .db
-        .transaction(|tx| tx.get_all_metadata(RepoSource::Local))
+        .transaction(|tx| db.context(tx).unwrap().get_all_metadata(RepoSource::Local))
         .unwrap()
         .unwrap();
 
     let mut expected_paths = expected_paths.to_vec();
     let mut actual_paths: Vec<String> = get_dirty_ids(db, false)
         .iter()
-        .map(|&id| Tx::path_by_id_helper(&all_local_files, id).unwrap())
+        .map(|&id| RequestContext::path_by_id_helper(&all_local_files, id).unwrap())
         .map(|path| String::from(&path[root.decrypted_name.len() + 1..]))
         .collect();
     actual_paths.sort_unstable();
@@ -251,6 +250,7 @@ pub fn assert_server_work_paths(
     let staged = db
         .db
         .transaction(|tx| {
+            let mut tx = db.context(tx).unwrap();
             let all_local_files = tx.get_all_metadata(RepoSource::Local).unwrap();
             let new_server_files = tx
                 .calculate_work(&db.config)
@@ -264,7 +264,7 @@ pub fn assert_server_work_paths(
                 .filter(|(id, _)| all_local_files.maybe_find(*id).is_none())
                 .collect::<DecryptedFiles>();
             all_local_files
-                .stage(&new_server_files)
+                .stage_with_source(&new_server_files)
                 .into_iter()
                 .map(|(_, (meta, _))| (meta.id, meta))
                 .collect::<DecryptedFiles>()
@@ -274,7 +274,7 @@ pub fn assert_server_work_paths(
     let mut expected_paths = expected_paths.to_vec();
     let mut actual_paths: Vec<String> = get_dirty_ids(db, true)
         .iter()
-        .map(|&id| Tx::path_by_id_helper(&staged, id).unwrap())
+        .map(|&id| RequestContext::path_by_id_helper(&staged, id).unwrap())
         .map(|path| String::from(&path[root.decrypted_name.len() + 1..]))
         .collect();
     actual_paths.sort_unstable();
@@ -320,6 +320,7 @@ pub fn assert_all_document_contents(
 }
 pub fn assert_deleted_files_pruned(core: &Core) {
     core.db.transaction(|tx| {
+        let mut tx = core.context(tx).unwrap();
         for source in [RepoSource::Local, RepoSource::Base] {
             let all_metadata = tx.get_all_metadata(source).unwrap();
             let not_deleted_metadata = tx.get_all_not_deleted_metadata(source).unwrap();

@@ -3,7 +3,7 @@ use crate::model::repo::RepoSource;
 use crate::pure_functions::drawing;
 use crate::service::file_service;
 use crate::service::integrity_service::TestRepoError::DocumentReadError;
-use crate::{Config, OneKey, Tx};
+use crate::{Config, OneKey, RequestContext};
 use lockbook_models::tree::{FileMetaMapExt, FileMetadata, TestFileTreeError};
 
 use std::path::Path;
@@ -11,19 +11,19 @@ use std::path::Path;
 const UTF8_SUFFIXES: [&str; 12] =
     ["md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs"];
 
-impl Tx<'_> {
-    pub fn test_repo_integrity(&self, config: &Config) -> Result<Vec<Warning>, TestRepoError> {
-        if self.account.get(&OneKey {}).is_none() {
+impl RequestContext<'_, '_> {
+    pub fn test_repo_integrity(&mut self, config: &Config) -> Result<Vec<Warning>, TestRepoError> {
+        if self.tx.account.get(&OneKey {}).is_none() {
             return Err(TestRepoError::NoAccount);
         }
 
-        let local_meta = self.local_metadata.get_all();
+        let local_meta = self.tx.local_metadata.get_all();
 
-        let mut files_encrypted = self.base_metadata.get_all();
+        let mut files_encrypted = self.tx.base_metadata.get_all();
         files_encrypted.extend(local_meta);
 
-        if self.last_synced.get(&OneKey {}).unwrap_or(0) != 0
-            && files_encrypted.maybe_find_root().is_none()
+        if self.tx.last_synced.get(&OneKey {}).unwrap_or(0) != 0
+            && self.tx.root.get(&OneKey).is_none()
         {
             return Err(TestRepoError::NoRootFolder);
         }
