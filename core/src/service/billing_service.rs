@@ -1,7 +1,7 @@
 use crate::model::errors::core_err_unexpected;
 use crate::service::api_service;
 use crate::service::api_service::ApiError;
-use crate::{CoreError, Tx};
+use crate::{CoreError, RequestContext};
 use lockbook_models::api::{
     AccountTier, GetCreditCardError, GetCreditCardRequest, SwitchAccountTierError,
     SwitchAccountTierRequest,
@@ -9,7 +9,7 @@ use lockbook_models::api::{
 
 pub type CreditCardLast4Digits = String;
 
-impl Tx<'_> {
+impl RequestContext<'_, '_> {
     pub fn switch_account_tier(&self, new_account_tier: AccountTier) -> Result<(), CoreError> {
         let account = self.get_account()?;
 
