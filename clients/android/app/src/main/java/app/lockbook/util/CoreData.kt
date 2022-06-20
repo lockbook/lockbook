@@ -19,7 +19,9 @@ data class DecryptedFileMetadata(
     val deleted: Boolean = false,
     @SerialName("decrypted_access_key")
     val decryptedAccessKey: List<Int> = listOf()
-)
+) {
+    fun isRoot() = parent == id
+}
 
 enum class FileType {
     Document, Folder

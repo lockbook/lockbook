@@ -28,7 +28,10 @@
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/create_document"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent" />
+                android:layout_height="match_parent"
+                android:imeOptions="actionNext"
+                android:importantForAutofill="no"
+                android:inputType="text" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -44,7 +47,10 @@
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/create_document_extension"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
+                android:layout_height="wrap_content"
+                android:imeOptions="actionDone"
+                android:importantForAutofill="no"
+                android:inputType="text" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -61,7 +67,10 @@
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/create_folder"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
+                android:layout_height="wrap_content"
+                android:imeOptions="actionDone"
+                android:importantForAutofill="no"
+                android:inputType="text" />
 
         </com.google.android.material.textfield.TextInputLayout>
     </LinearLayout>

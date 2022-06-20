@@ -14,7 +14,6 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import timber.log.Timber
 
 class FilesListViewModel(application: Application, isThisANewAccount: Boolean) : AndroidViewModel(application) {
 
@@ -118,7 +117,6 @@ class FilesListViewModel(application: Application, isThisANewAccount: Boolean) :
         viewModelScope.launch(Dispatchers.IO) {
             syncWithSnackBar()
             refreshFiles()
-            Timber.e("GOT HERE")
             postUIUpdate(UpdateFilesUI.StopProgressSpinner)
         }
     }
@@ -143,7 +141,7 @@ class FilesListViewModel(application: Application, isThisANewAccount: Boolean) :
     private fun syncWithSnackBar() {
         when (val hasSyncWorkResult = syncModel.hasSyncWork()) {
             is Ok -> if (!hasSyncWorkResult.value) {
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyWithSnackbar(getString(R.string.list_files_sync_finished_snackbar)))
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpToDateSyncSnackBar)
                 return
             }
             is Err -> _notifyUpdateFilesUI.postValue(
@@ -156,7 +154,7 @@ class FilesListViewModel(application: Application, isThisANewAccount: Boolean) :
         }
 
         when (val syncResult = syncModel.trySync()) {
-            is Ok -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyWithSnackbar(getString(R.string.list_files_sync_finished_snackbar)))
+            is Ok -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpToDateSyncSnackBar)
             is Err -> _notifyUpdateFilesUI.postValue(
                 UpdateFilesUI.NotifyError(
                     syncResult.error.toLbError(
@@ -184,23 +182,7 @@ class FilesListViewModel(application: Application, isThisANewAccount: Boolean) :
             selectableFiles.deselectAll()
             selectableFiles.set(fileModel.children)
 
-            Timber.e("GOT HERE - 2")
-
             _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
-        }
-    }
-
-    fun deleteSelectedFiles() {
-        viewModelScope.launch(Dispatchers.IO) {
-            for (fileMetadata in selectableFiles.getSelectedItems()) {
-                val deleteFileResult = CoreModel.deleteFile(fileMetadata.id)
-                if (deleteFileResult is Err) {
-                    _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(deleteFileResult.error.toLbError(getRes())))
-                    return@launch
-                }
-            }
-
-            refreshFiles()
         }
     }
 

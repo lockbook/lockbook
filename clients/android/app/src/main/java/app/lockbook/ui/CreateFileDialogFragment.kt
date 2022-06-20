@@ -5,6 +5,7 @@ import android.app.AlertDialog
 import android.app.Dialog
 import android.os.Bundle
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import androidx.appcompat.app.AppCompatDialogFragment
 import androidx.fragment.app.activityViewModels
 import app.lockbook.R
@@ -28,7 +29,7 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
     private val uiScope = CoroutineScope(Dispatchers.Main + Job())
     private val activityModel: StateViewModel by activityViewModels()
     private val info by lazy {
-        (activityModel.transientScreen as TransientScreen.Create).info
+        activityModel.transientScreen as TransientScreen.Create
     }
 
     var newFile: DecryptedFileMetadata? = null
@@ -44,6 +45,8 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
 
             val title = when (info.extendedFileType) {
                 ExtendedFileType.Drawing -> {
+                    setUpDocumentTextInput()
+
                     binding.createDocument.setText("")
                     binding.createDocumentExtension.setText(".draw")
 
@@ -52,6 +55,8 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
                     getString(R.string.create_file_title_drawing)
                 }
                 ExtendedFileType.Folder -> {
+                    setUpFolderTextInput()
+
                     binding.createDocumentHolder.visibility = View.GONE
                     binding.createDocumentExtensionHolder.visibility = View.GONE
                     binding.createFolderHolder.visibility = View.VISIBLE
@@ -61,6 +66,8 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
                     getString(R.string.create_file_title_folder)
                 }
                 ExtendedFileType.Text -> {
+                    setUpDocumentTextInput()
+
                     binding.createDocument.setText("")
                     binding.createDocumentExtension.setText(".md")
 
@@ -83,6 +90,37 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
                 getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
             }
         }
+
+    private fun setUpFolderTextInput() {
+        binding.createFolder.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                onButtonPositive()
+            }
+
+            true
+        }
+    }
+
+    private fun setUpDocumentTextInput() {
+        binding.createDocument.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_NEXT) {
+                binding.createDocumentExtension.apply {
+                    requestFocus()
+                    selectAll()
+                }
+            }
+
+            true
+        }
+
+        binding.createDocumentExtension.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                onButtonPositive()
+            }
+
+            true
+        }
+    }
 
     private fun onButtonPositive() {
         val fileType = info.extendedFileType.toFileType()

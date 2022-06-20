@@ -29,6 +29,10 @@ class MoveFileViewModel(application: Application) :
     val notifyError: LiveData<LbError>
         get() = _notifyError
 
+    companion object {
+        const val PARENT_ID = "PARENT"
+    }
+
     init {
         viewModelScope.launch(Dispatchers.IO) {
             startInRoot()
@@ -68,14 +72,16 @@ class MoveFileViewModel(application: Application) :
                 val tempFiles = getChildrenResult.value.filter { fileMetadata ->
                     fileMetadata.fileType == FileType.Folder && !ids.contains(fileMetadata.id)
                 }.toMutableList()
-                tempFiles.add(
-                    0,
-                    DecryptedFileMetadata(
-                        id = "PARENT",
-                        decryptedName = "..",
-                        parent = "The parent file is ${currentParent.decryptedName}"
+
+                if(!currentParent.isRoot()) {
+                    tempFiles.add(
+                        0,
+                        DecryptedFileMetadata(
+                            id = PARENT_ID,
+                            decryptedName = "..",
+                        )
                     )
-                )
+                }
 
                 viewModelScope.launch(Dispatchers.Main) {
                     files.set(tempFiles)
@@ -98,7 +104,7 @@ class MoveFileViewModel(application: Application) :
     fun onItemClick(item: DecryptedFileMetadata) {
         viewModelScope.launch(Dispatchers.IO) {
             when (item.id) {
-                "PARENT" -> {
+                PARENT_ID -> {
                     setParentAsParent()
                     refreshOverFolder()
                 }

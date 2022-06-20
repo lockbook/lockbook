@@ -3,6 +3,7 @@ package app.lockbook.ui
 import android.app.AlertDialog
 import android.app.Dialog
 import android.os.Bundle
+import android.view.inputmethod.EditorInfo
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.activityViewModels
 import app.lockbook.R
@@ -36,7 +37,16 @@ class RenameFileDialogFragment : DialogFragment() {
             .setTitle(R.string.dialog_rename_file_title)
             .apply {
                 binding = DialogRenameFileBinding.inflate(layoutInflater)
+
                 binding.renameFile.setText(file.decryptedName)
+                binding.renameFile.setOnEditorActionListener { _, actionId, _ ->
+                    if (actionId == EditorInfo.IME_ACTION_DONE) {
+                        onButtonPositive()
+                    }
+
+                    true
+                }
+
                 setView(binding.root)
             }
             .setNegativeButton(R.string.cancel, null)

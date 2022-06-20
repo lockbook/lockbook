@@ -8,17 +8,18 @@
     android:paddingHorizontal="25dp">
 
     <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/on_boarding_import_account_holder"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="20dp"
+        android:layout_marginBottom="20dp"
         app:endIconMode="password_toggle"
         style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense">
 
         <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/on_boarding_account_string"
+            android:id="@+id/on_boarding_import_account_input"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="20dp"
             android:hint="@string/import_description"
             android:imeOptions="actionDone"
             android:inputType="textPassword"

@@ -93,15 +93,14 @@
     <string name="confirm">Confirm</string>
     <string name="move_file_move">Move</string>
     <string name="delete_file_delete">Delete</string>
-    <string name="delete_file_title">Delete File</string>
-    <string name="delete_1_file_message">Are you sure you want to delete %s?</string>
+    <string name="delete_1_file_message">Are you sure you want to delete \"%s\"?</string>
     <string name="delete_file_message">Are you sure you want to delete %d files?</string>
 
     <string name="text_editor_hint">Type here</string>
     <string name="rename_file_rename">Rename</string>
     <string name="create_file_create">Create</string>
     <string name="dialog_file_extension">Ext.</string>
-    <string name="empty_folder">No files.</string>
+    <string name="empty_folder">No files</string>
     <string name="create_file_default_file_hint">ERROR, hint not correctly configured.</string>
     <string name="create_file_dialog_document_extension">.md</string>
     <string name="create_file_dialog_drawing_extension">.draw</string>
@@ -210,4 +209,5 @@
     <string name="before_you_start">Before you start…</string>
     <string name="before_you_start_description">Lockbook <a href="https://en.wikipedia.org/wiki/End-to-end_encryption">encrypts</a> your notes with a key that stays on your Lockbook devices. This makes your notes unreadable to anyone but you. If you lose the key, your notes are not recoverable, so we recommend you make a backup in case something happens to this device.</string>
     <string name="drawing_parse_error">Could not open drawing.</string>
+    <string name="sync_finished">Sync finished</string>
 </resources>

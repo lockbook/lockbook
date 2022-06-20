@@ -268,8 +268,8 @@ class FilesListFragment : Fragment(), FilesFragment {
             withDataSource(model.selectableFiles)
             withEmptyView(binding.filesEmptyFolder)
 
-            withItem<DecryptedFileMetadata, HorizontalViewHolder>(R.layout.linear_layout_file_item) {
-                onBind(::HorizontalViewHolder) { _, item ->
+            withItem<DecryptedFileMetadata, LinearFileItemViewHolder>(R.layout.linear_layout_file_item) {
+                onBind(::LinearFileItemViewHolder) { _, item ->
                     name.text = item.decryptedName
                     description.text = resources.getString(
                         R.string.last_synced,
@@ -341,8 +341,25 @@ class FilesListFragment : Fragment(), FilesFragment {
                 alertModel.notify(uiUpdates.msg)
             }
             is UpdateFilesUI.ShowSyncSnackBar -> {
-                binding.syncHolder.visibility = View.VISIBLE
+                binding.syncProgressIndicator.max = uiUpdates.totalSyncItems
                 binding.syncText.text = resources.getString(R.string.list_files_sync_snackbar, uiUpdates.totalSyncItems.toString())
+                binding.syncHolder.visibility = View.VISIBLE
+            }
+            UpdateFilesUI.UpToDateSyncSnackBar -> {
+                if(!binding.syncHolder.isVisible) {
+                    binding.syncHolder.visibility = View.VISIBLE
+                }
+                if(binding.syncProgressIndicator.isVisible) {
+                    binding.syncProgressIndicator.visibility = View.GONE
+                }
+
+                binding.syncText.text = getString(R.string.list_files_sync_finished_snackbar)
+                binding.syncCheck.visibility = View.VISIBLE
+                Handler(Looper.getMainLooper()).postDelayed({
+                    binding.syncHolder.visibility = View.GONE
+                    binding.syncCheck.visibility = View.GONE
+                    binding.syncProgressIndicator.visibility = View.VISIBLE
+                }, 3000L)
             }
             UpdateFilesUI.StopProgressSpinner ->
                 binding.listFilesRefresh.isRefreshing = false
@@ -363,7 +380,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             UpdateFilesUI.SyncImport -> {
                 (activity as MainScreenActivity).syncImportAccount()
             }
-        }.exhaustive
+        }
     }
 
     private fun toggleMenuBar() {
@@ -394,12 +411,7 @@ class FilesListFragment : Fragment(), FilesFragment {
 
     private fun onDocumentFolderFabClicked(extendedFileType: ExtendedFileType) {
         activityModel.launchTransientScreen(
-            TransientScreen.Create(
-                CreateFileInfo(
-                    model.fileModel.parent.id,
-                    extendedFileType
-                )
-            )
+            TransientScreen.Create(model.fileModel.parent.id, extendedFileType)
         )
     }
 
@@ -477,6 +489,7 @@ sealed class UpdateFilesUI {
     data class UpdateBreadcrumbBar(val breadcrumbItems: List<BreadCrumbItem>) : UpdateFilesUI()
     data class NotifyError(val error: LbError) : UpdateFilesUI()
     data class ShowSyncSnackBar(val totalSyncItems: Int) : UpdateFilesUI()
+    object UpToDateSyncSnackBar: UpdateFilesUI()
     object StopProgressSpinner : UpdateFilesUI()
     object ToggleMenuBar : UpdateFilesUI()
     object ShowBeforeWeStart : UpdateFilesUI()

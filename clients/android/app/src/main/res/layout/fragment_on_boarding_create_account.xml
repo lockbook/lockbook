@@ -7,13 +7,14 @@
     android:paddingHorizontal="25dp">
 
     <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/on_boarding_create_account_input_holder"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginVertical="20dp"
         style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense">
 
         <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/on_boarding_username"
+            android:id="@+id/on_boarding_create_account_input"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="@string/new_account_username"

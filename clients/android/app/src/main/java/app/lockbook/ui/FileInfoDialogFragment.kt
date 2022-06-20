@@ -9,8 +9,6 @@ import app.lockbook.databinding.DialogFileInfoBinding
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TransientScreen
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import java.sql.Timestamp
-import java.util.*
 
 class FileInfoDialogFragment : DialogFragment() {
     private lateinit var binding: DialogFileInfoBinding
@@ -32,11 +30,8 @@ class FileInfoDialogFragment : DialogFragment() {
     private fun setUpInfo() {
         val file = (activityModel.transientScreen as TransientScreen.Info).file
 
-        val dateMetadataVersion = Date(Timestamp(file.metadataVersion).time)
-        val dateContentVersion = Date(Timestamp(file.contentVersion).time)
-
-        binding.popupInfoMetadataVersion.text = if (dateMetadataVersion.time != 0L) dateMetadataVersion.time.toString() else resources.getString(R.string.pop_up_info_never_synced)
-        binding.popupInfoContentVersion.text = if (dateContentVersion.time != 0L) dateContentVersion.time.toString() else resources.getString(R.string.pop_up_info_never_synced)
+        binding.popupInfoMetadataVersion.text = file.metadataVersion.toString()
+        binding.popupInfoContentVersion.text = file.contentVersion.toString()
         binding.popupInfoName.text = file.decryptedName
         binding.popupInfoId.text = file.id
         binding.popupInfoFileType.text = file.fileType.name

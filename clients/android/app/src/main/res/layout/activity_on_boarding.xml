@@ -67,7 +67,7 @@
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/on_boarding_create_import_view_pager"
         android:layout_width="match_parent"
-        android:layout_height="200dp"
+        android:layout_height="250dp"
         android:layout_marginHorizontal="20dp"/>
 
     <com.google.android.material.progressindicator.CircularProgressIndicator

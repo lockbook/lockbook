@@ -2,6 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/linear_file_item_holder"
     android:clickable="true"
     android:focusable="true"
@@ -16,8 +17,7 @@
         android:layout_width="30dp"
         android:layout_height="50dp"
         android:layout_marginEnd="10dp"
-        android:contentDescription="@string/file_image_content_description"
-        android:src="@drawable/ic_outline_folder_24" />
+        android:contentDescription="@string/file_image_content_description" />
 
     <LinearLayout
         android:layout_width="0dp"
@@ -34,15 +34,13 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="5dp"
             android:ellipsize="end"
-            android:maxLines="1"
-            android:text="Apple" />
+            android:maxLines="1" />
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/linear_file_description"
             style="@style/TextAppearance.Material3.BodySmall"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="cookie" />
+            android:layout_height="wrap_content" />
 
     </LinearLayout>
 

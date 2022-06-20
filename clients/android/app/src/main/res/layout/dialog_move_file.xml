@@ -11,7 +11,8 @@
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/move_file_list"
         android:layout_width="match_parent"
-        android:layout_height="300dp"/>
+        android:layout_height="300dp"
+        android:scrollbars="vertical" />
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/move_file_error"

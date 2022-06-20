@@ -31,7 +31,7 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
     override fun onBindViewHolder(holder: PreferenceViewHolder) {
         super.onBindViewHolder(holder)
 
-//        setUpUsagePreference(holder)
+        setUpUsagePreference(holder)
     }
 
     private fun setUpUsagePreference(holder: PreferenceViewHolder) {
@@ -40,15 +40,15 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
                 val usageInfo = holder.itemView.findViewById<TextView>(R.id.usage_info)
 
                 val getUsageResult = CoreModel.getUsage().andThen { usage ->
-                    val resources = holder.itemView.resources
-
-                    val usageBar = holder.itemView.findViewById<ProgressBar>(R.id.usage_bar)
-
-                    usageBar.max = usage.dataCap.exact
-                    usageBar.progress = usage.serverUsage.exact
 
                     CoreModel.getUncompressedUsage().map { uncompressedUsage ->
                         withContext(Dispatchers.Main) {
+                            val resources = holder.itemView.resources
+
+                            val usageBar = holder.itemView.findViewById<ProgressBar>(R.id.usage_bar)
+                            usageBar.max = usage.dataCap.exact
+                            usageBar.progress = usage.serverUsage.exact
+
                             usageInfo.text = spannable {
                                 resources.getString(R.string.settings_usage_current)
                                     .bold() + " " + usage.serverUsage.readable + "\n" + resources.getString(

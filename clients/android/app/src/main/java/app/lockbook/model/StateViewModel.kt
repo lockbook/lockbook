@@ -121,7 +121,7 @@ sealed class DetailsScreen(open val fileMetadata: DecryptedFileMetadata) {
 sealed class TransientScreen {
     data class Move(val ids: List<String>) : TransientScreen()
     data class Rename(val file: DecryptedFileMetadata) : TransientScreen()
-    data class Create(val info: CreateFileInfo) : TransientScreen()
+    data class Create(val parentId: String, val extendedFileType: ExtendedFileType) : TransientScreen()
     data class Info(val file: DecryptedFileMetadata) : TransientScreen()
     data class Share(val files: List<File>) : TransientScreen()
     data class Delete(val files: List<DecryptedFileMetadata>) : TransientScreen()
@@ -133,11 +133,6 @@ sealed class UpdateMainScreenUI {
     data class NotifyError(val error: LbError) : UpdateMainScreenUI()
 }
 
-data class CreateFileInfo(
-    val parentId: String,
-    val extendedFileType: ExtendedFileType
-)
-
 sealed class ExtendedFileType {
     object Text : ExtendedFileType()
     object Drawing : ExtendedFileType()
@@ -148,8 +143,3 @@ sealed class ExtendedFileType {
         Folder -> FileType.Folder
     }
 }
-
-data class MoveFileInfo(
-    val ids: Array<String>,
-    val names: Array<String>
-)

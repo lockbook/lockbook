@@ -91,7 +91,7 @@ class ImportFragment : Fragment() {
             ScanContract()
         ) { result: ScanIntentResult ->
             if (result.contents != null) {
-                importBinding.onBoardingAccountString.setText(result.contents)
+                importBinding.onBoardingImportAccountInput.setText(result.contents)
                 forceAutoFillCheckSave()
 
                 importBinding.onBoardingImportSubmit.performClick()
@@ -105,21 +105,21 @@ class ImportFragment : Fragment() {
     ): View {
         _importBinding = FragmentOnBoardingImportAccountBinding.inflate(inflater, container, false)
 
-        importBinding.onBoardingAccountString.setOnEditorActionListener { _, actionId, _ ->
+        importBinding.onBoardingImportAccountInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
                 forceAutoFillCheckSave()
 
-                importAccount(importBinding.onBoardingAccountString.text.toString())
+                importAccount(importBinding.onBoardingImportAccountInput.text.toString())
             }
 
             true
         }
 
-        importBinding.onBoardingAccountString.setOnFocusChangeListener { _, hasFocus ->
+        importBinding.onBoardingImportAccountInput.setOnFocusChangeListener { _, hasFocus ->
             if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1 && hasFocus) {
                 requireContext()
                     .getSystemService(AutofillManager::class.java)
-                    .requestAutofill(importBinding.onBoardingAccountString)
+                    .requestAutofill(importBinding.onBoardingImportAccountInput)
             }
         }
 
@@ -138,7 +138,7 @@ class ImportFragment : Fragment() {
 
         importBinding.onBoardingImportSubmit.setOnClickListener {
             forceAutoFillCheckSave()
-            importAccount(importBinding.onBoardingAccountString.text.toString())
+            importAccount(importBinding.onBoardingImportAccountInput.text.toString())
         }
 
         return importBinding.root
@@ -166,7 +166,7 @@ class ImportFragment : Fragment() {
                 is Err -> {
                     withContext(Dispatchers.Main) {
                         onBoardingActivity.binding.onBoardingProgressBar.visibility = View.GONE
-                        importBinding.onBoardingAccountString.error = importAccountResult.error.toLbError(
+                        importBinding.onBoardingImportAccountHolder.error = importAccountResult.error.toLbError(
                             resources
                         ).msg
                     }
@@ -193,16 +193,16 @@ class CreateFragment : Fragment() {
     ): View {
         _createBinding = FragmentOnBoardingCreateAccountBinding.inflate(inflater, container, false)
 
-        createBinding.onBoardingUsername.setOnEditorActionListener { _, actionId, _ ->
+        createBinding.onBoardingCreateAccountInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
-                createAccount(createBinding.onBoardingUsername.text.toString())
+                createAccount(createBinding.onBoardingCreateAccountInput.text.toString())
             }
 
             true
         }
 
         createBinding.onBoardingCreateSubmit.setOnClickListener {
-            createAccount(createBinding.onBoardingUsername.text.toString())
+            createAccount(createBinding.onBoardingCreateAccountInput.text.toString())
         }
 
         return createBinding.root
@@ -225,7 +225,7 @@ class CreateFragment : Fragment() {
                 is Err -> {
                     withContext(Dispatchers.Main) {
                         onBoardingActivity.binding.onBoardingProgressBar.visibility = View.GONE
-                        createBinding.onBoardingUsername.error = createAccountResult.error.toLbError(
+                        createBinding.onBoardingCreateAccountInputHolder.error = createAccountResult.error.toLbError(
                             resources
                         ).msg
                     }

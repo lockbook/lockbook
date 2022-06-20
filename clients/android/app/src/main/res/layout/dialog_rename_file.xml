@@ -14,13 +14,13 @@
         android:layout_height="wrap_content"
         app:startIconDrawable="@drawable/ic_outline_insert_drive_file_24"
         android:hint="@string/dialog_file_name"
+        android:layout_margin="7dp"
         style="@style/Widget.Material3.TextInputLayout.OutlinedBox" >
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/rename_file"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_margin="7dp"
             android:imeOptions="actionDone"
             android:importantForAutofill="no"
             android:inputType="text" />
@@ -33,4 +33,5 @@
         android:layout_height="wrap_content"
         android:textColor="@color/md_theme_error"
         android:layout_marginTop="5dp" />
+
 </LinearLayout>
