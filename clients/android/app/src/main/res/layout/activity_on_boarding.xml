@@ -48,8 +48,10 @@
 
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/on_boarding_switcher"
-        android:layout_width="250dp"
+        android:layout_width="wrap_content"
         android:layout_height="30dp"
+        app:tabPaddingStart="30dp"
+        app:tabPaddingEnd="30dp"
         style="@style/Widget.Material3.TabLayout.Secondary">
 
         <com.google.android.material.tabs.TabItem

@@ -6,18 +6,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import app.lockbook.R
-import app.lockbook.util.Drawing
-import app.lockbook.util.LbError
-import app.lockbook.util.SingleMutableLiveData
-import app.lockbook.util.getContext
-import app.lockbook.util.getRes
-import app.lockbook.util.getString
+import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import timber.log.Timber
 import java.io.File
 
 class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: DetailsScreen.Loading) :
@@ -99,6 +95,7 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
                 }
             }
             else -> {
+                Timber.e("GETTING TEXT")
                 val text = when (val readDocumentResult = CoreModel.readDocument(loadingInfo.fileMetadata.id)) {
                     is Ok -> readDocumentResult.value
                     is Err ->
@@ -108,6 +105,8 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
                             )
                         )
                 }
+
+                Timber.e("GOT TEXT")
 
                 UpdateDetailScreenLoaderUI.NotifyFinished(
                     DetailsScreen.TextEditor(loadingInfo.fileMetadata, text)

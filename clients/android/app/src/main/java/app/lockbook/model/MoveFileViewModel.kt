@@ -73,7 +73,7 @@ class MoveFileViewModel(application: Application) :
                     fileMetadata.fileType == FileType.Folder && !ids.contains(fileMetadata.id)
                 }.toMutableList()
 
-                if(!currentParent.isRoot()) {
+                if (!currentParent.isRoot()) {
                     tempFiles.add(
                         0,
                         DecryptedFileMetadata(

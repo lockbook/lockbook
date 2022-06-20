@@ -16,7 +16,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             style="@style/TextAppearance.Material3.LabelLarge"
-            android:text="Name: " />
+            android:text="@string/popup_info_name" />
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/popup_info_name"
@@ -36,7 +36,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             style="@style/TextAppearance.Material3.LabelLarge"
-            android:text="Id: " />
+            android:text="@string/popup_info_id" />
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/popup_info_id"
@@ -56,7 +56,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             style="@style/TextAppearance.Material3.LabelLarge"
-            android:text="File Type: " />
+            android:text="@string/popup_info_file_type" />
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/popup_info_file_type"
@@ -76,7 +76,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             style="@style/TextAppearance.Material3.LabelLarge"
-            android:text="Metadata Version: " />
+            android:text="@string/popup_info_metadata_version" />
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/popup_info_metadata_version"
@@ -96,7 +96,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             style="@style/TextAppearance.Material3.LabelLarge"
-            android:text="Content Version: " />
+            android:text="@string/popup_info_content_version" />
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/popup_info_content_version"

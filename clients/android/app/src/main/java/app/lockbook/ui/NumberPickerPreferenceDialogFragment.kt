@@ -31,7 +31,6 @@ class NumberPickerPreferenceDialogFragment : PreferenceDialogFragmentCompat() {
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog = MaterialAlertDialogBuilder(requireContext())
-        .setTitle(R.string.settings_preference_background_title_sync_period)
         .apply {
             binding = DialogDurationPickerBinding.inflate(layoutInflater)
             setUpInfo()
@@ -41,7 +40,7 @@ class NumberPickerPreferenceDialogFragment : PreferenceDialogFragmentCompat() {
         .setPositiveButton(R.string.confirm) { _: DialogInterface, _: Int -> onPositiveButton() }
         .create()
 
-    private fun checkIfDurationTooLow(layoutView: View?, dayNumberPicker: NumberPicker?, hourNumberPicker: NumberPicker?, minuteNumberPicker: NumberPicker?) {
+    private fun checkIfDurationTooLow(dayNumberPicker: NumberPicker?, hourNumberPicker: NumberPicker?, minuteNumberPicker: NumberPicker?) {
         val durationInMinutes = (dayNumberPicker?.value ?: 0) * 1440 + (hourNumberPicker?.value ?: 0) * 60 + (minuteNumberPicker?.value ?: 15)
 
         if (durationInMinutes < 15) {
@@ -71,21 +70,21 @@ class NumberPickerPreferenceDialogFragment : PreferenceDialogFragmentCompat() {
         dayNumberPicker.minValue = 0
         dayNumberPicker.value = days
         dayNumberPicker.setOnValueChangedListener { picker, _, _ ->
-            checkIfDurationTooLow(view, picker, hourNumberPicker, minuteNumberPicker)
+            checkIfDurationTooLow(picker, hourNumberPicker, minuteNumberPicker)
         }
 
         hourNumberPicker.maxValue = 59
         hourNumberPicker.minValue = 0
         hourNumberPicker.value = hours
         hourNumberPicker.setOnValueChangedListener { picker, _, _ ->
-            checkIfDurationTooLow(view, dayNumberPicker, picker, minuteNumberPicker)
+            checkIfDurationTooLow(dayNumberPicker, picker, minuteNumberPicker)
         }
 
         minuteNumberPicker.maxValue = 59
         minuteNumberPicker.minValue = 0
         minuteNumberPicker.value = minutes
         minuteNumberPicker.setOnValueChangedListener { picker, _, _ ->
-            checkIfDurationTooLow(view, dayNumberPicker, hourNumberPicker, picker)
+            checkIfDurationTooLow(dayNumberPicker, hourNumberPicker, picker)
         }
     }
 

@@ -17,6 +17,6 @@
   <color name="md_theme_onTertiaryContainer">@color/md_theme_light_onTertiaryContainer</color>
 
   <color name="md_theme_error">@color/md_theme_light_error</color>
-  <color name="md_theme_outline">@color/md_theme_light_outline</color>
   <color name="md_theme_inverseOnSurface">@color/md_theme_light_inverseOnSurface</color>
+  <color name="md_theme_outline">@color/md_theme_light_outline</color>
 </resources>

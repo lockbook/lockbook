@@ -5,12 +5,12 @@ apply plugin: "org.jmailen.kotlinter"
 apply plugin: 'kotlinx-serialization'
 
 android {
-    compileSdkVersion 32
+    compileSdkVersion 33
 
     defaultConfig {
         applicationId "app.lockbook"
         minSdkVersion 22
-        targetSdkVersion 32
+        targetSdkVersion 33
         versionCode 5
         versionName "0.4.1"
 
@@ -109,8 +109,6 @@ dependencies {
     implementation "com.github.mhiew:android-pdf-viewer:$pdf_viewer_version"
 
     implementation project(':core')
-    implementation "androidx.core:core-ktx:+"
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
 }
 repositories {
     mavenCentral()

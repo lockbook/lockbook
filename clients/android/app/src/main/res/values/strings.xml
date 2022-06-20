@@ -12,16 +12,13 @@
 
     <string name="import_qr_scanner_prompt">Place the account key QR code in view to scan.</string>
 
-    <string name="popup_info_name">Name: %s</string>
-    <string name="popup_info_id">ID: %s</string>
-    <string name="popup_info_content_version">Content Version: %s</string>
-    <string name="popup_info_file_type">File Type: %s</string>
-    <string name="popup_info_metadata_version">Metadata Version: %s</string>
-
-    <string name="success_delete">Your selected file(s) have been deleted.</string>
+    <string name="popup_info_name">"Name: "</string>
+    <string name="popup_info_id">"Id: "</string>
+    <string name="popup_info_file_type">"File Type: "</string>
+    <string name="popup_info_metadata_version">"Metadata Version: "</string>
+    <string name="popup_info_content_version">"Content Version: "</string>
 
     <string name="last_synced">Last synced: %s</string>
-    <string name="pop_up_info_never_synced">never synced</string>
 
     <string name="settings_export_account_raw">Copy your account key to clipboard</string>
     <string name="settings_export_account_qr">Export your account key (QR Code)</string>
@@ -42,11 +39,10 @@
     <string name="menu_list_files_sort_z_a">Sort from z-a</string>
     <string name="menu_list_files_sort_first_changed">Sort by first changed</string>
     <string name="dialog_file_name">Name</string>
-    <string name="new_file_title">New File</string>
 
     <string name="settings_sync_edit">Sync automatically in app</string>
     <string name="settings_preference_background_summary_sync_period">The time between each automatic sync.</string>
-    <string name="settings_preference_background_title_sync_period">Background Sync Period</string>
+    <string name="settings_preference_background_title_sync_period">Background sync period</string>
     <string name="settings_preference_background_title_background_sync_enabled">Background sync enabled</string>
     <string name="settings_preference_title_biometrics">Biometrics</string>
     <string name="settings_preference_title_account">Export Account</string>
@@ -57,7 +53,6 @@
     <string name="file_image_content_description">File image</string>
 
     <string name="list_files_sync_snackbar">Syncing %s items…</string>
-    <string name="list_files_sync_snackbar_default">Syncing…</string>
     <string name="list_files_sync_finished_snackbar">Up to date!</string>
     <string name="settings_preference_logs">View logs</string>
     <string name="settings_preference_clear_logs">Clear logs</string>
@@ -101,23 +96,13 @@
     <string name="create_file_create">Create</string>
     <string name="dialog_file_extension">Ext.</string>
     <string name="empty_folder">No files</string>
-    <string name="create_file_default_file_hint">ERROR, hint not correctly configured.</string>
-    <string name="create_file_dialog_document_extension">.md</string>
-    <string name="create_file_dialog_drawing_extension">.draw</string>
     <string name="bread_crumb_folder">Folder</string>
 
     <string name="create_file_title_folder">New Folder</string>
     <string name="create_file_title_document">New Document</string>
     <string name="create_file_title_drawing">New Drawing</string>
 
-    <string name="create_file_hint_folder">Folder name</string>
-    <string name="create_file_hint_document">Document name</string>
-    <string name="create_file_hint_drawing">Drawing name</string>
-
-    <string name="create_file_hint_document_extension">Document Ext.</string>
-    <string name="create_file_hint_drawing_extension">Drawing Ext.</string>
-
-    <string name="files_list_items_selected">%1$d Selected</string>
+    <string name="files_list_items_selected">%d Selected</string>
 
     <string name="drawing_eraser_description">Eraser</string>
     <string name="settings_open_new_document_automatically">Automatically open new files.</string>

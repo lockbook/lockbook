@@ -5,10 +5,9 @@ import android.os.Bundle
 import android.view.View
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import app.lockbook.databinding.ActivityImportAccountBinding
-import app.lockbook.model.*
+import app.lockbook.model.ImportAccountViewModel
+import app.lockbook.model.UpdateImportUI
 import app.lockbook.util.exhaustive
 
 class ImportAccountActivity : AppCompatActivity() {
@@ -17,17 +16,7 @@ class ImportAccountActivity : AppCompatActivity() {
     // onDestroyView.
     private val binding get() = _binding!!
 
-    private val model: ImportAccountViewModel by viewModels(
-        factoryProducer = {
-            object : ViewModelProvider.Factory {
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    if (modelClass.isAssignableFrom(ImportAccountViewModel::class.java))
-                        return ImportAccountViewModel(application) as T
-                    throw IllegalArgumentException("Unknown ViewModel class")
-                }
-            }
-        }
-    )
+    private val model: ImportAccountViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

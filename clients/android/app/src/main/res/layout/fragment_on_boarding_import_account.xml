@@ -9,8 +9,9 @@
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/on_boarding_import_account_holder"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:minWidth="500dp"
         android:layout_marginTop="20dp"
         android:layout_marginBottom="20dp"
         app:endIconMode="password_toggle"

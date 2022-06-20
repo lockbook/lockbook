@@ -65,7 +65,7 @@ class DrawingFragment : Fragment() {
         GestureDetector(
             requireContext(),
             object : GestureDetector.SimpleOnGestureListener() {
-                override fun onSingleTapUp(e: MotionEvent?): Boolean {
+                override fun onSingleTapUp(e: MotionEvent): Boolean {
                     changeToolsVisibility(toolbar.visibility)
                     return true
                 }
@@ -176,20 +176,21 @@ class DrawingFragment : Fragment() {
         }
 
         val onAnimationEnd = object : Animator.AnimatorListener {
-            override fun onAnimationStart(animation: Animator?) {
+            override fun onAnimationStart(p0: Animator) {
                 if (newVisibility == View.VISIBLE) {
                     toolbar.visibility = newVisibility
                 }
             }
 
-            override fun onAnimationEnd(animation: Animator?) {
+            override fun onAnimationEnd(p0: Animator) {
                 if (newVisibility == View.GONE) {
                     toolbar.visibility = newVisibility
                 }
             }
 
-            override fun onAnimationCancel(animation: Animator?) {}
-            override fun onAnimationRepeat(animation: Animator?) {}
+            override fun onAnimationCancel(p0: Animator) {}
+
+            override fun onAnimationRepeat(p0: Animator) {}
         }
 
         toolbar.animate().setDuration(300).alpha(if (newVisibility == View.VISIBLE) 1f else 0f)

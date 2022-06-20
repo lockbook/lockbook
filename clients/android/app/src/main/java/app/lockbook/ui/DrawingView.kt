@@ -65,13 +65,11 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             context,
             object : GestureDetector.SimpleOnGestureListener() {
                 override fun onScroll(
-                    e1: MotionEvent?,
-                    e2: MotionEvent?,
+                    e1: MotionEvent,
+                    e2: MotionEvent,
                     distanceX: Float,
                     distanceY: Float
                 ): Boolean {
-                    if (e1 == null || e2 == null) return false
-
                     drawing.translationX -= distanceX / drawing.scale
                     drawing.translationY -= distanceY / drawing.scale
 
@@ -88,9 +86,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         ScaleGestureDetector(
             context,
             object : ScaleGestureDetector.OnScaleGestureListener {
-                override fun onScaleBegin(detector: ScaleGestureDetector?): Boolean {
-                    if (detector == null) return false
-
+                override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
                     onScreenFocusPoint = PointF(detector.focusX, detector.focusY)
                     modelFocusPoint = screenToModel(onScreenFocusPoint) ?: return false
 
@@ -132,7 +128,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
                     return true
                 }
 
-                override fun onScaleEnd(detector: ScaleGestureDetector?) {
+                override fun onScaleEnd(detector: ScaleGestureDetector) {
                     driftWhileScalingX = 0f
                     driftWhileScalingY = 0f
                 }
@@ -185,7 +181,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
         strokeState.backgroundPaint.color = ResourcesCompat.getColor(
             resources,
-            R.color.md_theme_dark_outline,
+            R.color.md_theme_outline,
             context.theme
         )
 

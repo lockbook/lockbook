@@ -346,20 +346,23 @@ class FilesListFragment : Fragment(), FilesFragment {
                 binding.syncHolder.visibility = View.VISIBLE
             }
             UpdateFilesUI.UpToDateSyncSnackBar -> {
-                if(!binding.syncHolder.isVisible) {
+                if (!binding.syncHolder.isVisible) {
                     binding.syncHolder.visibility = View.VISIBLE
                 }
-                if(binding.syncProgressIndicator.isVisible) {
+                if (binding.syncProgressIndicator.isVisible) {
                     binding.syncProgressIndicator.visibility = View.GONE
                 }
 
                 binding.syncText.text = getString(R.string.list_files_sync_finished_snackbar)
                 binding.syncCheck.visibility = View.VISIBLE
-                Handler(Looper.getMainLooper()).postDelayed({
-                    binding.syncHolder.visibility = View.GONE
-                    binding.syncCheck.visibility = View.GONE
-                    binding.syncProgressIndicator.visibility = View.VISIBLE
-                }, 3000L)
+                Handler(Looper.getMainLooper()).postDelayed(
+                    {
+                        binding.syncHolder.visibility = View.GONE
+                        binding.syncCheck.visibility = View.GONE
+                        binding.syncProgressIndicator.visibility = View.VISIBLE
+                    },
+                    3000L
+                )
             }
             UpdateFilesUI.StopProgressSpinner ->
                 binding.listFilesRefresh.isRefreshing = false
@@ -489,7 +492,7 @@ sealed class UpdateFilesUI {
     data class UpdateBreadcrumbBar(val breadcrumbItems: List<BreadCrumbItem>) : UpdateFilesUI()
     data class NotifyError(val error: LbError) : UpdateFilesUI()
     data class ShowSyncSnackBar(val totalSyncItems: Int) : UpdateFilesUI()
-    object UpToDateSyncSnackBar: UpdateFilesUI()
+    object UpToDateSyncSnackBar : UpdateFilesUI()
     object StopProgressSpinner : UpdateFilesUI()
     object ToggleMenuBar : UpdateFilesUI()
     object ShowBeforeWeStart : UpdateFilesUI()
