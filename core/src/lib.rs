@@ -44,16 +44,10 @@ pub struct Config {
     pub writeable_path: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct DataCache {
     pub key_cache: HashMap<Uuid, AESKey>,
     pub public_key: Option<PublicKey>,
-}
-
-impl Default for DataCache {
-    fn default() -> Self {
-        Self { key_cache: Default::default(), public_key: None }
-    }
 }
 
 #[derive(Clone, Debug)]

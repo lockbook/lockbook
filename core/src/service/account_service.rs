@@ -23,7 +23,7 @@ impl RequestContext<'_, '_> {
 
         let account = Account { username, api_url: api_url.to_string(), private_key: keys };
         let public_key = account.public_key();
-        self.data_cache.public_key = Some(public_key.clone());
+        self.data_cache.public_key = Some(public_key);
 
         let mut root_metadata = files::create_root(&account);
         let encrypted_metadata = file_encryption_service::encrypt_metadata(

@@ -110,14 +110,14 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn path_by_id_helper(files: &DecryptedFiles, id: Uuid) -> Result<String, CoreError> {
-        let mut current_metadata = files.find(id)?;
+        let mut current_metadata = files.find_ref(id)?;
         let mut path = String::from("");
 
         let is_folder = current_metadata.is_folder();
 
-        while current_metadata.parent != current_metadata.id {
+        while !current_metadata.is_root() {
             path = format!("{}/{}", current_metadata.decrypted_name, path);
-            current_metadata = files.find(current_metadata.parent)?;
+            current_metadata = files.find_ref(current_metadata.parent)?;
         }
 
         {

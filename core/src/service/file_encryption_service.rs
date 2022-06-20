@@ -52,7 +52,7 @@ pub fn encrypt_metadata(
                 ))
             })?
             .decrypted_access_key;
-        result.push(encrypt_metadatum(account, &public_key, &parent_key, target)?);
+        result.push(encrypt_metadatum(account, public_key, &parent_key, target)?);
     }
     Ok(result)
 }
@@ -75,7 +75,7 @@ fn encrypt_user_access_keys(
         account.username.clone(),
         UserAccessInfo {
             username: account.username.clone(),
-            encrypted_by: public_key.clone(),
+            encrypted_by: *public_key,
             access_key: encrypted_file_key,
         },
     );

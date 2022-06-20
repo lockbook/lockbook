@@ -99,7 +99,7 @@ pub trait FileMetaMapExt<Fm: FileMetadata> {
     fn maybe_find_parent(&self, id: Uuid) -> Option<&Fm>;
     fn find_children(&self, id: Uuid) -> HashMap<Uuid, Fm>;
     fn filter_deleted(self) -> Result<HashMap<Uuid, Fm>, TreeError>;
-    fn deleted(&self) -> Result<DeletedStatus, TreeError>;
+    fn deleted_status(&self) -> Result<DeletedStatus, TreeError>;
     fn filter_not_deleted(self) -> Result<HashMap<Uuid, Fm>, TreeError>;
     fn documents(&self) -> HashSet<Uuid>;
     fn parents(&self) -> HashSet<Uuid>;
@@ -204,14 +204,14 @@ where
 
     fn filter_deleted(self) -> Result<HashMap<Uuid, Fm>, TreeError> {
         let mut tree = self;
-        for id in tree.deleted()?.not_deleted {
+        for id in tree.deleted_status()?.not_deleted {
             tree.remove(&id);
         }
 
         Ok(tree)
     }
 
-    fn deleted(&self) -> Result<DeletedStatus, TreeError> {
+    fn deleted_status(&self) -> Result<DeletedStatus, TreeError> {
         let mut confirmed_not_delted = HashSet::new();
         let mut confirmed_deleted = HashSet::new();
         for meta in self.values() {
@@ -267,7 +267,7 @@ where
 
     fn filter_not_deleted(self) -> Result<HashMap<Uuid, Fm>, TreeError> {
         let mut tree = self;
-        for id in tree.deleted()?.deleted {
+        for id in tree.deleted_status()?.deleted {
             tree.remove(&id);
         }
 
@@ -305,10 +305,12 @@ where
             let mut checking = HashMap::new();
             let mut cur = &f;
 
-            if !root_found && cur.is_root() {
-                root_found = true;
-            } else if root_found && cur.is_root() {
-                result.push(cur.id());
+            if cur.is_root() {
+                if root_found {
+                    result.push(cur.id());
+                } else {
+                    root_found = true;
+                }
             }
 
             while !cur.is_root() && prev_checked.get(&cur.id()).is_none() {
@@ -368,7 +370,7 @@ where
         }
 
         for file in self.values() {
-            if self.maybe_find(file.parent()).is_none() {
+            if !self.contains_key(&file.parent()) {
                 return Err(TestFileTreeError::FileOrphaned(file.id()));
             }
         }

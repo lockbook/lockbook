@@ -281,9 +281,9 @@ impl RequestContext<'_, '_> {
 
         // find files deleted on base and local; new deleted local files are also eligible
         let all_base_metadata = self.get_all_metadata(RepoSource::Base)?;
-        let deleted_base_metadata = all_base_metadata.deleted()?.deleted;
+        let deleted_base_metadata = all_base_metadata.deleted_status()?.deleted;
         let all_local_metadata = self.get_all_metadata(RepoSource::Local)?;
-        let deleted_local_metadata = all_local_metadata.deleted()?.deleted;
+        let deleted_local_metadata = all_local_metadata.deleted_status()?.deleted;
         let deleted_both_metadata = deleted_base_metadata
             .into_iter()
             .filter(|id| deleted_local_metadata.contains(id));
@@ -658,7 +658,7 @@ pub fn maybe_get_not_deleted_document(
     config: &Config, source: RepoSource, metadata: &DecryptedFiles, id: Uuid,
 ) -> Result<Option<DecryptedDocument>, CoreError> {
     let maybe_doc_metadata = metadata
-        .deleted()?
+        .deleted_status()?
         .not_deleted
         .get(&id)
         .and_then(|id| metadata.get(id));

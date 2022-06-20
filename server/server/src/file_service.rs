@@ -142,18 +142,18 @@ async fn apply_changes(
     check_uniqueness(con, &new_files).await?;
 
     let deleted_ids = metas
-        .deleted()
+        .deleted_status()
         .map_err(|_| Abort(ClientError(GetUpdatesRequired)))? // TODO this could be more descriptive
         .deleted;
 
     for id in deleted_ids {
-        if let Some(deleted) = metas.maybe_find_mut(id) {
+        if let Some(deleted_fm) = metas.maybe_find_mut(id) {
             // Check if implicitly deleted
-            if !deleted.deleted {
-                deleted.deleted = true;
-                deleted.metadata_version = now;
-                if deleted.is_document() {
-                    deleted_documents.push(deleted.clone());
+            if !deleted_fm.deleted {
+                deleted_fm.deleted = true;
+                deleted_fm.metadata_version = now;
+                if deleted_fm.is_document() {
+                    deleted_documents.push(deleted_fm.clone());
                 }
             }
         }

@@ -305,7 +305,10 @@ pub fn data_dir() -> String {
  Please consider setting the LOCKBOOK_PATH environment variable.";
 
     env::var("LOCKBOOK_PATH").unwrap_or_else(|_| {
-        format!("{}/.lockbook", env::var("HOME").unwrap_or_else(|_| env::var("HOMEPATH").expect(ERR_MSG)))
+        format!(
+            "{}/.lockbook",
+            env::var("HOME").unwrap_or_else(|_| env::var("HOMEPATH").expect(ERR_MSG))
+        )
     })
 }
 
