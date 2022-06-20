@@ -141,19 +141,20 @@ async fn apply_changes(
 
     check_uniqueness(con, &new_files).await?;
 
-    let implicitly_deleted_ids = metas
-        .filter_deleted()
+    let deleted_ids = metas
+        .deleted_status()
         .map_err(|_| Abort(ClientError(GetUpdatesRequired)))? // TODO this could be more descriptive
-        .into_iter()
-        .filter(|(_, f)| !f.deleted)
-        .map(|(_, f)| f.id);
+        .deleted;
 
-    for id in implicitly_deleted_ids {
-        if let Some(implicitly_deleted) = metas.maybe_find_mut(id) {
-            implicitly_deleted.deleted = true;
-            implicitly_deleted.metadata_version = now;
-            if implicitly_deleted.is_document() {
-                deleted_documents.push(implicitly_deleted.clone());
+    for id in deleted_ids {
+        if let Some(deleted_fm) = metas.maybe_find_mut(id) {
+            // Check if implicitly deleted
+            if !deleted_fm.deleted {
+                deleted_fm.deleted = true;
+                deleted_fm.metadata_version = now;
+                if deleted_fm.is_document() {
+                    deleted_documents.push(deleted_fm.clone());
+                }
             }
         }
     }

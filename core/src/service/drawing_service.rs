@@ -10,10 +10,10 @@ use crate::pure_functions::{drawing, files};
 
 use crate::pure_functions::drawing::SupportedImageFormats;
 use crate::service::file_service;
-use crate::{Config, Tx};
+use crate::{Config, RequestContext};
 
-impl Tx<'_> {
-    pub fn get_drawing(&self, config: &Config, id: Uuid) -> Result<Drawing, CoreError> {
+impl RequestContext<'_, '_> {
+    pub fn get_drawing(&mut self, config: &Config, id: Uuid) -> Result<Drawing, CoreError> {
         let all_metadata = self.get_all_metadata(RepoSource::Local)?;
         let drawing_bytes =
             file_service::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
@@ -29,7 +29,7 @@ impl Tx<'_> {
     }
 
     pub fn export_drawing(
-        &self, config: &Config, id: Uuid, format: SupportedImageFormats,
+        &mut self, config: &Config, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
     ) -> Result<Vec<u8>, CoreError> {
         let all_metadata = self.get_all_metadata(RepoSource::Local)?;
@@ -39,7 +39,7 @@ impl Tx<'_> {
     }
 
     pub fn export_drawing_to_disk(
-        &self, config: &Config, id: Uuid, format: SupportedImageFormats,
+        &mut self, config: &Config, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
     ) -> Result<(), CoreError> {
         let all_metadata = self.get_all_metadata(RepoSource::Local)?;

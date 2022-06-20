@@ -206,7 +206,7 @@ impl Actions {
         |lhs, rhs| {
             if lhs.parent == lhs.id {
                 Ordering::Less
-            } else if rhs.id == rhs.parent {
+            } else if rhs.is_root() {
                 Ordering::Greater
             } else {
                 lhs.decrypted_name.cmp(&rhs.decrypted_name)
