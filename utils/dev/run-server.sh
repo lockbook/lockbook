@@ -11,20 +11,19 @@ projRoot=`git rev-parse --show-toplevel`
 cd $projRoot/server/server
 cargo check
 
-dir="$1"
-if [ -z "$dir" ]; then
-	dir="/tmp/lbdev"
+cd $projRoot
+if [ -z "$DATA_DIR" ]; then
+	DATA_DIR="/tmp/lbdev"
 fi
-
-mkdir -p $dir
-cd $dir
+mkdir -p $DATA_DIR
+cd $DATA_DIR
 
 printf "Starting redis server... "
 redis-server > redis-server.log 2>&1 &
 printf "Done. PID: $! \n"
 
 printf "Starting minio server... "
-minio server $dir > minio-server.log 2>&1 &
+minio server $DATA_DIR > minio-server.log 2>&1 &
 minioPID="$!"
 sleep 1
 
@@ -47,4 +46,4 @@ mc policy set public filesdb/$FILES_DB_BUCKET
 
 echo "Compiling and running lockbook server..."
 cd server/server
-cargo run $CARGO_ARGS
+cargo run $@
