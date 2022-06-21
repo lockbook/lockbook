@@ -100,6 +100,11 @@ class PdfViewerFragment : Fragment() {
 
                     true
                 }
+                .onError {
+                    alertModel.notify(getString(R.string.could_not_load_pdf)) {
+                        activityModel.launchDetailsScreen(null)
+                    }
+                }
                 .load()
         } catch (e: Exception) {
             alertModel.notify(getString(R.string.could_not_load_pdf)) {
