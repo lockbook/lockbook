@@ -2,24 +2,57 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:paddingHorizontal="20dp">
 
     <ProgressBar
         android:id="@+id/usage_bar"
         style="?android:attr/progressBarStyleHorizontal"
-        android:layout_marginVertical="15dp"
-        android:layout_marginHorizontal="30dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
-        android:background="@color/transparent"/>
+        android:layout_marginHorizontal="10dp"
+        android:layout_marginVertical="15dp"
+        android:background="@color/transparent" />
 
     <TextView
         android:id="@+id/usage_info"
-        android:layout_marginBottom="15dp"
-        android:layout_marginHorizontal="20dp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/default_value"/>
+        android:layout_marginBottom="15dp"
+        android:text="@string/default_value" />
 
+    <LinearLayout
+        android:id="@+id/premium_info_for_free"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/premium_tier_pitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/upgrade_pitch"
+            android:textStyle="bold" />
+
+        <ProgressBar
+            android:id="@+id/premium_usage_bar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginHorizontal="10dp"
+            android:layout_marginTop="10dp"
+            android:background="@color/transparent" />
+
+        <Button
+            android:id="@+id/upgrade_account"
+            style="@style/Main.Button.Borderless.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="5dp"
+            android:text="@string/update_to_premium" />
+    </LinearLayout>
 </LinearLayout>

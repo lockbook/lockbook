@@ -280,49 +280,28 @@ impl Request for DeleteAccountRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct GetCreditCardRequest {}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct GetCreditCardResponse {
-    pub credit_card_last_4_digits: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum GetCreditCardError {
-    NotAStripeCustomer,
-}
-
-impl Request for GetCreditCardRequest {
-    type Response = GetCreditCardResponse;
-    type Error = GetCreditCardError;
-    const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/get-credit-card";
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum PaymentMethod {
     NewCard { number: String, exp_year: i32, exp_month: i32, cvc: String },
     OldCard,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum AccountTier {
+pub enum StripeAccountTier {
     Premium(PaymentMethod),
-    Free,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct SwitchAccountTierRequest {
-    pub account_tier: AccountTier,
+pub struct UpgradeAccountStripeRequest {
+    pub account_tier: StripeAccountTier,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct SwitchAccountTierResponse {}
+pub struct UpgradeAccountStripeResponse {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum SwitchAccountTierError {
+pub enum UpgradeAccountStripeError {
     OldCardDoesNotExist,
-    NewTierIsOldTier,
+    AlreadyPremium,
     CardDecline,
     InsufficientFunds,
     TryAgain,
@@ -332,14 +311,99 @@ pub enum SwitchAccountTierError {
     InvalidCardExpYear,
     InvalidCardExpMonth,
     InvalidCardCvc,
-    CurrentUsageIsMoreThanNewTier,
-    ConcurrentRequestsAreTooSoon,
+    ExistingRequestPending,
     UserNotFound,
 }
 
-impl Request for SwitchAccountTierRequest {
-    type Response = SwitchAccountTierResponse;
-    type Error = SwitchAccountTierError;
+impl Request for UpgradeAccountStripeRequest {
+    type Response = UpgradeAccountStripeResponse;
+    type Error = UpgradeAccountStripeError;
     const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/switch-account-tier";
+    const ROUTE: &'static str = "/upgrade-account-stripe";
 }
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct UpgradeAccountGooglePlayRequest {
+    pub purchase_token: String,
+    pub account_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct UpgradeAccountGooglePlayResponse {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum UpgradeAccountGooglePlayError {
+    AlreadyPremium,
+    InvalidPurchaseToken,
+    ExistingRequestPending,
+}
+
+impl Request for UpgradeAccountGooglePlayRequest {
+    type Response = UpgradeAccountGooglePlayResponse;
+    type Error = UpgradeAccountGooglePlayError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/upgrade-account-google-play";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct CancelSubscriptionRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct CancelSubscriptionResponse {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum CancelSubscriptionError {
+    NotPremium,
+    AlreadyCanceled,
+    UsageIsOverFreeTierDataCap,
+    ExistingRequestPending,
+}
+
+impl Request for CancelSubscriptionRequest {
+    type Response = CancelSubscriptionResponse;
+    type Error = CancelSubscriptionError;
+    const METHOD: Method = Method::DELETE;
+    const ROUTE: &'static str = "/cancel-subscription";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetSubscriptionInfoRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct SubscriptionInfo {
+    pub payment_platform: PaymentPlatform,
+    pub period_end: UnixTimeMillis,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[serde(tag = "tag")]
+pub enum PaymentPlatform {
+    Stripe { card_last_4_digits: String },
+    GooglePlay { account_state: GooglePlayAccountState },
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum GooglePlayAccountState {
+    Ok,
+    Canceled,
+    GracePeriod,
+    OnHold,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetSubscriptionInfoResponse {
+    pub subscription_info: Option<SubscriptionInfo>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum GetSubscriptionInfoError {}
+
+impl Request for GetSubscriptionInfoRequest {
+    type Response = GetSubscriptionInfoResponse;
+    type Error = GetSubscriptionInfoError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/get-subscription-info";
+}
+
+// number of milliseconds that have elapsed since the unix epoch
+pub type UnixTimeMillis = u64;
