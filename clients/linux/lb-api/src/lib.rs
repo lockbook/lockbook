@@ -3,8 +3,10 @@ mod search;
 pub use uuid::Uuid;
 
 pub use lockbook_models::account::Account;
-pub use lockbook_models::api::AccountTier;
 pub use lockbook_models::api::PaymentMethod;
+pub use lockbook_models::api::PaymentPlatform;
+pub use lockbook_models::api::StripeAccountTier;
+pub use lockbook_models::api::SubscriptionInfo;
 pub use lockbook_models::crypto::DecryptedDocument;
 pub use lockbook_models::drawing::{ColorAlias, ColorRGB};
 pub use lockbook_models::file_metadata::DecryptedFileMetadata as FileMetadata;
@@ -27,18 +29,18 @@ pub use lockbook_core::model::errors::ExportDrawingError;
 pub use lockbook_core::model::errors::ExportFileError;
 pub use lockbook_core::model::errors::FileDeleteError;
 pub use lockbook_core::model::errors::GetAndGetChildrenError;
-pub use lockbook_core::model::errors::GetCreditCard;
 pub use lockbook_core::model::errors::GetFileByIdError;
 pub use lockbook_core::model::errors::GetFileByPathError;
 pub use lockbook_core::model::errors::GetRootError;
+pub use lockbook_core::model::errors::GetSubscriptionInfoError;
 pub use lockbook_core::model::errors::GetUsageError;
 pub use lockbook_core::model::errors::ImportError as ImportAccountError;
 pub use lockbook_core::model::errors::ImportFileError;
 pub use lockbook_core::model::errors::MoveFileError;
 pub use lockbook_core::model::errors::ReadDocumentError;
 pub use lockbook_core::model::errors::RenameFileError;
-pub use lockbook_core::model::errors::SwitchAccountTierError;
 pub use lockbook_core::model::errors::SyncAllError;
+pub use lockbook_core::model::errors::UpgradeAccountStripeError;
 pub use lockbook_core::model::errors::WriteToDocumentError as WriteDocumentError;
 
 pub use lockbook_core::pure_functions::drawing::SupportedImageFormats;
@@ -118,10 +120,12 @@ pub trait Api: Send + Sync {
 
     fn searcher(&self, filter: Option<Filter>) -> Result<Searcher, String>;
 
-    fn get_credit_card(&self) -> Result<Option<CreditCardLast4Digits>, String>;
-    fn switch_account_tier(
-        &self, new_tier: AccountTier,
-    ) -> Result<(), Error<SwitchAccountTierError>>;
+    fn get_subscription_info(
+        &self,
+    ) -> Result<Option<SubscriptionInfo>, Error<GetSubscriptionInfoError>>;
+    fn upgrade_account(
+        &self, new_tier: StripeAccountTier,
+    ) -> Result<(), Error<UpgradeAccountStripeError>>;
 }
 
 pub enum SyncProgressReport {
@@ -317,28 +321,16 @@ impl Api for DefaultApi {
         Ok(Searcher::new(paths))
     }
 
-    fn get_credit_card(&self) -> Result<Option<CreditCardLast4Digits>, String> {
-        use GetCreditCard::*;
-        match self.core.get_credit_card() {
-            Ok(last4) => Ok(Some(last4)),
-            Err(err) => match err {
-                UiError(err) => match err {
-                    NoAccount => Err("No account!".to_string()),
-                    CouldNotReachServer => Err("Unable to connect to server.".to_string()),
-                    ClientUpdateRequired => {
-                        Err("You are using an out-of-date app. Please upgrade!".to_string())
-                    }
-                    NotAStripeCustomer => Ok(None),
-                },
-                Unexpected(err) => Err(err),
-            },
-        }
+    fn get_subscription_info(
+        &self,
+    ) -> Result<Option<SubscriptionInfo>, Error<GetSubscriptionInfoError>> {
+        self.core.get_subscription_info()
     }
 
-    fn switch_account_tier(
-        &self, new_tier: AccountTier,
-    ) -> Result<(), Error<SwitchAccountTierError>> {
-        self.core.switch_account_tier(new_tier)
+    fn upgrade_account(
+        &self, new_tier: StripeAccountTier,
+    ) -> Result<(), Error<UpgradeAccountStripeError>> {
+        self.core.upgrade_account_stripe(new_tier)
     }
 }
 

@@ -26,8 +26,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
     // onDestroyView.
     private val binding get() = _binding!!
 
-    private var job = Job()
-    private val uiScope = CoroutineScope(Dispatchers.Main + job)
+    private val uiScope = CoroutineScope(Dispatchers.Main + Job())
 
     private val alertModel by lazy {
         AlertModel(WeakReference(this))
@@ -48,7 +47,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
             is Err -> when (val error = getAccountResult.error) {
                 is CoreError.UiError -> when (error.content) {
                     GetAccountError.NoAccount -> {
-                        startActivity(Intent(this, OnBoardingActvity::class.java))
+                        startActivity(Intent(this, OnBoardingActivity::class.java))
                         finish()
                     }
                 }

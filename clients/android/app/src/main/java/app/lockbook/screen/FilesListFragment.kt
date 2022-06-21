@@ -17,6 +17,7 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.preference.PreferenceManager
+import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentFilesListBinding
 import app.lockbook.model.*
@@ -190,6 +191,8 @@ class FilesListFragment : Fragment(), FilesFragment {
             updateUI(UpdateFilesUI.ShowSyncSnackBar(syncStatus.syncStepInfo.total))
             updateSyncProgress(syncStatus.syncStepInfo)
         }
+
+        (requireActivity().application as App).billingClientLifecycle.showInAppMessaging(requireActivity())
     }
 
     private fun setUpToolbar() {
@@ -357,12 +360,12 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
             UpdateFilesUI.ToggleMenuBar -> toggleMenuBar()
             UpdateFilesUI.ShowBeforeWeStart -> {
-                val bottomSheetDialog = BottomSheetDialog(requireContext())
-                bottomSheetDialog.setContentView(R.layout.sheet_before_you_start)
+                val beforeWeStartDialog = BottomSheetDialog(requireContext())
+                beforeWeStartDialog.setContentView(R.layout.sheet_before_you_start)
 
-                bottomSheetDialog.findViewById<TextView>(R.id.before_you_start_description)!!.movementMethod = LinkMovementMethod.getInstance()
+                beforeWeStartDialog.findViewById<TextView>(R.id.before_you_start_description)!!.movementMethod = LinkMovementMethod.getInstance()
 
-                bottomSheetDialog.show()
+                beforeWeStartDialog.show()
             }
             UpdateFilesUI.SyncImport -> {
                 (activity as MainScreenActivity).syncImportAccount()
