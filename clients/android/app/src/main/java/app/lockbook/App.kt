@@ -79,9 +79,7 @@ class ForegroundBackgroundObserver(val context: Context) : DefaultLifecycleObser
         when (val getAccountResult = CoreModel.getAccount()) {
             is Ok -> onSuccess()
             is Err -> when (val error = getAccountResult.error) {
-                is CoreError.UiError -> when (error.content) {
-                    GetAccountError.NoAccount -> {}
-                }
+                is CoreError.UiError -> {}
                 is CoreError.Unexpected -> Timber.e("Error: ${error.content}")
             }
         }
@@ -99,7 +97,6 @@ class SyncWork(appContext: Context, workerParams: WorkerParameters) :
                 is CoreError.UiError -> when (error.content) {
                     SyncAllError.ClientUpdateRequired -> "Client update required."
                     SyncAllError.CouldNotReachServer -> "Could not reach server."
-                    SyncAllError.NoAccount -> "No account."
                 }
                 is CoreError.Unexpected -> {
                     "Unable to sync all files: ${error.content}"
