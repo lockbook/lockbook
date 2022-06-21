@@ -21,7 +21,6 @@ pub fn move_file(core: &Core, path1: &str, path2: &str) -> Result<(), CliError> 
     core.move_file(file_metadata.id, target_file_metadata.id)
         .map_err(|err| match err {
             LbError::UiError(err) => match err {
-                MoveFileError::NoAccount => CliError::no_account(),
                 MoveFileError::CannotMoveRoot => CliError::no_root_ops("move"),
                 MoveFileError::FileDoesNotExist => CliError::file_not_found(path1),
                 MoveFileError::TargetParentDoesNotExist => CliError::file_not_found(path2),
