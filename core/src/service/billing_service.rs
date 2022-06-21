@@ -1,7 +1,7 @@
 use crate::model::errors::core_err_unexpected;
 use crate::service::api_service;
 use crate::service::api_service::ApiError;
-use crate::{CoreError, Tx};
+use crate::{CoreError, RequestContext};
 use lockbook_models::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequest,
     StripeAccountTier, SubscriptionInfo, UpgradeAccountGooglePlayError,
@@ -10,7 +10,7 @@ use lockbook_models::api::{
 
 pub type CreditCardLast4Digits = String;
 
-impl Tx<'_> {
+impl RequestContext<'_, '_> {
     pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> Result<(), CoreError> {
         let account = self.get_account()?;
 

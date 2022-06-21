@@ -49,9 +49,10 @@ pub enum FeatureFlag {
 async fn main() {
     let config = Config::from_env_vars();
     let (index_db_pool, files_db_client) = connect_to_state(&config).await;
-    let stripe_client = stripe::Client::new(&config.billing.stripe_secret);
+    let stripe_client = stripe::Client::new(&config.billing.stripe.stripe_secret);
 
-    let google_play_client = get_google_play_client(&config.billing.gp_service_account_key).await;
+    let google_play_client =
+        get_google_play_client(&config.billing.google.service_account_key).await;
 
     let server_state =
         ServerState { config, index_db_pool, stripe_client, files_db_client, google_play_client };

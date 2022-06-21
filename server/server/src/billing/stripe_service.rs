@@ -20,7 +20,7 @@ pub async fn create_subscription(
 ) -> Result<StripeUserInfo, ServerError<UpgradeAccountStripeError>> {
     let (payment_method, price_id) = match account_tier {
         StripeAccountTier::Premium(payment_method) => {
-            (payment_method, &server_state.config.billing.stripe_premium_price_id)
+            (payment_method, &server_state.config.billing.stripe.premium_price_id)
         }
     };
 
@@ -203,6 +203,6 @@ pub fn verify_request_and_get_event(
     Ok(stripe::Webhook::construct_event(
         payload,
         sig,
-        &server_state.config.billing.stripe_signing_secret,
+        &server_state.config.billing.stripe.signing_secret,
     )?)
 }

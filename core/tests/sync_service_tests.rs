@@ -3311,12 +3311,11 @@ fn deleted_path_is_released() {
 
     db1.db
         .transaction(|tx| {
-            tx.insert_metadatum(
-                &db1.config,
-                RepoSource::Local,
-                &files::apply_delete(&tx.get_all_metadata(RepoSource::Local).unwrap(), file1.id)
-                    .unwrap(),
-            )
+            let mut ctx = db1.context(tx).unwrap();
+            let metadata =
+                &files::apply_delete(&(ctx.get_all_metadata(RepoSource::Local).unwrap()), file1.id)
+                    .unwrap();
+            ctx.insert_metadatum(&db1.config, RepoSource::Local, metadata)
         })
         .unwrap()
         .unwrap();

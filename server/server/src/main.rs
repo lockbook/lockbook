@@ -31,8 +31,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .create_pool(Some(Runtime::Tokio1))
         .unwrap();
 
-    let stripe_client = stripe::Client::new(&config.billing.stripe_secret);
-    let google_play_client = get_google_play_client(&config.billing.gp_service_account_key).await;
+    let stripe_client = stripe::Client::new(&config.billing.stripe.stripe_secret);
+    let google_play_client =
+        get_google_play_client(&config.billing.google.service_account_key).await;
 
     let server_state = Arc::new(ServerState {
         config: config.clone(),

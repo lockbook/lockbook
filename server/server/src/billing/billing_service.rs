@@ -114,7 +114,8 @@ pub async fn upgrade_account_google_play(
         &server_state
             .config
             .billing
-            .gp_premium_subscription_product_id,
+            .google
+            .premium_subscription_product_id,
         &request.purchase_token,
     )
     .await?;
@@ -126,7 +127,8 @@ pub async fn upgrade_account_google_play(
         &server_state
             .config
             .billing
-            .gp_premium_subscription_product_id,
+            .google
+            .premium_subscription_product_id,
         &request.purchase_token,
     )
     .await?;
@@ -136,12 +138,14 @@ pub async fn upgrade_account_google_play(
         subscription_product_id: server_state
             .config
             .billing
-            .gp_premium_subscription_product_id
+            .google
+            .premium_subscription_product_id
             .clone(),
         subscription_offer_id: server_state
             .config
             .billing
-            .gp_premium_subscription_offer_id
+            .google
+            .premium_subscription_offer_id
             .clone(),
         expiration_time: subscription
             .expiry_time_millis

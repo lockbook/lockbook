@@ -51,7 +51,7 @@ pub async fn verify_request_and_get_notification(
             .get("token")
             .ok_or(ClientError(GooglePlayWebhookError::InvalidToken))?
             .as_bytes(),
-        server_state.config.billing.gp_pubsub_token.as_bytes(),
+        server_state.config.billing.google.pubsub_token.as_bytes(),
     ) {
         return Err(ClientError(GooglePlayWebhookError::InvalidToken));
     }
