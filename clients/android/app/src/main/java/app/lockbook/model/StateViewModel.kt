@@ -119,7 +119,7 @@ sealed class DetailsScreen(open val fileMetadata: DecryptedFileMetadata) {
 }
 
 sealed class TransientScreen {
-    data class Move(val ids: List<String>) : TransientScreen()
+    data class Move(val files: List<DecryptedFileMetadata>) : TransientScreen()
     data class Rename(val file: DecryptedFileMetadata) : TransientScreen()
     data class Create(val parentId: String, val extendedFileType: ExtendedFileType) : TransientScreen()
     data class Info(val file: DecryptedFileMetadata) : TransientScreen()

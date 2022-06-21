@@ -9,6 +9,8 @@ import android.view.ViewGroup
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.databinding.DialogMoveFileBinding
 import app.lockbook.model.*
@@ -25,7 +27,21 @@ class MoveFileDialogFragment : DialogFragment() {
     private lateinit var binding: DialogMoveFileBinding
 
     private val activityModel: StateViewModel by activityViewModels()
-    private val model: MoveFileViewModel by viewModels()
+    private val model: MoveFileViewModel by viewModels(
+        factoryProducer = {
+            object : ViewModelProvider.Factory {
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    if (modelClass.isAssignableFrom(MoveFileViewModel::class.java))
+                        return MoveFileViewModel(
+                            requireActivity().application,
+                            (activityModel.transientScreen as TransientScreen.Move).files[0].parent
+                        ) as T
+                    throw IllegalArgumentException("Unknown ViewModel class")
+                }
+            }
+        }
+    )
+
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()), view)
     }
@@ -81,7 +97,7 @@ class MoveFileDialogFragment : DialogFragment() {
             }
         }
 
-        model.ids = (activityModel.transientScreen as TransientScreen.Move).ids.toTypedArray()
+        model.ids = (activityModel.transientScreen as TransientScreen.Move).files.map { it.id }
     }
 
     override fun onCreateView(

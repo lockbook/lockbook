@@ -12,10 +12,10 @@ import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-class MoveFileViewModel(application: Application) :
+class MoveFileViewModel(application: Application, val startId: String) :
     AndroidViewModel(application) {
     private lateinit var currentParent: DecryptedFileMetadata
-    lateinit var ids: Array<String>
+    lateinit var ids: List<String>
 
     var files = emptyDataSourceTyped<DecryptedFileMetadata>()
 
@@ -35,20 +35,18 @@ class MoveFileViewModel(application: Application) :
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            startInRoot()
+            startWithCurrentParent()
         }
     }
 
-    private fun startInRoot() {
-        viewModelScope.launch(Dispatchers.IO) {
-            when (val rootResult = CoreModel.getRoot()) {
-                is Ok -> {
-                    currentParent = rootResult.value
-                    refreshOverFolder()
-                }
-                is Err -> _notifyError.postValue(rootResult.error.toLbError(getRes()))
-            }.exhaustive
-        }
+    private fun startWithCurrentParent() {
+        when (val getFileByIdResult = CoreModel.getFileById(startId)) {
+            is Ok -> {
+                currentParent = getFileByIdResult.value
+                refreshOverFolder()
+            }
+            is Err -> _notifyError.postValue(getFileByIdResult.error.toLbError(getRes()))
+        }.exhaustive
     }
 
     fun moveFilesToCurrentFolder() {

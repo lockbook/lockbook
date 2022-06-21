@@ -66,9 +66,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                     }
                     R.id.menu_list_files_move -> {
                         activityModel.launchTransientScreen(
-                            TransientScreen.Move(
-                                selectedFiles.map { it.id }
-                            )
+                            TransientScreen.Move(selectedFiles)
                         )
 
                         true
