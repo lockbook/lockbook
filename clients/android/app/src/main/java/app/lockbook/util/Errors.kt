@@ -25,9 +25,15 @@ abstract class IntermCoreResult<O, E>
     class CoreErr<E>(val content: IntermCoreError<E>) : IntermCoreResult<Unit, E>()
             where E : Enum<E>, E : UiCoreError
 
-    fun toResult(): Result<O, CoreError<E>> {
+    fun toResult(isNullable: Boolean = false): Result<O, CoreError<E>> {
         return when (this) {
-            is CoreOk -> Ok(content ?: Unit as O)
+            is CoreOk -> {
+                if (isNullable) {
+                    Ok(content as O)
+                } else {
+                    Ok(content ?: Unit as O)
+                }
+            }
             is CoreErr -> when (content) {
                 is IntermCoreError.UiError -> {
                     Err(CoreError.UiError(content.content))
@@ -72,7 +78,7 @@ where E : UiCoreError {
     class Unexpected<E : UiCoreError>(val content: String) : CoreError<E>()
 
     fun toLbError(res: Resources): LbError = when (this) {
-        is UiError -> (content as UiCoreError).toLbError(res)
+        is UiError -> content.toLbError(res)
         is Unexpected -> {
             LbError.newProgError(content)
         }
@@ -160,6 +166,7 @@ enum class GetAccountError : UiCoreError {
         NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
     }
 }
+
 @Serializable
 enum class GetRootError : UiCoreError {
     NoRoot;
@@ -212,6 +219,7 @@ enum class GetFileByIdError : UiCoreError {
         NoFileWithThatId -> LbError.newUserError(getString(res, R.string.no_file_with_that_id))
     }
 }
+
 @Serializable
 enum class FileDeleteError : UiCoreError {
     FileDoesNotExist,
@@ -331,6 +339,53 @@ enum class CalculateWorkError : UiCoreError {
 
     override fun toLbError(res: Resources): LbError = when (this) {
         NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
+        CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
+        ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
+    }
+}
+
+@Serializable
+enum class UpgradeAccountGooglePlayError : UiCoreError {
+    AlreadyPremium,
+    InvalidPurchaseToken,
+    ExistingRequestPending,
+    CouldNotReachServer,
+    ClientUpdateRequired;
+
+    override fun toLbError(res: Resources): LbError = when (this) {
+        AlreadyPremium -> LbError.newUserError(getString(res, R.string.already_premium))
+        InvalidPurchaseToken -> LbError.newUserError(getString(res, R.string.invalid_purchase_token))
+        ExistingRequestPending -> LbError.newUserError(getString(res, R.string.existing_request_pending))
+        CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
+        ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
+    }
+}
+
+@Serializable
+enum class CancelSubscriptionError : UiCoreError {
+    NotPremium,
+    AlreadyCanceled,
+    UsageIsOverFreeTierDataCap,
+    ExistingRequestPending,
+    CouldNotReachServer,
+    ClientUpdateRequired;
+
+    override fun toLbError(res: Resources): LbError = when (this) {
+        NotPremium -> LbError.newUserError(getString(res, R.string.not_premium))
+        AlreadyCanceled -> LbError.newUserError(getString(res, R.string.already_canceled))
+        UsageIsOverFreeTierDataCap -> LbError.newUserError(getString(res, R.string.usage_is_over_free_tier_data_cap))
+        ExistingRequestPending -> LbError.newUserError(getString(res, R.string.existing_request_pending))
+        CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
+        ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
+    }
+}
+
+@Serializable
+enum class GetSubscriptionInfoError : UiCoreError {
+    CouldNotReachServer,
+    ClientUpdateRequired;
+
+    override fun toLbError(res: Resources): LbError = when (this) {
         CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
         ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
     }

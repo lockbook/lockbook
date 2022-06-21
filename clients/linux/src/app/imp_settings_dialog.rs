@@ -140,15 +140,15 @@ impl super::App {
         let settings_win = settings_win.clone();
         let api = self.api.clone();
         usage.connect_begin_upgrade(move |usage| {
-            let maybe_card = match api.get_credit_card() {
-                Ok(maybe_last4) => maybe_last4,
-                Err(err_msg) => {
-                    ui::show_err_dialog(&settings_win, &err_msg);
+            let maybe_subscription = match api.get_subscription_info() {
+                Ok(maybe_subscription) => maybe_subscription,
+                Err(err) => {
+                    ui::show_err_dialog(&settings_win, &format!("{:?}", err));
                     return;
                 }
             };
 
-            let upgrading = ui::UpgradePaymentFlow::new(maybe_card);
+            let upgrading = ui::PurchaseFlow::new(maybe_subscription);
             upgrading.connect_cancelled({
                 let pages = usage.pages.clone();
 
@@ -167,8 +167,8 @@ impl super::App {
                         let api = api.clone();
 
                         move || {
-                            let new_tier = lb::AccountTier::Premium(method);
-                            let result = api.switch_account_tier(new_tier);
+                            let new_tier = lb::StripeAccountTier::Premium(method);
+                            let result = api.upgrade_account(new_tier);
                             tx.send(result).unwrap();
                         }
                     });
@@ -387,14 +387,14 @@ fn grid_val(txt: &str) -> gtk::Label {
         .build()
 }
 
-fn payment_err_to_string(err: lb::Error<lb::SwitchAccountTierError>) -> String {
-    use lb::SwitchAccountTierError::*;
+fn payment_err_to_string(err: lb::Error<lb::UpgradeAccountStripeError>) -> String {
+    use lb::UpgradeAccountStripeError::*;
     match err {
         lb::UiError(err) => match err {
             NoAccount => "No account!",
             CouldNotReachServer => "Unable to connect to server.",
             OldCardDoesNotExist => "Could not find your current card.",
-            NewTierIsOldTier => "You are already subscribed for this tier.",
+            AlreadyPremium => "You are already subscribed for this tier.",
             InvalidCardNumber => "Invalid card number.",
             InvalidCardCvc => "Invalid CVC.",
             InvalidCardExpYear => "Invalid expiration year.",
@@ -408,7 +408,9 @@ fn payment_err_to_string(err: lb::Error<lb::SwitchAccountTierError>) -> String {
             CurrentUsageIsMoreThanNewTier => {
                 "Your current usage is greater than the data cap of your desired subscription tier."
             }
-            ConcurrentRequestsAreTooSoon => "ConcurrentRequestsAreTooSoon",
+            ExistingRequestPending => {
+                "Too many requests. Please wait a little while before trying again."
+            }
         }
         .to_string(),
         lb::Unexpected(err) => err,
