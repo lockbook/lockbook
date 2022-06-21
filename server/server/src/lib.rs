@@ -1,5 +1,6 @@
 extern crate log;
 
+use google_androidpublisher3::AndroidPublisher;
 use std::env;
 use std::fmt::Debug;
 
@@ -24,6 +25,7 @@ pub struct ServerState {
     pub index_db_pool: deadpool_redis::Pool,
     pub stripe_client: stripe::Client,
     pub files_db_client: s3::bucket::Bucket,
+    pub google_play_client: AndroidPublisher,
 }
 
 #[derive(Clone)]
@@ -66,9 +68,7 @@ pub fn verify_client_version<Req: Request>(
     request: &RequestWrapper<Req>,
 ) -> Result<(), ErrorWrapper<Req::Error>> {
     match &request.client_version as &str {
-        "0.3.17" => Ok(()),
-        "0.4.0" => Ok(()),
-        "0.4.1" => Ok(()),
+        "0.4.2" => Ok(()),
         _ => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
     }
 }

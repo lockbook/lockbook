@@ -11,7 +11,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import androidx.fragment.app.*
 import androidx.slidingpanelayout.widget.SlidingPaneLayout
+import app.lockbook.App
 import app.lockbook.R
+import app.lockbook.billing.BillingEvent
 import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.model.*
 import app.lockbook.ui.CreateFileDialogFragment
@@ -73,6 +75,19 @@ class MainScreenActivity : AppCompatActivity() {
             fragmentFinishedCallback,
             false
         )
+
+        (application as App).billingClientLifecycle.apply {
+            this@MainScreenActivity.lifecycle.addObserver(this)
+            billingEvent.observe(this@MainScreenActivity) { billingEvent ->
+                when (billingEvent) {
+                    is BillingEvent.SuccessfulPurchase -> {
+                        model.confirmSubscription(billingEvent.purchaseToken, billingEvent.accountId)
+                    }
+                    is BillingEvent.NotifyError,
+                    BillingEvent.NotifyUnrecoverableError -> {}
+                }.exhaustive
+            }
+        }
 
         if (model.shareModel.isLoadingOverlayVisible) {
             updateMainScreenUI(UpdateMainScreenUI.ShowHideProgressOverlay(model.shareModel.isLoadingOverlayVisible))
@@ -150,6 +165,9 @@ class MainScreenActivity : AppCompatActivity() {
                 } else {
                     Animate.animateVisibility(binding.progressOverlay, View.GONE, 0, 500)
                 }
+            }
+            UpdateMainScreenUI.ShowSubscriptionConfirmed -> {
+                alertModel.notifySuccessfulPurchaseConfirm()
             }
         }.exhaustive
     }

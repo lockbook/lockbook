@@ -130,6 +130,11 @@
         <item name="android:fontFamily">sans-serif</item>
     </style>
 
+    <style name="Main.Text.Billing.Small" parent="TextAppearance.AppCompat.Small">
+        <item name="android:textColor">@color/textColor</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+
     <style name="Main.File.Title" parent="TextAppearance.AppCompat">
         <item name="android:textColor">@color/textColor</item>
         <item name="android:textSize">14sp</item>
@@ -147,6 +152,11 @@
     <style name="Main.Text.Headline" parent="TextAppearance.AppCompat.Display1">
         <item name="android:textColor">@color/textColor</item>
         <item name="android:fontFamily">monospace</item>
+        <item name="android:textAlignment">center</item>
+    </style>
+
+    <style name="Main.Text.BillingTitle" parent="TextAppearance.AppCompat.Title">
+        <item name="android:textColor">@color/textColor</item>
         <item name="android:textAlignment">center</item>
     </style>
 

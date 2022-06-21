@@ -1,5 +1,5 @@
 use crate::utils::username_is_valid;
-use crate::{feature_flags, keys, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE};
+use crate::{feature_flags, keys, RequestContext, ServerError, ServerState};
 use deadpool_redis::redis::AsyncCommands;
 use deadpool_redis::Connection;
 use libsecp256k1::PublicKey;
@@ -11,8 +11,9 @@ use std::collections::HashMap;
 use redis_utils::tx;
 use uuid::Uuid;
 
+use crate::billing::billing_model::SubscriptionProfile;
 use crate::content::document_service;
-use crate::keys::{data_cap, file, meta, owned_files, public_key, size, username};
+use crate::keys::{file, meta, owned_files, public_key, size, subscription_profile, username};
 use crate::ServerError::ClientError;
 use lockbook_models::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
 use lockbook_models::api::{
@@ -80,7 +81,7 @@ pub async fn new_account(
         pipe.json_set(public_key(&request.username), request.public_key)?
             .json_set(username(&request.public_key), &request.username)?
             .json_set(owned_files(&request.public_key), [request.root_folder.id])?
-            .set(data_cap(&request.public_key), FREE_TIER_USAGE_SIZE)
+            .json_set(subscription_profile(&request.public_key), SubscriptionProfile::default())?
             .json_set(meta(&root), &root)
     });
     return_if_error!(tx_result);
@@ -115,12 +116,13 @@ pub async fn get_usage(
     let (_request, server_state) = (&context.request, context.server_state);
     let mut con = server_state.index_db_pool.get().await?;
 
-    // TODO this can (and should not) page
-    let cap: u64 = con.get(data_cap(&context.public_key)).await?;
+    let sub_profile: SubscriptionProfile = con
+        .json_get(keys::subscription_profile(&context.public_key))
+        .await?;
 
     let usages = get_usage_helper(&mut con, &context.public_key).await?;
 
-    Ok(GetUsageResponse { usages, cap })
+    Ok(GetUsageResponse { usages, cap: sub_profile.data_cap() })
 }
 
 #[derive(Debug)]
@@ -204,6 +206,6 @@ pub async fn free_username(
     debug!("purging username: {}", username);
     con.del(keys::username(pk)).await?;
     con.del(public_key(&username)).await?;
-    con.del(data_cap(pk)).await?;
+    con.del(subscription_profile(pk)).await?;
     Ok(())
 }

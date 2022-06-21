@@ -13,7 +13,10 @@ use log::info;
 use std::sync::Arc;
 use warp::Filter;
 
-use lockbook_server_lib::router_service::{build_info, core_routes, get_metrics, stripe_webhooks};
+use lockbook_server_lib::billing::google_play_client::get_google_play_client;
+use lockbook_server_lib::router_service::{
+    build_info, core_routes, get_metrics, google_play_notification_webhooks, stripe_webhooks,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -28,13 +31,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .create_pool(Some(Runtime::Tokio1))
         .unwrap();
 
-    let stripe_client = stripe::Client::new(&config.stripe.stripe_secret);
+    let stripe_client = stripe::Client::new(&config.billing.stripe.stripe_secret);
+    let google_play_client =
+        get_google_play_client(&config.billing.google.service_account_key).await;
 
     let server_state = Arc::new(ServerState {
         config: config.clone(),
         index_db_pool,
         stripe_client,
         files_db_client,
+        google_play_client,
     });
 
     feature_flags::initialize_flags(&server_state).await;
@@ -42,7 +48,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let routes = core_routes(&server_state)
         .or(build_info())
         .or(get_metrics())
-        .or(stripe_webhooks(&server_state));
+        .or(stripe_webhooks(&server_state))
+        .or(google_play_notification_webhooks(&server_state));
 
     let server = warp::serve(routes);
 

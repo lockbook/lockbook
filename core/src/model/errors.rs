@@ -84,7 +84,8 @@ pub enum CoreError {
     AccountExists,
     AccountNonexistent,
     AccountStringCorrupted,
-    ConcurrentRequestsAreTooSoon,
+    AlreadyCanceled,
+    AlreadyPremium,
     CardDecline,
     CardHasInsufficientFunds,
     TryAgain,
@@ -109,8 +110,8 @@ pub enum CoreError {
     InvalidCardExpYear,
     InvalidCardExpMonth,
     InvalidCardCvc,
-    NewTierIsOldTier,
-    NotAStripeCustomer,
+    InvalidPurchaseToken,
+    NotPremium,
     PathContainsEmptyFileName,
     PathNonexistent,
     PathStartsWithNonRoot,
@@ -119,6 +120,8 @@ pub enum CoreError {
     RootModificationInvalid,
     RootNonexistent,
     ServerUnreachable,
+    ExistingRequestPending,
+    UsageIsOverFreeTierDataCap,
     UsernameInvalid,
     UsernamePublicKeyMismatch,
     UsernameTaken,
@@ -724,11 +727,11 @@ impl From<CoreError> for Error<ExportFileError> {
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum SwitchAccountTierError {
+pub enum UpgradeAccountStripeError {
     NoAccount,
     CouldNotReachServer,
     OldCardDoesNotExist,
-    NewTierIsOldTier,
+    AlreadyPremium,
     InvalidCardNumber,
     InvalidCardCvc,
     InvalidCardExpYear,
@@ -740,35 +743,39 @@ pub enum SwitchAccountTierError {
     ExpiredCard,
     ClientUpdateRequired,
     CurrentUsageIsMoreThanNewTier,
-    ConcurrentRequestsAreTooSoon,
+    ExistingRequestPending,
 }
 
-impl From<CoreError> for Error<SwitchAccountTierError> {
+impl From<CoreError> for Error<UpgradeAccountStripeError> {
     fn from(e: CoreError) -> Self {
         match e {
-            CoreError::OldCardDoesNotExist => UiError(SwitchAccountTierError::OldCardDoesNotExist),
-            CoreError::InvalidCardNumber => UiError(SwitchAccountTierError::InvalidCardNumber),
-            CoreError::InvalidCardExpYear => UiError(SwitchAccountTierError::InvalidCardExpYear),
-            CoreError::InvalidCardExpMonth => UiError(SwitchAccountTierError::InvalidCardExpMonth),
-            CoreError::InvalidCardCvc => UiError(SwitchAccountTierError::InvalidCardCvc),
-            CoreError::NewTierIsOldTier => UiError(SwitchAccountTierError::NewTierIsOldTier),
-            CoreError::ServerUnreachable => UiError(SwitchAccountTierError::CouldNotReachServer),
-            CoreError::CardDecline => UiError(SwitchAccountTierError::CardDecline),
+            CoreError::OldCardDoesNotExist => {
+                UiError(UpgradeAccountStripeError::OldCardDoesNotExist)
+            }
+            CoreError::InvalidCardNumber => UiError(UpgradeAccountStripeError::InvalidCardNumber),
+            CoreError::InvalidCardExpYear => UiError(UpgradeAccountStripeError::InvalidCardExpYear),
+            CoreError::InvalidCardExpMonth => {
+                UiError(UpgradeAccountStripeError::InvalidCardExpMonth)
+            }
+            CoreError::InvalidCardCvc => UiError(UpgradeAccountStripeError::InvalidCardCvc),
+            CoreError::AlreadyPremium => UiError(UpgradeAccountStripeError::AlreadyPremium),
+            CoreError::ServerUnreachable => UiError(UpgradeAccountStripeError::CouldNotReachServer),
+            CoreError::CardDecline => UiError(UpgradeAccountStripeError::CardDecline),
             CoreError::CardHasInsufficientFunds => {
-                UiError(SwitchAccountTierError::CardHasInsufficientFunds)
+                UiError(UpgradeAccountStripeError::CardHasInsufficientFunds)
             }
-            CoreError::TryAgain => UiError(SwitchAccountTierError::TryAgain),
-            CoreError::CardNotSupported => UiError(SwitchAccountTierError::CardNotSupported),
-            CoreError::ExpiredCard => UiError(SwitchAccountTierError::ExpiredCard),
+            CoreError::TryAgain => UiError(UpgradeAccountStripeError::TryAgain),
+            CoreError::CardNotSupported => UiError(UpgradeAccountStripeError::CardNotSupported),
+            CoreError::ExpiredCard => UiError(UpgradeAccountStripeError::ExpiredCard),
             CoreError::CurrentUsageIsMoreThanNewTier => {
-                UiError(SwitchAccountTierError::CurrentUsageIsMoreThanNewTier)
+                UiError(UpgradeAccountStripeError::CurrentUsageIsMoreThanNewTier)
             }
-            CoreError::AccountNonexistent => UiError(SwitchAccountTierError::NoAccount),
-            CoreError::ConcurrentRequestsAreTooSoon => {
-                UiError(SwitchAccountTierError::ConcurrentRequestsAreTooSoon)
+            CoreError::AccountNonexistent => UiError(UpgradeAccountStripeError::NoAccount),
+            CoreError::ExistingRequestPending => {
+                UiError(UpgradeAccountStripeError::ExistingRequestPending)
             }
             CoreError::ClientUpdateRequired => {
-                UiError(SwitchAccountTierError::ClientUpdateRequired)
+                UiError(UpgradeAccountStripeError::ClientUpdateRequired)
             }
             _ => unexpected!("{:#?}", e),
         }
@@ -776,20 +783,78 @@ impl From<CoreError> for Error<SwitchAccountTierError> {
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum GetCreditCard {
-    NoAccount,
+pub enum UpgradeAccountGooglePlayError {
+    AlreadyPremium,
+    InvalidPurchaseToken,
+    ExistingRequestPending,
     CouldNotReachServer,
-    NotAStripeCustomer,
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<GetCreditCard> {
+impl From<CoreError> for Error<UpgradeAccountGooglePlayError> {
     fn from(e: CoreError) -> Self {
         match e {
-            CoreError::AccountNonexistent => UiError(GetCreditCard::NoAccount),
-            CoreError::ServerUnreachable => UiError(GetCreditCard::CouldNotReachServer),
-            CoreError::NotAStripeCustomer => UiError(GetCreditCard::NotAStripeCustomer),
-            CoreError::ClientUpdateRequired => UiError(GetCreditCard::ClientUpdateRequired),
+            CoreError::AlreadyPremium => UiError(UpgradeAccountGooglePlayError::AlreadyPremium),
+            CoreError::InvalidPurchaseToken => {
+                UiError(UpgradeAccountGooglePlayError::InvalidPurchaseToken)
+            }
+            CoreError::ExistingRequestPending => {
+                UiError(UpgradeAccountGooglePlayError::ExistingRequestPending)
+            }
+            CoreError::ServerUnreachable => {
+                UiError(UpgradeAccountGooglePlayError::CouldNotReachServer)
+            }
+            CoreError::ClientUpdateRequired => {
+                UiError(UpgradeAccountGooglePlayError::ClientUpdateRequired)
+            }
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum CancelSubscriptionError {
+    NotPremium,
+    AlreadyCanceled,
+    UsageIsOverFreeTierDataCap,
+    ExistingRequestPending,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<CancelSubscriptionError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::NotPremium => UiError(CancelSubscriptionError::NotPremium),
+            CoreError::AlreadyCanceled => UiError(CancelSubscriptionError::AlreadyCanceled),
+            CoreError::UsageIsOverFreeTierDataCap => {
+                UiError(CancelSubscriptionError::UsageIsOverFreeTierDataCap)
+            }
+            CoreError::ExistingRequestPending => {
+                UiError(CancelSubscriptionError::ExistingRequestPending)
+            }
+            CoreError::ServerUnreachable => UiError(CancelSubscriptionError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => {
+                UiError(CancelSubscriptionError::ClientUpdateRequired)
+            }
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum GetSubscriptionInfoError {
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<GetSubscriptionInfoError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::ServerUnreachable => UiError(GetSubscriptionInfoError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => {
+                UiError(GetSubscriptionInfoError::ClientUpdateRequired)
+            }
             _ => unexpected!("{:#?}", e),
         }
     }

@@ -1,7 +1,7 @@
 use crate::ServerError;
 use lockbook_models::api::{GetBuildInfoError, GetBuildInfoResponse};
-
 use shadow_rs::shadow;
+
 shadow!(build_info);
 
 pub fn username_is_valid(username: &str) -> bool {

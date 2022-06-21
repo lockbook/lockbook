@@ -79,46 +79,44 @@ class TextEditorFragment : Fragment() {
         undoRedo.updateUndoRedoButtons()
 
         model.content.observe(
-            viewLifecycleOwner,
-            { content ->
-                if (name.endsWith(".md")) {
-                    val markdownEditor = MarkwonEditor.builder(Markwon.create(requireContext()))
-                        .punctuationSpan(
-                            CustomPunctuationSpan::class.java
-                        ) {
-                            CustomPunctuationSpan(
-                                ResourcesCompat.getColor(
-                                    resources,
-                                    R.color.blue,
-                                    null
-                                )
+            viewLifecycleOwner
+        ) { content ->
+            if (name.endsWith(".md")) {
+                val markdownEditor = MarkwonEditor.builder(Markwon.create(requireContext()))
+                    .punctuationSpan(
+                        CustomPunctuationSpan::class.java
+                    ) {
+                        CustomPunctuationSpan(
+                            ResourcesCompat.getColor(
+                                resources,
+                                R.color.blue,
+                                null
                             )
-                        }
-                        .build()
-
-                    binding.markdownToolbar.visibility = View.VISIBLE
-                    textEditorToolbar.menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
-
-                    textField.addTextChangedListener(
-                        MarkwonEditorTextWatcher.withPreRender(
-                            markdownEditor,
-                            Executors.newCachedThreadPool(),
-                            textField
                         )
-                    )
-                }
+                    }
+                    .build()
 
-                textField.setText(content)
-                undoRedo.addTextChangeListener()
+                binding.markdownToolbar.visibility = View.VISIBLE
+                textEditorToolbar.menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
+
+                textField.addTextChangedListener(
+                    MarkwonEditorTextWatcher.withPreRender(
+                        markdownEditor,
+                        Executors.newCachedThreadPool(),
+                        textField
+                    )
+                )
             }
-        )
+
+            textField.setText(content)
+            undoRedo.addTextChangeListener()
+        }
 
         model.notifyError.observe(
-            viewLifecycleOwner,
-            { error ->
-                alertModel.notifyError(error)
-            }
-        )
+            viewLifecycleOwner
+        ) { error ->
+            alertModel.notifyError(error)
+        }
 
         setMarkdownButtonListeners()
 

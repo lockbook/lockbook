@@ -19,8 +19,8 @@ class EditTextModel(
         changeListener = EditTextChangeListener()
     }
 
-    val canUndo get() = editHistory.position > 0
-    val canRedo get() = editHistory.position < editHistory.history.size
+    private val canUndo get() = editHistory.position > 0
+    private val canRedo get() = editHistory.position < editHistory.history.size
 
     fun addTextChangeListener() {
         editText.addTextChangedListener(changeListener)

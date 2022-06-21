@@ -5,8 +5,8 @@
     android:layout_height="match_parent">
 
     <PreferenceCategory
-        android:title="@string/settings_preference_debug"
-        android:icon="@drawable/ic_baseline_bug_report_24">
+        android:icon="@drawable/ic_baseline_bug_report_24"
+        android:title="@string/settings_preference_debug">
         <Preference
             android:id="@+id/view_logs"
             android:key="@string/view_logs_key"
@@ -19,16 +19,16 @@
     </PreferenceCategory>
 
     <PreferenceCategory
-        android:title="@string/settings_preference_usage"
-        android:icon="@drawable/ic_baseline_data_usage_24">
+        android:icon="@drawable/ic_baseline_data_usage_24"
+        android:title="@string/settings_preference_usage">
         <app.lockbook.ui.UsageBarPreference
             android:key="@string/usage_bar_key"
-            app:iconSpaceReserved="false"/>
+            app:iconSpaceReserved="false" />
     </PreferenceCategory>
 
     <PreferenceCategory
-        android:title="@string/settings_preference_title_biometrics"
-        android:icon="@drawable/ic_baseline_fingerprint_24">
+        android:icon="@drawable/ic_baseline_fingerprint_24"
+        android:title="@string/settings_preference_title_biometrics">
         <ListPreference
             android:defaultValue="@string/biometric_none_value"
             android:entries="@array/settings_biometric_names"
@@ -40,8 +40,8 @@
     </PreferenceCategory>
 
     <PreferenceCategory
-        android:title="@string/settings_preference_title_account"
-        android:icon="@drawable/ic_baseline_import_export_24">
+        android:icon="@drawable/ic_baseline_import_export_24"
+        android:title="@string/settings_preference_title_account">
         <Preference
             android:key="@string/export_account_raw_key"
             android:title="@string/settings_export_account_raw"
@@ -54,8 +54,8 @@
     </PreferenceCategory>
 
     <PreferenceCategory
-        android:title="@string/settings_preference_title_background_sync"
-        android:icon="@drawable/ic_baseline_sync_24">
+        android:icon="@drawable/ic_baseline_sync_24"
+        android:title="@string/settings_preference_title_background_sync">
 
         <SwitchPreference
             android:defaultValue="true"
@@ -74,8 +74,8 @@
     </PreferenceCategory>
 
     <PreferenceCategory
-        android:title="@string/settings_preference_title_incremental_sync"
-        android:icon="@drawable/ic_baseline_sync_alt_24">
+        android:icon="@drawable/ic_baseline_sync_alt_24"
+        android:title="@string/settings_preference_title_incremental_sync">
 
         <SwitchPreference
             android:defaultValue="false"
@@ -86,8 +86,8 @@
     </PreferenceCategory>
 
     <PreferenceCategory
-        android:title="Miscellaneous"
-        android:icon="@drawable/ic_baseline_miscellaneous_services_24">
+        android:icon="@drawable/ic_baseline_miscellaneous_services_24"
+        android:title="@string/settings_miscellaneous">
 
         <SwitchPreference
             android:defaultValue="true"
@@ -97,4 +97,18 @@
 
     </PreferenceCategory>
 
+    <PreferenceCategory
+        android:key="@string/premium_key"
+        android:icon="@drawable/ic_baseline_paid_24"
+        android:title="@string/settings_premium"
+        app:isPreferenceVisible="false">
+        <Preference
+            android:key="@string/cancel_subscription_key"
+            app:title="@string/settings_cancel_subscription"
+            app:iconSpaceReserved="false" />
+
+        <app.lockbook.ui.SubscriptionInfoPreference
+            android:key="@string/subscription_info_key"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
 </PreferenceScreen>

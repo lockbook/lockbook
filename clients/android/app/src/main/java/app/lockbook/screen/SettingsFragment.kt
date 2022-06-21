@@ -6,17 +6,23 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.PopupWindow
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.preference.*
 import app.lockbook.R
-import app.lockbook.model.AlertModel
-import app.lockbook.model.BiometricModel
-import app.lockbook.model.CoreModel
-import app.lockbook.model.VerificationItem
+import app.lockbook.model.*
 import app.lockbook.ui.NumberPickerPreference
 import app.lockbook.ui.NumberPickerPreferenceDialog
+import app.lockbook.ui.UsageBarPreference
+import app.lockbook.util.GooglePlayAccountState
+import app.lockbook.util.PaymentPlatform
 import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -26,13 +32,65 @@ import java.io.File
 import java.lang.ref.WeakReference
 
 class SettingsFragment : PreferenceFragmentCompat() {
+
+    val onUpgrade =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            if (it.resultCode == SUCCESSFUL_SUBSCRIPTION_PURCHASE) {
+                model.updateUsage()
+            }
+        }
+
     val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
     }
 
+    val model: SettingsViewModel by viewModels(
+        factoryProducer = {
+            object : ViewModelProvider.Factory {
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    if (modelClass.isAssignableFrom(SettingsViewModel::class.java))
+                        return SettingsViewModel(requireActivity().application) as T
+                    throw IllegalArgumentException("Unknown ViewModel class")
+                }
+            }
+        }
+    )
+
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.settings_preference, rootKey)
         setUpPreferences()
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        model.canceledSubscription.observe(
+            viewLifecycleOwner
+        ) {
+            alertModel.notify(getString(R.string.settings_cancel_completed))
+        }
+
+        model.determineSettingsInfo.observe(
+            viewLifecycleOwner
+        ) { settingsInfo ->
+            addDataToPreferences(settingsInfo)
+        }
+
+        model.notifyError.observe(
+            viewLifecycleOwner
+        ) { error ->
+            alertModel.notifyError(error)
+        }
+    }
+
+    private fun addDataToPreferences(settingsInfo: SettingsInfo) {
+        val maybePaymentPlatform = settingsInfo.subscriptionInfo?.paymentPlatform
+
+        val isPremium = settingsInfo.usage.dataCap.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES
+        val isOkState = (maybePaymentPlatform as? PaymentPlatform.GooglePlay)?.accountState == GooglePlayAccountState.Ok || (maybePaymentPlatform as? PaymentPlatform.Stripe) != null
+
+        findPreference<PreferenceCategory>(getString(R.string.premium_key))!!.isVisible = isPremium
+        findPreference<Preference>(getString(R.string.cancel_subscription_key))!!.isVisible = isPremium && isOkState
     }
 
     private fun setUpPreferences() {
@@ -94,6 +152,17 @@ class SettingsFragment : PreferenceFragmentCompat() {
             getString(R.string.background_sync_enabled_key) ->
                 findPreference<Preference>(getString(R.string.background_sync_period_key))?.isEnabled =
                     (preference as SwitchPreference).isChecked
+            getString(R.string.cancel_subscription_key) -> {
+                val dialog = AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
+                    .setTitle(R.string.settings_cancel_sub_confirmation_title)
+                    .setMessage(R.string.settings_cancel_sub_confirmation_details)
+                    .setPositiveButton(R.string.yes) { _, _ ->
+                        model.cancelSubscription()
+                    }
+                    .setNegativeButton(R.string.no, null)
+
+                dialog.show()
+            }
             else -> super.onPreferenceTreeClick(preference)
         }
 

@@ -21,9 +21,6 @@ Values are json encoded.
     + The value is a list of all the files owned by a particular user, we `WATCH` this key in situations where we want
       to conceptually acquire a lock on all the files a user owns. We'll likely perform an `MGET` following this call to
       get all these files.
-+ `public_key:x:data_cap`
-    + `x` is the `public_key`.
-    + Data cap refers to the maximum amount of space a user can store in lockbook.
 
 # Filemetadata
 
@@ -33,13 +30,15 @@ Values are json encoded.
   + `x` is the `uuid` of the file.
   + size (value) is a json encoded `FileUsage` object 
 
-# Stripe Billing
+# Billing
 
-+ `public_key:x:stripe_user_info`
++ `public_key:x:subscription_profile`
   + `x` is the `public_key`.
-  + [Basic stripe information](../../server/server/src/billing/stripe_model.rs) (customer id, subscription ids, payment method ids, etc) for a user.
+  + Subscription profile refers to all the billing information held about the user. Data cap is determined by this.
 + `stripe_customer_id:x:public_key`.
   + `x` is the stripe `customer_id`.
++ `google_play_account_id:x:public_key`
+  + `x` is the obfuscated `account_id` of a Google Play user.
 
 # Document Content (TODO)
 

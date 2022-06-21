@@ -1,7 +1,10 @@
 package app.lockbook.util
 
+import android.content.res.Resources
+import app.lockbook.R
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonClassDiscriminator
 
 @Serializable
 data class DecryptedFileMetadata(
@@ -65,7 +68,7 @@ data class UsageMetrics(
 
 @Serializable
 data class UsageItemMetric(
-    val exact: Int,
+    val exact: Long,
     val readable: String,
 )
 
@@ -76,3 +79,41 @@ data class FileUsage(
     @SerialName("size_bytes")
     val sizeBytes: Int,
 )
+
+@Serializable
+data class SubscriptionInfo(
+    @SerialName("payment_platform")
+    val paymentPlatform: PaymentPlatform,
+    @SerialName("period_end")
+    val periodEnd: Long
+)
+
+@Serializable
+@JsonClassDiscriminator("tag")
+sealed class PaymentPlatform {
+    @Serializable
+    @SerialName("GooglePlay")
+    data class GooglePlay(
+        @SerialName("account_state")
+        val accountState: GooglePlayAccountState
+    ) : PaymentPlatform()
+
+    @Serializable
+    @SerialName("Stripe")
+    data class Stripe(
+        @SerialName("card_last_4_digits")
+        val cardLast4Digits: String
+    ) : PaymentPlatform()
+
+    fun toReadableString(resources: Resources): String = when (this) {
+        is GooglePlay -> resources.getString(R.string.google_play)
+        is Stripe -> resources.getString(R.string.stripe)
+    }
+}
+
+enum class GooglePlayAccountState {
+    Ok,
+    Canceled,
+    GracePeriod,
+    OnHold
+}

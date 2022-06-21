@@ -9,6 +9,7 @@
   <color name="windowBackground">@color/black</color>
   <color name="textColor">@color/light</color>
   <color name="iconColor">@color/light</color>
+  <color name="borderColor">@color/light</color>
   <color name="bottomSheetBackgroundColor">@color/lightBlack</color>
   <color name="dialogBackgroundColor">@color/black</color>
   <bool name="windowLightStatusBar">false</bool>

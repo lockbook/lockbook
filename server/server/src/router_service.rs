@@ -12,6 +12,7 @@ use log::{error, warn};
 use prometheus::{register_histogram_vec, HistogramVec, TextEncoder};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::sync::Arc;
 use warp::http::{HeaderValue, Method, StatusCode};
 use warp::hyper::body::Bytes;
@@ -86,8 +87,10 @@ pub fn core_routes(
         .or(core_req!(GetUsageRequest, get_usage, server_state))
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
         .or(core_req!(DeleteAccountRequest, delete_account, server_state))
-        .or(core_req!(GetCreditCardRequest, get_credit_card, server_state))
-        .or(core_req!(SwitchAccountTierRequest, switch_account_tier, server_state))
+        .or(core_req!(UpgradeAccountGooglePlayRequest, upgrade_account_google_play, server_state))
+        .or(core_req!(UpgradeAccountStripeRequest, upgrade_account_stripe, server_state))
+        .or(core_req!(CancelSubscriptionRequest, cancel_subscription, server_state))
+        .or(core_req!(GetSubscriptionInfoRequest, get_subscription_info, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
@@ -140,6 +143,43 @@ pub fn stripe_webhooks(
                             StatusCode::BAD_REQUEST
                         }
                         ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                    };
+
+                    warp::reply::with_status("".to_string(), status_code)
+                }
+            }
+        })
+}
+
+pub fn google_play_notification_webhooks(
+    server_state: &Arc<ServerState>,
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    let cloned_state = server_state.clone();
+
+    warp::post()
+        .and(warp::path("google_play_notification_webhook"))
+        .and(warp::any().map(move || cloned_state.clone()))
+        .and(warp::body::bytes())
+        .and(warp::query::query::<HashMap<String, String>>())
+        .then(|state: Arc<ServerState>, request: Bytes, query_parameters: HashMap<String, String>| async move {
+            match billing_service::google_play_notification_webhooks(&state, request, query_parameters).await
+            {
+                Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
+                Err(e) => {
+                    error!("{:?}", e);
+
+                    let status_code = match e {
+                        ServerError::ClientError(GooglePlayWebhookError::InvalidToken)
+                        | ServerError::ClientError(GooglePlayWebhookError::CannotRetrieveData)
+                        | ServerError::ClientError(
+                            GooglePlayWebhookError::CannotDecodePubSubData(_),
+                        ) => StatusCode::BAD_REQUEST,
+                        ServerError::ClientError(GooglePlayWebhookError::CannotRetrieveUserInfo)
+                        | ServerError::ClientError(
+                            GooglePlayWebhookError::CannotRetrievePublicKey,
+                        )
+                        | ServerError::ClientError(GooglePlayWebhookError::CannotParseTime)
+                        | ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
                     };
 
                     warp::reply::with_status("".to_string(), status_code)

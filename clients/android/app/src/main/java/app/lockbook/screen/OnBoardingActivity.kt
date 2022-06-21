@@ -29,7 +29,7 @@ import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.*
 import java.lang.ref.WeakReference
 
-class OnBoardingActvity : AppCompatActivity() {
+class OnBoardingActivity : AppCompatActivity() {
     private var _binding: ActivityOnBoardingBinding? = null
 
     // This property is only valid between onCreateView and
@@ -82,8 +82,7 @@ class ImportFragment : Fragment() {
     // onDestroyView.
     private val importBinding get() = _importBinding!!
 
-    private var job = Job()
-    private val uiScope = CoroutineScope(Dispatchers.Main + job)
+    private val uiScope = CoroutineScope(Dispatchers.Main + Job())
 
     private var onQRCodeResult =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -148,7 +147,7 @@ class ImportFragment : Fragment() {
     }
 
     private fun importAccount(account: String) {
-        val onBoardingActivity = (requireActivity() as OnBoardingActvity)
+        val onBoardingActivity = (requireActivity() as OnBoardingActivity)
 
         onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
 
@@ -178,8 +177,7 @@ class CreateFragment : Fragment() {
     // onDestroyView.
     private val createBinding get() = _createBinding!!
 
-    private var job = Job()
-    private val uiScope = CoroutineScope(Dispatchers.Main + job)
+    private val uiScope = CoroutineScope(Dispatchers.Main + Job())
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -204,7 +202,7 @@ class CreateFragment : Fragment() {
     }
 
     private fun createAccount(username: String) {
-        val onBoardingActivity = (requireActivity() as OnBoardingActvity)
+        val onBoardingActivity = (requireActivity() as OnBoardingActivity)
 
         onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
 

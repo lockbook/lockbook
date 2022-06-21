@@ -4,7 +4,6 @@ extern crate reqwest;
 #[macro_use]
 extern crate tracing;
 
-use crate::billing_service::CreditCardLast4Digits;
 use crate::model::errors::*;
 use crate::model::repo::RepoSource;
 use crate::path_service::Filter;
@@ -14,7 +13,7 @@ use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
 use crate::service::search_service::SearchResultItem;
 use crate::service::sync_service::SyncProgress;
 use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
-use crate::service::{billing_service, path_service, sync_service};
+use crate::service::{path_service, sync_service};
 use crate::sync_service::WorkCalculated;
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
@@ -23,7 +22,7 @@ use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
-use lockbook_models::api::AccountTier;
+use lockbook_models::api::{StripeAccountTier, SubscriptionInfo};
 use lockbook_models::crypto::{AESKey, DecryptedDocument};
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
@@ -421,24 +420,6 @@ impl Core {
         Ok(val?)
     }
 
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn switch_account_tier(
-        &self, new_account_tier: AccountTier,
-    ) -> Result<(), Error<SwitchAccountTierError>> {
-        let val = self
-            .db
-            .transaction(|tx| self.context(tx)?.switch_account_tier(new_account_tier))?;
-        Ok(val?)
-    }
-
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_credit_card(&self) -> Result<CreditCardLast4Digits, Error<GetCreditCard>> {
-        let val = self
-            .db
-            .transaction(|tx| self.context(tx)?.get_credit_card())?;
-        Ok(val?)
-    }
-
     #[instrument(level = "debug", skip(self, input), err(Debug))]
     pub fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError> {
         let val = self
@@ -453,6 +434,45 @@ impl Core {
             .transaction(|tx| self.context(tx)?.test_repo_integrity(&self.config))
             .map_err(CoreError::from)
             .map_err(TestRepoError::Core)?
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn upgrade_account_stripe(
+        &self, account_tier: StripeAccountTier,
+    ) -> Result<(), Error<UpgradeAccountStripeError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.upgrade_account_stripe(account_tier))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(purchase_token), err(Debug))]
+    pub fn upgrade_account_google_play(
+        &self, purchase_token: &str, account_id: &str,
+    ) -> Result<(), Error<UpgradeAccountGooglePlayError>> {
+        let val = self.db.transaction(|tx| {
+            self.context(tx)?
+                .upgrade_account_google_play(purchase_token, account_id)
+        })?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn cancel_subscription(&self) -> Result<(), Error<CancelSubscriptionError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.cancel_subscription())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_subscription_info(
+        &self,
+    ) -> Result<Option<SubscriptionInfo>, Error<GetSubscriptionInfoError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.get_subscription_info())?;
+        Ok(val?)
     }
 }
 

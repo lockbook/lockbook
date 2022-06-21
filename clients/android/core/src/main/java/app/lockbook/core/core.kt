@@ -25,3 +25,6 @@ external fun backgroundSync(): String
 external fun calculateWork(): String
 external fun exportFile(id: String, destination: String, edit: Boolean): String
 external fun getAllErrorVariants(): String
+external fun upgradeAccountGooglePlay(purchaseToken: String, accountId: String): String
+external fun cancelSubscription(): String
+external fun getSubscriptionInfo(): String
