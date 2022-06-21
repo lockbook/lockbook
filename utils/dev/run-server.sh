@@ -8,6 +8,9 @@ command -V mc
 
 projRoot=`git rev-parse --show-toplevel`
 
+cd $projRoot/server/server
+cargo check
+
 dir="$1"
 if [ -z "$dir" ]; then
 	dir="/tmp/lbdev"
@@ -25,8 +28,8 @@ minio server $dir > minio-server.log 2>&1 &
 minioPID="$!"
 sleep 1
 
-cd $projRoot/server/server
-. ../../containers/local.env
+cd $projRoot
+. containers/local.env
 
 while true; do
 	minioListenPID="$(lsof -Pi :$FILES_DB_PORT -sTCP:LISTEN -t || echo)"
@@ -43,4 +46,5 @@ mc mb -p --region=$FILES_DB_REGION filesdb/$FILES_DB_BUCKET
 mc policy set public filesdb/$FILES_DB_BUCKET
 
 echo "Compiling and running lockbook server..."
-cargo run --release
+cd server/server
+cargo run $CARGO_ARGS
