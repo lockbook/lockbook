@@ -1,20 +1,29 @@
+use crate::model::errors::core_err_unexpected;
 use crate::model::repo::RepoSource;
 use crate::model::repo::RepoState;
 use crate::pure_functions::files;
 use crate::repo::document_repo;
 use crate::repo::schema::OneKey;
+use crate::service::api_service;
 use crate::service::file_compression_service;
 use crate::service::file_encryption_service;
 use crate::CoreError::RootNonexistent;
 use crate::{Config, CoreError, RequestContext};
 use itertools::Itertools;
+use lockbook_crypto::pubkey;
+use lockbook_models::api::GetPublicKeyRequest;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::crypto::EncryptedDocument;
 use lockbook_models::file_metadata::FileMetadataDiff;
 use lockbook_models::file_metadata::FileType;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
 use lockbook_models::file_metadata::{EncryptedFileMetadata, EncryptedFiles};
+use lockbook_models::tree::FileMetaVecExt;
 use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
+use lockbook_models::crypto::UserAccessInfo;
+use lockbook_models::crypto::UserAccessMode;
+use lockbook_models::file_metadata::ShareMode;
+use lockbook_models::tree::TreeError;
 use lockbook_models::utils;
 use sha2::Digest;
 use sha2::Sha256;
@@ -98,6 +107,39 @@ impl RequestContext<'_, '_> {
         }
     }
 
+    pub fn get_pending_shares(
+        &mut self, source: RepoSource,
+    ) -> Result<Vec<DecryptedFileMetadata>, CoreError> {
+        // pending shares = metadata shared with user for which no link exists
+        let username = self.get_account()?.username;
+        let all_metadata = self.get_all_metadata(source)?;
+        let all_metadata = all_metadata.filter_not_deleted()?;
+        let shared_metadata = all_metadata
+            .iter()
+            .map(|(_, f)| f)
+            .filter(|f| {
+                f.shares.iter().any(|s| {
+                    s.encrypted_for_username == username && s.mode != UserAccessMode::Owner
+                })
+            })
+            .collect::<Vec<&DecryptedFileMetadata>>();
+        let pending_shares = shared_metadata
+            .into_iter()
+            .filter(|f| {
+                all_metadata.iter()
+                .map(|(_, f)| f).all(|f2| !{
+                    if let FileType::Link { linked_file } = f2.file_type {
+                        linked_file == f.id
+                    } else {
+                        false
+                    }
+                })
+            })
+            .map(|f| f.clone())
+            .collect();
+        Ok(pending_shares)
+    }
+
     /// Adds or updates the content of a document on disk.
     /// Disk optimization opportunity: this function needlessly writes to disk when setting local content = base content.
     /// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
@@ -152,7 +194,6 @@ impl RequestContext<'_, '_> {
         metadata_changes: &DecryptedFiles,
     ) -> Result<(), CoreError> {
         // encrypt metadata
-        let account = self.get_account()?;
         let all_metadata_with_changes_staged = all_metadata
             .stage_with_source(metadata_changes)
             .into_iter()
@@ -169,8 +210,7 @@ impl RequestContext<'_, '_> {
 
         let changes_and_parents = changes.into_iter().chain(parents.into_iter()).collect();
         let necessary_metadata_encrypted = file_encryption_service::encrypt_metadata(
-            &account,
-            &self.get_public_key()?,
+            &self.get_account()?,
             &changes_and_parents,
         )?;
 
@@ -201,6 +241,7 @@ impl RequestContext<'_, '_> {
                 if utils::slices_equal(&opposite.name.hmac, &encrypted_metadata.name.hmac)
                     && opposite.parent == metadatum.parent
                     && opposite.deleted == metadatum.deleted
+                    && opposite.user_access_keys == metadatum.shares
                 {
                     self.tx.local_metadata.delete(id);
                 }
@@ -250,15 +291,40 @@ impl RequestContext<'_, '_> {
 
     pub fn get_children(&mut self, id: Uuid) -> Result<DecryptedFiles, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-        Ok(files.find_children(id))
+        // todo(sharing): this (and other uses) mean we do not support links pointing to links, so make sure you prevent that on link create/update
+        let children = files
+            .find_children(id)
+            .iter()
+            .map(|(_, f)| {
+                if let FileType::Link { linked_file } = f.file_type {
+                    files.find(linked_file).map(|mut f2| {
+                        // return the linked file, but use the link's name
+                        f2.decrypted_name = f.decrypted_name.clone();
+                        f2
+                    })
+                } else {
+                    Ok(f.clone())
+                }
+            })
+            .collect::<Result<Vec<DecryptedFileMetadata>, TreeError>>();
+        Ok(children?.to_map())
     }
 
     pub fn get_and_get_children_recursively(
         &mut self, id: Uuid,
     ) -> Result<DecryptedFiles, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-        let file_and_descendants = files::find_with_descendants(&files, id)?;
-        Ok(file_and_descendants)
+        let file_and_descendants = files::find_with_descendants(&files, id)?
+            .iter()
+            .map(|(_, f)| {
+                if let FileType::Link { linked_file } = f.file_type {
+                    files.find(linked_file)
+                } else {
+                    Ok(f.clone())
+                }
+            })
+            .collect::<Result<Vec<DecryptedFileMetadata>, TreeError>>();
+        Ok(file_and_descendants?.to_map())
     }
 
     pub fn delete_file(&mut self, config: &Config, id: Uuid) -> Result<(), CoreError> {
@@ -287,7 +353,7 @@ impl RequestContext<'_, '_> {
         let deleted_both_metadata = deleted_base_metadata
             .into_iter()
             .filter(|id| deleted_local_metadata.contains(id));
-        let prune_eligible_ids =
+            let prune_eligible_ids =
             deleted_local_metadata
                 .iter()
                 .filter_map(|id| {
@@ -306,19 +372,19 @@ impl RequestContext<'_, '_> {
             .chain(all_local_metadata.keys())
             .cloned()
             .collect::<HashSet<Uuid>>();
-        let not_deleted_either_ids = all_ids
+            let not_deleted_either_ids = all_ids
             .into_iter()
             .filter(|id| !prune_eligible_ids.contains(id))
             .collect::<HashSet<Uuid>>();
-        let ancestors_of_not_deleted_base_ids = not_deleted_either_ids
+            let ancestors_of_not_deleted_base_ids = not_deleted_either_ids
             .iter()
             .flat_map(|&id| files::find_ancestors(&all_base_metadata, id).into_keys())
             .collect::<HashSet<Uuid>>();
-        let ancestors_of_not_deleted_local_ids = not_deleted_either_ids
+            let ancestors_of_not_deleted_local_ids = not_deleted_either_ids
             .iter()
             .flat_map(|&id| files::find_ancestors(&all_local_metadata, id).into_keys())
             .collect::<HashSet<Uuid>>();
-        let deleted_both_without_deleted_descendants_ids =
+            let deleted_both_without_deleted_descendants_ids =
             prune_eligible_ids.into_iter().filter(|id| {
                 !ancestors_of_not_deleted_base_ids.contains(id)
                     && !ancestors_of_not_deleted_local_ids.contains(id)
@@ -397,10 +463,67 @@ impl RequestContext<'_, '_> {
         self.insert_metadatum(config, RepoSource::Local, &file)
     }
 
-    pub fn get_all_with_document_changes(
-        &mut self, config: &Config,
-    ) -> Result<Vec<Uuid>, CoreError> {
-        let not_deleted = self.get_all_not_deleted_metadata(RepoSource::Local)?;
+    pub fn share_file(
+        &mut self, config: &Config, id: Uuid, username: &str, mode: ShareMode,
+    ) -> Result<(), CoreError> {
+        let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
+        let files = files.filter_not_deleted()?;
+        let mut file = files.find(id)?;
+
+        let account = self.get_account()?;
+        let public_key = api_service::request(
+            &account,
+            GetPublicKeyRequest { username: String::from(username) },
+        )
+        .map_err(CoreError::from)?
+        .key;
+        let access_key = file_encryption_service::encrypt_user_access_key(
+            &file.decrypted_access_key,
+            &account.private_key,
+            &public_key,
+        )?;
+
+        // todo(sharing): check for duplicates, do any other reasonable checks
+        let share_key =
+            pubkey::get_aes_key(&account.private_key, &public_key).map_err(core_err_unexpected)?;
+        file.shares.push(UserAccessInfo {
+            mode: match mode {
+                ShareMode::Write => UserAccessMode::Write,
+                ShareMode::Read => UserAccessMode::Read,
+            },
+            encrypted_by_username: account.username.clone(),
+            encrypted_by_public_key: account.public_key(),
+            encrypted_for_username: String::from(username),
+            encrypted_for_public_key: public_key,
+            access_key,
+            file_name: file_encryption_service::encrypt_file_name(
+                &file.decrypted_name,
+                &share_key,
+            )?,
+        });
+
+        self.insert_metadatum(config, RepoSource::Local, &file)?;
+        Ok(())
+    }
+
+    pub fn delete_pending_share(&mut self, config: &Config, id: Uuid) -> Result<(), CoreError> {
+        let username = self.get_account()?.username;
+        let mut file = self.get_metadata(RepoSource::Local, id)?;
+
+        // todo(sharing): make sure we don't remove shares for files we own (and probably a few other checks)
+        file.shares = file
+            .shares
+            .into_iter()
+            .filter(|s| s.encrypted_for_username == username)
+            .collect();
+
+        self.insert_metadatum(config, RepoSource::Local, &file)?;
+        Ok(())
+    }
+
+    pub fn get_all_with_document_changes(&mut self, config: &Config) -> Result<Vec<Uuid>, CoreError> {
+        let all = self.get_all_metadata(RepoSource::Local)?;
+        let not_deleted = all.filter_not_deleted()?;
         let not_deleted_with_document_changes = not_deleted
             .documents()
             .iter()
@@ -440,11 +563,25 @@ impl RequestContext<'_, '_> {
             Some(id) => staged.find(id),
             None => staged.find_root(),
         }?;
-        let non_orphans = files::find_with_descendants(&staged, root.id)?;
+        let non_orphans = files::find_with_descendants(&staged, root.id)?
+            .into_iter()
+            .map(|(_, f)| f)
+            .chain(
+                staged
+                    .iter()
+                    .map(|(_, f)| f)
+                    .filter(|f| {
+                        f.user_access_keys
+                            .iter()
+                            .any(|k| k.encrypted_for_username == account.username)
+                    })
+                    .map(|f| f.clone()),
+            )
+            .collect::<Vec<EncryptedFileMetadata>>().to_map();
         let mut staged_non_orphans = HashMap::new();
         let mut encrypted_orphans = HashMap::new();
-        for (id, f) in staged {
-            if non_orphans.maybe_find(id).is_some() {
+        for (_, f) in staged {
+            if non_orphans.maybe_find(f.id).is_some() {
                 // only decrypt non-orphans
                 staged_non_orphans.push(f);
             } else {

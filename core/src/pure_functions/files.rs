@@ -1,18 +1,21 @@
 use libsecp256k1::PublicKey;
 
 use std::collections::HashMap;
+use lockbook_models::crypto::{UserAccessInfo, UserAccessMode};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
 
 use uuid::Uuid;
 
-use lockbook_crypto::symkey;
+use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles, FileType, Owner};
 use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
 
+use crate::model::errors::core_err_unexpected;
 use crate::model::filename::NameComponents;
+use crate::service::file_encryption_service;
 use crate::{model::repo::RepoState, CoreError};
 
 pub fn create(
@@ -24,26 +27,47 @@ pub fn create(
         parent,
         decrypted_name: String::from(name),
         owner: Owner(*owner),
+        shares: Vec::new(),
         metadata_version: 0,
         content_version: 0,
         deleted: false,
         decrypted_access_key: symkey::generate_key(),
+        folder_access_key: None,
     }
 }
 
-pub fn create_root(account: &Account) -> DecryptedFileMetadata {
+pub fn create_root(account: &Account) -> Result<DecryptedFileMetadata, CoreError> {
     let id = Uuid::new_v4();
-    DecryptedFileMetadata {
+    let decrypted_access_key = symkey::generate_key();
+    let public_key = account.public_key();
+    let share_key =
+        pubkey::get_aes_key(&account.private_key, &public_key).map_err(core_err_unexpected)?;
+    let shares = vec![UserAccessInfo {
+        mode: UserAccessMode::Owner,
+        encrypted_by_username: account.username.clone(),
+        encrypted_by_public_key: public_key.clone(),
+        encrypted_for_username: account.username.clone(),
+        encrypted_for_public_key: public_key.clone(),
+        access_key: file_encryption_service::encrypt_user_access_key(
+            &decrypted_access_key,
+            &account.private_key,
+            &public_key,
+        )?,
+        file_name: file_encryption_service::encrypt_file_name(&account.username, &share_key)?,
+    }];
+    Ok(DecryptedFileMetadata {
         id,
         file_type: FileType::Folder,
         parent: id,
         decrypted_name: account.username.clone(),
         owner: Owner::from(account),
+        shares,
         metadata_version: 0,
         content_version: 0,
         deleted: false,
-        decrypted_access_key: symkey::generate_key(),
-    }
+        decrypted_access_key,
+        folder_access_key: None,
+    })
 }
 
 /// Validates a create operation for a file in the context of all files and returns a version of

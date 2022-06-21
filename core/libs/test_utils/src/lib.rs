@@ -1,14 +1,14 @@
 use chrono::Datelike;
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
+use lockbook_core::{Config, Core, RequestContext};
 use lockbook_core::model::repo::RepoSource;
 use lockbook_core::repo::{document_repo, local_storage};
 use lockbook_core::service::api_service::ApiError;
 use lockbook_core::service::path_service::Filter::DocumentsOnly;
-use lockbook_core::{Config, Core, RequestContext};
 use lockbook_models::api::{FileMetadataUpsertsError, PaymentMethod, StripeAccountTier};
 use lockbook_models::crypto::EncryptedDocument;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, ShareMode, DecryptedFiles};
 use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use lockbook_models::work_unit::WorkUnit;
 use std::collections::HashMap;
@@ -64,111 +64,152 @@ pub const UPDATES_REQ: Result<(), ApiError<FileMetadataUpsertsError>> =
     ));
 
 pub enum Operation<'a> {
-    Client { client_num: usize },
+    Client { account_num: usize, client_num: usize },
     Sync { client_num: usize },
     Create { client_num: usize, path: &'a str },
     Rename { client_num: usize, path: &'a str, new_name: &'a str },
     Move { client_num: usize, path: &'a str, new_parent_path: &'a str },
     Delete { client_num: usize, path: &'a str },
     Edit { client_num: usize, path: &'a str, content: &'a [u8] },
-    Custom { f: &'a dyn Fn(&[Core], &DecryptedFileMetadata) },
+    Share { client_num: usize, sharee_account_num: usize, share_mode: ShareMode, path: &'a str },
+    Custom { f: &'a dyn Fn(&[Core]) },
 }
 
 pub fn run(ops: &[Operation]) {
-    let mut cores = vec![test_core()];
-    cores[0].create_account(&random_name(), &url()).unwrap();
-    let root = cores[0].get_root().unwrap();
-
-    let ensure_client_exists = |clients: &mut Vec<Core>, client_num: &usize| {
-        if *client_num > clients.len() - 1 {
-            let account_string = clients[0].export_account().unwrap();
-            let core = test_core();
-            core.import_account(&account_string).unwrap();
-            clients.push(core)
+    let ensure_client_exists = |account_strings: &mut Vec<String>, clients: &mut Vec<Core>, account_num: usize, client_num: usize| {
+        let account_client: Option<Core> = loop {
+            let temp_client = if account_num + 1 > account_strings.len() {
+                let temp_client = test_core();
+                temp_client.create_account(&random_name(), &url()).unwrap();
+                let account_string = temp_client.export_account().unwrap();
+                account_strings.push(account_string);
+                Some(temp_client)
+            } else {
+                None
+            };
+            break temp_client
+        };
+        if let Some(client) = account_client {
+            if client_num + 1 > clients.len() {
+                clients.push(client);
+            }
+        }
+        while client_num + 1 > clients.len() {
+            let client = test_core();
+            client.import_account(&account_strings[account_num]).unwrap();
+            clients.push(client);
         }
     };
 
+    let mut account_strings = Vec::new();
+    let mut clients = Vec::new();
+    ensure_client_exists(&mut account_strings, &mut clients, 0, 0);
+
     for op in ops {
         match op {
-            Operation::Client { client_num } => {
-                ensure_client_exists(&mut cores, client_num);
+            Operation::Client { account_num, client_num } => {
+                ensure_client_exists(&mut account_strings, &mut clients, *account_num, *client_num);
             }
             Operation::Sync { client_num } => {
                 || -> Result<_, String> {
-                    ensure_client_exists(&mut cores, client_num);
-                    cores[*client_num].sync(None).map_err(err_to_string)
+                    clients[*client_num].sync(None).map_err(err_to_string)
                 }()
-                .unwrap_or_else(|_| panic!("Operation::Sync error. client_num={:?}", client_num));
+                .unwrap_or_else(|error| panic!("Operation::Sync error. client_num={:?}, error={:?}", client_num, error));
             }
             Operation::Create { client_num, path } => {
                 || -> Result<_, String> {
-                    let core = &cores[*client_num];
-                    let path = root.decrypted_name.clone() + "/" + path;
+                    let core = &clients[*client_num];
+                    let path = clients[*client_num].get_root().unwrap().decrypted_name.clone() + "/" + path;
                     core.create_at_path(&path).map_err(err_to_string)
                 }()
-                .unwrap_or_else(|_| {
-                    panic!("Operation::Create error. client_num={:?}, path={:?}", client_num, path)
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "Operation::Create error. client_num={:?}, path={:?}, error={:?}",
+                        client_num, path, error
+                    )
                 });
             }
             Operation::Rename { client_num, path, new_name } => {
                 || -> Result<_, String> {
-                    let core = &cores[*client_num];
-                    let path = root.decrypted_name.clone() + "/" + path;
+                    let core = &clients[*client_num];
+                    let path = clients[*client_num].get_root().unwrap().decrypted_name.clone() + "/" + path;
                     let target = core.get_by_path(&path).map_err(err_to_string)?;
                     core.rename_file(target.id, new_name).map_err(err_to_string)
                 }()
-                .unwrap_or_else(|_| {
+                .unwrap_or_else(|error| {
                     panic!(
-                        "Operation::Rename error. client_num={:?}, path={:?}, new_name={:?}",
-                        client_num, path, new_name
+                        "Operation::Rename error. client_num={:?}, path={:?}, new_name={:?}, error={:?}",
+                        client_num, path, new_name, error
                     )
                 });
             }
             Operation::Move { client_num, path, new_parent_path } => {
                 || -> Result<_, String> {
-                    let core = &cores[*client_num];
+                    let core = &clients[*client_num];
                     let path = core.get_root().unwrap().decrypted_name + "/" + path;
-                    let new_parent_path = root.decrypted_name.clone() + "/" + new_parent_path;
+                    let new_parent_path = clients[*client_num].get_root().unwrap().decrypted_name.clone() + "/" + new_parent_path;
                     let target = core.get_by_path(&path).map_err(err_to_string)?;
                     let new_parent = core.get_by_path(&new_parent_path).map_err(err_to_string)?;
                     core.move_file(target.id, new_parent.id)
                         .map_err(err_to_string)
                 }()
-                .unwrap_or_else(|_| {
+                .unwrap_or_else(|error| {
                     panic!(
-                        "Operation::Move error. client_num={:?}, path={:?}, new_parent_path={:?}",
-                        client_num, path, new_parent_path
+                        "Operation::Move error. client_num={:?}, path={:?}, new_parent_path={:?}, error={:?}",
+                        client_num, path, new_parent_path, error
                     )
                 });
             }
             Operation::Delete { client_num, path } => {
                 || -> Result<_, String> {
-                    let core = &cores[*client_num];
-                    let path = root.decrypted_name.clone() + "/" + path;
+                    let core = &clients[*client_num];
+                    let path = clients[*client_num].get_root().unwrap().decrypted_name.clone() + "/" + path;
                     let target = core.get_by_path(&path).map_err(err_to_string)?;
                     core.delete_file(target.id).map_err(err_to_string)
                 }()
-                .unwrap_or_else(|_| {
-                    panic!("Operation::Delete error. client_num={:?}, path={:?}", client_num, path)
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "Operation::Delete error. client_num={:?}, path={:?}, error={:?}",
+                        client_num, path, error
+                    )
                 });
             }
             Operation::Edit { client_num, path, content } => {
                 || -> Result<_, String> {
-                    let core = &cores[*client_num];
-                    let path = root.decrypted_name.clone() + "/" + path;
+                    let core = &clients[*client_num];
+                    let path = clients[*client_num].get_root().unwrap().decrypted_name.clone() + "/" + path;
                     let target = core.get_by_path(&path).map_err(err_to_string)?;
                     core.write_document(target.id, content)
                         .map_err(err_to_string)
                 }()
-                .unwrap_or_else(|_| {
+                .unwrap_or_else(|error| {
                     panic!(
-                        "Operation::Edit error. client_num={:?}, path={:?}, content={:?}",
-                        client_num, path, content
+                        "Operation::Edit error. client_num={:?}, path={:?}, content={:?}, error={:?}",
+                        client_num, path, content, error
+                    )
+                });
+            }
+            Operation::Share { client_num, sharee_account_num, share_mode, path } => {
+                || -> Result<_, String> {
+                    let core = &clients[*client_num];
+                    let path = clients[*client_num].get_root().unwrap().decrypted_name.clone() + "/" + path;
+                    let target = core.get_by_path(&path).map_err(err_to_string)?;
+                    let username = {
+                        let temp_client = test_core();
+                        temp_client.import_account(&account_strings[*sharee_account_num]).map_err(err_to_string)?;
+                        temp_client.get_account().map_err(err_to_string)?.username
+                    };
+                    core.share_file(target.id, &username, *share_mode).map_err(err_to_string)
+                }()
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "Operation::Share error. client_num={:?}, sharee_account_num={:?}, share_mode={:?}, path={:?}, error={:?}",
+                        client_num, sharee_account_num, share_mode, path, error
                     )
                 });
             }
             Operation::Custom { f } => {
-                f(&cores, &root);
+                f(&clients);
             }
         }
     }
@@ -197,6 +238,33 @@ pub fn assert_all_paths(core: &Core, root: &DecryptedFileMetadata, expected_path
         panic!(
             "paths did not match expectation. expected={:?}; actual={:?}",
             expected_paths, actual_paths
+        );
+    }
+}
+
+pub fn assert_all_pending_shares(core: &Core, expected_names: &[&str]) {
+    if expected_names.iter().any(|&path| path.contains('/')) {
+        panic!(
+            "improper call to expected_names; all paths must not contain with '/'. expected_names={:?}",
+            expected_names
+        );
+    }
+    let mut expected_names: Vec<String> = expected_names
+        .iter()
+        .map(|&name| String::from(name))
+        .collect();
+    let mut actual_names: Vec<String> = core
+        .get_pending_shares()
+        .unwrap()
+        .into_iter()
+        .map(|f| f.decrypted_name)
+        .collect();
+    actual_names.sort();
+    expected_names.sort();
+    if actual_names != expected_names {
+        panic!(
+            "pending share names did not match expectation. expected={:?}; actual={:?}",
+            expected_names, actual_names
         );
     }
 }

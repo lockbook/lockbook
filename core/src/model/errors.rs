@@ -489,6 +489,42 @@ impl From<CoreError> for Error<MoveFileError> {
 }
 
 #[derive(Debug, Serialize, EnumIter)]
+pub enum ShareFileError {} // todo(sharing): errors
+
+impl From<CoreError> for Error<ShareFileError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            // todo(sharing): match errors
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum DeletePendingShareError {} // todo(sharing): errors
+
+impl From<CoreError> for Error<DeletePendingShareError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            // todo(sharing): match errors
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum SetLinkError {} // todo(sharing): errors
+
+impl From<CoreError> for Error<SetLinkError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            // todo(sharing): match errors
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
 pub enum SyncAllError {
     ClientUpdateRequired,
     CouldNotReachServer,

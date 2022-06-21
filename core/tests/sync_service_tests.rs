@@ -2,6 +2,7 @@ use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use lockbook_core::model::repo::RepoSource;
 use lockbook_core::pure_functions::files;
+use lockbook_models::file_metadata::ShareMode;
 use test_utils::Operation::*;
 use test_utils::*;
 
@@ -14,7 +15,8 @@ fn unsynced_device() {
     for mut ops in [
         // unmodified
         vec![Custom {
-            f: &|dbs, root| {
+            f: &|dbs| {
+                let root = &dbs[0].get_root().unwrap();
                 let db = &dbs[0];
                 test_utils::assert_all_paths(db, root, &[""]);
                 test_utils::assert_all_document_contents(db, root, &[]);
@@ -24,9 +26,11 @@ fn unsynced_device() {
         }],
         // new_file
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &["", "document"]);
                     test_utils::assert_all_document_contents(db, root, &[("document", b"")]);
@@ -37,9 +41,11 @@ fn unsynced_device() {
         ],
         // new_files
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "a/b/c/d" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(
                         db,
@@ -58,10 +64,12 @@ fn unsynced_device() {
         ],
         // edited_document
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Edit { client_num: 0, path: "document", content: b"document content" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &["", "document"]);
                     test_utils::assert_all_document_contents(
@@ -76,11 +84,13 @@ fn unsynced_device() {
         ],
         // move
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "folder/" },
             Create { client_num: 0, path: "document" },
             Move { client_num: 0, path: "document", new_parent_path: "folder/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &["", "folder/", "folder/document"]);
                     test_utils::assert_all_document_contents(db, root, &[("folder/document", b"")]);
@@ -91,10 +101,12 @@ fn unsynced_device() {
         ],
         // rename
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Rename { client_num: 0, path: "document", new_name: "document2" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &["", "document2"]);
                     test_utils::assert_all_document_contents(db, root, &[("document2", b"")]);
@@ -105,10 +117,12 @@ fn unsynced_device() {
         ],
         // delete
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Delete { client_num: 0, path: "document" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -119,10 +133,12 @@ fn unsynced_device() {
         ],
         // delete_parent
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "parent/document" },
             Delete { client_num: 0, path: "parent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -133,10 +149,12 @@ fn unsynced_device() {
         ],
         // delete_grandparent
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "grandparent/parent/document" },
             Delete { client_num: 0, path: "grandparent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -147,7 +165,7 @@ fn unsynced_device() {
         ],
     ] {
         ops.push(Custom {
-            f: &|dbs, _| {
+            f: &|dbs| {
                 let db = &dbs[0];
                 db.validate().unwrap();
             },
@@ -166,9 +184,11 @@ fn synced_device() {
     for mut ops in [
         // unmodified
         vec![
+            Client { account_num: 0, client_num: 0 },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -177,10 +197,12 @@ fn synced_device() {
         ],
         // new_file
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &["", "document"]);
                     test_utils::assert_all_document_contents(db, root, &[("document", b"")]);
@@ -189,8 +211,9 @@ fn synced_device() {
         ],
         // new_file_name_same_as_username
         vec![
+            Client { account_num: 0, client_num: 0 },
             Custom {
-                f: &|dbs, _| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     let account = db.get_account().unwrap();
                     db.create_at_path(&path(db, &account.username)).unwrap();
@@ -198,7 +221,8 @@ fn synced_device() {
             },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     let account = db.get_account().unwrap();
                     let document_path = account.username;
@@ -209,10 +233,12 @@ fn synced_device() {
         ],
         // new_files
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "a/b/c/d" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(
                         db,
@@ -225,11 +251,13 @@ fn synced_device() {
         ],
         // edited_document
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Edit { client_num: 0, path: "document", content: b"document content" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &["", "document"]);
                     test_utils::assert_all_document_contents(
@@ -242,12 +270,14 @@ fn synced_device() {
         ],
         // move
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "folder/" },
             Create { client_num: 0, path: "document" },
             Move { client_num: 0, path: "document", new_parent_path: "folder/" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &["", "folder/", "folder/document"]);
                     test_utils::assert_all_document_contents(db, root, &[("folder/document", b"")]);
@@ -256,11 +286,13 @@ fn synced_device() {
         ],
         // rename
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Rename { client_num: 0, path: "document", new_name: "document2" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &["", "document2"]);
                     test_utils::assert_all_document_contents(db, root, &[("document2", b"")]);
@@ -269,11 +301,13 @@ fn synced_device() {
         ],
         // delete
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Delete { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -282,11 +316,13 @@ fn synced_device() {
         ],
         // delete_parent
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "folder/document" },
             Delete { client_num: 0, path: "folder/" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -295,11 +331,13 @@ fn synced_device() {
         ],
         // delete_grandparent
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "grandparent/parent/document" },
             Delete { client_num: 0, path: "grandparent/" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -308,7 +346,8 @@ fn synced_device() {
         ],
     ] {
         ops.push(Custom {
-            f: &|dbs, root| {
+            f: &|dbs| {
+                let root = &dbs[0].get_root().unwrap();
                 let db = &dbs[0];
                 db.validate().unwrap();
                 test_utils::assert_local_work_paths(db, root, &[]);
@@ -330,10 +369,12 @@ fn unsynced_change_synced_device() {
     for mut ops in [
         // new_file
         vec![
+            Client { account_num: 0, client_num: 0 },
             Sync { client_num: 0 },
             Create { client_num: 0, path: "document" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &["", "document"]);
                     test_utils::assert_all_document_contents(db, root, &[("document", b"")]);
@@ -343,10 +384,12 @@ fn unsynced_change_synced_device() {
         ],
         // new_files
         vec![
+            Client { account_num: 0, client_num: 0 },
             Sync { client_num: 0 },
             Create { client_num: 0, path: "a/b/c/d" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(
                         db,
@@ -364,11 +407,13 @@ fn unsynced_change_synced_device() {
         ],
         // edited_document
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Edit { client_num: 0, path: "document", content: b"document content" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &["", "document"]);
                     test_utils::assert_all_document_contents(
@@ -382,12 +427,14 @@ fn unsynced_change_synced_device() {
         ],
         // edit_unedit
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Edit { client_num: 0, path: "document", content: b"document content" },
             Edit { client_num: 0, path: "document", content: b"" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &["", "document"]);
                     test_utils::assert_all_document_contents(db, root, &[("document", b"")]);
@@ -397,12 +444,14 @@ fn unsynced_change_synced_device() {
         ],
         // move
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Create { client_num: 0, path: "folder/" },
             Sync { client_num: 0 },
             Move { client_num: 0, path: "document", new_parent_path: "folder/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &["", "folder/", "folder/document"]);
                     test_utils::assert_all_document_contents(db, root, &[("folder/document", b"")]);
@@ -412,13 +461,15 @@ fn unsynced_change_synced_device() {
         ],
         // move_unmove
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Create { client_num: 0, path: "folder/" },
             Sync { client_num: 0 },
             Move { client_num: 0, path: "document", new_parent_path: "folder/" },
             Move { client_num: 0, path: "folder/document", new_parent_path: "" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &["", "folder/", "document"]);
                     test_utils::assert_all_document_contents(db, root, &[("document", b"")]);
@@ -428,11 +479,13 @@ fn unsynced_change_synced_device() {
         ],
         // rename
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Rename { client_num: 0, path: "document", new_name: "document2" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &["", "document2"]);
                     test_utils::assert_all_document_contents(db, root, &[("document2", b"")]);
@@ -442,12 +495,14 @@ fn unsynced_change_synced_device() {
         ],
         // rename_unrename
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Rename { client_num: 0, path: "document", new_name: "document2" },
             Rename { client_num: 0, path: "document2", new_name: "document" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &["", "document"]);
                     test_utils::assert_all_document_contents(db, root, &[("document", b"")]);
@@ -457,11 +512,13 @@ fn unsynced_change_synced_device() {
         ],
         // delete
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Delete { client_num: 0, path: "document" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -471,11 +528,13 @@ fn unsynced_change_synced_device() {
         ],
         // delete_parent
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "parent/document" },
             Sync { client_num: 0 },
             Delete { client_num: 0, path: "parent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -485,11 +544,13 @@ fn unsynced_change_synced_device() {
         ],
         // delete_grandparent
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "grandparent/parent/document" },
             Sync { client_num: 0 },
             Delete { client_num: 0, path: "grandparent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -499,7 +560,8 @@ fn unsynced_change_synced_device() {
         ],
     ] {
         ops.push(Custom {
-            f: &|dbs, root| {
+            f: &|dbs| {
+                let root = &dbs[0].get_root().unwrap();
                 let db = &dbs[0];
                 db.validate().unwrap();
                 test_utils::assert_server_work_paths(db, root, &[]);
@@ -519,10 +581,12 @@ fn new_unsynced_device() {
     for mut ops in [
         // unmodified
         vec![
+            Client { account_num: 0, client_num: 0 },
             Sync { client_num: 0 },
-            Client { client_num: 1 },
+            Client { account_num: 0, client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_server_work_paths(db, root, &[""]);
                 },
@@ -530,11 +594,13 @@ fn new_unsynced_device() {
         ],
         // new_file
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
-            Client { client_num: 1 },
+            Client { account_num: 0, client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_server_work_paths(db, root, &["", "document"]);
                 },
@@ -542,11 +608,13 @@ fn new_unsynced_device() {
         ],
         // new_files
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "a/b/c/d" },
             Sync { client_num: 0 },
-            Client { client_num: 1 },
+            Client { account_num: 0, client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_server_work_paths(
                         db,
@@ -558,12 +626,14 @@ fn new_unsynced_device() {
         ],
         // edited_document
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Edit { client_num: 0, path: "document", content: b"document content" },
             Sync { client_num: 0 },
-            Client { client_num: 1 },
+            Client { account_num: 0, client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_server_work_paths(db, root, &["", "document"]);
                 },
@@ -571,13 +641,15 @@ fn new_unsynced_device() {
         ],
         // move
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "folder/" },
             Create { client_num: 0, path: "document" },
             Move { client_num: 0, path: "document", new_parent_path: "folder/" },
             Sync { client_num: 0 },
-            Client { client_num: 1 },
+            Client { account_num: 0, client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_server_work_paths(
                         db,
@@ -589,12 +661,14 @@ fn new_unsynced_device() {
         ],
         // rename
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Rename { client_num: 0, path: "document", new_name: "document2" },
             Sync { client_num: 0 },
-            Client { client_num: 1 },
+            Client { account_num: 0, client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_server_work_paths(db, root, &["", "document2"]);
                 },
@@ -602,12 +676,14 @@ fn new_unsynced_device() {
         ],
         // delete
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "document" },
             Delete { client_num: 0, path: "document" },
             Sync { client_num: 0 },
-            Client { client_num: 1 },
+            Client { account_num: 0, client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_server_work_paths(db, root, &[""]);
                 },
@@ -615,12 +691,14 @@ fn new_unsynced_device() {
         ],
         // delete_parent
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "parent/document" },
             Delete { client_num: 0, path: "parent/" },
             Sync { client_num: 0 },
-            Client { client_num: 1 },
+            Client { account_num: 0, client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_server_work_paths(db, root, &[""]);
                 },
@@ -628,12 +706,14 @@ fn new_unsynced_device() {
         ],
         // delete_grandparent
         vec![
+            Client { account_num: 0, client_num: 0 },
             Create { client_num: 0, path: "grandparent/parent/document" },
             Delete { client_num: 0, path: "grandparent/" },
             Sync { client_num: 0 },
-            Client { client_num: 1 },
+            Client { account_num: 0, client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_server_work_paths(db, root, &[""]);
                 },
@@ -641,7 +721,8 @@ fn new_unsynced_device() {
         ],
     ] {
         ops.push(Custom {
-            f: &|dbs, root| {
+            f: &|dbs| {
+                let root = &dbs[0].get_root().unwrap();
                 let db = &dbs[1];
                 db.validate().unwrap();
                 test_utils::assert_all_paths(db, root, &[]);
@@ -663,10 +744,13 @@ fn new_synced_device() {
     for mut ops in [
         // unmodified
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -675,11 +759,14 @@ fn new_synced_device() {
         ],
         // new_file
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "document"]);
                     test_utils::assert_all_document_contents(db, root, &[("document", b"")]);
@@ -688,11 +775,14 @@ fn new_synced_device() {
         ],
         // new_files
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/b/c/d" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -705,12 +795,15 @@ fn new_synced_device() {
         ],
         // edited_document
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document" },
             Edit { client_num: 0, path: "document", content: b"document content" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "document"]);
                     test_utils::assert_all_document_contents(
@@ -723,13 +816,16 @@ fn new_synced_device() {
         ],
         // move
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "folder/" },
             Create { client_num: 0, path: "document" },
             Move { client_num: 0, path: "document", new_parent_path: "folder/" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "folder/", "folder/document"]);
                     test_utils::assert_all_document_contents(db, root, &[("folder/document", b"")]);
@@ -738,12 +834,15 @@ fn new_synced_device() {
         ],
         // rename
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document" },
             Rename { client_num: 0, path: "document", new_name: "document2" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "document2"]);
                     test_utils::assert_all_document_contents(db, root, &[("document2", b"")]);
@@ -752,12 +851,15 @@ fn new_synced_device() {
         ],
         // delete
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document" },
             Delete { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -766,12 +868,15 @@ fn new_synced_device() {
         ],
         // delete_parent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/document" },
             Delete { client_num: 0, path: "parent/" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -780,12 +885,15 @@ fn new_synced_device() {
         ],
         // delete_grandparent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "grandparent/parent/document" },
             Delete { client_num: 0, path: "grandparent/" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -794,7 +902,8 @@ fn new_synced_device() {
         ],
     ] {
         ops.push(Custom {
-            f: &|dbs, root| {
+            f: &|dbs| {
+                let root = &dbs[0].get_root().unwrap();
                 let db = &dbs[0];
                 let db2 = &dbs[1];
                 db.validate().unwrap();
@@ -818,10 +927,13 @@ fn unsynced_change_new_synced_device() {
     for mut ops in [
         // unmodified
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -831,11 +943,14 @@ fn unsynced_change_new_synced_device() {
         ],
         // new_file
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Sync { client_num: 1 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -845,11 +960,14 @@ fn unsynced_change_new_synced_device() {
         ],
         // new_files
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Sync { client_num: 1 },
             Create { client_num: 0, path: "a/b/c/d" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -863,13 +981,16 @@ fn unsynced_change_new_synced_device() {
         ],
         // edited_document
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Edit { client_num: 0, path: "document", content: b"document content" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "document"]);
                     test_utils::assert_all_document_contents(db, root, &[("document", b"")]);
@@ -879,6 +1000,8 @@ fn unsynced_change_new_synced_device() {
         ],
         // move
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "folder/" },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
@@ -886,7 +1009,8 @@ fn unsynced_change_new_synced_device() {
             Move { client_num: 0, path: "document", new_parent_path: "folder/" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "folder/", "document"]);
                     test_utils::assert_all_document_contents(db, root, &[("document", b"")]);
@@ -896,13 +1020,16 @@ fn unsynced_change_new_synced_device() {
         ],
         // rename
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Rename { client_num: 0, path: "document", new_name: "document2" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "document"]);
                     test_utils::assert_all_document_contents(db, root, &[("document", b"")]);
@@ -912,13 +1039,16 @@ fn unsynced_change_new_synced_device() {
         ],
         // delete
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Delete { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "document"]);
                     test_utils::assert_all_document_contents(db, root, &[("document", b"")]);
@@ -928,13 +1058,16 @@ fn unsynced_change_new_synced_device() {
         ],
         // delete_parent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Delete { client_num: 0, path: "parent/" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "parent/", "parent/document"]);
                     test_utils::assert_all_document_contents(db, root, &[("parent/document", b"")]);
@@ -944,13 +1077,16 @@ fn unsynced_change_new_synced_device() {
         ],
         // delete_grandparent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "grandparent/parent/document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Delete { client_num: 0, path: "grandparent/" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -972,7 +1108,8 @@ fn unsynced_change_new_synced_device() {
         ],
     ] {
         ops.push(Custom {
-            f: &|dbs, root| {
+            f: &|dbs| {
+                let root = &dbs[0].get_root().unwrap();
                 let db = &dbs[1];
                 db.validate().unwrap();
                 test_utils::assert_local_work_paths(db, root, &[]);
@@ -992,11 +1129,14 @@ fn synced_change_new_synced_device() {
     for mut ops in [
         // unmodified
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Sync { client_num: 1 },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1005,12 +1145,15 @@ fn synced_change_new_synced_device() {
         ],
         // new_file
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Sync { client_num: 1 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "document"]);
                     test_utils::assert_all_document_contents(db, root, &[("document", b"")]);
@@ -1019,12 +1162,15 @@ fn synced_change_new_synced_device() {
         ],
         // new_files
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Sync { client_num: 1 },
             Create { client_num: 0, path: "a/b/c/d" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -1037,6 +1183,8 @@ fn synced_change_new_synced_device() {
         ],
         // edited_document
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
@@ -1044,7 +1192,8 @@ fn synced_change_new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "document"]);
                     test_utils::assert_all_document_contents(
@@ -1057,6 +1206,8 @@ fn synced_change_new_synced_device() {
         ],
         // move
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "folder/" },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
@@ -1065,7 +1216,8 @@ fn synced_change_new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "folder/", "folder/document"]);
                     test_utils::assert_all_document_contents(db, root, &[("folder/document", b"")]);
@@ -1074,6 +1226,8 @@ fn synced_change_new_synced_device() {
         ],
         // rename
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
@@ -1081,7 +1235,8 @@ fn synced_change_new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "document2"]);
                     test_utils::assert_all_document_contents(db, root, &[("document2", b"")]);
@@ -1090,6 +1245,8 @@ fn synced_change_new_synced_device() {
         ],
         // delete
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
@@ -1097,7 +1254,8 @@ fn synced_change_new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1106,6 +1264,8 @@ fn synced_change_new_synced_device() {
         ],
         // delete_parent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
@@ -1113,7 +1273,8 @@ fn synced_change_new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1122,6 +1283,8 @@ fn synced_change_new_synced_device() {
         ],
         // delete_grandparent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "grandparent/parent/document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
@@ -1129,7 +1292,8 @@ fn synced_change_new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1138,7 +1302,8 @@ fn synced_change_new_synced_device() {
         ],
     ] {
         ops.push(Custom {
-            f: &|dbs, root| {
+            f: &|dbs| {
+                let root = &dbs[0].get_root().unwrap();
                 let db = &dbs[0];
                 let db2 = &dbs[1];
                 db.validate().unwrap();
@@ -1162,6 +1327,8 @@ fn concurrent_change() {
     for mut ops in [
         // identical_move
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/" },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
@@ -1169,7 +1336,8 @@ fn concurrent_change() {
             Move { client_num: 0, path: "document", new_parent_path: "parent/" },
             Move { client_num: 1, path: "document", new_parent_path: "parent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "parent/", "parent/document"]);
                     test_utils::assert_all_document_contents(db, root, &[("parent/document", b"")]);
@@ -1178,6 +1346,8 @@ fn concurrent_change() {
         ],
         // different_move
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/" },
             Create { client_num: 0, path: "parent2/" },
             Create { client_num: 0, path: "document" },
@@ -1186,7 +1356,8 @@ fn concurrent_change() {
             Move { client_num: 0, path: "document", new_parent_path: "parent/" },
             Move { client_num: 1, path: "document", new_parent_path: "parent2/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -1199,13 +1370,16 @@ fn concurrent_change() {
         ],
         // identical_rename
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Rename { client_num: 0, path: "document", new_name: "document2" },
             Rename { client_num: 1, path: "document", new_name: "document2" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "document2"]);
                     test_utils::assert_all_document_contents(db, root, &[("document2", b"")]);
@@ -1214,13 +1388,16 @@ fn concurrent_change() {
         ],
         // different_rename
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Rename { client_num: 0, path: "document", new_name: "document2" },
             Rename { client_num: 1, path: "document", new_name: "document3" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "document2"]);
                     test_utils::assert_all_document_contents(db, root, &[("document2", b"")]);
@@ -1229,6 +1406,8 @@ fn concurrent_change() {
         ],
         // move_then_rename
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/" },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
@@ -1236,7 +1415,8 @@ fn concurrent_change() {
             Move { client_num: 0, path: "document", new_parent_path: "parent/" },
             Rename { client_num: 1, path: "document", new_name: "document2" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "parent/", "parent/document2"]);
                     test_utils::assert_all_document_contents(
@@ -1249,6 +1429,8 @@ fn concurrent_change() {
         ],
         // rename_then_move
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/" },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
@@ -1256,7 +1438,8 @@ fn concurrent_change() {
             Rename { client_num: 0, path: "document", new_name: "document2" },
             Move { client_num: 1, path: "document", new_parent_path: "parent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "parent/", "parent/document2"]);
                     test_utils::assert_all_document_contents(
@@ -1269,13 +1452,16 @@ fn concurrent_change() {
         ],
         // identical_delete
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Delete { client_num: 0, path: "document" },
             Delete { client_num: 1, path: "document" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1284,13 +1470,16 @@ fn concurrent_change() {
         ],
         // identical_delete_parent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Delete { client_num: 0, path: "parent/" },
             Delete { client_num: 1, path: "parent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1299,13 +1488,16 @@ fn concurrent_change() {
         ],
         // delete_parent_then_direct
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Delete { client_num: 0, path: "parent/" },
             Delete { client_num: 1, path: "parent/document" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1314,13 +1506,16 @@ fn concurrent_change() {
         ],
         // delete_direct_then_parent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Delete { client_num: 0, path: "parent/document" },
             Delete { client_num: 1, path: "parent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1329,13 +1524,16 @@ fn concurrent_change() {
         ],
         // identical_delete_grandparent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "grandparent/parent/document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Delete { client_num: 0, path: "grandparent/" },
             Delete { client_num: 1, path: "grandparent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1344,13 +1542,16 @@ fn concurrent_change() {
         ],
         // delete_grandparent_then_direct
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "grandparent/parent/document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Delete { client_num: 0, path: "grandparent/" },
             Delete { client_num: 1, path: "grandparent/parent/document" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1359,13 +1560,16 @@ fn concurrent_change() {
         ],
         // delete_direct_then_grandparent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "grandparent/parent/document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Delete { client_num: 0, path: "grandparent/parent/document" },
             Delete { client_num: 1, path: "grandparent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1374,13 +1578,16 @@ fn concurrent_change() {
         ],
         // delete_grandparent_then_parent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "grandparent/parent/document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Delete { client_num: 0, path: "grandparent/" },
             Delete { client_num: 1, path: "grandparent/parent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1389,13 +1596,16 @@ fn concurrent_change() {
         ],
         // delete_parent_then_grandparent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "grandparent/parent/document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Delete { client_num: 0, path: "grandparent/parent/" },
             Delete { client_num: 1, path: "grandparent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1404,6 +1614,8 @@ fn concurrent_change() {
         ],
         // move_then_delete
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/" },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
@@ -1411,7 +1623,8 @@ fn concurrent_change() {
             Move { client_num: 0, path: "document", new_parent_path: "parent/" },
             Delete { client_num: 1, path: "document" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "parent/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1420,6 +1633,8 @@ fn concurrent_change() {
         ],
         // delete_then_move
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/" },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
@@ -1427,7 +1642,8 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "document" },
             Move { client_num: 1, path: "document", new_parent_path: "parent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "parent/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1436,6 +1652,8 @@ fn concurrent_change() {
         ],
         // move_then_delete_new_parent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/" },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
@@ -1443,7 +1661,8 @@ fn concurrent_change() {
             Move { client_num: 0, path: "document", new_parent_path: "parent/" },
             Delete { client_num: 1, path: "parent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1452,6 +1671,8 @@ fn concurrent_change() {
         ],
         // delete_new_parent_then_move
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/" },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
@@ -1459,7 +1680,8 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "parent/" },
             Move { client_num: 1, path: "document", new_parent_path: "parent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1468,13 +1690,16 @@ fn concurrent_change() {
         ],
         // move_then_delete_old_parent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Move { client_num: 0, path: "parent/document", new_parent_path: "" },
             Delete { client_num: 1, path: "parent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "document"]);
                     test_utils::assert_all_document_contents(db, root, &[("document", b"")]);
@@ -1483,13 +1708,16 @@ fn concurrent_change() {
         ],
         // delete_old_parent_then_move
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Delete { client_num: 0, path: "parent/" },
             Move { client_num: 1, path: "parent/document", new_parent_path: "" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1498,13 +1726,16 @@ fn concurrent_change() {
         ],
         // rename_then_delete
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Rename { client_num: 0, path: "document", new_name: "document2" },
             Delete { client_num: 1, path: "document" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1513,13 +1744,16 @@ fn concurrent_change() {
         ],
         // delete_then_rename
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Delete { client_num: 0, path: "document" },
             Rename { client_num: 1, path: "document", new_name: "document2" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1528,6 +1762,8 @@ fn concurrent_change() {
         ],
         // create_then_move_parent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/" },
             Create { client_num: 0, path: "parent2/" },
             Sync { client_num: 0 },
@@ -1535,7 +1771,8 @@ fn concurrent_change() {
             Create { client_num: 0, path: "parent/document" },
             Move { client_num: 1, path: "parent/", new_parent_path: "parent2/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -1552,6 +1789,8 @@ fn concurrent_change() {
         ],
         // move_parent_then_create
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/" },
             Create { client_num: 0, path: "parent2/" },
             Sync { client_num: 0 },
@@ -1559,7 +1798,8 @@ fn concurrent_change() {
             Move { client_num: 0, path: "parent/", new_parent_path: "parent2/" },
             Create { client_num: 1, path: "parent/document" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -1576,13 +1816,16 @@ fn concurrent_change() {
         ],
         // create_then_rename_parent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Create { client_num: 0, path: "parent/document" },
             Rename { client_num: 1, path: "parent/", new_name: "parent2" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "parent2/", "parent2/document"]);
                     test_utils::assert_all_document_contents(
@@ -1595,13 +1838,16 @@ fn concurrent_change() {
         ],
         // rename_parent_then_create
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Rename { client_num: 0, path: "parent/", new_name: "parent2" },
             Create { client_num: 1, path: "parent/document" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "parent2/", "parent2/document"]);
                     test_utils::assert_all_document_contents(
@@ -1614,13 +1860,16 @@ fn concurrent_change() {
         ],
         // create_then_delete_parent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Create { client_num: 0, path: "parent/document" },
             Delete { client_num: 1, path: "parent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1629,13 +1878,16 @@ fn concurrent_change() {
         ],
         // delete_parent_then_create
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Delete { client_num: 0, path: "parent/" },
             Create { client_num: 1, path: "parent/document" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1644,13 +1896,16 @@ fn concurrent_change() {
         ],
         // create_then_delete_grandparent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "grandparent/parent/" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Create { client_num: 0, path: "grandparent/parent/document" },
             Delete { client_num: 1, path: "grandparent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1659,13 +1914,16 @@ fn concurrent_change() {
         ],
         // delete_grandparent_then_create
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "grandparent/parent/" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Delete { client_num: 0, path: "grandparent/" },
             Create { client_num: 1, path: "grandparent/parent/document" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1674,6 +1932,8 @@ fn concurrent_change() {
         ],
         // identical_content_edit_not_mergable
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document.draw" },
             Edit { client_num: 0, path: "document.draw", content: b"document content" },
             Sync { client_num: 0 },
@@ -1681,7 +1941,8 @@ fn concurrent_change() {
             Edit { client_num: 0, path: "document.draw", content: b"document content 2" },
             Edit { client_num: 1, path: "document.draw", content: b"document content 2" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -1701,6 +1962,8 @@ fn concurrent_change() {
         ],
         // identical_content_edit_mergable
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document.md" },
             Edit { client_num: 0, path: "document.md", content: b"document content" },
             Sync { client_num: 0 },
@@ -1708,7 +1971,8 @@ fn concurrent_change() {
             Edit { client_num: 0, path: "document.md", content: b"document content 2" },
             Edit { client_num: 1, path: "document.md", content: b"document content 2" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "document.md"]);
                     test_utils::assert_all_document_contents(
@@ -1721,6 +1985,8 @@ fn concurrent_change() {
         ],
         // different_content_edit_not_mergable
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document.draw" },
             Edit { client_num: 0, path: "document.draw", content: b"document\n\ncontent\n" },
             Sync { client_num: 0 },
@@ -1728,7 +1994,8 @@ fn concurrent_change() {
             Edit { client_num: 0, path: "document.draw", content: b"document 2\n\ncontent\n" },
             Edit { client_num: 1, path: "document.draw", content: b"document\n\ncontent 2\n" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -1748,6 +2015,8 @@ fn concurrent_change() {
         ],
         // different_content_edit_mergable
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document.md" },
             Edit { client_num: 0, path: "document.md", content: b"document\n\ncontent\n" },
             Sync { client_num: 0 },
@@ -1755,7 +2024,8 @@ fn concurrent_change() {
             Edit { client_num: 0, path: "document.md", content: b"document 2\n\ncontent\n" },
             Edit { client_num: 1, path: "document.md", content: b"document\n\ncontent 2\n" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "document.md"]);
                     test_utils::assert_all_document_contents(
@@ -1768,6 +2038,8 @@ fn concurrent_change() {
         ],
         // different_content_edit_mergable_with_move_in_first_sync
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/" },
             Create { client_num: 0, path: "document.md" },
             Edit { client_num: 0, path: "document.md", content: b"document\n\ncontent\n" },
@@ -1777,7 +2049,8 @@ fn concurrent_change() {
             Move { client_num: 0, path: "document.md", new_parent_path: "parent/" },
             Edit { client_num: 1, path: "document.md", content: b"document\n\ncontent 2\n" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "parent/", "parent/document.md"]);
                     test_utils::assert_all_document_contents(
@@ -1790,6 +2063,8 @@ fn concurrent_change() {
         ],
         // different_content_edit_mergable_with_move_in_second_sync
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/" },
             Create { client_num: 0, path: "document.md" },
             Edit { client_num: 0, path: "document.md", content: b"document\n\ncontent\n" },
@@ -1799,7 +2074,8 @@ fn concurrent_change() {
             Edit { client_num: 1, path: "document.md", content: b"document\n\ncontent 2\n" },
             Move { client_num: 1, path: "document.md", new_parent_path: "parent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "parent/", "parent/document.md"]);
                     test_utils::assert_all_document_contents(
@@ -1812,6 +2088,8 @@ fn concurrent_change() {
         ],
         // move_then_edit_content
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/" },
             Create { client_num: 0, path: "document.md" },
             Edit { client_num: 0, path: "document.md", content: b"document content" },
@@ -1820,7 +2098,8 @@ fn concurrent_change() {
             Move { client_num: 0, path: "document.md", new_parent_path: "parent/" },
             Edit { client_num: 1, path: "document.md", content: b"document content 2" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "parent/", "parent/document.md"]);
                     test_utils::assert_all_document_contents(
@@ -1833,6 +2112,8 @@ fn concurrent_change() {
         ],
         // edit_content_then_move
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/" },
             Create { client_num: 0, path: "document.md" },
             Edit { client_num: 0, path: "document.md", content: b"document content" },
@@ -1841,7 +2122,8 @@ fn concurrent_change() {
             Edit { client_num: 0, path: "document.md", content: b"document content 2" },
             Move { client_num: 1, path: "document.md", new_parent_path: "parent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "parent/", "parent/document.md"]);
                     test_utils::assert_all_document_contents(
@@ -1854,6 +2136,8 @@ fn concurrent_change() {
         ],
         // rename_then_edit_content
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document.md" },
             Edit { client_num: 0, path: "document.md", content: b"document content" },
             Sync { client_num: 0 },
@@ -1861,7 +2145,8 @@ fn concurrent_change() {
             Rename { client_num: 0, path: "document.md", new_name: "document2.md" },
             Edit { client_num: 1, path: "document.md", content: b"document content 2" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "document2.md"]);
                     test_utils::assert_all_document_contents(
@@ -1874,6 +2159,8 @@ fn concurrent_change() {
         ],
         // edit_content_then_rename
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document.md" },
             Edit { client_num: 0, path: "document.md", content: b"document content" },
             Sync { client_num: 0 },
@@ -1881,7 +2168,8 @@ fn concurrent_change() {
             Edit { client_num: 0, path: "document.md", content: b"document content 2" },
             Rename { client_num: 1, path: "document.md", new_name: "document2.md" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "document2.md"]);
                     test_utils::assert_all_document_contents(
@@ -1894,6 +2182,8 @@ fn concurrent_change() {
         ],
         // delete_then_edit_content
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document.md" },
             Edit { client_num: 0, path: "document.md", content: b"document content" },
             Sync { client_num: 0 },
@@ -1901,7 +2191,8 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "document.md" },
             Edit { client_num: 1, path: "document.md", content: b"document content 2" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1910,6 +2201,8 @@ fn concurrent_change() {
         ],
         // edit_content_then_delete
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "document.md" },
             Edit { client_num: 0, path: "document.md", content: b"document content" },
             Sync { client_num: 0 },
@@ -1917,7 +2210,8 @@ fn concurrent_change() {
             Edit { client_num: 0, path: "document.md", content: b"document content 2" },
             Delete { client_num: 1, path: "document.md" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1926,6 +2220,8 @@ fn concurrent_change() {
         ],
         // delete_parent_then_edit_content
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/document.md" },
             Edit { client_num: 0, path: "parent/document.md", content: b"document content" },
             Sync { client_num: 0 },
@@ -1933,7 +2229,8 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "parent/" },
             Edit { client_num: 1, path: "parent/document.md", content: b"document content 2" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1942,6 +2239,8 @@ fn concurrent_change() {
         ],
         // edit_content_then_delete_parent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "parent/document.md" },
             Edit { client_num: 0, path: "parent/document.md", content: b"document content" },
             Sync { client_num: 0 },
@@ -1949,7 +2248,8 @@ fn concurrent_change() {
             Edit { client_num: 0, path: "parent/document.md", content: b"document content 2" },
             Delete { client_num: 1, path: "parent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1958,6 +2258,8 @@ fn concurrent_change() {
         ],
         // delete_grandparent_then_edit_content
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "grandparent/parent/document.md" },
             Edit {
                 client_num: 0,
@@ -1973,7 +2275,8 @@ fn concurrent_change() {
                 content: b"document content 2",
             },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -1982,6 +2285,8 @@ fn concurrent_change() {
         ],
         // edit_content_then_delete_grandparent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "grandparent/parent/document.md" },
             Edit {
                 client_num: 0,
@@ -1997,7 +2302,8 @@ fn concurrent_change() {
             },
             Delete { client_num: 1, path: "grandparent/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2012,7 +2318,8 @@ fn concurrent_change() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     let db2 = &dbs[1];
                     db.validate().unwrap();
@@ -2039,6 +2346,8 @@ fn cycle_resolution() {
     for mut ops in [
         // two_cycle
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Sync { client_num: 0 },
@@ -2046,7 +2355,8 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "a/", new_parent_path: "b/" },
             Move { client_num: 1, path: "b/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "b/", "b/a/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2055,6 +2365,8 @@ fn cycle_resolution() {
         ],
         // three_cycle_one_move_reverted
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2064,7 +2376,8 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "b/", new_parent_path: "c/" },
             Move { client_num: 1, path: "c/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "c/", "c/b/", "c/b/a/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2073,6 +2386,8 @@ fn cycle_resolution() {
         ],
         // three_cycle_two_moves_reverted
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2082,7 +2397,8 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "b/", new_parent_path: "c/" },
             Move { client_num: 1, path: "c/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "b/", "b/a/", "c/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2091,6 +2407,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_one_move_reverted
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2102,7 +2420,8 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "c/", new_parent_path: "d/" },
             Move { client_num: 1, path: "d/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -2115,6 +2434,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_two_moves_reverted_adjacent
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2126,7 +2447,8 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "c/", new_parent_path: "d/" },
             Move { client_num: 1, path: "d/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "c/", "c/b/", "c/b/a/", "d/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2135,6 +2457,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_two_moves_reverted_alternating
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2146,7 +2470,8 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "c/", new_parent_path: "d/" },
             Move { client_num: 1, path: "d/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "b/", "b/a/", "d/", "d/c/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2155,6 +2480,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_three_moves_reverted
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2166,7 +2493,8 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "c/", new_parent_path: "d/" },
             Move { client_num: 1, path: "d/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "b/", "b/a/", "c/", "d/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2175,6 +2503,8 @@ fn cycle_resolution() {
         ],
         // two_cycle_with_renames_first_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Sync { client_num: 0 },
@@ -2184,7 +2514,8 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "a2/", new_parent_path: "b2/" },
             Move { client_num: 1, path: "b/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "b2/", "b2/a2/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2193,6 +2524,8 @@ fn cycle_resolution() {
         ],
         // three_cycle_one_move_reverted_with_renames_first_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2205,7 +2538,8 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "b2/", new_parent_path: "c2/" },
             Move { client_num: 1, path: "c/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "c2/", "c2/b2/", "c2/b2/a2/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2214,6 +2548,8 @@ fn cycle_resolution() {
         ],
         // three_cycle_two_moves_reverted_with_renames_first_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2226,7 +2562,8 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "b/", new_parent_path: "c/" },
             Move { client_num: 1, path: "c/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "b2/", "b2/a2/", "c2/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2235,6 +2572,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_one_move_reverted_with_renames_first_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2250,7 +2589,8 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "c2/", new_parent_path: "d2/" },
             Move { client_num: 1, path: "d/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -2263,6 +2603,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_two_moves_reverted_adjacent_with_renames_first_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2278,7 +2620,8 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "c/", new_parent_path: "d/" },
             Move { client_num: 1, path: "d/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -2291,6 +2634,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_two_moves_reverted_alternating_with_renames_first_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2306,7 +2651,8 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "c2/", new_parent_path: "d2/" },
             Move { client_num: 1, path: "d/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "b2/", "b2/a2/", "d2/", "d2/c2/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2315,6 +2661,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_three_moves_reverted_with_renames_first_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2330,7 +2678,8 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "c/", new_parent_path: "d/" },
             Move { client_num: 1, path: "d/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "b2/", "b2/a2/", "c2/", "d2/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2339,6 +2688,8 @@ fn cycle_resolution() {
         ],
         // two_cycle_with_renames_second_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Sync { client_num: 0 },
@@ -2348,7 +2699,8 @@ fn cycle_resolution() {
             Rename { client_num: 1, path: "b/", new_name: "b2" },
             Move { client_num: 1, path: "b2/", new_parent_path: "a2/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "b2/", "b2/a2/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2357,6 +2709,8 @@ fn cycle_resolution() {
         ],
         // three_cycle_one_move_reverted_with_renames_second_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2369,7 +2723,8 @@ fn cycle_resolution() {
             Rename { client_num: 1, path: "c/", new_name: "c2" },
             Move { client_num: 1, path: "c2/", new_parent_path: "a2/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "c2/", "c2/b2/", "c2/b2/a2/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2378,6 +2733,8 @@ fn cycle_resolution() {
         ],
         // three_cycle_two_moves_reverted_with_renames_second_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2390,7 +2747,8 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "b2/", new_parent_path: "c2/" },
             Move { client_num: 1, path: "c2/", new_parent_path: "a2/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "b2/", "b2/a2/", "c2/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2399,6 +2757,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_one_move_reverted_with_renames_second_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2414,7 +2774,8 @@ fn cycle_resolution() {
             Rename { client_num: 1, path: "d/", new_name: "d2" },
             Move { client_num: 1, path: "d2/", new_parent_path: "a2/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -2427,6 +2788,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_two_moves_reverted_adjacent_with_renames_second_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2442,7 +2805,8 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "c2/", new_parent_path: "d2/" },
             Move { client_num: 1, path: "d2/", new_parent_path: "a2/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -2455,6 +2819,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_two_moves_reverted_alternating_with_renames_second_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2470,7 +2836,8 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "c/", new_parent_path: "d/" },
             Move { client_num: 1, path: "d2/", new_parent_path: "a2/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "b2/", "b2/a2/", "d2/", "d2/c2/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2479,6 +2846,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_three_moves_reverted_with_renames_second_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2494,7 +2863,8 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "c2/", new_parent_path: "d2/" },
             Move { client_num: 1, path: "d2/", new_parent_path: "a2/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "b2/", "b2/a2/", "c2/", "d2/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2503,6 +2873,8 @@ fn cycle_resolution() {
         ],
         // two_cycle_with_deletes_first_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Sync { client_num: 0 },
@@ -2511,7 +2883,8 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "b/", new_parent_path: "a/" },
             Delete { client_num: 0, path: "b/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2520,6 +2893,8 @@ fn cycle_resolution() {
         ],
         // three_cycle_one_move_reverted_with_deletes_first_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2530,7 +2905,8 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "c/", new_parent_path: "a/" },
             Delete { client_num: 0, path: "c/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2539,6 +2915,8 @@ fn cycle_resolution() {
         ],
         // three_cycle_two_moves_reverted_with_deletes_first_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2550,7 +2928,8 @@ fn cycle_resolution() {
             Delete { client_num: 0, path: "b/" },
             Delete { client_num: 0, path: "c/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2559,6 +2938,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_one_move_reverted_with_deletes_first_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2571,7 +2952,8 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "d/", new_parent_path: "a/" },
             Delete { client_num: 0, path: "d/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2580,6 +2962,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_two_moves_reverted_adjacent_with_deletes_first_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2593,7 +2977,8 @@ fn cycle_resolution() {
             Delete { client_num: 0, path: "c/" },
             Delete { client_num: 0, path: "d/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2602,6 +2987,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_two_moves_reverted_alternating_with_deletes_first_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2615,7 +3002,8 @@ fn cycle_resolution() {
             Delete { client_num: 0, path: "b/" },
             Delete { client_num: 0, path: "d/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2624,6 +3012,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_three_moves_reverted_with_deletes_first_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2638,7 +3028,8 @@ fn cycle_resolution() {
             Delete { client_num: 0, path: "c/" },
             Delete { client_num: 0, path: "d/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &[""]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2647,6 +3038,8 @@ fn cycle_resolution() {
         ],
         // two_cycle_with_deletes_second_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Sync { client_num: 0 },
@@ -2655,7 +3048,8 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "b/", new_parent_path: "a/" },
             Delete { client_num: 1, path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "b/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2664,6 +3058,8 @@ fn cycle_resolution() {
         ],
         // three_cycle_one_move_reverted_with_deletes_second_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2675,7 +3071,8 @@ fn cycle_resolution() {
             Delete { client_num: 1, path: "a/" },
             Delete { client_num: 1, path: "b/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "c/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2684,6 +3081,8 @@ fn cycle_resolution() {
         ],
         // three_cycle_two_moves_reverted_with_deletes_second_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2694,7 +3093,8 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "c/", new_parent_path: "a/" },
             Delete { client_num: 1, path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "b/", "c/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2703,6 +3103,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_one_move_reverted_with_deletes_second_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2717,7 +3119,8 @@ fn cycle_resolution() {
             Delete { client_num: 1, path: "b/" },
             Delete { client_num: 1, path: "c/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "d/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2726,6 +3129,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_two_moves_reverted_adjacent_with_deletes_second_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2739,7 +3144,8 @@ fn cycle_resolution() {
             Delete { client_num: 1, path: "a/" },
             Delete { client_num: 1, path: "b/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "c/", "d/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2748,6 +3154,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_two_moves_reverted_alternating_with_deletes_second_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2761,7 +3169,8 @@ fn cycle_resolution() {
             Delete { client_num: 1, path: "a/" },
             Delete { client_num: 1, path: "c/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "b/", "d/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2770,6 +3179,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_three_moves_reverted_with_deletes_second_device
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 0, path: "b/" },
             Create { client_num: 0, path: "c/" },
@@ -2782,7 +3193,8 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "d/", new_parent_path: "a/" },
             Delete { client_num: 1, path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "b/", "c/", "d/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -2791,6 +3203,8 @@ fn cycle_resolution() {
         ],
         // move_two_cycle_with_children
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/child/" },
             Create { client_num: 0, path: "b/child/" },
             Sync { client_num: 0 },
@@ -2798,7 +3212,8 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "a/", new_parent_path: "b/" },
             Move { client_num: 1, path: "b/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -2811,6 +3226,8 @@ fn cycle_resolution() {
         ],
         // three_cycle_one_move_reverted_with_children
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/child/" },
             Create { client_num: 0, path: "b/child/" },
             Create { client_num: 0, path: "c/child/" },
@@ -2820,7 +3237,8 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "b/", new_parent_path: "c/" },
             Move { client_num: 1, path: "c/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -2833,6 +3251,8 @@ fn cycle_resolution() {
         ],
         // three_cycle_two_moves_reverted_with_children
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/child/" },
             Create { client_num: 0, path: "b/child/" },
             Create { client_num: 0, path: "c/child/" },
@@ -2842,7 +3262,8 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "b/", new_parent_path: "c/" },
             Move { client_num: 1, path: "c/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -2855,6 +3276,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_one_move_reverted_with_children
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/child/" },
             Create { client_num: 0, path: "b/child/" },
             Create { client_num: 0, path: "c/child/" },
@@ -2866,7 +3289,8 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "c/", new_parent_path: "d/" },
             Move { client_num: 1, path: "d/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -2889,6 +3313,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_two_moves_reverted_adjacent_with_children
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/child/" },
             Create { client_num: 0, path: "b/child/" },
             Create { client_num: 0, path: "c/child/" },
@@ -2900,7 +3326,8 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "c/", new_parent_path: "d/" },
             Move { client_num: 1, path: "d/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -2923,6 +3350,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_two_moves_reverted_alternating_with_children
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/child/" },
             Create { client_num: 0, path: "b/child/" },
             Create { client_num: 0, path: "c/child/" },
@@ -2934,7 +3363,8 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "c/", new_parent_path: "d/" },
             Move { client_num: 1, path: "d/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -2957,6 +3387,8 @@ fn cycle_resolution() {
         ],
         // four_cycle_three_moves_reverted_with_children
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "a/child/" },
             Create { client_num: 0, path: "b/child/" },
             Create { client_num: 0, path: "c/child/" },
@@ -2968,7 +3400,8 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "c/", new_parent_path: "d/" },
             Move { client_num: 1, path: "d/", new_parent_path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -2997,7 +3430,8 @@ fn cycle_resolution() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     let db2 = &dbs[1];
                     db.validate().unwrap();
@@ -3024,11 +3458,14 @@ fn path_conflict_resolution() {
     for mut ops in [
         // concurrent_create_documents
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Sync { client_num: 1 },
             Create { client_num: 0, path: "a.md" },
             Create { client_num: 1, path: "a.md" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "a.md", "a-1.md"]);
                     test_utils::assert_all_document_contents(
@@ -3041,11 +3478,14 @@ fn path_conflict_resolution() {
         ],
         // concurrent_create_folders
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Sync { client_num: 1 },
             Create { client_num: 0, path: "a/" },
             Create { client_num: 1, path: "a/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "a/", "a-1/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -3054,11 +3494,14 @@ fn path_conflict_resolution() {
         ],
         // concurrent_create_folders_with_children
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Sync { client_num: 1 },
             Create { client_num: 0, path: "a/child/" },
             Create { client_num: 1, path: "a/child/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -3071,11 +3514,14 @@ fn path_conflict_resolution() {
         ],
         // concurrent_create_document_then_folder
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Sync { client_num: 1 },
             Create { client_num: 0, path: "a.md" },
             Create { client_num: 1, path: "a.md/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "a.md", "a-1.md/"]);
                     test_utils::assert_all_document_contents(db, root, &[("a.md", b"")]);
@@ -3084,11 +3530,14 @@ fn path_conflict_resolution() {
         ],
         // concurrent_create_folder_then_document
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Sync { client_num: 1 },
             Create { client_num: 0, path: "a.md/" },
             Create { client_num: 1, path: "a.md" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "a.md/", "a-1.md"]);
                     test_utils::assert_all_document_contents(db, root, &[("a-1.md", b"")]);
@@ -3097,11 +3546,14 @@ fn path_conflict_resolution() {
         ],
         // concurrent_create_document_then_folder_with_child
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Sync { client_num: 1 },
             Create { client_num: 0, path: "a.md" },
             Create { client_num: 1, path: "a.md/child/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -3114,11 +3566,14 @@ fn path_conflict_resolution() {
         ],
         // concurrent_create_folder_with_child_then_document
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Sync { client_num: 1 },
             Create { client_num: 0, path: "a.md/child/" },
             Create { client_num: 1, path: "a.md" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "a.md/", "a.md/child/", "a-1.md"]);
                     test_utils::assert_all_document_contents(db, root, &[("a-1.md", b"")]);
@@ -3127,13 +3582,16 @@ fn path_conflict_resolution() {
         ],
         // concurrent_move_then_create_documents
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "folder/a.md" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Move { client_num: 0, path: "folder/a.md", new_parent_path: "" },
             Create { client_num: 1, path: "a.md" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "folder/", "a.md", "a-1.md"]);
                     test_utils::assert_all_document_contents(
@@ -3146,13 +3604,16 @@ fn path_conflict_resolution() {
         ],
         // concurrent_create_then_move_documents
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "folder/a.md" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Create { client_num: 0, path: "a.md" },
             Move { client_num: 1, path: "folder/a.md", new_parent_path: "" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "folder/", "a.md", "a-1.md"]);
                     test_utils::assert_all_document_contents(
@@ -3165,13 +3626,16 @@ fn path_conflict_resolution() {
         ],
         // concurrent_move_then_create_folders
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "folder/a.md/" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Move { client_num: 0, path: "folder/a.md/", new_parent_path: "" },
             Create { client_num: 1, path: "a.md/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "folder/", "a.md/", "a-1.md/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -3180,13 +3644,16 @@ fn path_conflict_resolution() {
         ],
         // concurrent_create_then_move_folders
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "folder/a.md/" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Create { client_num: 0, path: "a.md/" },
             Move { client_num: 1, path: "folder/a.md/", new_parent_path: "" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(db, root, &["", "folder/", "a.md/", "a-1.md/"]);
                     test_utils::assert_all_document_contents(db, root, &[]);
@@ -3195,13 +3662,16 @@ fn path_conflict_resolution() {
         ],
         // concurrent_move_then_create_folders_with_children
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "folder/a.md/child/" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Move { client_num: 0, path: "folder/a.md/", new_parent_path: "" },
             Create { client_num: 1, path: "a.md/child/" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -3214,13 +3684,16 @@ fn path_conflict_resolution() {
         ],
         // concurrent_create_then_move_folders_with_children
         vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 0, client_num: 1 },
             Create { client_num: 0, path: "folder/a.md/child/" },
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Create { client_num: 0, path: "a.md/child/" },
             Move { client_num: 1, path: "folder/a.md/", new_parent_path: "" },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[1];
                     test_utils::assert_all_paths(
                         db,
@@ -3239,7 +3712,8 @@ fn path_conflict_resolution() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, root| {
+                f: &|dbs| {
+                    let root = &dbs[0].get_root().unwrap();
                     let db = &dbs[0];
                     let db2 = &dbs[1];
                     db.validate().unwrap();
@@ -3251,6 +3725,91 @@ fn path_conflict_resolution() {
             },
             checks,
         ]);
+        test_utils::run(&ops);
+    }
+}
+
+/*  ---------------------------------------------------------------------------------------------------------------
+Tests that setup one device each on two accounts, share a file from one to the other, then sync both
+---------------------------------------------------------------------------------------------------------------  */
+
+#[test]
+fn pending_share() {
+    for mut ops in [
+        // new_file
+        vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 1, client_num: 1 },
+            Create { client_num: 0, path: "document" },
+            Share {
+                client_num: 0,
+                sharee_account_num: 1,
+                share_mode: ShareMode::Read,
+                path: "document",
+            },
+            Sync { client_num: 0 },
+            Sync { client_num: 1 },
+            Custom {
+                f: &|dbs| {
+                    let db = &dbs[1];
+                    test_utils::assert_all_pending_shares(db, &["document"]);
+                },
+            },
+        ],
+        // new_files
+        vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 1, client_num: 1 },
+            Create { client_num: 0, path: "a/b/c/d" },
+            Create { client_num: 0, path: "e/f/g/h" },
+            Share { client_num: 0, sharee_account_num: 1, share_mode: ShareMode::Read, path: "a" },
+            Share { client_num: 0, sharee_account_num: 1, share_mode: ShareMode::Read, path: "e" },
+            Sync { client_num: 0 },
+            Sync { client_num: 1 },
+            Custom {
+                f: &|dbs| {
+                    let db = &dbs[1];
+                    test_utils::assert_all_pending_shares(db, &["a", "e"]);
+                },
+            },
+        ],
+        // edited_document
+        vec![
+            Client { account_num: 0, client_num: 0 },
+            Client { account_num: 1, client_num: 1 },
+            Create { client_num: 0, path: "document" },
+            Share {
+                client_num: 0,
+                sharee_account_num: 1,
+                share_mode: ShareMode::Read,
+                path: "document",
+            },
+            Edit { client_num: 0, path: "document", content: b"document content" },
+            Sync { client_num: 0 },
+            Sync { client_num: 1 },
+            Custom {
+                f: &|dbs| {
+                    let db = &dbs[1];
+                    test_utils::assert_all_pending_shares(db, &["document"]);
+                },
+            },
+        ],
+    ] {
+        ops.push(Custom {
+            f: &|dbs| {
+                for db in dbs {
+                    db.validate().unwrap();
+                    test_utils::assert_deleted_files_pruned(db);
+                    let root = &db.get_root().unwrap();
+                    test_utils::assert_local_work_paths(db, root, &[]);
+                    test_utils::assert_server_work_paths(db, root, &[]);
+                }
+                let db = &dbs[1];
+                let root = &db.get_root().unwrap();
+                test_utils::assert_all_paths(db, root, &[""]);
+                test_utils::assert_all_document_contents(db, root, &[]);
+            },
+        });
         test_utils::run(&ops);
     }
 }

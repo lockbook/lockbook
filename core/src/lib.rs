@@ -37,6 +37,14 @@ use chrono::Duration;
 use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
+use lockbook_crypto::clock_service;
+use lockbook_models::account::Account;
+use lockbook_models::api::{StripeAccountTier, SubscriptionInfo};
+use lockbook_models::crypto::{AESKey, DecryptedDocument};
+use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType, ShareMode};
+use model::errors::Error::UiError;
+pub use model::errors::{CoreError, Error, UnexpectedError};
 use serde::Deserialize;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
@@ -249,6 +257,14 @@ impl Core {
         Ok(val)
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_pending_shares(&self) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.get_pending_shares(RepoSource::Local))?;
+        Ok(val?)
+    }
+
     #[instrument(level = "debug", skip(self, new_name), err(Debug))]
     pub fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), Error<RenameFileError>> {
         let val = self
@@ -266,6 +282,24 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
+    pub fn share_file(
+        &self, id: Uuid, username: &str, mode: ShareMode,
+    ) -> Result<(), Error<ShareFileError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.share_file(&self.config, id, username, mode))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn delete_pending_share(&self, id: Uuid) -> Result<(), Error<DeletePendingShareError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.delete_pending_share(&self.config, id))?;
+        Ok(val?)
+    }
+
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn create_at_path(
         &self, path_and_name: &str,
@@ -274,6 +308,17 @@ impl Core {
             self.context(tx)?
                 .create_at_path(&self.config, path_and_name)
         })??;
+
+        Ok(val)
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn create_link_at_path(
+        &self, path_and_name: &str, target_id: Uuid,
+    ) -> Result<DecryptedFileMetadata, Error<CreateFileAtPathError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.create_link_at_path(&self.config, path_and_name, target_id))??;
 
         Ok(val)
     }

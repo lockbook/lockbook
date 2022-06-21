@@ -1,22 +1,42 @@
 use crate::model::repo::RepoSource;
 use crate::pure_functions::files;
 use crate::{Config, CoreError, RequestContext};
-use lockbook_models::file_metadata::FileType::{Document, Folder};
-use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
+use lockbook_models::file_metadata::FileType::{Folder, Link};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType, DecryptedFiles};
 use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
+    pub fn create_link_at_path(
+        &mut self, config: &Config, path_and_name: &str, target_id: Uuid,
+    ) -> Result<DecryptedFileMetadata, CoreError> {
+        // todo(sharing): target should itself not be a link... I think. I am drunk.
+        // todo(sharing): at most one link per target (this idea I had while sober)
+        self.create_at_path_with_type(
+            config,
+            path_and_name,
+            FileType::Link { linked_file: target_id },
+        )
+    }
+
     pub fn create_at_path(
         &mut self, config: &Config, path_and_name: &str,
+    ) -> Result<DecryptedFileMetadata, CoreError> {
+        self.create_at_path_with_type(
+            config,
+            path_and_name,
+            if path_and_name.ends_with('/') { FileType::Folder } else { FileType::Document },
+        )
+    }
+
+    pub fn create_at_path_with_type(
+        &mut self, config: &Config, path_and_name: &str, file_type: FileType,
     ) -> Result<DecryptedFileMetadata, CoreError> {
         if path_and_name.contains("//") {
             return Err(CoreError::PathContainsEmptyFileName);
         }
 
         let path_components = split_path(path_and_name);
-
-        let is_folder = path_and_name.ends_with('/');
 
         let mut files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
 
@@ -55,8 +75,7 @@ impl RequestContext<'_, '_> {
             }
 
             // Child does not exist, create it
-            let file_type =
-                if is_folder || index != path_components.len() - 2 { Folder } else { Document };
+            let file_type = if index != path_components.len() - 2 { Folder } else { file_type };
 
             current = files::apply_create(
                 &files,
@@ -86,7 +105,7 @@ impl RequestContext<'_, '_> {
                 return Ok(current);
             }
 
-            let children = files.find_children(current.id);
+            let children = self.get_children(current.id)?; // note: performs link substitution
             let mut found_child = false;
 
             for (_, child) in children {
@@ -104,6 +123,7 @@ impl RequestContext<'_, '_> {
         Ok(current)
     }
 
+    // todo(sharing): should pending shares be a special error case for get path by id?
     pub fn get_path_by_id(&mut self, id: Uuid) -> Result<String, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
         Self::path_by_id_helper(&files, id)
@@ -116,6 +136,9 @@ impl RequestContext<'_, '_> {
         let is_folder = current_metadata.is_folder();
 
         while !current_metadata.is_root() {
+            while let Some(link) = files.maybe_find_link(current_metadata.id) {
+                current_metadata = files.find_ref(link.id)?;
+            }
             path = format!("{}/{}", current_metadata.decrypted_name, path);
             current_metadata = files.find_ref(current_metadata.parent)?;
         }
@@ -144,17 +167,28 @@ impl RequestContext<'_, '_> {
                 }),
             }
         }
+        filtered_files
+            .retain(|_, f| if let Link { linked_file: _ } = f.file_type { false } else { true });
 
         let mut paths: Vec<String> = vec![];
-        for (_id, file) in filtered_files {
+        'outer: for (_, file) in filtered_files {
             let mut current = file.clone();
             let mut current_path = String::from("");
             while current.id != current.parent {
-                if current.is_document() {
-                    current_path = current.decrypted_name;
-                } else {
-                    current_path = format!("{}/{}", current.decrypted_name, current_path);
+                while current.owner.0 != self.get_account()?.public_key() {
+                    if let Some(link) = files.maybe_find_link(current.id) {
+                        current = files.find(link.id)?;
+                    } else {
+                        continue 'outer; // this file is a pending share
+                    }
                 }
+
+                if current.file_type == Folder {
+                    current_path = format!("{}/{}", current.decrypted_name, current_path);
+                } else {
+                    current_path = current.decrypted_name;
+                }
+
                 current = files.find(current.parent)?;
             }
 

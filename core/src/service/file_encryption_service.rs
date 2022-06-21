@@ -1,6 +1,6 @@
-use libsecp256k1::PublicKey;
 use std::collections::HashMap;
 
+use libsecp256k1::{PublicKey, SecretKey};
 use uuid::Uuid;
 
 use lockbook_crypto::{pubkey, symkey};
@@ -9,20 +9,15 @@ use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::{
     DecryptedFileMetadata, DecryptedFiles, EncryptedFileMetadata, EncryptedFiles,
 };
-use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
+use lockbook_models::tree::FileMetaMapExt;
 
 use crate::model::errors::{core_err_unexpected, CoreError};
 
 /// Converts a DecryptedFileMetadata to a FileMetadata using its decrypted parent key. Sharing is
 /// not supported; user access keys are encrypted for the provided account. This is a pure function.
 pub fn encrypt_metadatum(
-    account: &Account, public_key: &PublicKey, parent_key: &AESKey, target: &DecryptedFileMetadata,
+    parent_key: &AESKey, target: &DecryptedFileMetadata,
 ) -> Result<EncryptedFileMetadata, CoreError> {
-    let user_access_keys = if target.is_root() {
-        encrypt_user_access_keys(account, public_key, &target.decrypted_access_key)?
-    } else {
-        Default::default()
-    };
     Ok(EncryptedFileMetadata {
         id: target.id,
         file_type: target.file_type,
@@ -32,54 +27,77 @@ pub fn encrypt_metadatum(
         metadata_version: target.metadata_version,
         content_version: target.content_version,
         deleted: target.deleted,
-        user_access_keys,
-        folder_access_keys: encrypt_folder_access_keys(&target.decrypted_access_key, parent_key)?,
+        user_access_keys: target.shares.clone(),
+        folder_access_key: encrypt_folder_access_keys(&target.decrypted_access_key, parent_key)?,
     })
 }
 
-/// Converts a set of DecryptedFileMetadata's to EncryptedFileMetadata's. All parents of files must be
-/// included in files. Sharing is not supported; user access keys are encrypted for the provided
-/// account. This is a pure function.
-/// This is O(n) now with hashmaps
 pub fn encrypt_metadata(
-    account: &Account, public_key: &PublicKey, files: &DecryptedFiles,
+    account: &Account, files: &DecryptedFiles,
 ) -> Result<EncryptedFiles, CoreError> {
     let mut result = HashMap::new();
-    for target in files.values() {
-        let parent_key = files.maybe_find(target.parent).ok_or_else(|| {
-                CoreError::Unexpected(String::from(
-                    "parent metadata missing during call to file_encrpytion_service::encrypt_metadata",
-                ))
-            })?
-            .decrypted_access_key;
-        result.push(encrypt_metadatum(account, public_key, &parent_key, target)?);
+    for (_, target) in files {
+        if let Some(user_access) = target
+            .shares
+            .iter()
+            .find(|k| k.encrypted_for_username == account.username)
+        {
+            let share_key =
+                pubkey::get_aes_key(&account.private_key, &user_access.encrypted_by_public_key)
+                    .map_err(core_err_unexpected)?;
+            let folder_access_key = if target.id == target.parent {
+                encrypt_folder_access_keys(
+                    &target.decrypted_access_key,
+                    &target.decrypted_access_key,
+                )?
+            } else {
+                target
+                    .folder_access_key
+                    .clone()
+                    .ok_or(core_err_unexpected("unshared decrypted metadata with no folder key"))?
+            };
+            result.push(EncryptedFileMetadata {
+                id: target.id,
+                file_type: target.file_type,
+                parent: target.parent,
+                name: encrypt_file_name(&target.decrypted_name, &share_key)?,
+                owner: target.owner.clone(),
+                metadata_version: target.metadata_version,
+                content_version: target.content_version,
+                deleted: target.deleted,
+                user_access_keys: target.shares.clone(),
+                folder_access_key, // todo(sharing): do something better?
+            });
+        } else {
+            let parent_key = files
+                .iter()
+                .find(|(_, m)| m.id == target.parent)
+                .ok_or_else(|| {
+                    CoreError::Unexpected(String::from(
+                        "parent metadata missing during call to file_encrpytion_service::encrypt_metadata",
+                    ))
+                })?
+                .1.decrypted_access_key;
+            result.push(encrypt_metadatum(&parent_key, target)?);
+        }
     }
     Ok(result)
 }
 
-fn encrypt_file_name(
+pub fn encrypt_file_name(
     decrypted_name: &str, parent_key: &AESKey,
 ) -> Result<SecretFileName, CoreError> {
     symkey::encrypt_and_hmac(parent_key, decrypted_name).map_err(core_err_unexpected)
 }
 
-fn encrypt_user_access_keys(
-    account: &Account, public_key: &PublicKey, decrypted_file_key: &AESKey,
-) -> Result<HashMap<String, UserAccessInfo>, CoreError> {
+pub fn encrypt_user_access_key(
+    decrypted_file_key: &AESKey, sharer_secret_key: &SecretKey, sharee_public_key: &PublicKey,
+) -> Result<AESEncrypted<[u8; 32]>, CoreError> {
     let user_key =
-        pubkey::get_aes_key(&account.private_key, public_key).map_err(core_err_unexpected)?;
+        pubkey::get_aes_key(sharer_secret_key, sharee_public_key).map_err(core_err_unexpected)?;
     let encrypted_file_key =
         symkey::encrypt(&user_key, decrypted_file_key).map_err(core_err_unexpected)?;
-    let mut result = HashMap::new();
-    result.insert(
-        account.username.clone(),
-        UserAccessInfo {
-            username: account.username.clone(),
-            encrypted_by: *public_key,
-            access_key: encrypted_file_key,
-        },
-    );
-    Ok(result)
+    Ok(encrypted_file_key)
 }
 
 fn encrypt_folder_access_keys(
@@ -99,25 +117,52 @@ pub fn decrypt_metadatum(
         parent: target.parent,
         decrypted_name: decrypt_file_name(&target.name, parent_key)?,
         owner: target.owner.clone(),
+        shares: target.user_access_keys.clone(),
         metadata_version: target.metadata_version,
         content_version: target.content_version,
         deleted: target.deleted,
-        decrypted_access_key: decrypt_folder_access_keys(&target.folder_access_keys, parent_key)?,
+        decrypted_access_key: decrypt_folder_access_keys(&target.folder_access_key, parent_key)?,
+        folder_access_key: Some(target.folder_access_key.clone()),
     })
 }
 
 /// Converts a set of FileMetadata's to DecryptedFileMetadata's. All parents of files must be
-/// included in files. Sharing is not supported; user access keys not for the provided account are
-/// ignored. This is a pure function.
+/// included in files, unless they are shared to this account. This is a pure function.
 pub fn decrypt_metadata(
     account: &Account, files: &EncryptedFiles, key_cache: &mut HashMap<Uuid, AESKey>,
 ) -> Result<DecryptedFiles, CoreError> {
     let mut result = HashMap::new();
 
     for target in files.values() {
-        let parent_key = decrypt_file_key(account, target.parent, files, key_cache)?;
-        let decrypted_metadatum = decrypt_metadatum(&parent_key, target)?;
-        result.push(decrypted_metadatum);
+        // todo(sharing): weird code duplication with decrypt_file_key
+        if let Some(user_access) = target
+            .user_access_keys
+            .iter()
+            .find(|k| k.encrypted_for_username == account.username)
+        {
+            let user_access_key =
+                pubkey::get_aes_key(&account.private_key, &user_access.encrypted_by_public_key)
+                    .map_err(core_err_unexpected)?;
+            let file_key = symkey::decrypt(&user_access_key, &user_access.access_key)
+                .map_err(core_err_unexpected)?;
+
+            result.push(DecryptedFileMetadata {
+                id: target.id,
+                file_type: target.file_type,
+                parent: target.parent,
+                decrypted_name: decrypt_file_name(&user_access.file_name, &user_access_key)?,
+                owner: target.owner.clone(),
+                shares: target.user_access_keys.clone(),
+                metadata_version: target.metadata_version,
+                content_version: target.content_version,
+                deleted: target.deleted,
+                decrypted_access_key: file_key,
+                folder_access_key: Some(target.folder_access_key.clone()),
+            });
+        } else {
+            let parent_key = decrypt_file_key(account, target.parent, files, key_cache)?;
+            result.push(decrypt_metadatum(&parent_key, target)?);
+        }
     }
     Ok(result)
 }
@@ -138,10 +183,14 @@ fn decrypt_file_key(
         ))
     })?;
 
-    let key = match target.user_access_keys.get(&account.username) {
+    let key = match target
+        .user_access_keys
+        .iter()
+        .find(|k| k.encrypted_for_username == account.username)
+    {
         Some(user_access) => {
             let user_access_key =
-                pubkey::get_aes_key(&account.private_key, &user_access.encrypted_by)
+                pubkey::get_aes_key(&account.private_key, &user_access.encrypted_by_public_key)
                     .map_err(core_err_unexpected)?;
             symkey::decrypt(&user_access_key, &user_access.access_key)
                 .map_err(core_err_unexpected)?
@@ -149,7 +198,7 @@ fn decrypt_file_key(
         None => {
             let parent_key =
                 decrypt_file_key(account, target.parent, target_with_ancestors, key_cache)?;
-            symkey::decrypt(&parent_key, &target.folder_access_keys).map_err(core_err_unexpected)?
+            symkey::decrypt(&parent_key, &target.folder_access_key).map_err(core_err_unexpected)?
         }
     };
 

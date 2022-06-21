@@ -169,6 +169,9 @@ impl RequestContext<'_, '_> {
                 )
                 .map_err(CoreError::from)?;
             }
+            FileType::Link { linked_file: _ } => {
+                // todo(sharing): follow links?
+            }
         }
 
         Ok(())

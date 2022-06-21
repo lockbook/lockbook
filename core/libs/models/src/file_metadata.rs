@@ -8,8 +8,8 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::account::{Account, Username};
-use crate::crypto::{AESKey, EncryptedFolderAccessKey, SecretFileName, UserAccessInfo};
+use crate::account::Account;
+use crate::crypto::{AESKey, EncryptedFolderAccessKey, SecretFileName, UserAccessInfo, AESEncrypted};
 use crate::tree::FileMetadata;
 
 pub type EncryptedFiles = HashMap<Uuid, EncryptedFileMetadata>;
@@ -19,6 +19,7 @@ pub type DecryptedFiles = HashMap<Uuid, DecryptedFileMetadata>;
 pub enum FileType {
     Document,
     Folder,
+    Link { linked_file: Uuid },
 }
 
 impl FromStr for FileType {
@@ -42,8 +43,8 @@ pub struct EncryptedFileMetadata {
     pub metadata_version: u64,
     pub content_version: u64,
     pub deleted: bool,
-    pub user_access_keys: HashMap<Username, UserAccessInfo>,
-    pub folder_access_keys: EncryptedFolderAccessKey,
+    pub user_access_keys: Vec<UserAccessInfo>,
+    pub folder_access_key: EncryptedFolderAccessKey,
 }
 
 impl FileMetadata for EncryptedFileMetadata {
@@ -77,6 +78,7 @@ impl FileMetadata for EncryptedFileMetadata {
         match self.file_type() {
             FileType::Folder => format!("id: {}/", self.id),
             FileType::Document => format!("id: {}", self.id),
+            FileType::Link { linked_file } => format!("id: {}, linked_file: {}", self.id, linked_file),
         }
     }
 }
@@ -121,6 +123,12 @@ impl PartialEq for Owner {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Copy)]
+pub enum ShareMode {
+    Write,
+    Read,
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 pub struct DecryptedFileMetadata {
     pub id: Uuid,
@@ -128,10 +136,12 @@ pub struct DecryptedFileMetadata {
     pub parent: Uuid,
     pub decrypted_name: String,
     pub owner: Owner,
+    pub shares: Vec<UserAccessInfo>,
     pub metadata_version: u64,
     pub content_version: u64,
     pub deleted: bool,
     pub decrypted_access_key: AESKey, // access key is the same whether it's decrypted for user or for folder
+    pub folder_access_key: Option<AESEncrypted<[u8; 32]>>, // required because it cannot be reproduced for shared files
 }
 
 impl FileMetadata for DecryptedFileMetadata {
@@ -165,6 +175,7 @@ impl FileMetadata for DecryptedFileMetadata {
         match self.file_type() {
             FileType::Folder => format!("{}/", self.decrypted_name),
             FileType::Document => self.decrypted_name.clone(),
+            FileType::Link { linked_file } => format!("name: {}, linked_file: {}", self.decrypted_name, linked_file),
         }
     }
 }
@@ -197,7 +208,8 @@ pub struct FileMetadataDiff {
     pub new_parent: Uuid,
     pub new_name: SecretFileName,
     pub new_deleted: bool,
-    pub new_folder_access_keys: EncryptedFolderAccessKey,
+    pub new_user_access_keys: Vec<UserAccessInfo>,
+    pub new_folder_access_key: EncryptedFolderAccessKey,
 }
 
 impl FileMetadataDiff {
@@ -209,7 +221,8 @@ impl FileMetadataDiff {
             new_parent: metadata.parent,
             new_name: metadata.name.clone(),
             new_deleted: metadata.deleted,
-            new_folder_access_keys: metadata.folder_access_keys.clone(),
+            new_user_access_keys: metadata.user_access_keys.clone(),
+            new_folder_access_key: metadata.folder_access_key.clone(),
         }
     }
 
@@ -223,7 +236,8 @@ impl FileMetadataDiff {
             new_parent: new_metadata.parent,
             new_name: new_metadata.name.clone(),
             new_deleted: new_metadata.deleted,
-            new_folder_access_keys: new_metadata.folder_access_keys.clone(),
+            new_user_access_keys: new_metadata.user_access_keys.clone(),
+            new_folder_access_key: new_metadata.folder_access_key.clone(),
         }
     }
 }

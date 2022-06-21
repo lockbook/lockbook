@@ -11,14 +11,9 @@ fn random_account() -> Account {
 }
 
 fn test_account(account: &Account) -> Result<NewAccountResponse, ApiError<NewAccountError>> {
-    let root = files::create_root(account);
-    let root = file_encryption_service::encrypt_metadatum(
-        account,
-        &account.public_key(),
-        &root.decrypted_access_key,
-        &root,
-    )
-    .unwrap();
+    let root = files::create_root(account).unwrap();
+    let root =
+        file_encryption_service::encrypt_metadatum(&root.decrypted_access_key, &root).unwrap();
     api_service::request(account, NewAccountRequest::new(account, &root))
 }
 #[test]

@@ -10,7 +10,6 @@ use lockbook_models::account::Account;
 use lockbook_models::api::{
     ChangeDocumentContentRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,
 };
-use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::file_metadata::{
     DecryptedFileMetadata, DecryptedFiles, EncryptedFiles, FileType,
 };
@@ -18,6 +17,8 @@ use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
 use std::collections::HashMap;
+use lockbook_models::crypto::{DecryptedDocument, UserAccessInfo};
+use std::collections::HashSet;
 use std::fmt;
 
 use super::file_compression_service;
@@ -100,11 +101,30 @@ pub fn merge_metadata(
 
     let local_moved = local.parent != base.parent;
     let remote_moved = remote.parent != base.parent;
-    let parent = match (local_moved, remote_moved) {
-        (false, false) => base.parent,
-        (true, false) => local.parent,
-        (false, true) => remote.parent,
-        (true, true) => remote.parent, // resolve move conflicts in favor of remote
+    let (parent, folder_access_key) = match (local_moved, remote_moved) {
+        (false, false) => (base.parent, base.folder_access_key),
+        (true, false) => (local.parent, local.folder_access_key),
+        (false, true) => (remote.parent, remote.folder_access_key),
+        (true, true) => (remote.parent, remote.folder_access_key), // resolve move conflicts in favor of remote
+    };
+
+    let local_shares_changed = local.shares != base.shares;
+    let remote_shares_changed = remote.shares != base.shares;
+    let shares = match (local_shares_changed, remote_shares_changed) {
+        (false, false) => base.shares,
+        (true, false) => local.shares,
+        (false, true) => remote.shares,
+        (true, true) => {
+            // union local and remote shares
+            // todo(sharing): remove read shares when there exists a write share for the same sharee
+            let mut unique_shares = HashSet::new();
+            unique_shares.extend(local.shares.iter());
+            unique_shares.extend(remote.shares.iter());
+            unique_shares
+                .iter()
+                .map(|&s| s.clone())
+                .collect::<Vec<UserAccessInfo>>()
+        }
     };
 
     DecryptedFileMetadata {
@@ -112,11 +132,13 @@ pub fn merge_metadata(
         file_type: base.file_type, // file types never change
         parent,
         decrypted_name,
-        owner: base.owner,                         // owners never change
+        owner: base.owner, // owners never change
+        shares,
         metadata_version: remote.metadata_version, // resolve metadata version conflicts in favor of remote
         content_version: remote.content_version, // resolve content version conflicts in favor of remote
         deleted: base.deleted || local.deleted || remote.deleted, // resolve delete conflicts by deleting
         decrypted_access_key: base.decrypted_access_key,          // access keys never change
+        folder_access_key,
     }
 }
 

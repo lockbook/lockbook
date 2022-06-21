@@ -215,6 +215,8 @@ fn merge_metadata_local_and_remote_moved() {
         deleted: false,
         owner: Owner::from(account),
         decrypted_access_key: Default::default(),
+        shares: Vec::new(),
+        folder_access_key: Default::default(),
     };
     let local = DecryptedFileMetadata {
         id: "db63957b-3e52-410c-8e5e-66db2619fb33".parse().unwrap(),
@@ -226,6 +228,8 @@ fn merge_metadata_local_and_remote_moved() {
         deleted: false,
         owner: Owner::from(account),
         decrypted_access_key: Default::default(),
+        shares: Vec::new(),
+        folder_access_key: Default::default(),
     };
     let remote = DecryptedFileMetadata {
         id: "db63957b-3e52-410c-8e5e-66db2619fb33".parse().unwrap(),
@@ -237,6 +241,8 @@ fn merge_metadata_local_and_remote_moved() {
         deleted: false,
         owner: Owner::from(account),
         decrypted_access_key: Default::default(),
+        shares: Vec::new(),
+        folder_access_key: Default::default(),
     };
 
     let result = sync_service::merge_metadata(base, local, remote);
@@ -253,6 +259,8 @@ fn merge_metadata_local_and_remote_moved() {
             deleted: false,
             owner: Owner::from(account),
             decrypted_access_key: Default::default(),
+            shares: Vec::new(),
+            folder_access_key: Default::default(),
         }
     );
 }
@@ -271,6 +279,8 @@ fn merge_maybe_metadata_local_and_remote_moved() {
         deleted: false,
         owner: Owner::from(account),
         decrypted_access_key: Default::default(),
+        shares: Vec::new(),
+        folder_access_key: Default::default(),
     });
     let local = Some(DecryptedFileMetadata {
         id: "db63957b-3e52-410c-8e5e-66db2619fb33".parse().unwrap(),
@@ -282,6 +292,8 @@ fn merge_maybe_metadata_local_and_remote_moved() {
         deleted: false,
         owner: Owner::from(account),
         decrypted_access_key: Default::default(),
+        shares: Vec::new(),
+        folder_access_key: Default::default(),
     });
     let remote = Some(DecryptedFileMetadata {
         id: "db63957b-3e52-410c-8e5e-66db2619fb33".parse().unwrap(),
@@ -293,6 +305,8 @@ fn merge_maybe_metadata_local_and_remote_moved() {
         deleted: false,
         owner: Owner::from(account),
         decrypted_access_key: Default::default(),
+        shares: Vec::new(),
+        folder_access_key: Default::default(),
     });
 
     let result = sync_service::merge_maybe_metadata(base, local, remote).unwrap();
@@ -309,6 +323,8 @@ fn merge_maybe_metadata_local_and_remote_moved() {
             deleted: false,
             owner: Owner::from(account),
             decrypted_access_key: Default::default(),
+            shares: Vec::new(),
+            folder_access_key: Default::default(),
         }
     );
 }
@@ -477,7 +493,7 @@ fn get_document_nonexistent() {
         RepoSource::Local,
         &files::create(
             FileType::Document,
-            files::create_root(account).id,
+            files::create_root(account).unwrap().id,
             "asdf",
             &account.public_key(),
         ),

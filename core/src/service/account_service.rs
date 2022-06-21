@@ -25,10 +25,9 @@ impl RequestContext<'_, '_> {
         let public_key = account.public_key();
         self.data_cache.public_key = Some(public_key);
 
-        let mut root_metadata = files::create_root(&account);
+        let mut root_metadata = files::create_root(&account)?;
         let encrypted_metadata = file_encryption_service::encrypt_metadata(
             &account,
-            &public_key,
             &HashMap::with(root_metadata.clone()),
         )?;
         let encrypted_metadatum = if encrypted_metadata.len() == 1 {
@@ -45,7 +44,6 @@ impl RequestContext<'_, '_> {
 
         let root = file_encryption_service::encrypt_metadata(
             &account,
-            &public_key,
             &HashMap::with(root_metadata.clone()),
         )?
         .get(&root_metadata.id)

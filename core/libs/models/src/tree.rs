@@ -94,7 +94,9 @@ pub trait FileMetaMapExt<Fm: FileMetadata> {
     fn find_root(&self) -> Result<Fm, TreeError>;
     fn maybe_find_root(&self) -> Option<Fm>;
     fn maybe_find(&self, id: Uuid) -> Option<Fm>;
+    fn maybe_find_ref(&self, id: Uuid) -> Option<&Fm>;
     fn maybe_find_mut(&mut self, id: Uuid) -> Option<&mut Fm>;
+    fn maybe_find_link(&self, target_id: Uuid) -> Option<Fm>;
     fn find_parent(&self, id: Uuid) -> Result<&Fm, TreeError>;
     fn maybe_find_parent(&self, id: Uuid) -> Option<&Fm>;
     fn find_children(&self, id: Uuid) -> HashMap<Uuid, Fm>;
@@ -177,8 +179,21 @@ where
         self.get(&id).cloned()
     }
 
+    fn maybe_find_ref(&self, id: Uuid) -> Option<&Fm> {
+        self.get(&id)
+    }
+
     fn maybe_find_mut(&mut self, id: Uuid) -> Option<&mut Fm> {
         self.get_mut(&id)
+    }
+
+    // todo(sharing): this assumes at most one link per file, which should be enforced somewhere
+    fn maybe_find_link(&self, target_id: Uuid) -> Option<Fm> {
+        self.iter().find(|(_, f)| if let FileType::Link { linked_file } = f.file_type() {
+            linked_file == target_id
+        } else {
+            false
+        }).map(|(_, f)| f.clone())
     }
 
     fn find_parent(&self, id: Uuid) -> Result<&Fm, TreeError> {
@@ -212,57 +227,55 @@ where
     }
 
     fn deleted_status(&self) -> Result<DeletedStatus, TreeError> {
-        let mut confirmed_not_delted = HashSet::new();
+        let mut confirmed_not_deleted = HashSet::new();
         let mut confirmed_deleted = HashSet::new();
         for meta in self.values() {
-            // Itself is explicitly deleted
-            if meta.deleted() {
-                confirmed_deleted.insert(meta.id());
-                continue;
-            }
-
-            // Parent is confirmed to be not deleted, and is not explicitly deleted
-            if confirmed_not_delted.contains(&meta.parent()) && !meta.deleted() {
-                confirmed_not_delted.insert(meta.id());
-                continue;
-            }
-
             // Check all ancestors
-            let mut cur = self.find_ref(meta.parent())?;
-            let mut checked_path = vec![meta.id(), cur.id()];
+            let mut cur = meta;
+            let mut checked_path = vec![cur.id()];
             let mut ancestor_deleted = false;
-            'ansestor_check: while !cur.is_root() {
+            'ancestor_check: while !cur.is_root() {
+                let parent = match self.maybe_find_ref(cur.parent()) {
+                    Some(parent) => parent,
+                    None => {
+                        // todo(sharing): better way to identify pending shares
+                        confirmed_not_deleted.extend(&checked_path);
+                        break 'ancestor_check;
+                    },
+                };
+
+                // if explicitly deleted -> deleted
                 if cur.deleted() {
                     confirmed_deleted.extend(&checked_path);
                     ancestor_deleted = true;
-                    break 'ansestor_check;
+                    break 'ancestor_check;
                 }
-
-                // Select the next node to explore
-                let parent = self.find_ref(cur.parent())?;
+                // else if parent deleted -> deleted
                 if confirmed_deleted.contains(&parent.id()) {
                     confirmed_deleted.extend(&checked_path);
                     ancestor_deleted = true;
-                    break 'ansestor_check;
-                } else if confirmed_not_delted.contains(&parent.id()) {
-                    confirmed_not_delted.extend(&checked_path);
-                    break 'ansestor_check;
-                } else {
-                    if checked_path.contains(&parent.id()) {
-                        // We've already checked this, it's likely a cycle or root, this is not the
-                        // place to detect this though, cycles are not deleted files, so we continue
-                        break 'ansestor_check;
-                    }
-                    checked_path.push(parent.id());
-                    cur = parent;
+                    break 'ancestor_check;
                 }
+                // else if parent not deleted -> not deleted
+                if confirmed_not_deleted.contains(&parent.id()) {
+                    confirmed_not_deleted.extend(&checked_path);
+                    break 'ancestor_check;
+                }
+                // cycle -> not deleted
+                if checked_path.contains(&parent.id()) {
+                    // We've already checked this, it's likely a cycle or root, this is not the
+                    // place to detect this though, cycles are not deleted files, so we continue
+                    break 'ancestor_check;
+                }
+                checked_path.push(parent.id());
+                cur = parent;
             }
             if !ancestor_deleted {
-                confirmed_not_delted.extend(&checked_path);
+                confirmed_not_deleted.extend(&checked_path);
             }
         }
 
-        Ok(DeletedStatus { deleted: confirmed_deleted, not_deleted: confirmed_not_delted })
+        Ok(DeletedStatus { deleted: confirmed_deleted, not_deleted: confirmed_not_deleted })
     }
 
     fn filter_not_deleted(self) -> Result<HashMap<Uuid, Fm>, TreeError> {
@@ -319,7 +332,11 @@ where
                     break;
                 }
                 checking.push(cur.clone());
-                cur = &staged_changes.get(&cur.parent()).unwrap().0;
+                cur = if let Some((parent, _)) = staged_changes.get(&cur.parent()) {
+                    parent
+                } else {
+                    break // todo(sharing): better way to identify pending shares
+                };
             }
             prev_checked.extend(checking);
         }
@@ -378,12 +395,15 @@ where
             return Ok(());
         }
 
-        if self.maybe_find_root().is_none() {
+        let root = if let Some(root) = self.maybe_find_root() {
+            root
+        } else {
             return Err(TestFileTreeError::NoRootFolder);
-        }
+        };
 
         for file in self.values() {
-            if !self.contains_key(&file.parent()) {
+            // todo(sharing): better way to identify pending shares
+            if file.owner() == root.owner() && !self.contains_key(&file.parent()) {
                 return Err(TestFileTreeError::FileOrphaned(file.id()));
             }
         }

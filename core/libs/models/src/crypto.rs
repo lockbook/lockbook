@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 
 use libsecp256k1::PublicKey;
@@ -12,7 +12,7 @@ pub type EncryptedDocument = AESEncrypted<DecryptedDocument>;
 pub type EncryptedUserAccessKey = AESEncrypted<AESKey>;
 pub type EncryptedFolderAccessKey = AESEncrypted<AESKey>;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Hash)]
 pub struct AESEncrypted<T: DeserializeOwned> {
     #[serde(with = "serde_bytes")]
     pub value: Vec<u8>,
@@ -43,11 +43,33 @@ pub struct ECSigned<T> {
     pub public_key: PublicKey,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Hash)]
+pub enum UserAccessMode {
+    Owner,
+    Write,
+    Read,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct UserAccessInfo {
-    pub username: String,
-    pub encrypted_by: PublicKey,
+    pub mode: UserAccessMode,
+    pub encrypted_by_username: String,
+    pub encrypted_by_public_key: PublicKey,
+    pub encrypted_for_username: String,
+    pub encrypted_for_public_key: PublicKey,
     pub access_key: EncryptedUserAccessKey,
+    pub file_name: SecretFileName,
+}
+
+// todo(sharing): implement Hash for PublicKey or omit public keys from PartialEq and Eq impl's for Share
+impl Hash for UserAccessInfo {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.encrypted_by_username.hash(state);
+        // self.sharer_public_key.hash(state);
+        self.encrypted_for_username.hash(state);
+        // self.sharee_public_key.hash(state);
+        self.mode.hash(state);
+    }
 }
 
 /// A secret value that can impl an equality check by hmac'ing the

@@ -24,6 +24,7 @@ mod new_account;
 mod print;
 mod remove;
 mod rename;
+mod share;
 mod status;
 mod sync;
 mod tree;
@@ -151,6 +152,18 @@ enum Lockbook {
 
     /// Find lockbook file structure problems, corrupted or missing files.
     Validate,
+
+    /// todo(sharing): documentation
+    Share { path: String, username: String },
+
+    /// todo(sharing): documentation
+    GetPendingShares,
+
+    /// todo(sharing): documentation
+    NewLink { link_path: String, target_id: String },
+
+    /// todo(sharing): documentation
+    DeletePendingShare { id: String },
 }
 
 fn exit_with(err: CliError) -> ! {
@@ -197,6 +210,12 @@ fn parse_and_run() -> Result<(), CliError> {
             export_drawing::export_drawing(&core, &path, &format)
         }
         Lockbook::Errors => error::print_err_table(),
+        Lockbook::Share { path, username } => share::share(&core, &path, &username),
+        Lockbook::GetPendingShares => share::get_pending_shares(&core),
+        Lockbook::NewLink { link_path, target_id: target_path } => {
+            share::new_link(&core, &link_path, &target_path)
+        }
+        Lockbook::DeletePendingShare { id: path } => share::delete_pending_share(&core, &path),
     }
 }
 

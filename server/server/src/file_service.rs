@@ -99,7 +99,8 @@ fn apply_changes(
                 }
                 meta.parent = change.new_parent;
                 meta.name = change.new_name.clone();
-                meta.folder_access_keys = change.new_folder_access_keys.clone();
+                meta.folder_access_key = change.new_folder_access_key.clone();
+                meta.user_access_keys = change.new_user_access_keys.clone();
                 meta.metadata_version = now;
 
                 if change.new_deleted && meta.is_document() {
@@ -151,8 +152,8 @@ fn new_meta(now: u64, diff: &FileMetadataDiff, owner: &Owner) -> EncryptedFileMe
         metadata_version: now,
         content_version: 0,
         deleted: diff.new_deleted,
-        user_access_keys: Default::default(),
-        folder_access_keys: diff.new_folder_access_keys.clone(),
+        user_access_keys: diff.new_user_access_keys.clone(),
+        folder_access_key: diff.new_folder_access_key.clone(),
     }
 }
 

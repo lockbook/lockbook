@@ -4,7 +4,8 @@ use crate::pure_functions::drawing;
 use crate::service::file_service;
 use crate::service::integrity_service::TestRepoError::DocumentReadError;
 use crate::{Config, OneKey, RequestContext};
-use lockbook_models::tree::{FileMetaMapExt, FileMetadata, TestFileTreeError};
+use lockbook_models::file_metadata::FileType;
+use lockbook_models::tree::{FileMetaMapExt, TestFileTreeError};
 
 use std::path::Path;
 
@@ -57,8 +58,14 @@ impl RequestContext<'_, '_> {
         }
 
         let mut warnings = Vec::new();
-        for (id, file) in files.filter_not_deleted().map_err(TestRepoError::Tree)? {
-            if file.is_document() {
+        let pending_shares = self.get_pending_shares(RepoSource::Local)?; // todo(sharing): validate documents in pending shares
+        for (id, file) in files
+            .filter_not_deleted()
+            .map_err(TestRepoError::Tree)?
+            .into_iter()
+            .filter(|(_, f)| !pending_shares.iter().any(|s| f.id == s.id))
+        {
+            if file.file_type == FileType::Document {
                 let file_content = file_service::get_document(config, RepoSource::Local, &file)
                     .map_err(|err| DocumentReadError(id, err))?;
 
