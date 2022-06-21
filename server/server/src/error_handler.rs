@@ -1,9 +1,13 @@
+use crate::billing::google_play_client::SimpleGCPError;
 use crate::{
     file_content_client, ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError,
     StripeWebhookError,
 };
 use deadpool_redis::PoolError;
-use lockbook_models::api::{GetUsageError, SwitchAccountTierError};
+use lockbook_models::api::{
+    CancelSubscriptionError, GetUsageError, UpgradeAccountGooglePlayError,
+    UpgradeAccountStripeError,
+};
 use redis::RedisError;
 use redis_utils::converters::{JsonGetError, JsonSetError};
 use std::fmt::Debug;
@@ -50,6 +54,12 @@ impl<T: Debug> From<stripe::ParseIdError> for ServerError<T> {
     }
 }
 
+impl<T: Debug> From<serde_json::Error> for ServerError<T> {
+    fn from(err: serde_json::Error) -> Self {
+        internal!("Serde json Error: {:?}", err)
+    }
+}
+
 impl From<GetUsageHelperError> for ServerError<GetUsageError> {
     fn from(e: GetUsageHelperError) -> Self {
         match e {
@@ -59,29 +69,50 @@ impl From<GetUsageHelperError> for ServerError<GetUsageError> {
     }
 }
 
-impl From<SimplifiedStripeError> for ServerError<SwitchAccountTierError> {
+impl From<SimpleGCPError> for ServerError<UpgradeAccountGooglePlayError> {
+    fn from(e: SimpleGCPError) -> Self {
+        match e {
+            SimpleGCPError::PurchaseTokenNotFound => {
+                ClientError(UpgradeAccountGooglePlayError::InvalidPurchaseToken)
+            }
+            SimpleGCPError::Unexpected(msg) => internal!("{}", msg),
+        }
+    }
+}
+
+impl From<SimpleGCPError> for ServerError<CancelSubscriptionError> {
+    fn from(e: SimpleGCPError) -> Self {
+        internal!("{:#?}", e)
+    }
+}
+
+impl From<SimplifiedStripeError> for ServerError<UpgradeAccountStripeError> {
     fn from(e: SimplifiedStripeError) -> Self {
         match e {
-            SimplifiedStripeError::CardDecline => ClientError(SwitchAccountTierError::CardDecline),
+            SimplifiedStripeError::CardDecline => {
+                ClientError(UpgradeAccountStripeError::CardDecline)
+            }
             SimplifiedStripeError::InsufficientFunds => {
-                ClientError(SwitchAccountTierError::InsufficientFunds)
+                ClientError(UpgradeAccountStripeError::InsufficientFunds)
             }
-            SimplifiedStripeError::TryAgain => ClientError(SwitchAccountTierError::TryAgain),
+            SimplifiedStripeError::TryAgain => ClientError(UpgradeAccountStripeError::TryAgain),
             SimplifiedStripeError::CardNotSupported => {
-                ClientError(SwitchAccountTierError::CardNotSupported)
+                ClientError(UpgradeAccountStripeError::CardNotSupported)
             }
-            SimplifiedStripeError::ExpiredCard => ClientError(SwitchAccountTierError::ExpiredCard),
+            SimplifiedStripeError::ExpiredCard => {
+                ClientError(UpgradeAccountStripeError::ExpiredCard)
+            }
             SimplifiedStripeError::InvalidCardNumber => {
-                ClientError(SwitchAccountTierError::InvalidCardNumber)
+                ClientError(UpgradeAccountStripeError::InvalidCardNumber)
             }
             SimplifiedStripeError::InvalidCardExpYear => {
-                ClientError(SwitchAccountTierError::InvalidCardExpYear)
+                ClientError(UpgradeAccountStripeError::InvalidCardExpYear)
             }
             SimplifiedStripeError::InvalidCardExpMonth => {
-                ClientError(SwitchAccountTierError::InvalidCardExpMonth)
+                ClientError(UpgradeAccountStripeError::InvalidCardExpMonth)
             }
             SimplifiedStripeError::InvalidCardCvc => {
-                ClientError(SwitchAccountTierError::InvalidCardCvc)
+                ClientError(UpgradeAccountStripeError::InvalidCardCvc)
             }
             SimplifiedStripeError::Other(msg) => internal!("{}", msg),
         }

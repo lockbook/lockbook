@@ -14,20 +14,20 @@ pub fn owned_files(pk: &PublicKey) -> String {
     format!("public_key:{}:owned_files", stringify_public_key(pk))
 }
 
-pub fn data_cap(pk: &PublicKey) -> String {
-    format!("public_key:{}:data_cap", stringify_public_key(pk))
-}
-
 pub fn file(id: Uuid) -> String {
     format!("file_id:{}:metadata", id)
 }
 
-pub fn stripe_user_info(pk: &PublicKey) -> String {
-    format!("public_key:{}:stripe_user_info", stringify_public_key(pk))
+pub fn subscription_profile(pk: &PublicKey) -> String {
+    format!("public_key:{}:subscription_profile", stringify_public_key(pk))
 }
 
 pub fn public_key_from_stripe_customer_id(customer_id: &str) -> String {
     format!("stripe_customer_id:{}:public_key", customer_id)
+}
+
+pub fn public_key_from_gp_account_id(account_id: &str) -> String {
+    format!("google_play_account_id:{}:public_key", account_id)
 }
 
 pub fn size(id: Uuid) -> String {

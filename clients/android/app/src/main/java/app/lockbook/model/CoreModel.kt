@@ -33,11 +33,13 @@ object CoreModel {
         }
     }
 
-    private inline fun <reified C, reified E> Json.tryParse(json: String): Result<C, CoreError<E>>
+    private inline fun <reified C, reified E> Json.tryParse(
+        json: String,
+        isNullable: Boolean = false
+    ): Result<C, CoreError<E>>
             where E : Enum<E>, E : UiCoreError = try {
-        decodeFromString<IntermCoreResult<C, E>>(json).toResult()
+        decodeFromString<IntermCoreResult<C, E>>(json).toResult(isNullable)
     } catch (e: Exception) {
-        throw e
         Err(CoreError.Unexpected("Cannot parse json."))
     }
 
@@ -322,5 +324,40 @@ object CoreModel {
     fun exportFile(id: String, destination: String, edit: Boolean): Result<Unit, CoreError<ExportFileError>> =
         exportFileParser.tryParse(
             app.lockbook.core.exportFile(id, destination, edit)
+        )
+
+    private val upgradeAccountGooglePlayParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), UpgradeAccountGooglePlayError.serializer())
+        }
+    }
+
+    fun upgradeAccountGooglePlay(purchaseToken: String, accountId: String): Result<Boolean, CoreError<UpgradeAccountGooglePlayError>> =
+        upgradeAccountGooglePlayParser.tryParse(
+            app.lockbook.core.upgradeAccountGooglePlay(purchaseToken, accountId)
+        )
+
+    private val cancelSubscriptionParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), CancelSubscriptionError.serializer())
+        }
+    }
+
+    fun cancelSubscription(): Result<Boolean, CoreError<CancelSubscriptionError>> =
+        cancelSubscriptionParser.tryParse(
+            app.lockbook.core.cancelSubscription()
+        )
+
+    private val getSubscriptionInfoParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(SubscriptionInfo.serializer(), GetSubscriptionInfoError.serializer())
+            ignoreUnknownKeys = true
+        }
+    }
+
+    fun getSubscriptionInfo(): Result<SubscriptionInfo?, CoreError<GetSubscriptionInfoError>> =
+        getSubscriptionInfoParser.tryParse(
+            app.lockbook.core.getSubscriptionInfo(),
+            true
         )
 }
