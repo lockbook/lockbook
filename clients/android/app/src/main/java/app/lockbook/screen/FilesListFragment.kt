@@ -331,7 +331,13 @@ class FilesListFragment : Fragment(), FilesFragment {
 
     private fun updateUI(uiUpdates: UpdateFilesUI) {
         when (uiUpdates) {
-            is UpdateFilesUI.NotifyError -> alertModel.notifyError(uiUpdates.error)
+            is UpdateFilesUI.NotifyError -> {
+                if (binding.syncHolder.isVisible) {
+                    binding.syncHolder.visibility = View.GONE
+                }
+
+                alertModel.notifyError(uiUpdates.error)
+            }
             is UpdateFilesUI.NotifyWithSnackbar -> {
                 if (binding.syncHolder.isVisible) {
                     binding.syncHolder.visibility = View.GONE
@@ -345,15 +351,17 @@ class FilesListFragment : Fragment(), FilesFragment {
                 binding.syncHolder.visibility = View.VISIBLE
             }
             UpdateFilesUI.UpToDateSyncSnackBar -> {
-                if (!binding.syncHolder.isVisible) {
-                    binding.syncHolder.visibility = View.VISIBLE
-                }
+                binding.syncText.text = getString(R.string.list_files_sync_finished_snackbar)
+                binding.syncCheck.visibility = View.VISIBLE
+
                 if (binding.syncProgressIndicator.isVisible) {
                     binding.syncProgressIndicator.visibility = View.GONE
                 }
 
-                binding.syncText.text = getString(R.string.list_files_sync_finished_snackbar)
-                binding.syncCheck.visibility = View.VISIBLE
+                if (!binding.syncHolder.isVisible) {
+                    binding.syncHolder.visibility = View.VISIBLE
+                }
+
                 Handler(Looper.getMainLooper()).postDelayed(
                     {
                         binding.syncHolder.visibility = View.GONE
