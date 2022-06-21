@@ -16,7 +16,7 @@
             android:id="@+id/files_toolbar"
             android:layout_width="match_parent"
             android:layout_height="?android:actionBarSize"
-            app:menu="@menu/menu_list_files"
+            app:menu="@menu/menu_files_list"
             app:title="@string/lockbook_title"
             app:layout_scrollFlags="scroll|enterAlways|snap" />
 
@@ -68,67 +68,27 @@
 
     </LinearLayout>
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/fabs_holder"
+    <com.leinardi.android.speeddial.SpeedDialOverlayLayout
+        android:id="@+id/fab_overlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:gravity="bottom|end"
-        android:orientation="vertical">
+        android:layout_gravity="fill"
+        android:fitsSystemWindows="true" />
 
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fab_drawing"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_margin="5dp"
-            android:layout_marginBottom="502dp"
-            android:contentDescription="@string/list_files_create_document"
-            android:src="@drawable/ic_outline_draw_24"
-            app:fabSize="mini"
-            app:layout_constraintBottom_toTopOf="@+id/fab_document"
-            app:layout_constraintEnd_toEndOf="@+id/fab_document"
-            app:layout_constraintStart_toStartOf="@+id/fab_document"
-            android:visibility="gone"/>
-
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fab_document"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="5dp"
-            android:contentDescription="@string/list_files_create_document"
-            android:src="@drawable/ic_outline_insert_drive_file_24"
-            app:fabSize="mini"
-            app:layout_constraintBottom_toTopOf="@+id/fab_folder"
-            app:layout_constraintEnd_toEndOf="@+id/fab_folder"
-            app:layout_constraintStart_toStartOf="@+id/fab_folder"
-            android:visibility="gone"/>
-
-
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fab_folder"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:contentDescription="@string/list_files_create_folder"
-            android:src="@drawable/ic_outline_folder_24"
-            app:fabSize="mini"
-            android:layout_marginBottom="10dp"
-            app:layout_constraintBottom_toTopOf="@+id/fab_file"
-            app:layout_constraintEnd_toEndOf="@+id/fab_file"
-            app:layout_constraintStart_toStartOf="@+id/fab_file"
-            android:visibility="gone"/>
-
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fab_file"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|end"
-            android:contentDescription="@string/list_files_create_file"
-            android:src="@drawable/ic_baseline_add_24"
-            android:layout_marginEnd="15dp"
-            android:layout_marginBottom="15dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
+    <com.leinardi.android.speeddial.SpeedDialView
+        android:id="@+id/fab_speed_dial"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        app:sdMainFabOpenedBackgroundColor="?attr/colorSecondaryContainer"
+        app:sdMainFabOpenedIconColor="?attr/colorOnSecondaryContainer"
+        app:sdMainFabClosedBackgroundColor="?attr/colorPrimary"
+        app:sdMainFabClosedIconColor="?attr/colorOnPrimary"
+        app:sdExpansionMode="top"
+        app:sdOverlayLayout="@id/fab_overlay"
+        app:sdMainFabAnimationRotateAngle="90"
+        app:sdMainFabClosedSrc="@drawable/ic_baseline_add_24"
+        app:sdMainFabOpenedSrc="@drawable/ic_baseline_add_24" />
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/sync_holder"

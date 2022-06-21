@@ -144,7 +144,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         })
 
         when (
-            val optionValue = PreferenceManager.getDefaultSharedPreferences(requireContext()).getString(
+            PreferenceManager.getDefaultSharedPreferences(requireContext()).getString(
                 getString(R.string.sort_files_key),
                 getString(R.string.sort_files_a_z_value)
             )
@@ -163,6 +163,23 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
         }.exhaustive
 
+        binding.fabSpeedDial.inflate(R.menu.menu_files_list_speed_dial)
+        binding.fabSpeedDial.setOnActionSelectedListener {
+            val extendedFileType = when (it.id) {
+                R.id.fab_create_drawing -> ExtendedFileType.Drawing
+                R.id.fab_create_document -> ExtendedFileType.Document
+                R.id.fab_create_folder -> ExtendedFileType.Folder
+                else -> return@setOnActionSelectedListener false
+            }
+
+            activityModel.launchTransientScreen(
+                TransientScreen.Create(model.fileModel.parent.id, extendedFileType)
+            )
+
+            binding.fabSpeedDial.close()
+            true
+        }
+
         binding.listFilesRefresh.setOnRefreshListener {
             model.onSwipeToRefresh()
         }
@@ -179,22 +196,6 @@ class FilesListFragment : Fragment(), FilesFragment {
             30000,
             30000
         )
-
-        binding.fabFile.setOnClickListener {
-            collapseExpandFAB()
-        }
-
-        binding.fabFolder.setOnClickListener {
-            onDocumentFolderFabClicked(ExtendedFileType.Folder)
-        }
-
-        binding.fabDocument.setOnClickListener {
-            onDocumentFolderFabClicked(ExtendedFileType.Text)
-        }
-
-        binding.fabDrawing.setOnClickListener {
-            onDocumentFolderFabClicked(ExtendedFileType.Drawing)
-        }
 
         return binding.root
     }
@@ -412,41 +413,6 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
     }
 
-    private fun onDocumentFolderFabClicked(extendedFileType: ExtendedFileType) {
-        activityModel.launchTransientScreen(
-            TransientScreen.Create(model.fileModel.parent.id, extendedFileType)
-        )
-    }
-
-    private fun collapseExpandFAB() {
-        if (binding.fabDocument.isOrWillBeHidden) {
-            showFABMenu()
-        } else {
-            closeFABMenu()
-        }
-    }
-
-    private fun closeFABMenu() {
-        binding.fabFile.animate().setDuration(300L).rotation(90f)
-        binding.fabFolder.hide()
-        binding.fabDocument.hide()
-        binding.fabDrawing.hide()
-        binding.listFilesRefresh.alpha = 1f
-        binding.fabsHolder.isClickable = false
-    }
-
-    private fun showFABMenu() {
-        binding.fabFile.animate().setDuration(300L).rotation(-90f)
-        binding.fabFolder.show()
-        binding.fabDocument.show()
-        binding.fabDrawing.show()
-        binding.listFilesRefresh.alpha = 0.3f
-        binding.listFilesRefresh.isClickable = true
-        binding.fabsHolder.setOnClickListener {
-            closeFABMenu()
-        }
-    }
-
     override fun onBackPressed(): Boolean = when {
         model.selectableFiles.hasSelection() -> {
             unselectFiles()
@@ -483,8 +449,6 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
             newDocument != null -> model.reloadFiles()
         }
-
-        closeFABMenu()
     }
 }
 

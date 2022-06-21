@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/fab_create_folder"
+        android:icon="@drawable/ic_outline_folder_24"
+        android:title="@string/folder" />
+
+    <item
+        android:id="@+id/fab_create_document"
+        android:icon="@drawable/ic_outline_insert_drive_file_24"
+        android:title="@string/document" />
+
+    <item
+        android:id="@+id/fab_create_drawing"
+        android:icon="@drawable/ic_outline_draw_24"
+        android:title="@string/drawing" />
+
+</menu>

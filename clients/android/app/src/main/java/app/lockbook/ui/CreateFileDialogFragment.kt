@@ -65,7 +65,7 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
 
                     getString(R.string.create_file_title_folder)
                 }
-                ExtendedFileType.Text -> {
+                ExtendedFileType.Document -> {
                     setUpDocumentTextInput()
 
                     binding.createDocument.setText("")

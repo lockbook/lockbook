@@ -69,7 +69,7 @@
         android:layout_marginTop="5dp"
         android:text="@string/dialog_duration_error"
         android:visibility="gone"
-        android:textColor="@color/md_theme_error"
+        android:textColor="?attr/colorError"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="@+id/duration_minutes"
         app:layout_constraintStart_toStartOf="@+id/duration_days"

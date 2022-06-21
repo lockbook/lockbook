@@ -31,7 +31,7 @@
         android:id="@+id/rename_file_error"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textColor="@color/md_theme_error"
+        android:textColor="?attr/colorError"
         android:layout_marginTop="5dp" />
 
 </LinearLayout>

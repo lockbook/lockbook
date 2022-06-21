@@ -5,12 +5,12 @@ apply plugin: "org.jmailen.kotlinter"
 apply plugin: 'kotlinx-serialization'
 
 android {
-    compileSdkVersion 33
+    compileSdkVersion 32
 
     defaultConfig {
         applicationId "app.lockbook"
         minSdkVersion 22
-        targetSdkVersion 33
+        targetSdkVersion 32
         versionCode 5
         versionName "0.4.1"
 
@@ -107,6 +107,7 @@ dependencies {
     implementation "com.android.billingclient:billing:$billing_version"
     implementation "com.github.MikeOrtiz:TouchImageView:$image_viewer_version"
     implementation "com.github.mhiew:android-pdf-viewer:$pdf_viewer_version"
+    implementation "com.leinardi.android:speed-dial:$fab_speed_dial"
 
     implementation project(':core')
 }

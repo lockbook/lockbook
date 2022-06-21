@@ -15,6 +15,7 @@
         <item name="colorOnTertiary">@color/md_theme_onTertiary</item>
         <item name="colorTertiaryContainer">@color/md_theme_tertiaryContainer</item>
         <item name="colorOnTertiaryContainer">@color/md_theme_onTertiaryContainer</item>
+        <item name="colorError">@color/md_theme_error</item>
 
         <item name="windowActionModeOverlay">true</item>
         <item name="android:statusBarColor" tools:targetApi="23">?attr/colorSurface</item>

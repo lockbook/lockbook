@@ -134,12 +134,12 @@ sealed class UpdateMainScreenUI {
 }
 
 sealed class ExtendedFileType {
-    object Text : ExtendedFileType()
+    object Document : ExtendedFileType()
     object Drawing : ExtendedFileType()
     object Folder : ExtendedFileType()
 
     fun toFileType(): FileType = when (this) {
-        Drawing, Text -> FileType.Document
+        Drawing, Document -> FileType.Document
         Folder -> FileType.Folder
     }
 }
