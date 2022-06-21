@@ -9,7 +9,7 @@ command -V mc
 projRoot=`git rev-parse --show-toplevel`
 
 cd $projRoot/server/server
-cargo check
+cargo build $@
 
 cd $projRoot
 if [ -z "$DATA_DIR" ]; then
