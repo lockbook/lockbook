@@ -1,3 +1,5 @@
+use crate::account::Username;
+use crate::crypto::{UserAccessInfo, UserAccessMode};
 use crate::file_metadata::FileType::{Document, Folder};
 use crate::file_metadata::{FileType, Owner};
 use crate::tree::TreeError::{FileNonexistent, RootNonexistent};
@@ -17,6 +19,7 @@ pub trait FileMetadata: Clone + Display {
     fn metadata_version(&self) -> u64;
     fn content_version(&self) -> u64;
     fn deleted(&self) -> bool;
+    fn shares<'a>(&'a self) -> &'a Vec<UserAccessInfo>;
     fn display(&self) -> String;
 
     fn is_folder(&self) -> bool {
@@ -29,6 +32,16 @@ pub trait FileMetadata: Clone + Display {
 
     fn is_root(&self) -> bool {
         self.id() == self.parent()
+    }
+
+    fn is_owned(&self, username: Username) -> bool {
+        self.shares().is_empty() ||
+            self.shares().iter().any(|s| s.mode == UserAccessMode::Owner && s.encrypted_for_username == username) ||
+            self.shares().iter().any(|s| s.encrypted_by_username == username) // only an owner can share a file
+    }
+
+    fn is_shared(&self) -> bool {
+        self.shares().iter().any(|s| s.encrypted_by_username != s.encrypted_for_username)
     }
 }
 

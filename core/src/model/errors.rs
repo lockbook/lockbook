@@ -294,7 +294,9 @@ impl From<CoreError> for Error<CreateFileAtPathError> {
             CoreError::RootNonexistent => UiError(CreateFileAtPathError::NoRoot),
             CoreError::PathTaken => UiError(CreateFileAtPathError::FileAlreadyExists),
             CoreError::FileNotFolder => UiError(CreateFileAtPathError::DocumentTreatedAsFolder),
-            CoreError::InsufficientPermission => UiError(CreateFileAtPathError::InsufficientPermission),
+            CoreError::InsufficientPermission => {
+                UiError(CreateFileAtPathError::InsufficientPermission)
+            }
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -353,7 +355,9 @@ impl From<CoreError> for Error<WriteToDocumentError> {
         match e {
             CoreError::FileNonexistent => UiError(WriteToDocumentError::FileDoesNotExist),
             CoreError::FileNotDocument => UiError(WriteToDocumentError::FolderTreatedAsDocument),
-            CoreError::InsufficientPermission => UiError(WriteToDocumentError::InsufficientPermission),
+            CoreError::InsufficientPermission => {
+                UiError(WriteToDocumentError::InsufficientPermission)
+            }
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -523,9 +527,7 @@ impl From<CoreError> for Error<ShareFileError> {
         match e {
             CoreError::RootModificationInvalid => UiError(ShareFileError::CannotShareRoot),
             CoreError::FileNonexistent => UiError(ShareFileError::FileNonexistent),
-            CoreError::ShareAlreadyExists => {
-                UiError(ShareFileError::ShareAlreadyExists)
-            }
+            CoreError::ShareAlreadyExists => UiError(ShareFileError::ShareAlreadyExists),
             CoreError::FileLinkInSharedFolder => UiError(ShareFileError::FileLinkInSharedFolder),
             CoreError::InsufficientPermission => UiError(ShareFileError::InsufficientPermission),
             _ => unexpected!("{:#?}", e),

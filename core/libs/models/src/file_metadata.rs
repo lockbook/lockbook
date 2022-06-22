@@ -74,6 +74,9 @@ impl FileMetadata for EncryptedFileMetadata {
     fn deleted(&self) -> bool {
         self.deleted
     }
+    fn shares<'a>(&'a self) -> &'a Vec<UserAccessInfo> {
+        &self.user_access_keys
+    }
     fn display(&self) -> String {
         match self.file_type() {
             FileType::Folder => format!("id: {}/", self.id),
@@ -81,6 +84,7 @@ impl FileMetadata for EncryptedFileMetadata {
             FileType::Link { linked_file } => format!("id: {}, linked_file: {}", self.id, linked_file),
         }
     }
+
 }
 
 impl fmt::Display for EncryptedFileMetadata {
@@ -170,6 +174,9 @@ impl FileMetadata for DecryptedFileMetadata {
     }
     fn deleted(&self) -> bool {
         self.deleted
+    }
+    fn shares<'a>(&'a self) -> &'a Vec<UserAccessInfo> {
+        &self.shares
     }
     fn display(&self) -> String {
         match self.file_type() {
