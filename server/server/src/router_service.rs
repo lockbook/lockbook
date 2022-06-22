@@ -205,9 +205,7 @@ pub fn deserialize_and_check<Req>(
     server_state: &ServerState, request: Bytes,
 ) -> Result<RequestWrapper<Req>, ErrorWrapper<Req::Error>>
 where
-    Req: Request,
-    Req: DeserializeOwned,
-    Req: Serialize,
+    Req: Request + DeserializeOwned + Serialize,
 {
     let request = serde_json::from_slice(request.as_ref()).map_err(|err| {
         warn!("Request parsing failure: {}", err);
