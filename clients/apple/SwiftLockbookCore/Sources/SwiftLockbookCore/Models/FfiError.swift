@@ -95,7 +95,6 @@ public enum GetAccountError: String, UiError {
 public enum CreateFileAtPathError: String, UiError {
     case DocumentTreatedAsFolder
     case FileAlreadyExists
-    case NoAccount
     case NoRoot
     case PathContainsEmptyFile
     case PathDoesntStartWithRoot
@@ -104,7 +103,6 @@ public enum CreateFileAtPathError: String, UiError {
 public enum WriteToDocumentError: String, UiError {
     case FileDoesNotExist
     case FolderTreatedAsDocument
-    case NoAccount
 }
 
 public enum CreateFileError: String, UiError {
@@ -113,7 +111,6 @@ public enum CreateFileError: String, UiError {
     case FileNameContainsSlash
     case FileNameEmpty
     case FileNameNotAvailable
-    case NoAccount
 }
 
 public enum GetRootError: String, UiError {
@@ -138,7 +135,6 @@ public enum GetFileByPathError: String, UiError {
 
 public enum ReadDocumentError: String, UiError {
     case FileDoesNotExist
-    case NoAccount
     case TreatedFolderAsDocument
 }
 
@@ -163,18 +159,15 @@ public enum MoveFileError: String, UiError {
     case DocumentTreatedAsFolder
     case FileDoesNotExist
     case FolderMovedIntoItself
-    case NoAccount
     case TargetParentDoesNotExist
     case TargetParentHasChildNamedThat
 }
 
 public enum SyncAllError: String, UiError {
-    case NoAccount
     case ClientUpdateRequired
     case CouldNotReachServer
 }
 public enum CalculateWorkError: String, UiError {
-    case NoAccount
     case CouldNotReachServer
     case ClientUpdateRequired
 }
@@ -182,7 +175,6 @@ public enum GetLastSyncedError: String, UiError {
     case Stub
 }
 public enum GetUsageError: String, UiError {
-    case NoAccount
     case CouldNotReachServer
     case ClientUpdateRequired
 }
@@ -196,14 +188,12 @@ public enum GetLocalChangesError: String, UiError {
 }
 
 public enum GetDrawingError: String, UiError {
-    case NoAccount
     case FolderTreatedAsDrawing
     case InvalidDrawing
     case FileDoesNotExist
 }
 
 public enum SaveDrawingError: String, UiError {
-    case NoAccount
     case FileDoesNotExist
     case FolderTreatedAsDrawing
     case InvalidDrawing
@@ -212,6 +202,5 @@ public enum SaveDrawingError: String, UiError {
 public enum ExportDrawingError: String, UiError {
     case FolderTreatedAsDrawing
     case FileDoesNotExist
-    case NoAccount
     case InvalidDrawing
 }

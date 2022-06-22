@@ -96,13 +96,11 @@ enum class InitError : UiCoreError
 
 @Serializable
 enum class GetUsageError : UiCoreError {
-    NoAccount,
     CouldNotReachServer,
     ClientUpdateRequired;
 
     override fun toLbError(res: Resources): LbError {
         return when (this) {
-            NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
             CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
             ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
         }
@@ -178,12 +176,10 @@ enum class GetRootError : UiCoreError {
 
 @Serializable
 enum class WriteToDocumentError : UiCoreError {
-    NoAccount,
     FileDoesNotExist,
     FolderTreatedAsDocument;
 
     override fun toLbError(res: Resources): LbError = when (this) {
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
         FolderTreatedAsDocument -> LbError.newUserError(getString(res, R.string.folder_treated_as_document))
     }
@@ -191,7 +187,6 @@ enum class WriteToDocumentError : UiCoreError {
 
 @Serializable
 enum class CreateFileError : UiCoreError {
-    NoAccount,
     DocumentTreatedAsFolder,
     CouldNotFindAParent,
     FileNameNotAvailable,
@@ -199,7 +194,6 @@ enum class CreateFileError : UiCoreError {
     FileNameEmpty;
 
     override fun toLbError(res: Resources): LbError = when (this) {
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         DocumentTreatedAsFolder -> LbError.newUserError(getString(res, R.string.document_treated_as_folder))
         CouldNotFindAParent -> LbError.newUserError(getString(res, R.string.could_not_find_a_parent))
         FileNameNotAvailable -> LbError.newUserError(getString(res, R.string.file_name_not_available))
@@ -234,12 +228,10 @@ enum class FileDeleteError : UiCoreError {
 @Serializable
 enum class ReadDocumentError : UiCoreError {
     TreatedFolderAsDocument,
-    NoAccount,
     FileDoesNotExist;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         TreatedFolderAsDocument -> LbError.newUserError(getString(res, R.string.folder_treated_as_document))
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
     }
 }
@@ -247,14 +239,12 @@ enum class ReadDocumentError : UiCoreError {
 @Serializable
 enum class SaveDocumentToDiskError : UiCoreError {
     TreatedFolderAsDocument,
-    NoAccount,
     FileDoesNotExist,
     BadPath,
     FileAlreadyExistsInDisk;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         TreatedFolderAsDocument -> LbError.newUserError(getString(res, R.string.folder_treated_as_document))
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
         BadPath -> LbError.newUserError(getString(res, R.string.bad_path))
         FileAlreadyExistsInDisk -> LbError.newUserError(getString(res, R.string.file_already_exists_on_disk))
@@ -265,7 +255,6 @@ enum class SaveDocumentToDiskError : UiCoreError {
 enum class ExportDrawingToDiskError : UiCoreError {
     FolderTreatedAsDrawing,
     FileDoesNotExist,
-    NoAccount,
     InvalidDrawing,
     BadPath,
     FileAlreadyExistsInDisk;
@@ -273,7 +262,6 @@ enum class ExportDrawingToDiskError : UiCoreError {
     override fun toLbError(res: Resources): LbError = when (this) {
         FolderTreatedAsDrawing -> LbError.newUserError(getString(res, R.string.folder_treated_as_drawing))
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         InvalidDrawing -> LbError.newUserError(getString(res, R.string.invalid_drawing))
         BadPath -> LbError.newUserError(getString(res, R.string.bad_path))
         FileAlreadyExistsInDisk -> LbError.newUserError(getString(res, R.string.file_already_exists_on_disk))
@@ -299,7 +287,6 @@ enum class RenameFileError : UiCoreError {
 
 @Serializable
 enum class MoveFileError : UiCoreError {
-    NoAccount,
     FileDoesNotExist,
     DocumentTreatedAsFolder,
     TargetParentDoesNotExist,
@@ -308,7 +295,6 @@ enum class MoveFileError : UiCoreError {
     FolderMovedIntoItself;
 
     override fun toLbError(res: Resources): LbError = when (this) {
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
         DocumentTreatedAsFolder -> LbError.newUserError(getString(res, R.string.document_treated_as_folder))
         TargetParentDoesNotExist -> LbError.newUserError(getString(res, R.string.could_not_find_a_parent))
@@ -320,12 +306,10 @@ enum class MoveFileError : UiCoreError {
 
 @Serializable
 enum class SyncAllError : UiCoreError {
-    NoAccount,
     CouldNotReachServer,
     ClientUpdateRequired;
 
     override fun toLbError(res: Resources): LbError = when (this) {
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
         ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
     }
@@ -333,12 +317,10 @@ enum class SyncAllError : UiCoreError {
 
 @Serializable
 enum class CalculateWorkError : UiCoreError {
-    NoAccount,
     CouldNotReachServer,
     ClientUpdateRequired;
 
     override fun toLbError(res: Resources): LbError = when (this) {
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
         ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
     }
@@ -393,13 +375,11 @@ enum class GetSubscriptionInfoError : UiCoreError {
 
 @Serializable
 enum class ExportFileError : UiCoreError {
-    NoAccount,
     ParentDoesNotExist,
     DiskPathTaken,
     DiskPathInvalid;
 
     override fun toLbError(res: Resources): LbError = when (this) {
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         ParentDoesNotExist -> LbError.newUserError(getString(res, R.string.could_not_find_a_parent))
         // Used basic errors since specific errors are not useful to the user
         DiskPathTaken -> LbError.newUserError(getString(res, R.string.basic_error))
