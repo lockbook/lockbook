@@ -81,6 +81,7 @@ macro_rules! unexpected_only {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CoreError {
+    InsufficientPermission,
     AccountExists,
     AccountNonexistent,
     AccountStringCorrupted,
@@ -123,6 +124,7 @@ pub enum CoreError {
     ServerDisabled,
     ServerUnreachable,
     ShareAlreadyExists,
+    ShareNonexistent,
     TryAgain,
     UsageIsOverFreeTierDataCap,
     UsernameInvalid,
@@ -277,6 +279,7 @@ pub enum CreateFileAtPathError {
     PathDoesntStartWithRoot,
     PathContainsEmptyFile,
     DocumentTreatedAsFolder,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<CreateFileAtPathError> {
@@ -291,6 +294,7 @@ impl From<CoreError> for Error<CreateFileAtPathError> {
             CoreError::RootNonexistent => UiError(CreateFileAtPathError::NoRoot),
             CoreError::PathTaken => UiError(CreateFileAtPathError::FileAlreadyExists),
             CoreError::FileNotFolder => UiError(CreateFileAtPathError::DocumentTreatedAsFolder),
+            CoreError::InsufficientPermission => UiError(CreateFileAtPathError::InsufficientPermission),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -318,6 +322,7 @@ pub enum CreateFileError {
     FileNameEmpty,
     FileNameContainsSlash,
     FileLinkInSharedFolder,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<CreateFileError> {
@@ -330,6 +335,7 @@ impl From<CoreError> for Error<CreateFileError> {
             CoreError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
             CoreError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
             CoreError::FileLinkInSharedFolder => UiError(CreateFileError::FileLinkInSharedFolder),
+            CoreError::InsufficientPermission => UiError(CreateFileError::InsufficientPermission),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -339,6 +345,7 @@ impl From<CoreError> for Error<CreateFileError> {
 pub enum WriteToDocumentError {
     FileDoesNotExist,
     FolderTreatedAsDocument,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<WriteToDocumentError> {
@@ -346,6 +353,7 @@ impl From<CoreError> for Error<WriteToDocumentError> {
         match e {
             CoreError::FileNonexistent => UiError(WriteToDocumentError::FileDoesNotExist),
             CoreError::FileNotDocument => UiError(WriteToDocumentError::FolderTreatedAsDocument),
+            CoreError::InsufficientPermission => UiError(WriteToDocumentError::InsufficientPermission),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -399,6 +407,7 @@ impl From<CoreError> for Error<GetFileByIdError> {
 pub enum FileDeleteError {
     CannotDeleteRoot,
     FileDoesNotExist,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<FileDeleteError> {
@@ -406,6 +415,7 @@ impl From<CoreError> for Error<FileDeleteError> {
         match e {
             CoreError::RootModificationInvalid => UiError(FileDeleteError::CannotDeleteRoot),
             CoreError::FileNonexistent => UiError(FileDeleteError::FileDoesNotExist),
+            CoreError::InsufficientPermission => UiError(FileDeleteError::InsufficientPermission),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -454,6 +464,7 @@ pub enum RenameFileError {
     NewNameContainsSlash,
     FileNameNotAvailable,
     CannotRenameRoot,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<RenameFileError> {
@@ -464,6 +475,7 @@ impl From<CoreError> for Error<RenameFileError> {
             CoreError::FileNameContainsSlash => UiError(RenameFileError::NewNameContainsSlash),
             CoreError::PathTaken => UiError(RenameFileError::FileNameNotAvailable),
             CoreError::RootModificationInvalid => UiError(RenameFileError::CannotRenameRoot),
+            CoreError::InsufficientPermission => UiError(RenameFileError::InsufficientPermission),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -478,6 +490,7 @@ pub enum MoveFileError {
     TargetParentDoesNotExist,
     TargetParentHasChildNamedThat,
     FileLinkInSharedFolder,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<MoveFileError> {
@@ -490,6 +503,7 @@ impl From<CoreError> for Error<MoveFileError> {
             CoreError::FileParentNonexistent => UiError(MoveFileError::TargetParentDoesNotExist),
             CoreError::PathTaken => UiError(MoveFileError::TargetParentHasChildNamedThat),
             CoreError::FileLinkInSharedFolder => UiError(MoveFileError::FileLinkInSharedFolder),
+            CoreError::InsufficientPermission => UiError(MoveFileError::InsufficientPermission),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -501,6 +515,7 @@ pub enum ShareFileError {
     FileNonexistent,
     ShareAlreadyExists,
     FileLinkInSharedFolder,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<ShareFileError> {
@@ -512,6 +527,7 @@ impl From<CoreError> for Error<ShareFileError> {
                 UiError(ShareFileError::ShareAlreadyExists)
             }
             CoreError::FileLinkInSharedFolder => UiError(ShareFileError::FileLinkInSharedFolder),
+            CoreError::InsufficientPermission => UiError(ShareFileError::InsufficientPermission),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -519,13 +535,13 @@ impl From<CoreError> for Error<ShareFileError> {
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum DeletePendingShareError {
-    FileNonexistent,
+    ShareNonexistent,
 }
 
 impl From<CoreError> for Error<DeletePendingShareError> {
     fn from(e: CoreError) -> Self {
         match e {
-            CoreError::FileNonexistent => UiError(DeletePendingShareError::FileNonexistent),
+            CoreError::ShareNonexistent => UiError(DeletePendingShareError::ShareNonexistent),
             _ => unexpected!("{:#?}", e),
         }
     }
