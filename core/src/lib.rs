@@ -308,9 +308,8 @@ impl Core {
         let val = self.db.transaction(|tx| {
             self.context(tx)?
                 .create_at_path(&self.config, path_and_name)
-        })??;
-
-        Ok(val)
+        })?;
+        Ok(val?)
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
@@ -320,9 +319,8 @@ impl Core {
         let val = self.db.transaction(|tx| {
             self.context(tx)?
                 .create_link_at_path(&self.config, path_and_name, target_id)
-        })??;
-
-        Ok(val)
+        })?;
+        Ok(val?)
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
@@ -331,13 +329,12 @@ impl Core {
     ) -> Result<DecryptedFileMetadata, Error<GetFileByPathError>> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.get_by_path(path))??;
-
-        Ok(val)
+            .transaction(|tx| self.context(tx)?.get_by_path(path))?;
+        Ok(val?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_path_by_id(&self, id: Uuid) -> Result<String, UnexpectedError> {
+    pub fn get_path_by_id(&self, id: Uuid) -> Result<String, Error<GetPathByIdError>> {
         let val: Result<_, CoreError> = self
             .db
             .transaction(|tx| self.context(tx)?.get_path_by_id(id))?;
@@ -349,7 +346,6 @@ impl Core {
         let val: Result<_, CoreError> = self
             .db
             .transaction(|tx| self.context(tx)?.list_paths(filter))?;
-
         Ok(val?)
     }
 

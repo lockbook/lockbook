@@ -99,6 +99,7 @@ pub enum CoreError {
     ExistingRequestPending,
     ExpiredCard,
     FileExists,
+    FileIsLink,
     FileLinkInSharedFolder,
     FileNameContainsSlash,
     FileNameEmpty,
@@ -311,6 +312,20 @@ impl From<CoreError> for Error<GetFileByPathError> {
     fn from(e: CoreError) -> Self {
         match e {
             CoreError::FileNonexistent => UiError(GetFileByPathError::NoFileAtThatPath),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum GetPathByIdError {
+    FileIsLink,
+}
+
+impl From<CoreError> for Error<GetPathByIdError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::FileIsLink => UiError(GetPathByIdError::FileIsLink),
             _ => unexpected!("{:#?}", e),
         }
     }
