@@ -11,7 +11,6 @@ pub fn status(core: &Core) -> Result<(), CliError> {
 
     let work = core.calculate_work().map_err(|err| match err {
         LbError::UiError(err) => match err {
-            CalculateWorkError::NoAccount => CliError::no_account(),
             CalculateWorkError::CouldNotReachServer => CliError::network_issue(),
             CalculateWorkError::ClientUpdateRequired => CliError::update_required(),
         },

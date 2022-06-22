@@ -270,11 +270,10 @@ namespace test {
         }
 
         [TestMethod]
-        public void SyncAllNoAccount() {
+        public void SyncAllUnexpected() {
             var coreService = NewCoreService();
             var syncAllResult = coreService.SyncAll().WaitResult();
-            Assert.AreEqual(Core.SyncAll.PossibleErrors.NoAccount,
-                CastOrDie(syncAllResult, out Core.SyncAll.ExpectedError _).Error);
+            CastOrDie(syncAllResult, out Core.SyncAll.UnexpectedError _);
         }
 
         [TestMethod]
@@ -289,11 +288,10 @@ namespace test {
         }
 
         [TestMethod]
-        public void CalculateWorkNoAccount() {
+        public void CalculateWorkUnexpected() {
             var coreService = NewCoreService();
             var calculateWorkResult = coreService.CalculateWork().WaitResult();
-            Assert.AreEqual(Core.CalculateWork.PossibleErrors.NoAccount,
-                CastOrDie(calculateWorkResult, out Core.CalculateWork.ExpectedError _).Error);
+            CastOrDie(calculateWorkResult, out Core.CalculateWork.UnexpectedError _);
         }
 
         [TestMethod]
@@ -319,11 +317,10 @@ namespace test {
         }
 
         [TestMethod]
-        public void GetUsageNoAccount() {
+        public void GetUsageUnexpected() {
             var coreService = NewCoreService();
             var getUsageResult = coreService.GetUsage().WaitResult();
-            Assert.AreEqual(Core.GetUsage.PossibleErrors.NoAccount,
-                CastOrDie(getUsageResult, out Core.GetUsage.ExpectedError _).Error);
+            CastOrDie(getUsageResult, out Core.GetUsage.UnexpectedError _);
         }
 
         [TestMethod]
@@ -341,11 +338,10 @@ namespace test {
         }
 
         [TestMethod]
-        public void CreateFileNoAccount() {
+        public void CreateFileUnexpected() {
             var coreService = NewCoreService();
             var createFileResult = coreService.CreateFile("TestFile", Guid.NewGuid().ToString(), FileType.Document).WaitResult();
-            Assert.AreEqual(Core.CreateFile.PossibleErrors.NoAccount,
-                CastOrDie(createFileResult, out Core.CreateFile.ExpectedError _).Error);
+            CastOrDie(createFileResult, out Core.CreateFile.UnexpectedError _);
         }
 
         [TestMethod]
@@ -432,7 +428,7 @@ namespace test {
         }
 
         [TestMethod]
-        public void WriteDocNoAccount() {
+        public void WriteDocUnexpected() {
             var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
@@ -448,8 +444,7 @@ namespace test {
             coreService = NewCoreService();
 
             var writeDocResult = coreService.WriteDocument(fileId, "content").WaitResult();
-            Assert.AreEqual(Core.WriteDocument.PossibleErrors.NoAccount,
-                CastOrDie(writeDocResult, out Core.WriteDocument.ExpectedError _).Error);
+            CastOrDie(writeDocResult, out Core.WriteDocument.UnexpectedError _);
         }
 
         [TestMethod]
@@ -475,7 +470,7 @@ namespace test {
         }
 
         [TestMethod]
-        public void ReadDocNoAccount() {
+        public void ReadDocUnexpected() {
             var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
@@ -491,8 +486,7 @@ namespace test {
             coreService = NewCoreService();
 
             var readDocResult = coreService.ReadDocument(fileId).WaitResult();
-            Assert.AreEqual(Core.ReadDocument.PossibleErrors.NoAccount,
-                CastOrDie(readDocResult, out Core.ReadDocument.ExpectedError _).Error);
+            CastOrDie(readDocResult, out Core.ReadDocument.UnexpectedError _);
         }
 
         [TestMethod]
@@ -565,7 +559,7 @@ namespace test {
         }
 
         [TestMethod]
-        public void MoveFileNoAccount() {
+        public void MoveFileUnexpected() {
             var coreService = NewCoreService();
             var username = RandomUsername();
             var createAccountResult = coreService.CreateAccount(username, apiUrl).WaitResult();
@@ -583,8 +577,7 @@ namespace test {
             coreService = NewCoreService();
 
             var moveFileResult = coreService.MoveFile(file.id, folder.id).WaitResult();
-            Assert.AreEqual(Core.MoveFile.PossibleErrors.NoAccount,
-                CastOrDie(moveFileResult, out Core.MoveFile.ExpectedError _).Error);
+            CastOrDie(moveFileResult, out Core.MoveFile.UnexpectedError _);
         }
 
         [TestMethod]

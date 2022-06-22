@@ -17,7 +17,6 @@ pub fn new(core: &Core, lb_path: &str) -> Result<(), CliError> {
 
     let file_metadata = core.create_at_path(lb_path).map_err(|err| match err {
         LbError::UiError(err) => match err {
-            CreateFileAtPathError::NoAccount => CliError::no_account(),
             CreateFileAtPathError::NoRoot => CliError::no_root(),
             CreateFileAtPathError::FileAlreadyExists => CliError::file_exists(lb_path),
             CreateFileAtPathError::PathContainsEmptyFile => CliError::path_has_empty_file(lb_path),

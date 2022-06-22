@@ -391,7 +391,6 @@ fn payment_err_to_string(err: lb::Error<lb::UpgradeAccountStripeError>) -> Strin
     use lb::UpgradeAccountStripeError::*;
     match err {
         lb::UiError(err) => match err {
-            NoAccount => "No account!",
             CouldNotReachServer => "Unable to connect to server.",
             OldCardDoesNotExist => "Could not find your current card.",
             AlreadyPremium => "You are already subscribed for this tier.",
