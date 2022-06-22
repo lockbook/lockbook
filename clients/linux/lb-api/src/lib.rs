@@ -145,7 +145,6 @@ impl From<Error<SyncAllError>> for SyncError {
                 match err {
                     SyncAllError::CouldNotReachServer => "Offline.",
                     SyncAllError::ClientUpdateRequired => "Client upgrade required.",
-                    SyncAllError::NoAccount => "No account found.",
                 }
                 .to_string(),
             ),

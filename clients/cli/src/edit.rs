@@ -26,7 +26,6 @@ pub fn edit(core: &Core, lb_path: &str) -> Result<(), CliError> {
             LbError::UiError(ReadDocumentError::TreatedFolderAsDocument) => {
                 CliError::dir_treated_as_doc(lb_path)
             }
-            LbError::UiError(ReadDocumentError::NoAccount) => CliError::no_account(),
             LbError::UiError(ReadDocumentError::FileDoesNotExist) | LbError::Unexpected(_) => {
                 CliError::unexpected(format!("reading encrypted doc: {:#?}", err))
             }
