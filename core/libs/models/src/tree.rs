@@ -53,7 +53,7 @@ pub enum TreeError {
     Unexpected(String),
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum StageSource {
     Base,
     Staged,
@@ -63,6 +63,13 @@ pub enum StageSource {
 pub struct PathConflict {
     pub existing: Uuid,
     pub staged: Uuid,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct LinkShare {
+    pub link_id: Uuid,
+    pub shared_ancestor: Uuid,
+    pub link_staged: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -124,6 +131,9 @@ pub trait FileMetaMapExt<Fm: FileMetadata> {
     fn get_path_conflicts(
         &self, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<PathConflict>, TreeError>;
+    fn get_shared_links(
+        &self, staged_changes: &HashMap<Uuid, Fm>,
+    ) -> Result<Vec<LinkShare>, TreeError>;
     fn verify_integrity(&self) -> Result<(), TestFileTreeError>;
     fn pretty_print(&self) -> String;
 }
@@ -403,6 +413,14 @@ where
         Ok(result)
     }
 
+    fn get_shared_links(
+        &self, staged_changes: &HashMap<Uuid, Fm>,
+    ) -> Result<Vec<LinkShare>, TreeError> {
+        let mut result = Vec::new();
+        get_shared_links_helper(&self.stage_with_source(staged_changes), &self.find_root()?, &mut Vec::new(), &mut result)?;
+        Ok(result)
+    }
+
     fn verify_integrity(&self) -> Result<(), TestFileTreeError> {
         if self.is_empty() {
             return Ok(());
@@ -494,4 +512,32 @@ where
         };
         print_branch(self, &root, &self.find_children(root.id()), "", "", "")
     }
+}
+
+fn get_shared_links_helper<Fm: FileMetadata>(files_with_sources: &HashMap<Uuid, (Fm, StageSource)>, current: &Fm, shared_ancestors: &mut Vec<Uuid>, result: &mut Vec<LinkShare>) -> Result<(), TreeError> {
+    if current.is_shared() {
+        shared_ancestors.push(current.id());
+    }
+    if let FileType::Link { linked_file: _ } = current.file_type() {
+        for shared_ancestor in shared_ancestors.iter() {
+            result.push(LinkShare{
+                link_id: current.id(),
+                shared_ancestor: shared_ancestor.clone(),
+                link_staged: files_with_sources.get(&current.id()).ok_or(TreeError::FileNonexistent)?.1 == StageSource::Staged,
+            });
+        }
+    }
+    let children = files_with_sources.iter()
+        .filter_map(|(id, (file, _))| {
+            if file.parent() == current.id() && id != &file.parent() {
+                Some(file)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<&Fm>>();
+    for child in children {
+        get_shared_links_helper(files_with_sources, child, shared_ancestors, result)?;
+    }
+    Ok(())
 }
