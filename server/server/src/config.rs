@@ -26,8 +26,8 @@ pub struct FilesDbConfig {
 }
 
 impl FilesDbConfig {
-    pub fn from_env_vars() -> FilesDbConfig {
-        FilesDbConfig {
+    pub fn from_env_vars() -> Self {
+        Self {
             scheme: env_or_empty("FILES_DB_SCHEME"),
             host: env_or_empty("FILES_DB_HOST"),
             port: env_or_empty("FILES_DB_PORT").map(|e| e.parse().expect("Expected u16!")),
@@ -77,7 +77,7 @@ pub struct ServerConfig {
 }
 
 impl ServerConfig {
-    pub fn from_env_vars() -> ServerConfig {
+    pub fn from_env_vars() -> Self {
         let env = Environment::from_env_vars();
         let port = env_or_panic("SERVER_PORT").parse().unwrap();
         let max_auth_delay = env_or_panic("MAX_AUTH_DELAY").parse().unwrap();
@@ -93,7 +93,7 @@ impl ServerConfig {
             ),
         }
 
-        ServerConfig {
+        Self {
             env,
             port,
             max_auth_delay,
@@ -112,8 +112,8 @@ pub struct MetricsConfig {
 }
 
 impl MetricsConfig {
-    pub fn from_env_vars() -> MetricsConfig {
-        MetricsConfig {
+    pub fn from_env_vars() -> Self {
+        Self {
             time_between_metrics_refresh: Duration::from_secs(
                 env_or_panic("MINUTES_BETWEEN_METRICS_REFRESH")
                     .parse::<u64>()
@@ -185,8 +185,8 @@ pub struct StripeConfig {
 }
 
 impl StripeConfig {
-    pub fn from_env_vars() -> StripeConfig {
-        StripeConfig {
+    pub fn from_env_vars() -> Self {
+        Self {
             stripe_secret: env_or_panic("STRIPE_SECRET").parse().unwrap(),
             signing_secret: env_or_panic("STRIPE_SIGNING_SECRET").parse().unwrap(),
             premium_price_id: env_or_panic("STRIPE_PREMIUM_PRICE_ID").parse().unwrap(),
