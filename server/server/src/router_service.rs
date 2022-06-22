@@ -36,11 +36,11 @@ macro_rules! core_req {
         use lockbook_models::api::{ErrorWrapper, Request};
         use log::error;
 
-        let cloned_state = Arc::clone(&$state);
+        let cloned_state = $state.clone();
 
         method(<$Req>::METHOD)
             .and(warp::path(&<$Req>::ROUTE[1..]))
-            .and(warp::any().map(move || Arc::clone(&cloned_state)))
+            .and(warp::any().map(move || cloned_state.clone()))
             .and(warp::body::bytes())
             .then(|state: Arc<ServerState>, request: Bytes| async move {
                 let state = state.as_ref();
@@ -122,11 +122,11 @@ pub fn get_metrics() -> impl Filter<Extract = impl warp::Reply, Error = warp::Re
 pub fn stripe_webhooks(
     server_state: &Arc<ServerState>,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    let cloned_state = Arc::clone(server_state);
+    let cloned_state = server_state.clone();
 
     warp::post()
         .and(warp::path("stripe-webhooks"))
-        .and(warp::any().map(move || Arc::clone(&cloned_state)))
+        .and(warp::any().map(move || cloned_state.clone()))
         .and(warp::body::bytes())
         .and(warp::header::header("Stripe-Signature"))
         .then(|state: Arc<ServerState>, request: Bytes, stripe_sig: HeaderValue| async move {
@@ -205,9 +205,7 @@ pub fn deserialize_and_check<Req>(
     server_state: &ServerState, request: Bytes,
 ) -> Result<RequestWrapper<Req>, ErrorWrapper<Req::Error>>
 where
-    Req: Request,
-    Req: DeserializeOwned,
-    Req: Serialize,
+    Req: Request + DeserializeOwned + Serialize,
 {
     let request = serde_json::from_slice(request.as_ref()).map_err(|err| {
         warn!("Request parsing failure: {}", err);
