@@ -316,7 +316,7 @@ impl Core {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn create_link_at_path(
         &self, path_and_name: &str, target_id: Uuid,
-    ) -> Result<DecryptedFileMetadata, Error<CreateFileAtPathError>> {
+    ) -> Result<DecryptedFileMetadata, Error<CreateLinkAtPathError>> {
         let val = self.db.transaction(|tx| {
             self.context(tx)?
                 .create_link_at_path(&self.config, path_and_name, target_id)

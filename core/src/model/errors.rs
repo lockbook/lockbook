@@ -88,17 +88,17 @@ pub enum CoreError {
     AlreadyPremium,
     CardDecline,
     CardHasInsufficientFunds,
-    TryAgain,
     CardNotSupported,
-    ExpiredCard,
     ClientUpdateRequired,
     ClientWipeRequired,
     CurrentUsageIsMoreThanNewTier,
     DiskPathInvalid,
     DiskPathTaken,
-    ServerDisabled,
     DrawingInvalid,
+    ExistingRequestPending,
+    ExpiredCard,
     FileExists,
+    FileLinkInSharedFolder,
     FileNameContainsSlash,
     FileNameEmpty,
     FileNonexistent,
@@ -106,21 +106,24 @@ pub enum CoreError {
     FileNotFolder,
     FileParentNonexistent,
     FolderMovedIntoSelf,
-    InvalidCardNumber,
-    InvalidCardExpYear,
-    InvalidCardExpMonth,
     InvalidCardCvc,
+    InvalidCardExpMonth,
+    InvalidCardExpYear,
+    InvalidCardNumber,
     InvalidPurchaseToken,
+    LinkTargetNonexistent,
     NotPremium,
+    OldCardDoesNotExist,
     PathContainsEmptyFileName,
     PathNonexistent,
     PathStartsWithNonRoot,
     PathTaken,
-    OldCardDoesNotExist,
     RootModificationInvalid,
     RootNonexistent,
+    ServerDisabled,
     ServerUnreachable,
-    ExistingRequestPending,
+    ShareAlreadyExists,
+    TryAgain,
     UsageIsOverFreeTierDataCap,
     UsernameInvalid,
     UsernamePublicKeyMismatch,
@@ -314,6 +317,7 @@ pub enum CreateFileError {
     FileNameNotAvailable,
     FileNameEmpty,
     FileNameContainsSlash,
+    FileLinkInSharedFolder,
 }
 
 impl From<CoreError> for Error<CreateFileError> {
@@ -325,6 +329,7 @@ impl From<CoreError> for Error<CreateFileError> {
             CoreError::FileParentNonexistent => UiError(CreateFileError::CouldNotFindAParent),
             CoreError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
             CoreError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
+            CoreError::FileLinkInSharedFolder => UiError(CreateFileError::FileLinkInSharedFolder),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -472,6 +477,7 @@ pub enum MoveFileError {
     FolderMovedIntoItself,
     TargetParentDoesNotExist,
     TargetParentHasChildNamedThat,
+    FileLinkInSharedFolder,
 }
 
 impl From<CoreError> for Error<MoveFileError> {
@@ -483,42 +489,77 @@ impl From<CoreError> for Error<MoveFileError> {
             CoreError::FolderMovedIntoSelf => UiError(MoveFileError::FolderMovedIntoItself),
             CoreError::FileParentNonexistent => UiError(MoveFileError::TargetParentDoesNotExist),
             CoreError::PathTaken => UiError(MoveFileError::TargetParentHasChildNamedThat),
+            CoreError::FileLinkInSharedFolder => UiError(MoveFileError::FileLinkInSharedFolder),
             _ => unexpected!("{:#?}", e),
         }
     }
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum ShareFileError {} // todo(sharing): errors
+pub enum ShareFileError {
+    CannotShareRoot,
+    FileNonexistent,
+    ShareAlreadyExists,
+    FileLinkInSharedFolder,
+}
 
 impl From<CoreError> for Error<ShareFileError> {
     fn from(e: CoreError) -> Self {
         match e {
-            // todo(sharing): match errors
+            CoreError::RootModificationInvalid => UiError(ShareFileError::CannotShareRoot),
+            CoreError::FileNonexistent => UiError(ShareFileError::FileNonexistent),
+            CoreError::ShareAlreadyExists => {
+                UiError(ShareFileError::ShareAlreadyExists)
+            }
+            CoreError::FileLinkInSharedFolder => UiError(ShareFileError::FileLinkInSharedFolder),
             _ => unexpected!("{:#?}", e),
         }
     }
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum DeletePendingShareError {} // todo(sharing): errors
+pub enum DeletePendingShareError {
+    FileNonexistent,
+}
 
 impl From<CoreError> for Error<DeletePendingShareError> {
     fn from(e: CoreError) -> Self {
         match e {
-            // todo(sharing): match errors
+            CoreError::FileNonexistent => UiError(DeletePendingShareError::FileNonexistent),
             _ => unexpected!("{:#?}", e),
         }
     }
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum SetLinkError {} // todo(sharing): errors
+pub enum CreateLinkAtPathError {
+    FileAlreadyExists,
+    NoRoot,
+    PathDoesntStartWithRoot,
+    PathContainsEmptyFile,
+    DocumentTreatedAsFolder,
+    FileLinkInSharedFolder,
+    LinkTargetNonexistent,
+}
 
-impl From<CoreError> for Error<SetLinkError> {
+impl From<CoreError> for Error<CreateLinkAtPathError> {
     fn from(e: CoreError) -> Self {
         match e {
-            // todo(sharing): match errors
+            CoreError::PathStartsWithNonRoot => {
+                UiError(CreateLinkAtPathError::PathDoesntStartWithRoot)
+            }
+            CoreError::PathContainsEmptyFileName => {
+                UiError(CreateLinkAtPathError::PathContainsEmptyFile)
+            }
+            CoreError::RootNonexistent => UiError(CreateLinkAtPathError::NoRoot),
+            CoreError::PathTaken => UiError(CreateLinkAtPathError::FileAlreadyExists),
+            CoreError::FileNotFolder => UiError(CreateLinkAtPathError::DocumentTreatedAsFolder),
+            CoreError::FileLinkInSharedFolder => {
+                UiError(CreateLinkAtPathError::FileLinkInSharedFolder)
+            }
+            CoreError::LinkTargetNonexistent => {
+                UiError(CreateLinkAtPathError::LinkTargetNonexistent)
+            }
             _ => unexpected!("{:#?}", e),
         }
     }
