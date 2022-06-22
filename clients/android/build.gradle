@@ -37,13 +37,13 @@ buildscript {
         image_viewer_version = '3.2.0'
         pdf_viewer_version = '3.2.0-beta.3'
         fab_speed_dial = '3.3.0'
+        billing_version = '5.0.0'
     }
 
     repositories {
         google()
         mavenCentral()
         maven { url "https://plugins.gradle.org/m2/" }
-        gradlePluginPortal()
     }
 
     dependencies {

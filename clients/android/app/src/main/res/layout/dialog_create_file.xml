@@ -62,7 +62,7 @@
             android:layout_weight="3"
             android:hint="@string/dialog_file_name"
             android:visibility="gone"
-            app:startIconDrawable="@drawable/ic_outline_folder_24">
+            app:startIconDrawable="@drawable/ic_baseline_folder_24">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/create_folder"

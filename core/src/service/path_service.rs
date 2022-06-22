@@ -1,12 +1,12 @@
 use crate::model::repo::RepoSource;
 use crate::pure_functions::files;
-use crate::{Config, CoreError, Tx};
+use crate::{Config, CoreError, RequestContext};
 use lockbook_models::file_metadata::FileType::{Document, Folder};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
 use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use uuid::Uuid;
 
-impl Tx<'_> {
+impl RequestContext<'_, '_> {
     pub fn create_at_path(
         &mut self, config: &Config, path_and_name: &str,
     ) -> Result<DecryptedFileMetadata, CoreError> {
@@ -20,7 +20,7 @@ impl Tx<'_> {
 
         let mut files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
 
-        let mut current = files.find_root()?;
+        let mut current = files.find(self.root_id()?)?;
         let root_id = current.id;
         let account = self.get_account()?;
 
@@ -71,11 +71,11 @@ impl Tx<'_> {
         Ok(current)
     }
 
-    pub fn get_by_path(&self, path: &str) -> Result<DecryptedFileMetadata, CoreError> {
+    pub fn get_by_path(&mut self, path: &str) -> Result<DecryptedFileMetadata, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
         let paths = split_path(path);
 
-        let mut current = files.find_root()?;
+        let mut current = files.find(self.root_id()?)?;
 
         for (i, &value) in paths.iter().enumerate() {
             if value != current.decrypted_name {
@@ -104,20 +104,20 @@ impl Tx<'_> {
         Ok(current)
     }
 
-    pub fn get_path_by_id(&self, id: Uuid) -> Result<String, CoreError> {
+    pub fn get_path_by_id(&mut self, id: Uuid) -> Result<String, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
         Self::path_by_id_helper(&files, id)
     }
 
     pub fn path_by_id_helper(files: &DecryptedFiles, id: Uuid) -> Result<String, CoreError> {
-        let mut current_metadata = files.find(id)?;
+        let mut current_metadata = files.find_ref(id)?;
         let mut path = String::from("");
 
         let is_folder = current_metadata.is_folder();
 
-        while current_metadata.parent != current_metadata.id {
+        while !current_metadata.is_root() {
             path = format!("{}/{}", current_metadata.decrypted_name, path);
-            current_metadata = files.find(current_metadata.parent)?;
+            current_metadata = files.find_ref(current_metadata.parent)?;
         }
 
         {
@@ -130,7 +130,7 @@ impl Tx<'_> {
         Ok(path)
     }
 
-    pub fn list_paths(&self, filter: Option<Filter>) -> Result<Vec<String>, CoreError> {
+    pub fn list_paths(&mut self, filter: Option<Filter>) -> Result<Vec<String>, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
 
         let mut filtered_files = files.clone();
@@ -166,7 +166,7 @@ impl Tx<'_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Filter {
     DocumentsOnly,
     FoldersOnly,

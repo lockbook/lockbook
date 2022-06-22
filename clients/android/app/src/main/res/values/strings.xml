@@ -114,6 +114,34 @@
     <string name="pdf_page_indicator">%1$d / %2$d</string>
     <string name="could_not_load_pdf">This PDF could not be loaded.</string>
 
+    <string name="settings_protect_account_biometric_summary">Secure your account with biometrics.</string>
+
+    <string name="biometrics_title">Lockbook Biometric Verification</string>
+    <string name="biometrics_subtitle">Verify your identity to access Lockbook.</string>
+    <string name="biometrics_cancel">Cancel</string>
+
+    <array name="settings_biometric_names">
+        <item>@string/biometric_disabled</item>
+        <item>@string/biometric_recommended</item>
+        <item>@string/biometric_strict</item>
+    </array>
+
+    <string name="settings_cancel_subscription">Cancel your subscription</string>
+
+    <string name="settings_cancel_sub_confirmation_title">Cancel Subscription</string>
+    <string name="settings_cancel_sub_confirmation_details">Are you sure you want to cancel your Lockbook subscription?</string>
+    <string name="settings_cancel_completed">Your Lockbook subscription has been canceled.</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+
+    <string name="learn_more"><a href="https://lockbook.net">Learn more…</a></string>
+    <string name="on_boarding_create">Create</string>
+    <string name="on_boarding_import">Import</string>
+    <string name="import_account_starting_import">Starting import…</string>
+    <string name="before_you_start">Before you start…</string>
+    <string name="before_you_start_description">Lockbook <a href="https://en.wikipedia.org/wiki/End-to-end_encryption">encrypts</a> your notes with a key that stays on your Lockbook devices. This makes your notes unreadable to anyone but you. If you lose the key, your notes are not recoverable, so we recommend you make a backup in case something happens to this device.</string>
+    <string name="drawing_parse_error">Could not open drawing.</string>
+
     <!-- Errors -->
     <string name="no_account">You have no account.</string>
     <string name="could_not_reach_server">Offline.</string>
@@ -143,20 +171,17 @@
     <string name="no_root">No root!</string>
     <string name="cannot_move_root">Cannot move root!</string>
     <string name="new_account_disabled">This server is not accepting any new accounts at this moment. Please try again another time.</string>
+    <string name="already_premium">Error, you are already premium.</string>
+    <string name="invalid_purchase_token">Failed to verify purchase.</string>
+    <string name="existing_request_pending">You are accessing billing too quickly. Please try again in a minute.</string>
+    <string name="not_premium">Error, you are not premium.</string>
+    <string name="already_canceled">You have already canceled your subscription.</string>
+    <string name="usage_is_over_free_tier_data_cap">Your total data usage exceeds free tier. Please remove some data.</string>
+
 
     <string name="unexpected_error">An unexpected error has occurred!</string>
     <string name="basic_error">An error has occurred.</string>
-    <string name="settings_protect_account_biometric_summary">Secure your account with biometrics.</string>
-
-    <string name="biometrics_title">Lockbook Biometric Verification</string>
-    <string name="biometrics_subtitle">Verify your identity to access Lockbook.</string>
-    <string name="biometrics_cancel">Cancel</string>
-
-    <array name="settings_biometric_names">
-        <item>@string/biometric_disabled</item>
-        <item>@string/biometric_recommended</item>
-        <item>@string/biometric_strict</item>
-    </array>
+    <string name="unrecoverable_billing_error">Billing is currently not available right now, please try again later.</string>
 
     <!-- Preference keys -->
 
@@ -191,12 +216,38 @@
     <string name="clear_logs_key" translatable="false">clear_logs</string>
 
     <string name="open_new_doc_automatically_key" translatable="false">open_new_doc_automatically</string>
-    <string name="learn_more"><a href="https://lockbook.net">Learn more…</a></string>
-    <string name="on_boarding_create">Create</string>
-    <string name="on_boarding_import">Import</string>
-    <string name="import_account_starting_import">Starting import…</string>
-    <string name="before_you_start">Before you start…</string>
-    <string name="before_you_start_description">Lockbook <a href="https://en.wikipedia.org/wiki/End-to-end_encryption">encrypts</a> your notes with a key that stays on your Lockbook devices. This makes your notes unreadable to anyone but you. If you lose the key, your notes are not recoverable, so we recommend you make a backup in case something happens to this device.</string>
-    <string name="drawing_parse_error">Could not open drawing.</string>
+    <string name="cancel_subscription_key">cancel_subscription</string>
+
+    <string name="subscription_info_key">subscription_info</string>
+    <string name="premium_key">premium</string>
+
+    <!--    Billing-->
+
+    <string name="update_to_premium">View Subscription Options</string>
+    <string name="choose_your_plan">Choose your plan</string>
+    <string name="monthly_plan">Premium</string>
+    <string name="exit">Exit</string>
+    <string name="premium_space">Storage Space</string>
+    <string name="subscribe">Subscribe</string>
+    <string name="free_tier_current">Free (Current)</string>
+    <string name="fifty_gb">50 GB</string>
+    <string name="per_month">/ month</string>
+    <string name="one_mb">1 MB</string>
+    <string name="two_fifty">$2.50</string>
+    <string name="success_subscription_benefit">Your data cap has been extended to 50 GB.</string>
+    <string name="successful_purchase">Thank you for purchasing premium.</string>
+    <string name="upgrade_pitch">If you upgraded to premium, your usage would be:</string>
+    <string name="settings_premium">Premium</string>
+    <string name="settings_miscellaneous">Miscellaneous</string>
+    <string name="payment_issue">Your renewal has been declined due to a payment issue. Please click the button below to resolve it.</string>
+    <string name="update_payment_method">Update Payment Method</string>
+    <string name="payment_platform">Payment Platform:</string>
+    <string name="next_renewal_day">Next Renewal Date:</string>
+    <string name="expiration_day">Expiration Day:</string>
+    <string name="grace_period">End of Grace Period:</string>
+    <string name="google_play">Google Play</string>
+    <string name="stripe">Stripe</string>
+
     <string name="sync_finished">Sync finished</string>
+    <string name="backup_my_secret">Backup my secret</string>
 </resources>

@@ -15,6 +15,7 @@ class ImportAccountViewModel(application: Application) : AndroidViewModel(applic
     val syncModel = SyncModel()
 
     private val _updateImportUI = SingleMutableLiveData<UpdateImportUI>()
+    private val _syncStarted = SingleMutableLiveData<Unit>()
 
     val updateImportUI: LiveData<UpdateImportUI>
         get() = _updateImportUI

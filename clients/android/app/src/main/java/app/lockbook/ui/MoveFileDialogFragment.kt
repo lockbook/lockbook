@@ -84,8 +84,11 @@ class MoveFileDialogFragment : DialogFragment() {
                         item.fileType == FileType.Document -> {
                             R.drawable.ic_outline_insert_drive_file_24
                         }
+                        item.fileType == FileType.Document && extensionHelper.isPdf -> {
+                            R.drawable.ic_outline_picture_as_pdf_24
+                        }
                         else -> {
-                            R.drawable.ic_outline_folder_24
+                            R.drawable.ic_baseline_folder_24
                         }
                     }
 

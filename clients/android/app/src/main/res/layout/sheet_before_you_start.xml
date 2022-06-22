@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
-    android:padding="20dp" >
+    android:padding="20dp">
 
     <com.google.android.material.textview.MaterialTextView
         android:layout_width="wrap_content"
@@ -19,5 +19,12 @@
         style="@style/TextAppearance.Material3.BodySmall"
         android:paddingVertical="20dp"
         android:text="@string/before_you_start_description"/>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/backup_my_secret"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/backup_my_secret"
+        app:icon="@drawable/ic_outline_key_24"/>
 
 </LinearLayout>

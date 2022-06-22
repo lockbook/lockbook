@@ -29,7 +29,6 @@ impl super::App {
             .write_document(id, data.as_bytes())
             .map_err(|err| match err {
                 lb::Error::UiError(err) => match err {
-                    NoAccount => "no account",
                     FileDoesNotExist => "file does not exist",
                     FolderTreatedAsDocument => "folder treated as document",
                 }

@@ -7,6 +7,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
@@ -95,6 +96,28 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    fun confirmSubscription(purchaseToken: String, accountId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val confirmSubscriptionResult =
+                CoreModel.upgradeAccountGooglePlay(purchaseToken, accountId)
+
+            when (confirmSubscriptionResult) {
+                is Ok -> {
+                    _updateMainScreenUI.postValue(UpdateMainScreenUI.ShowSubscriptionConfirmed)
+                }
+                is Err -> {
+                    _updateMainScreenUI.postValue(
+                        UpdateMainScreenUI.NotifyError(
+                            confirmSubscriptionResult.error.toLbError(
+                                getRes()
+                            )
+                        )
+                    )
+                }
+            }
+        }
+    }
 }
 
 sealed class DetailsScreen(open val fileMetadata: DecryptedFileMetadata) {
@@ -131,6 +154,7 @@ sealed class UpdateMainScreenUI {
     data class ShowHideProgressOverlay(val show: Boolean) : UpdateMainScreenUI()
     data class ShareDocuments(val files: ArrayList<File>) : UpdateMainScreenUI()
     data class NotifyError(val error: LbError) : UpdateMainScreenUI()
+    object ShowSubscriptionConfirmed : UpdateMainScreenUI()
 }
 
 sealed class ExtendedFileType {

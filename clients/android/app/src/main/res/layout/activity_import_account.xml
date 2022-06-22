@@ -26,6 +26,7 @@
         android:layout_marginTop="10dp"
         android:text="@string/import_account_starting_import"
         android:textAlignment="center"
+        android:freezesText="true"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/import_account_progress_bar" />

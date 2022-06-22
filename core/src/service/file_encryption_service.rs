@@ -1,3 +1,4 @@
+use libsecp256k1::PublicKey;
 use std::collections::HashMap;
 
 use uuid::Uuid;
@@ -8,17 +9,17 @@ use lockbook_models::crypto::*;
 use lockbook_models::file_metadata::{
     DecryptedFileMetadata, DecryptedFiles, EncryptedFileMetadata, EncryptedFiles,
 };
-use lockbook_models::tree::FileMetaMapExt;
+use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 
 use crate::model::errors::{core_err_unexpected, CoreError};
 
 /// Converts a DecryptedFileMetadata to a FileMetadata using its decrypted parent key. Sharing is
 /// not supported; user access keys are encrypted for the provided account. This is a pure function.
 pub fn encrypt_metadatum(
-    account: &Account, parent_key: &AESKey, target: &DecryptedFileMetadata,
+    account: &Account, public_key: &PublicKey, parent_key: &AESKey, target: &DecryptedFileMetadata,
 ) -> Result<EncryptedFileMetadata, CoreError> {
-    let user_access_keys = if target.id == target.parent {
-        encrypt_user_access_keys(account, &target.decrypted_access_key)?
+    let user_access_keys = if target.is_root() {
+        encrypt_user_access_keys(account, public_key, &target.decrypted_access_key)?
     } else {
         Default::default()
     };
@@ -41,7 +42,7 @@ pub fn encrypt_metadatum(
 /// account. This is a pure function.
 /// This is O(n) now with hashmaps
 pub fn encrypt_metadata(
-    account: &Account, files: &DecryptedFiles,
+    account: &Account, public_key: &PublicKey, files: &DecryptedFiles,
 ) -> Result<EncryptedFiles, CoreError> {
     let mut result = HashMap::new();
     for target in files.values() {
@@ -51,7 +52,7 @@ pub fn encrypt_metadata(
                 ))
             })?
             .decrypted_access_key;
-        result.push(encrypt_metadatum(account, &parent_key, target)?);
+        result.push(encrypt_metadatum(account, public_key, &parent_key, target)?);
     }
     Ok(result)
 }
@@ -63,10 +64,10 @@ fn encrypt_file_name(
 }
 
 fn encrypt_user_access_keys(
-    account: &Account, decrypted_file_key: &AESKey,
+    account: &Account, public_key: &PublicKey, decrypted_file_key: &AESKey,
 ) -> Result<HashMap<String, UserAccessInfo>, CoreError> {
-    let user_key = pubkey::get_aes_key(&account.private_key, &account.public_key())
-        .map_err(core_err_unexpected)?;
+    let user_key =
+        pubkey::get_aes_key(&account.private_key, public_key).map_err(core_err_unexpected)?;
     let encrypted_file_key =
         symkey::encrypt(&user_key, decrypted_file_key).map_err(core_err_unexpected)?;
     let mut result = HashMap::new();
@@ -74,7 +75,7 @@ fn encrypt_user_access_keys(
         account.username.clone(),
         UserAccessInfo {
             username: account.username.clone(),
-            encrypted_by: account.public_key(),
+            encrypted_by: *public_key,
             access_key: encrypted_file_key,
         },
     );
@@ -109,13 +110,12 @@ pub fn decrypt_metadatum(
 /// included in files. Sharing is not supported; user access keys not for the provided account are
 /// ignored. This is a pure function.
 pub fn decrypt_metadata(
-    account: &Account, files: &EncryptedFiles,
+    account: &Account, files: &EncryptedFiles, key_cache: &mut HashMap<Uuid, AESKey>,
 ) -> Result<DecryptedFiles, CoreError> {
     let mut result = HashMap::new();
-    let mut key_cache = HashMap::new();
 
     for target in files.values() {
-        let parent_key = decrypt_file_key(account, target.parent, files, &mut key_cache)?;
+        let parent_key = decrypt_file_key(account, target.parent, files, key_cache)?;
         let decrypted_metadatum = decrypt_metadatum(&parent_key, target)?;
         result.push(decrypted_metadatum);
     }

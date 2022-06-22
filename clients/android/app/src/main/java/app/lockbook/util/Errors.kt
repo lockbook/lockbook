@@ -25,9 +25,15 @@ abstract class IntermCoreResult<O, E>
     class CoreErr<E>(val content: IntermCoreError<E>) : IntermCoreResult<Unit, E>()
             where E : Enum<E>, E : UiCoreError
 
-    fun toResult(): Result<O, CoreError<E>> {
+    fun toResult(isNullable: Boolean = false): Result<O, CoreError<E>> {
         return when (this) {
-            is CoreOk -> Ok(content ?: Unit as O)
+            is CoreOk -> {
+                if (isNullable) {
+                    Ok(content as O)
+                } else {
+                    Ok(content ?: Unit as O)
+                }
+            }
             is CoreErr -> when (content) {
                 is IntermCoreError.UiError -> {
                     Err(CoreError.UiError(content.content))
@@ -72,7 +78,7 @@ where E : UiCoreError {
     class Unexpected<E : UiCoreError>(val content: String) : CoreError<E>()
 
     fun toLbError(res: Resources): LbError = when (this) {
-        is UiError -> (content as UiCoreError).toLbError(res)
+        is UiError -> content.toLbError(res)
         is Unexpected -> {
             LbError.newProgError(content)
         }
@@ -90,13 +96,11 @@ enum class InitError : UiCoreError
 
 @Serializable
 enum class GetUsageError : UiCoreError {
-    NoAccount,
     CouldNotReachServer,
     ClientUpdateRequired;
 
     override fun toLbError(res: Resources): LbError {
         return when (this) {
-            NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
             CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
             ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
         }
@@ -160,6 +164,7 @@ enum class GetAccountError : UiCoreError {
         NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
     }
 }
+
 @Serializable
 enum class GetRootError : UiCoreError {
     NoRoot;
@@ -171,12 +176,10 @@ enum class GetRootError : UiCoreError {
 
 @Serializable
 enum class WriteToDocumentError : UiCoreError {
-    NoAccount,
     FileDoesNotExist,
     FolderTreatedAsDocument;
 
     override fun toLbError(res: Resources): LbError = when (this) {
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
         FolderTreatedAsDocument -> LbError.newUserError(getString(res, R.string.folder_treated_as_document))
     }
@@ -184,7 +187,6 @@ enum class WriteToDocumentError : UiCoreError {
 
 @Serializable
 enum class CreateFileError : UiCoreError {
-    NoAccount,
     DocumentTreatedAsFolder,
     CouldNotFindAParent,
     FileNameNotAvailable,
@@ -192,7 +194,6 @@ enum class CreateFileError : UiCoreError {
     FileNameEmpty;
 
     override fun toLbError(res: Resources): LbError = when (this) {
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         DocumentTreatedAsFolder -> LbError.newUserError(getString(res, R.string.document_treated_as_folder))
         CouldNotFindAParent -> LbError.newUserError(getString(res, R.string.could_not_find_a_parent))
         FileNameNotAvailable -> LbError.newUserError(getString(res, R.string.file_name_not_available))
@@ -212,6 +213,7 @@ enum class GetFileByIdError : UiCoreError {
         NoFileWithThatId -> LbError.newUserError(getString(res, R.string.no_file_with_that_id))
     }
 }
+
 @Serializable
 enum class FileDeleteError : UiCoreError {
     FileDoesNotExist,
@@ -226,12 +228,10 @@ enum class FileDeleteError : UiCoreError {
 @Serializable
 enum class ReadDocumentError : UiCoreError {
     TreatedFolderAsDocument,
-    NoAccount,
     FileDoesNotExist;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         TreatedFolderAsDocument -> LbError.newUserError(getString(res, R.string.folder_treated_as_document))
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
     }
 }
@@ -239,14 +239,12 @@ enum class ReadDocumentError : UiCoreError {
 @Serializable
 enum class SaveDocumentToDiskError : UiCoreError {
     TreatedFolderAsDocument,
-    NoAccount,
     FileDoesNotExist,
     BadPath,
     FileAlreadyExistsInDisk;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         TreatedFolderAsDocument -> LbError.newUserError(getString(res, R.string.folder_treated_as_document))
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
         BadPath -> LbError.newUserError(getString(res, R.string.bad_path))
         FileAlreadyExistsInDisk -> LbError.newUserError(getString(res, R.string.file_already_exists_on_disk))
@@ -257,7 +255,6 @@ enum class SaveDocumentToDiskError : UiCoreError {
 enum class ExportDrawingToDiskError : UiCoreError {
     FolderTreatedAsDrawing,
     FileDoesNotExist,
-    NoAccount,
     InvalidDrawing,
     BadPath,
     FileAlreadyExistsInDisk;
@@ -265,7 +262,6 @@ enum class ExportDrawingToDiskError : UiCoreError {
     override fun toLbError(res: Resources): LbError = when (this) {
         FolderTreatedAsDrawing -> LbError.newUserError(getString(res, R.string.folder_treated_as_drawing))
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         InvalidDrawing -> LbError.newUserError(getString(res, R.string.invalid_drawing))
         BadPath -> LbError.newUserError(getString(res, R.string.bad_path))
         FileAlreadyExistsInDisk -> LbError.newUserError(getString(res, R.string.file_already_exists_on_disk))
@@ -291,7 +287,6 @@ enum class RenameFileError : UiCoreError {
 
 @Serializable
 enum class MoveFileError : UiCoreError {
-    NoAccount,
     FileDoesNotExist,
     DocumentTreatedAsFolder,
     TargetParentDoesNotExist,
@@ -300,7 +295,6 @@ enum class MoveFileError : UiCoreError {
     FolderMovedIntoItself;
 
     override fun toLbError(res: Resources): LbError = when (this) {
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
         DocumentTreatedAsFolder -> LbError.newUserError(getString(res, R.string.document_treated_as_folder))
         TargetParentDoesNotExist -> LbError.newUserError(getString(res, R.string.could_not_find_a_parent))
@@ -312,12 +306,10 @@ enum class MoveFileError : UiCoreError {
 
 @Serializable
 enum class SyncAllError : UiCoreError {
-    NoAccount,
     CouldNotReachServer,
     ClientUpdateRequired;
 
     override fun toLbError(res: Resources): LbError = when (this) {
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
         ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
     }
@@ -325,12 +317,57 @@ enum class SyncAllError : UiCoreError {
 
 @Serializable
 enum class CalculateWorkError : UiCoreError {
-    NoAccount,
     CouldNotReachServer,
     ClientUpdateRequired;
 
     override fun toLbError(res: Resources): LbError = when (this) {
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
+        CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
+        ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
+    }
+}
+
+@Serializable
+enum class UpgradeAccountGooglePlayError : UiCoreError {
+    AlreadyPremium,
+    InvalidPurchaseToken,
+    ExistingRequestPending,
+    CouldNotReachServer,
+    ClientUpdateRequired;
+
+    override fun toLbError(res: Resources): LbError = when (this) {
+        AlreadyPremium -> LbError.newUserError(getString(res, R.string.already_premium))
+        InvalidPurchaseToken -> LbError.newUserError(getString(res, R.string.invalid_purchase_token))
+        ExistingRequestPending -> LbError.newUserError(getString(res, R.string.existing_request_pending))
+        CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
+        ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
+    }
+}
+
+@Serializable
+enum class CancelSubscriptionError : UiCoreError {
+    NotPremium,
+    AlreadyCanceled,
+    UsageIsOverFreeTierDataCap,
+    ExistingRequestPending,
+    CouldNotReachServer,
+    ClientUpdateRequired;
+
+    override fun toLbError(res: Resources): LbError = when (this) {
+        NotPremium -> LbError.newUserError(getString(res, R.string.not_premium))
+        AlreadyCanceled -> LbError.newUserError(getString(res, R.string.already_canceled))
+        UsageIsOverFreeTierDataCap -> LbError.newUserError(getString(res, R.string.usage_is_over_free_tier_data_cap))
+        ExistingRequestPending -> LbError.newUserError(getString(res, R.string.existing_request_pending))
+        CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
+        ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
+    }
+}
+
+@Serializable
+enum class GetSubscriptionInfoError : UiCoreError {
+    CouldNotReachServer,
+    ClientUpdateRequired;
+
+    override fun toLbError(res: Resources): LbError = when (this) {
         CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
         ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
     }
@@ -338,13 +375,11 @@ enum class CalculateWorkError : UiCoreError {
 
 @Serializable
 enum class ExportFileError : UiCoreError {
-    NoAccount,
     ParentDoesNotExist,
     DiskPathTaken,
     DiskPathInvalid;
 
     override fun toLbError(res: Resources): LbError = when (this) {
-        NoAccount -> LbError.newUserError(getString(res, R.string.no_account))
         ParentDoesNotExist -> LbError.newUserError(getString(res, R.string.could_not_find_a_parent))
         // Used basic errors since specific errors are not useful to the user
         DiskPathTaken -> LbError.newUserError(getString(res, R.string.basic_error))

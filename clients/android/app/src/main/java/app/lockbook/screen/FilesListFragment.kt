@@ -15,6 +15,7 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.preference.PreferenceManager
+import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentFilesListBinding
 import app.lockbook.model.*
@@ -24,6 +25,7 @@ import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.viewholder.isSelected
 import com.afollestad.recyclical.withItem
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.button.MaterialButton
 import java.lang.ref.WeakReference
 import java.util.*
 
@@ -221,6 +223,8 @@ class FilesListFragment : Fragment(), FilesFragment {
             updateUI(UpdateFilesUI.ShowSyncSnackBar(syncStatus.syncStepInfo.total))
             updateSyncProgress(syncStatus.syncStepInfo)
         }
+
+        (requireActivity().application as App).billingClientLifecycle.showInAppMessaging(requireActivity())
     }
 
     private fun setUpToolbar() {
@@ -286,11 +290,14 @@ class FilesListFragment : Fragment(), FilesFragment {
                         item.fileType == FileType.Document && extensionHelper.isImage -> {
                             R.drawable.ic_outline_image_24
                         }
+                        item.fileType == FileType.Document && extensionHelper.isPdf -> {
+                            R.drawable.ic_outline_picture_as_pdf_24
+                        }
                         item.fileType == FileType.Document -> {
                             R.drawable.ic_outline_insert_drive_file_24
                         }
                         else -> {
-                            R.drawable.ic_outline_folder_24
+                            R.drawable.ic_baseline_folder_24
                         }
                     }
 
@@ -380,12 +387,17 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
             UpdateFilesUI.ToggleMenuBar -> toggleMenuBar()
             UpdateFilesUI.ShowBeforeWeStart -> {
-                val bottomSheetDialog = BottomSheetDialog(requireContext())
-                bottomSheetDialog.setContentView(R.layout.sheet_before_you_start)
+                val beforeYouStartDialog = BottomSheetDialog(requireContext())
+                beforeYouStartDialog.setContentView(R.layout.sheet_before_you_start)
+                beforeYouStartDialog.findViewById<MaterialButton>(R.id.backup_my_secret)!!.setOnClickListener {
+                    val intent = Intent(requireContext(), SettingsActivity::class.java)
+                    intent.putExtra(getString(R.string.export_account_raw_key), true)
+                    startActivity(intent)
+                }
 
-                bottomSheetDialog.findViewById<TextView>(R.id.before_you_start_description)!!.movementMethod = LinkMovementMethod.getInstance()
+                beforeYouStartDialog.findViewById<TextView>(R.id.before_you_start_description)!!.movementMethod = LinkMovementMethod.getInstance()
 
-                bottomSheetDialog.show()
+                beforeYouStartDialog.show()
             }
             UpdateFilesUI.SyncImport -> {
                 (activity as MainScreenActivity).syncImportAccount()

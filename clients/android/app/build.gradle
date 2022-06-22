@@ -11,8 +11,8 @@ android {
         applicationId "app.lockbook"
         minSdkVersion 22
         targetSdkVersion 32
-        versionCode 5
-        versionName "0.4.1"
+        versionCode 7
+        versionName "0.4.2"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -104,13 +104,10 @@ dependencies {
     implementation "io.noties.markwon:editor:$markdown_version"
     implementation "com.jakewharton.timber:timber:$logger_version"
     implementation "androidx.work:work-runtime-ktx:$work_version"
-    implementation "com.android.billingclient:billing:$billing_version"
+    implementation "com.android.billingclient:billing-ktx:$billing_version"
     implementation "com.github.MikeOrtiz:TouchImageView:$image_viewer_version"
     implementation "com.github.mhiew:android-pdf-viewer:$pdf_viewer_version"
     implementation "com.leinardi.android:speed-dial:$fab_speed_dial"
 
     implementation project(':core')
-}
-repositories {
-    mavenCentral()
 }

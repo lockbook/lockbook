@@ -1,4 +1,3 @@
-use crate::billing::stripe_model::Timestamp;
 use crate::config::Environment::{Local, Prod, Unknown};
 use std::fmt::Display;
 use std::time::Duration;
@@ -27,8 +26,8 @@ pub struct FilesDbConfig {
 }
 
 impl FilesDbConfig {
-    pub fn from_env_vars() -> FilesDbConfig {
-        FilesDbConfig {
+    pub fn from_env_vars() -> Self {
+        Self {
             scheme: env_or_empty("FILES_DB_SCHEME"),
             host: env_or_empty("FILES_DB_HOST"),
             port: env_or_empty("FILES_DB_PORT").map(|e| e.parse().expect("Expected u16!")),
@@ -36,27 +35,6 @@ impl FilesDbConfig {
             bucket: env_or_panic("FILES_DB_BUCKET"),
             access_key: env_or_panic("FILES_DB_ACCESS_KEY"),
             secret_key: env_or_panic("FILES_DB_SECRET_KEY"),
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct StripeConfig {
-    pub stripe_secret: String,
-    pub signing_secret: String,
-    pub premium_price_id: String,
-    pub millis_between_user_payment_flows: Timestamp,
-}
-
-impl StripeConfig {
-    pub fn from_env_vars() -> StripeConfig {
-        StripeConfig {
-            stripe_secret: env_or_panic("STRIPE_SECRET").parse().unwrap(),
-            signing_secret: env_or_panic("STRIPE_SIGNING_SECRET").parse().unwrap(),
-            premium_price_id: env_or_panic("STRIPE_PREMIUM_PRICE_ID").parse().unwrap(),
-            millis_between_user_payment_flows: env_or_panic("MILLIS_BETWEEN_PAYMENT_FLOWS")
-                .parse()
-                .unwrap(),
         }
     }
 }
@@ -99,7 +77,7 @@ pub struct ServerConfig {
 }
 
 impl ServerConfig {
-    pub fn from_env_vars() -> ServerConfig {
+    pub fn from_env_vars() -> Self {
         let env = Environment::from_env_vars();
         let port = env_or_panic("SERVER_PORT").parse().unwrap();
         let max_auth_delay = env_or_panic("MAX_AUTH_DELAY").parse().unwrap();
@@ -115,7 +93,7 @@ impl ServerConfig {
             ),
         }
 
-        ServerConfig {
+        Self {
             env,
             port,
             max_auth_delay,
@@ -134,8 +112,8 @@ pub struct MetricsConfig {
 }
 
 impl MetricsConfig {
-    pub fn from_env_vars() -> MetricsConfig {
-        MetricsConfig {
+    pub fn from_env_vars() -> Self {
+        Self {
             time_between_metrics_refresh: Duration::from_secs(
                 env_or_panic("MINUTES_BETWEEN_METRICS_REFRESH")
                     .parse::<u64>()
@@ -152,12 +130,77 @@ impl MetricsConfig {
 }
 
 #[derive(Clone)]
+pub struct BillingConfig {
+    pub millis_between_user_payment_flows: u64,
+    pub time_between_lock_attempts: Duration,
+    pub google: GoogleConfig,
+    pub stripe: StripeConfig,
+}
+
+impl BillingConfig {
+    pub fn from_env_vars() -> Self {
+        Self {
+            millis_between_user_payment_flows: env_or_panic("MILLIS_BETWEEN_PAYMENT_FLOWS")
+                .parse()
+                .unwrap(),
+            time_between_lock_attempts: Duration::from_secs(
+                env_or_panic("MILLIS_BETWEEN_LOCK_ATTEMPTS")
+                    .parse::<u64>()
+                    .unwrap(),
+            ),
+            google: GoogleConfig::from_env_vars(),
+            stripe: StripeConfig::from_env_vars(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct GoogleConfig {
+    pub service_account_key: Option<String>,
+    pub premium_subscription_product_id: String,
+    pub premium_subscription_offer_id: String,
+    pub pubsub_token: String,
+}
+
+impl GoogleConfig {
+    pub fn from_env_vars() -> Self {
+        Self {
+            service_account_key: env_or_empty("GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY"),
+            premium_subscription_product_id: env_or_panic(
+                "GOOGLE_PLAY_PREMIUM_SUBSCRIPTION_PRODUCT_ID",
+            ),
+            premium_subscription_offer_id: env_or_panic(
+                "GOOGLE_PLAY_PREMIUM_SUBSCRIPTION_OFFER_ID",
+            ),
+            pubsub_token: env_or_panic("GOOGLE_CLOUD_PUBSUB_NOTIFICATION_TOKEN"),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct StripeConfig {
+    pub stripe_secret: String,
+    pub signing_secret: String,
+    pub premium_price_id: String,
+}
+
+impl StripeConfig {
+    pub fn from_env_vars() -> Self {
+        Self {
+            stripe_secret: env_or_panic("STRIPE_SECRET").parse().unwrap(),
+            signing_secret: env_or_panic("STRIPE_SIGNING_SECRET").parse().unwrap(),
+            premium_price_id: env_or_panic("STRIPE_PREMIUM_PRICE_ID").parse().unwrap(),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct Config {
     pub server: ServerConfig,
     pub index_db: IndexDbConf,
     pub files_db: FilesDbConfig,
-    pub stripe: StripeConfig,
     pub metrics: MetricsConfig,
+    pub billing: BillingConfig,
 }
 
 impl Config {
@@ -166,8 +209,8 @@ impl Config {
             index_db: IndexDbConf::from_env_vars(),
             files_db: FilesDbConfig::from_env_vars(),
             server: ServerConfig::from_env_vars(),
-            stripe: StripeConfig::from_env_vars(),
             metrics: MetricsConfig::from_env_vars(),
+            billing: BillingConfig::from_env_vars(),
         }
     }
 

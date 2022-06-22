@@ -10,6 +10,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.preference.PreferenceManager
 import androidx.work.*
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
+import app.lockbook.billing.BillingClientLifecycle
 import app.lockbook.model.CoreModel
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
@@ -18,6 +19,9 @@ import timber.log.Timber
 import java.util.concurrent.TimeUnit
 
 class App : Application() {
+    val billingClientLifecycle: BillingClientLifecycle
+        get() = BillingClientLifecycle.getInstance(this)
+
     override fun onCreate() {
         super.onCreate()
         loadLockbookCore()
@@ -69,9 +73,7 @@ class ForegroundBackgroundObserver(val context: Context) : DefaultLifecycleObser
         when (val getAccountResult = CoreModel.getAccount()) {
             is Ok -> onSuccess()
             is Err -> when (val error = getAccountResult.error) {
-                is CoreError.UiError -> when (error.content) {
-                    GetAccountError.NoAccount -> {}
-                }
+                is CoreError.UiError -> {}
                 is CoreError.Unexpected -> Timber.e("Error: ${error.content}")
             }
         }
@@ -89,7 +91,6 @@ class SyncWork(appContext: Context, workerParams: WorkerParameters) :
                 is CoreError.UiError -> when (error.content) {
                     SyncAllError.ClientUpdateRequired -> "Client update required."
                     SyncAllError.CouldNotReachServer -> "Could not reach server."
-                    SyncAllError.NoAccount -> "No account."
                 }
                 is CoreError.Unexpected -> {
                     "Unable to sync all files: ${error.content}"

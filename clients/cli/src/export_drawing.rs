@@ -3,11 +3,11 @@ use std::io::Write;
 
 use lockbook_core::model::errors::ExportDrawingError;
 use lockbook_core::model::errors::GetFileByPathError;
+use lockbook_core::pure_functions::drawing::SupportedImageFormats;
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
 
 use crate::error::CliError;
-use crate::utils::get_image_format;
 
 pub fn export_drawing(core: &Core, lb_path: &str, format: &str) -> Result<(), CliError> {
     let file_metadata = core.get_by_path(lb_path).map_err(|err| match err {
@@ -15,14 +15,19 @@ pub fn export_drawing(core: &Core, lb_path: &str, format: &str) -> Result<(), Cl
         LbError::Unexpected(msg) => CliError::unexpected(msg),
     })?;
 
-    let lockbook_format = get_image_format(format);
+    let lockbook_format = format.parse().unwrap_or_else(|_| {
+        eprintln!(
+            "'{}' is an unsupported format, but feel free to make a github issue! Falling back to PNG for now.",
+            format
+        );
+        SupportedImageFormats::Png
+    });
 
     let drawing_bytes = core
         .export_drawing(file_metadata.id, lockbook_format, None)
         .map_err(|err| match err {
             LbError::UiError(err) => match err {
                 ExportDrawingError::FolderTreatedAsDrawing => CliError::dir_treated_as_doc(lb_path),
-                ExportDrawingError::NoAccount => CliError::no_account(),
                 ExportDrawingError::InvalidDrawing => {
                     CliError::invalid_drawing(file_metadata.decrypted_name)
                 }

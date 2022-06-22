@@ -7,8 +7,6 @@ use jni::sys::{jboolean, jbyteArray, jlong, jstring};
 use jni::JNIEnv;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::path::PathBuf;
-use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::{
@@ -203,6 +201,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_renameFile(
         Ok(ok) => ok,
         Err(err) => return err,
     };
+
     let name = &match jstring_to_string(&env, jname, "name") {
         Ok(ok) => ok,
         Err(err) => return err,
@@ -528,7 +527,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportFile(
 
     let destination =
         match jstring_to_string(&env, jdestination, "path").and_then(|destination_str| {
-            PathBuf::from_str(&destination_str).map_err(|_| {
+            destination_str.parse().map_err(|_| {
                 string_to_jstring(&env, "Could not parse destination as PathBuf.".to_string())
             })
         }) {
@@ -542,6 +541,55 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_exportFile(
         &env,
         match static_state::get() {
             Ok(core) => translate(core.export_file(id, destination, edit, None)),
+            e => translate(e.map(|_| ())),
+        },
+    )
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_upgradeAccountGooglePlay(
+    env: JNIEnv, _: JClass, jpurchase_token: JString, jaccount_id: JString,
+) -> jstring {
+    let purchase_token = &match jstring_to_string(&env, jpurchase_token, "purchase token") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let account_id = &match jstring_to_string(&env, jaccount_id, "account id") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.upgrade_account_google_play(purchase_token, account_id)),
+            e => translate(e.map(|_| ())),
+        },
+    )
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_cancelSubscription(
+    env: JNIEnv, _: JClass,
+) -> jstring {
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.cancel_subscription()),
+            e => translate(e.map(|_| ())),
+        },
+    )
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getSubscriptionInfo(
+    env: JNIEnv, _: JClass,
+) -> jstring {
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.get_subscription_info()),
             e => translate(e.map(|_| ())),
         },
     )

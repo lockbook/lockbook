@@ -29,7 +29,7 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     lateinit var strokeState: DrawingStrokeState
 
-    var thread: Thread? = null
+    private var thread: Thread? = null
     var isThreadAvailable = false
     var isDrawingAvailable = false
 

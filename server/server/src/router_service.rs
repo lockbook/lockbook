@@ -12,6 +12,7 @@ use log::{error, warn};
 use prometheus::{register_histogram_vec, HistogramVec, TextEncoder};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::sync::Arc;
 use warp::http::{HeaderValue, Method, StatusCode};
 use warp::hyper::body::Bytes;
@@ -35,11 +36,11 @@ macro_rules! core_req {
         use lockbook_models::api::{ErrorWrapper, Request};
         use log::error;
 
-        let cloned_state = Arc::clone(&$state);
+        let cloned_state = $state.clone();
 
         method(<$Req>::METHOD)
             .and(warp::path(&<$Req>::ROUTE[1..]))
-            .and(warp::any().map(move || Arc::clone(&cloned_state)))
+            .and(warp::any().map(move || cloned_state.clone()))
             .and(warp::body::bytes())
             .then(|state: Arc<ServerState>, request: Bytes| async move {
                 let state = state.as_ref();
@@ -86,8 +87,10 @@ pub fn core_routes(
         .or(core_req!(GetUsageRequest, get_usage, server_state))
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
         .or(core_req!(DeleteAccountRequest, delete_account, server_state))
-        .or(core_req!(GetCreditCardRequest, get_credit_card, server_state))
-        .or(core_req!(SwitchAccountTierRequest, switch_account_tier, server_state))
+        .or(core_req!(UpgradeAccountGooglePlayRequest, upgrade_account_google_play, server_state))
+        .or(core_req!(UpgradeAccountStripeRequest, upgrade_account_stripe, server_state))
+        .or(core_req!(CancelSubscriptionRequest, cancel_subscription, server_state))
+        .or(core_req!(GetSubscriptionInfoRequest, get_subscription_info, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
@@ -119,11 +122,11 @@ pub fn get_metrics() -> impl Filter<Extract = impl warp::Reply, Error = warp::Re
 pub fn stripe_webhooks(
     server_state: &Arc<ServerState>,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    let cloned_state = Arc::clone(server_state);
+    let cloned_state = server_state.clone();
 
     warp::post()
         .and(warp::path("stripe-webhooks"))
-        .and(warp::any().map(move || Arc::clone(&cloned_state)))
+        .and(warp::any().map(move || cloned_state.clone()))
         .and(warp::body::bytes())
         .and(warp::header::header("Stripe-Signature"))
         .then(|state: Arc<ServerState>, request: Bytes, stripe_sig: HeaderValue| async move {
@@ -140,6 +143,43 @@ pub fn stripe_webhooks(
                             StatusCode::BAD_REQUEST
                         }
                         ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                    };
+
+                    warp::reply::with_status("".to_string(), status_code)
+                }
+            }
+        })
+}
+
+pub fn google_play_notification_webhooks(
+    server_state: &Arc<ServerState>,
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    let cloned_state = server_state.clone();
+
+    warp::post()
+        .and(warp::path("google_play_notification_webhook"))
+        .and(warp::any().map(move || cloned_state.clone()))
+        .and(warp::body::bytes())
+        .and(warp::query::query::<HashMap<String, String>>())
+        .then(|state: Arc<ServerState>, request: Bytes, query_parameters: HashMap<String, String>| async move {
+            match billing_service::google_play_notification_webhooks(&state, request, query_parameters).await
+            {
+                Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
+                Err(e) => {
+                    error!("{:?}", e);
+
+                    let status_code = match e {
+                        ServerError::ClientError(GooglePlayWebhookError::InvalidToken)
+                        | ServerError::ClientError(GooglePlayWebhookError::CannotRetrieveData)
+                        | ServerError::ClientError(
+                            GooglePlayWebhookError::CannotDecodePubSubData(_),
+                        ) => StatusCode::BAD_REQUEST,
+                        ServerError::ClientError(GooglePlayWebhookError::CannotRetrieveUserInfo)
+                        | ServerError::ClientError(
+                            GooglePlayWebhookError::CannotRetrievePublicKey,
+                        )
+                        | ServerError::ClientError(GooglePlayWebhookError::CannotParseTime)
+                        | ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
                     };
 
                     warp::reply::with_status("".to_string(), status_code)
@@ -165,9 +205,7 @@ pub fn deserialize_and_check<Req>(
     server_state: &ServerState, request: Bytes,
 ) -> Result<RequestWrapper<Req>, ErrorWrapper<Req::Error>>
 where
-    Req: Request,
-    Req: DeserializeOwned,
-    Req: Serialize,
+    Req: Request + DeserializeOwned + Serialize,
 {
     let request = serde_json::from_slice(request.as_ref()).map_err(|err| {
         warn!("Request parsing failure: {}", err);

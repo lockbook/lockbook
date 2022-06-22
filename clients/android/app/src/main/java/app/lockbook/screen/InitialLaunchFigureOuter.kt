@@ -14,9 +14,6 @@ import app.lockbook.util.CoreError
 import app.lockbook.util.GetAccountError
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import timber.log.Timber
 import java.lang.ref.WeakReference
 
@@ -25,9 +22,6 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
     // This property is only valid between onCreateView and
     // onDestroyView.
     private val binding get() = _binding!!
-
-    private var job = Job()
-    private val uiScope = CoroutineScope(Dispatchers.Main + job)
 
     private val alertModel by lazy {
         AlertModel(WeakReference(this))
