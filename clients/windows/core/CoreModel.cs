@@ -242,7 +242,6 @@ namespace Core {
             PathContainsEmptyFile,
             FileAlreadyExists,
             NoRoot,
-            NoAccount,
             DocumentTreatedAsFolder,
         }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
@@ -253,7 +252,6 @@ namespace Core {
         public interface IResult { }
         public class Success : IResult { }
         public enum PossibleErrors {
-            NoAccount,
             FolderTreatedAsDocument,
             FileDoesNotExist
         }
@@ -267,7 +265,6 @@ namespace Core {
             public DecryptedFileMetadata newFile;
         }
         public enum PossibleErrors {
-            NoAccount,
             DocumentTreatedAsFolder,
             CouldNotFindAParent,
             FileNameNotAvailable,
@@ -309,7 +306,6 @@ namespace Core {
         }
         public enum PossibleErrors {
             TreatedFolderAsDocument,
-            NoAccount,
             FileDoesNotExist,
         }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }
@@ -382,7 +378,6 @@ namespace Core {
         public interface IResult { }
         public class Success : IResult { }
         public enum PossibleErrors {
-            NoAccount,
             FileDoesNotExist,
             DocumentTreatedAsFolder,
             TargetParentHasChildNamedThat,
@@ -398,7 +393,6 @@ namespace Core {
         public interface IResult { }
         public class Success : IResult { }
         public enum PossibleErrors {
-            NoAccount,
             ClientUpdateRequired,
             CouldNotReachServer,
         }
@@ -412,7 +406,6 @@ namespace Core {
             public WorkCalculated workCalculated;
         }
         public enum PossibleErrors {
-            NoAccount,
             CouldNotReachServer,
             ClientUpdateRequired,
         }
@@ -450,7 +443,6 @@ namespace Core {
             public UsageMetrics usage;
         }
         public enum PossibleErrors {
-            NoAccount,
             CouldNotReachServer,
             ClientUpdateRequired,
         }
@@ -464,7 +456,6 @@ namespace Core {
             public string content;
         }
         public enum PossibleErrors {
-            NoAccount,
             FolderTreatedAsDrawing,
             InvalidDrawing,
             FileDoesNotExist,
@@ -479,7 +470,6 @@ namespace Core {
             public string content;
         }
         public enum PossibleErrors {
-            NoAccount,
             FileDoesNotExist,
             FolderTreatedAsDrawing,
             InvalidDrawing,
@@ -496,7 +486,6 @@ namespace Core {
         public enum PossibleErrors {
             FolderTreatedAsDrawing,
             FileDoesNotExist,
-            NoAccount,
             InvalidDrawing,
         }
         public class ExpectedError : ExpectedError<PossibleErrors>, IResult { }

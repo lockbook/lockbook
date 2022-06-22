@@ -21,7 +21,6 @@ pub fn sync(core: &Core) -> Result<(), CliError> {
     core.sync(Some(Box::new(closure)))
         .map_err(|err| match err {
             LbError::UiError(err) => match err {
-                SyncAllError::NoAccount => CliError::no_account(),
                 SyncAllError::ClientUpdateRequired => CliError::update_required(),
                 SyncAllError::CouldNotReachServer => CliError::network_issue(),
             },

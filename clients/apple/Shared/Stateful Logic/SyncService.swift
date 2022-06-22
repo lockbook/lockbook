@@ -59,8 +59,6 @@ class SyncService: ObservableObject {
                         switch uiError {
                         case .CouldNotReachServer:
                             self.offline = true
-                        case .NoAccount:
-                            print("No account yet, but tried to sync, ignoring")
                         case .ClientUpdateRequired:
                             self.upgrade = true
                         }

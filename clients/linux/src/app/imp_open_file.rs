@@ -112,7 +112,6 @@ fn read_doc_err_to_string(err: lb::Error<lb::ReadDocumentError>) -> String {
     match err {
         lb::UiError(err) => match err {
             TreatedFolderAsDocument => "treated folder as document",
-            NoAccount => "no account",
             FileDoesNotExist => "file does not exist",
         }
         .to_string(),
@@ -126,7 +125,6 @@ fn export_drawing_err_to_string(err: lb::Error<lb::ExportDrawingError>) -> Strin
         lb::UiError(err) => match err {
             FolderTreatedAsDrawing => "This is a folder, not a drawing.",
             FileDoesNotExist => "File doesn't exist.",
-            NoAccount => "No account!",
             InvalidDrawing => "Invalid drawing.",
         }
         .to_string(),

@@ -30,7 +30,6 @@ impl From<LbError<GetUsageError>> for CliError {
     fn from(e: LbError<GetUsageError>) -> Self {
         match e {
             LbError::UiError(err) => match err {
-                GetUsageError::NoAccount => Self::no_account(),
                 GetUsageError::CouldNotReachServer => Self::network_issue(),
                 GetUsageError::ClientUpdateRequired => Self::update_required(),
             },

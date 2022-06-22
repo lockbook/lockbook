@@ -63,9 +63,6 @@ namespace lockbook {
 
                 case Core.GetUsage.ExpectedError expectedError:
                     switch (expectedError.Error) {
-                        case Core.GetUsage.PossibleErrors.NoAccount:
-                            usageString = "No Account!";
-                            break;
                         case Core.GetUsage.PossibleErrors.CouldNotReachServer:
                             usageString = "Offline!";
                             break;

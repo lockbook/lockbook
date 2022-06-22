@@ -111,7 +111,6 @@ impl super::App {
                     use lb::CreateFileError::*;
                     match err {
                         lb::UiError(err) => match err {
-                            NoAccount => "No account!",
                             DocumentTreatedAsFolder => {
                                 "Can only create files within folders, not documents."
                             }

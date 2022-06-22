@@ -46,15 +46,6 @@ class ExportDrawingToDiskTest {
     }
 
     @Test
-    fun exportDrawingToDiskNoAccount() {
-        CoreModel.exportDrawingToDisk(
-            generateId(),
-            SupportedImageFormats.Jpeg,
-            generateFakeRandomPath()
-        ).unwrapErrorType(ExportDrawingToDiskError.NoAccount)
-    }
-
-    @Test
     fun exportDrawingToDiskFileDoesNotExist() {
         CoreModel.createAccount(generateAlphaString()).unwrapOk()
 

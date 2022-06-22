@@ -176,7 +176,6 @@ fn import_err_to_string(err: lb::Error<lb::ImportFileError>) -> String {
     use lb::ImportFileError::*;
     match err {
         lb::UiError(err) => match err {
-            NoAccount => "no account!",
             ParentDoesNotExist => "destination does not exist",
             DocumentTreatedAsFolder => "destination is a document",
         }

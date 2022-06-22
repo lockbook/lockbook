@@ -99,13 +99,4 @@ class CreateFileTest {
             FileType.Folder
         ).unwrapErrorType(CreateFileError.FileNameNotAvailable)
     }
-
-    @Test
-    fun createFileNoAccount() {
-        CoreModel.createFile(
-            generateId(),
-            generateAlphaString(),
-            FileType.Document
-        ).unwrapErrorType(CreateFileError.NoAccount)
-    }
 }

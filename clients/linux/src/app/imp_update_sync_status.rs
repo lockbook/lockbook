@@ -34,7 +34,6 @@ fn sync_status(api: Arc<dyn lb::Api>) -> Result<String, String> {
                 lb::Error::UiError(err) => match err {
                     CouldNotReachServer => "Offline.",
                     ClientUpdateRequired => "Client upgrade required.",
-                    NoAccount => "No account found.",
                 }
                 .to_string(),
                 lb::Error::Unexpected(msg) => msg,

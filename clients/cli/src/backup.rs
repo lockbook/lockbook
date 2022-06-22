@@ -52,7 +52,6 @@ pub fn backup(core: &Core) -> Result<(), CliError> {
 
     core.export_file(root.id, backup_dir.clone(), false, None)
         .map_err(|err| match err {
-            LbError::UiError(ExportFileError::NoAccount) => CliError::no_account(),
             LbError::UiError(ExportFileError::DiskPathTaken) => {
                 CliError::os_file_collision(backup_dir)
             }

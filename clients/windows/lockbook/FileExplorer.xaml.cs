@@ -161,9 +161,6 @@ namespace lockbook {
                             App.ClientUpdateRequired = true;
                             App.Refresh();
                             break;
-                        case Core.CalculateWork.PossibleErrors.NoAccount:
-                            await App.ReloadAccount();
-                            break;
                     }
                     break;
             }
@@ -334,9 +331,6 @@ namespace lockbook {
                             App.ClientUpdateRequired = true;
                             App.Refresh();
                             break;
-                        case Core.SyncAll.PossibleErrors.NoAccount:
-                            await App.ReloadAccount();
-                            break;
                     }
                     break;
             }
@@ -428,9 +422,6 @@ namespace lockbook {
                     break;
                 case Core.MoveFile.ExpectedError error:
                     switch (error.Error) {
-                        case Core.MoveFile.PossibleErrors.NoAccount:
-                            await new MessageDialog("No account found! Please file a bug report.", "Unexpected Error!").ShowAsync();
-                            break;
                         case Core.MoveFile.PossibleErrors.DocumentTreatedAsFolder:
                             await new MessageDialog("You cannot move a file into a document", "Bad move destination!").ShowAsync();
                             break;
@@ -499,9 +490,6 @@ namespace lockbook {
                         break;
                     case Core.ReadDocument.ExpectedError error:
                         switch (error.Error) {
-                            case Core.ReadDocument.PossibleErrors.NoAccount:
-                                await new MessageDialog("No account found! Please file a bug report.", "Unexpected Error!").ShowAsync();
-                                break;
                             case Core.ReadDocument.PossibleErrors.TreatedFolderAsDocument:
                                 await new MessageDialog("You cannot read a folder, please file a bug report!", "Bad read target!").ShowAsync();
                                 break;
@@ -607,9 +595,6 @@ namespace lockbook {
                     break;
                 case Core.WriteDocument.ExpectedError error:
                     switch (error.Error) {
-                        case Core.WriteDocument.PossibleErrors.NoAccount:
-                            await new MessageDialog("No account found! Please file a bug report.", "Unexpected Error!").ShowAsync();
-                            break;
                         case Core.WriteDocument.PossibleErrors.FolderTreatedAsDocument:
                             await new MessageDialog("You cannot read a folder, please file a bug report!", "Bad read target!").ShowAsync();
                             break;
