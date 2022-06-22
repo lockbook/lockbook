@@ -37,7 +37,6 @@ pub fn copy(core: &Core, disk_paths: &[PathBuf], lb_path: &str) -> Result<(), Cl
     core.import_files(disk_paths, dest.id, &update_status)
         .map_err(|err| match err {
             LbError::UiError(err) => match err {
-                ImportFileError::NoAccount => CliError::no_account(),
                 ImportFileError::ParentDoesNotExist => CliError::file_not_found(lb_path),
                 ImportFileError::DocumentTreatedAsFolder => CliError::doc_treated_as_dir(lb_path),
             },
@@ -60,7 +59,6 @@ fn get_or_create_file(core: &Core, lb_path: &str) -> Result<DecryptedFileMetadat
         core.create_at_path(lb_path).map_err(|err| match err {
             LbError::UiError(err) => match err {
                 CreateFileAtPathError::FileAlreadyExists => CliError::file_exists(lb_path),
-                CreateFileAtPathError::NoAccount => CliError::no_account(),
                 CreateFileAtPathError::NoRoot => CliError::no_root(),
                 CreateFileAtPathError::PathContainsEmptyFile => {
                     CliError::path_has_empty_file(lb_path)

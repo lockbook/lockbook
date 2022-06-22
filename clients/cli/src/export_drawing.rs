@@ -28,7 +28,6 @@ pub fn export_drawing(core: &Core, lb_path: &str, format: &str) -> Result<(), Cl
         .map_err(|err| match err {
             LbError::UiError(err) => match err {
                 ExportDrawingError::FolderTreatedAsDrawing => CliError::dir_treated_as_doc(lb_path),
-                ExportDrawingError::NoAccount => CliError::no_account(),
                 ExportDrawingError::InvalidDrawing => {
                     CliError::invalid_drawing(file_metadata.decrypted_name)
                 }

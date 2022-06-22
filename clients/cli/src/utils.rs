@@ -163,7 +163,6 @@ pub fn save_temp_file_contents<P: AsRef<Path>>(
 
     core.write_document(id, &secret).map_err(|err| match err {
         LbError::UiError(err) => match err {
-            WriteToDocumentError::NoAccount => CliError::no_account(),
             WriteToDocumentError::FileDoesNotExist => CliError::unexpected("file doesn't exist"),
             WriteToDocumentError::FolderTreatedAsDocument => {
                 CliError::unexpected("can't write to folder")
