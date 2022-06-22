@@ -58,13 +58,7 @@ impl RequestContext<'_, '_> {
         }
 
         let mut warnings = Vec::new();
-        let pending_shares = self.get_pending_shares(RepoSource::Local)?; // todo(sharing): validate documents in pending shares
-        for (id, file) in files
-            .filter_not_deleted()
-            .map_err(TestRepoError::Tree)?
-            .into_iter()
-            .filter(|(_, f)| !pending_shares.iter().any(|s| f.id == s.id))
-        {
+        for (id, file) in files.filter_not_deleted().map_err(TestRepoError::Tree)? {
             if file.file_type == FileType::Document {
                 let file_content = file_service::get_document(config, RepoSource::Local, &file)
                     .map_err(|err| DocumentReadError(id, err))?;
@@ -74,8 +68,7 @@ impl RequestContext<'_, '_> {
                     continue;
                 }
 
-                let file_path = self.get_path_by_id(id).map_err(TestRepoError::Core)?;
-                let extension = Path::new(&file_path)
+                let extension = Path::new(&file.decrypted_name)
                     .extension()
                     .and_then(|ext| ext.to_str())
                     .unwrap_or("");

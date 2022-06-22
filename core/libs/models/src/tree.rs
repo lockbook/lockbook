@@ -1,4 +1,3 @@
-use crate::account::Username;
 use crate::crypto::{UserAccessInfo, UserAccessMode};
 use crate::file_metadata::FileType::{Document, Folder};
 use crate::file_metadata::{FileType, Owner};
@@ -34,14 +33,19 @@ pub trait FileMetadata: Clone + Display {
         self.id() == self.parent()
     }
 
-    fn is_owned(&self, username: Username) -> bool {
+    // todo: use Username type (might have to impl PartialEq for &Username or something)
+    fn is_owned(&self, user: &Owner) -> bool {
         self.shares().is_empty() ||
-            self.shares().iter().any(|s| s.mode == UserAccessMode::Owner && s.encrypted_for_username == username) ||
-            self.shares().iter().any(|s| s.encrypted_by_username == username) // only an owner can share a file
+            self.shares().iter().any(|s| s.mode == UserAccessMode::Owner && s.encrypted_for_public_key == user.0) ||
+            self.shares().iter().any(|s| s.encrypted_by_public_key == user.0) // only an owner can share a file
     }
 
     fn is_shared(&self) -> bool {
-        self.shares().iter().any(|s| s.encrypted_by_username != s.encrypted_for_username)
+        self.shares().iter().any(|s| s.encrypted_by_public_key != s.encrypted_for_public_key)
+    }
+
+    fn is_pending_share(&self, user: &Owner) -> bool {
+        !self.is_owned(user) && self.shares().iter().any(|s| s.encrypted_for_public_key == user.0)
     }
 }
 
@@ -258,14 +262,10 @@ where
             let mut checked_path = vec![cur.id()];
             let mut ancestor_deleted = false;
             'ancestor_check: while !cur.is_root() {
-                let parent = match self.maybe_find_ref(cur.parent()) {
-                    Some(parent) => parent,
-                    None => {
-                        // todo(sharing): better way to identify pending shares
-                        confirmed_not_deleted.extend(&checked_path);
-                        break 'ancestor_check;
-                    },
-                };
+                if cur.is_pending_share(&self.find_root()?.owner()) {
+                    break 'ancestor_check;
+                }
+                let parent = self.find_ref(cur.parent())?;
 
                 // if explicitly deleted -> deleted
                 if cur.deleted() {
@@ -355,11 +355,10 @@ where
                     break;
                 }
                 checking.push(cur.clone());
-                cur = if let Some((parent, _)) = staged_changes.get(&cur.parent()) {
-                    parent
-                } else {
-                    break // todo(sharing): better way to identify pending shares
-                };
+                if cur.is_pending_share(&self.find_root()?.owner()) {
+                    break
+                }
+                cur = &staged_changes.get(&cur.parent()).ok_or(FileNonexistent)?.0;
             }
             prev_checked.extend(checking);
         }
@@ -433,8 +432,7 @@ where
         };
 
         for file in self.values() {
-            // todo(sharing): better way to identify pending shares
-            if file.owner() == root.owner() && !self.contains_key(&file.parent()) {
+            if !file.is_pending_share(&root.owner()) && !self.contains_key(&file.parent()) {
                 return Err(TestFileTreeError::FileOrphaned(file.id()));
             }
         }
