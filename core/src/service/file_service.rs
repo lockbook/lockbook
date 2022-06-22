@@ -14,16 +14,16 @@ use lockbook_crypto::pubkey;
 use lockbook_models::api::GetPublicKeyRequest;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::crypto::EncryptedDocument;
+use lockbook_models::crypto::UserAccessInfo;
+use lockbook_models::crypto::UserAccessMode;
 use lockbook_models::file_metadata::FileMetadataDiff;
 use lockbook_models::file_metadata::FileType;
+use lockbook_models::file_metadata::ShareMode;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
 use lockbook_models::file_metadata::{EncryptedFileMetadata, EncryptedFiles};
 use lockbook_models::tree::FileMetaVecExt;
-use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
-use lockbook_models::crypto::UserAccessInfo;
-use lockbook_models::crypto::UserAccessMode;
-use lockbook_models::file_metadata::ShareMode;
 use lockbook_models::tree::TreeError;
+use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use lockbook_models::utils;
 use sha2::Digest;
 use sha2::Sha256;
@@ -126,8 +126,7 @@ impl RequestContext<'_, '_> {
         let pending_shares = shared_metadata
             .into_iter()
             .filter(|f| {
-                all_metadata.iter()
-                .map(|(_, f)| f).all(|f2| !{
+                all_metadata.iter().map(|(_, f)| f).all(|f2| !{
                     if let FileType::Link { linked_file } = f2.file_type {
                         linked_file == f.id
                     } else {
@@ -209,10 +208,8 @@ impl RequestContext<'_, '_> {
         }
 
         let changes_and_parents = changes.into_iter().chain(parents.into_iter()).collect();
-        let necessary_metadata_encrypted = file_encryption_service::encrypt_metadata(
-            &self.get_account()?,
-            &changes_and_parents,
-        )?;
+        let necessary_metadata_encrypted =
+            file_encryption_service::encrypt_metadata(&self.get_account()?, &changes_and_parents)?;
 
         for (&id, metadatum) in metadata_changes {
             let encrypted_metadata = necessary_metadata_encrypted.find(id)?;
@@ -353,7 +350,7 @@ impl RequestContext<'_, '_> {
         let deleted_both_metadata = deleted_base_metadata
             .into_iter()
             .filter(|id| deleted_local_metadata.contains(id));
-            let prune_eligible_ids =
+        let prune_eligible_ids =
             deleted_local_metadata
                 .iter()
                 .filter_map(|id| {
@@ -372,19 +369,19 @@ impl RequestContext<'_, '_> {
             .chain(all_local_metadata.keys())
             .cloned()
             .collect::<HashSet<Uuid>>();
-            let not_deleted_either_ids = all_ids
+        let not_deleted_either_ids = all_ids
             .into_iter()
             .filter(|id| !prune_eligible_ids.contains(id))
             .collect::<HashSet<Uuid>>();
-            let ancestors_of_not_deleted_base_ids = not_deleted_either_ids
+        let ancestors_of_not_deleted_base_ids = not_deleted_either_ids
             .iter()
             .flat_map(|&id| files::find_ancestors(&all_base_metadata, id).into_keys())
             .collect::<HashSet<Uuid>>();
-            let ancestors_of_not_deleted_local_ids = not_deleted_either_ids
+        let ancestors_of_not_deleted_local_ids = not_deleted_either_ids
             .iter()
             .flat_map(|&id| files::find_ancestors(&all_local_metadata, id).into_keys())
             .collect::<HashSet<Uuid>>();
-            let deleted_both_without_deleted_descendants_ids =
+        let deleted_both_without_deleted_descendants_ids =
             prune_eligible_ids.into_iter().filter(|id| {
                 !ancestors_of_not_deleted_base_ids.contains(id)
                     && !ancestors_of_not_deleted_local_ids.contains(id)
@@ -521,7 +518,9 @@ impl RequestContext<'_, '_> {
         Ok(())
     }
 
-    pub fn get_all_with_document_changes(&mut self, config: &Config) -> Result<Vec<Uuid>, CoreError> {
+    pub fn get_all_with_document_changes(
+        &mut self, config: &Config,
+    ) -> Result<Vec<Uuid>, CoreError> {
         let all = self.get_all_metadata(RepoSource::Local)?;
         let not_deleted = all.filter_not_deleted()?;
         let not_deleted_with_document_changes = not_deleted
@@ -577,7 +576,8 @@ impl RequestContext<'_, '_> {
                     })
                     .map(|f| f.clone()),
             )
-            .collect::<Vec<EncryptedFileMetadata>>().to_map();
+            .collect::<Vec<EncryptedFileMetadata>>()
+            .to_map();
         let mut staged_non_orphans = HashMap::new();
         let mut encrypted_orphans = HashMap::new();
         for (_, f) in staged {

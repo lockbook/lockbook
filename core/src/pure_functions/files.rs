@@ -1,7 +1,7 @@
 use libsecp256k1::PublicKey;
 
-use std::collections::HashMap;
 use lockbook_models::crypto::{UserAccessInfo, UserAccessMode};
+use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;

@@ -2,7 +2,7 @@ use crate::model::repo::RepoSource;
 use crate::pure_functions::files;
 use crate::{Config, CoreError, RequestContext};
 use lockbook_models::file_metadata::FileType::{Folder, Link};
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType, DecryptedFiles};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles, FileType};
 use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use uuid::Uuid;
 

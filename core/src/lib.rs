@@ -286,9 +286,10 @@ impl Core {
     pub fn share_file(
         &self, id: Uuid, username: &str, mode: ShareMode,
     ) -> Result<(), Error<ShareFileError>> {
-        let val = self
-            .db
-            .transaction(|tx| self.context(tx)?.share_file(&self.config, id, username, mode))?;
+        let val = self.db.transaction(|tx| {
+            self.context(tx)?
+                .share_file(&self.config, id, username, mode)
+        })?;
         Ok(val?)
     }
 
@@ -316,9 +317,10 @@ impl Core {
     pub fn create_link_at_path(
         &self, path_and_name: &str, target_id: Uuid,
     ) -> Result<DecryptedFileMetadata, Error<CreateFileAtPathError>> {
-        let val = self
-            .db
-            .transaction(|tx| self.context(tx)?.create_link_at_path(&self.config, path_and_name, target_id))??;
+        let val = self.db.transaction(|tx| {
+            self.context(tx)?
+                .create_link_at_path(&self.config, path_and_name, target_id)
+        })??;
 
         Ok(val)
     }

@@ -29,8 +29,7 @@ fn encrypt_decrypt_metadata() {
     let document = files::create(FileType::Folder, folder.id, "document", &account.public_key());
     let files = [root.clone(), folder.clone(), document.clone()].to_map();
 
-    let encrypted_files =
-        file_encryption_service::encrypt_metadata(&account, &files).unwrap();
+    let encrypted_files = file_encryption_service::encrypt_metadata(&account, &files).unwrap();
     let decrypted_files =
         file_encryption_service::decrypt_metadata(&account, &encrypted_files, &mut HashMap::new())
             .unwrap();

@@ -10,6 +10,7 @@ use lockbook_models::account::Account;
 use lockbook_models::api::{
     ChangeDocumentContentRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,
 };
+use lockbook_models::crypto::{DecryptedDocument, UserAccessInfo};
 use lockbook_models::file_metadata::{
     DecryptedFileMetadata, DecryptedFiles, EncryptedFiles, FileType,
 };
@@ -17,7 +18,6 @@ use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
 use std::collections::HashMap;
-use lockbook_models::crypto::{DecryptedDocument, UserAccessInfo};
 use std::collections::HashSet;
 use std::fmt;
 
