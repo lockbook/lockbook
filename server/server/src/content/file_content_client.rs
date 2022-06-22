@@ -21,26 +21,26 @@ pub enum Error {
 }
 
 impl From<(String, u16)> for Error {
-    fn from(bundle: (String, u16)) -> Error {
+    fn from(bundle: (String, u16)) -> Self {
         let (err, status) = bundle;
         if err.contains("<Code>InvalidAccessKeyId</Code>") {
-            Error::InvalidAccessKeyId(err, status)
+            Self::InvalidAccessKeyId(err, status)
         } else if err.contains("<Code>SignatureDoesNotMatch</Code>") {
-            Error::SignatureDoesNotMatch(err, status)
+            Self::SignatureDoesNotMatch(err, status)
         } else if err.contains("<Code>NoSuchKey</Code>") {
-            Error::NoSuchKey(err, status)
+            Self::NoSuchKey(err, status)
         } else {
-            Error::Unknown(Some(err), Some(status))
+            Self::Unknown(Some(err), Some(status))
         }
     }
 }
 
 impl From<(Vec<u8>, u16)> for Error {
-    fn from(bundle: (Vec<u8>, u16)) -> Error {
+    fn from(bundle: (Vec<u8>, u16)) -> Self {
         let (err, status) = bundle;
         match String::from_utf8(err) {
-            Ok(s) => Error::from((s, status)),
-            Err(err) => Error::ResponseNotUtf8(err.to_string(), status),
+            Ok(s) => Self::from((s, status)),
+            Err(err) => Self::ResponseNotUtf8(err.to_string(), status),
         }
     }
 }
