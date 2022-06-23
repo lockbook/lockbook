@@ -602,6 +602,10 @@ impl RequestContext<'_, '_> {
             }
         }
 
+        // todo(sharing): resolve links in shared folders
+        // todo(sharing): resolve multiple links with same target
+        // todo(sharing): delete links to deleted files
+
         // update metadata
         self.insert_metadata_both_repos(config, &base_metadata_updates, &local_metadata_updates)?;
 
