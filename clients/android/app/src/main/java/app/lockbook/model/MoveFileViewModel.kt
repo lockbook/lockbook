@@ -1,18 +1,21 @@
 package app.lockbook.model
 
 import android.app.Application
-import androidx.lifecycle.*
-import app.lockbook.getRes
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.viewModelScope
 import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
-class MoveFileViewModel(application: Application) :
+class MoveFileViewModel(application: Application, val startId: String) :
     AndroidViewModel(application) {
     private lateinit var currentParent: DecryptedFileMetadata
-    lateinit var ids: Array<String>
+    lateinit var ids: List<String>
 
     var files = emptyDataSourceTyped<DecryptedFileMetadata>()
 
@@ -26,35 +29,34 @@ class MoveFileViewModel(application: Application) :
     val notifyError: LiveData<LbError>
         get() = _notifyError
 
+    companion object {
+        const val PARENT_ID = "PARENT"
+    }
+
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            startInRoot()
+            startWithCurrentParent()
         }
     }
 
-    private fun startInRoot() {
-        viewModelScope.launch(Dispatchers.IO) {
-            when (val rootResult = CoreModel.getRoot()) {
-                is Ok -> {
-                    currentParent = rootResult.value
-                    refreshOverFolder()
-                }
-                is Err -> _notifyError.postValue(rootResult.error.toLbError(getRes()))
-            }.exhaustive
-        }
+    private fun startWithCurrentParent() {
+        when (val getFileByIdResult = CoreModel.getFileById(startId)) {
+            is Ok -> {
+                currentParent = getFileByIdResult.value
+                refreshOverFolder()
+            }
+            is Err -> _notifyError.postValue(getFileByIdResult.error.toLbError(getRes()))
+        }.exhaustive
     }
 
-    fun moveFilesToFolder(ids: Array<String>) {
+    fun moveFilesToCurrentFolder() {
         viewModelScope.launch(Dispatchers.IO) {
             for (id in ids) {
-                when (val moveFileResult = CoreModel.moveFile(id, currentParent.id)) {
-                    is Ok -> {
-                    }
-                    is Err -> {
-                        _notifyError.postValue(moveFileResult.error.toLbError(getRes()))
-                        _closeDialog.postValue(Unit)
-                        return@launch
-                    }
+                val moveFileResult = CoreModel.moveFile(id, currentParent.id)
+
+                if (moveFileResult is Err) {
+                    _notifyError.postValue(moveFileResult.error.toLbError(getRes()))
+                    return@launch
                 }
             }
 
@@ -68,14 +70,16 @@ class MoveFileViewModel(application: Application) :
                 val tempFiles = getChildrenResult.value.filter { fileMetadata ->
                     fileMetadata.fileType == FileType.Folder && !ids.contains(fileMetadata.id)
                 }.toMutableList()
-                tempFiles.add(
-                    0,
-                    DecryptedFileMetadata(
-                        id = "PARENT",
-                        decryptedName = "..",
-                        parent = "The parent file is ${currentParent.decryptedName}"
+
+                if (!currentParent.isRoot()) {
+                    tempFiles.add(
+                        0,
+                        DecryptedFileMetadata(
+                            id = PARENT_ID,
+                            decryptedName = "..",
+                        )
                     )
-                )
+                }
 
                 viewModelScope.launch(Dispatchers.Main) {
                     files.set(tempFiles)
@@ -98,7 +102,7 @@ class MoveFileViewModel(application: Application) :
     fun onItemClick(item: DecryptedFileMetadata) {
         viewModelScope.launch(Dispatchers.IO) {
             when (item.id) {
-                "PARENT" -> {
+                PARENT_ID -> {
                     setParentAsParent()
                     refreshOverFolder()
                 }

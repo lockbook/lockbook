@@ -5,11 +5,11 @@ import android.os.Bundle
 import android.view.View
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import app.lockbook.databinding.ActivityImportAccountBinding
-import app.lockbook.model.*
+import app.lockbook.model.ImportAccountViewModel
+import app.lockbook.model.UpdateImportUI
 import app.lockbook.util.exhaustive
+import app.lockbook.util.getApp
 
 class ImportAccountActivity : AppCompatActivity() {
     private var _binding: ActivityImportAccountBinding? = null
@@ -17,22 +17,16 @@ class ImportAccountActivity : AppCompatActivity() {
     // onDestroyView.
     private val binding get() = _binding!!
 
-    private val model: ImportAccountViewModel by viewModels(
-        factoryProducer = {
-            object : ViewModelProvider.Factory {
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    if (modelClass.isAssignableFrom(ImportAccountViewModel::class.java))
-                        return ImportAccountViewModel(application) as T
-                    throw IllegalArgumentException("Unknown ViewModel class")
-                }
-            }
-        }
-    )
+    private val model: ImportAccountViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         _binding = ActivityImportAccountBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        if (!getApp().isInImportSync) {
+            getApp().isInImportSync = true
+        }
 
         model.syncModel.notifySyncStepInfo.observe(
             this
@@ -48,6 +42,8 @@ class ImportAccountActivity : AppCompatActivity() {
         ) { updateImportUI ->
             when (updateImportUI) {
                 UpdateImportUI.FinishedSync -> {
+                    getApp().isInImportSync = false
+
                     startActivity(Intent(applicationContext, MainScreenActivity::class.java))
 
                     finishAffinity()
@@ -58,5 +54,12 @@ class ImportAccountActivity : AppCompatActivity() {
                 }
             }.exhaustive
         }
+    }
+
+    override fun onBackPressed() {
+        val intent = Intent(Intent.ACTION_MAIN)
+        intent.addCategory(Intent.CATEGORY_HOME)
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        startActivity(intent)
     }
 }
