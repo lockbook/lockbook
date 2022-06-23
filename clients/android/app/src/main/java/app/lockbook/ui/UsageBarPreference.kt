@@ -11,7 +11,6 @@ import android.widget.TextView
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import app.lockbook.R
-import app.lockbook.getSettingsFragment
 import app.lockbook.screen.UpgradeAccountActivity
 import app.lockbook.util.*
 

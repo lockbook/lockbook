@@ -1,12 +1,8 @@
 package app.lockbook.screen
 
-import android.animation.ObjectAnimator
-import android.graphics.Color
 import android.os.Bundle
 import android.view.View
-import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.res.ResourcesCompat
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.billing.BillingEvent
@@ -15,12 +11,14 @@ import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import com.google.android.material.card.MaterialCardView
 import kotlinx.coroutines.*
 import java.lang.ref.WeakReference
 
 class UpgradeAccountActivity : AppCompatActivity() {
 
-    private var _binding: ActivityUpgradeAccountBinding? = null
+    private lateinit var binding: ActivityUpgradeAccountBinding
+
     private val alertModel by lazy {
         AlertModel(WeakReference(this))
     }
@@ -31,14 +29,11 @@ class UpgradeAccountActivity : AppCompatActivity() {
         PremiumMonthly,
     }
 
-    // This property is only valid between onCreateView and
-    // onDestroyView.
-    val binding get() = _binding!!
-    var selectedTier = AccountTier.Free
+    private var selectedTier = AccountTier.Free
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        _binding = ActivityUpgradeAccountBinding.inflate(layoutInflater)
+        binding = ActivityUpgradeAccountBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         if (savedInstanceState != null) {
@@ -61,7 +56,7 @@ class UpgradeAccountActivity : AppCompatActivity() {
             AccountTier.PremiumMonthly -> binding.upgradeAccountTierPremiumMonthly
         }
 
-        animateTierSelectionToggle(selectedTierCardView, true)
+        selectedTierCardView.isChecked = true
         binding.subscribeToPlan.isEnabled = selectedTier != AccountTier.Free
         binding.subscribeToPlan.setOnClickListener {
             launchPurchaseFlow(selectedTier)
@@ -132,22 +127,13 @@ class UpgradeAccountActivity : AppCompatActivity() {
         }
 
         toggleSubscribeButton()
-        animateTierSelectionToggle(oldTierCardView, false)
-        animateTierSelectionToggle(tierCardView as LinearLayout, true)
+        oldTierCardView.isChecked = false
+        (tierCardView as MaterialCardView).isChecked = true
     }
 
     private fun launchPurchaseFlow(selectedTier: AccountTier) {
         if (selectedTier == AccountTier.PremiumMonthly) {
             (application as App).billingClientLifecycle.launchBillingFlow(this, selectedTier)
-        }
-    }
-
-    private fun animateTierSelectionToggle(linearLayout: LinearLayout, selected: Boolean) {
-        val color = if (selected) ResourcesCompat.getColor(resources, R.color.lightBlue, null) else Color.TRANSPARENT
-
-        ObjectAnimator.ofArgb(linearLayout, "backgroundColor", color).apply {
-            duration = 100
-            start()
         }
     }
 

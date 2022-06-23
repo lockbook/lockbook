@@ -1,86 +1,85 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/create_file_layout"
-    style="@style/Main.Widget.Dialog"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_gravity="center"
-    android:orientation="vertical">
-
-    <TextView
-        android:id="@+id/create_file_title"
-        style="@style/Main.Text.Medium"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fontFamily="sans-serif"
-        android:paddingTop="8dp"
-        android:text="@string/new_file_title"
-        android:textAlignment="center" />
+    android:orientation="vertical"
+    android:paddingHorizontal="15dp"
+    android:paddingTop="15dp"
+    android:weightSum="10">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="4dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginRight="4dp"
-        android:layout_marginBottom="4dp"
-        android:gravity="end"
+        android:baselineAligned="false"
         android:orientation="horizontal">
 
-        <EditText
-            android:id="@+id/create_file_text_part"
-            style="@style/Main.Text.Small"
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/create_document_holder"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginEnd="10dp"
-            android:layout_weight="1"
+            android:layout_weight="7"
             android:hint="@string/dialog_file_name"
-            android:imeOptions="actionNext"
-            android:importantForAutofill="no"
-            android:inputType="text" />
+            app:startIconDrawable="@drawable/ic_outline_insert_drive_file_24">
 
-        <EditText
-            android:id="@+id/create_file_extension"
-            style="@style/Main.Text.Small"
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/create_document"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:imeOptions="actionNext"
+                android:importantForAutofill="no"
+                android:inputType="text" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/create_document_extension_holder"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="0.4"
-            android:hint="@string/dialog_file_extension"
-            android:imeOptions="actionDone"
-            android:importantForAutofill="no"
-            android:inputType="text" />
+            android:layout_weight="3"
+            android:hint="@string/dialog_file_extension">
 
-        <EditText
-            android:id="@+id/create_file_text"
-            style="@style/Main.Text.Small"
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/create_document_extension"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:imeOptions="actionDone"
+                android:importantForAutofill="no"
+                android:inputType="text" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/create_folder_holder"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="10dp"
-            android:layout_weight="1"
-            android:hint="@string/create_file_default_file_hint"
-            android:imeOptions="actionDone"
-            android:importantForAutofill="no"
-            android:inputType="text"
-            android:visibility="gone" />
+            android:layout_weight="3"
+            android:hint="@string/dialog_file_name"
+            android:visibility="gone"
+            app:startIconDrawable="@drawable/ic_baseline_folder_24">
 
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/create_folder"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:imeOptions="actionDone"
+                android:importantForAutofill="no"
+                android:inputType="text" />
+
+        </com.google.android.material.textfield.TextInputLayout>
     </LinearLayout>
 
-
-    <LinearLayout
-        android:layout_width="match_parent"
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/create_file_error"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:gravity="end"
-        android:orientation="horizontal">
-
-        <Button
-            android:id="@+id/create_file_cancel"
-            style="@style/Main.Button.Borderless.Colored"
-            android:text="@string/cancel" />
-
-        <Button
-            android:id="@+id/create_file_create"
-            style="@style/Main.Button.Borderless.Colored"
-            android:text="@string/create_file_create" />
-    </LinearLayout>
+        android:layout_marginTop="5dp"
+        android:textColor="?attr/colorError" />
 
 </LinearLayout>

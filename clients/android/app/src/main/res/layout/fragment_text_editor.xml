@@ -5,17 +5,16 @@
     android:id="@+id/text_editor_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:paddingHorizontal="5dp">
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
 
-    <androidx.appcompat.widget.Toolbar
+    <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/text_editor_toolbar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:minHeight="?attr/actionBarSize"
-        android:theme="@style/Main.Widget.Actionbar"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:layout_editor_absoluteX="5dp" />
+        android:layout_height="?attr/actionBarSize"
+        app:navigationIcon="@drawable/ic_baseline_arrow_back_24"
+        app:menu="@menu/menu_text_editor"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <ScrollView
         android:id="@+id/text_editor_scroller"
@@ -27,107 +26,95 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/text_editor_toolbar">
 
-        <EditText
+        <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/text_editor_text_field"
-            style="@style/Main.Text.Small"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@null"
             android:gravity="top|start"
             android:hint="@string/text_editor_hint"
             android:importantForAutofill="no"
             android:inputType="textMultiLine|textCapSentences"
-            android:freezesText="true"
-            android:textColor="@color/textColor" />
+            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+            style="@style/Widget.Material3.TextInputEditText.OutlinedBox.Dense"
+            android:freezesText="true" />
 
     </ScrollView>
 
-    <androidx.appcompat.widget.Toolbar
-        android:id="@+id/markdown_toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent">
-
         <LinearLayout
+            android:id="@+id/markdown_toolbar"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="40dp"
+            android:orientation="horizontal"
             android:gravity="center"
-            android:orientation="horizontal">
+            app:layout_constraintBottom_toBottomOf="parent"
+            android:layout_marginBottom="5dp">
 
-            <ImageButton
-                android:id="@+id/menu_markdown_title"
-                style="@style/Main.Widget.RegularImageButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="10dp"
-                android:contentDescription="@string/menu_markdown_title"
-                android:src="@drawable/ic_baseline_title_24" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/menu_markdown_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:contentDescription="@string/menu_markdown_title"
+                    app:icon="@drawable/ic_baseline_title_24" />
 
-            <ImageButton
-                android:id="@+id/menu_markdown_bold"
-                style="@style/Main.Widget.RegularImageButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="10dp"
-                android:contentDescription="@string/menu_markdown_bold"
-                android:src="@drawable/ic_baseline_format_bold_24" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/menu_markdown_bold"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:contentDescription="@string/menu_markdown_bold"
+                    app:icon="@drawable/ic_baseline_format_bold_24" />
 
-            <ImageButton
-                android:id="@+id/menu_markdown_italics"
-                style="@style/Main.Widget.RegularImageButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="10dp"
-                android:contentDescription="@string/menu_markdown_italics"
-                android:src="@drawable/ic_baseline_format_italic_24" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/menu_markdown_italics"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:contentDescription="@string/menu_markdown_italics"
+                    app:icon="@drawable/ic_baseline_format_italic_24" />
 
-            <ImageButton
-                android:id="@+id/menu_markdown_image"
-                style="@style/Main.Widget.RegularImageButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="10dp"
-                android:contentDescription="@string/menu_markdown_image"
-                android:src="@drawable/ic_baseline_image_24" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/menu_markdown_image"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:contentDescription="@string/menu_markdown_image"
+                    app:icon="@drawable/ic_outline_image_24" />
 
-            <ImageButton
-                android:id="@+id/menu_markdown_link"
-                style="@style/Main.Widget.RegularImageButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="10dp"
-                android:contentDescription="@string/menu_markdown_link"
-                android:src="@drawable/ic_baseline_link_24" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/menu_markdown_link"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:contentDescription="@string/menu_markdown_link"
+                    app:icon="@drawable/ic_baseline_link_24" />
 
-            <ImageButton
-                android:id="@+id/menu_markdown_code"
-                style="@style/Main.Widget.RegularImageButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="10dp"
-                android:contentDescription="@string/menu_markdown_code"
-                android:src="@drawable/ic_baseline_code_24" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/menu_markdown_code"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:contentDescription="@string/menu_markdown_code"
+                    app:icon="@drawable/ic_baseline_code_24" />
 
         </LinearLayout>
-
-    </androidx.appcompat.widget.Toolbar>
 
     <ScrollView
         android:id="@+id/markdown_viewer_scroller"
         android:layout_width="match_parent"
         android:layout_height="0dp"
+        android:layout_margin="15dp"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/text_editor_toolbar">
 
-        <TextView
+        <com.google.android.material.textview.MaterialTextView
             android:id="@+id/markdown_viewer"
-            style="@style/Main.Text.Medium"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:textIsSelectable="true"
             android:gravity="top|start" />
 
     </ScrollView>

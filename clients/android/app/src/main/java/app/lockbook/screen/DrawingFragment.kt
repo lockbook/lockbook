@@ -2,12 +2,9 @@ package app.lockbook.screen
 
 import android.animation.Animator
 import android.annotation.SuppressLint
-import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.os.Bundle
 import android.view.*
-import android.widget.SeekBar
-import androidx.appcompat.widget.AppCompatSeekBar
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
@@ -38,8 +35,7 @@ class DrawingFragment : Fragment() {
     private val redButton get() = binding.drawingToolbar.drawingColorRed
 
     private val eraser get() = binding.drawingToolbar.drawingErase
-    private val penSizeChooser get() = binding.drawingToolbar.drawingPenSize as AppCompatSeekBar
-    private val penSizeIndicator get() = binding.drawingToolbar.drawingPenSizeMarker
+    private val penSizeChooser get() = binding.drawingToolbar.drawingPenSize
 
     private val toolbar get() = binding.drawingToolbar.drawingToolsMenu
 
@@ -53,7 +49,9 @@ class DrawingFragment : Fragment() {
                         return DrawingViewModel(
                             requireActivity().application,
                             activityModel.detailsScreen!!.fileMetadata.id,
-                            (activityModel.detailsScreen as DetailsScreen.Drawing).drawing
+                            PersistentDrawingInfo(
+                                drawing = (activityModel.detailsScreen as DetailsScreen.Drawing).drawing
+                            )
                         ) as T
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }
@@ -66,7 +64,7 @@ class DrawingFragment : Fragment() {
         GestureDetector(
             requireContext(),
             object : GestureDetector.SimpleOnGestureListener() {
-                override fun onSingleTapUp(e: MotionEvent?): Boolean {
+                override fun onSingleTapUp(e: MotionEvent): Boolean {
                     changeToolsVisibility(toolbar.visibility)
                     return true
                 }
@@ -139,7 +137,7 @@ class DrawingFragment : Fragment() {
                     ColorAlias.Cyan -> cyanButton
                 }.exhaustive
 
-                newButton.strokeWidth = 4
+                newButton.strokeWidth = 6
                 drawingView.strokeState.strokeColor = newTool.colorAlias
             }
             is DrawingView.Tool.Eraser -> {
@@ -163,11 +161,10 @@ class DrawingFragment : Fragment() {
             cyanButton
         )
         colorButtons.forEach { button ->
-            button.setStrokeColorResource(R.color.blue)
+            button.setStrokeColorResource(R.color.md_theme_primary)
         }
 
         selectNewTool(model.selectedTool)
-        penSizeIndicator.text = drawingView.strokeState.penSizeMultiplier.toString()
     }
 
     private fun changeToolsVisibility(currentVisibility: Int) {
@@ -178,20 +175,21 @@ class DrawingFragment : Fragment() {
         }
 
         val onAnimationEnd = object : Animator.AnimatorListener {
-            override fun onAnimationStart(animation: Animator?) {
+            override fun onAnimationStart(p0: Animator) {
                 if (newVisibility == View.VISIBLE) {
                     toolbar.visibility = newVisibility
                 }
             }
 
-            override fun onAnimationEnd(animation: Animator?) {
+            override fun onAnimationEnd(p0: Animator) {
                 if (newVisibility == View.GONE) {
                     toolbar.visibility = newVisibility
                 }
             }
 
-            override fun onAnimationCancel(animation: Animator?) {}
-            override fun onAnimationRepeat(animation: Animator?) {}
+            override fun onAnimationCancel(p0: Animator) {}
+
+            override fun onAnimationRepeat(p0: Animator) {}
         }
 
         toolbar.animate().setDuration(300).alpha(if (newVisibility == View.VISIBLE) 1f else 0f)
@@ -200,7 +198,7 @@ class DrawingFragment : Fragment() {
 
     private fun initializeDrawing() {
         val colorAliasInARGB =
-            EnumMap(model.persistentDrawing.themeToARGBColors(resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK))
+            EnumMap(model.persistentDrawingInfo.drawing.themeToARGBColors(resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK))
 
         val white = colorAliasInARGB[ColorAlias.White]
         val black = colorAliasInARGB[ColorAlias.Black]
@@ -218,25 +216,19 @@ class DrawingFragment : Fragment() {
 
         drawingView.colorAliasInARGB = colorAliasInARGB
 
-        whiteButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(white))
-        blackButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(black))
-        redButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(red))
-        greenButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(green))
-        cyanButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(cyan))
-        magentaButton.backgroundTintList =
-            ColorStateList(arrayOf(intArrayOf()), intArrayOf(magenta))
-        blueButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(blue))
-        yellowButton.backgroundTintList = ColorStateList(arrayOf(intArrayOf()), intArrayOf(yellow))
+        whiteButton.background.setTint(white)
+        blackButton.background.setTint(black)
+        redButton.background.setTint(red)
+        greenButton.background.setTint(green)
+        cyanButton.background.setTint(cyan)
+        magentaButton.background.setTint(magenta)
+        blueButton.background.setTint(blue)
+        yellowButton.background.setTint(yellow)
 
         toolbar.visibility = View.VISIBLE
 
         isFirstLaunch = false
-        drawingView.initialize(
-            model.persistentDrawing,
-            model.persistentBitmap,
-            model.persistentCanvas,
-            model.persistentStrokeState
-        )
+        drawingView.initialize(model.persistentDrawingInfo)
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -277,17 +269,9 @@ class DrawingFragment : Fragment() {
             selectNewTool(DrawingView.Tool.Eraser)
         }
 
-        penSizeChooser.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val adjustedProgress = progress + 1
-                penSizeIndicator.text = adjustedProgress.toString()
-                drawingView.strokeState.penSizeMultiplier = adjustedProgress
-            }
-
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
+        penSizeChooser?.addOnChangeListener { _, value, _ ->
+            drawingView.strokeState.penSizeMultiplier = value.toInt()
+        }
 
         drawingView.setOnTouchListener { _, event ->
             if (event != null && event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER) {
@@ -299,9 +283,9 @@ class DrawingFragment : Fragment() {
     }
 
     fun saveOnExit() {
-        if (model.persistentDrawing.isDirty) {
+        if (model.persistentDrawingInfo.drawing.isDirty) {
             model.lastEdit = System.currentTimeMillis()
-            activityModel.saveDrawingOnExit(model.id, model.persistentDrawing)
+            activityModel.saveDrawingOnExit(model.id, model.persistentDrawingInfo.drawing)
         }
     }
 }

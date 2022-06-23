@@ -6,13 +6,13 @@
     android:paddingHorizontal="20dp"
     android:orientation="vertical">
 
-    <TextView
+    <com.google.android.material.textview.MaterialTextView
         android:id="@+id/subscription_info"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/default_value"/>
 
-    <TextView
+    <com.google.android.material.textview.MaterialTextView
         android:id="@+id/payment_issue_text"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -20,7 +20,7 @@
         android:layout_marginBottom="5dp"
         android:text="@string/payment_issue" />
 
-    <Button
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/solve_payment_issue"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

@@ -66,7 +66,7 @@ class FileModel(
                     }
                 }
                 is Err -> {
-                    if (getRootResult.error == CoreError.UiError(GetRootError.NoRoot)) {
+                    if ((getRootResult.error as? CoreError.UiError)?.content == GetRootError.NoRoot) {
                         Ok(null)
                     } else {
                         Err(getRootResult.error.toLbError(res))
@@ -117,7 +117,7 @@ class FileModel(
 
     fun refreshChildren(): Result<Unit, CoreError<GetChildrenError>> {
         return CoreModel.getChildren(parent.id).map { newChildren ->
-            children = newChildren.filter { fileMetadata -> fileMetadata.id != fileMetadata.parent }
+            children = newChildren.filter { fileMetadata -> !fileMetadata.isRoot() }
             sortChildren()
         }
     }

@@ -17,19 +17,25 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Main">
+        android:theme="@style/AppTheme">
         <activity
             android:name=".screen.InitialLaunchFigureOuter"
             android:noHistory="true"
-            android:theme="@style/Main"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".screen.OnBoardingActivity" />
-        <activity android:name=".screen.ImportAccountActivity" />
+        <activity android:name=".screen.CaptureActivityAutoRotate"
+            android:theme="@style/AppTheme.QRCapture"
+            android:screenOrientation="fullSensor" />
+        <activity
+            android:name=".screen.OnBoardingActivity"
+            android:windowSoftInputMode="adjustPan" />
+        <activity
+            android:name=".screen.ImportAccountActivity"
+            android:alwaysRetainTaskState="true" />
         <activity android:name=".screen.MainScreenActivity" />
         <activity android:name=".screen.SettingsActivity" />
         <activity android:name=".screen.LogActivity" />

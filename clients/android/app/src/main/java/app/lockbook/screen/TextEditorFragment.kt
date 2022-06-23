@@ -2,7 +2,9 @@ package app.lockbook.screen
 
 import android.os.Bundle
 import android.text.style.ForegroundColorSpan
-import android.view.*
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
@@ -12,11 +14,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.databinding.FragmentTextEditorBinding
-import app.lockbook.model.AlertModel
-import app.lockbook.model.DetailsScreen
-import app.lockbook.model.EditTextModel
-import app.lockbook.model.StateViewModel
-import app.lockbook.model.TextEditorViewModel
+import app.lockbook.model.*
 import io.noties.markwon.Markwon
 import io.noties.markwon.editor.MarkwonEditor
 import io.noties.markwon.editor.MarkwonEditorTextWatcher
@@ -61,7 +59,6 @@ class TextEditorFragment : Fragment() {
         val name = (activityModel.detailsScreen as DetailsScreen.TextEditor).fileMetadata.decryptedName
 
         textEditorToolbar.title = name
-        textEditorToolbar.inflateMenu(R.menu.menu_text_editor)
         textEditorToolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.menu_text_editor_view_md -> viewMarkdown()
@@ -75,7 +72,11 @@ class TextEditorFragment : Fragment() {
 
             true
         }
+        textEditorToolbar.setNavigationOnClickListener {
+            activityModel.launchDetailsScreen(null)
+        }
 
+        textEditorToolbar.menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = name.endsWith(".md")
         undoRedo.updateUndoRedoButtons()
 
         model.content.observe(
@@ -89,7 +90,7 @@ class TextEditorFragment : Fragment() {
                         CustomPunctuationSpan(
                             ResourcesCompat.getColor(
                                 resources,
-                                R.color.blue,
+                                R.color.md_theme_primary,
                                 null
                             )
                         )
@@ -97,7 +98,6 @@ class TextEditorFragment : Fragment() {
                     .build()
 
                 binding.markdownToolbar.visibility = View.VISIBLE
-                textEditorToolbar.menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = true
 
                 textField.addTextChangedListener(
                     MarkwonEditorTextWatcher.withPreRender(
@@ -125,19 +125,19 @@ class TextEditorFragment : Fragment() {
 
     private fun setMarkdownButtonListeners() {
         binding.menuMarkdownTitle.setOnClickListener {
-            textField.text.replace(textField.selectionStart, textField.selectionStart, "# ")
+            textField.text?.replace(textField.selectionStart, textField.selectionStart, "# ")
         }
 
         binding.menuMarkdownBold.setOnClickListener {
             val selectionStart = textField.selectionStart
             val selectionEnd = textField.selectionEnd
             if (selectionStart == selectionEnd) {
-                textField.text.replace(selectionStart, selectionStart, "****")
+                textField.text?.replace(selectionStart, selectionStart, "****")
                 textField.setSelection(selectionStart + 2)
             } else {
-                textField.text.replace(selectionStart, selectionStart, "**")
+                textField.text?.replace(selectionStart, selectionStart, "**")
                 val newSelectionEnd = selectionEnd + 2
-                textField.text.replace(newSelectionEnd, newSelectionEnd, "**")
+                textField.text?.replace(newSelectionEnd, newSelectionEnd, "**")
                 textField.setSelection(newSelectionEnd)
             }
         }
@@ -146,25 +146,25 @@ class TextEditorFragment : Fragment() {
             val selectionStart = textField.selectionStart
             val selectionEnd = textField.selectionEnd
             if (selectionStart == selectionEnd) {
-                textField.text.replace(selectionStart, selectionStart, "__")
+                textField.text?.replace(selectionStart, selectionStart, "__")
                 textField.setSelection(selectionStart + 1)
             } else {
-                textField.text.replace(selectionStart, selectionStart, "_")
+                textField.text?.replace(selectionStart, selectionStart, "_")
                 val newSelectionEnd = selectionEnd + 1
-                textField.text.replace(newSelectionEnd, newSelectionEnd, "_")
+                textField.text?.replace(newSelectionEnd, newSelectionEnd, "_")
                 textField.setSelection(newSelectionEnd)
             }
         }
 
         binding.menuMarkdownImage.setOnClickListener {
             val selectionStart = textField.selectionStart
-            textField.text.replace(selectionStart, textField.selectionEnd, "![]()")
+            textField.text?.replace(selectionStart, textField.selectionEnd, "![]()")
             textField.setSelection(selectionStart + 2)
         }
 
         binding.menuMarkdownLink.setOnClickListener {
             val selectionStart = textField.selectionStart
-            textField.text.replace(selectionStart, textField.selectionEnd, "[]()")
+            textField.text?.replace(selectionStart, textField.selectionEnd, "[]()")
             textField.setSelection(selectionStart + 1)
         }
 
@@ -172,12 +172,12 @@ class TextEditorFragment : Fragment() {
             val selectionStart = textField.selectionStart
             val selectionEnd = textField.selectionEnd
             if (selectionStart == selectionEnd) {
-                textField.text.replace(selectionStart, selectionStart, "``")
+                textField.text?.replace(selectionStart, selectionStart, "``")
                 textField.setSelection(selectionStart + 1)
             } else {
-                textField.text.replace(selectionStart, selectionStart, "`")
+                textField.text?.replace(selectionStart, selectionStart, "`")
                 val newSelectionEnd = selectionEnd + 1
-                textField.text.replace(newSelectionEnd, newSelectionEnd, "`")
+                textField.text?.replace(newSelectionEnd, newSelectionEnd, "`")
                 textField.setSelection(newSelectionEnd)
             }
         }

@@ -1,52 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    app:cardCornerRadius="0dp"
-    android:backgroundTint="?attr/colorPrimaryDark"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/linear_file_item_holder"
     android:clickable="true"
     android:focusable="true"
-    android:foreground="?android:attr/selectableItemBackground"
-    android:padding="5dp">
+    android:clipToPadding="false"
+    android:orientation="horizontal"
+    android:paddingStart="?android:listPreferredItemPaddingStart"
+    android:paddingEnd="?android:listPreferredItemPaddingEnd"
+    android:paddingVertical="8dp">
+
+    <ImageView
+        android:id="@+id/linear_file_icon"
+        android:layout_width="30dp"
+        android:layout_height="50dp"
+        android:layout_marginEnd="10dp"
+        android:contentDescription="@string/file_image_content_description" />
 
     <LinearLayout
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="match_parent"
-        android:orientation="horizontal"
-        android:padding="5dp">
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="vertical"
+        android:paddingHorizontal="10dp">
 
-        <ImageView
-            android:id="@+id/linear_file_icon"
-            android:layout_width="30dp"
-            android:layout_height="50dp"
-            android:contentDescription="@string/file_image_content_description"/>
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/linear_file_name"
+            style="@style/TextAppearance.Material3.LabelLarge"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="5dp"
+            android:ellipsize="end"
+            android:maxLines="1" />
 
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center_vertical"
-            android:orientation="vertical"
-            android:paddingHorizontal="10dp" >
-
-            <TextView
-                android:id="@+id/linear_file_name"
-                style="@style/Main.File.Title"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:layout_marginBottom="5dp"/>
-
-            <TextView
-                android:id="@+id/linear_file_description"
-                style="@style/Main.File.SubSubTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
-
-        </LinearLayout>
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/linear_file_description"
+            style="@style/TextAppearance.Material3.BodySmall"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
 
     </LinearLayout>
 
-</androidx.cardview.widget.CardView>
+</LinearLayout>

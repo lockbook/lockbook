@@ -5,7 +5,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
-import app.lockbook.getRes
 import app.lockbook.ui.UsageBarPreference
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err

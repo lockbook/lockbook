@@ -11,13 +11,14 @@
 
     <item
         android:id="@+id/menu_text_editor_redo"
-        android:icon="@drawable/ic_baseline_arrow_forward_24"
+        android:icon="@drawable/ic_baseline_keyboard_arrow_right_24"
         android:orderInCategory="2"
         android:title="@string/menu_text_editor_redo"
         app:showAsAction="always" />
+
     <item
         android:id="@+id/menu_text_editor_undo"
-        android:icon="@drawable/ic_baseline_arrow_back_24"
+        android:icon="@drawable/ic_baseline_keyboard_arrow_left_24"
         android:orderInCategory="1"
         android:title="@string/menu_text_editor_undo"
         app:showAsAction="always" />

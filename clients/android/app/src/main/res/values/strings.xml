@@ -7,23 +7,22 @@
     <string name="lockbook_import">Import Account</string>
     <string name="create_account">Create Account</string>
 
-    <string name="import_description">Account string</string>
-    <string name="new_account_username">Choose a username: a–z, 0–9</string>
+    <string name="import_description">Account key</string>
+    <string name="new_account_username">Username (a–z, 0–9)</string>
 
-    <string name="popup_info_name">Name: %s</string>
-    <string name="popup_info_id">ID: %s</string>
-    <string name="popup_info_content_version">Content Version: %s</string>
-    <string name="popup_info_file_type">File Type: %s</string>
-    <string name="popup_info_metadata_version">Metadata Version: %s</string>
+    <string name="import_qr_scanner_prompt">Place the account key QR code in view to scan.</string>
 
-    <string name="success_delete">Your selected file(s) have been deleted.</string>
+    <string name="popup_info_name">"Name: "</string>
+    <string name="popup_info_id">"Id: "</string>
+    <string name="popup_info_file_type">"File Type: "</string>
+    <string name="popup_info_metadata_version">"Metadata Version: "</string>
+    <string name="popup_info_content_version">"Content Version: "</string>
 
     <string name="last_synced">Last synced: %s</string>
-    <string name="pop_up_info_never_synced">never synced</string>
 
-    <string name="settings_export_account_raw">Copy account string to clipboard</string>
-    <string name="settings_export_account_qr">Export account string (QR Code)</string>
-    <string name="settings_export_account_copied">Account string copied!</string>
+    <string name="settings_export_account_raw">Copy your account key to clipboard</string>
+    <string name="settings_export_account_qr">Export your account key (QR Code)</string>
+    <string name="settings_export_account_copied">Account key copied!</string>
     <string name="settings_protect_account_biometric">Biometric options</string>
 
     <string name="biometric_disabled">Disabled</string>
@@ -39,8 +38,7 @@
     <string name="menu_list_files_last_changed">Sort by last changed</string>
     <string name="menu_list_files_sort_z_a">Sort from z-a</string>
     <string name="menu_list_files_sort_first_changed">Sort by first changed</string>
-    <string name="dialog_file_name">File name</string>
-    <string name="new_file_title">New File</string>
+    <string name="dialog_file_name">Name</string>
 
     <string name="settings_sync_edit">Sync automatically in app</string>
     <string name="settings_preference_background_summary_sync_period">The time between each automatic sync.</string>
@@ -55,7 +53,6 @@
     <string name="file_image_content_description">File image</string>
 
     <string name="list_files_sync_snackbar">Syncing %s items…</string>
-    <string name="list_files_sync_snackbar_default">Syncing…</string>
     <string name="list_files_sync_finished_snackbar">Up to date!</string>
     <string name="settings_preference_logs">View logs</string>
     <string name="settings_preference_clear_logs">Clear logs</string>
@@ -64,21 +61,20 @@
     <string name="dialog_duration_days_label">Days</string>
     <string name="dialog_duration_error">Your duration cannot be less than 15 minutes.</string>
 
-    <string name="list_files_create_folder">Create a new folder.</string>
-    <string name="list_files_create_document">Create a new document.</string>
-    <string name="list_files_create_file">Create a new file.</string>
     <string name="settings_preference_debug">Debug</string>
     <string name="settings_preference_usage">Usage</string>
     <string name="settings_usage_current">Usage:</string>
     <string name="settings_usage_data_cap">Data Cap:</string>
     <string name="settings_usage_uncompressed_usage">Uncompressed Usage:</string>
-    <string name="menu_list_files_rename">Rename file</string>
-    <string name="menu_list_files_delete">Delete file</string>
+    <string name="menu_list_files_rename">Rename</string>
+    <string name="menu_list_files_delete">Delete</string>
     <string name="menu_list_files_info">File info</string>
-    <string name="menu_list_files_move">Move file</string>
+    <string name="menu_list_files_move">Move</string>
+    <string name="menu_list_files_share">Share</string>
     <string name="default_value">Loading…</string>
     <string name="dialog_rename_file_title">Rename File</string>
     <string name="popup_info_title">File Info</string>
+    <string name="move_file_title">Move File</string>
     <string name="menu_markdown_link">Insert link</string>
     <string name="menu_markdown_code">Insert code</string>
     <string name="menu_markdown_italics">Format italics</string>
@@ -86,30 +82,31 @@
     <string name="menu_markdown_title">Insert title</string>
     <string name="menu_markdown_image">Insert image</string>
     <string name="cancel">Cancel</string>
-    <string name="move_file_confirm">Move to this folder</string>
+    <string name="confirm">Confirm</string>
+    <string name="move_file_move">Move</string>
+    <string name="delete_file_delete">Delete</string>
+    <string name="delete_1_file_message">Are you sure you want to delete \"%s\"?</string>
+    <string name="delete_file_message">Are you sure you want to delete %d files?</string>
+
     <string name="text_editor_hint">Type here</string>
     <string name="rename_file_rename">Rename</string>
     <string name="create_file_create">Create</string>
-    <string name="dialog_file_extension">File Ext.</string>
-    <string name="empty_folder">There are no files, please click the bottom right button to create a new file, folder, or drawing.</string>
-    <string name="create_file_default_file_hint">ERROR, hint not correctly configured.</string>
-    <string name="create_file_dialog_document_extension">.md</string>
-    <string name="create_file_dialog_drawing_extension">.draw</string>
+    <string name="dialog_file_extension">Ext.</string>
+    <string name="empty_folder">No files</string>
     <string name="bread_crumb_folder">Folder</string>
+
+    <string name="document">Document</string>
+    <string name="folder">Folder</string>
+    <string name="drawing">Drawing</string>
 
     <string name="create_file_title_folder">New Folder</string>
     <string name="create_file_title_document">New Document</string>
     <string name="create_file_title_drawing">New Drawing</string>
 
-    <string name="create_file_hint_folder">Folder name</string>
-    <string name="create_file_hint_document">Document name</string>
-    <string name="create_file_hint_drawing">Drawing name</string>
-
-    <string name="create_file_hint_document_extension">Document Ext.</string>
-    <string name="create_file_hint_drawing_extension">Drawing Ext.</string>
+    <string name="files_list_items_selected">%d Selected</string>
 
     <string name="drawing_eraser_description">Eraser</string>
-    <string name="settings_open_new_document_automatically">Automatically open new documents</string>
+    <string name="settings_open_new_document_automatically">Automatically open new files.</string>
 
     <string name="pdf_page_indicator">%1$d / %2$d</string>
     <string name="could_not_load_pdf">This PDF could not be loaded.</string>
@@ -149,7 +146,7 @@
     <string name="username_taken">This username has been taken.</string>
     <string name="invalid_username">This username is invalid.</string>
     <string name="account_exists_already">An account already exists on this device.</string>
-    <string name="account_string_corrupted">Invalid account string.</string>
+    <string name="account_string_corrupted">Invalid account key.</string>
     <string name="account_does_not_exist">That account does not exist.</string>
     <string name="username_pk_mismatch">That username does not correspond with that public_key on this server.</string>
     <string name="file_does_not_exist">That file does not exist.</string>
@@ -248,4 +245,6 @@
     <string name="google_play">Google Play</string>
     <string name="stripe">Stripe</string>
 
+    <string name="sync_finished">Sync finished</string>
+    <string name="backup_my_secret">Backup my secret</string>
 </resources>

@@ -6,8 +6,8 @@ import android.os.Looper
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
-import app.lockbook.getRes
 import app.lockbook.util.*
+import app.lockbook.util.getRes
 import com.github.michaelbull.result.Err
 import kotlinx.coroutines.*
 

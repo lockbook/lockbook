@@ -1,73 +1,67 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:id="@+id/drawing_tools_menu"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/drawing_tools_menu"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:visibility="gone"
     android:layout_gravity="bottom|center_horizontal"
-    android:background="@color/colorPrimaryDark"
-    android:gravity="center_horizontal"
-    android:orientation="horizontal"
-    android:clickable="true"
-    android:focusable="true"
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    tools:ignore="Overdraw">
+    android:focusable="true">
 
-    <ImageButton
-        android:id="@+id/drawing_erase"
-        style="@style/Main.Widget.DrawingImageButton"
-        android:src="@drawable/ic_eraser_outline"
-        android:contentDescription="@string/drawing_eraser_description" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/drawing_color_white"
-        style="@style/Main.Widget.DrawingButton" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/drawing_color_black"
-        style="@style/Main.Widget.DrawingButton" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/drawing_color_blue"
-        style="@style/Main.Widget.DrawingButton" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/drawing_color_red"
-        style="@style/Main.Widget.DrawingButton" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/drawing_color_green"
-        style="@style/Main.Widget.DrawingButton" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/drawing_color_yellow"
-        style="@style/Main.Widget.DrawingButton" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/drawing_color_magenta"
-        style="@style/Main.Widget.DrawingButton" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/drawing_color_cyan"
-        style="@style/Main.Widget.DrawingButton" />
-
-    <androidx.appcompat.widget.AppCompatSeekBar
-        android:id="@+id/drawing_pen_size"
-        android:layout_width="100dp"
+    <LinearLayout
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:max="99"
-        android:layout_gravity="center_vertical"
-        android:layout_margin="10dp"/>
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
-    <TextView
-        android:id="@+id/drawing_pen_size_marker"
-        android:layout_width="35dp"
-        android:layout_height="wrap_content"
-        android:textColor="@color/textColor"
-        android:textSize="17sp"
-        android:layout_gravity="center_vertical"
-        android:layout_marginEnd="25dp"
-        android:layout_marginTop="10dp"
-        android:layout_marginBottom="10dp" />
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/drawing_erase"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:contentDescription="@string/drawing_eraser_description"
+            app:srcCompat="@drawable/ic_eraser_outline" />
 
-</LinearLayout>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/drawing_color_white"
+            style="@style/AppTheme.Button.DrawingFill" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/drawing_color_black"
+            style="@style/AppTheme.Button.DrawingFill" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/drawing_color_blue"
+            style="@style/AppTheme.Button.DrawingFill" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/drawing_color_red"
+            style="@style/AppTheme.Button.DrawingFill" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/drawing_color_green"
+            style="@style/AppTheme.Button.DrawingFill" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/drawing_color_yellow"
+            style="@style/AppTheme.Button.DrawingFill" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/drawing_color_magenta"
+            style="@style/AppTheme.Button.DrawingFill" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/drawing_color_cyan"
+            style="@style/AppTheme.Button.DrawingFill" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/drawing_pen_size"
+            android:layout_width="150dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:layout_margin="10dp"
+            android:valueFrom="5.0"
+            android:stepSize="5.0"
+            android:valueTo="100.0" />
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

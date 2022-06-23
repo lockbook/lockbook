@@ -1,55 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/move_file_dialog"
-    style="@style/Main.Widget.Dialog"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
+    android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="10dp">
-
-    <ProgressBar
-        android:id="@+id/move_file_progress_bar"
-        style="?android:attr/progressBarStyleHorizontal"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:indeterminate="true"
-        android:minHeight="20dp"
-        android:visibility="gone"
-        app:layout_constraintBottom_toTopOf="@+id/move_file_list"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+    android:paddingHorizontal="15dp"
+    android:paddingTop="15dp" >
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/move_file_list"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toTopOf="@+id/move_operations"/>
+        android:layout_height="300dp"
+        android:scrollbars="vertical" />
 
-    <LinearLayout
-        android:id="@+id/move_operations"
-        android:layout_width="match_parent"
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/move_file_error"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:gravity="end"
-        android:orientation="horizontal"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent">
+        android:textColor="?attr/colorError"
+        android:layout_marginTop="5dp" />
 
-        <Button
-            android:id="@+id/move_file_cancel"
-            style="@style/Main.Button.Borderless.Colored"
-            android:text="@string/cancel" />
-
-        <Button
-            android:id="@+id/move_file_confirm"
-            style="@style/Main.Button.Borderless.Colored"
-            android:text="@string/move_file_confirm" />
-
-    </LinearLayout>
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+</LinearLayout>
