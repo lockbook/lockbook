@@ -1,6 +1,7 @@
 extern crate log;
 
 use google_androidpublisher3::AndroidPublisher;
+use hmdb::errors::Error;
 use std::env;
 use std::fmt::Debug;
 
@@ -15,7 +16,7 @@ use crate::billing::billing_service::StripeWebhookError;
 use crate::billing::stripe_client::SimplifiedStripeError;
 use crate::billing::stripe_model::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
 use crate::content::file_content_client;
-use crate::schema::ServerV1;
+use crate::schema::{transaction, ServerV1};
 use crate::ServerError::ClientError;
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -42,6 +43,14 @@ pub enum ServerError<U: Debug> {
     ClientError(U),
     InternalError(String),
 }
+
+impl<E: Debug> From<Error> for ServerError<E> {
+    fn from(err: Error) -> Self {
+        internal!("hmdb error: {:?}", err)
+    }
+}
+
+type Tx<'a> = transaction::ServerV1<'a>;
 
 #[macro_export]
 macro_rules! return_if_error {
