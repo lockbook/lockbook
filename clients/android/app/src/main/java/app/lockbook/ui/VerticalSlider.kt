@@ -5,10 +5,9 @@ import android.content.Context
 import android.graphics.Canvas
 import android.util.AttributeSet
 import android.view.MotionEvent
-import androidx.appcompat.widget.AppCompatSeekBar
+import com.google.android.material.slider.Slider
 
-class VerticalSeekBar(context: Context, attributeSet: AttributeSet?) : AppCompatSeekBar(context, attributeSet) {
-
+class VerticalSlider(context: Context, attributeSet: AttributeSet?) : Slider(context, attributeSet) {
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(h, w, oldh, oldw)
     }
@@ -28,7 +27,7 @@ class VerticalSeekBar(context: Context, attributeSet: AttributeSet?) : AppCompat
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.action) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP -> {
-                progress = max - (max * event.y / height).toInt()
+                value = valueTo - (valueTo * event.y / height).toInt()
                 onSizeChanged(width, height, 0, 0)
             }
         }

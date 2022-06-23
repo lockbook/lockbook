@@ -5,7 +5,6 @@ import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
-import app.lockbook.getRes
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -143,11 +142,12 @@ sealed class DetailsScreen(open val fileMetadata: DecryptedFileMetadata) {
 }
 
 sealed class TransientScreen {
-    data class Move(val ids: Array<String>) : TransientScreen()
+    data class Move(val files: List<DecryptedFileMetadata>) : TransientScreen()
     data class Rename(val file: DecryptedFileMetadata) : TransientScreen()
-    data class Create(val info: CreateFileInfo) : TransientScreen()
+    data class Create(val parentId: String, val extendedFileType: ExtendedFileType) : TransientScreen()
     data class Info(val file: DecryptedFileMetadata) : TransientScreen()
     data class Share(val files: List<File>) : TransientScreen()
+    data class Delete(val files: List<DecryptedFileMetadata>) : TransientScreen()
 }
 
 sealed class UpdateMainScreenUI {
@@ -157,23 +157,13 @@ sealed class UpdateMainScreenUI {
     object ShowSubscriptionConfirmed : UpdateMainScreenUI()
 }
 
-data class CreateFileInfo(
-    val parentId: String,
-    val extendedFileType: ExtendedFileType
-)
-
 sealed class ExtendedFileType {
-    object Text : ExtendedFileType()
+    object Document : ExtendedFileType()
     object Drawing : ExtendedFileType()
     object Folder : ExtendedFileType()
 
     fun toFileType(): FileType = when (this) {
-        Drawing, Text -> FileType.Document
+        Drawing, Document -> FileType.Document
         Folder -> FileType.Folder
     }
 }
-
-data class MoveFileInfo(
-    val ids: Array<String>,
-    val names: Array<String>
-)

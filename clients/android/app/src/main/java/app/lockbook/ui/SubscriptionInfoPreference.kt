@@ -11,7 +11,6 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import app.lockbook.R
 import app.lockbook.billing.BillingClientLifecycle.Companion.SUBSCRIPTION_URI
-import app.lockbook.getSettingsFragment
 import app.lockbook.util.*
 import java.text.SimpleDateFormat
 import java.util.*

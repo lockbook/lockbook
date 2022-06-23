@@ -1,7 +1,6 @@
 package app.lockbook.screen
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -11,7 +10,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.autofill.AutofillManager
 import android.view.inputmethod.EditorInfo
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.viewpager2.adapter.FragmentStateAdapter
@@ -22,10 +20,14 @@ import app.lockbook.databinding.FragmentOnBoardingImportAccountBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
 import app.lockbook.util.exhaustive
+import app.lockbook.util.getApp
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.android.material.tabs.TabLayoutMediator
-import com.google.zxing.integration.android.IntentIntegrator
+import com.journeyapps.barcodescanner.CaptureActivity
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanIntentResult
+import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.*
 import java.lang.ref.WeakReference
 
@@ -85,17 +87,14 @@ class ImportFragment : Fragment() {
     private val uiScope = CoroutineScope(Dispatchers.Main + Job())
 
     private var onQRCodeResult =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == Activity.RESULT_OK) {
-                val intentResult =
-                    IntentIntegrator.parseActivityResult(result.resultCode, result.data)
+        registerForActivityResult(
+            ScanContract()
+        ) { result: ScanIntentResult ->
+            if (result.contents != null) {
+                importBinding.onBoardingImportAccountInput.setText(result.contents)
+                forceAutoFillCheckSave()
 
-                intentResult?.contents?.let { account ->
-                    importBinding.onBoardingAccountString.setText(account)
-                    forceAutoFillCheckSave()
-
-                    importBinding.onBoardingImportSubmit.performClick()
-                }
+                importBinding.onBoardingImportSubmit.performClick()
             }
         }
 
@@ -106,33 +105,40 @@ class ImportFragment : Fragment() {
     ): View {
         _importBinding = FragmentOnBoardingImportAccountBinding.inflate(inflater, container, false)
 
-        importBinding.onBoardingAccountString.setOnEditorActionListener { _, actionId, _ ->
+        importBinding.onBoardingImportAccountInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
                 forceAutoFillCheckSave()
 
-                importAccount(importBinding.onBoardingAccountString.text.toString())
+                importAccount(importBinding.onBoardingImportAccountInput.text.toString())
             }
 
             true
         }
 
-        importBinding.onBoardingAccountString.setOnFocusChangeListener { _, hasFocus ->
+        importBinding.onBoardingImportAccountInput.setOnFocusChangeListener { _, hasFocus ->
             if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1 && hasFocus) {
                 requireContext()
                     .getSystemService(AutofillManager::class.java)
-                    .requestAutofill(importBinding.onBoardingAccountString)
+                    .requestAutofill(importBinding.onBoardingImportAccountInput)
             }
         }
 
         importBinding.onBoardingQrCodeImport.setOnClickListener {
+
             onQRCodeResult.launch(
-                IntentIntegrator(requireActivity()).setOrientationLocked(false).createScanIntent()
+                ScanOptions()
+                    .setOrientationLocked(false)
+                    .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                    .setPrompt(getString(R.string.import_qr_scanner_prompt))
+                    .setBarcodeImageEnabled(true)
+                    .setCaptureActivity(CaptureActivityAutoRotate::class.java)
+                    .setBeepEnabled(false)
             )
         }
 
         importBinding.onBoardingImportSubmit.setOnClickListener {
             forceAutoFillCheckSave()
-            importAccount(importBinding.onBoardingAccountString.text.toString())
+            importAccount(importBinding.onBoardingImportAccountInput.text.toString())
         }
 
         return importBinding.root
@@ -160,7 +166,7 @@ class ImportFragment : Fragment() {
                 is Err -> {
                     withContext(Dispatchers.Main) {
                         onBoardingActivity.binding.onBoardingProgressBar.visibility = View.GONE
-                        importBinding.onBoardingAccountString.error = importAccountResult.error.toLbError(
+                        importBinding.onBoardingImportAccountHolder.error = importAccountResult.error.toLbError(
                             resources
                         ).msg
                     }
@@ -186,16 +192,16 @@ class CreateFragment : Fragment() {
     ): View {
         _createBinding = FragmentOnBoardingCreateAccountBinding.inflate(inflater, container, false)
 
-        createBinding.onBoardingUsername.setOnEditorActionListener { _, actionId, _ ->
+        createBinding.onBoardingCreateAccountInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
-                createAccount(createBinding.onBoardingUsername.text.toString())
+                createAccount(createBinding.onBoardingCreateAccountInput.text.toString())
             }
 
             true
         }
 
         createBinding.onBoardingCreateSubmit.setOnClickListener {
-            createAccount(createBinding.onBoardingUsername.text.toString())
+            createAccount(createBinding.onBoardingCreateAccountInput.text.toString())
         }
 
         return createBinding.root
@@ -209,16 +215,15 @@ class CreateFragment : Fragment() {
         uiScope.launch {
             when (val createAccountResult = CoreModel.createAccount(username)) {
                 is Ok -> {
-                    val intent = Intent(context, MainScreenActivity::class.java)
-                    intent.putExtra(IS_THIS_A_NEW_ACCOUNT, true)
+                    getApp().isNewAccount = true
 
-                    onBoardingActivity.startActivity(intent)
+                    onBoardingActivity.startActivity(Intent(context, MainScreenActivity::class.java))
                     onBoardingActivity.finishAffinity()
                 }
                 is Err -> {
                     withContext(Dispatchers.Main) {
                         onBoardingActivity.binding.onBoardingProgressBar.visibility = View.GONE
-                        createBinding.onBoardingUsername.error = createAccountResult.error.toLbError(
+                        createBinding.onBoardingCreateAccountInputHolder.error = createAccountResult.error.toLbError(
                             resources
                         ).msg
                     }
@@ -227,3 +232,5 @@ class CreateFragment : Fragment() {
         }
     }
 }
+
+class CaptureActivityAutoRotate : CaptureActivity()

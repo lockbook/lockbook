@@ -6,21 +6,16 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import app.lockbook.R
-import app.lockbook.getContext
-import app.lockbook.getRes
-import app.lockbook.getString
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.ui.BreadCrumbItem
-import app.lockbook.util.DecryptedFileMetadata
-import app.lockbook.util.SingleMutableLiveData
-import app.lockbook.util.exhaustive
+import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptySelectableDataSourceTyped
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-class FilesListViewModel(application: Application, isThisANewAccount: Boolean) : AndroidViewModel(application) {
+class FilesListViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _notifyUpdateFilesUI = SingleMutableLiveData<UpdateFilesUI>()
 
@@ -35,13 +30,7 @@ class FilesListViewModel(application: Application, isThisANewAccount: Boolean) :
     val syncModel = SyncModel()
 
     init {
-        viewModelScope.launch(Dispatchers.IO) {
-            if (isThisANewAccount) {
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.ShowBeforeWeStart)
-            }
-
-            startUpInRoot()
-        }
+        startUpInRoot()
     }
 
     private fun startUpInRoot() {
@@ -148,7 +137,7 @@ class FilesListViewModel(application: Application, isThisANewAccount: Boolean) :
     private fun syncWithSnackBar() {
         when (val hasSyncWorkResult = syncModel.hasSyncWork()) {
             is Ok -> if (!hasSyncWorkResult.value) {
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyWithSnackbar(getString(R.string.list_files_sync_finished_snackbar)))
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpToDateSyncSnackBar)
                 return
             }
             is Err -> _notifyUpdateFilesUI.postValue(
@@ -161,7 +150,7 @@ class FilesListViewModel(application: Application, isThisANewAccount: Boolean) :
         }
 
         when (val syncResult = syncModel.trySync()) {
-            is Ok -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyWithSnackbar(getString(R.string.list_files_sync_finished_snackbar)))
+            is Ok -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpToDateSyncSnackBar)
             is Err -> _notifyUpdateFilesUI.postValue(
                 UpdateFilesUI.NotifyError(
                     syncResult.error.toLbError(
@@ -188,22 +177,8 @@ class FilesListViewModel(application: Application, isThisANewAccount: Boolean) :
         viewModelScope.launch(Dispatchers.Main) {
             selectableFiles.deselectAll()
             selectableFiles.set(fileModel.children)
-        }
 
-        _notifyUpdateFilesUI.postValue(UpdateFilesUI.ToggleMenuBar)
-    }
-
-    fun deleteSelectedFiles() {
-        viewModelScope.launch(Dispatchers.IO) {
-            for (fileMetadata in selectableFiles.getSelectedItems()) {
-                val deleteFileResult = CoreModel.deleteFile(fileMetadata.id)
-                if (deleteFileResult is Err) {
-                    _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(deleteFileResult.error.toLbError(getRes())))
-                    return@launch
-                }
-            }
-
-            refreshFiles()
+            _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
         }
     }
 
