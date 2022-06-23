@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <lint>
+
         <issue id="AlwaysShowAction" severity="ignore" />
         <issue id="GradleDependency" severity="ignore" />
         <issue id="PluralsCandidate" severity="ignore" />
         <issue id="VectorPath" severity="ignore" />
+        <issue id="OldTargetApi" severity="ignore" />
 </lint>
