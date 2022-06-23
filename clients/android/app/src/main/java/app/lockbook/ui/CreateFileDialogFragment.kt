@@ -1,170 +1,145 @@
 package app.lockbook.ui
 
+import android.annotation.SuppressLint
+import android.app.AlertDialog
+import android.app.Dialog
 import android.os.Bundle
-import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
-import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
-import androidx.fragment.app.DialogFragment
+import androidx.appcompat.app.AppCompatDialogFragment
 import androidx.fragment.app.activityViewModels
 import app.lockbook.R
 import app.lockbook.databinding.DialogCreateFileBinding
-import app.lockbook.model.*
+import app.lockbook.model.CoreModel
+import app.lockbook.model.ExtendedFileType
+import app.lockbook.model.StateViewModel
+import app.lockbook.model.TransientScreen
 import app.lockbook.util.DecryptedFileMetadata
+import app.lockbook.util.FileType
 import app.lockbook.util.exhaustive
+import app.lockbook.util.requestKeyboardFocus
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
-import java.lang.ref.WeakReference
 
-class CreateFileDialogFragment : DialogFragment() {
-
-    private var _binding: DialogCreateFileBinding? = null
-    // This property is only valid between onCreateView and
-    // onDestroyView.
-    private val binding get() = _binding!!
-    private val createFileCreate get() = binding.createFileCreate
-    private val createFileExtension get() = binding.createFileExtension
-    private val createFileText get() = binding.createFileText
-    private val createFileTextPart get() = binding.createFileTextPart
-    private val createFileTitle get() = binding.createFileTitle
+class CreateFileDialogFragment : AppCompatDialogFragment() {
+    private lateinit var binding: DialogCreateFileBinding
 
     private val uiScope = CoroutineScope(Dispatchers.Main + Job())
-
     private val activityModel: StateViewModel by activityViewModels()
-    private lateinit var info: CreateFileInfo
-    var newFile: DecryptedFileMetadata? = null
-
-    private val alertModel by lazy {
-        AlertModel(WeakReference(requireActivity()), view)
+    private val info by lazy {
+        activityModel.transientScreen as TransientScreen.Create
     }
+
+    var newFile: DecryptedFileMetadata? = null
 
     companion object {
         const val CREATE_FILE_DIALOG_TAG = "CreateFileDialogFragment"
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        _binding = DialogCreateFileBinding.inflate(
-            inflater,
-            container,
-            false
-        )
+    @SuppressLint("SetTextI18n")
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog = MaterialAlertDialogBuilder(requireContext())
+        .apply {
+            binding = DialogCreateFileBinding.inflate(layoutInflater)
 
-        return binding.root
-    }
+            val title = when (info.extendedFileType) {
+                ExtendedFileType.Drawing -> {
+                    setUpDocumentTextInput()
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        binding.createFileCancel.setOnClickListener {
-            dismiss()
+                    binding.createDocument.setText("")
+                    binding.createDocumentExtension.setText(".draw")
+
+                    binding.createDocumentHolder.setStartIconDrawable(R.drawable.ic_outline_draw_24)
+
+                    getString(R.string.create_file_title_drawing)
+                }
+                ExtendedFileType.Folder -> {
+                    setUpFolderTextInput()
+
+                    binding.createDocumentHolder.visibility = View.GONE
+                    binding.createDocumentExtensionHolder.visibility = View.GONE
+                    binding.createFolderHolder.visibility = View.VISIBLE
+
+                    binding.createFolder.setText("")
+
+                    getString(R.string.create_file_title_folder)
+                }
+                ExtendedFileType.Document -> {
+                    setUpDocumentTextInput()
+
+                    binding.createDocument.setText("")
+                    binding.createDocumentExtension.setText(".md")
+
+                    getString(R.string.create_file_title_document)
+                }
+            }.exhaustive
+
+            setTitle(title)
+            setView(binding.root)
+        }
+        .setPositiveButton(R.string.create_file_create, null)
+        .setNegativeButton(R.string.cancel, null)
+        .create()
+        .apply {
+            when (info.extendedFileType.toFileType()) {
+                FileType.Document -> window.requestKeyboardFocus(binding.createDocument)
+                FileType.Folder -> window.requestKeyboardFocus(binding.createFolder)
+            }.exhaustive
+            setOnShowListener {
+                getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
+            }
         }
 
-        dialog?.setCanceledOnTouchOutside(false)
-            ?: alertModel.notifyBasicError()
-
-        info = (activityModel.transientScreen as TransientScreen.Create).info
-
-        when (info.extendedFileType) {
-            ExtendedFileType.Folder -> {
-                createFileExtension.visibility = View.GONE
-                createFileTextPart.visibility = View.GONE
-                createFileText.visibility = View.VISIBLE
-
-                createFileText.setOnEditorActionListener { _, actionId, _ ->
-                    if (actionId == EditorInfo.IME_ACTION_DONE) {
-                        handleCreateFileRequest(createFileText.text.toString())
-                    }
-
-                    true
-                }
-
-                createFileCreate.setOnClickListener {
-                    handleCreateFileRequest(createFileText.text.toString())
-                }
-
-                createFileCreate.setOnClickListener {
-                    handleCreateFileRequest(createFileText.text.toString())
-                }
-
-                createFileTitle.setText(R.string.create_file_title_folder)
-                createFileText.setHint(R.string.create_file_hint_folder)
+    private fun setUpFolderTextInput() {
+        binding.createFolder.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                onButtonPositive()
             }
-            ExtendedFileType.Text, ExtendedFileType.Drawing -> {
-                createFileTextPart.setOnEditorActionListener { _, actionId, _ ->
-                    if (actionId == EditorInfo.IME_ACTION_NEXT) {
-                        createFileExtension.requestFocus()
-                        val extension = createFileExtension.text.toString()
-                        if (extension.isEmpty()) {
-                            createFileExtension.setText(".")
-                            createFileExtension.setSelection(1)
-                        } else {
-                            createFileExtension.setSelection(extension.length)
-                        }
-                    }
 
-                    true
-                }
-
-                createFileExtension.setOnEditorActionListener { _, actionId, _ ->
-                    if (actionId == EditorInfo.IME_ACTION_DONE) {
-                        handleCreateFileRequest(createFileTextPart.text.toString() + createFileExtension.text.toString())
-                    }
-
-                    true
-                }
-
-                createFileCreate.setOnClickListener {
-                    handleCreateFileRequest(createFileTextPart.text.toString() + createFileExtension.text.toString())
-                }
-
-                if (info.extendedFileType == ExtendedFileType.Drawing) {
-                    createFileTitle.setText(R.string.create_file_title_drawing)
-                    createFileTextPart.setHint(R.string.create_file_hint_drawing)
-                    createFileExtension.setHint(R.string.create_file_hint_drawing_extension)
-                    createFileExtension.setText(R.string.create_file_dialog_drawing_extension)
-                } else {
-                    createFileTitle.setText(R.string.create_file_title_document)
-                    createFileTextPart.setHint(R.string.create_file_hint_document)
-                    createFileExtension.setHint(R.string.create_file_hint_document_extension)
-                    createFileExtension.setText(R.string.create_file_dialog_document_extension)
-                }
-            }
-        }.exhaustive
-    }
-
-    private fun handleCreateFileRequest(name: String) {
-        uiScope.launch {
-            withContext(Dispatchers.IO) {
-                createFile(name)
-            }
+            true
         }
     }
 
-    private suspend fun createFile(name: String) {
-        when (
-            val createFileResult =
-                CoreModel.createFile(info.parentId, name, info.extendedFileType.toFileType())
-        ) {
-            is Ok -> {
-                newFile = createFileResult.value
-
-                withContext(Dispatchers.Main) {
-                    dismiss()
+    private fun setUpDocumentTextInput() {
+        binding.createDocument.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_NEXT) {
+                binding.createDocumentExtension.apply {
+                    requestFocus()
+                    selectAll()
                 }
             }
-            is Err -> alertModel.notifyError(createFileResult.error.toLbError(resources))
-        }.exhaustive
+
+            true
+        }
+
+        binding.createDocumentExtension.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                onButtonPositive()
+            }
+
+            true
+        }
     }
 
-    override fun onStart() {
-        super.onStart()
-        dialog?.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.9).toInt(),
-            WindowManager.LayoutParams.WRAP_CONTENT
-        )
+    private fun onButtonPositive() {
+        val fileType = info.extendedFileType.toFileType()
+        val fileName = when (fileType) {
+            FileType.Document -> "${binding.createDocument.text}${binding.createDocumentExtension.text}"
+            FileType.Folder -> binding.createFolder.text.toString()
+        }
+
+        uiScope.launch(Dispatchers.IO) {
+            val createFileResult = CoreModel.createFile(info.parentId, fileName, fileType)
+            withContext(Dispatchers.Main) {
+                when (createFileResult) {
+                    is Ok -> {
+                        newFile = createFileResult.value
+                        dismiss()
+                    }
+                    is Err -> binding.createFileError.setText(createFileResult.error.toLbError(resources).msg)
+                }.exhaustive
+            }
+        }
     }
 }

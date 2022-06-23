@@ -11,7 +11,6 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.PopupWindow
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -19,19 +18,24 @@ import androidx.preference.*
 import app.lockbook.R
 import app.lockbook.model.*
 import app.lockbook.ui.NumberPickerPreference
-import app.lockbook.ui.NumberPickerPreferenceDialog
+import app.lockbook.ui.NumberPickerPreferenceDialogFragment
 import app.lockbook.ui.UsageBarPreference
 import app.lockbook.util.GooglePlayAccountState
 import app.lockbook.util.PaymentPlatform
 import app.lockbook.util.exhaustive
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
 import java.io.File
 import java.lang.ref.WeakReference
 
 class SettingsFragment : PreferenceFragmentCompat() {
+
+    companion object {
+        const val SCROLL_TO_PREFERENCE_KEY = "scroll_to_item_key"
+    }
 
     val onUpgrade =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
@@ -63,6 +67,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        (context as SettingsActivity).scrollToPreference()?.let { preference ->
+            scrollToPreference(getString(preference))
+        }
 
         model.canceledSubscription.observe(
             viewLifecycleOwner
@@ -124,7 +132,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
     override fun onDisplayPreferenceDialog(preference: Preference) {
         if (preference is NumberPickerPreference) {
             val numberPickerPreferenceDialog =
-                NumberPickerPreferenceDialog.newInstance(preference.key)
+                NumberPickerPreferenceDialogFragment.newInstance(preference.key)
             @Suppress("DEPRECATION")
             numberPickerPreferenceDialog.setTargetFragment(this, 0)
             numberPickerPreferenceDialog.show(parentFragmentManager, null)
@@ -153,7 +161,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 findPreference<Preference>(getString(R.string.background_sync_period_key))?.isEnabled =
                     (preference as SwitchPreference).isChecked
             getString(R.string.cancel_subscription_key) -> {
-                val dialog = AlertDialog.Builder(requireContext(), R.style.Main_Widget_Dialog)
+                val dialog = MaterialAlertDialogBuilder(requireContext())
                     .setTitle(R.string.settings_cancel_sub_confirmation_title)
                     .setMessage(R.string.settings_cancel_sub_confirmation_details)
                     .setPositiveButton(R.string.yes) { _, _ ->
