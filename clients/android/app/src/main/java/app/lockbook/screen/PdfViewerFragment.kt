@@ -33,6 +33,13 @@ class PdfViewerFragment : Fragment() {
     private var isToolbarVisible = true
     private var isToolbarVisibleByClick = false
 
+    companion object {
+        const val PDF_PAGE_KEY = "pdf_page_key"
+        const val IS_TOOLBAR_VISIBLE_BY_CLICK_KEY = "is_toolbar_visible_by_click_key"
+        const val TOOLBAR_VISIBILITY_OFFSET = 0.01
+        const val TOOLBAR_ALPHA = 100
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -57,6 +64,10 @@ class PdfViewerFragment : Fragment() {
 
         try {
             binding.pdfViewToolbar.title = fileName
+            binding.pdfViewToolbar.setNavigationOnClickListener {
+                activityModel.launchDetailsScreen(null)
+            }
+            binding.pdfViewToolbar.background.alpha = TOOLBAR_ALPHA
             binding.pdfViewer.fromFile(File(pdfViewerInfo.location, fileName))
                 .enableDoubletap(true)
                 .enableAnnotationRendering(true)
@@ -67,10 +78,10 @@ class PdfViewerFragment : Fragment() {
                     binding.pdfPageIndicator.text =
                         getString(R.string.pdf_page_indicator, page + 1, pageCount)
                 }
-                .onPageScroll { page, positionOffset ->
+                .onPageScroll { _, positionOffset ->
                     if (positionOffset < TOOLBAR_VISIBILITY_OFFSET && !isToolbarVisible) {
                         isToolbarVisible = true
-                        Animate.animateVisibility(binding.pdfViewToolbar, View.VISIBLE, 255, 200)
+                        Animate.animateVisibility(binding.pdfViewToolbar, View.VISIBLE, TOOLBAR_ALPHA, 200)
                     } else if (isToolbarVisible && !isToolbarVisibleByClick && positionOffset >= TOOLBAR_VISIBILITY_OFFSET) {
                         isToolbarVisible = false
                         Animate.animateVisibility(binding.pdfViewToolbar, View.GONE, 0, 200)
@@ -84,10 +95,15 @@ class PdfViewerFragment : Fragment() {
                     } else if (binding.pdfViewer.positionOffset >= TOOLBAR_VISIBILITY_OFFSET) {
                         isToolbarVisible = true
                         isToolbarVisibleByClick = true
-                        Animate.animateVisibility(binding.pdfViewToolbar, View.VISIBLE, 255, 200)
+                        Animate.animateVisibility(binding.pdfViewToolbar, View.VISIBLE, TOOLBAR_ALPHA, 200)
                     }
 
                     true
+                }
+                .onError {
+                    alertModel.notify(getString(R.string.could_not_load_pdf)) {
+                        activityModel.launchDetailsScreen(null)
+                    }
                 }
                 .load()
         } catch (e: Exception) {
@@ -122,7 +138,3 @@ class PdfViewerFragment : Fragment() {
         File(requireContext().cacheDir, OPENED_FILE_FOLDER + fileName).delete()
     }
 }
-
-const val PDF_PAGE_KEY = "pdf_page_key"
-const val IS_TOOLBAR_VISIBLE_BY_CLICK_KEY = "is_toolbar_visible_by_click_key"
-const val TOOLBAR_VISIBILITY_OFFSET = 0.01

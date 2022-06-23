@@ -1,6 +1,6 @@
 ARG HASH
 
-FROM gradle:7.2-jdk11 AS android-build
+FROM gradle:7.4-jdk11 AS android-build
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_HOME /opt/android-sdk

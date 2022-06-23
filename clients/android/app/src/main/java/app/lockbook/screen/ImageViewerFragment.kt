@@ -18,6 +18,10 @@ class ImageViewerFragment : Fragment() {
     private val activityModel: StateViewModel by activityViewModels()
     private var isToolbarVisible = true
 
+    companion object {
+        const val TOOLBAR_ALPHA = 100
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -36,14 +40,19 @@ class ImageViewerFragment : Fragment() {
         savedInstanceState: Bundle?
     ) {
         binding.imageViewToolbar.title = imageViewerInfo.fileMetadata.decryptedName
+        binding.imageViewToolbar.background.alpha = TOOLBAR_ALPHA
+        binding.imageViewToolbar.setNavigationOnClickListener {
+            activityModel.launchDetailsScreen(null)
+        }
         binding.imageViewer.setImageBitmap(imageViewerInfo.bitmap)
+        binding.imageViewer.maxZoom = 7f
         binding.imageViewer.setOnClickListener {
             if (isToolbarVisible) {
                 isToolbarVisible = false
                 Animate.animateVisibility(binding.imageViewToolbar, View.GONE, 0, 200)
             } else {
                 isToolbarVisible = true
-                Animate.animateVisibility(binding.imageViewToolbar, View.VISIBLE, 255, 200)
+                Animate.animateVisibility(binding.imageViewToolbar, View.VISIBLE, TOOLBAR_ALPHA, 200)
             }
         }
 

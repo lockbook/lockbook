@@ -1,76 +1,142 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/fragment_list_files"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
 
-    <androidx.appcompat.widget.Toolbar
-        android:id="@+id/files_toolbar"
+    <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:minHeight="?attr/actionBarSize"
-        android:theme="@style/Main.Widget.Actionbar"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        app:liftOnScroll="true"
+        app:liftOnScrollTargetViewId="@id/files_list">
 
-    </androidx.appcompat.widget.Toolbar>
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/files_toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?android:actionBarSize"
+            app:menu="@menu/menu_files_list"
+            app:title="@string/lockbook_title"
+            app:layout_scrollFlags="scroll|enterAlways|snap" />
 
+        <app.lockbook.ui.BreadCrumbView
+            android:id="@+id/files_breadcrumb_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:text_size="15"
+            app:arrow_drawable="@drawable/ic_baseline_keyboard_arrow_right_24" />
 
-    <app.lockbook.ui.BreadCrumbView
-        android:id="@+id/files_breadcrumb_bar"
-        android:layout_width="match_parent"
-        android:layout_height="30dp"
-        android:layout_gravity="top"
-        app:arrow_drawable="@drawable/ic_baseline_keyboard_arrow_right_24"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/files_toolbar"
-        app:text_color="@color/textColor"
-        app:text_size="15" />
+    </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
         android:id="@+id/list_files_refresh"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/files_breadcrumb_bar">
+        android:layout_height="match_parent"
+        android:animateLayoutChanges="true"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/files_list"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:scrollbars="vertical" />
 
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-    <FrameLayout
-        android:id="@+id/list_files_frame_layout"
+    <LinearLayout
+        android:id="@+id/files_empty_folder"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_outline_insert_drive_file_240"
+            android:contentDescription="@string/empty_folder" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="200dp"
+            android:layout_height="wrap_content"
+            android:text="@string/empty_folder"
+            android:gravity="center"
+            app:layout_anchorGravity="center"/>
+
+    </LinearLayout>
+
+    <com.leinardi.android.speeddial.SpeedDialOverlayLayout
+        android:id="@+id/fab_overlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:animateLayoutChanges="true"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/files_breadcrumb_bar">
+        android:layout_gravity="fill"
+        android:fitsSystemWindows="true" />
 
-        <TextView
-            android:id="@+id/files_empty_folder"
-            style="@style/Main.Text.Caption"
-            android:layout_width="150dp"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:gravity="center"
-            android:text="@string/empty_folder"
-            android:visibility="gone" />
+    <com.leinardi.android.speeddial.SpeedDialView
+        android:id="@+id/fab_speed_dial"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        app:sdMainFabOpenedBackgroundColor="?attr/colorSecondaryContainer"
+        app:sdMainFabOpenedIconColor="?attr/colorOnSecondaryContainer"
+        app:sdMainFabClosedBackgroundColor="?attr/colorPrimary"
+        app:sdMainFabClosedIconColor="?attr/colorOnPrimary"
+        app:sdExpansionMode="top"
+        app:sdOverlayLayout="@id/fab_overlay"
+        app:sdMainFabAnimationRotateAngle="90"
+        app:sdMainFabClosedSrc="@drawable/ic_baseline_add_24"
+        app:sdMainFabOpenedSrc="@drawable/ic_baseline_add_24" />
 
-        <include
-            android:id="@+id/fabs_new_file"
-            layout="@layout/fabs_new_file" />
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/sync_holder"
+        android:layout_width="220dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_margin="20dp"
+        android:visibility="gone"
+        android:animateLayoutChanges="true">
 
-    </FrameLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="5dp"
+            android:orientation="vertical">
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/sync_progress_indicator"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="5dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="5dp"
+                android:animateLayoutChanges="true" >
+
+                <ImageView
+                    android:id="@+id/sync_check"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:src="@drawable/ic_outline_check_circle_24"
+                    android:contentDescription="@string/sync_finished"
+                    android:visibility="gone"
+                    android:paddingHorizontal="15dp"/>
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/sync_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

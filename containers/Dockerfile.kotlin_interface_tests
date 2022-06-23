@@ -2,7 +2,7 @@ ARG HASH
 
 FROM core:$HASH AS core-build
 
-FROM gradle:7.2-jdk11 AS kotlin-interface-tests
+FROM gradle:7.4-jdk11 AS kotlin-interface-tests
 
 ENV ANDROID_HOME /opt/android-sdk
 ENV DEBIAN_FRONTEND=noninteractive

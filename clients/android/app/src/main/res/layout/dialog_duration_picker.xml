@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:padding="30dp">
 
     <NumberPicker
         android:id="@+id/duration_days"
@@ -31,50 +32,44 @@
         app:layout_constraintStart_toEndOf="@+id/duration_hours"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <TextView
+    <com.google.android.material.textview.MaterialTextView
         android:id="@+id/duration_days_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/dialog_duration_days_label"
-        style="@style/Main.Text.Medium"
-        android:fontFamily="sans-serif"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="@+id/duration_days"
         app:layout_constraintStart_toStartOf="@+id/duration_days"
         app:layout_constraintTop_toBottomOf="@+id/duration_days" />
 
-    <TextView
+    <com.google.android.material.textview.MaterialTextView
         android:id="@+id/duration_hours_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/dialog_duration_hours_label"
-        style="@style/Main.Text.Medium"
-        android:fontFamily="sans-serif"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="@+id/duration_hours"
         app:layout_constraintStart_toStartOf="@+id/duration_hours"
         app:layout_constraintTop_toBottomOf="@+id/duration_hours" />
 
-    <TextView
+    <com.google.android.material.textview.MaterialTextView
         android:id="@+id/duration_minutes_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/dialog_duration_minutes_label"
-        style="@style/Main.Text.Medium"
-        android:fontFamily="sans-serif"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="@+id/duration_minutes"
         app:layout_constraintStart_toStartOf="@+id/duration_minutes"
         app:layout_constraintTop_toBottomOf="@+id/duration_minutes" />
 
-    <TextView
+    <com.google.android.material.textview.MaterialTextView
         android:id="@+id/duration_error"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="5dp"
         android:text="@string/dialog_duration_error"
-        android:textColor="@android:color/holo_red_light"
         android:visibility="gone"
+        android:textColor="?attr/colorError"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="@+id/duration_minutes"
         app:layout_constraintStart_toStartOf="@+id/duration_days"
