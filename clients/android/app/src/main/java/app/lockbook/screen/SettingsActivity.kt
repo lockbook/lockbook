@@ -21,4 +21,8 @@ class SettingsActivity : AppCompatActivity() {
             )
             .commit()
     }
+
+    fun scrollToPreference(): Int? {
+        return intent.extras?.getInt(SettingsFragment.SCROLL_TO_PREFERENCE_KEY)
+    }
 }

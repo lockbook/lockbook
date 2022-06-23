@@ -20,6 +20,7 @@ import app.lockbook.databinding.FragmentOnBoardingImportAccountBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
 import app.lockbook.util.exhaustive
+import app.lockbook.util.getApp
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.android.material.tabs.TabLayoutMediator
@@ -214,10 +215,9 @@ class CreateFragment : Fragment() {
         uiScope.launch {
             when (val createAccountResult = CoreModel.createAccount(username)) {
                 is Ok -> {
-                    val intent = Intent(context, MainScreenActivity::class.java)
-                    intent.putExtra(IS_THIS_A_NEW_ACCOUNT, true)
+                    getApp().isNewAccount = true
 
-                    onBoardingActivity.startActivity(intent)
+                    onBoardingActivity.startActivity(Intent(context, MainScreenActivity::class.java))
                     onBoardingActivity.finishAffinity()
                 }
                 is Err -> {

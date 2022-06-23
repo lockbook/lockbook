@@ -9,6 +9,7 @@ import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.AndroidViewModel
 import androidx.preference.Preference
 import app.lockbook.App
@@ -48,4 +49,6 @@ fun AppCompatActivity.getApp(): App {
     return application as App
 }
 
-
+fun Fragment.getApp(): App {
+    return requireActivity().application as App
+}

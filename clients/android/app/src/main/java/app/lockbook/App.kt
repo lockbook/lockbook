@@ -1,4 +1,3 @@
-
 package app.lockbook
 
 import android.app.Application
@@ -22,9 +21,13 @@ class App : Application() {
     val billingClientLifecycle: BillingClientLifecycle
         get() = BillingClientLifecycle.getInstance(this)
 
+    var isInImportSync = false
+    var isNewAccount = false
+
     override fun onCreate() {
         super.onCreate()
         loadLockbookCore()
+
         ProcessLifecycleOwner.get().lifecycle
             .addObserver(ForegroundBackgroundObserver(this))
 
@@ -53,7 +56,8 @@ class ForegroundBackgroundObserver(val context: Context) : DefaultLifecycleObser
         doIfLoggedIn {
             val work = PeriodicWorkRequestBuilder<SyncWork>(
                 PreferenceManager.getDefaultSharedPreferences(context)
-                    .getInt(getString(context.resources, R.string.background_sync_period_key), 30).toLong(),
+                    .getInt(getString(context.resources, R.string.background_sync_period_key), 30)
+                    .toLong(),
                 TimeUnit.MINUTES
             )
                 .setConstraints(Constraints.NONE)
@@ -70,11 +74,13 @@ class ForegroundBackgroundObserver(val context: Context) : DefaultLifecycleObser
     }
 
     private fun doIfLoggedIn(onSuccess: () -> Unit) {
-        when (val getAccountResult = CoreModel.getAccount()) {
-            is Ok -> onSuccess()
-            is Err -> when (val error = getAccountResult.error) {
-                is CoreError.UiError -> {}
-                is CoreError.Unexpected -> Timber.e("Error: ${error.content}")
+        if (!(context.applicationContext as App).isInImportSync) {
+            when (val getAccountResult = CoreModel.getAccount()) {
+                is Ok -> onSuccess()
+                is Err -> when (val error = getAccountResult.error) {
+                    is CoreError.UiError -> {}
+                    is CoreError.Unexpected -> Timber.e("Error: ${error.content}")
+                }
             }
         }
     }

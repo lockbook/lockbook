@@ -29,7 +29,7 @@
 
     </com.google.android.material.textfield.TextInputLayout>
 
-    <com.google.android.material.imageview.ShapeableImageView
+    <ImageView
         android:id="@+id/on_boarding_qr_code_import"
         android:layout_width="50dp"
         android:layout_height="50dp"

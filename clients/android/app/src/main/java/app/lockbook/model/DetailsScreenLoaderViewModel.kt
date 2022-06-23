@@ -13,7 +13,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import timber.log.Timber
 import java.io.File
 
 class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: DetailsScreen.Loading) :
@@ -95,7 +94,6 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
                 }
             }
             else -> {
-                Timber.e("GETTING TEXT")
                 val text = when (val readDocumentResult = CoreModel.readDocument(loadingInfo.fileMetadata.id)) {
                     is Ok -> readDocumentResult.value
                     is Err ->
@@ -105,8 +103,6 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
                             )
                         )
                 }
-
-                Timber.e("GOT TEXT")
 
                 UpdateDetailScreenLoaderUI.NotifyFinished(
                     DetailsScreen.TextEditor(loadingInfo.fileMetadata, text)

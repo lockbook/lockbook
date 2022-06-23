@@ -9,6 +9,7 @@ import app.lockbook.databinding.ActivityImportAccountBinding
 import app.lockbook.model.ImportAccountViewModel
 import app.lockbook.model.UpdateImportUI
 import app.lockbook.util.exhaustive
+import app.lockbook.util.getApp
 
 class ImportAccountActivity : AppCompatActivity() {
     private var _binding: ActivityImportAccountBinding? = null
@@ -22,6 +23,10 @@ class ImportAccountActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         _binding = ActivityImportAccountBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        if (!getApp().isInImportSync) {
+            getApp().isInImportSync = true
+        }
 
         model.syncModel.notifySyncStepInfo.observe(
             this
@@ -37,6 +42,8 @@ class ImportAccountActivity : AppCompatActivity() {
         ) { updateImportUI ->
             when (updateImportUI) {
                 UpdateImportUI.FinishedSync -> {
+                    getApp().isInImportSync = false
+
                     startActivity(Intent(applicationContext, MainScreenActivity::class.java))
 
                     finishAffinity()

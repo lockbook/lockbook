@@ -7,13 +7,10 @@ import android.os.Handler
 import android.os.Looper
 import android.text.method.LinkMovementMethod
 import android.view.*
-import android.widget.TextView
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.preference.PreferenceManager
 import app.lockbook.App
 import app.lockbook.R
@@ -26,6 +23,7 @@ import com.afollestad.recyclical.viewholder.isSelected
 import com.afollestad.recyclical.withItem
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.textview.MaterialTextView
 import java.lang.ref.WeakReference
 import java.util.*
 
@@ -89,17 +87,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
     }
 
-    private val model: FilesListViewModel by viewModels(
-        factoryProducer = {
-            object : ViewModelProvider.Factory {
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    if (modelClass.isAssignableFrom(FilesListViewModel::class.java))
-                        return FilesListViewModel(requireActivity().application, (activity as MainScreenActivity).isThisANewAccount()) as T
-                    throw IllegalArgumentException("Unknown ViewModel class")
-                }
-            }
-        }
-    )
+    private val model: FilesListViewModel by viewModels()
     private val activityModel: StateViewModel by activityViewModels()
 
     private val alertModel by lazy {
@@ -196,6 +184,10 @@ class FilesListFragment : Fragment(), FilesFragment {
             30000,
             30000
         )
+
+        if (getApp().isNewAccount) {
+            updateUI(UpdateFilesUI.ShowBeforeWeStart)
+        }
 
         return binding.root
     }
@@ -390,14 +382,17 @@ class FilesListFragment : Fragment(), FilesFragment {
                 val beforeYouStartDialog = BottomSheetDialog(requireContext())
                 beforeYouStartDialog.setContentView(R.layout.sheet_before_you_start)
                 beforeYouStartDialog.findViewById<MaterialButton>(R.id.backup_my_secret)!!.setOnClickListener {
+                    beforeYouStartDialog.dismiss()
+
                     val intent = Intent(requireContext(), SettingsActivity::class.java)
-                    intent.putExtra(getString(R.string.export_account_raw_key), true)
+                    intent.putExtra(SettingsFragment.SCROLL_TO_PREFERENCE_KEY, R.string.export_account_raw_key)
                     startActivity(intent)
                 }
 
-                beforeYouStartDialog.findViewById<TextView>(R.id.before_you_start_description)!!.movementMethod = LinkMovementMethod.getInstance()
+                beforeYouStartDialog.findViewById<MaterialTextView>(R.id.before_you_start_description)!!.movementMethod = LinkMovementMethod.getInstance()
 
                 beforeYouStartDialog.show()
+                getApp().isNewAccount = false
             }
             UpdateFilesUI.SyncImport -> {
                 (activity as MainScreenActivity).syncImportAccount()

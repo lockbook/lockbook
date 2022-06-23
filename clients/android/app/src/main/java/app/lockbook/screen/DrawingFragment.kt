@@ -12,10 +12,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.databinding.FragmentDrawingBinding
-import app.lockbook.model.AlertModel
-import app.lockbook.model.DetailsScreen
-import app.lockbook.model.DrawingViewModel
-import app.lockbook.model.StateViewModel
+import app.lockbook.model.*
 import app.lockbook.ui.DrawingView
 import app.lockbook.ui.PenState
 import app.lockbook.util.ColorAlias
@@ -52,7 +49,9 @@ class DrawingFragment : Fragment() {
                         return DrawingViewModel(
                             requireActivity().application,
                             activityModel.detailsScreen!!.fileMetadata.id,
-                            (activityModel.detailsScreen as DetailsScreen.Drawing).drawing
+                            PersistentDrawingInfo(
+                                drawing = (activityModel.detailsScreen as DetailsScreen.Drawing).drawing
+                            )
                         ) as T
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }
@@ -199,7 +198,7 @@ class DrawingFragment : Fragment() {
 
     private fun initializeDrawing() {
         val colorAliasInARGB =
-            EnumMap(model.persistentDrawing.themeToARGBColors(resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK))
+            EnumMap(model.persistentDrawingInfo.drawing.themeToARGBColors(resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK))
 
         val white = colorAliasInARGB[ColorAlias.White]
         val black = colorAliasInARGB[ColorAlias.Black]
@@ -229,12 +228,7 @@ class DrawingFragment : Fragment() {
         toolbar.visibility = View.VISIBLE
 
         isFirstLaunch = false
-        drawingView.initialize(
-            model.persistentDrawing,
-            model.persistentBitmap,
-            model.persistentCanvas,
-            model.persistentStrokeState
-        )
+        drawingView.initialize(model.persistentDrawingInfo)
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -289,9 +283,9 @@ class DrawingFragment : Fragment() {
     }
 
     fun saveOnExit() {
-        if (model.persistentDrawing.isDirty) {
+        if (model.persistentDrawingInfo.drawing.isDirty) {
             model.lastEdit = System.currentTimeMillis()
-            activityModel.saveDrawingOnExit(model.id, model.persistentDrawing)
+            activityModel.saveDrawingOnExit(model.id, model.persistentDrawingInfo.drawing)
         }
     }
 }

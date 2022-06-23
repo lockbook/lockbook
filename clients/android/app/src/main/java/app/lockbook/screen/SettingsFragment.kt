@@ -33,6 +33,10 @@ import java.lang.ref.WeakReference
 
 class SettingsFragment : PreferenceFragmentCompat() {
 
+    companion object {
+        const val SCROLL_TO_PREFERENCE_KEY = "scroll_to_item_key"
+    }
+
     val onUpgrade =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             if (it.resultCode == SUCCESSFUL_SUBSCRIPTION_PURCHASE) {
@@ -63,6 +67,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        (context as SettingsActivity).scrollToPreference()?.let { preference ->
+            scrollToPreference(getString(preference))
+        }
 
         model.canceledSubscription.observe(
             viewLifecycleOwner

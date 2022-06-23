@@ -15,7 +15,7 @@ import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-class FilesListViewModel(application: Application, isThisANewAccount: Boolean) : AndroidViewModel(application) {
+class FilesListViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _notifyUpdateFilesUI = SingleMutableLiveData<UpdateFilesUI>()
 
@@ -30,10 +30,6 @@ class FilesListViewModel(application: Application, isThisANewAccount: Boolean) :
     val syncModel = SyncModel()
 
     init {
-        if (isThisANewAccount) {
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.ShowBeforeWeStart)
-        }
-
         startUpInRoot()
     }
 

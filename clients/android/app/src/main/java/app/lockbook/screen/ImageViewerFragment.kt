@@ -45,6 +45,7 @@ class ImageViewerFragment : Fragment() {
             activityModel.launchDetailsScreen(null)
         }
         binding.imageViewer.setImageBitmap(imageViewerInfo.bitmap)
+        binding.imageViewer.maxZoom = 7f
         binding.imageViewer.setOnClickListener {
             if (isToolbarVisible) {
                 isToolbarVisible = false

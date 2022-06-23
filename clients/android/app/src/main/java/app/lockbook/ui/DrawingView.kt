@@ -10,6 +10,7 @@ import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GestureDetectorCompat
 import app.lockbook.R
 import app.lockbook.model.AlertModel
+import app.lockbook.model.PersistentDrawingInfo
 import app.lockbook.screen.MainScreenActivity
 import app.lockbook.util.ColorAlias
 import app.lockbook.util.Drawing
@@ -140,16 +141,16 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         holder.addCallback(this)
     }
 
-    fun initialize(persistentDrawing: Drawing, persistentBitmap: Bitmap, persistentCanvas: Canvas, persistentStrokeState: DrawingStrokeState) {
+    fun initialize(persistentDrawingInfo: PersistentDrawingInfo) {
         visibility = View.VISIBLE
-        this.drawing = persistentDrawing
-        this.canvas = persistentCanvas
-        this.canvasBitmap = persistentBitmap
-        this.strokeState = persistentStrokeState
+        this.drawing = persistentDrawingInfo.drawing
+        this.canvas = persistentDrawingInfo.canvas
+        this.canvasBitmap = persistentDrawingInfo.bitmap
+        this.strokeState = persistentDrawingInfo.strokeState
 
         val emptyBitmap = Bitmap.createBitmap(CANVAS_WIDTH, CANVAS_HEIGHT, Bitmap.Config.ARGB_8888)
 
-        if (persistentDrawing != Drawing() && persistentBitmap.sameAs(emptyBitmap)) {
+        if (persistentDrawingInfo.drawing != Drawing() && persistentDrawingInfo.bitmap.sameAs(emptyBitmap)) {
             restoreBitmapFromDrawing()
         }
 
@@ -269,7 +270,6 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         strokeState.strokePaint.color = strokeColor
 
         setNewBitmap(restoreBitmap, restoreCanvas)
-
         alignViewPortWithBitmap()
     }
 
@@ -278,10 +278,10 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         newCanvas: Canvas
     ) {
         canvasBitmap = newBitmap
-        drawing.model.persistentBitmap = newBitmap
+        drawing.model.persistentDrawingInfo.bitmap = newBitmap
 
         canvas = newCanvas
-        drawing.model.persistentCanvas = newCanvas
+        drawing.model.persistentDrawingInfo.canvas = newCanvas
     }
 
     private fun alignViewPortWithBitmap() {
@@ -707,6 +707,8 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
             startThread()
         }
     }
+
+
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
 

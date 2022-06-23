@@ -11,7 +11,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import app.lockbook.databinding.FragmentLoadingScreenBinding
 import app.lockbook.model.*
-import timber.log.Timber
 import java.io.File
 import java.lang.ref.WeakReference
 
@@ -41,8 +40,6 @@ class DetailsScreenLoaderFragment : Fragment() {
 
     fun addChecker() {
         model.updateDetailScreenLoaderUI.observe(viewLifecycleOwner) {
-            Timber.e("GOT TEXT 2")
-
             when (it) {
                 is UpdateDetailScreenLoaderUI.NotifyError -> alertModel.notifyError(it.error)
                 is UpdateDetailScreenLoaderUI.NotifyFinished -> activityModel.launchDetailsScreen(it.newScreen)
