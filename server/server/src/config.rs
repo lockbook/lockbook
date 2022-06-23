@@ -4,13 +4,62 @@ use std::time::Duration;
 use std::{env, fmt};
 
 #[derive(Clone)]
+pub struct Config {
+    pub server: ServerConfig,
+    pub index_db: IndexDbConf,
+    pub files_db: FilesDbConfig,
+    pub metrics: MetricsConfig,
+    pub billing: BillingConfig,
+    pub features: FeatureFlags,
+}
+
+impl Config {
+    pub fn from_env_vars() -> Self {
+        Self {
+            index_db: IndexDbConf::from_env_vars(),
+            files_db: FilesDbConfig::from_env_vars(),
+            server: ServerConfig::from_env_vars(),
+            metrics: MetricsConfig::from_env_vars(),
+            billing: BillingConfig::from_env_vars(),
+            features: FeatureFlags::from_env_vars(),
+        }
+    }
+
+    pub fn is_prod(&self) -> bool {
+        self.server.pd_api_key.is_some()
+            && self.server.ssl_private_key_location.is_some()
+            && self.server.ssl_cert_location.is_some()
+    }
+}
+
+#[derive(Clone)]
 pub struct IndexDbConf {
     pub redis_url: String,
+    pub db_location: String,
 }
 
 impl IndexDbConf {
     pub fn from_env_vars() -> Self {
-        Self { redis_url: env_or_panic("INDEX_DB_REDIS_URL") }
+        Self {
+            redis_url: env_or_panic("INDEX_DB_REDIS_URL"),
+            db_location: env_or_panic("INDEX_DB_LOCATION"),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct FeatureFlags {
+    pub new_accounts: bool,
+}
+
+impl FeatureFlags {
+    pub fn from_env_vars() -> Self {
+        Self {
+            new_accounts: env::var("FEATURE_NEW_ACCOUNTS")
+                .unwrap_or_else(|_| "true".to_string())
+                .parse()
+                .unwrap(),
+        }
     }
 }
 
@@ -191,33 +240,6 @@ impl StripeConfig {
             signing_secret: env_or_panic("STRIPE_SIGNING_SECRET").parse().unwrap(),
             premium_price_id: env_or_panic("STRIPE_PREMIUM_PRICE_ID").parse().unwrap(),
         }
-    }
-}
-
-#[derive(Clone)]
-pub struct Config {
-    pub server: ServerConfig,
-    pub index_db: IndexDbConf,
-    pub files_db: FilesDbConfig,
-    pub metrics: MetricsConfig,
-    pub billing: BillingConfig,
-}
-
-impl Config {
-    pub fn from_env_vars() -> Self {
-        Self {
-            index_db: IndexDbConf::from_env_vars(),
-            files_db: FilesDbConfig::from_env_vars(),
-            server: ServerConfig::from_env_vars(),
-            metrics: MetricsConfig::from_env_vars(),
-            billing: BillingConfig::from_env_vars(),
-        }
-    }
-
-    pub fn is_prod(&self) -> bool {
-        self.server.pd_api_key.is_some()
-            && self.server.ssl_private_key_location.is_some()
-            && self.server.ssl_cert_location.is_some()
     }
 }
 

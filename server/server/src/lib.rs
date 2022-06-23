@@ -15,6 +15,7 @@ use crate::billing::billing_service::StripeWebhookError;
 use crate::billing::stripe_client::SimplifiedStripeError;
 use crate::billing::stripe_model::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
 use crate::content::file_content_client;
+use crate::schema::ServerV1;
 use crate::ServerError::ClientError;
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -23,6 +24,7 @@ static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub struct ServerState {
     pub config: config::Config,
     pub index_db_pool: deadpool_redis::Pool,
+    pub index_db: ServerV1,
     pub stripe_client: stripe::Client,
     pub files_db_client: s3::bucket::Bucket,
     pub google_play_client: AndroidPublisher,
@@ -93,10 +95,10 @@ pub mod billing;
 pub mod config;
 pub mod content;
 pub mod error_handler;
-pub mod feature_flags;
 pub mod file_service;
 pub mod keys;
 pub mod loggers;
 pub mod metrics;
 pub mod router_service;
+pub mod schema;
 pub mod utils;

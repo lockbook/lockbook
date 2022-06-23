@@ -1,28 +1,28 @@
-use crate::utils::username_is_valid;
-use crate::{feature_flags, keys, RequestContext, ServerError, ServerState};
-use deadpool_redis::redis::AsyncCommands;
-use deadpool_redis::Connection;
-use libsecp256k1::PublicKey;
-use lockbook_crypto::clock_service::get_time;
-use log::{debug, error};
-use redis_utils::converters::{JsonGet, PipelineJsonSet};
-use std::collections::HashMap;
-
-use redis_utils::tx;
-use uuid::Uuid;
-
 use crate::billing::billing_model::SubscriptionProfile;
 use crate::content::document_service;
-use crate::keys::{file, meta, owned_files, public_key, size, subscription_profile, username};
+use crate::keys::{file, owned_files, public_key, size, subscription_profile};
+use crate::schema::Account;
+use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
+use crate::{keys, RequestContext, ServerError, ServerState};
+use deadpool_redis::redis::AsyncCommands;
+use deadpool_redis::Connection;
+use hmdb::transaction::Transaction;
+use libsecp256k1::PublicKey;
+use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
 use lockbook_models::api::{
     DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError, GetPublicKeyRequest,
     GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse, NewAccountError,
     NewAccountRequest, NewAccountResponse,
 };
-use lockbook_models::file_metadata::{EncryptedFileMetadata, EncryptedFiles};
+use lockbook_models::file_metadata::{EncryptedFileMetadata, EncryptedFiles, Owner};
 use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
+use log::debug;
+use redis_utils::converters::JsonGet;
+use redis_utils::tx;
+use std::collections::HashMap;
+use uuid::Uuid;
 
 /// Create a new account given a username, public_key, and root folder.
 /// Checks that username is valid, and that username, public_key and root_folder are new.
@@ -38,9 +38,7 @@ pub async fn new_account(
         return Err(ClientError(NewAccountError::InvalidUsername));
     }
 
-    let mut con = server_state.index_db_pool.get().await?;
-
-    if !feature_flags::is_new_accounts_enabled(&mut con).await? {
+    if !context.server_state.config.features.new_accounts {
         return Err(ClientError(NewAccountError::Disabled));
     }
 
@@ -48,45 +46,34 @@ pub async fn new_account(
     let now = get_time().0 as u64;
     root.metadata_version = now;
 
-    let watched_keys = &[
-        public_key(&request.username),
-        username(&request.public_key),
-        owned_files(&request.public_key),
-        file(request.root_folder.id),
-    ];
+    server_state
+        .index_db
+        .transaction(|tx| {
+            if tx.accounts.exists(&Owner(request.public_key)) {
+                return Err(ClientError(PublicKeyTaken));
+            }
 
-    let tx_result = tx!(&mut con, pipe, watched_keys, {
-        if con.exists(public_key(&request.username)).await? {
-            return Err(Abort(ClientError(UsernameTaken)));
-        }
+            if tx.usernames.exists(&request.username) {
+                return Err(ClientError(UsernameTaken));
+            }
 
-        if con.exists(username(&request.public_key)).await? {
-            error!(
-                "{} tried to use a public key that exists {}",
-                &request.username,
-                username(&request.public_key)
-            );
-            return Err(Abort(ClientError(PublicKeyTaken)));
-        }
+            if tx.metas.exists(&root.id) {
+                return Err(ClientError(FileIdTaken));
+            }
 
-        if con.exists(meta(&root)).await? {
-            error!(
-                "{} tried to use a root that exists {}",
-                &request.username,
-                username(&request.public_key)
-            );
-            return Err(Abort(ClientError(FileIdTaken)));
-        }
+            let username = request.username;
+            let account = Account { username: username.clone(), billing_info: Default::default() };
 
-        pipe.json_set(public_key(&request.username), request.public_key)?
-            .json_set(username(&request.public_key), &request.username)?
-            .json_set(owned_files(&request.public_key), [request.root_folder.id])?
-            .json_set(subscription_profile(&request.public_key), SubscriptionProfile::default())?
-            .json_set(meta(&root), &root)
-    });
-    return_if_error!(tx_result);
+            let owner = Owner(request.public_key);
 
-    Ok(NewAccountResponse { folder_metadata_version: root.metadata_version })
+            tx.accounts.insert(owner.clone(), account);
+            tx.usernames.insert(username, owner.clone());
+            tx.owned_files.insert(owner, vec![root.id]);
+            tx.metas.insert(root.id, root.clone());
+
+            Ok(NewAccountResponse { folder_metadata_version: root.metadata_version })
+        })
+        .unwrap()
 }
 
 pub async fn get_public_key(

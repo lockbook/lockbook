@@ -1,17 +1,15 @@
 mod delete_account;
-mod feature_flags;
 
 use crate::delete_account::delete_account;
-use crate::Subcommands::{DeleteAccount, Features};
+use crate::Subcommands::DeleteAccount;
 use deadpool_redis::Pool;
-
 use deadpool_redis::Runtime;
-use lockbook_server_lib::config::Config;
-use lockbook_server_lib::ServerState;
-
-use crate::feature_flags::handle_feature_flag;
+use hmdb::log::Reader;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
+use lockbook_server_lib::config::Config;
 use lockbook_server_lib::content::file_content_client;
+use lockbook_server_lib::schema::ServerV1;
+use lockbook_server_lib::ServerState;
 use s3::bucket::Bucket;
 use structopt::StructOpt;
 
@@ -27,12 +25,6 @@ enum Subcommands {
     /// immutable, if a username is compromised or deleted, it is consumed forever, someone else cannot
     /// assume that identity.
     DeleteAccount { username: String },
-
-    /// Features for lockbook server.
-    Features {
-        #[structopt(subcommand)]
-        feature_flag: Option<FeatureFlag>,
-    },
 }
 
 #[derive(Debug, PartialEq, StructOpt)]
@@ -50,16 +42,21 @@ async fn main() {
     let config = Config::from_env_vars();
     let (index_db_pool, files_db_client) = connect_to_state(&config).await;
     let stripe_client = stripe::Client::new(&config.billing.stripe.stripe_secret);
-
     let google_play_client =
         get_google_play_client(&config.billing.google.service_account_key).await;
+    let index_db = ServerV1::init(&config.index_db.db_location).expect("Failed to load index_db");
 
-    let server_state =
-        ServerState { config, index_db_pool, stripe_client, files_db_client, google_play_client };
+    let server_state = ServerState {
+        config,
+        index_db_pool,
+        index_db,
+        stripe_client,
+        files_db_client,
+        google_play_client,
+    };
 
     let ok = match Subcommands::from_args() {
         DeleteAccount { username: user } => delete_account(server_state, &user).await,
-        Features { feature_flag } => handle_feature_flag(server_state, feature_flag).await,
     };
 
     if ok {

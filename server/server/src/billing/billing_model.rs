@@ -3,7 +3,7 @@ use lockbook_models::api::{GooglePlayAccountState, UnixTimeMillis};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct SubscriptionProfile {
     pub billing_platform: Option<BillingPlatform>,
     pub last_in_payment_flow: u64,
@@ -27,7 +27,7 @@ impl SubscriptionProfile {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum BillingPlatform {
     Stripe(StripeUserInfo),
     GooglePlay(GooglePlayUserInfo),
