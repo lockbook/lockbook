@@ -7,11 +7,14 @@ import android.os.Handler
 import android.os.Looper
 import android.text.method.LinkMovementMethod
 import android.view.*
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.preference.PreferenceManager
+import app.futured.donut.DonutProgressView
+import app.futured.donut.DonutSection
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentFilesListBinding
@@ -177,6 +180,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 @SuppressLint("NotifyDataSetChanged")
                 override fun run() {
                     handler.post {
+                        model.reloadUsageDonut()
                         binding.filesList.adapter?.notifyDataSetChanged()
                     }
                 }
@@ -220,14 +224,25 @@ class FilesListFragment : Fragment(), FilesFragment {
     }
 
     private fun setUpToolbar() {
-        binding.filesToolbar.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                R.id.menu_list_files_settings -> startActivity(
+        binding.filesToolbar.setNavigationOnClickListener {
+            binding.drawerLayout.open()
+        }
+        binding.navigationView.setNavigationItemSelectedListener { item ->
+            when(item.itemId) {
+                R.id.menu_files_list_settings -> startActivity(
                     Intent(
                         context,
                         SettingsActivity::class.java
                     )
                 )
+            }
+
+            binding.drawerLayout.close()
+            true
+        }
+        binding.filesToolbar.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+
                 R.id.menu_list_files_sort_last_changed -> {
                     model.changeFileSort(SortStyle.LastChanged)
                     menu.menu!!.findItem(R.id.menu_list_files_sort_last_changed)?.isChecked = true
@@ -397,6 +412,24 @@ class FilesListFragment : Fragment(), FilesFragment {
             UpdateFilesUI.SyncImport -> {
                 (activity as MainScreenActivity).syncImportAccount()
             }
+            is UpdateFilesUI.UpdateUsageBar -> {
+                val dataCap = uiUpdates.usageMetrics.dataCap.exact.toFloat()
+                val usage = uiUpdates.usageMetrics.serverUsage.exact.toFloat()
+
+                val donut = binding.navigationView.getHeaderView(0).findViewById<DonutProgressView>(R.id.files_list_usage_donut)
+                donut.cap = dataCap
+                donut.gapWidthDegrees = (dataCap - usage) / dataCap * 360F
+
+                val usageSection = DonutSection(
+                    name = "",
+                    color = ResourcesCompat.getColor(resources, R.color.md_theme_primary, null),
+                    amount = uiUpdates.usageMetrics.serverUsage.exact.toFloat()
+                )
+
+                donut.submitData(listOf(usageSection))
+
+                binding.navigationView.getHeaderView(0).findViewById<MaterialTextView>(R.id.files_list_usage).text = getString(R.string.free_space, uiUpdates.usageMetrics.serverUsage.readable, uiUpdates.usageMetrics.dataCap.readable)
+            }
         }
     }
 
@@ -469,6 +502,7 @@ sealed class UpdateFilesUI {
     data class UpdateBreadcrumbBar(val breadcrumbItems: List<BreadCrumbItem>) : UpdateFilesUI()
     data class NotifyError(val error: LbError) : UpdateFilesUI()
     data class ShowSyncSnackBar(val totalSyncItems: Int) : UpdateFilesUI()
+    data class UpdateUsageBar(val usageMetrics: UsageMetrics): UpdateFilesUI()
     object UpToDateSyncSnackBar : UpdateFilesUI()
     object StopProgressSpinner : UpdateFilesUI()
     object ToggleMenuBar : UpdateFilesUI()

@@ -45,6 +45,8 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                     refreshFiles()
                     breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
                     _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
+
+                    refreshUsage()
                 }
             }
             is Err -> {
@@ -167,6 +169,12 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun reloadUsageDonut() {
+        viewModelScope.launch(Dispatchers.IO) {
+            refreshUsage()
+        }
+    }
+
     private fun refreshFiles() {
         val refreshChildrenResult = fileModel.refreshChildren()
         if (refreshChildrenResult is Err) {
@@ -187,5 +195,14 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         selectableFiles.set(fileModel.children)
 
         PreferenceManager.getDefaultSharedPreferences(getContext()).edit().putString(getString(R.string.sort_files_key), getString(newSortStyle.toStringResource())).apply()
+    }
+
+    private fun refreshUsage() {
+        val uiUpdate = when(val usageResult = CoreModel.getUsage()) {
+            is Ok -> UpdateFilesUI.UpdateUsageBar(usageResult.value)
+            is Err -> UpdateFilesUI.NotifyError(usageResult.error.toLbError(getRes()))
+        }
+
+        _notifyUpdateFilesUI.postValue(uiUpdate)
     }
 }

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="20dp"
+    android:layout_marginTop="20dp"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
+
+    <com.google.android.material.textview.MaterialTextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textAppearance="?attr/textAppearanceTitleLarge"
+        android:paddingBottom="20dp"
+        android:text="Current Usage"/>
+
+    <app.futured.donut.DonutProgressView
+        android:id="@+id/files_list_usage_donut"
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:layout_marginStart="40dp"
+        app:donut_gapAngle="320"
+        app:donut_strokeWidth="8dp"/>
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/files_list_usage"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingTop="20dp"
+        android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+</LinearLayout>
