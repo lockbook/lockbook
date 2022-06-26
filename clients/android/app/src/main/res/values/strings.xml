@@ -140,6 +140,17 @@
     <string name="drawing_parse_error">Could not open drawing.</string>
 
     <string name="free_space">%1$s used out of %2$s</string>
+    <string name="last_sync">Synced %s</string>
+
+    <plurals name="files_to_push">
+        <item quantity="one">%d file to push</item>
+        <item quantity="other">%d files to push</item>
+    </plurals>
+
+    <plurals name="files_to_pull">
+        <item quantity="one">%d file to pull</item>
+        <item quantity="other">%d files to pull</item>
+    </plurals>
 
     <!-- Errors -->
     <string name="no_account">You have no account.</string>
@@ -249,4 +260,5 @@
 
     <string name="sync_finished">Sync finished</string>
     <string name="backup_my_secret">Backup my secret</string>
+    <string name="sync_info">Sync Info</string>
 </resources>

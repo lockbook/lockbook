@@ -180,7 +180,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 @SuppressLint("NotifyDataSetChanged")
                 override fun run() {
                     handler.post {
-                        model.reloadUsageDonut()
+                        model.reloadSidebar()
                         binding.filesList.adapter?.notifyDataSetChanged()
                     }
                 }
@@ -191,6 +191,10 @@ class FilesListFragment : Fragment(), FilesFragment {
 
         if (getApp().isNewAccount) {
             updateUI(UpdateFilesUI.ShowBeforeWeStart)
+        }
+
+        model.maybeLastSidebarInfo?.let { uiUpdate ->
+            updateUI(uiUpdate)
         }
 
         return binding.root
@@ -228,7 +232,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             binding.drawerLayout.open()
         }
         binding.navigationView.setNavigationItemSelectedListener { item ->
-            when(item.itemId) {
+            when (item.itemId) {
                 R.id.menu_files_list_settings -> startActivity(
                     Intent(
                         context,
@@ -346,6 +350,10 @@ class FilesListFragment : Fragment(), FilesFragment {
     private fun updateUI(uiUpdates: UpdateFilesUI) {
         when (uiUpdates) {
             is UpdateFilesUI.NotifyError -> {
+                if (binding.listFilesRefresh.isRefreshing) {
+                    binding.listFilesRefresh.isRefreshing = false
+                }
+
                 if (binding.syncHolder.isVisible) {
                     binding.syncHolder.visibility = View.GONE
                 }
@@ -353,6 +361,10 @@ class FilesListFragment : Fragment(), FilesFragment {
                 alertModel.notifyError(uiUpdates.error)
             }
             is UpdateFilesUI.NotifyWithSnackbar -> {
+                if (binding.listFilesRefresh.isRefreshing) {
+                    binding.listFilesRefresh.isRefreshing = false
+                }
+
                 if (binding.syncHolder.isVisible) {
                     binding.syncHolder.visibility = View.GONE
                 }
@@ -365,6 +377,8 @@ class FilesListFragment : Fragment(), FilesFragment {
                 binding.syncHolder.visibility = View.VISIBLE
             }
             UpdateFilesUI.UpToDateSyncSnackBar -> {
+                binding.listFilesRefresh.isRefreshing = false
+
                 binding.syncText.text = getString(R.string.list_files_sync_finished_snackbar)
                 binding.syncCheck.visibility = View.VISIBLE
 
@@ -385,8 +399,6 @@ class FilesListFragment : Fragment(), FilesFragment {
                     3000L
                 )
             }
-            UpdateFilesUI.StopProgressSpinner ->
-                binding.listFilesRefresh.isRefreshing = false
             is UpdateFilesUI.UpdateBreadcrumbBar -> {
                 binding.filesBreadcrumbBar.setBreadCrumbItems(
                     uiUpdates.breadcrumbItems.toMutableList()
@@ -412,23 +424,36 @@ class FilesListFragment : Fragment(), FilesFragment {
             UpdateFilesUI.SyncImport -> {
                 (activity as MainScreenActivity).syncImportAccount()
             }
-            is UpdateFilesUI.UpdateUsageBar -> {
-                val dataCap = uiUpdates.usageMetrics.dataCap.exact.toFloat()
-                val usage = uiUpdates.usageMetrics.serverUsage.exact.toFloat()
+            is UpdateFilesUI.UpdateSideBarInfo -> {
+                uiUpdates.usageMetrics?.let { usageMetrics ->
+                    val dataCap = usageMetrics.dataCap.exact.toFloat()
+                    val usage = usageMetrics.serverUsage.exact.toFloat()
 
-                val donut = binding.navigationView.getHeaderView(0).findViewById<DonutProgressView>(R.id.files_list_usage_donut)
-                donut.cap = dataCap
-                donut.gapWidthDegrees = (dataCap - usage) / dataCap * 360F
+                    val donut = binding.navigationView.getHeaderView(0).findViewById<DonutProgressView>(R.id.filesListUsageDonut)
+                    donut.cap = dataCap
 
-                val usageSection = DonutSection(
-                    name = "",
-                    color = ResourcesCompat.getColor(resources, R.color.md_theme_primary, null),
-                    amount = uiUpdates.usageMetrics.serverUsage.exact.toFloat()
-                )
+                    val usageSection = DonutSection(
+                        name = "",
+                        color = ResourcesCompat.getColor(resources, R.color.md_theme_primary, null),
+                        amount = usage
+                    )
 
-                donut.submitData(listOf(usageSection))
+                    donut.submitData(listOf(usageSection))
 
-                binding.navigationView.getHeaderView(0).findViewById<MaterialTextView>(R.id.files_list_usage).text = getString(R.string.free_space, uiUpdates.usageMetrics.serverUsage.readable, uiUpdates.usageMetrics.dataCap.readable)
+                    binding.navigationView.getHeaderView(0).findViewById<MaterialTextView>(R.id.filesListUsage).text = getString(R.string.free_space, usageMetrics.serverUsage.readable, usageMetrics.dataCap.readable)
+                }
+
+                uiUpdates.lastSynced?.let { lastSynced ->
+                    binding.navigationView.getHeaderView(0).findViewById<MaterialTextView>(R.id.filesListLastSynced).text = getString(R.string.last_sync, lastSynced)
+                }
+
+                uiUpdates.localDirtyFilesCount?.let { localDirtyFilesCount ->
+                    binding.navigationView.getHeaderView(0).findViewById<MaterialTextView>(R.id.filesListLocalDirty).text = resources.getQuantityString(R.plurals.files_to_push, localDirtyFilesCount, localDirtyFilesCount)
+                }
+
+                uiUpdates.serverDirtyFilesCount?.let { serverDirtyFilesCount ->
+                    binding.navigationView.getHeaderView(0).findViewById<MaterialTextView>(R.id.filesListServerDirty).text = resources.getQuantityString(R.plurals.files_to_pull, serverDirtyFilesCount, serverDirtyFilesCount)
+                }
             }
         }
     }
@@ -502,9 +527,8 @@ sealed class UpdateFilesUI {
     data class UpdateBreadcrumbBar(val breadcrumbItems: List<BreadCrumbItem>) : UpdateFilesUI()
     data class NotifyError(val error: LbError) : UpdateFilesUI()
     data class ShowSyncSnackBar(val totalSyncItems: Int) : UpdateFilesUI()
-    data class UpdateUsageBar(val usageMetrics: UsageMetrics): UpdateFilesUI()
+    data class UpdateSideBarInfo(var usageMetrics: UsageMetrics? = null, var lastSynced: String? = null, var localDirtyFilesCount: Int? = null, var serverDirtyFilesCount: Int? = null) : UpdateFilesUI()
     object UpToDateSyncSnackBar : UpdateFilesUI()
-    object StopProgressSpinner : UpdateFilesUI()
     object ToggleMenuBar : UpdateFilesUI()
     object ShowBeforeWeStart : UpdateFilesUI()
     object SyncImport : UpdateFilesUI()
