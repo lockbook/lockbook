@@ -1,8 +1,8 @@
 use lockbook_core::service::sync_service::SyncProgress;
+use lockbook_core::ClientWorkUnit;
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
 use lockbook_core::SyncAllError;
-use lockbook_core::ClientWorkUnit;
 
 use crate::error::CliError;
 
