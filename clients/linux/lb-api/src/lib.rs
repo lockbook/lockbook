@@ -188,9 +188,7 @@ impl Api for DefaultApi {
         match self.core.get_account() {
             Ok(acct) => Ok(Some(acct)),
             Err(err) => match err {
-                Error::UiError(lockbook_core::GetAccountError::NoAccount) => {
-                    Ok(None)
-                }
+                Error::UiError(lockbook_core::GetAccountError::NoAccount) => Ok(None),
                 Error::Unexpected(msg) => Err(msg),
             },
         }
