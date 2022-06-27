@@ -1,4 +1,6 @@
+use crate::billing::billing_service::LockBillingWorkflowError;
 use crate::billing::google_play_client::SimpleGCPError;
+use crate::ServerError::InternalError;
 use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
@@ -10,7 +12,6 @@ use lockbook_models::api::{
 use redis::RedisError;
 use redis_utils::converters::{JsonGetError, JsonSetError};
 use std::fmt::Debug;
-use std::io;
 use std::io::Error;
 
 impl<T: Debug> From<PoolError> for ServerError<T> {
@@ -37,7 +38,7 @@ impl<T: Debug> From<JsonSetError> for ServerError<T> {
     }
 }
 
-impl<T: Debug> From<io::Error> for ServerError<T> {
+impl<T: Debug> From<Error> for ServerError<T> {
     fn from(err: Error) -> Self {
         internal!("IO Error: {:?}", err)
     }
@@ -141,6 +142,48 @@ impl From<stripe::WebhookError> for ServerError<StripeWebhookError> {
             stripe::WebhookError::BadParse(bad_parse_err) => ClientError(
                 StripeWebhookError::ParseError(format!("Parsing error: {:?}", bad_parse_err)),
             ),
+        }
+    }
+}
+
+impl From<ServerError<LockBillingWorkflowError>> for ServerError<UpgradeAccountGooglePlayError> {
+    fn from(err: ServerError<LockBillingWorkflowError>) -> Self {
+        match err {
+            ClientError(LockBillingWorkflowError::ExistingRequestPending) => {
+                ClientError(UpgradeAccountGooglePlayError::ExistingRequestPending)
+            }
+            ClientError(LockBillingWorkflowError::UserNotFound) => {
+                ClientError(UpgradeAccountGooglePlayError::UserNotFound)
+            }
+            InternalError(msg) => InternalError(msg),
+        }
+    }
+}
+
+impl From<ServerError<LockBillingWorkflowError>> for ServerError<UpgradeAccountStripeError> {
+    fn from(err: ServerError<LockBillingWorkflowError>) -> Self {
+        match err {
+            ClientError(LockBillingWorkflowError::ExistingRequestPending) => {
+                ClientError(UpgradeAccountStripeError::ExistingRequestPending)
+            }
+            ClientError(LockBillingWorkflowError::UserNotFound) => {
+                ClientError(UpgradeAccountStripeError::UserNotFound)
+            }
+            InternalError(msg) => InternalError(msg),
+        }
+    }
+}
+
+impl From<ServerError<LockBillingWorkflowError>> for ServerError<CancelSubscriptionError> {
+    fn from(err: ServerError<LockBillingWorkflowError>) -> Self {
+        match err {
+            ClientError(LockBillingWorkflowError::ExistingRequestPending) => {
+                ClientError(CancelSubscriptionError::ExistingRequestPending)
+            }
+            ClientError(LockBillingWorkflowError::UserNotFound) => {
+                ClientError(CancelSubscriptionError::UserNotFound)
+            }
+            InternalError(msg) => InternalError(msg),
         }
     }
 }

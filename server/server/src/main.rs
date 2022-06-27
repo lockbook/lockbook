@@ -6,7 +6,6 @@ use deadpool_redis::Runtime;
 use hmdb::log::Reader;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::config::Config;
-use lockbook_server_lib::content::file_content_client;
 use lockbook_server_lib::router_service::{
     build_info, core_routes, get_metrics, google_play_notification_webhooks, stripe_webhooks,
 };
@@ -31,14 +30,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let google_play_client = get_google_play_client(&cfg.billing.google.service_account_key).await;
     let index_db = ServerV1::init(&cfg.index_db.db_location).expect("Failed to load index_db");
 
-    let server_state = Arc::new(ServerState {
-        config,
-        index_db_pool,
-        index_db,
-        stripe_client,
-        files_db_client,
-        google_play_client,
-    });
+    let server_state =
+        Arc::new(ServerState { config, index_db, stripe_client, google_play_client });
 
     let routes = core_routes(&server_state)
         .or(build_info())

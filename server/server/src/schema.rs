@@ -10,7 +10,9 @@ hmdb::schema! {
         accounts: <Owner, Account>,
         owned_files: <Owner, Vec<Uuid>>,
         metas: <Uuid, EncryptedFileMetadata>,
-        sizes: <Uuid, u64>
+        sizes: <Uuid, u64>,
+        google_play_ids: <String, Owner>,
+        stripe_ids: <String, Owner>
     }
 }
 

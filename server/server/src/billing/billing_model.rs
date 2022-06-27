@@ -1,6 +1,10 @@
-use crate::{FREE_TIER_USAGE_SIZE, PREMIUM_TIER_USAGE_SIZE};
-use lockbook_models::api::{GooglePlayAccountState, UnixTimeMillis};
+use crate::config::Config;
+use crate::{ServerError, FREE_TIER_USAGE_SIZE, PREMIUM_TIER_USAGE_SIZE};
+use google_androidpublisher3::api::SubscriptionPurchase;
+use libsecp256k1::PublicKey;
+use lockbook_models::api::{GooglePlayAccountState, UnixTimeMillis, UpgradeAccountGooglePlayError};
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -31,6 +35,38 @@ impl SubscriptionProfile {
 pub enum BillingPlatform {
     Stripe(StripeUserInfo),
     GooglePlay(GooglePlayUserInfo),
+}
+
+impl BillingPlatform {
+    pub fn new_play_sub(
+        config: &Config, public_key: &PublicKey, purchase_token: &str,
+        expiry_information: SubscriptionPurchase,
+    ) -> Result<Self, ServerError<UpgradeAccountGooglePlayError>> {
+        let expiration_time = expiry_information
+            .expiry_time_millis
+            .ok_or_else::<ServerError<UpgradeAccountGooglePlayError>, _>(|| {
+                internal!(
+                    "Cannot get expiration time of a recovered subscription. public_key {:?}",
+                    &public_key
+                )
+            })?
+            .parse()
+            .map_err::<ServerError<UpgradeAccountGooglePlayError>, _>(|e| {
+                internal!("Cannot parse millis into int: {:?}", e)
+            })?;
+
+        Ok(Self::GooglePlay(GooglePlayUserInfo {
+            purchase_token: purchase_token.to_string(),
+            subscription_product_id: config
+                .billing
+                .google
+                .premium_subscription_product_id
+                .clone(),
+            subscription_offer_id: config.billing.google.premium_subscription_offer_id.clone(),
+            expiration_time,
+            account_state: GooglePlayAccountState::Ok,
+        }))
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

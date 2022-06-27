@@ -336,6 +336,7 @@ pub enum UpgradeAccountGooglePlayError {
     AlreadyPremium,
     InvalidPurchaseToken,
     ExistingRequestPending,
+    UserNotFound,
 }
 
 impl Request for UpgradeAccountGooglePlayRequest {
@@ -356,6 +357,7 @@ pub enum CancelSubscriptionError {
     NotPremium,
     AlreadyCanceled,
     UsageIsOverFreeTierDataCap,
+    UserNotFound,
     ExistingRequestPending,
 }
 
@@ -396,7 +398,9 @@ pub struct GetSubscriptionInfoResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum GetSubscriptionInfoError {}
+pub enum GetSubscriptionInfoError {
+    UserNotFound
+}
 
 impl Request for GetSubscriptionInfoRequest {
     type Response = GetSubscriptionInfoResponse;

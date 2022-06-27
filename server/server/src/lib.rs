@@ -23,7 +23,6 @@ static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[derive(Clone)]
 pub struct ServerState {
     pub config: config::Config,
-    pub index_db_pool: deadpool_redis::Pool,
     pub index_db: ServerV1,
     pub stripe_client: stripe::Client,
     pub google_play_client: AndroidPublisher,
