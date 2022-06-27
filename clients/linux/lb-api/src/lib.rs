@@ -4,13 +4,12 @@ pub use lockbook_models::api::PaymentMethod;
 pub use lockbook_models::api::PaymentPlatform;
 pub use lockbook_models::api::StripeAccountTier;
 pub use lockbook_models::api::SubscriptionInfo;
-pub use lockbook_models::crypto::DecryptedDocument;
-pub use lockbook_models::drawing::{ColorAlias, ColorRGB};
 
 pub use lockbook_core::Account;
 pub use lockbook_core::ClientWorkUnit;
 pub use lockbook_core::Config;
 pub use lockbook_core::CoreError;
+pub use lockbook_core::DecryptedDocument;
 pub use lockbook_core::DecryptedFileMetadata as FileMetadata;
 pub use lockbook_core::Error;
 pub use lockbook_core::Error::UiError;
@@ -19,6 +18,7 @@ pub use lockbook_core::FileType;
 pub use lockbook_core::UnexpectedError;
 pub use lockbook_core::Uuid;
 pub use lockbook_core::DEFAULT_API_LOCATION;
+pub use lockbook_core::{ColorAlias, ColorRGB};
 
 pub use lockbook_core::AccountExportError as ExportAccountError;
 pub use lockbook_core::CalculateWorkError;
