@@ -367,6 +367,10 @@ pub fn dbs_equal(left: &Core, right: &Core) -> bool {
             &left.db.base_metadata.get_all().unwrap(),
             &right.db.base_metadata.get_all().unwrap(),
         )
+        && slices_equal_ignore_order(
+            &doc_repo_get_all(&left.config, RepoSource::Local),
+            &doc_repo_get_all(&right.config, RepoSource::Local),
+        )
 }
 
 pub fn assert_new_synced_client_dbs_eq(core: &Core) {

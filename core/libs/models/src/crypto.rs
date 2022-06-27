@@ -12,7 +12,7 @@ pub type EncryptedDocument = AESEncrypted<DecryptedDocument>;
 pub type EncryptedUserAccessKey = AESEncrypted<AESKey>;
 pub type EncryptedFolderAccessKey = AESEncrypted<AESKey>;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Clone, Hash)]
 pub struct AESEncrypted<T: DeserializeOwned> {
     #[serde(with = "serde_bytes")]
     pub value: Vec<u8>,
