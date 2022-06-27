@@ -28,10 +28,4 @@
             </group>
         </menu>
     </item>
-
-    <item
-        android:id="@+id/menu_list_files_settings"
-        android:title="@string/settings_title"
-        app:showAsAction="never" />
-
 </menu>
