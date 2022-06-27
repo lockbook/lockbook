@@ -28,8 +28,10 @@
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/text_editor_text_field"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:maxWidth="900sp"
             android:gravity="top|start"
             android:hint="@string/text_editor_hint"
             android:importantForAutofill="no"
@@ -103,7 +105,6 @@
         android:id="@+id/markdown_viewer_scroller"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_margin="15dp"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -112,8 +113,10 @@
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/markdown_viewer"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:maxWidth="900sp"
             android:textIsSelectable="true"
             android:gravity="top|start" />
 
