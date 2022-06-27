@@ -28,3 +28,4 @@ external fun getAllErrorVariants(): String
 external fun upgradeAccountGooglePlay(purchaseToken: String, accountId: String): String
 external fun cancelSubscription(): String
 external fun getSubscriptionInfo(): String
+external fun getLocalChanges(): String

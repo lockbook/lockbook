@@ -7,11 +7,14 @@ import android.os.Handler
 import android.os.Looper
 import android.text.method.LinkMovementMethod
 import android.view.*
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.preference.PreferenceManager
+import app.futured.donut.DonutProgressView
+import app.futured.donut.DonutSection
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentFilesListBinding
@@ -177,6 +180,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 @SuppressLint("NotifyDataSetChanged")
                 override fun run() {
                     handler.post {
+                        model.reloadSidebar()
                         binding.filesList.adapter?.notifyDataSetChanged()
                     }
                 }
@@ -187,6 +191,10 @@ class FilesListFragment : Fragment(), FilesFragment {
 
         if (getApp().isNewAccount) {
             updateUI(UpdateFilesUI.ShowBeforeWeStart)
+        }
+
+        model.maybeLastSidebarInfo?.let { uiUpdate ->
+            updateUI(uiUpdate)
         }
 
         return binding.root
@@ -220,14 +228,25 @@ class FilesListFragment : Fragment(), FilesFragment {
     }
 
     private fun setUpToolbar() {
-        binding.filesToolbar.setOnMenuItemClickListener { item ->
+        binding.filesToolbar.setNavigationOnClickListener {
+            binding.drawerLayout.open()
+        }
+        binding.navigationView.setNavigationItemSelectedListener { item ->
             when (item.itemId) {
-                R.id.menu_list_files_settings -> startActivity(
+                R.id.menu_files_list_settings -> startActivity(
                     Intent(
                         context,
                         SettingsActivity::class.java
                     )
                 )
+            }
+
+            binding.drawerLayout.close()
+            true
+        }
+        binding.filesToolbar.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+
                 R.id.menu_list_files_sort_last_changed -> {
                     model.changeFileSort(SortStyle.LastChanged)
                     menu.menu!!.findItem(R.id.menu_list_files_sort_last_changed)?.isChecked = true
@@ -331,6 +350,10 @@ class FilesListFragment : Fragment(), FilesFragment {
     private fun updateUI(uiUpdates: UpdateFilesUI) {
         when (uiUpdates) {
             is UpdateFilesUI.NotifyError -> {
+                if (binding.listFilesRefresh.isRefreshing) {
+                    binding.listFilesRefresh.isRefreshing = false
+                }
+
                 if (binding.syncHolder.isVisible) {
                     binding.syncHolder.visibility = View.GONE
                 }
@@ -338,6 +361,10 @@ class FilesListFragment : Fragment(), FilesFragment {
                 alertModel.notifyError(uiUpdates.error)
             }
             is UpdateFilesUI.NotifyWithSnackbar -> {
+                if (binding.listFilesRefresh.isRefreshing) {
+                    binding.listFilesRefresh.isRefreshing = false
+                }
+
                 if (binding.syncHolder.isVisible) {
                     binding.syncHolder.visibility = View.GONE
                 }
@@ -350,6 +377,8 @@ class FilesListFragment : Fragment(), FilesFragment {
                 binding.syncHolder.visibility = View.VISIBLE
             }
             UpdateFilesUI.UpToDateSyncSnackBar -> {
+                binding.listFilesRefresh.isRefreshing = false
+
                 binding.syncText.text = getString(R.string.list_files_sync_finished_snackbar)
                 binding.syncCheck.visibility = View.VISIBLE
 
@@ -370,8 +399,6 @@ class FilesListFragment : Fragment(), FilesFragment {
                     3000L
                 )
             }
-            UpdateFilesUI.StopProgressSpinner ->
-                binding.listFilesRefresh.isRefreshing = false
             is UpdateFilesUI.UpdateBreadcrumbBar -> {
                 binding.filesBreadcrumbBar.setBreadCrumbItems(
                     uiUpdates.breadcrumbItems.toMutableList()
@@ -396,6 +423,37 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
             UpdateFilesUI.SyncImport -> {
                 (activity as MainScreenActivity).syncImportAccount()
+            }
+            is UpdateFilesUI.UpdateSideBarInfo -> {
+                uiUpdates.usageMetrics?.let { usageMetrics ->
+                    val dataCap = usageMetrics.dataCap.exact.toFloat()
+                    val usage = usageMetrics.serverUsage.exact.toFloat()
+
+                    val donut = binding.navigationView.getHeaderView(0).findViewById<DonutProgressView>(R.id.filesListUsageDonut)
+                    donut.cap = dataCap
+
+                    val usageSection = DonutSection(
+                        name = "",
+                        color = ResourcesCompat.getColor(resources, R.color.md_theme_primary, null),
+                        amount = usage
+                    )
+
+                    donut.submitData(listOf(usageSection))
+
+                    binding.navigationView.getHeaderView(0).findViewById<MaterialTextView>(R.id.filesListUsage).text = getString(R.string.free_space, usageMetrics.serverUsage.readable, usageMetrics.dataCap.readable)
+                }
+
+                uiUpdates.lastSynced?.let { lastSynced ->
+                    binding.navigationView.getHeaderView(0).findViewById<MaterialTextView>(R.id.filesListLastSynced).text = getString(R.string.last_sync, lastSynced)
+                }
+
+                uiUpdates.localDirtyFilesCount?.let { localDirtyFilesCount ->
+                    binding.navigationView.getHeaderView(0).findViewById<MaterialTextView>(R.id.filesListLocalDirty).text = resources.getQuantityString(R.plurals.files_to_push, localDirtyFilesCount, localDirtyFilesCount)
+                }
+
+                uiUpdates.serverDirtyFilesCount?.let { serverDirtyFilesCount ->
+                    binding.navigationView.getHeaderView(0).findViewById<MaterialTextView>(R.id.filesListServerDirty).text = resources.getQuantityString(R.plurals.files_to_pull, serverDirtyFilesCount, serverDirtyFilesCount)
+                }
             }
         }
     }
@@ -469,8 +527,8 @@ sealed class UpdateFilesUI {
     data class UpdateBreadcrumbBar(val breadcrumbItems: List<BreadCrumbItem>) : UpdateFilesUI()
     data class NotifyError(val error: LbError) : UpdateFilesUI()
     data class ShowSyncSnackBar(val totalSyncItems: Int) : UpdateFilesUI()
+    data class UpdateSideBarInfo(var usageMetrics: UsageMetrics? = null, var lastSynced: String? = null, var localDirtyFilesCount: Int? = null, var serverDirtyFilesCount: Int? = null) : UpdateFilesUI()
     object UpToDateSyncSnackBar : UpdateFilesUI()
-    object StopProgressSpinner : UpdateFilesUI()
     object ToggleMenuBar : UpdateFilesUI()
     object ShowBeforeWeStart : UpdateFilesUI()
     object SyncImport : UpdateFilesUI()
