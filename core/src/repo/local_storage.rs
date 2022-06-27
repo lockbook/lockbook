@@ -1,8 +1,7 @@
-use std::fs::{self, create_dir_all, read_dir, remove_file, File, OpenOptions};
+use std::fs::{self, create_dir_all, remove_file, File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
 use std::path::Path;
 
-use crate::model::errors::core_err_unexpected;
 use crate::{Config, CoreError};
 
 pub fn write<N, K, V>(db: &Config, namespace: N, key: K, value: V) -> Result<(), CoreError>
@@ -76,42 +75,6 @@ where
     }
 
     Ok(())
-}
-
-pub fn dump<N, V>(db: &Config, namespace: N) -> Result<Vec<V>, CoreError>
-where
-    N: AsRef<[u8]> + Copy,
-    V: From<Vec<u8>>,
-{
-    let path_str = namespace_path(db, namespace);
-    let path = Path::new(&path_str);
-
-    match read_dir(path) {
-        Ok(rd) => {
-            let mut file_names = rd
-                .map(|dir_entry| {
-                    dir_entry
-                        .map_err(CoreError::from)?
-                        .file_name()
-                        .into_string()
-                        .map_err(core_err_unexpected)
-                })
-                .collect::<Result<Vec<String>, CoreError>>()?;
-            file_names.sort();
-
-            file_names
-                .iter()
-                .map(|file_name| {
-                    read(db, namespace, file_name)?.ok_or_else(|| {
-                        CoreError::Unexpected(String::from(
-                            "file listed in directory was not found when we tried to read it",
-                        ))
-                    })
-                })
-                .collect::<Result<Vec<V>, CoreError>>()
-        }
-        Err(_) => Ok(Vec::new()),
-    }
 }
 
 fn namespace_path<N>(db: &Config, namespace: N) -> String
