@@ -1,8 +1,7 @@
-use crate::content::document_service;
-use crate::RequestContext;
 use crate::ServerError;
 use crate::ServerError::ClientError;
 use crate::Tx;
+use crate::{document_service, RequestContext};
 use hmdb::transaction::Transaction;
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::FileMetadataUpsertsError::{
@@ -56,7 +55,7 @@ pub async fn upsert_file_metadata(
     let docs_to_delete = docs_to_delete?;
 
     for file in docs_to_delete {
-        document_service::background_delete(server_state, file.id, file.content_version).await?;
+        document_service::delete(server_state, file.id, file.content_version).await?;
     }
     Ok(())
 }
@@ -190,7 +189,7 @@ pub async fn change_document_content(
 
     let new_version = get_time().0 as u64;
     let mut old_content_version = 0;
-    document_service::create(server_state, request.id, new_version, &request.new_content).await?;
+    document_service::insert(server_state, request.id, new_version, &request.new_content).await?;
 
     let result = server_state.index_db.transaction(|tx| {
         let new_size = request.new_content.value.len() as u64;
@@ -220,12 +219,12 @@ pub async fn change_document_content(
 
     if result.is_err() {
         // Cleanup the NEW file created if, for some reason, the tx failed
-        document_service::background_delete(server_state, request.id, new_version).await?;
+        document_service::delete(server_state, request.id, new_version).await?;
     }
 
     let result = result?;
 
-    document_service::background_delete(server_state, request.id, old_content_version).await?;
+    document_service::delete(server_state, request.id, old_content_version).await?;
 
     Ok(result)
 }

@@ -1,7 +1,6 @@
 use crate::billing::google_play_client::SimpleGCPError;
 use crate::{
-    file_content_client, ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError,
-    StripeWebhookError,
+    ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
 use deadpool_redis::PoolError;
 use lockbook_models::api::{
@@ -11,6 +10,8 @@ use lockbook_models::api::{
 use redis::RedisError;
 use redis_utils::converters::{JsonGetError, JsonSetError};
 use std::fmt::Debug;
+use std::io;
+use std::io::Error;
 
 impl<T: Debug> From<PoolError> for ServerError<T> {
     fn from(err: PoolError) -> Self {
@@ -36,9 +37,9 @@ impl<T: Debug> From<JsonSetError> for ServerError<T> {
     }
 }
 
-impl<T: Debug> From<file_content_client::Error> for ServerError<T> {
-    fn from(err: file_content_client::Error) -> Self {
-        internal!("S3 Error: {:?}", err)
+impl<T: Debug> From<io::Error> for ServerError<T> {
+    fn from(err: Error) -> Self {
+        internal!("IO Error: {:?}", err)
     }
 }
 

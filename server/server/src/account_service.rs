@@ -1,8 +1,7 @@
-use crate::content::document_service;
 use crate::schema::Account;
 use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
-use crate::{RequestContext, ServerError, ServerState, Tx};
+use crate::{document_service, RequestContext, ServerError, ServerState, Tx};
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;

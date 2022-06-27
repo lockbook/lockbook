@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     loggers::init(&cfg);
 
     let config = cfg.clone();
-    let files_db_client = file_content_client::create_client(&cfg.files_db)
+    let files_db_client = file_content_client::create_client(&cfg.files_location)
         .expect("Failed to create files_db client");
     let index_db_pool = deadpool_redis::Config::from_url(&cfg.index_db.redis_url)
         .create_pool(Some(Runtime::Tokio1))

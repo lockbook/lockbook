@@ -1,5 +1,6 @@
 use crate::config::Environment::{Local, Prod, Unknown};
 use std::fmt::Display;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use std::{env, fmt};
 
@@ -7,7 +8,7 @@ use std::{env, fmt};
 pub struct Config {
     pub server: ServerConfig,
     pub index_db: IndexDbConf,
-    pub files_db: FilesDbConfig,
+    pub files: FilesConfig,
     pub metrics: MetricsConfig,
     pub billing: BillingConfig,
     pub features: FeatureFlags,
@@ -17,7 +18,7 @@ impl Config {
     pub fn from_env_vars() -> Self {
         Self {
             index_db: IndexDbConf::from_env_vars(),
-            files_db: FilesDbConfig::from_env_vars(),
+            files: FilesConfig::from_env_vars(),
             server: ServerConfig::from_env_vars(),
             metrics: MetricsConfig::from_env_vars(),
             billing: BillingConfig::from_env_vars(),
@@ -64,27 +65,16 @@ impl FeatureFlags {
 }
 
 #[derive(Clone)]
-pub struct FilesDbConfig {
-    pub scheme: Option<String>,
-    pub host: Option<String>,
-    pub port: Option<u16>,
-    pub region: String,
-    pub bucket: String,
-    pub access_key: String,
-    pub secret_key: String,
+pub struct FilesConfig {
+    pub path: PathBuf,
 }
 
-impl FilesDbConfig {
+impl FilesConfig {
     pub fn from_env_vars() -> Self {
-        Self {
-            scheme: env_or_empty("FILES_DB_SCHEME"),
-            host: env_or_empty("FILES_DB_HOST"),
-            port: env_or_empty("FILES_DB_PORT").map(|e| e.parse().expect("Expected u16!")),
-            region: env_or_panic("FILES_DB_REGION").parse().unwrap(),
-            bucket: env_or_panic("FILES_DB_BUCKET"),
-            access_key: env_or_panic("FILES_DB_ACCESS_KEY"),
-            secret_key: env_or_panic("FILES_DB_SECRET_KEY"),
-        }
+        let path = env_or_panic("FILES_PATH");
+        let path = PathBuf::from(path);
+        // TODO Could be nice at this moment to write a test file or panic
+        Self { path }
     }
 }
 

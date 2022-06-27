@@ -15,7 +15,6 @@ use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_service::StripeWebhookError;
 use crate::billing::stripe_client::SimplifiedStripeError;
 use crate::billing::stripe_model::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
-use crate::content::file_content_client;
 use crate::schema::{transaction, ServerV1};
 use crate::ServerError::ClientError;
 
@@ -27,7 +26,6 @@ pub struct ServerState {
     pub index_db_pool: deadpool_redis::Pool,
     pub index_db: ServerV1,
     pub stripe_client: stripe::Client,
-    pub files_db_client: s3::bucket::Bucket,
     pub google_play_client: AndroidPublisher,
 }
 
@@ -102,7 +100,7 @@ pub const PREMIUM_TIER_USAGE_SIZE: u64 = 50000000000;
 pub mod account_service;
 pub mod billing;
 pub mod config;
-pub mod content;
+pub mod document_service;
 pub mod error_handler;
 pub mod file_service;
 pub mod keys;

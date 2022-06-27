@@ -69,6 +69,6 @@ async fn main() {
 async fn connect_to_state(config: &Config) -> (Pool, Bucket) {
     let index_db_pool = deadpool_redis::Config::from_url(&config.index_db.redis_url)
         .create_pool(Some(Runtime::Tokio1));
-    let files_db = file_content_client::create_client(&config.files_db);
+    let files_db = file_content_client::create_client(&config.files_location);
     (index_db_pool.unwrap(), files_db.unwrap())
 }
