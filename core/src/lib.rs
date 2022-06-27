@@ -4,6 +4,12 @@ extern crate reqwest;
 #[macro_use]
 extern crate tracing;
 
+pub mod external_interface;
+pub mod model;
+pub mod pure_functions;
+pub mod repo;
+pub mod service;
+
 pub use crate::model::errors::*;
 pub use uuid::Uuid;
 
@@ -520,12 +526,6 @@ impl_get_variants!(
     ExportDrawingToDiskError,
     SaveDocumentToDiskError,
 );
-
-pub mod external_interface;
-pub mod model;
-pub mod pure_functions;
-pub mod repo;
-pub mod service;
 
 pub static DEFAULT_API_LOCATION: &str = "https://api.prod.lockbook.net";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
