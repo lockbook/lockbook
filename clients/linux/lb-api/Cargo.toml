@@ -6,5 +6,4 @@ edition = "2021"
 [dependencies]
 lockbook-core = { path = "../../../core" }
 lockbook-models = { path = "../../../core/libs/models" }
-uuid = { version = "0.8.1", features = ["v4", "serde"] }
 fuzzy-matcher = "0.3.7"

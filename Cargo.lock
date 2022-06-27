@@ -2169,7 +2169,6 @@ dependencies = [
  "fuzzy-matcher",
  "lockbook-core",
  "lockbook-models",
- "uuid",
 ]
 
 [[package]]
@@ -2296,7 +2295,6 @@ dependencies = [
  "qr2term",
  "serde_json",
  "structopt",
- "uuid",
 ]
 
 [[package]]

@@ -1,7 +1,5 @@
 mod search;
 
-pub use uuid::Uuid;
-
 pub use lockbook_models::account::Account;
 pub use lockbook_models::api::PaymentMethod;
 pub use lockbook_models::api::PaymentPlatform;
@@ -19,6 +17,7 @@ pub use lockbook_core::Error;
 pub use lockbook_core::Error::UiError;
 pub use lockbook_core::Error::Unexpected;
 pub use lockbook_core::UnexpectedError;
+pub use lockbook_core::Uuid;
 pub use lockbook_core::DEFAULT_API_LOCATION;
 
 pub use lockbook_core::model::errors::AccountExportError as ExportAccountError;

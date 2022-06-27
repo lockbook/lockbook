@@ -4,6 +4,8 @@ extern crate reqwest;
 #[macro_use]
 extern crate tracing;
 
+pub use uuid::Uuid;
+
 pub use model::errors::{CoreError, Error, UnexpectedError};
 
 use std::collections::HashMap;
@@ -18,7 +20,6 @@ use libsecp256k1::PublicKey;
 use serde::Deserialize;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
-use uuid::Uuid;
 
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
