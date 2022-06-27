@@ -9,14 +9,14 @@ pub mod pure_functions;
 pub mod repo;
 pub mod service;
 
+pub use uuid::Uuid;
+
 pub use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
-pub use lockbook_models::tree::{FileMetadata, FileMetaMapExt, FileMetaVecExt};
+pub use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
 pub use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 
 pub use crate::model::errors::*;
 pub use crate::pure_functions::drawing::SupportedImageFormats;
-
-pub use uuid::Uuid;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
