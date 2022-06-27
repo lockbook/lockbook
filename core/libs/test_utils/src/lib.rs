@@ -358,6 +358,10 @@ pub fn assert_dbs_eq(left: &Core, right: &Core) {
         &left.db.base_metadata.get_all().unwrap(),
         &right.db.base_metadata.get_all().unwrap(),
     ));
+    assert!(slices_equal_ignore_order(
+        &doc_repo_get_all(&left.config, RepoSource::Local),
+        &doc_repo_get_all(&right.config, RepoSource::Local),
+    ));
 }
 
 /// https://stackoverflow.com/questions/58615910/checking-two-hashmaps-for-identical-keyset-in-rust
