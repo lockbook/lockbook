@@ -71,27 +71,3 @@ fn delete_all_no_writes() {
 
     local_storage::delete_all(db, "namespace").unwrap();
 }
-
-#[test]
-fn dump() {
-    let db = &test_config();
-
-    local_storage::write(db, "namespace", "key-1", "value-1".as_bytes()).unwrap();
-    local_storage::write(db, "namespace", "key-4", "value-4".as_bytes()).unwrap();
-    local_storage::write(db, "namespace", "key-3", "value-3".as_bytes()).unwrap();
-    local_storage::write(db, "namespace", "key-2", "value-2".as_bytes()).unwrap();
-    local_storage::write(db, "namespace", "key-5", "value-5".as_bytes()).unwrap();
-
-    let result: Vec<Vec<u8>> = local_storage::dump(db, "namespace").unwrap();
-
-    assert_eq!(
-        result,
-        vec![
-            "value-1".as_bytes(),
-            "value-2".as_bytes(),
-            "value-3".as_bytes(),
-            "value-4".as_bytes(),
-            "value-5".as_bytes(),
-        ]
-    );
-}

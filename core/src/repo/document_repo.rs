@@ -10,7 +10,7 @@ use crate::{Config, CoreError};
 const NAMESPACE_LOCAL: &str = "changed_local_documents";
 const NAMESPACE_BASE: &str = "all_base_documents";
 
-fn namespace(source: RepoSource) -> &'static str {
+pub fn namespace(source: RepoSource) -> &'static str {
     match source {
         RepoSource::Local => NAMESPACE_LOCAL,
         RepoSource::Base => NAMESPACE_BASE,
@@ -51,16 +51,6 @@ pub fn maybe_get(
             .map(Some)
             .map_err(core_err_unexpected),
     }
-}
-
-#[instrument(level = "debug", skip(config), err(Debug))]
-pub fn get_all(config: &Config, source: RepoSource) -> Result<Vec<EncryptedDocument>, CoreError> {
-    Ok(local_storage::dump::<_, Vec<u8>>(config, namespace(source))?
-        .into_iter()
-        .map(|s| bincode::deserialize(s.as_ref()).map_err(core_err_unexpected))
-        .collect::<Result<Vec<EncryptedDocument>, CoreError>>()?
-        .into_iter()
-        .collect())
 }
 
 #[instrument(level = "debug", skip(config), err(Debug))]
