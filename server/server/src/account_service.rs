@@ -99,7 +99,6 @@ pub async fn get_usage(
 #[derive(Debug)]
 pub enum GetUsageHelperError {
     UserNotFound,
-    Internal(redis_utils::converters::JsonGetError),
 }
 
 pub fn get_usage_helper(

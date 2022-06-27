@@ -226,7 +226,6 @@ pub async fn cancel_subscription(
         .transaction(|tx| account_service::get_usage_helper(tx, &context.public_key))?
         .map_err(|e| match e {
             GetUsageHelperError::UserNotFound => ClientError(CancelSubscriptionError::NotPremium),
-            GetUsageHelperError::Internal(e) => ServerError::from(e),
         })?
         .iter()
         .map(|a| a.size_bytes)

@@ -4,39 +4,12 @@ use crate::ServerError::InternalError;
 use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
-use deadpool_redis::PoolError;
 use lockbook_models::api::{
     CancelSubscriptionError, GetUsageError, UpgradeAccountGooglePlayError,
     UpgradeAccountStripeError,
 };
-use redis::RedisError;
-use redis_utils::converters::{JsonGetError, JsonSetError};
 use std::fmt::Debug;
 use std::io::Error;
-
-impl<T: Debug> From<PoolError> for ServerError<T> {
-    fn from(err: PoolError) -> Self {
-        internal!("Could not get connection for pool: {:?}", err)
-    }
-}
-
-impl<T: Debug> From<RedisError> for ServerError<T> {
-    fn from(err: RedisError) -> Self {
-        internal!("Redis Error: {:?}", err)
-    }
-}
-
-impl<T: Debug> From<JsonGetError> for ServerError<T> {
-    fn from(err: JsonGetError) -> Self {
-        internal!("Redis Error: {:?}", err)
-    }
-}
-
-impl<T: Debug> From<JsonSetError> for ServerError<T> {
-    fn from(err: JsonSetError) -> Self {
-        internal!("Redis Error: {:?}", err)
-    }
-}
 
 impl<T: Debug> From<Error> for ServerError<T> {
     fn from(err: Error) -> Self {
@@ -66,7 +39,6 @@ impl From<GetUsageHelperError> for ServerError<GetUsageError> {
     fn from(e: GetUsageHelperError) -> Self {
         match e {
             GetUsageHelperError::UserNotFound => ClientError(GetUsageError::UserNotFound),
-            GetUsageHelperError::Internal(e) => ServerError::from(e),
         }
     }
 }
