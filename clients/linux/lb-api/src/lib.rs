@@ -63,7 +63,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use lockbook_models::tree::FileMetadata as FileMetadataExt;
+use lockbook_core::FileMetadata as FileMetadataExt;
 
 use lockbook_core::model::filename::NameComponents;
 use lockbook_core::Core;

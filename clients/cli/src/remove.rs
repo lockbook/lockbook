@@ -6,7 +6,7 @@ use lockbook_core::Error as LbError;
 use lockbook_core::FileDeleteError;
 use lockbook_core::GetAndGetChildrenError;
 use lockbook_core::GetFileByPathError;
-use lockbook_models::tree::FileMetadata;
+use lockbook_core::FileMetadata;
 
 use crate::error::CliError;
 
