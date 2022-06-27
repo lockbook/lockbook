@@ -1,6 +1,6 @@
-use lockbook_core::GetUsageError;
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
+use lockbook_core::GetUsageError;
 
 use crate::error::CliError;
 

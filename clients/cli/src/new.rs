@@ -1,9 +1,9 @@
 use std::fs;
 
-use lockbook_core::CreateFileAtPathError;
-use lockbook_core::FileDeleteError;
 use lockbook_core::Core;
+use lockbook_core::CreateFileAtPathError;
 use lockbook_core::Error as LbError;
+use lockbook_core::FileDeleteError;
 use lockbook_models::tree::FileMetadata;
 
 use crate::error::CliError;
