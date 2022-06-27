@@ -1,6 +1,5 @@
 #![recursion_limit = "256"]
 
-extern crate reqwest;
 #[macro_use]
 extern crate tracing;
 
