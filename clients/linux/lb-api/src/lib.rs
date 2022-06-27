@@ -7,15 +7,15 @@ pub use lockbook_models::api::StripeAccountTier;
 pub use lockbook_models::api::SubscriptionInfo;
 pub use lockbook_models::crypto::DecryptedDocument;
 pub use lockbook_models::drawing::{ColorAlias, ColorRGB};
-pub use lockbook_models::file_metadata::DecryptedFileMetadata as FileMetadata;
-pub use lockbook_models::file_metadata::FileType;
 
 pub use lockbook_core::ClientWorkUnit;
 pub use lockbook_core::Config;
 pub use lockbook_core::CoreError;
+pub use lockbook_core::DecryptedFileMetadata as FileMetadata;
 pub use lockbook_core::Error;
 pub use lockbook_core::Error::UiError;
 pub use lockbook_core::Error::Unexpected;
+pub use lockbook_core::FileType;
 pub use lockbook_core::UnexpectedError;
 pub use lockbook_core::Uuid;
 pub use lockbook_core::DEFAULT_API_LOCATION;

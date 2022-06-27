@@ -2291,7 +2291,6 @@ dependencies = [
  "chrono",
  "hotwatch",
  "lockbook-core",
- "lockbook-models",
  "qr2term",
  "serde_json",
  "structopt",

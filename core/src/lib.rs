@@ -9,6 +9,7 @@ pub mod pure_functions;
 pub mod repo;
 pub mod service;
 
+pub use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 pub use lockbook_models::tree::{FileMetadata, FileMetaMapExt, FileMetaVecExt};
 pub use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 
@@ -35,7 +36,6 @@ use lockbook_models::account::Account;
 use lockbook_models::api::{StripeAccountTier, SubscriptionInfo};
 use lockbook_models::crypto::{AESKey, DecryptedDocument};
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 
 use crate::model::errors::Error::UiError;
 use crate::model::repo::RepoSource;
