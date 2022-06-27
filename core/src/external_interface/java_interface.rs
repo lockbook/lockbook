@@ -596,6 +596,19 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getSubscriptionInfo(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getLocalChanges(
+    env: JNIEnv, _: JClass,
+) -> jstring {
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.get_local_changes()),
+            e => translate(e.map(|_| ())),
+        },
+    )
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_getAllErrorVariants(
     env: JNIEnv, _: JClass,
 ) -> jstring {

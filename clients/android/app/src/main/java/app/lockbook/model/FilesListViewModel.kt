@@ -28,6 +28,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     var breadcrumbItems = listOf<BreadCrumbItem>()
 
     val syncModel = SyncModel()
+    var maybeLastSidebarInfo: UpdateFilesUI.UpdateSideBarInfo? = null
 
     init {
         startUpInRoot()
@@ -45,6 +46,8 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                     refreshFiles()
                     breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
                     _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
+
+                    refreshSidebar()
                 }
             }
             is Err -> {
@@ -113,7 +116,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch(Dispatchers.IO) {
             syncWithSnackBar()
             refreshFiles()
-            postUIUpdate(UpdateFilesUI.StopProgressSpinner)
+            refreshSidebar()
         }
     }
 
@@ -121,7 +124,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch(Dispatchers.IO) {
             if (PreferenceManager.getDefaultSharedPreferences(getContext())
                 .getBoolean(
-                        app.lockbook.util.getString(
+                        getString(
                                 getRes(),
                                 R.string.sync_automatically_key
                             ),
@@ -140,7 +143,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                 _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpToDateSyncSnackBar)
                 return
             }
-            is Err -> _notifyUpdateFilesUI.postValue(
+            is Err -> return _notifyUpdateFilesUI.postValue(
                 UpdateFilesUI.NotifyError(
                     hasSyncWorkResult.error.toLbError(
                         getRes()
@@ -167,6 +170,12 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun reloadSidebar() {
+        viewModelScope.launch(Dispatchers.IO) {
+            refreshSidebar()
+        }
+    }
+
     private fun refreshFiles() {
         val refreshChildrenResult = fileModel.refreshChildren()
         if (refreshChildrenResult is Err) {
@@ -187,5 +196,42 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         selectableFiles.set(fileModel.children)
 
         PreferenceManager.getDefaultSharedPreferences(getContext()).edit().putString(getString(R.string.sort_files_key), getString(newSortStyle.toStringResource())).apply()
+    }
+
+    private fun refreshSidebar() {
+        var lastSidebarInfo = UpdateFilesUI.UpdateSideBarInfo()
+        maybeLastSidebarInfo = lastSidebarInfo
+
+        when (val usageResult = CoreModel.getUsage()) {
+            is Ok -> lastSidebarInfo.usageMetrics = usageResult.value
+            is Err -> return _notifyUpdateFilesUI.postValue(
+                UpdateFilesUI.NotifyError(usageResult.error.toLbError(getRes()))
+            )
+        }
+
+        _notifyUpdateFilesUI.postValue(lastSidebarInfo)
+
+        when (val getLocalChangesResult = CoreModel.getLocalChanges()) {
+            is Ok -> lastSidebarInfo.localDirtyFilesCount = getLocalChangesResult.value.size
+            is Err -> {
+                return _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(getLocalChangesResult.error.toLbError(getRes())))
+            }
+        }
+
+        _notifyUpdateFilesUI.postValue(lastSidebarInfo)
+
+        when (val calculateWorkResult = CoreModel.calculateWork()) {
+            is Ok -> {
+                lastSidebarInfo.lastSynced = CoreModel.convertToHumanDuration(
+                    calculateWorkResult.value.mostRecentUpdateFromServer
+                )
+                lastSidebarInfo.serverDirtyFilesCount = calculateWorkResult.value.workUnits.filter { it.tag == WorkUnitTag.ServerChange }.size
+            }
+            is Err -> {
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(calculateWorkResult.error.toLbError(getRes())))
+            }
+        }
+
+        _notifyUpdateFilesUI.postValue(lastSidebarInfo)
     }
 }
