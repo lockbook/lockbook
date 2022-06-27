@@ -1,6 +1,5 @@
 mod search;
 
-pub use lockbook_models::account::Account;
 pub use lockbook_models::api::PaymentMethod;
 pub use lockbook_models::api::PaymentPlatform;
 pub use lockbook_models::api::StripeAccountTier;
@@ -8,6 +7,7 @@ pub use lockbook_models::api::SubscriptionInfo;
 pub use lockbook_models::crypto::DecryptedDocument;
 pub use lockbook_models::drawing::{ColorAlias, ColorRGB};
 
+pub use lockbook_core::Account;
 pub use lockbook_core::ClientWorkUnit;
 pub use lockbook_core::Config;
 pub use lockbook_core::CoreError;

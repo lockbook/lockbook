@@ -11,6 +11,7 @@ pub mod service;
 
 pub use uuid::Uuid;
 
+pub use lockbook_models::account::Account;
 pub use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 pub use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
 pub use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
@@ -32,7 +33,6 @@ use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 
 use lockbook_crypto::clock_service;
-use lockbook_models::account::Account;
 use lockbook_models::api::{StripeAccountTier, SubscriptionInfo};
 use lockbook_models::crypto::{AESKey, DecryptedDocument};
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
