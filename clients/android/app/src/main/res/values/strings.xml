@@ -139,6 +139,19 @@
     <string name="before_you_start_description">Lockbook <a href="https://en.wikipedia.org/wiki/End-to-end_encryption">encrypts</a> your notes with a key that stays on your Lockbook devices. This makes your notes unreadable to anyone but you. If you lose the key, your notes are not recoverable, so we recommend you make a backup in case something happens to this device.</string>
     <string name="drawing_parse_error">Could not open drawing.</string>
 
+    <string name="free_space">%1$s used out of %2$s</string>
+    <string name="last_sync">Synced %s</string>
+
+    <plurals name="files_to_push">
+        <item quantity="one">%d file to push</item>
+        <item quantity="other">%d files to push</item>
+    </plurals>
+
+    <plurals name="files_to_pull">
+        <item quantity="one">%d file to pull</item>
+        <item quantity="other">%d files to pull</item>
+    </plurals>
+
     <!-- Errors -->
     <string name="no_account">You have no account.</string>
     <string name="could_not_reach_server">Offline.</string>

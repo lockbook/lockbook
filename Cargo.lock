@@ -2301,7 +2301,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-core"
-version = "0.4.2"
+version = "0.4.1"
 dependencies = [
  "backtrace",
  "base64 0.11.0",

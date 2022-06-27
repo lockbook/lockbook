@@ -48,7 +48,12 @@ data class WorkCalculated(
 )
 
 @Serializable
-data class WorkUnit(val content: WorkUnitMetadata, val tag: String)
+data class WorkUnit(val content: WorkUnitMetadata, val tag: WorkUnitTag)
+
+enum class WorkUnitTag {
+    LocalChange,
+    ServerChange
+}
 
 @Serializable
 data class WorkUnitMetadata(val metadata: DecryptedFileMetadata)

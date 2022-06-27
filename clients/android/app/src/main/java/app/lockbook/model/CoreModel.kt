@@ -33,6 +33,20 @@ object CoreModel {
         }
     }
 
+    private fun <O> SerializersModuleBuilder.createPolyRelationEmptyError(
+        okSerializer: KSerializer<O>,
+    ) {
+        polymorphic(IntermCoreResult::class) {
+            subclass(IntermCoreResult.CoreOk.serializer(okSerializer))
+            subclass(IntermCoreResult.CoreErr.serializer(Unit.serializer()))
+        }
+
+        polymorphic(IntermCoreError::class) {
+            subclass(IntermCoreError.UiError.serializer(Unit.serializer()))
+            subclass(IntermCoreError.Unexpected.serializer())
+        }
+    }
+
     private inline fun <reified C, reified E> Json.tryParse(
         json: String,
         isNullable: Boolean = false
@@ -359,5 +373,16 @@ object CoreModel {
         getSubscriptionInfoParser.tryParse(
             app.lockbook.core.getSubscriptionInfo(),
             true
+        )
+
+    private val getLocalChangesParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(ListSerializer(String.serializer()), Empty.serializer())
+        }
+    }
+
+    fun getLocalChanges(): Result<List<String>, CoreError<Empty>> =
+        getLocalChangesParser.tryParse(
+            app.lockbook.core.getLocalChanges()
         )
 }

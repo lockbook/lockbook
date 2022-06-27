@@ -108,6 +108,7 @@ dependencies {
     implementation "com.github.MikeOrtiz:TouchImageView:$image_viewer_version"
     implementation "com.github.mhiew:android-pdf-viewer:$pdf_viewer_version"
     implementation "com.leinardi.android:speed-dial:$fab_speed_dial"
+    implementation("app.futured.donut:donut:$donut_chart_version")
 
     implementation project(':core')
 }

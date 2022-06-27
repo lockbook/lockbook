@@ -89,6 +89,7 @@ interface UiCoreError {
     fun toLbError(res: Resources): LbError
 }
 
+@Serializable
 enum class Empty : UiCoreError
 
 @Serializable
