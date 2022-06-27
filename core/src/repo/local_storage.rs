@@ -77,7 +77,7 @@ where
     Ok(())
 }
 
-fn namespace_path<N>(db: &Config, namespace: N) -> String
+pub fn namespace_path<N>(db: &Config, namespace: N) -> String
 where
     N: AsRef<[u8]>,
 {

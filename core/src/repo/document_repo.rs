@@ -10,7 +10,7 @@ use crate::{Config, CoreError};
 const NAMESPACE_LOCAL: &str = "changed_local_documents";
 const NAMESPACE_BASE: &str = "all_base_documents";
 
-fn namespace(source: RepoSource) -> &'static str {
+pub fn namespace(source: RepoSource) -> &'static str {
     match source {
         RepoSource::Local => NAMESPACE_LOCAL,
         RepoSource::Base => NAMESPACE_BASE,
