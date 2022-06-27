@@ -185,12 +185,6 @@ pub fn save_document_to_disk(document: &[u8], location: String) -> Result<(), Co
     Ok(())
 }
 
-pub fn find_state<Fm: FileMetadata>(
-    files: &[RepoState<Fm>], target_id: Uuid,
-) -> Result<RepoState<Fm>, CoreError> {
-    maybe_find_state(files, target_id).ok_or(CoreError::FileNonexistent)
-}
-
 pub fn maybe_find_state<Fm: FileMetadata>(
     files: &[RepoState<Fm>], target_id: Uuid,
 ) -> Option<RepoState<Fm>> {
