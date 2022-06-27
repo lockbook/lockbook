@@ -15,14 +15,6 @@ use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
 use crate::model::filename::NameComponents;
 use crate::{model::repo::RepoState, CoreError};
 
-pub fn single_or<T, E>(v: Vec<T>, e: E) -> Result<T, E> {
-    let mut v = v;
-    match &v[..] {
-        [_v0] => Ok(v.remove(0)),
-        _ => Err(e),
-    }
-}
-
 pub fn create(
     file_type: FileType, parent: Uuid, name: &str, owner: &PublicKey,
 ) -> DecryptedFileMetadata {
