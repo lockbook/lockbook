@@ -9,6 +9,8 @@ pub mod pure_functions;
 pub mod repo;
 pub mod service;
 
+pub use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
+
 pub use crate::model::errors::*;
 pub use crate::pure_functions::drawing::SupportedImageFormats;
 

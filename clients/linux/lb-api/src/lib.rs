@@ -9,8 +9,8 @@ pub use lockbook_models::crypto::DecryptedDocument;
 pub use lockbook_models::drawing::{ColorAlias, ColorRGB};
 pub use lockbook_models::file_metadata::DecryptedFileMetadata as FileMetadata;
 pub use lockbook_models::file_metadata::FileType;
-pub use lockbook_models::work_unit::ClientWorkUnit;
 
+pub use lockbook_core::ClientWorkUnit;
 pub use lockbook_core::Config;
 pub use lockbook_core::CoreError;
 pub use lockbook_core::Error;
