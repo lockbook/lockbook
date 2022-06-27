@@ -2,7 +2,7 @@ extern crate chrono;
 extern crate log;
 extern crate tokio;
 
-use deadpool_redis::Runtime;
+
 use hmdb::log::Reader;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::config::Config;
@@ -21,11 +21,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     loggers::init(&cfg);
 
     let config = cfg.clone();
-    let files_db_client = file_content_client::create_client(&cfg.files_location)
-        .expect("Failed to create files_db client");
-    let index_db_pool = deadpool_redis::Config::from_url(&cfg.index_db.redis_url)
-        .create_pool(Some(Runtime::Tokio1))
-        .unwrap();
     let stripe_client = stripe::Client::new(&cfg.billing.stripe.stripe_secret);
     let google_play_client = get_google_play_client(&cfg.billing.google.service_account_key).await;
     let index_db = ServerV1::init(&cfg.index_db.db_location).expect("Failed to load index_db");

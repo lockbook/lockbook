@@ -1,6 +1,6 @@
 use crate::config::Environment::{Local, Prod, Unknown};
 use std::fmt::Display;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 use std::{env, fmt};
 
