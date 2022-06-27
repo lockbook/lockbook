@@ -35,16 +35,12 @@ impl Config {
 
 #[derive(Clone)]
 pub struct IndexDbConf {
-    pub redis_url: String,
     pub db_location: String,
 }
 
 impl IndexDbConf {
     pub fn from_env_vars() -> Self {
-        Self {
-            redis_url: env_or_panic("INDEX_DB_REDIS_URL"),
-            db_location: env_or_panic("INDEX_DB_LOCATION"),
-        }
+        Self { db_location: env_or_panic("INDEX_DB_LOCATION") }
     }
 }
 

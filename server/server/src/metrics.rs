@@ -8,11 +8,8 @@ use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use log::{error, info};
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
-use redis::{AsyncCommands};
-
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::fmt::Debug;
-
 
 use uuid::Uuid;
 
