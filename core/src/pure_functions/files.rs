@@ -15,14 +15,6 @@ use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
 use crate::model::filename::NameComponents;
 use crate::{model::repo::RepoState, CoreError};
 
-pub fn single_or<T, E>(v: Vec<T>, e: E) -> Result<T, E> {
-    let mut v = v;
-    match &v[..] {
-        [_v0] => Ok(v.remove(0)),
-        _ => Err(e),
-    }
-}
-
 pub fn create(
     file_type: FileType, parent: Uuid, name: &str, owner: &PublicKey,
 ) -> DecryptedFileMetadata {
@@ -193,12 +185,6 @@ pub fn save_document_to_disk(document: &[u8], location: String) -> Result<(), Co
     Ok(())
 }
 
-pub fn find_state<Fm: FileMetadata>(
-    files: &[RepoState<Fm>], target_id: Uuid,
-) -> Result<RepoState<Fm>, CoreError> {
-    maybe_find_state(files, target_id).ok_or(CoreError::FileNonexistent)
-}
-
 pub fn maybe_find_state<Fm: FileMetadata>(
     files: &[RepoState<Fm>], target_id: Uuid,
 ) -> Option<RepoState<Fm>> {
@@ -222,14 +208,6 @@ pub fn find_ancestors<Fm: FileMetadata>(
         current_target_id = target.parent();
     }
     result
-}
-
-pub fn find_children<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Vec<Fm> {
-    files
-        .iter()
-        .filter(|f| f.parent() == target_id && f.id() != f.parent())
-        .cloned()
-        .collect()
 }
 
 pub fn find_with_descendants<Fm: FileMetadata>(
