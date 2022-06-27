@@ -54,16 +54,6 @@ pub fn maybe_get(
 }
 
 #[instrument(level = "debug", skip(config), err(Debug))]
-pub fn get_all(config: &Config, source: RepoSource) -> Result<Vec<EncryptedDocument>, CoreError> {
-    Ok(local_storage::dump::<_, Vec<u8>>(config, namespace(source))?
-        .into_iter()
-        .map(|s| bincode::deserialize(s.as_ref()).map_err(core_err_unexpected))
-        .collect::<Result<Vec<EncryptedDocument>, CoreError>>()?
-        .into_iter()
-        .collect())
-}
-
-#[instrument(level = "debug", skip(config), err(Debug))]
 pub fn delete(config: &Config, source: RepoSource, id: Uuid) -> Result<(), CoreError> {
     local_storage::delete(config, namespace(source), id.to_string().as_str())
 }
