@@ -210,14 +210,6 @@ pub fn find_ancestors<Fm: FileMetadata>(
     result
 }
 
-pub fn find_children<Fm: FileMetadata>(files: &[Fm], target_id: Uuid) -> Vec<Fm> {
-    files
-        .iter()
-        .filter(|f| f.parent() == target_id && f.id() != f.parent())
-        .cloned()
-        .collect()
-}
-
 pub fn find_with_descendants<Fm: FileMetadata>(
     files: &HashMap<Uuid, Fm>, target_id: Uuid,
 ) -> Result<HashMap<Uuid, Fm>, CoreError> {
