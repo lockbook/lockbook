@@ -362,6 +362,10 @@ pub fn assert_dbs_eq(left: &Core, right: &Core) {
         &doc_repo_get_all(&left.config, RepoSource::Local),
         &doc_repo_get_all(&right.config, RepoSource::Local),
     ));
+    assert!(slices_equal_ignore_order(
+        &doc_repo_get_all(&left.config, RepoSource::Base),
+        &doc_repo_get_all(&right.config, RepoSource::Base),
+    ));
 }
 
 /// https://stackoverflow.com/questions/58615910/checking-two-hashmaps-for-identical-keyset-in-rust
@@ -391,6 +395,10 @@ pub fn dbs_equal(left: &Core, right: &Core) -> bool {
         && slices_equal_ignore_order(
             &doc_repo_get_all(&left.config, RepoSource::Local),
             &doc_repo_get_all(&right.config, RepoSource::Local),
+        )
+        && slices_equal_ignore_order(
+            &doc_repo_get_all(&left.config, RepoSource::Base),
+            &doc_repo_get_all(&right.config, RepoSource::Base),
         )
 }
 
