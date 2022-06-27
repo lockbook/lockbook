@@ -4,38 +4,40 @@ extern crate reqwest;
 #[macro_use]
 extern crate tracing;
 
-use crate::model::errors::*;
-use crate::model::repo::RepoSource;
-use crate::path_service::Filter;
-use crate::pure_functions::drawing::SupportedImageFormats;
-use crate::repo::schema::{transaction, CoreV1, OneKey, Tx};
-use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
-use crate::service::search_service::SearchResultItem;
-use crate::service::sync_service::SyncProgress;
-use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
-use crate::service::{path_service, sync_service};
-use crate::sync_service::WorkCalculated;
+pub use model::errors::{CoreError, Error, UnexpectedError};
+
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex, MutexGuard};
+
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
+use serde::Deserialize;
+use serde_json::{json, value::Value};
+use strum::IntoEnumIterator;
+use uuid::Uuid;
+
 use lockbook_crypto::clock_service;
 use lockbook_models::account::Account;
 use lockbook_models::api::{StripeAccountTier, SubscriptionInfo};
 use lockbook_models::crypto::{AESKey, DecryptedDocument};
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
-use model::errors::Error::UiError;
-pub use model::errors::{CoreError, Error, UnexpectedError};
-use serde::Deserialize;
-use serde_json::{json, value::Value};
-use service::log_service;
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex, MutexGuard};
-use strum::IntoEnumIterator;
-use uuid::Uuid;
+
+use crate::model::errors::Error::UiError;
+use crate::model::errors::*;
+use crate::model::repo::RepoSource;
+use crate::pure_functions::drawing::SupportedImageFormats;
+use crate::repo::schema::{transaction, CoreV1, OneKey, Tx};
+use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
+use crate::service::log_service;
+use crate::service::path_service::Filter;
+use crate::service::search_service::SearchResultItem;
+use crate::service::sync_service::{SyncProgress, WorkCalculated};
+use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
