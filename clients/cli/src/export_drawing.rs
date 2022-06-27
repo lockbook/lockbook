@@ -1,8 +1,8 @@
 use std::io;
 use std::io::Write;
 
-use lockbook_core::model::errors::ExportDrawingError;
-use lockbook_core::model::errors::GetFileByPathError;
+use lockbook_core::ExportDrawingError;
+use lockbook_core::GetFileByPathError;
 use lockbook_core::pure_functions::drawing::SupportedImageFormats;
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;

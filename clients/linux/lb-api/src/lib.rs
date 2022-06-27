@@ -20,27 +20,27 @@ pub use lockbook_core::UnexpectedError;
 pub use lockbook_core::Uuid;
 pub use lockbook_core::DEFAULT_API_LOCATION;
 
-pub use lockbook_core::model::errors::AccountExportError as ExportAccountError;
-pub use lockbook_core::model::errors::CalculateWorkError;
-pub use lockbook_core::model::errors::CreateAccountError;
-pub use lockbook_core::model::errors::CreateFileError;
-pub use lockbook_core::model::errors::ExportDrawingError;
-pub use lockbook_core::model::errors::ExportFileError;
-pub use lockbook_core::model::errors::FileDeleteError;
-pub use lockbook_core::model::errors::GetAndGetChildrenError;
-pub use lockbook_core::model::errors::GetFileByIdError;
-pub use lockbook_core::model::errors::GetFileByPathError;
-pub use lockbook_core::model::errors::GetRootError;
-pub use lockbook_core::model::errors::GetSubscriptionInfoError;
-pub use lockbook_core::model::errors::GetUsageError;
-pub use lockbook_core::model::errors::ImportError as ImportAccountError;
-pub use lockbook_core::model::errors::ImportFileError;
-pub use lockbook_core::model::errors::MoveFileError;
-pub use lockbook_core::model::errors::ReadDocumentError;
-pub use lockbook_core::model::errors::RenameFileError;
-pub use lockbook_core::model::errors::SyncAllError;
-pub use lockbook_core::model::errors::UpgradeAccountStripeError;
-pub use lockbook_core::model::errors::WriteToDocumentError as WriteDocumentError;
+pub use lockbook_core::AccountExportError as ExportAccountError;
+pub use lockbook_core::CalculateWorkError;
+pub use lockbook_core::CreateAccountError;
+pub use lockbook_core::CreateFileError;
+pub use lockbook_core::ExportDrawingError;
+pub use lockbook_core::ExportFileError;
+pub use lockbook_core::FileDeleteError;
+pub use lockbook_core::GetAndGetChildrenError;
+pub use lockbook_core::GetFileByIdError;
+pub use lockbook_core::GetFileByPathError;
+pub use lockbook_core::GetRootError;
+pub use lockbook_core::GetSubscriptionInfoError;
+pub use lockbook_core::GetUsageError;
+pub use lockbook_core::ImportError as ImportAccountError;
+pub use lockbook_core::ImportFileError;
+pub use lockbook_core::MoveFileError;
+pub use lockbook_core::ReadDocumentError;
+pub use lockbook_core::RenameFileError;
+pub use lockbook_core::SyncAllError;
+pub use lockbook_core::UpgradeAccountStripeError;
+pub use lockbook_core::WriteToDocumentError as WriteDocumentError;
 
 pub use lockbook_core::pure_functions::drawing::SupportedImageFormats;
 
@@ -188,7 +188,7 @@ impl Api for DefaultApi {
         match self.core.get_account() {
             Ok(acct) => Ok(Some(acct)),
             Err(err) => match err {
-                Error::UiError(lockbook_core::model::errors::GetAccountError::NoAccount) => {
+                Error::UiError(lockbook_core::GetAccountError::NoAccount) => {
                     Ok(None)
                 }
                 Error::Unexpected(msg) => Err(msg),

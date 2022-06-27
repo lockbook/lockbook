@@ -2,7 +2,7 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
-use lockbook_core::model::errors::GetAccountError;
+use lockbook_core::GetAccountError;
 use lockbook_core::Error as LbError;
 use lockbook_core::UnexpectedError;
 

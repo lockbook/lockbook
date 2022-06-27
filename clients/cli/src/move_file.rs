@@ -1,5 +1,5 @@
-use lockbook_core::model::errors::GetFileByPathError;
-use lockbook_core::model::errors::MoveFileError;
+use lockbook_core::GetFileByPathError;
+use lockbook_core::MoveFileError;
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
 

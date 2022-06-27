@@ -1,8 +1,8 @@
 use std::fs;
 use std::io::Write;
 
-use lockbook_core::model::errors::GetFileByPathError;
-use lockbook_core::model::errors::ReadDocumentError;
+use lockbook_core::GetFileByPathError;
+use lockbook_core::ReadDocumentError;
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
 

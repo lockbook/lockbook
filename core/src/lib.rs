@@ -4,9 +4,8 @@ extern crate reqwest;
 #[macro_use]
 extern crate tracing;
 
+pub use crate::model::errors::*;
 pub use uuid::Uuid;
-
-pub use model::errors::{CoreError, Error, UnexpectedError};
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -29,7 +28,6 @@ use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 
 use crate::model::errors::Error::UiError;
-use crate::model::errors::*;
 use crate::model::repo::RepoSource;
 use crate::pure_functions::drawing::SupportedImageFormats;
 use crate::repo::schema::{transaction, CoreV1, OneKey, Tx};

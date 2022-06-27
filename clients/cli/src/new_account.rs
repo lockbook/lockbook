@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::{env, io};
 
-use lockbook_core::model::errors::CreateAccountError;
+use lockbook_core::CreateAccountError;
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
 

@@ -3,8 +3,8 @@ use std::{env, fs};
 
 use chrono::{DateTime, Utc};
 
-use lockbook_core::model::errors::ExportFileError;
-use lockbook_core::model::errors::GetRootError;
+use lockbook_core::ExportFileError;
+use lockbook_core::GetRootError;
 use lockbook_core::service::path_service::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
