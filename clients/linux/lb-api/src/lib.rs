@@ -42,7 +42,7 @@ pub use lockbook_core::SyncAllError;
 pub use lockbook_core::UpgradeAccountStripeError;
 pub use lockbook_core::WriteToDocumentError as WriteDocumentError;
 
-pub use lockbook_core::pure_functions::drawing::SupportedImageFormats;
+pub use lockbook_core::SupportedImageFormats;
 
 pub use lockbook_core::service::billing_service::CreditCardLast4Digits;
 pub use lockbook_core::service::import_export_service::ImportExportFileInfo;

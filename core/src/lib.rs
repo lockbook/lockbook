@@ -10,6 +10,8 @@ pub mod repo;
 pub mod service;
 
 pub use crate::model::errors::*;
+pub use crate::pure_functions::drawing::SupportedImageFormats;
+
 pub use uuid::Uuid;
 
 use std::collections::HashMap;
@@ -34,7 +36,6 @@ use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 
 use crate::model::errors::Error::UiError;
 use crate::model::repo::RepoSource;
-use crate::pure_functions::drawing::SupportedImageFormats;
 use crate::repo::schema::{transaction, CoreV1, OneKey, Tx};
 use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
 use crate::service::log_service;
