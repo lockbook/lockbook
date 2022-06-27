@@ -8,9 +8,6 @@ command -V mc
 
 projRoot=`git rev-parse --show-toplevel`
 
-cd $projRoot/server/server
-cargo build $@
-
 cd $projRoot
 if [ -z "$DATA_DIR" ]; then
 	DATA_DIR="/tmp/lbdev"

@@ -1,4 +1,4 @@
-use crate::{keys, ServerError, ServerState};
+use crate::{ServerError, ServerState};
 use lockbook_models::crypto::EncryptedDocument;
 use std::fmt::Debug;
 use std::path::PathBuf;
@@ -18,9 +18,7 @@ pub(crate) async fn insert<T: Debug>(
 pub(crate) async fn get<T: Debug>(
     state: &ServerState, id: Uuid, content_version: u64,
 ) -> Result<EncryptedDocument, ServerError<T>> {
-    let mut file = File::open(get_path(state, id, content_version))
-        .await
-        .unwrap();
+    let mut file = File::open(get_path(state, id, content_version)).await?;
     let mut content = vec![];
     file.read_to_end(&mut content).await?;
     let content = bincode::deserialize(&content)?;
@@ -30,14 +28,15 @@ pub(crate) async fn get<T: Debug>(
 pub(crate) async fn delete<T: Debug>(
     state: &ServerState, id: Uuid, content_version: u64,
 ) -> Result<(), ServerError<T>> {
-    remove_file(get_path(state, id, content_version)).await?;
-
+    if content_version != 0 {
+        remove_file(get_path(state, id, content_version)).await?;
+    }
     Ok(())
 }
 
 fn get_path(state: &ServerState, id: Uuid, content_version: u64) -> PathBuf {
-    let key = keys::doc(id, content_version);
     let mut path = state.config.files.path.clone();
-    path.push(key);
+    path.push(format!("{}-{}", id, content_version));
+    println!("{}", path.display());
     path
 }

@@ -8,7 +8,7 @@ use crate::billing::{google_play_client, google_play_service, stripe_client, str
 use crate::schema::Account;
 use crate::ServerError::ClientError;
 use crate::{
-    account_service, keys, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE,
+    account_service, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE,
     PREMIUM_TIER_USAGE_SIZE,
 };
 use base64::DecodeError;
@@ -50,7 +50,7 @@ fn lock_subscription_profile(
         if current_time - account.billing_info.last_in_payment_flow < state.config.billing.millis_between_user_payment_flows {
             warn!(
                 "User/Webhook is already in payment flow, or not enough time that has elapsed since a failed attempt. public_key: {}",
-                keys::stringify_public_key(public_key)
+                stringify_public_key(public_key)
             );
 
             return Err(ClientError(ExistingRequestPending));
@@ -61,7 +61,7 @@ fn lock_subscription_profile(
 
         info!(
         "User successfully entered payment flow. public_key: {}",
-        keys::stringify_public_key(public_key)
+        stringify_public_key(public_key)
     );
 
         Ok(account)
@@ -327,7 +327,7 @@ pub async fn stripe_webhooks(
 
                 info!(
                     "User's tier is being reduced due to failed renewal payment in stripe. public_key: {}",
-                    keys::stringify_public_key(&public_key)
+                    stringify_public_key(&public_key)
                 );
 
                 save_subscription_profile(server_state, &public_key, |account| {
@@ -343,7 +343,7 @@ pub async fn stripe_webhooks(
 
                 info!(
                     "User's subscription period_end is being changed after successful renewal. public_key: {}",
-                    keys::stringify_public_key(&public_key)
+                    stringify_public_key(&public_key)
                 );
 
                 let subscription_period_end = match &invoice.subscription {
@@ -506,4 +506,8 @@ pub async fn google_play_notification_webhooks(
     }
 
     Ok(())
+}
+
+pub fn stringify_public_key(pk: &PublicKey) -> String {
+    base64::encode(pk.serialize_compressed())
 }

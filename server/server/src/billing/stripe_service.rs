@@ -1,6 +1,7 @@
 use crate::billing::billing_model::StripeUserInfo;
+use crate::billing::billing_service::stringify_public_key;
 use crate::billing::stripe_client;
-use crate::{keys, StripeWebhookError};
+use crate::StripeWebhookError;
 use crate::{ClientError, ServerError, ServerState};
 use google_androidpublisher3::hyper::body::Bytes;
 use google_androidpublisher3::hyper::header::HeaderValue;
@@ -53,7 +54,7 @@ pub async fn create_subscription(
                 None => {
                     info!(
                         "User has no customer_id. Creating one with stripe now. public_key: {}",
-                        keys::stringify_public_key(public_key)
+                        stringify_public_key(public_key)
                     );
 
                     let customer_name = Uuid::new_v4();
