@@ -24,7 +24,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
     lateinit var fileModel: FileModel
 
-    val selectableFiles = emptySelectableDataSourceTyped<DecryptedFileMetadata>()
+    val selectableFiles = emptySelectableDataSourceTyped<FileViewHolderInfo>()
     var breadcrumbItems = listOf<BreadCrumbItem>()
 
     val syncModel = SyncModel()
@@ -69,7 +69,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
             }
 
             viewModelScope.launch(Dispatchers.Main) {
-                selectableFiles.set(fileModel.children)
+                selectableFiles.set(fileModel.children.intoViewHolderInfo())
             }
 
             breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
@@ -86,7 +86,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
             }
 
             viewModelScope.launch(Dispatchers.Main) {
-                selectableFiles.set(fileModel.children)
+                selectableFiles.set(fileModel.children.intoViewHolderInfo())
             }
 
             breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
@@ -103,7 +103,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
             }
 
             viewModelScope.launch(Dispatchers.Main) {
-                selectableFiles.set(fileModel.children)
+                selectableFiles.set(fileModel.children.intoViewHolderInfo())
             }
 
             breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
@@ -185,7 +185,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
         viewModelScope.launch(Dispatchers.Main) {
             selectableFiles.deselectAll()
-            selectableFiles.set(fileModel.children)
+            selectableFiles.set(fileModel.children.intoViewHolderInfo())
 
             _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
         }
@@ -193,7 +193,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun changeFileSort(newSortStyle: SortStyle) {
         fileModel.setSortStyle(newSortStyle)
-        selectableFiles.set(fileModel.children)
+        selectableFiles.set(fileModel.children.intoViewHolderInfo())
 
         PreferenceManager.getDefaultSharedPreferences(getContext()).edit().putString(getString(R.string.sort_files_key), getString(newSortStyle.toStringResource())).apply()
     }
