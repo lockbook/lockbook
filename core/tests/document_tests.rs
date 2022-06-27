@@ -1,13 +1,9 @@
-use std::fs;
-use std::path::Path;
-
 use uuid::Uuid;
 
 use lockbook_core::model::repo::RepoSource;
-use lockbook_core::repo::{document_repo, local_storage};
-use lockbook_core::Config;
+use lockbook_core::repo::document_repo;
 use lockbook_crypto::symkey;
-use lockbook_models::crypto::{AESEncrypted, EncryptedDocument};
+use lockbook_models::crypto::AESEncrypted;
 use test_utils::*;
 
 #[test]
@@ -92,7 +88,7 @@ fn insert_get_all() {
     let (id_5, document_5) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document_5").into_bytes()).unwrap());
     document_repo::insert(config, RepoSource::Local, id_5, &document_5).unwrap();
-    let result = doc_repo_get_all(config, RepoSource::Local);
+    let result = test_utils::doc_repo_get_all(config, RepoSource::Local);
 
     let mut expectation = vec![
         (id, document),
@@ -117,7 +113,7 @@ fn insert_get_all_different_source() {
     let (id, document) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
     document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
-    let result = doc_repo_get_all(config, RepoSource::Base);
+    let result = test_utils::doc_repo_get_all(config, RepoSource::Base);
 
     assert_eq!(result, Vec::<AESEncrypted<Vec<u8>>>::new());
 }
@@ -145,7 +141,7 @@ fn insert_delete_all() {
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
     document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
     document_repo::delete_all(config, RepoSource::Local).unwrap();
-    let result = doc_repo_get_all(config, RepoSource::Local);
+    let result = test_utils::doc_repo_get_all(config, RepoSource::Local);
 
     assert_eq!(result, Vec::<AESEncrypted<Vec<u8>>>::new());
 }
@@ -159,44 +155,7 @@ fn insert_delete_all_different_source() {
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
     document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
     document_repo::delete_all(config, RepoSource::Base).unwrap();
-    let result = doc_repo_get_all(config, RepoSource::Local);
+    let result = test_utils::doc_repo_get_all(config, RepoSource::Local);
 
     assert_eq!(result, vec![document]);
-}
-
-fn doc_repo_get_all(config: &Config, source: RepoSource) -> Vec<EncryptedDocument> {
-    local_storage_dump::<_, Vec<u8>>(config, document_repo::namespace(source))
-        .into_iter()
-        .map(|s| bincode::deserialize(s.as_ref()).unwrap())
-        .collect::<Vec<EncryptedDocument>>()
-        .into_iter()
-        .collect()
-}
-
-fn local_storage_dump<N, V>(db: &Config, namespace: N) -> Vec<V>
-where
-    N: AsRef<[u8]> + Copy,
-    V: From<Vec<u8>>,
-{
-    let path_str = local_storage::namespace_path(db, namespace);
-    let path = Path::new(&path_str);
-
-    match fs::read_dir(path) {
-        Ok(rd) => {
-            let mut file_names = rd
-                .map(|dir_entry| dir_entry.unwrap().file_name().into_string().unwrap())
-                .collect::<Vec<String>>();
-            file_names.sort();
-
-            file_names
-                .iter()
-                .map(|file_name| {
-                    local_storage::read(db, namespace, file_name)
-                        .unwrap()
-                        .unwrap()
-                })
-                .collect::<Vec<V>>()
-        }
-        Err(_) => Vec::new(),
-    }
 }
