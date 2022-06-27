@@ -1,9 +1,10 @@
+use uuid::Uuid;
+
 use lockbook_core::model::repo::RepoSource;
 use lockbook_core::repo::document_repo;
 use lockbook_crypto::symkey;
 use lockbook_models::crypto::AESEncrypted;
 use test_utils::*;
-use uuid::Uuid;
 
 #[test]
 fn get() {
@@ -87,7 +88,7 @@ fn insert_get_all() {
     let (id_5, document_5) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document_5").into_bytes()).unwrap());
     document_repo::insert(config, RepoSource::Local, id_5, &document_5).unwrap();
-    let result = document_repo::get_all(config, RepoSource::Local).unwrap();
+    let result = test_utils::doc_repo_get_all(config, RepoSource::Local);
 
     let mut expectation = vec![
         (id, document),
@@ -112,7 +113,7 @@ fn insert_get_all_different_source() {
     let (id, document) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
     document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
-    let result = document_repo::get_all(config, RepoSource::Base).unwrap();
+    let result = test_utils::doc_repo_get_all(config, RepoSource::Base);
 
     assert_eq!(result, Vec::<AESEncrypted<Vec<u8>>>::new());
 }
@@ -140,7 +141,7 @@ fn insert_delete_all() {
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
     document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
     document_repo::delete_all(config, RepoSource::Local).unwrap();
-    let result = document_repo::get_all(config, RepoSource::Local).unwrap();
+    let result = test_utils::doc_repo_get_all(config, RepoSource::Local);
 
     assert_eq!(result, Vec::<AESEncrypted<Vec<u8>>>::new());
 }
@@ -154,7 +155,7 @@ fn insert_delete_all_different_source() {
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
     document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
     document_repo::delete_all(config, RepoSource::Base).unwrap();
-    let result = document_repo::get_all(config, RepoSource::Local).unwrap();
+    let result = test_utils::doc_repo_get_all(config, RepoSource::Local);
 
     assert_eq!(result, vec![document]);
 }
