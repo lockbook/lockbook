@@ -3324,7 +3324,8 @@ fn deleted_path_is_released() {
     db1.create_at_path(&path(&db1, "file1.md")).unwrap();
     db1.sync(None).unwrap();
 
-    test_core_from(&db1);
+    let db2 = test_core_from(&db1);
+    db2.sync(None).unwrap();
 }
 
 // this case did not actually get the fuzzer stuck and was written while reproducing the issue
