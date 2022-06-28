@@ -2,7 +2,6 @@ use std::cell::Cell;
 use std::io::Write;
 use std::path::PathBuf;
 
-use lockbook_core::service::import_export_service::ImportStatus;
 use lockbook_core::Core;
 use lockbook_core::CoreError;
 use lockbook_core::CreateFileAtPathError;
@@ -10,6 +9,7 @@ use lockbook_core::DecryptedFileMetadata;
 use lockbook_core::Error as LbError;
 use lockbook_core::GetFileByPathError;
 use lockbook_core::ImportFileError;
+use lockbook_core::ImportStatus;
 
 use crate::error::CliError;
 
