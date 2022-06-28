@@ -329,18 +329,31 @@ where
     fn get_path_conflicts(
         &self, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<PathConflict>, TreeError> {
+        let files = self
+            .clone()
+            .stage(staged_changes.clone())
+            .filter_not_deleted()?;
         let files_with_sources = self.stage_with_source(staged_changes);
         let mut name_tree: HashMap<Uuid, HashMap<Fm::Name, Uuid>> = HashMap::new();
         let mut result = Vec::new();
 
-        for (id, (f, source)) in files_with_sources.iter() {
+        for (id, f) in files {
+            let source = files_with_sources
+                .get(&id)
+                .ok_or_else(|| {
+                    TreeError::Unexpected(
+                        "get_path_conflicts: could not find source by id".to_string(),
+                    )
+                })?
+                .clone()
+                .1;
             let parent_id = f.parent();
             if f.is_root() {
                 continue;
             };
             let name = f.name();
             let parent_children = name_tree.entry(parent_id).or_insert_with(HashMap::new);
-            let cloned_id = *id;
+            let cloned_id = id;
 
             if let Some(conflicting_child_id) = parent_children.get(&name) {
                 match source {
