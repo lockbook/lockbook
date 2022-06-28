@@ -8,8 +8,6 @@ use lockbook_models::api::{
     UpgradeAccountGooglePlayRequest, UpgradeAccountStripeError, UpgradeAccountStripeRequest,
 };
 
-pub type CreditCardLast4Digits = String;
-
 impl RequestContext<'_, '_> {
     pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> Result<(), CoreError> {
         let account = self.get_account()?;

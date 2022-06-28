@@ -1,7 +1,6 @@
-use uuid::Uuid;
-
-use lockbook_core::model::errors::{TestRepoError, Warning};
 use lockbook_core::Core;
+use lockbook_core::Uuid;
+use lockbook_core::{TestRepoError, Warning};
 
 use crate::error::CliError;
 

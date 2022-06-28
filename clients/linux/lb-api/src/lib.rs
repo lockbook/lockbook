@@ -1,59 +1,12 @@
 mod search;
 
-pub use uuid::Uuid;
-
-pub use lockbook_models::account::Account;
-pub use lockbook_models::api::PaymentMethod;
-pub use lockbook_models::api::PaymentPlatform;
-pub use lockbook_models::api::StripeAccountTier;
-pub use lockbook_models::api::SubscriptionInfo;
-pub use lockbook_models::crypto::DecryptedDocument;
-pub use lockbook_models::drawing::{ColorAlias, ColorRGB};
-pub use lockbook_models::file_metadata::DecryptedFileMetadata as FileMetadata;
-pub use lockbook_models::file_metadata::FileType;
-pub use lockbook_models::work_unit::ClientWorkUnit;
-
-pub use lockbook_core::Config;
-pub use lockbook_core::CoreError;
-pub use lockbook_core::Error;
+pub use lockbook_core::AccountExportError as ExportAccountError;
+pub use lockbook_core::DecryptedFileMetadata as FileMetadata;
 pub use lockbook_core::Error::UiError;
 pub use lockbook_core::Error::Unexpected;
-pub use lockbook_core::UnexpectedError;
-pub use lockbook_core::DEFAULT_API_LOCATION;
-
-pub use lockbook_core::model::errors::AccountExportError as ExportAccountError;
-pub use lockbook_core::model::errors::CalculateWorkError;
-pub use lockbook_core::model::errors::CreateAccountError;
-pub use lockbook_core::model::errors::CreateFileError;
-pub use lockbook_core::model::errors::ExportDrawingError;
-pub use lockbook_core::model::errors::ExportFileError;
-pub use lockbook_core::model::errors::FileDeleteError;
-pub use lockbook_core::model::errors::GetAndGetChildrenError;
-pub use lockbook_core::model::errors::GetFileByIdError;
-pub use lockbook_core::model::errors::GetFileByPathError;
-pub use lockbook_core::model::errors::GetRootError;
-pub use lockbook_core::model::errors::GetSubscriptionInfoError;
-pub use lockbook_core::model::errors::GetUsageError;
-pub use lockbook_core::model::errors::ImportError as ImportAccountError;
-pub use lockbook_core::model::errors::ImportFileError;
-pub use lockbook_core::model::errors::MoveFileError;
-pub use lockbook_core::model::errors::ReadDocumentError;
-pub use lockbook_core::model::errors::RenameFileError;
-pub use lockbook_core::model::errors::SyncAllError;
-pub use lockbook_core::model::errors::UpgradeAccountStripeError;
-pub use lockbook_core::model::errors::WriteToDocumentError as WriteDocumentError;
-
-pub use lockbook_core::pure_functions::drawing::SupportedImageFormats;
-
-pub use lockbook_core::service::billing_service::CreditCardLast4Digits;
-pub use lockbook_core::service::import_export_service::ImportExportFileInfo;
-pub use lockbook_core::service::import_export_service::ImportStatus;
-pub use lockbook_core::service::path_service::Filter;
-pub use lockbook_core::service::sync_service::SyncProgress;
-pub use lockbook_core::service::sync_service::WorkCalculated;
-pub use lockbook_core::service::usage_service::bytes_to_human;
-pub use lockbook_core::service::usage_service::UsageItemMetric;
-pub use lockbook_core::service::usage_service::UsageMetrics;
+pub use lockbook_core::ImportError as ImportAccountError;
+pub use lockbook_core::WriteToDocumentError as WriteDocumentError;
+pub use lockbook_core::*;
 
 pub use search::SearchResultItem;
 pub use search::Searcher;
@@ -64,10 +17,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use lockbook_models::tree::FileMetadata as FileMetadataExt;
-
 use lockbook_core::model::filename::NameComponents;
-use lockbook_core::Core;
+use lockbook_core::FileMetadata as FileMetadataExt;
 
 pub trait Api: Send + Sync {
     fn create_account(
@@ -189,9 +140,7 @@ impl Api for DefaultApi {
         match self.core.get_account() {
             Ok(acct) => Ok(Some(acct)),
             Err(err) => match err {
-                Error::UiError(lockbook_core::model::errors::GetAccountError::NoAccount) => {
-                    Ok(None)
-                }
+                Error::UiError(lockbook_core::GetAccountError::NoAccount) => Ok(None),
                 Error::Unexpected(msg) => Err(msg),
             },
         }

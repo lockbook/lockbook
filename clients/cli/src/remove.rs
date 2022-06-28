@@ -1,12 +1,12 @@
 use std::io;
 use std::io::Write;
 
-use lockbook_core::model::errors::FileDeleteError;
-use lockbook_core::model::errors::GetAndGetChildrenError;
-use lockbook_core::model::errors::GetFileByPathError;
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
-use lockbook_models::tree::FileMetadata;
+use lockbook_core::FileDeleteError;
+use lockbook_core::FileMetadata;
+use lockbook_core::GetAndGetChildrenError;
+use lockbook_core::GetFileByPathError;
 
 use crate::error::CliError;
 

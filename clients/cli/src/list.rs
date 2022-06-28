@@ -1,5 +1,5 @@
-use lockbook_core::service::path_service::Filter;
 use lockbook_core::Core;
+use lockbook_core::Filter;
 
 use crate::error::CliError;
 use crate::utils::print_last_successful_sync;

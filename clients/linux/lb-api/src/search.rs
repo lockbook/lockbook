@@ -3,7 +3,8 @@ use std::fmt;
 
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use uuid::Uuid;
+
+use crate::Uuid;
 
 pub struct Searcher {
     paths: Vec<(Uuid, String)>,
