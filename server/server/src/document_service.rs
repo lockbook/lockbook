@@ -28,8 +28,14 @@ pub(crate) async fn get<T: Debug>(
 pub(crate) async fn delete<T: Debug>(
     state: &ServerState, id: Uuid, content_version: u64,
 ) -> Result<(), ServerError<T>> {
-    if content_version != 0 {
-        remove_file(get_path(state, id, content_version)).await?;
+    let path = get_path(state, id, content_version);
+    // I'm not sure this check should exist, the two situations it gets utilized is when we re-delete
+    // an already deleted file and when we move a file from version 0 -> N. Maybe it would be more
+    // efficient for the caller to look at the metadata and make a more informed decision about
+    // whether this needs to be called or not. Perhaps an async version should be used if we do keep
+    // the check.
+    if path.exists() {
+        remove_file(path).await?;
     }
     Ok(())
 }
@@ -37,6 +43,5 @@ pub(crate) async fn delete<T: Debug>(
 fn get_path(state: &ServerState, id: Uuid, content_version: u64) -> PathBuf {
     let mut path = state.config.files.path.clone();
     path.push(format!("{}-{}", id, content_version));
-    println!("{}", path.display());
     path
 }
