@@ -3,11 +3,12 @@
 #[macro_use]
 extern crate tracing;
 
-pub mod external_interface;
 pub mod model;
 pub mod pure_functions;
 pub mod repo;
 pub mod service;
+
+mod external_interface;
 
 pub use uuid::Uuid;
 
