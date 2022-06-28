@@ -1,10 +1,5 @@
 mod search;
 
-pub use lockbook_models::api::PaymentMethod;
-pub use lockbook_models::api::PaymentPlatform;
-pub use lockbook_models::api::StripeAccountTier;
-pub use lockbook_models::api::SubscriptionInfo;
-
 pub use lockbook_core::Account;
 pub use lockbook_core::ClientWorkUnit;
 pub use lockbook_core::Config;
@@ -19,6 +14,7 @@ pub use lockbook_core::UnexpectedError;
 pub use lockbook_core::Uuid;
 pub use lockbook_core::DEFAULT_API_LOCATION;
 pub use lockbook_core::{ColorAlias, ColorRGB};
+pub use lockbook_core::{PaymentMethod, PaymentPlatform, StripeAccountTier, SubscriptionInfo};
 
 pub use lockbook_core::AccountExportError as ExportAccountError;
 pub use lockbook_core::CalculateWorkError;
