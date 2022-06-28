@@ -399,7 +399,7 @@ pub struct GetSubscriptionInfoResponse {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum GetSubscriptionInfoError {
-    UserNotFound
+    UserNotFound,
 }
 
 impl Request for GetSubscriptionInfoRequest {

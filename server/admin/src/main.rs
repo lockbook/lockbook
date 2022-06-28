@@ -3,7 +3,6 @@ mod delete_account;
 use crate::delete_account::delete_account;
 use crate::Subcommands::DeleteAccount;
 
-
 use hmdb::log::Reader;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::config::Config;

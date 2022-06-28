@@ -2,7 +2,6 @@ extern crate chrono;
 extern crate log;
 extern crate tokio;
 
-
 use hmdb::log::Reader;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::config::Config;
