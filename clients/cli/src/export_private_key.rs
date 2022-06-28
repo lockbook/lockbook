@@ -1,4 +1,4 @@
-use lockbook_core::model::errors::AccountExportError;
+use lockbook_core::AccountExportError;
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
 
