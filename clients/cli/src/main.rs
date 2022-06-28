@@ -3,9 +3,9 @@ use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-use lockbook_core::service::path_service::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 use lockbook_core::Config;
 use lockbook_core::Core;
+use lockbook_core::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 
 use crate::error::CliError;
 
