@@ -22,6 +22,10 @@ pub use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 
 pub use crate::model::errors::*;
 pub use crate::pure_functions::drawing::SupportedImageFormats;
+pub use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
+pub use crate::service::path_service::Filter;
+pub use crate::service::sync_service::{SyncProgress, WorkCalculated};
+pub use crate::service::usage_service::{bytes_to_human, UsageItemMetric, UsageMetrics};
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -42,12 +46,8 @@ use lockbook_models::crypto::AESKey;
 use crate::model::errors::Error::UiError;
 use crate::model::repo::RepoSource;
 use crate::repo::schema::{transaction, CoreV1, OneKey, Tx};
-use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
 use crate::service::log_service;
-use crate::service::path_service::Filter;
 use crate::service::search_service::SearchResultItem;
-use crate::service::sync_service::{SyncProgress, WorkCalculated};
-use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {

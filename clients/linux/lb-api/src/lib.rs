@@ -40,15 +40,14 @@ pub use lockbook_core::WriteToDocumentError as WriteDocumentError;
 
 pub use lockbook_core::SupportedImageFormats;
 
-pub use lockbook_core::service::billing_service::CreditCardLast4Digits;
-pub use lockbook_core::service::import_export_service::ImportExportFileInfo;
-pub use lockbook_core::service::import_export_service::ImportStatus;
-pub use lockbook_core::service::path_service::Filter;
-pub use lockbook_core::service::sync_service::SyncProgress;
-pub use lockbook_core::service::sync_service::WorkCalculated;
-pub use lockbook_core::service::usage_service::bytes_to_human;
-pub use lockbook_core::service::usage_service::UsageItemMetric;
-pub use lockbook_core::service::usage_service::UsageMetrics;
+pub use lockbook_core::bytes_to_human;
+pub use lockbook_core::Filter;
+pub use lockbook_core::ImportExportFileInfo;
+pub use lockbook_core::ImportStatus;
+pub use lockbook_core::SyncProgress;
+pub use lockbook_core::UsageItemMetric;
+pub use lockbook_core::UsageMetrics;
+pub use lockbook_core::WorkCalculated;
 
 pub use search::SearchResultItem;
 pub use search::Searcher;
