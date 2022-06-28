@@ -117,8 +117,9 @@ pub async fn get_usage(
     let mut con = server_state.index_db_pool.get().await?;
 
     let sub_profile: SubscriptionProfile = con
-        .json_get(keys::subscription_profile(&context.public_key))
-        .await?;
+        .maybe_json_get(subscription_profile(&context.public_key))
+        .await?
+        .unwrap_or_default();
 
     let usages = get_usage_helper(&mut con, &context.public_key).await?;
 
