@@ -4,7 +4,6 @@ use lockbook_server_lib::{account_service, RequestContext, ServerState};
 
 pub async fn delete_account(server_state: ServerState, username: &str) -> bool {
     let public_key = public_key_from_username(username, &server_state)
-        .await
         .unwrap_or_else(|_| panic!("Could not get public key for user: {}", username))
         .key;
 
