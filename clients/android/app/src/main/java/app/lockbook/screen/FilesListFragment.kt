@@ -180,7 +180,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 @SuppressLint("NotifyDataSetChanged")
                 override fun run() {
                     handler.post {
-                        model.reloadSidebar()
+                        model.reloadWorkInfo()
                         binding.filesList.adapter?.notifyDataSetChanged()
                     }
                 }
@@ -286,30 +286,27 @@ class FilesListFragment : Fragment(), FilesFragment {
                 onBind(::FolderViewHolder) { _, item ->
                     name.text = item.fileMetadata.decryptedName
 
-                    val imageResource = when {
+                    when {
                         isSelected() -> {
-                            R.drawable.ic_baseline_check_24
+                            fileItemHolder.setBackgroundResource(R.color.md_theme_primaryContainer)
+                            actionIcon.setImageResource(R.drawable.ic_baseline_check_circle_24)
+                            actionIcon.visibility = View.VISIBLE
+                        }
+                        item.needsToBePulled -> {
+                            fileItemHolder.setBackgroundResource(0)
+                            actionIcon.setImageResource(R.drawable.ic_baseline_cloud_download_24)
+                            actionIcon.visibility = View.VISIBLE
+                        }
+                        item.needToBePushed -> {
+                            fileItemHolder.setBackgroundResource(0)
+                            actionIcon.setImageResource(R.drawable.ic_baseline_cloud_upload_24)
+                            actionIcon.visibility = View.VISIBLE
                         }
                         else -> {
-                            R.drawable.ic_baseline_folder_24
+                            fileItemHolder.setBackgroundResource(0)
+                            actionIcon.visibility = View.GONE
                         }
                     }
-
-                    icon.setImageResource(imageResource)
-
-                    if (isSelected()) {
-                        fileItemHolder.setBackgroundResource(R.color.md_theme_inversePrimary)
-                    } else {
-                        fileItemHolder.setBackgroundResource(0)
-                    }
-
-                    val visibility = if(item.needToBePushed) {
-                        View.VISIBLE
-                    } else {
-                        View.GONE
-                    }
-
-                    needsToBePushed.visibility = visibility
                 }
 
                 onClick {
@@ -331,40 +328,27 @@ class FilesListFragment : Fragment(), FilesFragment {
                 onBind(::DocumentViewHolder) { _, item ->
                     name.text = item.fileMetadata.decryptedName
                     description.text = CoreModel.convertToHumanDuration(item.fileMetadata.metadataVersion)
-                    val extensionHelper = ExtensionHelper(item.fileMetadata.decryptedName)
 
-                    val imageResource = when {
+                    when {
                         isSelected() -> {
-                            R.drawable.ic_baseline_check_24
+                            fileItemHolder.setBackgroundResource(R.color.md_theme_primaryContainer)
+                            actionIcon.setImageResource(R.drawable.ic_baseline_check_circle_24)
+                            actionIcon.visibility = View.VISIBLE
                         }
-                        extensionHelper.isDrawing -> {
-                            R.drawable.ic_outline_draw_24
+                        item.needsToBePulled -> {
+                            fileItemHolder.setBackgroundResource(0)
+                            actionIcon.setImageResource(R.drawable.ic_baseline_cloud_download_24)
+                            actionIcon.visibility = View.VISIBLE
                         }
-                        extensionHelper.isImage -> {
-                            R.drawable.ic_outline_image_24
-                        }
-                        extensionHelper.isPdf -> {
-                            R.drawable.ic_outline_picture_as_pdf_24
+                        item.needToBePushed -> {
+                            fileItemHolder.setBackgroundResource(0)
+                            actionIcon.setImageResource(R.drawable.ic_baseline_cloud_upload_24)
+                            actionIcon.visibility = View.VISIBLE
                         }
                         else -> {
-                            R.drawable.ic_outline_insert_drive_file_24
+                            fileItemHolder.setBackgroundResource(0)
+                            actionIcon.visibility = View.GONE
                         }
-                    }
-
-                    icon.setImageResource(imageResource)
-
-                    if (isSelected()) {
-                        fileItemHolder.setBackgroundResource(R.color.md_theme_inversePrimary)
-                    } else {
-                        fileItemHolder.setBackgroundResource(0)
-                    }
-
-                    if(item.needToBePushed) {
-                        needsToBePushed.visibility = View.VISIBLE
-                        description.visibility = View.GONE
-                    } else {
-                        needsToBePushed.visibility = View.GONE
-                        description.visibility = View.VISIBLE
                     }
                 }
 

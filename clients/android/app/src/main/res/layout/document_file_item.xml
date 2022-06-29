@@ -1,63 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="80dp"
     android:id="@+id/document_item_holder"
     android:foreground="?attr/selectableItemBackground"
     android:clickable="true"
     android:focusable="true"
-    android:clipToPadding="false"
-    android:orientation="horizontal"
     android:paddingStart="?android:listPreferredItemPaddingStart"
-    android:paddingEnd="?android:listPreferredItemPaddingEnd"
-    android:paddingVertical="10dp">
+    android:paddingEnd="?android:listPreferredItemPaddingEnd">
 
     <ImageView
         android:id="@+id/document_icon"
         android:layout_width="30dp"
-        android:layout_height="50dp"
-        android:layout_marginEnd="30dp"
-        android:contentDescription="@string/file_image_content_description" />
+        android:layout_height="45dp"
+        android:contentDescription="@string/file_image_content_description"
+        android:src="@drawable/ic_outline_insert_drive_file_24"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <ImageView
+        android:id="@+id/document_action_icon"
+        android:layout_width="17dp"
+        android:layout_height="17dp"
+        android:contentDescription="@string/needs_to_be_pushed"
+        android:src="@drawable/ic_baseline_check_circle_24"
+        app:layout_constraintBottom_toBottomOf="@+id/document_icon"
+        app:layout_constraintEnd_toEndOf="@+id/document_icon" />
 
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:gravity="center_vertical"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/document_icon"
+        app:layout_constraintTop_toTopOf="parent"
+        android:layout_marginStart="20dp"
+        android:gravity="center"
         android:orientation="vertical">
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/document_name"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textAppearance="?attr/textAppearanceTitleSmall"
-            android:layout_marginBottom="5dp"
             android:ellipsize="end"
-            android:maxLines="1" />
+            android:maxLines="1"
+            android:layout_marginBottom="5dp"
+            android:textAppearance="?attr/textAppearanceTitleSmall" />
 
-        <LinearLayout
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/document_description"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <ImageView
-                android:id="@+id/document_needs_to_be_pushed"
-                android:layout_width="15dp"
-                android:layout_height="15dp"
-                android:layout_marginEnd="5dp"
-                android:visibility="gone"
-                android:src="@drawable/ic_outline_cloud_upload_24"
-                android:contentDescription="@string/needs_to_be_pushed" />
-
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/document_description"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textAppearance="?attr/textAppearanceLabelMedium" />
-
-        </LinearLayout>
-
+            android:textAppearance="?attr/textAppearanceLabelMedium"
+            app:layout_constraintBottom_toBottomOf="parent" />
 
     </LinearLayout>
 
-</LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
