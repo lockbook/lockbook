@@ -260,4 +260,5 @@
 
     <string name="sync_finished">Sync finished</string>
     <string name="backup_my_secret">Backup my secret</string>
+    <string name="needs_to_be_pushed">Needs to be pushed</string>
 </resources>

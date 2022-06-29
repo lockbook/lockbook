@@ -12,6 +12,7 @@ import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptySelectableDataSourceTyped
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.getOrElse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -28,6 +29,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     var breadcrumbItems = listOf<BreadCrumbItem>()
 
     val syncModel = SyncModel()
+    var localChanges: HashSet<String> = hashSetOf()
     var maybeLastSidebarInfo: UpdateFilesUI.UpdateSideBarInfo? = null
 
     init {
@@ -68,8 +70,13 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                 return@launch
             }
 
+            localChanges = CoreModel.getLocalChanges().getOrElse { error ->
+                postUIUpdate(UpdateFilesUI.NotifyError((error.toLbError(getRes()))))
+                return@launch
+            }
+
             viewModelScope.launch(Dispatchers.Main) {
-                selectableFiles.set(fileModel.children.intoViewHolderInfo())
+                selectableFiles.set(fileModel.children.intoViewHolderInfo(localChanges))
             }
 
             breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
@@ -86,7 +93,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
             }
 
             viewModelScope.launch(Dispatchers.Main) {
-                selectableFiles.set(fileModel.children.intoViewHolderInfo())
+                selectableFiles.set(fileModel.children.intoViewHolderInfo(localChanges))
             }
 
             breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
@@ -103,7 +110,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
             }
 
             viewModelScope.launch(Dispatchers.Main) {
-                selectableFiles.set(fileModel.children.intoViewHolderInfo())
+                selectableFiles.set(fileModel.children.intoViewHolderInfo(localChanges))
             }
 
             breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
@@ -183,9 +190,14 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
             return
         }
 
+        localChanges = CoreModel.getLocalChanges().getOrElse { error ->
+            postUIUpdate(UpdateFilesUI.NotifyError((error.toLbError(getRes()))))
+            return
+        }
+
         viewModelScope.launch(Dispatchers.Main) {
             selectableFiles.deselectAll()
-            selectableFiles.set(fileModel.children.intoViewHolderInfo())
+            selectableFiles.set(fileModel.children.intoViewHolderInfo(localChanges))
 
             _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
         }
@@ -193,7 +205,8 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun changeFileSort(newSortStyle: SortStyle) {
         fileModel.setSortStyle(newSortStyle)
-        selectableFiles.set(fileModel.children.intoViewHolderInfo())
+
+        selectableFiles.set(fileModel.children.intoViewHolderInfo(localChanges))
 
         PreferenceManager.getDefaultSharedPreferences(getContext()).edit().putString(getString(R.string.sort_files_key), getString(newSortStyle.toStringResource())).apply()
     }

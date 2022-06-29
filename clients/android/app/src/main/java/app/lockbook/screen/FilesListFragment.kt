@@ -302,6 +302,14 @@ class FilesListFragment : Fragment(), FilesFragment {
                     } else {
                         fileItemHolder.setBackgroundResource(0)
                     }
+
+                    val visibility = if(item.needToBePushed) {
+                        View.VISIBLE
+                    } else {
+                        View.GONE
+                    }
+
+                    needsToBePushed.visibility = visibility
                 }
 
                 onClick {
@@ -349,6 +357,14 @@ class FilesListFragment : Fragment(), FilesFragment {
                         fileItemHolder.setBackgroundResource(R.color.md_theme_inversePrimary)
                     } else {
                         fileItemHolder.setBackgroundResource(0)
+                    }
+
+                    if(item.needToBePushed) {
+                        needsToBePushed.visibility = View.VISIBLE
+                        description.visibility = View.GONE
+                    } else {
+                        needsToBePushed.visibility = View.GONE
+                        description.visibility = View.VISIBLE
                     }
                 }
 
