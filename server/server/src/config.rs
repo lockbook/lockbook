@@ -2,7 +2,7 @@ use crate::config::Environment::{Local, Prod, Unknown};
 use std::fmt::Display;
 use std::path::PathBuf;
 use std::time::Duration;
-use std::{env, fmt};
+use std::{env, fmt, fs};
 
 #[derive(Clone)]
 pub struct Config {
@@ -69,7 +69,7 @@ impl FilesConfig {
     pub fn from_env_vars() -> Self {
         let path = env_or_panic("FILES_PATH");
         let path = PathBuf::from(path);
-        // TODO Could be nice at this moment to write a test file or panic
+        fs::create_dir_all(&path).unwrap();
         Self { path }
     }
 }
