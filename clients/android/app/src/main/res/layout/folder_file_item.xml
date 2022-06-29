@@ -9,13 +9,14 @@
     android:clickable="true"
     android:focusable="true"
     android:paddingStart="?android:listPreferredItemPaddingStart"
-    android:paddingEnd="?android:listPreferredItemPaddingEnd">
+    android:paddingEnd="?android:listPreferredItemPaddingEnd"
+    tools:ignore="UnusedAttribute">
 
     <ImageView
         android:id="@+id/folder_icon"
         android:layout_width="30dp"
         android:layout_height="45dp"
-        android:contentDescription="@string/file_image_content_description"
+        android:contentDescription="@string/folder"
         android:src="@drawable/ic_baseline_folder_24"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -25,9 +26,9 @@
         android:id="@+id/folder_action_icon"
         android:layout_width="17dp"
         android:layout_height="17dp"
-        android:contentDescription="@string/needs_to_be_pushed"
         app:layout_constraintBottom_toBottomOf="@+id/folder_icon"
-        app:layout_constraintEnd_toEndOf="@+id/folder_icon" />
+        app:layout_constraintEnd_toEndOf="@+id/folder_icon"
+        android:contentDescription="@string/folder_action" />
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/folder_name"
