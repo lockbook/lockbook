@@ -1,41 +1,76 @@
 use crate::config::Environment::{Local, Prod, Unknown};
 use std::fmt::Display;
+use std::path::PathBuf;
 use std::time::Duration;
-use std::{env, fmt};
+use std::{env, fmt, fs};
 
 #[derive(Clone)]
-pub struct IndexDbConf {
-    pub redis_url: String,
+pub struct Config {
+    pub server: ServerConfig,
+    pub index_db: IndexDbConf,
+    pub files: FilesConfig,
+    pub metrics: MetricsConfig,
+    pub billing: BillingConfig,
+    pub features: FeatureFlags,
 }
 
-impl IndexDbConf {
+impl Config {
     pub fn from_env_vars() -> Self {
-        Self { redis_url: env_or_panic("INDEX_DB_REDIS_URL") }
+        Self {
+            index_db: IndexDbConf::from_env_vars(),
+            files: FilesConfig::from_env_vars(),
+            server: ServerConfig::from_env_vars(),
+            metrics: MetricsConfig::from_env_vars(),
+            billing: BillingConfig::from_env_vars(),
+            features: FeatureFlags::from_env_vars(),
+        }
+    }
+
+    pub fn is_prod(&self) -> bool {
+        self.server.pd_api_key.is_some()
+            && self.server.ssl_private_key_location.is_some()
+            && self.server.ssl_cert_location.is_some()
     }
 }
 
 #[derive(Clone)]
-pub struct FilesDbConfig {
-    pub scheme: Option<String>,
-    pub host: Option<String>,
-    pub port: Option<u16>,
-    pub region: String,
-    pub bucket: String,
-    pub access_key: String,
-    pub secret_key: String,
+pub struct IndexDbConf {
+    pub db_location: String,
 }
 
-impl FilesDbConfig {
+impl IndexDbConf {
+    pub fn from_env_vars() -> Self {
+        Self { db_location: env_or_panic("INDEX_DB_LOCATION") }
+    }
+}
+
+#[derive(Clone)]
+pub struct FeatureFlags {
+    pub new_accounts: bool,
+}
+
+impl FeatureFlags {
     pub fn from_env_vars() -> Self {
         Self {
-            scheme: env_or_empty("FILES_DB_SCHEME"),
-            host: env_or_empty("FILES_DB_HOST"),
-            port: env_or_empty("FILES_DB_PORT").map(|e| e.parse().expect("Expected u16!")),
-            region: env_or_panic("FILES_DB_REGION").parse().unwrap(),
-            bucket: env_or_panic("FILES_DB_BUCKET"),
-            access_key: env_or_panic("FILES_DB_ACCESS_KEY"),
-            secret_key: env_or_panic("FILES_DB_SECRET_KEY"),
+            new_accounts: env::var("FEATURE_NEW_ACCOUNTS")
+                .unwrap_or_else(|_| "true".to_string())
+                .parse()
+                .unwrap(),
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct FilesConfig {
+    pub path: PathBuf,
+}
+
+impl FilesConfig {
+    pub fn from_env_vars() -> Self {
+        let path = env_or_panic("FILES_PATH");
+        let path = PathBuf::from(path);
+        fs::create_dir_all(&path).unwrap();
+        Self { path }
     }
 }
 
@@ -191,33 +226,6 @@ impl StripeConfig {
             signing_secret: env_or_panic("STRIPE_SIGNING_SECRET").parse().unwrap(),
             premium_price_id: env_or_panic("STRIPE_PREMIUM_PRICE_ID").parse().unwrap(),
         }
-    }
-}
-
-#[derive(Clone)]
-pub struct Config {
-    pub server: ServerConfig,
-    pub index_db: IndexDbConf,
-    pub files_db: FilesDbConfig,
-    pub metrics: MetricsConfig,
-    pub billing: BillingConfig,
-}
-
-impl Config {
-    pub fn from_env_vars() -> Self {
-        Self {
-            index_db: IndexDbConf::from_env_vars(),
-            files_db: FilesDbConfig::from_env_vars(),
-            server: ServerConfig::from_env_vars(),
-            metrics: MetricsConfig::from_env_vars(),
-            billing: BillingConfig::from_env_vars(),
-        }
-    }
-
-    pub fn is_prod(&self) -> bool {
-        self.server.pd_api_key.is_some()
-            && self.server.ssl_private_key_location.is_some()
-            && self.server.ssl_cert_location.is_some()
     }
 }
 
