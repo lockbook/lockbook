@@ -50,20 +50,6 @@ impl<E: Debug> From<Error> for ServerError<E> {
 type Tx<'a> = transaction::ServerV1<'a>;
 
 #[macro_export]
-macro_rules! return_if_error {
-    ($tx:expr) => {
-        match $tx {
-            Ok(success) => success,
-            Err(redis_utils::TxError::Abort(val)) => return Err(val),
-            Err(redis_utils::TxError::Serialization(t)) => {
-                return Err(internal!("Failed to serialize value: {:?}", t))
-            }
-            Err(redis_utils::TxError::DbError(t)) => return Err(internal!("Redis error: {:?}", t)),
-        }
-    };
-}
-
-#[macro_export]
 macro_rules! internal {
     ($($arg:tt)*) => {{
         let msg = format!($($arg)*);
