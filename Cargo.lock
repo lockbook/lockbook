@@ -135,7 +135,8 @@ dependencies = [
 [[package]]
 name = "async-stripe"
 version = "0.15.0"
-source = "git+https://github.com/arlyon/async-stripe#d6040d76b8f8eda23eaa1775881f07285f17a8b9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "218899c49b60727fcc0041f2823f9ee011419d1a485d1ee2cb784acf520898e7"
 dependencies = [
  "chrono",
  "futures-util",
