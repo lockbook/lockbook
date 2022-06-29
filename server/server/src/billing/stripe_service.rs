@@ -1,22 +1,22 @@
 use crate::billing::billing_model::StripeUserInfo;
+use crate::billing::billing_service::stringify_public_key;
 use crate::billing::stripe_client;
-use crate::{keys, StripeWebhookError};
+use crate::StripeWebhookError;
 use crate::{ClientError, ServerError, ServerState};
-use deadpool_redis::Connection;
 use google_androidpublisher3::hyper::body::Bytes;
 use google_androidpublisher3::hyper::header::HeaderValue;
 use libsecp256k1::PublicKey;
 use lockbook_models::api::{PaymentMethod, StripeAccountTier, UpgradeAccountStripeError};
+use lockbook_models::file_metadata::Owner;
 use log::info;
-use redis_utils::converters::{JsonGet, JsonSet};
 use std::ops::Deref;
 use std::sync::Arc;
 use stripe::{Invoice, WebhookEvent};
 use uuid::Uuid;
 
 pub async fn create_subscription(
-    server_state: &ServerState, con: &mut deadpool_redis::Connection, public_key: &PublicKey,
-    account_tier: &StripeAccountTier, maybe_user_info: Option<StripeUserInfo>,
+    server_state: &ServerState, public_key: &PublicKey, account_tier: &StripeAccountTier,
+    maybe_user_info: Option<StripeUserInfo>,
 ) -> Result<StripeUserInfo, ServerError<UpgradeAccountStripeError>> {
     let (payment_method, price_id) = match account_tier {
         StripeAccountTier::Premium(payment_method) => {
@@ -39,7 +39,7 @@ pub async fn create_subscription(
             let last_4 = payment_method_resp
                 .card
                 .as_ref()
-                .ok_or_else(|| {
+                .ok_or_else::<ServerError<UpgradeAccountStripeError>, _>(|| {
                     internal!(
                         "Cannot retrieve card info from payment method response: {:?}",
                         payment_method_resp
@@ -54,7 +54,7 @@ pub async fn create_subscription(
                 None => {
                     info!(
                         "User has no customer_id. Creating one with stripe now. public_key: {}",
-                        keys::stringify_public_key(public_key)
+                        stringify_public_key(public_key)
                     );
 
                     let customer_name = Uuid::new_v4();
@@ -68,11 +68,10 @@ pub async fn create_subscription(
 
                     info!("Created customer_id: {}. public_key: {:?}", customer_id, public_key);
 
-                    con.json_set(
-                        keys::public_key_from_stripe_customer_id(&customer_id),
-                        public_key,
-                    )
-                    .await?;
+                    server_state
+                        .index_db
+                        .stripe_ids
+                        .insert(customer_id, Owner(*public_key))?;
 
                     (customer_resp.id, customer_name)
                 }
@@ -160,8 +159,8 @@ pub async fn create_subscription(
     })
 }
 
-pub async fn get_public_key(
-    con: &mut Connection, invoice: &Invoice,
+pub fn get_public_key(
+    server: &ServerState, invoice: &Invoice,
 ) -> Result<PublicKey, ServerError<StripeWebhookError>> {
     let customer_id = match invoice
         .customer
@@ -177,14 +176,15 @@ pub async fn get_public_key(
         stripe::Expandable::Object(customer) => customer.id.to_string(),
     };
 
-    let public_key: PublicKey = con
-        .maybe_json_get(keys::public_key_from_stripe_customer_id(&customer_id))
-        .await?
+    let public_key = server
+        .index_db
+        .stripe_ids
+        .get(&customer_id)?
         .ok_or_else(|| {
             internal!("There is no public_key related to this customer_id: {:?}", customer_id)
         })?;
 
-    Ok(public_key)
+    Ok(public_key.0)
 }
 
 pub fn verify_request_and_get_event(
