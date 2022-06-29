@@ -100,7 +100,7 @@ impl fmt::Debug for EncryptedFileMetadata {
     }
 }
 
-#[derive(Serialize, Deserialize, Eq, Clone)]
+#[derive(Serialize, Deserialize, Eq, Clone, Debug)]
 pub struct Owner(pub PublicKey);
 
 impl From<&Account> for Owner {

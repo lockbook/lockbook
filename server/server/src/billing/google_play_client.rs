@@ -1,3 +1,4 @@
+use crate::config::Config;
 use google_androidpublisher3::api::{
     SubscriptionPurchase, SubscriptionPurchasesAcknowledgeRequest,
 };
@@ -62,8 +63,9 @@ impl From<Error> for SimpleGCPError {
 }
 
 pub async fn acknowledge_subscription(
-    client: &AndroidPublisher, subscription_id: &str, purchase_token: &str,
+    config: &Config, client: &AndroidPublisher, purchase_token: &str,
 ) -> Result<(), SimpleGCPError> {
+    let subscription_id = &config.billing.google.premium_subscription_product_id;
     client
         .purchases()
         .subscriptions_acknowledge(
@@ -79,8 +81,9 @@ pub async fn acknowledge_subscription(
 }
 
 pub async fn cancel_subscription(
-    client: &AndroidPublisher, subscription_id: &str, purchase_token: &str,
+    config: &Config, client: &AndroidPublisher, purchase_token: &str,
 ) -> Result<(), SimpleGCPError> {
+    let subscription_id = &config.billing.google.premium_subscription_product_id;
     client
         .purchases()
         .subscriptions_cancel(PACKAGE_NAME, subscription_id, purchase_token)
@@ -91,8 +94,9 @@ pub async fn cancel_subscription(
 }
 
 pub async fn get_subscription(
-    client: &AndroidPublisher, subscription_id: &str, purchase_token: &str,
+    config: &Config, client: &AndroidPublisher, purchase_token: &str,
 ) -> Result<SubscriptionPurchase, SimpleGCPError> {
+    let subscription_id = &config.billing.google.premium_subscription_product_id;
     Ok(client
         .purchases()
         .subscriptions_get(PACKAGE_NAME, subscription_id, purchase_token)

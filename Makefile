@@ -159,35 +159,6 @@ performance_bench: performance server
 performance_bench_report: is_docker_running
 	docker container cp "$$(docker inspect --format="{{.Id}}" performance-performance-$(hash))":/core/simple-create_write_read.svg .
 
-.PHONY: local_store_of_state
-local_store_of_state:
-	HASH=$(hash) docker-compose \
-		-f containers/docker-compose-integration-tests.yml \
-		-f containers/docker-compose-local-dev.yml \
-		--project-name=lockbook-$(hash) \
-		up -V --detach indexdb
-	HASH=$(hash) docker-compose \
-		-f containers/docker-compose-integration-tests.yml \
-		-f containers/docker-compose-local-dev.yml \
-		--project-name=lockbook-$(hash) \
-		up -V --detach config_filesdb
-
-.PHONY: index_db_run
-index_db_run:
-	HASH=$(hash) docker-compose \
-		-f containers/docker-compose-integration-tests.yml \
-		-f containers/docker-compose-local-dev.yml \
-		--project-name=lockbook-$(hash) \
-		up -V indexdb
-
-.PHONY: files_db_run
-files_db_run:
-	HASH=$(hash) docker-compose \
-		-f containers/docker-compose-integration-tests.yml \
-		-f containers/docker-compose-local-dev.yml \
-		--project-name=lockbook-$(hash) \
-		up -V config_filesdb
-
 .PHONY: dev_stack_run
 dev_stack_run: server
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up --detach lockbook_server

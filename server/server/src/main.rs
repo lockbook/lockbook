@@ -2,48 +2,30 @@ extern crate chrono;
 extern crate log;
 extern crate tokio;
 
-use lockbook_server_lib::config::Config;
-
-use lockbook_server_lib::*;
-
-use deadpool_redis::Runtime;
-use lockbook_server_lib::content::file_content_client;
-use log::info;
-
-use std::sync::Arc;
-use warp::Filter;
-
+use hmdb::log::Reader;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
+use lockbook_server_lib::config::Config;
 use lockbook_server_lib::router_service::{
     build_info, core_routes, get_metrics, google_play_notification_webhooks, stripe_webhooks,
 };
+use lockbook_server_lib::schema::ServerV1;
+use lockbook_server_lib::*;
+use log::info;
+use std::sync::Arc;
+use warp::Filter;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let config = Config::from_env_vars();
-    loggers::init(&config);
+    let cfg = Config::from_env_vars();
+    loggers::init(&cfg);
 
-    // *** Things this server connects to ***
-    let files_db_client = file_content_client::create_client(&config.files_db)
-        .expect("Failed to create files_db client");
+    let config = cfg.clone();
+    let stripe_client = stripe::Client::new(&cfg.billing.stripe.stripe_secret);
+    let google_play_client = get_google_play_client(&cfg.billing.google.service_account_key).await;
+    let index_db = ServerV1::init(&cfg.index_db.db_location).expect("Failed to load index_db");
 
-    let index_db_pool = deadpool_redis::Config::from_url(&config.index_db.redis_url)
-        .create_pool(Some(Runtime::Tokio1))
-        .unwrap();
-
-    let stripe_client = stripe::Client::new(&config.billing.stripe.stripe_secret);
-    let google_play_client =
-        get_google_play_client(&config.billing.google.service_account_key).await;
-
-    let server_state = Arc::new(ServerState {
-        config: config.clone(),
-        index_db_pool,
-        stripe_client,
-        files_db_client,
-        google_play_client,
-    });
-
-    feature_flags::initialize_flags(&server_state).await;
+    let server_state =
+        Arc::new(ServerState { config, index_db, stripe_client, google_play_client });
 
     let routes = core_routes(&server_state)
         .or(build_info())
@@ -56,22 +38,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     metrics::start_metrics_worker(&server_state);
 
     // *** How people can connect to this server ***
-    match (config.server.ssl_cert_location, config.server.ssl_private_key_location) {
+    match (cfg.server.ssl_cert_location, cfg.server.ssl_private_key_location) {
         (Some(cert), Some(key)) => {
-            info!("binding to https://0.0.0.0:{}", config.server.port);
+            info!("binding to https://0.0.0.0:{}", cfg.server.port);
             server
                 .tls()
                 .cert_path(&cert)
                 .key_path(&key)
-                .run(([0, 0, 0, 0], config.server.port))
+                .run(([0, 0, 0, 0], cfg.server.port))
                 .await
         }
         _ => {
             info!(
                 "binding to http://0.0.0.0:{} without tls for local development",
-                config.server.port
+                cfg.server.port
             );
-            server.run(([0, 0, 0, 0], config.server.port)).await
+            server.run(([0, 0, 0, 0], cfg.server.port)).await
         }
     };
 
