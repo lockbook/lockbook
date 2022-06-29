@@ -4,9 +4,9 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
-import app.lockbook.getRes
 import app.lockbook.util.LbError
 import app.lockbook.util.SingleMutableLiveData
+import app.lockbook.util.getRes
 import com.github.michaelbull.result.Err
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -15,6 +15,7 @@ class ImportAccountViewModel(application: Application) : AndroidViewModel(applic
     val syncModel = SyncModel()
 
     private val _updateImportUI = SingleMutableLiveData<UpdateImportUI>()
+    private val _syncStarted = SingleMutableLiveData<Unit>()
 
     val updateImportUI: LiveData<UpdateImportUI>
         get() = _updateImportUI

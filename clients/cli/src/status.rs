@@ -1,7 +1,7 @@
-use lockbook_core::model::errors::CalculateWorkError;
+use lockbook_core::CalculateWorkError;
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
-use lockbook_models::work_unit::WorkUnit;
+use lockbook_core::WorkUnit;
 
 use crate::error::CliError;
 use crate::utils::print_last_successful_sync;

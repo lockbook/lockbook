@@ -2024,8 +2024,6 @@ version = "0.1.0"
 dependencies = [
  "fuzzy-matcher",
  "lockbook-core",
- "lockbook-models",
- "uuid",
 ]
 
 [[package]]
@@ -2139,22 +2137,20 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "atty",
  "chrono",
  "hotwatch",
  "lockbook-core",
- "lockbook-models",
  "qr2term",
  "serde_json",
  "structopt",
- "uuid",
 ]
 
 [[package]]
 name = "lockbook-core"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "backtrace",
  "base64 0.11.0",
@@ -2212,7 +2208,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-desktop"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "gdk-pixbuf",
  "gio",
@@ -2243,7 +2239,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "async-stripe",
  "atomic-counter",
@@ -3834,6 +3830,7 @@ dependencies = [
 name = "test_utils"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "chrono",
  "hmdb",
  "itertools",

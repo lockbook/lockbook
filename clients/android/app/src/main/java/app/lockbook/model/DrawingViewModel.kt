@@ -10,7 +10,6 @@ import android.os.Looper
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
-import app.lockbook.getRes
 import app.lockbook.ui.DrawingStrokeState
 import app.lockbook.ui.DrawingView
 import app.lockbook.ui.DrawingView.Tool
@@ -25,13 +24,7 @@ import kotlinx.serialization.json.Json
 class DrawingViewModel(
     application: Application,
     val id: String,
-    var persistentDrawing: Drawing,
-    var persistentBitmap: Bitmap = Bitmap.createBitmap(
-        DrawingView.CANVAS_WIDTH,
-        DrawingView.CANVAS_HEIGHT, Bitmap.Config.ARGB_8888
-    ),
-    var persistentCanvas: Canvas = Canvas(persistentBitmap),
-    var persistentStrokeState: DrawingStrokeState = DrawingStrokeState()
+    val persistentDrawingInfo: PersistentDrawingInfo
 ) : AndroidViewModel(application) {
     var selectedTool: Tool = Tool.Pen(ColorAlias.Black)
 
@@ -45,12 +38,12 @@ class DrawingViewModel(
 
     init {
         setUpPaint()
-        persistentDrawing.model = this
-        persistentDrawing.uiMode = getRes().configuration.uiMode
+        persistentDrawingInfo.drawing.model = this
+        persistentDrawingInfo.drawing.uiMode = getRes().configuration.uiMode
     }
 
     private fun setUpPaint() {
-        persistentStrokeState.apply {
+        persistentDrawingInfo.strokeState.apply {
             strokePaint.isAntiAlias = true
             strokePaint.style = Paint.Style.STROKE
             strokePaint.strokeJoin = Paint.Join.ROUND
@@ -73,16 +66,16 @@ class DrawingViewModel(
         handler.postDelayed(
             {
                 viewModelScope.launch(Dispatchers.IO) {
-                    if (currentEdit == lastEdit && persistentDrawing.isDirty) {
+                    if (currentEdit == lastEdit && persistentDrawingInfo.drawing.isDirty) {
                         when (
                             val writeToDocumentResult =
                                 CoreModel.writeToDocument(
                                     id,
-                                    Json.encodeToString(persistentDrawing.clone()).replace(" ", "")
+                                    Json.encodeToString(persistentDrawingInfo.drawing.clone()).replace(" ", "")
                                 )
                         ) {
                             is Ok -> {
-                                persistentDrawing.isDirty = false
+                                persistentDrawingInfo.drawing.isDirty = false
                             }
                             is Err -> {
                                 _notifyError.postValue(
@@ -99,3 +92,13 @@ class DrawingViewModel(
         )
     }
 }
+
+data class PersistentDrawingInfo(
+    var drawing: Drawing,
+    var bitmap: Bitmap = Bitmap.createBitmap(
+        DrawingView.CANVAS_WIDTH,
+        DrawingView.CANVAS_HEIGHT, Bitmap.Config.ARGB_8888
+    ),
+    var canvas: Canvas = Canvas(bitmap),
+    var strokeState: DrawingStrokeState = DrawingStrokeState()
+)

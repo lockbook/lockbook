@@ -2,17 +2,21 @@ use chrono::Datelike;
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use lockbook_core::model::repo::RepoSource;
+use lockbook_core::repo::{document_repo, local_storage};
 use lockbook_core::service::api_service::ApiError;
 use lockbook_core::service::path_service::Filter::DocumentsOnly;
 use lockbook_core::{Config, Core, RequestContext};
 use lockbook_models::api::{FileMetadataUpsertsError, PaymentMethod, StripeAccountTier};
+use lockbook_models::crypto::EncryptedDocument;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
 use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use lockbook_models::work_unit::WorkUnit;
 use std::collections::HashMap;
 use std::env;
 use std::fmt::Debug;
+use std::fs;
 use std::hash::Hash;
+use std::path::Path;
 use uuid::Uuid;
 
 pub fn test_config() -> Config {
@@ -390,6 +394,43 @@ pub fn assert_new_synced_client_dbs_eq(core: &Core) {
 
 pub fn assert_repo_integrity(core: &Core) {
     core.validate().unwrap();
+}
+
+pub fn doc_repo_get_all(config: &Config, source: RepoSource) -> Vec<EncryptedDocument> {
+    dump_local_storage::<_, Vec<u8>>(config, document_repo::namespace(source))
+        .into_iter()
+        .map(|s| bincode::deserialize(s.as_ref()).unwrap())
+        .collect::<Vec<EncryptedDocument>>()
+        .into_iter()
+        .collect()
+}
+
+fn dump_local_storage<N, V>(db: &Config, namespace: N) -> Vec<V>
+where
+    N: AsRef<[u8]> + Copy,
+    V: From<Vec<u8>>,
+{
+    let path_str = local_storage::namespace_path(db, namespace);
+    let path = Path::new(&path_str);
+
+    match fs::read_dir(path) {
+        Ok(rd) => {
+            let mut file_names = rd
+                .map(|dir_entry| dir_entry.unwrap().file_name().into_string().unwrap())
+                .collect::<Vec<String>>();
+            file_names.sort();
+
+            file_names
+                .iter()
+                .map(|file_name| {
+                    local_storage::read(db, namespace, file_name)
+                        .unwrap()
+                        .unwrap()
+                })
+                .collect::<Vec<V>>()
+        }
+        Err(_) => Vec::new(),
+    }
 }
 
 pub mod test_credit_cards {

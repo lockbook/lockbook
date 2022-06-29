@@ -6,7 +6,6 @@
     android:layout_height="match_parent"
     android:gravity="center"
     android:orientation="vertical"
-    android:paddingHorizontal="25dp"
     tools:context=".screen.OnBoardingActivity">
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -24,24 +23,23 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <TextView
+        <com.google.android.material.textview.MaterialTextView
             android:id="@+id/on_boarding_lockbook_title"
-            style="@style/Main.Text.Headline"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:paddingTop="15dp"
             android:text="@string/lockbook_title"
+            android:textAppearance="@style/TextAppearance.Material3.HeadlineLarge"
             app:layout_constraintStart_toEndOf="@+id/on_boarding_lockbook_icon"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <TextView
+        <com.google.android.material.textview.MaterialTextView
             android:id="@+id/on_boarding_learn_more"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:paddingHorizontal="4dp"
-            android:paddingTop="20dp"
+            android:paddingTop="10dp"
             android:text="@string/learn_more"
-            android:textColor="@color/blue"
             android:textStyle="bold"
             app:layout_constraintStart_toStartOf="@+id/on_boarding_lockbook_title"
             app:layout_constraintTop_toBottomOf="@+id/on_boarding_lockbook_title" />
@@ -50,10 +48,11 @@
 
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/on_boarding_switcher"
-        android:layout_width="250dp"
+        android:layout_width="wrap_content"
         android:layout_height="30dp"
-        android:background="#00000000"
-        app:tabTextAppearance="@android:style/TextAppearance.Widget.TabWidget">
+        app:tabPaddingStart="30dp"
+        app:tabPaddingEnd="30dp"
+        style="@style/Widget.Material3.TabLayout.Secondary">
 
         <com.google.android.material.tabs.TabItem
             android:layout_width="wrap_content"
@@ -70,13 +69,13 @@
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/on_boarding_create_import_view_pager"
         android:layout_width="match_parent"
-        android:layout_height="200dp" />
+        android:layout_height="250dp"
+        android:layout_marginHorizontal="20dp"/>
 
-    <ProgressBar
+    <com.google.android.material.progressindicator.CircularProgressIndicator
         android:id="@+id/on_boarding_progress_bar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:indeterminate="true"
-        android:minHeight="20dp"
         android:visibility="gone" />
 </LinearLayout>

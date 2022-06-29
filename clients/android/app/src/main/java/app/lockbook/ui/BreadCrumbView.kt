@@ -48,14 +48,14 @@ class BreadCrumbView : FrameLayout {
             }
         }
 
-        this.setPadding(40, 0, 40, 0)
+        this.setPadding(40, 20, 40, 20)
     }
 
     private fun createAndAddRecyclerView(context: Context) {
         recyclerView = RecyclerView(context)
         val recyclerViewParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT
+            ViewGroup.LayoutParams.WRAP_CONTENT
         )
 
         recyclerView.layoutManager =
@@ -65,7 +65,6 @@ class BreadCrumbView : FrameLayout {
         })
 
         recyclerView.adapter = breadCrumbAdapter
-
         addView(recyclerView, recyclerViewParams)
     }
 

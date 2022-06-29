@@ -12,7 +12,7 @@ android {
         minSdkVersion 22
         targetSdkVersion 32
         versionCode 7
-        versionName "0.4.2"
+        versionName "0.4.3"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -63,7 +63,6 @@ dependencies {
 
     // Ui Libraries
     implementation "com.google.android.material:material:$material_ui_version"
-    implementation "com.afollestad.material-dialogs:core:$dialog_version"
     implementation "androidx.preference:preference-ktx:$preference_version"
     implementation "androidx.fragment:fragment-ktx:$fragment_version"
     implementation "androidx.slidingpanelayout:slidingpanelayout:$sliding_pane_layout_version"
@@ -100,17 +99,16 @@ dependencies {
     implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:$json_parser_version"
     implementation "org.jetbrains.kotlin:kotlin-reflect:$kotlin_reflect"
     implementation "com.journeyapps:zxing-android-embedded:$qr_embedded_version"
-    implementation "com.google.zxing:core:$qr_core_version"
     implementation "com.michael-bull.kotlin-result:kotlin-result:$result_version"
     implementation "androidx.biometric:biometric:$fingerprint_version"
     implementation "io.noties.markwon:editor:$markdown_version"
     implementation "com.jakewharton.timber:timber:$logger_version"
     implementation "androidx.work:work-runtime-ktx:$work_version"
-    implementation "com.github.tingyik90:snackprogressbar:$snackprogressbar_version"
     implementation "com.android.billingclient:billing-ktx:$billing_version"
-    implementation "com.android.billingclient:billing:$billing_version"
     implementation "com.github.MikeOrtiz:TouchImageView:$image_viewer_version"
     implementation "com.github.mhiew:android-pdf-viewer:$pdf_viewer_version"
+    implementation "com.leinardi.android:speed-dial:$fab_speed_dial"
+    implementation("app.futured.donut:donut:$donut_chart_version")
 
     implementation project(':core')
 }

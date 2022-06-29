@@ -22,7 +22,9 @@ data class DecryptedFileMetadata(
     val deleted: Boolean = false,
     @SerialName("decrypted_access_key")
     val decryptedAccessKey: List<Int> = listOf()
-)
+) {
+    fun isRoot() = parent == id
+}
 
 enum class FileType {
     Document, Folder
@@ -46,7 +48,12 @@ data class WorkCalculated(
 )
 
 @Serializable
-data class WorkUnit(val content: WorkUnitMetadata, val tag: String)
+data class WorkUnit(val content: WorkUnitMetadata, val tag: WorkUnitTag)
+
+enum class WorkUnitTag {
+    LocalChange,
+    ServerChange
+}
 
 @Serializable
 data class WorkUnitMetadata(val metadata: DecryptedFileMetadata)
