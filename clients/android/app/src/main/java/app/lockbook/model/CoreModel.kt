@@ -14,7 +14,6 @@ import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.SerializersModuleBuilder
 import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
-import timber.log.Timber
 
 object CoreModel {
     private const val PROD_API_URL = "https://api.prod.lockbook.net"
@@ -54,7 +53,6 @@ object CoreModel {
         isNullable: Boolean = false
     ): Result<C, CoreError<E>>
             where E : Enum<E>, E : UiCoreError = try {
-        Timber.e("RUNNING: ${Thread.currentThread().stackTrace[2].methodName}")
         decodeFromString<IntermCoreResult<C, E>>(json).toResult(isNullable)
     } catch (e: Exception) {
         Err(CoreError.Unexpected("Cannot parse json."))
