@@ -338,15 +338,18 @@ class FilesListFragment : Fragment(), FilesFragment {
                         item.needsToBePulled -> {
                             fileItemHolder.setBackgroundResource(0)
                             actionIcon.setImageResource(R.drawable.ic_baseline_cloud_download_24)
+                            description.visibility = View.VISIBLE
                             actionIcon.visibility = View.VISIBLE
                         }
                         item.needToBePushed -> {
                             fileItemHolder.setBackgroundResource(0)
                             actionIcon.setImageResource(R.drawable.ic_baseline_cloud_upload_24)
+                            description.visibility = View.GONE
                             actionIcon.visibility = View.VISIBLE
                         }
                         else -> {
                             fileItemHolder.setBackgroundResource(0)
+                            description.visibility = View.VISIBLE
                             actionIcon.visibility = View.GONE
                         }
                     }
