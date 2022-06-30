@@ -3,10 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/drawerLayout"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    xmlns:tools="http://schemas.android.com/tools"
-
-    tools:openDrawer="start">
+    android:layout_height="match_parent">
 
     <androidx.coordinatorlayout.widget.CoordinatorLayout
         android:id="@+id/fragment_list_files"
@@ -28,6 +25,9 @@
                 app:navigationIcon="@drawable/ic_outline_menu_24"
                 app:menu="@menu/menu_files_list"
                 app:title="@string/lockbook_title" />
+
+            <include
+                layout="@layout/layout_recent_files" />
 
             <app.lockbook.ui.BreadCrumbView
                 android:id="@+id/files_breadcrumb_bar"

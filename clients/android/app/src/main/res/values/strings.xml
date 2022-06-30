@@ -260,4 +260,6 @@
     <string name="backup_my_secret">Backup my secret</string>
     <string name="folder_action">Folder action</string>
     <string name="document_action">Document action</string>
+    <string name="recent_files">Recent Files</string>
+    <string name="recent_file_icon">Recent file icon</string>
 </resources>

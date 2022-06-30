@@ -26,6 +26,8 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     lateinit var fileModel: FileModel
 
     val selectableFiles = emptySelectableDataSourceTyped<FileViewHolderInfo>()
+    val recentFiles = emptySelectableDataSourceTyped<DecryptedFileMetadata>()
+
     var breadcrumbItems = listOf<BreadCrumbItem>()
 
     val syncModel = SyncModel()
