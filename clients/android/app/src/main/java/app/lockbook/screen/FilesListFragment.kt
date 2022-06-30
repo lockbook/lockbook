@@ -327,7 +327,12 @@ class FilesListFragment : Fragment(), FilesFragment {
             withItem<FileViewHolderInfo.DocumentViewHolderInfo, DocumentViewHolder>(R.layout.document_file_item) {
                 onBind(::DocumentViewHolder) { _, item ->
                     name.text = item.fileMetadata.decryptedName
-                    description.text = CoreModel.convertToHumanDuration(item.fileMetadata.metadataVersion)
+                    if (item.fileMetadata.metadataVersion != 0L) {
+                        description.visibility = View.VISIBLE
+                        description.text = CoreModel.convertToHumanDuration(item.fileMetadata.metadataVersion)
+                    } else {
+                        description.visibility = View.GONE
+                    }
 
                     when {
                         isSelected() -> {
@@ -338,18 +343,15 @@ class FilesListFragment : Fragment(), FilesFragment {
                         item.needsToBePulled -> {
                             fileItemHolder.setBackgroundResource(0)
                             actionIcon.setImageResource(R.drawable.ic_baseline_cloud_download_24)
-                            description.visibility = View.VISIBLE
                             actionIcon.visibility = View.VISIBLE
                         }
                         item.needToBePushed -> {
                             fileItemHolder.setBackgroundResource(0)
                             actionIcon.setImageResource(R.drawable.ic_baseline_cloud_upload_24)
-                            description.visibility = View.GONE
                             actionIcon.visibility = View.VISIBLE
                         }
                         else -> {
                             fileItemHolder.setBackgroundResource(0)
-                            description.visibility = View.VISIBLE
                             actionIcon.visibility = View.GONE
                         }
                     }
