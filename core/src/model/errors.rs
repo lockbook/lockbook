@@ -320,7 +320,7 @@ impl From<CoreError> for Error<GetFileByPathError> {
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum GetPathByIdError {
-    FileIsLink, // todo(sharing): self-explanatory
+    FileIsLink,
 }
 
 impl From<CoreError> for Error<GetPathByIdError> {
