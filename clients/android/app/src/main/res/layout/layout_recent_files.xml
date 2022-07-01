@@ -11,7 +11,7 @@
         android:layout_height="wrap_content"
         android:padding="8dp"
         android:textAppearance="?attr/textAppearanceTitleLarge"
-        android:text="@string/recent_files"/>
+        android:text="@string/recent_documents"/>
 
     <androidx.recyclerview.widget.RecyclerView
         android:layout_width="match_parent"

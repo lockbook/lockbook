@@ -14,6 +14,7 @@
         <com.google.android.material.appbar.AppBarLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:animateLayoutChanges="true"
             app:liftOnScroll="true"
             app:liftOnScrollTargetViewId="@id/files_list">
 
@@ -26,8 +27,29 @@
                 app:menu="@menu/menu_files_list"
                 app:title="@string/lockbook_title" />
 
-            <include
-                layout="@layout/layout_recent_files" />
+            <LinearLayout
+                android:id="@+id/recent_files_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:layout_scrollFlags="scroll|enterAlways|snap"
+                android:orientation="vertical">
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="15dp"
+                    android:paddingBottom="15dp"
+                    android:textAppearance="?attr/textAppearanceTitleMedium"
+                    android:text="@string/recent_documents"/>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/recent_files_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="20dp"
+                    android:paddingBottom="10dp"/>
+
+            </LinearLayout>
 
             <app.lockbook.ui.BreadCrumbView
                 android:id="@+id/files_breadcrumb_bar"
@@ -151,7 +173,7 @@
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
     <com.google.android.material.navigation.NavigationView
-        android:id="@+id/navigationView"
+        android:id="@+id/navigation_view"
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
         android:layout_gravity="start"

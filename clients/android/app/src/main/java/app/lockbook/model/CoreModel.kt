@@ -386,4 +386,16 @@ object CoreModel {
         getLocalChangesParser.tryParse<List<String>, Empty>(
             app.lockbook.core.getLocalChanges()
         ).map { it.toHashSet() }
+
+
+    private val listMetadatasParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(ListSerializer(DecryptedFileMetadata.serializer()), Empty.serializer())
+        }
+    }
+
+    fun listMetadatas(): Result<List<DecryptedFileMetadata>, CoreError<Empty>> =
+        listMetadatasParser.tryParse(
+            app.lockbook.core.listMetadatas()
+        )
 }

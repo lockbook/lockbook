@@ -25,8 +25,8 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
     lateinit var fileModel: FileModel
 
-    val selectableFiles = emptySelectableDataSourceTyped<FileViewHolderInfo>()
-    val recentFiles = emptySelectableDataSourceTyped<DecryptedFileMetadata>()
+    val files = emptySelectableDataSourceTyped<FileViewHolderInfo>()
+    val recentFiles = emptySelectableDataSourceTyped<RecentFileViewHolderInfo>()
 
     var breadcrumbItems = listOf<BreadCrumbItem>()
 
@@ -34,6 +34,8 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     var localChanges: HashSet<String> = hashSetOf()
     var serverChanges: HashSet<String>? = null
     var maybeLastSidebarInfo: UpdateFilesUI.UpdateSideBarInfo? = null
+
+    var isRecentFilesVisible = true
 
     init {
         startUpInRoot()
@@ -48,8 +50,10 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                 } else {
                     fileModel = tempFileModel
 
-                    refreshFiles()
+                    recentFiles.set(fileModel.recentFiles.intoRecentViewHolderInfo(fileModel.files))
+                    files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
                     breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
+
                     _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
 
                     refreshWorkInfo()
@@ -61,25 +65,27 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    private fun postUIUpdate(update: UpdateFilesUI) {
-        _notifyUpdateFilesUI.postValue(update)
+    private fun maybeToggleRecentFiles() {
+        val oldIsRecentFilesVisible = isRecentFilesVisible
+        isRecentFilesVisible = fileModel.parent.parent == fileModel.parent.id
+        if(oldIsRecentFilesVisible != isRecentFilesVisible) {
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.ToggleRecentFilesVisibility(isRecentFilesVisible))
+        }
     }
 
     fun enterFolder(folder: DecryptedFileMetadata) {
         viewModelScope.launch(Dispatchers.IO) {
-            val intoChildResult = fileModel.intoChild(folder)
-            if (intoChildResult is Err) {
-                postUIUpdate(UpdateFilesUI.NotifyError((intoChildResult.error.toLbError(getRes()))))
-                return@launch
-            }
+            fileModel.intoFile(folder)
+
+            maybeToggleRecentFiles()
 
             localChanges = CoreModel.getLocalChanges().getOrElse { error ->
-                postUIUpdate(UpdateFilesUI.NotifyError((error.toLbError(getRes()))))
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError((error.toLbError(getRes()))))
                 return@launch
             }
 
             viewModelScope.launch(Dispatchers.Main) {
-                selectableFiles.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+                files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
             }
 
             breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
@@ -89,14 +95,11 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun intoParentFolder() {
         viewModelScope.launch(Dispatchers.IO) {
-            val intoParentResult = fileModel.intoParent()
-            if (intoParentResult is Err) {
-                postUIUpdate(UpdateFilesUI.NotifyError((intoParentResult.error.toLbError(getRes()))))
-                return@launch
-            }
+            fileModel.intoParent()
+            maybeToggleRecentFiles()
 
             viewModelScope.launch(Dispatchers.Main) {
-                selectableFiles.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+                files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
             }
 
             breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
@@ -106,17 +109,12 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun intoAncestralFolder(position: Int) {
         viewModelScope.launch(Dispatchers.IO) {
-            val intoAncestorResult = fileModel.refreshChildrenAtAncestor(position)
-            if (intoAncestorResult is Err) {
-                postUIUpdate(UpdateFilesUI.NotifyError((intoAncestorResult.error.toLbError(getRes()))))
-                return@launch
-            }
-
-            viewModelScope.launch(Dispatchers.Main) {
-                selectableFiles.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
-            }
-
+            fileModel.refreshChildrenAtAncestor(position)
+            maybeToggleRecentFiles()
             breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
+            viewModelScope.launch(Dispatchers.Main) {
+                files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+            }
 
             _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
         }
@@ -188,20 +186,21 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun refreshFiles() {
-        val refreshChildrenResult = fileModel.refreshChildren()
+        val refreshChildrenResult = fileModel.refreshFiles()
         if (refreshChildrenResult is Err) {
-            postUIUpdate(UpdateFilesUI.NotifyError(refreshChildrenResult.error.toLbError(getRes())))
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(refreshChildrenResult.error.toLbError(getRes())))
             return
         }
 
         localChanges = CoreModel.getLocalChanges().getOrElse { error ->
-            postUIUpdate(UpdateFilesUI.NotifyError((error.toLbError(getRes()))))
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError((error.toLbError(getRes()))))
             return
         }
 
         viewModelScope.launch(Dispatchers.Main) {
-            selectableFiles.deselectAll()
-            selectableFiles.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+            files.deselectAll()
+            files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+            recentFiles.set(fileModel.recentFiles.intoRecentViewHolderInfo(fileModel.files))
 
             _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
         }
@@ -210,7 +209,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     fun changeFileSort(newSortStyle: SortStyle) {
         fileModel.setSortStyle(newSortStyle)
 
-        selectableFiles.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+        files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
         PreferenceManager.getDefaultSharedPreferences(getContext()).edit().putString(getString(R.string.sort_files_key), getString(newSortStyle.toStringResource())).apply()
     }
 
@@ -245,7 +244,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
                 serverChanges = calculateWorkResult.value.workUnits.filter { it.tag == WorkUnitTag.ServerChange }.map { it.content.metadata.id }.toHashSet()
                 viewModelScope.launch(Dispatchers.Main) {
-                    selectableFiles.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+                    files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
                 }
             }
             is Err -> {
