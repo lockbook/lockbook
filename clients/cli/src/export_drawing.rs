@@ -27,7 +27,9 @@ pub fn export_drawing(core: &Core, lb_path: &str, format: &str) -> Result<(), Cl
         .export_drawing(file_metadata.id, lockbook_format, None)
         .map_err(|err| match err {
             LbError::UiError(err) => match err {
-                ExportDrawingError::FolderTreatedAsDrawing => CliError::dir_treated_as_doc(lb_path),
+                ExportDrawingError::FolderTreatedAsDrawing => {
+                    CliError::dir_treated_as_doc(&file_metadata)
+                }
                 ExportDrawingError::InvalidDrawing => {
                     CliError::invalid_drawing(file_metadata.decrypted_name)
                 }

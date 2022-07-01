@@ -1,30 +1,45 @@
 use std::fs;
 use std::io::Write;
 
-use lockbook_core::Core;
 use lockbook_core::Error as LbError;
 use lockbook_core::GetFileByPathError;
 use lockbook_core::ReadDocumentError;
+use lockbook_core::{Core, Error, GetFileByIdError};
 
 use crate::error::CliError;
 use crate::utils::{
     edit_file_with_editor, get_directory_location, save_temp_file_contents, set_up_auto_save,
     stop_auto_save,
 };
+use crate::Uuid;
 
-pub fn edit(core: &Core, lb_path: &str) -> Result<(), CliError> {
+pub fn edit(core: &Core, lb_path: Option<String>, id: Option<Uuid>) -> Result<(), CliError> {
     core.get_account()?;
 
-    let file_metadata = core.get_by_path(lb_path).map_err(|err| match err {
-        LbError::UiError(GetFileByPathError::NoFileAtThatPath) => CliError::file_not_found(lb_path),
-        LbError::Unexpected(msg) => CliError::unexpected(msg),
-    })?;
+    let file_metadata = match (lb_path, id) {
+        (Some(path), None) => core.get_by_path(&path).map_err(|err| match err {
+            LbError::UiError(GetFileByPathError::NoFileAtThatPath) => {
+                CliError::file_not_found(&path)
+            }
+            LbError::Unexpected(msg) => CliError::unexpected(msg),
+        }),
+        (None, Some(id)) => core.get_file_by_id(id).map_err(|err| match err {
+            Error::UiError(GetFileByIdError::NoFileWithThatId) => {
+                CliError::unexpected(format!("No file with id {}", id))
+            }
+            Error::Unexpected(msg) => CliError::unexpected(msg),
+        }),
+        (Some(_), Some(_)) => {
+            Err(CliError::input(format!("Provided both a path and an ID, only one is needed!")))
+        }
+        (None, None) => Err(CliError::input(format!("Either a path or an input is required!"))),
+    }?;
 
     let file_content = core
         .read_document(file_metadata.id)
         .map_err(|err| match err {
             LbError::UiError(ReadDocumentError::TreatedFolderAsDocument) => {
-                CliError::dir_treated_as_doc(lb_path)
+                CliError::dir_treated_as_doc(&file_metadata)
             }
             LbError::UiError(ReadDocumentError::FileDoesNotExist) | LbError::Unexpected(_) => {
                 CliError::unexpected(format!("reading encrypted doc: {:#?}", err))

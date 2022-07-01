@@ -3,9 +3,9 @@ use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-use lockbook_core::Config;
 use lockbook_core::Core;
 use lockbook_core::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
+use lockbook_core::{Config, Uuid};
 
 use crate::error::CliError;
 
@@ -52,7 +52,10 @@ enum Lockbook {
         /// The lockbook location of the file you want to edit. Will use the LOCKBOOK_EDITOR env var
         /// to select an editor. In the absence of this variable, it will default to vim. Editor
         /// options are: Vim, Emacs, Nano, Sublime, Code
-        path: String,
+        path: Option<String>,
+
+        #[structopt(short, long)]
+        id: Option<Uuid>,
     },
 
     /// Print out what each error code means
@@ -173,7 +176,7 @@ fn parse_and_run() -> Result<(), CliError> {
         Lockbook::Copy { disk_files: files, destination } => {
             copy::copy(&core, &files, &destination)
         }
-        Lockbook::Edit { path } => edit::edit(&core, path.trim()),
+        Lockbook::Edit { path, id } => edit::edit(&core, path, id),
         Lockbook::ExportPrivateKey => export_private_key::export_private_key(&core),
         Lockbook::ImportPrivateKey => import_private_key::import_private_key(&core),
         Lockbook::NewAccount => new_account::new_account(&core),
