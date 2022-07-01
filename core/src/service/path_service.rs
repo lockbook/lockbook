@@ -3,7 +3,7 @@ use crate::pure_functions::files;
 use crate::{Config, CoreError, RequestContext};
 use lockbook_models::crypto::UserAccessMode;
 use lockbook_models::file_metadata::FileType::{Folder, Link};
-use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles, FileType, Owner};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles, FileType};
 use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use uuid::Uuid;
 
@@ -136,10 +136,7 @@ impl RequestContext<'_, '_> {
 
     pub fn get_path_by_id(&mut self, id: Uuid) -> Result<String, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-        if files
-            .find_ref(id)?
-            .is_pending_share(&Owner(self.get_public_key()?))
-        {
+        if matches!(files.find_ref(id)?.file_type, FileType::Link { linked_file: _ }) {
             return Err(CoreError::FileIsLink);
         }
         Self::path_by_id_helper(&files, id)

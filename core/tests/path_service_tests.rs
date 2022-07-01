@@ -1,4 +1,5 @@
 use lockbook_core::model::errors::CreateFileAtPathError::*;
+use lockbook_core::model::errors::GetPathByIdError::*;
 use lockbook_core::service::path_service::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 use lockbook_core::Error::UiError;
 use lockbook_core::ShareMode;
@@ -217,6 +218,30 @@ fn get_path_by_id_folder() {
     let folder_path = core.get_path_by_id(folder.id).unwrap();
 
     assert_eq!(&folder_path, &format!("{}/folder/", &account.username));
+}
+
+#[test]
+fn get_path_by_id_link() {
+    let core1 = test_core_with_account();
+    let account1 = core1.get_account().unwrap();
+
+    let core2 = test_core_with_account();
+    let account2 = core2.get_account().unwrap();
+    let folder = core2
+        .create_at_path(&format!("{}/shared-folder/", &account2.username))
+        .unwrap();
+    core2
+        .share_file(folder.id, &account1.username, ShareMode::Read)
+        .unwrap();
+    core2.sync(None).unwrap();
+
+    core1.sync(None).unwrap();
+    let link = core1
+        .create_link_at_path(&format!("{}/received-folder", &account1.username), folder.id)
+        .unwrap();
+    let result = core1.get_path_by_id(link.id);
+
+    assert_matches!(result, Err(UiError(FileIsLink)));
 }
 
 #[test]
