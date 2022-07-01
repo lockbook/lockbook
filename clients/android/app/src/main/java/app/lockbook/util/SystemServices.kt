@@ -13,6 +13,8 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.AndroidViewModel
 import androidx.preference.Preference
 import app.lockbook.App
+import app.lockbook.R
+import app.lockbook.screen.MainScreenActivity
 import app.lockbook.screen.SettingsActivity
 import app.lockbook.screen.SettingsFragment
 
@@ -52,3 +54,9 @@ fun AppCompatActivity.getApp(): App {
 fun Fragment.getApp(): App {
     return requireActivity().application as App
 }
+
+fun MainScreenActivity.getFilesFragment(): FilesFragment =
+    supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment
+
+fun MainScreenActivity.maybeGetFilesFragment(): FilesFragment? =
+    supportFragmentManager.findFragmentById(R.id.files_fragment) as? FilesFragment
