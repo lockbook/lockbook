@@ -609,6 +609,19 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_getLocalChanges(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_listMetadatas(
+    env: JNIEnv, _: JClass,
+) -> jstring {
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.list_metadatas()),
+            e => translate(e.map(|_| ())),
+        },
+    )
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_getAllErrorVariants(
     env: JNIEnv, _: JClass,
 ) -> jstring {
