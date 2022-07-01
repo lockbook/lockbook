@@ -45,9 +45,9 @@ pub fn create_root(account: &Account) -> Result<DecryptedFileMetadata, CoreError
     let shares = vec![UserAccessInfo {
         mode: UserAccessMode::Owner,
         encrypted_by_username: account.username.clone(),
-        encrypted_by_public_key: public_key.clone(),
+        encrypted_by_public_key: public_key,
         encrypted_for_username: account.username.clone(),
-        encrypted_for_public_key: public_key.clone(),
+        encrypted_for_public_key: public_key,
         access_key: file_encryption_service::encrypt_user_access_key(
             &decrypted_access_key,
             &account.private_key,

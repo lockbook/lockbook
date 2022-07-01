@@ -36,7 +36,7 @@ pub fn encrypt_metadata(
     account: &Account, files: &DecryptedFiles,
 ) -> Result<EncryptedFiles, CoreError> {
     let mut result = HashMap::new();
-    for (_, target) in files {
+    for target in files.values() {
         if let Some(user_access) = target
             .shares
             .iter()
@@ -54,7 +54,7 @@ pub fn encrypt_metadata(
                 target
                     .folder_access_key
                     .clone()
-                    .ok_or(core_err_unexpected("unshared decrypted metadata with no folder key"))?
+                    .ok_or_else(|| core_err_unexpected("unshared decrypted metadata with no folder key"))?
             };
             result.push(EncryptedFileMetadata {
                 id: target.id,

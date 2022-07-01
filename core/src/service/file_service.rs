@@ -122,8 +122,7 @@ impl RequestContext<'_, '_> {
                 f.shares.iter().any(|s| {
                     s.encrypted_for_username == username && s.mode != UserAccessMode::Owner
                 })
-            })
-            .collect::<Vec<&DecryptedFileMetadata>>();
+            });
         let pending_shares = shared_metadata
             .into_iter()
             .filter(|f| {
@@ -135,7 +134,7 @@ impl RequestContext<'_, '_> {
                     }
                 })
             })
-            .map(|f| f.clone())
+            .cloned()
             .collect();
         Ok(pending_shares)
     }
@@ -576,7 +575,7 @@ impl RequestContext<'_, '_> {
                             .iter()
                             .any(|k| k.encrypted_for_username == account.username)
                     })
-                    .map(|f| f.clone()),
+                    .cloned(),
             )
             .collect::<Vec<EncryptedFileMetadata>>()
             .to_map();
