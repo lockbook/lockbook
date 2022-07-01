@@ -172,8 +172,7 @@ impl RequestContext<'_, '_> {
                 }),
             }
         }
-        filtered_files
-            .retain(|_, f| !matches!(f.file_type, Link { linked_file: _ }));
+        filtered_files.retain(|_, f| !matches!(f.file_type, Link { linked_file: _ }));
 
         let mut paths: Vec<String> = vec![];
         'outer: for (_, file) in filtered_files {

@@ -51,10 +51,9 @@ pub fn encrypt_metadata(
                     &target.decrypted_access_key,
                 )?
             } else {
-                target
-                    .folder_access_key
-                    .clone()
-                    .ok_or_else(|| core_err_unexpected("unshared decrypted metadata with no folder key"))?
+                target.folder_access_key.clone().ok_or_else(|| {
+                    core_err_unexpected("unshared decrypted metadata with no folder key")
+                })?
             };
             result.push(EncryptedFileMetadata {
                 id: target.id,

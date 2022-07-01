@@ -115,14 +115,11 @@ impl RequestContext<'_, '_> {
         let username = self.get_account()?.username;
         let all_metadata = self.get_all_metadata(source)?;
         let all_metadata = all_metadata.filter_not_deleted()?;
-        let shared_metadata = all_metadata
-            .iter()
-            .map(|(_, f)| f)
-            .filter(|f| {
-                f.shares.iter().any(|s| {
-                    s.encrypted_for_username == username && s.mode != UserAccessMode::Owner
-                })
-            });
+        let shared_metadata = all_metadata.iter().map(|(_, f)| f).filter(|f| {
+            f.shares
+                .iter()
+                .any(|s| s.encrypted_for_username == username && s.mode != UserAccessMode::Owner)
+        });
         let pending_shares = shared_metadata
             .into_iter()
             .filter(|f| {
