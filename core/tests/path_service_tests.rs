@@ -1,6 +1,7 @@
 use lockbook_core::model::errors::CreateFileAtPathError::*;
 use lockbook_core::service::path_service::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 use lockbook_core::Error::UiError;
+use lockbook_core::ShareMode;
 use lockbook_models::file_metadata::FileType;
 use test_utils::*;
 
@@ -121,6 +122,30 @@ fn create_at_path_not_folder() {
     let result = core.create_at_path(&format!("{}/not-folder/document", &account.username));
 
     assert_matches!(result, Err(UiError(DocumentTreatedAsFolder)));
+}
+
+#[test]
+fn create_at_path_insufficient_permission() {
+    let core1 = test_core_with_account();
+    let account1 = core1.get_account().unwrap();
+
+    let core2 = test_core_with_account();
+    let account2 = core2.get_account().unwrap();
+    let folder = core2
+        .create_at_path(&format!("{}/shared-folder/", &account2.username))
+        .unwrap();
+    core2
+        .share_file(folder.id, &account1.username, ShareMode::Read)
+        .unwrap();
+    core2.sync(None).unwrap();
+
+    core1.sync(None).unwrap();
+    core1
+        .create_link_at_path(&format!("{}/received-folder", &account1.username), folder.id)
+        .unwrap();
+    let result = core1.create_at_path(&format!("{}/received-folder/document", &account1.username));
+
+    assert_matches!(result, Err(UiError(InsufficientPermission)));
 }
 
 #[test]

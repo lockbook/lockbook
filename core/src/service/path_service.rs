@@ -1,6 +1,7 @@
 use crate::model::repo::RepoSource;
 use crate::pure_functions::files;
 use crate::{Config, CoreError, RequestContext};
+use lockbook_models::crypto::UserAccessMode;
 use lockbook_models::file_metadata::FileType::{Folder, Link};
 use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles, FileType, Owner};
 use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
@@ -37,6 +38,9 @@ impl RequestContext<'_, '_> {
         }
 
         let path_components = split_path(path_and_name);
+        if path_components.len() == 1 {
+            return Err(CoreError::PathTaken);
+        }
 
         let mut files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
 
@@ -46,10 +50,6 @@ impl RequestContext<'_, '_> {
 
         if current.decrypted_name != path_components[0] {
             return Err(CoreError::PathStartsWithNonRoot);
-        }
-
-        if path_components.len() == 1 {
-            return Err(CoreError::PathTaken);
         }
 
         // We're going to look ahead, and find or create the right child
@@ -65,12 +65,23 @@ impl RequestContext<'_, '_> {
                         return Err(CoreError::PathTaken);
                     }
 
-                    if child.is_folder() {
-                        current = child;
-                        continue 'path; // Child exists, onto the next one
-                    } else {
-                        return Err(CoreError::FileNotFolder);
-                    }
+                    current = match child.file_type {
+                        FileType::Document => {
+                            return Err(CoreError::FileNotFolder);
+                        }
+                        Folder => child,
+                        Link { linked_file } => {
+                            let current = files.find(linked_file)?;
+                            if !current.shares.iter().any(|s| {
+                                s.encrypted_for_username == account.username
+                                    && s.mode == UserAccessMode::Write
+                            }) {
+                                return Err(CoreError::InsufficientPermission);
+                            }
+                            current
+                        }
+                    };
+                    continue 'path;
                 }
             }
 

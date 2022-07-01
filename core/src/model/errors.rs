@@ -281,7 +281,7 @@ pub enum CreateFileAtPathError {
     PathDoesntStartWithRoot,
     PathContainsEmptyFile,
     DocumentTreatedAsFolder,
-    InsufficientPermission, // todo(sharing): cannot create a file in a shared folder unless access >= write
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<CreateFileAtPathError> {
