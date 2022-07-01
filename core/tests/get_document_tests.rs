@@ -52,18 +52,19 @@ fn get_document() {
     );
 }
 
-#[test]
-fn get_document_not_found() {
-    let core = test_core_with_account();
-    let account = core.get_account().unwrap();
+// todo(sharing): reinstate server checks, then reinstate this test
+// #[test]
+// fn get_document_not_found() {
+//     let core = test_core_with_account();
+//     let account = core.get_account().unwrap();
 
-    // get document we never created
-    let result = api_service::request(
-        &account,
-        GetDocumentRequest { id: Uuid::new_v4(), content_version: 0 },
-    );
-    assert_matches!(
-        result,
-        Err(ApiError::<GetDocumentError>::Endpoint(GetDocumentError::DocumentNotFound))
-    );
-}
+//     // get document we never created
+//     let result = api_service::request(
+//         &account,
+//         GetDocumentRequest { id: Uuid::new_v4(), content_version: 0 },
+//     );
+//     assert_matches!(
+//         result,
+//         Err(ApiError::<GetDocumentError>::Endpoint(GetDocumentError::DocumentNotFound))
+//     );
+// }

@@ -1,14 +1,13 @@
-use lockbook_core::pure_functions::files;
 use lockbook_core::CoreError;
-use lockbook_models::file_metadata::FileType;
-use lockbook_models::tree::FileMetaVecExt;
+use lockbook_core::{pure_functions::files, FileMetaVecExt};
+use lockbook_models::file_metadata::{FileType, Owner};
 use test_utils::test_core_with_account;
 
 #[test]
 fn apply_move_path_conflict() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
-    let root = files::create_root(&account);
+    let root = files::create_root(&account).unwrap();
     let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
     let document1 = files::create(FileType::Document, root.id, "document", &account.public_key());
     let document2 = files::create(FileType::Document, folder.id, "document", &account.public_key());
@@ -16,7 +15,11 @@ fn apply_move_path_conflict() {
     let folder_id = folder.id;
     let document1_id = document1.id;
     // don't know what to do here yet
-    let result =
-        files::apply_move(&[root, folder, document1, document2].to_map(), document1_id, folder_id);
+    let result = files::apply_move(
+        &Owner(account.public_key()),
+        &[root, folder, document1, document2].to_map(),
+        document1_id,
+        folder_id,
+    );
     assert_eq!(result, Err(CoreError::PathTaken));
 }

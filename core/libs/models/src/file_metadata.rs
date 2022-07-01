@@ -133,7 +133,7 @@ pub enum ShareMode {
     Read,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
+#[derive(Serialize, Deserialize, Eq, Hash, Clone)]
 pub struct DecryptedFileMetadata {
     pub id: Uuid,
     pub file_type: FileType,
@@ -184,6 +184,22 @@ impl FileMetadata for DecryptedFileMetadata {
             FileType::Document => self.decrypted_name.clone(),
             FileType::Link { linked_file } => format!("name: {}, linked_file: {}", self.decrypted_name, linked_file),
         }
+    }
+}
+
+impl PartialEq for DecryptedFileMetadata {
+    fn eq(&self, other: &Self) -> bool {
+        // note: excludes folder_access_key
+        self.id == other.id &&
+            self.file_type == other.file_type &&
+            self.parent == other.parent &&
+            self.decrypted_name == other.decrypted_name &&
+            self.owner == other.owner &&
+            self.shares == other.shares &&
+            self.metadata_version == other.metadata_version &&
+            self.content_version == other.content_version &&
+            self.deleted == other.deleted &&
+            self.decrypted_access_key == other.decrypted_access_key
     }
 }
 

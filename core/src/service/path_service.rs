@@ -125,8 +125,11 @@ impl RequestContext<'_, '_> {
 
     pub fn get_path_by_id(&mut self, id: Uuid) -> Result<String, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-        if files.find_ref(id)?.is_pending_share(&Owner(self.get_public_key()?)) {
-            return Err(CoreError::FileIsLink)
+        if files
+            .find_ref(id)?
+            .is_pending_share(&Owner(self.get_public_key()?))
+        {
+            return Err(CoreError::FileIsLink);
         }
         Self::path_by_id_helper(&files, id)
     }

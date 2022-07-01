@@ -340,7 +340,7 @@ pub enum CreateFileError {
     FileNameEmpty,
     FileNameContainsSlash,
     LinkInSharedFolder, // todo(sharing): cannot create a link in a shared folder (doesn't matter who owns it)
-    MultipleLinksToSameFile,  // todo(sharing): self-explanatory
+    MultipleLinksToSameFile, // todo(sharing): self-explanatory
     InsufficientPermission, // todo(sharing): cannot create a file in a shared folder unless access >= write
 }
 
@@ -533,8 +533,8 @@ impl From<CoreError> for Error<MoveFileError> {
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum ShareFileError {
-    CannotShareRoot, // todo(sharing): self-explanatory
-    FileNonexistent, // todo(sharing): self-explanatory
+    CannotShareRoot,        // todo(sharing): self-explanatory
+    FileNonexistent,        // todo(sharing): self-explanatory
     ShareAlreadyExists, // todo(sharing): cannot share the same file with the same user twice (can silently upgrade read access to write)
     LinkInSharedFolder, // todo(sharing): cannot share a folder which contains a link
     InsufficientPermission, // todo(sharing): cannot share with write access unowned files (can share with read access any files)
@@ -569,13 +569,13 @@ impl From<CoreError> for Error<DeletePendingShareError> {
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum CreateLinkAtPathError {
-    FileAlreadyExists, // todo(sharing): same as CreateFileAtPathError
-    NoRoot, // todo(sharing): same as CreateFileAtPathError
+    FileAlreadyExists,       // todo(sharing): same as CreateFileAtPathError
+    NoRoot,                  // todo(sharing): same as CreateFileAtPathError
     PathDoesntStartWithRoot, // todo(sharing): same as CreateFileAtPathError
-    PathContainsEmptyFile, // todo(sharing): same as CreateFileAtPathError
+    PathContainsEmptyFile,   // todo(sharing): same as CreateFileAtPathError
     DocumentTreatedAsFolder, // todo(sharing): same as CreateFileAtPathError
-    LinkInSharedFolder, // todo(sharing): cannot share a folder which contains a link
-    LinkTargetNonexistent, // todo(sharing): self-explanatory
+    LinkInSharedFolder,      // todo(sharing): cannot share a folder which contains a link
+    LinkTargetNonexistent,   // todo(sharing): self-explanatory
     MultipleLinksToSameFile, // todo(sharing): self-explanatory
 }
 
@@ -591,9 +591,7 @@ impl From<CoreError> for Error<CreateLinkAtPathError> {
             CoreError::RootNonexistent => UiError(CreateLinkAtPathError::NoRoot),
             CoreError::PathTaken => UiError(CreateLinkAtPathError::FileAlreadyExists),
             CoreError::FileNotFolder => UiError(CreateLinkAtPathError::DocumentTreatedAsFolder),
-            CoreError::LinkInSharedFolder => {
-                UiError(CreateLinkAtPathError::LinkInSharedFolder)
-            }
+            CoreError::LinkInSharedFolder => UiError(CreateLinkAtPathError::LinkInSharedFolder),
             CoreError::LinkTargetNonexistent => {
                 UiError(CreateLinkAtPathError::LinkTargetNonexistent)
             }

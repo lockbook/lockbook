@@ -1,6 +1,6 @@
 use lockbook_core::pure_functions::files;
 use lockbook_core::CoreError;
-use lockbook_models::file_metadata::FileType;
+use lockbook_models::file_metadata::{FileType, Owner};
 use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, PathConflict};
 use std::collections::HashMap;
 use test_utils::test_core_with_account;
@@ -84,7 +84,13 @@ fn apply_move() {
 
     let folder_id = folder.id;
     let document_id = document.id;
-    files::apply_move(&[root, folder, document].to_map(), document_id, folder_id).unwrap();
+    files::apply_move(
+        &Owner(account.public_key()),
+        &[root, folder, document].to_map(),
+        document_id,
+        folder_id,
+    )
+    .unwrap();
 }
 
 #[test]
@@ -97,7 +103,12 @@ fn apply_move_not_found() {
 
     let folder_id = folder.id;
     let document_id = document.id;
-    let result = files::apply_move(&[root, folder].to_map(), document_id, folder_id);
+    let result = files::apply_move(
+        &Owner(account.public_key()),
+        &[root, folder].to_map(),
+        document_id,
+        folder_id,
+    );
     assert_eq!(result, Err(CoreError::FileNonexistent));
 }
 
@@ -111,7 +122,12 @@ fn apply_move_parent_not_found() {
 
     let folder_id = folder.id;
     let document_id = document.id;
-    let result = files::apply_move(&[root, document].to_map(), document_id, folder_id);
+    let result = files::apply_move(
+        &Owner(account.public_key()),
+        &[root, document].to_map(),
+        document_id,
+        folder_id,
+    );
     assert_eq!(result, Err(CoreError::FileParentNonexistent));
 }
 
@@ -125,8 +141,12 @@ fn apply_move_parent_document() {
 
     let document1_id = document1.id;
     let document2_id = document2.id;
-    let result =
-        files::apply_move(&[root, document1, document2].to_map(), document2_id, document1_id);
+    let result = files::apply_move(
+        &Owner(account.public_key()),
+        &[root, document1, document2].to_map(),
+        document2_id,
+        document1_id,
+    );
     assert_eq!(result, Err(CoreError::FileNotFolder));
 }
 
@@ -140,7 +160,12 @@ fn apply_move_root() {
 
     let folder_id = folder.id;
     let root_id = root.id;
-    let result = files::apply_move(&[root, folder, document].to_map(), root_id, folder_id);
+    let result = files::apply_move(
+        &Owner(account.public_key()),
+        &[root, folder, document].to_map(),
+        root_id,
+        folder_id,
+    );
     assert_eq!(result, Err(CoreError::RootModificationInvalid));
 }
 
@@ -155,8 +180,12 @@ fn apply_move_path_conflict() {
 
     let folder_id = folder.id;
     let document1_id = document1.id;
-    let result =
-        files::apply_move(&[root, folder, document1, document2].to_map(), document1_id, folder_id);
+    let result = files::apply_move(
+        &Owner(account.public_key()),
+        &[root, folder, document1, document2].to_map(),
+        document1_id,
+        folder_id,
+    );
     assert_eq!(result, Err(CoreError::PathTaken));
 }
 
@@ -170,7 +199,12 @@ fn apply_move_2cycle() {
 
     let folder1_id = folder1.id;
     let folder2_id = folder2.id;
-    let result = files::apply_move(&[root, folder1, folder2].to_map(), folder1_id, folder2_id);
+    let result = files::apply_move(
+        &Owner(account.public_key()),
+        &[root, folder1, folder2].to_map(),
+        folder1_id,
+        folder2_id,
+    );
     assert_eq!(result, Err(CoreError::FolderMovedIntoSelf));
 }
 
@@ -201,7 +235,12 @@ fn apply_move_1cycle() {
     let folder = files::create(FileType::Folder, root.id, "folder1", &account.public_key());
 
     let folder1_id = folder.id;
-    let result = files::apply_move(&[root, folder].to_map(), folder1_id, folder1_id);
+    let result = files::apply_move(
+        &Owner(account.public_key()),
+        &[root, folder].to_map(),
+        folder1_id,
+        folder1_id,
+    );
     assert_eq!(result, Err(CoreError::FolderMovedIntoSelf));
 }
 
