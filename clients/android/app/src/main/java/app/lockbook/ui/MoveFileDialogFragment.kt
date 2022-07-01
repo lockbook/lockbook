@@ -69,7 +69,7 @@ class MoveFileDialogFragment : DialogFragment() {
     private fun setUpView() {
         binding.moveFileList.setup {
             withDataSource(model.files)
-            withItem<DecryptedFileMetadata, LinearMoveFileItemViewHolder>(R.layout.linear_layout_move_file_item) {
+            withItem<DecryptedFileMetadata, LinearMoveFileItemViewHolder>(R.layout.move_file_item) {
                 onBind(::LinearMoveFileItemViewHolder) { _, item ->
                     name.text = item.decryptedName
                     val extensionHelper = ExtensionHelper(item.decryptedName)

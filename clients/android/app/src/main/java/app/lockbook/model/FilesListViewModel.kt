@@ -12,6 +12,7 @@ import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptySelectableDataSourceTyped
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.getOrElse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -24,10 +25,12 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
     lateinit var fileModel: FileModel
 
-    val selectableFiles = emptySelectableDataSourceTyped<DecryptedFileMetadata>()
+    val selectableFiles = emptySelectableDataSourceTyped<FileViewHolderInfo>()
     var breadcrumbItems = listOf<BreadCrumbItem>()
 
     val syncModel = SyncModel()
+    var localChanges: HashSet<String> = hashSetOf()
+    var serverChanges: HashSet<String>? = null
     var maybeLastSidebarInfo: UpdateFilesUI.UpdateSideBarInfo? = null
 
     init {
@@ -47,7 +50,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                     breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
                     _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
 
-                    refreshSidebar()
+                    refreshWorkInfo()
                 }
             }
             is Err -> {
@@ -68,8 +71,13 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                 return@launch
             }
 
+            localChanges = CoreModel.getLocalChanges().getOrElse { error ->
+                postUIUpdate(UpdateFilesUI.NotifyError((error.toLbError(getRes()))))
+                return@launch
+            }
+
             viewModelScope.launch(Dispatchers.Main) {
-                selectableFiles.set(fileModel.children)
+                selectableFiles.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
             }
 
             breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
@@ -86,7 +94,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
             }
 
             viewModelScope.launch(Dispatchers.Main) {
-                selectableFiles.set(fileModel.children)
+                selectableFiles.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
             }
 
             breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
@@ -103,7 +111,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
             }
 
             viewModelScope.launch(Dispatchers.Main) {
-                selectableFiles.set(fileModel.children)
+                selectableFiles.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
             }
 
             breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
@@ -114,9 +122,9 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun onSwipeToRefresh() {
         viewModelScope.launch(Dispatchers.IO) {
-            syncWithSnackBar()
+            sync()
             refreshFiles()
-            refreshSidebar()
+            refreshWorkInfo()
         }
     }
 
@@ -131,13 +139,13 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                         false
                     )
             ) {
-                syncWithSnackBar()
+                sync()
             }
             refreshFiles()
         }
     }
 
-    private fun syncWithSnackBar() {
+    private fun sync() {
         when (val hasSyncWorkResult = syncModel.hasSyncWork()) {
             is Ok -> if (!hasSyncWorkResult.value) {
                 _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpToDateSyncSnackBar)
@@ -152,6 +160,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
             )
         }
 
+        serverChanges = null
         when (val syncResult = syncModel.trySync()) {
             is Ok -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpToDateSyncSnackBar)
             is Err -> _notifyUpdateFilesUI.postValue(
@@ -170,9 +179,9 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun reloadSidebar() {
+    fun reloadWorkInfo() {
         viewModelScope.launch(Dispatchers.IO) {
-            refreshSidebar()
+            refreshWorkInfo()
         }
     }
 
@@ -183,9 +192,14 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
             return
         }
 
+        localChanges = CoreModel.getLocalChanges().getOrElse { error ->
+            postUIUpdate(UpdateFilesUI.NotifyError((error.toLbError(getRes()))))
+            return
+        }
+
         viewModelScope.launch(Dispatchers.Main) {
             selectableFiles.deselectAll()
-            selectableFiles.set(fileModel.children)
+            selectableFiles.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
 
             _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
         }
@@ -193,45 +207,50 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun changeFileSort(newSortStyle: SortStyle) {
         fileModel.setSortStyle(newSortStyle)
-        selectableFiles.set(fileModel.children)
 
+        selectableFiles.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
         PreferenceManager.getDefaultSharedPreferences(getContext()).edit().putString(getString(R.string.sort_files_key), getString(newSortStyle.toStringResource())).apply()
     }
 
-    private fun refreshSidebar() {
-        var lastSidebarInfo = UpdateFilesUI.UpdateSideBarInfo()
-        maybeLastSidebarInfo = lastSidebarInfo
+    private fun refreshWorkInfo() {
+        var sidebarInfo = UpdateFilesUI.UpdateSideBarInfo()
+        maybeLastSidebarInfo = sidebarInfo
 
         when (val usageResult = CoreModel.getUsage()) {
-            is Ok -> lastSidebarInfo.usageMetrics = usageResult.value
+            is Ok -> sidebarInfo.usageMetrics = usageResult.value
             is Err -> return _notifyUpdateFilesUI.postValue(
                 UpdateFilesUI.NotifyError(usageResult.error.toLbError(getRes()))
             )
         }
 
-        _notifyUpdateFilesUI.postValue(lastSidebarInfo)
+        _notifyUpdateFilesUI.postValue(sidebarInfo)
 
         when (val getLocalChangesResult = CoreModel.getLocalChanges()) {
-            is Ok -> lastSidebarInfo.localDirtyFilesCount = getLocalChangesResult.value.size
+            is Ok -> sidebarInfo.localDirtyFilesCount = getLocalChangesResult.value.size
             is Err -> {
                 return _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(getLocalChangesResult.error.toLbError(getRes())))
             }
         }
 
-        _notifyUpdateFilesUI.postValue(lastSidebarInfo)
+        _notifyUpdateFilesUI.postValue(sidebarInfo)
 
         when (val calculateWorkResult = CoreModel.calculateWork()) {
             is Ok -> {
-                lastSidebarInfo.lastSynced = CoreModel.convertToHumanDuration(
+                sidebarInfo.lastSynced = CoreModel.convertToHumanDuration(
                     calculateWorkResult.value.mostRecentUpdateFromServer
                 )
-                lastSidebarInfo.serverDirtyFilesCount = calculateWorkResult.value.workUnits.filter { it.tag == WorkUnitTag.ServerChange }.size
+                sidebarInfo.serverDirtyFilesCount = calculateWorkResult.value.workUnits.filter { it.tag == WorkUnitTag.ServerChange }.size
+
+                serverChanges = calculateWorkResult.value.workUnits.filter { it.tag == WorkUnitTag.ServerChange }.map { it.content.metadata.id }.toHashSet()
+                viewModelScope.launch(Dispatchers.Main) {
+                    selectableFiles.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+                }
             }
             is Err -> {
                 _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(calculateWorkResult.error.toLbError(getRes())))
             }
         }
 
-        _notifyUpdateFilesUI.postValue(lastSidebarInfo)
+        _notifyUpdateFilesUI.postValue(sidebarInfo)
     }
 }
