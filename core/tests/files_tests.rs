@@ -178,7 +178,7 @@ fn apply_move_2cycle() {
 fn hash_map_apply_move_2cycle() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
-    let root = files::create_root(&account);
+    let root = files::create_root(&account).unwrap();
     let mut folder1 = files::create(FileType::Folder, root.id, "folder1", &account.public_key());
     let folder2 = files::create(FileType::Folder, folder1.id, "folder2", &account.public_key());
 
@@ -187,7 +187,7 @@ fn hash_map_apply_move_2cycle() {
         HashMap::from([(root.id, root), (folder1.id, folder1.clone()), (folder2.id, folder2)]);
     // let all_files = &[root.clone(), folder1.clone(), folder2.clone()];
     let result = all_files
-        .get_invalid_cycles(&all_files)
+        .get_invalid_cycles(&Owner(account.public_key()), &all_files)
         .unwrap()
         .contains(&folder1.id);
     assert!(result);

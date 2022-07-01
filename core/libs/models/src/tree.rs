@@ -130,7 +130,7 @@ pub trait FileMetaMapExt<Fm: FileMetadata> {
     fn documents(&self) -> HashSet<Uuid>;
     fn parents(&self) -> HashSet<Uuid>;
     fn get_invalid_cycles(
-        &self, staged_changes: &HashMap<Uuid, Fm>,
+        &self, user: &Owner, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<Uuid>, TreeError>;
     fn get_path_conflicts(
         &self, staged_changes: &HashMap<Uuid, Fm>,
@@ -138,7 +138,7 @@ pub trait FileMetaMapExt<Fm: FileMetadata> {
     fn get_shared_links(
         &self, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<LinkShare>, TreeError>;
-    fn verify_integrity(&self) -> Result<(), TestFileTreeError>;
+    fn verify_integrity(&self, user: &Owner) -> Result<(), TestFileTreeError>;
     fn pretty_print(&self) -> String;
 }
 
@@ -331,7 +331,7 @@ where
     }
 
     fn get_invalid_cycles(
-        &self, staged_changes: &HashMap<Uuid, Fm>,
+        &self, user: &Owner, staged_changes: &HashMap<Uuid, Fm>
     ) -> Result<Vec<Uuid>, TreeError> {
         let mut root_found = false;
         let mut prev_checked = HashMap::new();
@@ -355,7 +355,7 @@ where
                     break;
                 }
                 checking.push(cur.clone());
-                if cur.is_pending_share(&self.find_root()?.owner()) {
+                if cur.is_pending_share(&user) {
                     break
                 }
                 cur = &staged_changes.get(&cur.parent()).ok_or(FileNonexistent)?.0;
@@ -420,7 +420,7 @@ where
         Ok(result)
     }
 
-    fn verify_integrity(&self) -> Result<(), TestFileTreeError> {
+    fn verify_integrity(&self, user: &Owner) -> Result<(), TestFileTreeError> {
         if self.is_empty() {
             return Ok(());
         }
@@ -438,7 +438,7 @@ where
         }
 
         let maybe_self_descendant = self
-            .get_invalid_cycles(&HashMap::new())
+            .get_invalid_cycles(user, &HashMap::new())
             .map_err(TestFileTreeError::Tree)?
             .into_iter()
             .next();

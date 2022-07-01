@@ -36,7 +36,7 @@ pub async fn upsert_file_metadata(
             let deleted_docs = apply_changes(tx, now, &owner, &request.updates, &mut files)?;
 
             files
-                .verify_integrity()
+                .verify_integrity(&owner)
                 .map_err(|_| ClientError(GetUpdatesRequired))?; // Could provide reject reason here
 
             let owned_files = files.ids();
@@ -299,6 +299,7 @@ pub async fn get_updates(
             .filter_map(|id| tx.metas.get(&id))
             .filter(|meta| meta.metadata_version > request.since_metadata_version)
             .collect();
+
         Ok(GetUpdatesResponse { file_metadata })
     })?
 }

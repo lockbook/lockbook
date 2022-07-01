@@ -112,7 +112,7 @@ pub fn apply_rename(
 
 /// Validates a move operation for a file in the context of all files and returns a version of the file with the operation applied. This is a pure function.
 pub fn apply_move(
-    files: &DecryptedFiles, target_id: Uuid, new_parent: Uuid,
+    user: &Owner, files: &DecryptedFiles, target_id: Uuid, new_parent: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let mut file = files.find(target_id)?;
     let parent = files
@@ -123,7 +123,7 @@ pub fn apply_move(
 
     file.parent = new_parent;
     let staged_changes = HashMap::with(file.clone());
-    if !files.get_invalid_cycles(&staged_changes)?.is_empty() {
+    if !files.get_invalid_cycles(user, &staged_changes)?.is_empty() {
         return Err(CoreError::FolderMovedIntoSelf);
     }
     if !files.get_path_conflicts(&staged_changes)?.is_empty() {

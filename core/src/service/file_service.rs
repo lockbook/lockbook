@@ -18,6 +18,7 @@ use lockbook_models::crypto::UserAccessInfo;
 use lockbook_models::crypto::UserAccessMode;
 use lockbook_models::file_metadata::FileMetadataDiff;
 use lockbook_models::file_metadata::FileType;
+use lockbook_models::file_metadata::Owner;
 use lockbook_models::file_metadata::ShareMode;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
 use lockbook_models::file_metadata::{EncryptedFileMetadata, EncryptedFiles};
@@ -456,7 +457,7 @@ impl RequestContext<'_, '_> {
         &mut self, config: &Config, id: Uuid, new_parent: Uuid,
     ) -> Result<(), CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-        let file = files::apply_move(&files, id, new_parent)?;
+        let file = files::apply_move(&Owner(self.get_account()?.public_key()), &files, id, new_parent)?;
         self.insert_metadatum(config, RepoSource::Local, &file)
     }
 

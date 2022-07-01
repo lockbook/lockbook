@@ -11,6 +11,7 @@ use lockbook_models::api::{
     ChangeDocumentContentRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,
 };
 use lockbook_models::crypto::{DecryptedDocument, UserAccessInfo};
+use lockbook_models::file_metadata::Owner;
 use lockbook_models::file_metadata::{
     DecryptedFileMetadata, DecryptedFiles, EncryptedFiles, FileType,
 };
@@ -565,7 +566,7 @@ impl RequestContext<'_, '_> {
         }
 
         // resolve cycles
-        for self_descendant in local_metadata.get_invalid_cycles(&local_metadata_updates)? {
+        for self_descendant in local_metadata.get_invalid_cycles(&Owner(account.public_key()), &local_metadata_updates)? {
             if let Some(RepoState::Modified { mut local, base }) =
                 self.maybe_get_metadata_state(self_descendant)?
             {

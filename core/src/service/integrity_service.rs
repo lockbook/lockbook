@@ -4,7 +4,7 @@ use crate::pure_functions::drawing;
 use crate::service::file_service;
 use crate::service::integrity_service::TestRepoError::DocumentReadError;
 use crate::{Config, OneKey, RequestContext};
-use lockbook_models::file_metadata::FileType;
+use lockbook_models::file_metadata::{FileType, Owner};
 use lockbook_models::tree::{FileMetaMapExt, TestFileTreeError};
 
 use std::path::Path;
@@ -30,7 +30,7 @@ impl RequestContext<'_, '_> {
         }
 
         files_encrypted
-            .verify_integrity()
+            .verify_integrity(&Owner(self.tx.account.get(&OneKey {}).unwrap().public_key()))
             .map_err(|err| match err {
                 TestFileTreeError::NoRootFolder => TestRepoError::NoRootFolder,
                 TestFileTreeError::DocumentTreatedAsFolder(e) => {
