@@ -167,6 +167,7 @@ pub fn save_temp_file_contents<P: AsRef<Path>>(
             WriteToDocumentError::FolderTreatedAsDocument => {
                 CliError::unexpected("can't write to folder")
             }
+            WriteToDocumentError::InsufficientPermission => todo!(), // todo(sharing)
         },
         LbError::Unexpected(msg) => CliError::unexpected(msg),
     })

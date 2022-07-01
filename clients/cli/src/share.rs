@@ -1,5 +1,4 @@
-use lockbook_core::Core;
-use lockbook_models::file_metadata::ShareMode;
+use lockbook_core::{Core, ShareMode, Uuid};
 
 use crate::error::CliError;
 
@@ -18,11 +17,13 @@ pub fn get_pending_shares(core: &Core) -> Result<(), CliError> {
 }
 
 pub fn new_link(core: &Core, link_path: &str, target_id: &str) -> Result<(), CliError> {
-    core.create_link_at_path(link_path, uuid::Uuid::parse_str(target_id).unwrap()).unwrap();
+    core.create_link_at_path(link_path, Uuid::parse_str(target_id).unwrap())
+        .unwrap();
     Ok(())
 }
 
 pub fn delete_pending_share(core: &Core, target_id: &str) -> Result<(), CliError> {
-    core.delete_pending_share(uuid::Uuid::parse_str(target_id).unwrap()).unwrap(); // todo(sharing): handle errors
+    core.delete_pending_share(Uuid::parse_str(target_id).unwrap())
+        .unwrap(); // todo(sharing): handle errors
     Ok(())
 }

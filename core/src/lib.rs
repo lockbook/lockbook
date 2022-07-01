@@ -39,7 +39,7 @@ use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service;
 use lockbook_models::crypto::AESKey;
-use lockbook_models::file_metadata::ShareMode;
+pub use lockbook_models::file_metadata::ShareMode;
 use model::errors::Error::UiError;
 pub use model::errors::{CoreError, Error, UnexpectedError};
 use serde::Deserialize;

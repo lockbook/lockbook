@@ -67,6 +67,7 @@ fn get_or_create_file(core: &Core, lb_path: &str) -> Result<DecryptedFileMetadat
                 CreateFileAtPathError::DocumentTreatedAsFolder => {
                     CliError::doc_treated_as_dir(lb_path)
                 }
+                CreateFileAtPathError::InsufficientPermission => todo!(), // todo(sharing)
             },
             LbError::Unexpected(msg) => CliError::unexpected(msg),
         })

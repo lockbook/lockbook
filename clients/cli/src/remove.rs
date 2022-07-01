@@ -55,6 +55,7 @@ pub fn remove(core: &Core, lb_path: &str, force: bool) -> Result<(), CliError> {
     core.delete_file(meta.id).map_err(|err| match err {
         LbError::UiError(FileDeleteError::FileDoesNotExist) => CliError::file_not_found(lb_path),
         LbError::UiError(FileDeleteError::CannotDeleteRoot) => CliError::no_root_ops("delete"),
+        LbError::UiError(FileDeleteError::InsufficientPermission) => todo!(), // todo(sharing)
         LbError::Unexpected(msg) => CliError::unexpected(msg),
     })
 }

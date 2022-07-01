@@ -26,6 +26,7 @@ pub fn rename(core: &Core, path: &str, new_name: &str) -> Result<(), CliError> {
                 RenameFileError::NewNameContainsSlash => CliError::file_name_has_slash(new_name),
                 RenameFileError::FileNameNotAvailable => CliError::file_name_taken(new_name),
                 RenameFileError::FileDoesNotExist => CliError::file_not_found(path),
+                RenameFileError::InsufficientPermission => todo!(), // todo(sharing)
             },
             LbError::Unexpected(msg) => CliError::unexpected(msg),
         })

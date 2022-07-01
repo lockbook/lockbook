@@ -22,6 +22,7 @@ pub fn new(core: &Core, lb_path: &str) -> Result<(), CliError> {
             CreateFileAtPathError::PathContainsEmptyFile => CliError::path_has_empty_file(lb_path),
             CreateFileAtPathError::PathDoesntStartWithRoot => CliError::path_no_root(lb_path),
             CreateFileAtPathError::DocumentTreatedAsFolder => CliError::doc_treated_as_dir(lb_path),
+            CreateFileAtPathError::InsufficientPermission => todo!(), // todo(sharing)
         },
         LbError::Unexpected(msg) => CliError::unexpected(msg),
     })?;
@@ -57,6 +58,7 @@ pub fn new(core: &Core, lb_path: &str) -> Result<(), CliError> {
                 LbError::UiError(err) => match err {
                     FileDeleteError::FileDoesNotExist => CliError::file_not_found(lb_path),
                     FileDeleteError::CannotDeleteRoot => CliError::no_root_ops("delete"),
+                    FileDeleteError::InsufficientPermission => todo!(), // todo(sharing)
                 },
                 LbError::Unexpected(msg) => CliError::unexpected(msg),
             })?;

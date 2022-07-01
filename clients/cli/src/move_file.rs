@@ -31,6 +31,8 @@ pub fn move_file(core: &Core, path1: &str, path2: &str) -> Result<(), CliError> 
                         "{} cannot be moved to {}",
                         file_metadata.decrypted_name, target_file_metadata.decrypted_name
                     )),
+                MoveFileError::LinkInSharedFolder => todo!(), // todo(sharing)
+                MoveFileError::InsufficientPermission => todo!(), // todo(sharing)
             },
             LbError::Unexpected(msg) => CliError::unexpected(msg),
         })
