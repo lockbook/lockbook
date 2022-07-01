@@ -24,10 +24,13 @@ enum class SortStyle {
 
 class FileModel(
     var parent: DecryptedFileMetadata,
+    var files: List<DecryptedFileMetadata>,
     var children: List<DecryptedFileMetadata>,
+    var recentFiles: List<DecryptedFileMetadata>,
     val fileDir: MutableList<DecryptedFileMetadata>,
     private var sortStyle: SortStyle
 ) {
+
     companion object {
         // Returns Ok(null) if there is no root
         fun createAtRoot(context: Context): Result<FileModel?, LbError> {
@@ -50,19 +53,25 @@ class FileModel(
 
             return when (val getRootResult = CoreModel.getRoot()) {
                 is Ok -> {
-                    when (val getChildrenResult = CoreModel.getChildren(getRootResult.value.id)) {
+                    when (val listMetadatasResult = CoreModel.listMetadatas()) {
                         is Ok -> {
+                            val root = getRootResult.value
+                            val files = listMetadatasResult.value
+                            val recentFiles = getTenMostRecentFiles(files)
+
                             val fileModel = FileModel(
-                                getRootResult.value,
-                                getChildrenResult.value,
-                                mutableListOf(getRootResult.value),
+                                root,
+                                files,
+                                files.filter { it.parent == root.id && it.id != it.parent },
+                                recentFiles,
+                                mutableListOf(root),
                                 sortStyle
                             )
                             fileModel.sortChildren()
 
                             Ok(fileModel)
                         }
-                        is Err -> Err(getChildrenResult.error.toLbError(res))
+                        is Err -> Err(listMetadatasResult.error.toLbError(res))
                     }
                 }
                 is Err -> {
@@ -74,16 +83,30 @@ class FileModel(
                 }
             }
         }
+
+        private fun getTenMostRecentFiles(files: List<DecryptedFileMetadata>): List<DecryptedFileMetadata> {
+            val intermediateRecentFiles =
+                files.asSequence().filter { it.fileType == FileType.Document }
+                    .sortedBy { it.contentVersion }.toList()
+
+            val recentFiles = try {
+                intermediateRecentFiles.takeLast(10)
+            } catch (e: Exception) {
+                intermediateRecentFiles
+            }
+
+            return recentFiles.reversed()
+        }
     }
 
-    fun refreshChildrenAtAncestor(position: Int): Result<Unit, CoreError<GetChildrenError>> {
+    fun refreshChildrenAtAncestor(position: Int) {
         val firstChildPosition = position + 1
         for (index in firstChildPosition until fileDir.size) {
             fileDir.removeAt(firstChildPosition)
         }
 
         parent = fileDir.last()
-        return refreshChildren()
+        refreshChildren()
     }
 
     fun isAtRoot(): Boolean = parent.id == parent.parent
@@ -103,39 +126,29 @@ class FileModel(
         }
     }
 
-    private fun refreshChildrenAtNewParent(newParent: DecryptedFileMetadata): Result<Unit, CoreError<GetChildrenError>> {
-        val oldParent = parent
+    fun refreshFiles(): Result<Unit, CoreError<Empty>> {
+        return CoreModel.listMetadatas().map { files ->
+            this.files = files
+            recentFiles = getTenMostRecentFiles(files)
+            refreshChildren()
+        }
+    }
+
+    fun intoFile(newParent: DecryptedFileMetadata) {
         parent = newParent
-
-        val refreshChildrenResult = refreshChildren()
-        if (refreshChildrenResult is Err) {
-            parent = oldParent
-        }
-
-        return refreshChildrenResult
+        refreshChildren()
+        fileDir.add(newParent)
     }
 
-    fun refreshChildren(): Result<Unit, CoreError<GetChildrenError>> {
-        return CoreModel.getChildren(parent.id).map { newChildren ->
-            children = newChildren.filter { fileMetadata -> !fileMetadata.isRoot() }
-            sortChildren()
-        }
+    fun intoParent() {
+        parent = files.filter { it.id == parent.parent }[0]
+        refreshChildren()
+        fileDir.removeLast()
     }
 
-    fun intoChild(newParent: DecryptedFileMetadata): Result<Unit, CoreError<GetChildrenError>> {
-        return refreshChildrenAtNewParent(newParent).map {
-            fileDir.add(newParent)
-        }
-    }
-
-    fun intoParent(): Result<Unit, CoreError<out UiCoreError>> {
-        return CoreModel.getFileById(parent.parent).andThen { newParent ->
-            refreshChildrenAtNewParent(newParent).map {
-                if (fileDir.size != 1) {
-                    fileDir.removeLastOrNull()
-                }
-            }
-        }
+    fun refreshChildren() {
+        children = files.filter { it.parent == parent.id && it.id != it.parent }
+        sortChildren()
     }
 
     private fun sortFilesAlpha(files: List<DecryptedFileMetadata>): List<DecryptedFileMetadata> =

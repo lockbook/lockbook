@@ -29,3 +29,4 @@ external fun upgradeAccountGooglePlay(purchaseToken: String, accountId: String):
 external fun cancelSubscription(): String
 external fun getSubscriptionInfo(): String
 external fun getLocalChanges(): String
+external fun listMetadatas(): String

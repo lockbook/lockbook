@@ -13,6 +13,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.preference.PreferenceManager
+import androidx.recyclerview.widget.LinearLayoutManager
 import app.futured.donut.DonutProgressView
 import app.futured.donut.DonutSection
 import app.lockbook.App
@@ -45,7 +46,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?): Boolean = false
 
             override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean {
-                val selectedFiles = model.selectableFiles.getSelectedItems()
+                val selectedFiles = model.files.getSelectedItems()
 
                 return when (item?.itemId) {
                     R.id.menu_list_files_rename -> {
@@ -61,7 +62,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                         true
                     }
                     R.id.menu_list_files_info -> {
-                        if (model.selectableFiles.getSelectionCount() == 1) {
+                        if (model.files.getSelectionCount() == 1) {
                             activityModel.launchTransientScreen(TransientScreen.Info(selectedFiles[0].fileMetadata))
                         }
 
@@ -84,7 +85,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
 
             override fun onDestroyActionMode(mode: ActionMode?) {
-                model.selectableFiles.deselectAll()
+                model.files.deselectAll()
                 actionModeMenu = null
             }
         }
@@ -224,6 +225,10 @@ class FilesListFragment : Fragment(), FilesFragment {
             updateSyncProgress(syncStatus.syncStepInfo)
         }
 
+        if (!model.isRecentFilesVisible) {
+            binding.recentFilesLayout.root.visibility = View.GONE
+        }
+
         (requireActivity().application as App).billingClientLifecycle.showInAppMessaging(requireActivity())
     }
 
@@ -279,7 +284,7 @@ class FilesListFragment : Fragment(), FilesFragment {
 
     private fun setUpFilesList() {
         recyclerView.setup {
-            withDataSource(model.selectableFiles)
+            withDataSource(model.files)
             withEmptyView(binding.filesEmptyFolder)
 
             withItem<FileViewHolderInfo.FolderViewHolderInfo, FolderViewHolder>(R.layout.folder_file_item) {
@@ -310,7 +315,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 }
 
                 onClick {
-                    if (isSelected() || model.selectableFiles.hasSelection()) {
+                    if (isSelected() || model.files.hasSelection()) {
                         toggleSelection()
                         toggleMenuBar()
                     } else {
@@ -358,7 +363,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 }
 
                 onClick {
-                    if (isSelected() || model.selectableFiles.hasSelection()) {
+                    if (isSelected() || model.files.hasSelection()) {
                         toggleSelection()
                         toggleMenuBar()
                     } else {
@@ -369,6 +374,34 @@ class FilesListFragment : Fragment(), FilesFragment {
                 onLongClick {
                     this.toggleSelection()
                     toggleMenuBar()
+                }
+            }
+        }
+
+        binding.recentFilesLayout.recentFilesList.setup {
+            withDataSource(model.recentFiles)
+            this.withLayoutManager(LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false))
+
+            withItem<RecentFileViewHolderInfo, RecentFileItemViewHolder>(R.layout.recent_file_item) {
+                onBind(::RecentFileItemViewHolder) { _, item ->
+                    name.text = item.fileMetadata.decryptedName
+                    folderName.text = getString(R.string.recent_files_folder, item.folderName)
+                    lastEdited.text = CoreModel.convertToHumanDuration(item.fileMetadata.metadataVersion)
+
+                    val extensionHelper = ExtensionHelper(item.fileMetadata.decryptedName)
+
+                    val iconResource = when {
+                        extensionHelper.isDrawing -> R.drawable.ic_outline_draw_24
+                        extensionHelper.isImage -> R.drawable.ic_outline_image_24
+                        extensionHelper.isPdf -> R.drawable.ic_outline_picture_as_pdf_24
+                        else -> R.drawable.ic_outline_insert_drive_file_24
+                    }
+
+                    icon.setImageResource(iconResource)
+                }
+
+                onClick {
+                    enterFile(item.fileMetadata)
                 }
             }
         }
@@ -493,11 +526,14 @@ class FilesListFragment : Fragment(), FilesFragment {
                     binding.navigationView.getHeaderView(0).findViewById<MaterialTextView>(R.id.filesListServerDirty).text = resources.getQuantityString(R.plurals.files_to_pull, serverDirtyFilesCount, serverDirtyFilesCount)
                 }
             }
+            is UpdateFilesUI.ToggleRecentFilesVisibility -> {
+                binding.recentFilesLayout.root.visibility = if (uiUpdates.show) View.VISIBLE else View.GONE
+            }
         }
     }
 
     private fun toggleMenuBar() {
-        when (val selectionCount = model.selectableFiles.getSelectionCount()) {
+        when (val selectionCount = model.files.getSelectionCount()) {
             0 -> {
                 actionModeMenu?.finish()
             }
@@ -523,7 +559,7 @@ class FilesListFragment : Fragment(), FilesFragment {
     }
 
     override fun onBackPressed(): Boolean = when {
-        model.selectableFiles.hasSelection() -> {
+        model.files.hasSelection() -> {
             unselectFiles()
             false
         }
@@ -543,7 +579,7 @@ class FilesListFragment : Fragment(), FilesFragment {
     }
 
     override fun unselectFiles() {
-        model.selectableFiles.deselectAll()
+        model.files.deselectAll()
         toggleMenuBar()
     }
 
@@ -566,6 +602,7 @@ sealed class UpdateFilesUI {
     data class NotifyError(val error: LbError) : UpdateFilesUI()
     data class ShowSyncSnackBar(val totalSyncItems: Int) : UpdateFilesUI()
     data class UpdateSideBarInfo(var usageMetrics: UsageMetrics? = null, var lastSynced: String? = null, var localDirtyFilesCount: Int? = null, var serverDirtyFilesCount: Int? = null) : UpdateFilesUI()
+    data class ToggleRecentFilesVisibility(var show: Boolean) : UpdateFilesUI()
     object UpToDateSyncSnackBar : UpdateFilesUI()
     object ToggleMenuBar : UpdateFilesUI()
     object ShowBeforeWeStart : UpdateFilesUI()
