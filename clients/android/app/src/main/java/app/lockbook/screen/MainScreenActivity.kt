@@ -239,7 +239,6 @@ class MainScreenActivity : AppCompatActivity() {
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? DrawingFragment)?.let { fragment ->
             fragment.binding.drawingView.stopThread()
             fragment.saveOnExit()
-
         }
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? TextEditorFragment)?.saveOnExit()
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? PdfViewerFragment)?.deleteLocalPdfInstance()

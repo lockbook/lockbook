@@ -31,31 +31,12 @@
             <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:layout_scrollFlags="scroll|exitUntilCollapsed|enterAlways">
+                app:layout_scrollFlags="scroll|exitUntilCollapsed|snap">
 
-                <LinearLayout
+                <include
                     android:id="@+id/recent_files_layout"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    tools:ignore="UselessParent">
+                    layout="@layout/layout_recent_files" />
 
-                    <com.google.android.material.textview.MaterialTextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:paddingHorizontal="15dp"
-                        android:paddingBottom="15dp"
-                        android:text="@string/recent_documents"
-                        android:textAppearance="?attr/textAppearanceTitleMedium" />
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/recent_files_list"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:paddingHorizontal="20dp"
-                        android:paddingBottom="10dp" />
-
-                </LinearLayout>
             </FrameLayout>
 
             <app.lockbook.ui.BreadCrumbView

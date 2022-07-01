@@ -34,13 +34,12 @@ class MoveFileItemViewHolder(itemView: View) : ViewHolder(itemView) {
 
 data class RecentFileViewHolderInfo(val fileMetadata: DecryptedFileMetadata, val folderName: String)
 
-class RecentFileItemViewHolder(itemView: View): ViewHolder(itemView) {
+class RecentFileItemViewHolder(itemView: View) : ViewHolder(itemView) {
     val name: TextView = itemView.findViewById(R.id.recent_file_name)
     val icon: ImageView = itemView.findViewById(R.id.recent_file_icon)
     val folderName: TextView = itemView.findViewById(R.id.recent_file_folder)
     val lastEdited: TextView = itemView.findViewById(R.id.recent_file_last_edited)
 }
-
 
 fun List<DecryptedFileMetadata>.intoViewHolderInfo(localChanges: HashSet<String>, serverChanges: HashSet<String>?): List<FileViewHolderInfo> = this.map { fileMetadata ->
     when (fileMetadata.fileType) {

@@ -68,7 +68,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
     private suspend fun maybeToggleRecentFiles() {
         val newIsRecentFilesVisible = fileModel.parent.parent == fileModel.parent.id
-        if(newIsRecentFilesVisible != isRecentFilesVisible) {
+        if (newIsRecentFilesVisible != isRecentFilesVisible) {
             isRecentFilesVisible = newIsRecentFilesVisible
             withContext(Dispatchers.Main) {
                 _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleRecentFilesVisibility(isRecentFilesVisible)

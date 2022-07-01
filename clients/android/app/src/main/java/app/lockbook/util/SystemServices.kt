@@ -14,7 +14,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.preference.Preference
 import app.lockbook.App
 import app.lockbook.R
-import app.lockbook.screen.FilesListFragment
 import app.lockbook.screen.MainScreenActivity
 import app.lockbook.screen.SettingsActivity
 import app.lockbook.screen.SettingsFragment
@@ -61,4 +60,3 @@ fun MainScreenActivity.getFilesFragment(): FilesFragment =
 
 fun MainScreenActivity.maybeGetFilesFragment(): FilesFragment? =
     supportFragmentManager.findFragmentById(R.id.files_fragment) as? FilesFragment
-

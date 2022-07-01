@@ -5,7 +5,6 @@ import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.util.*
 import com.github.michaelbull.result.*
-import timber.log.Timber
 
 enum class SortStyle {
     AToZ,
@@ -89,6 +88,7 @@ class FileModel(
             val intermediateRecentFiles =
                 files.asSequence().filter { it.fileType == FileType.Document }
                     .sortedBy { it.contentVersion }.toList()
+
             val recentFiles = try {
                 intermediateRecentFiles.takeLast(10)
             } catch (e: Exception) {
@@ -106,8 +106,7 @@ class FileModel(
         }
 
         parent = fileDir.last()
-        children = files.filter { it.parent == parent.id && it.id != it.parent }
-        sortChildren()
+        refreshChildren()
     }
 
     fun isAtRoot(): Boolean = parent.id == parent.parent
@@ -130,24 +129,26 @@ class FileModel(
     fun refreshFiles(): Result<Unit, CoreError<Empty>> {
         return CoreModel.listMetadatas().map { files ->
             this.files = files
-            children = files.filter { it.parent == parent.id && it.id != it.parent }
             recentFiles = getTenMostRecentFiles(files)
-            sortChildren()
+            refreshChildren()
         }
     }
 
     fun intoFile(newParent: DecryptedFileMetadata) {
         parent = newParent
-        children = files.filter { it.parent == parent.id && it.id != it.parent }
-        sortChildren()
+        refreshChildren()
         fileDir.add(newParent)
     }
 
     fun intoParent() {
         parent = files.filter { it.id == parent.parent }[0]
+        refreshChildren()
+        fileDir.removeLast()
+    }
+
+    fun refreshChildren() {
         children = files.filter { it.parent == parent.id && it.id != it.parent }
         sortChildren()
-        fileDir.removeLast()
     }
 
     private fun sortFilesAlpha(files: List<DecryptedFileMetadata>): List<DecryptedFileMetadata> =

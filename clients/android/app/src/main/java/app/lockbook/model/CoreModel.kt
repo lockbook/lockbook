@@ -387,7 +387,6 @@ object CoreModel {
             app.lockbook.core.getLocalChanges()
         ).map { it.toHashSet() }
 
-
     private val listMetadatasParser = Json {
         serializersModule = SerializersModule {
             createPolyRelation(ListSerializer(DecryptedFileMetadata.serializer()), Empty.serializer())

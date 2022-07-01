@@ -225,8 +225,8 @@ class FilesListFragment : Fragment(), FilesFragment {
             updateSyncProgress(syncStatus.syncStepInfo)
         }
 
-        if(!model.isRecentFilesVisible) {
-            binding.recentFilesLayout.visibility = View.GONE
+        if (!model.isRecentFilesVisible) {
+            binding.recentFilesLayout.root.visibility = View.GONE
         }
 
         (requireActivity().application as App).billingClientLifecycle.showInAppMessaging(requireActivity())
@@ -378,14 +378,14 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
         }
 
-        binding.recentFilesList.setup {
+        binding.recentFilesLayout.recentFilesList.setup {
             withDataSource(model.recentFiles)
             this.withLayoutManager(LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false))
 
             withItem<RecentFileViewHolderInfo, RecentFileItemViewHolder>(R.layout.recent_file_item) {
                 onBind(::RecentFileItemViewHolder) { _, item ->
                     name.text = item.fileMetadata.decryptedName
-                    folderName.text = item.folderName + "/"
+                    folderName.text = getString(R.string.recent_files_folder, item.folderName)
                     lastEdited.text = CoreModel.convertToHumanDuration(item.fileMetadata.metadataVersion)
 
                     val extensionHelper = ExtensionHelper(item.fileMetadata.decryptedName)
@@ -527,7 +527,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 }
             }
             is UpdateFilesUI.ToggleRecentFilesVisibility -> {
-                binding.recentFilesLayout.visibility = if(uiUpdates.show) View.VISIBLE else View.GONE
+                binding.recentFilesLayout.root.visibility = if (uiUpdates.show) View.VISIBLE else View.GONE
             }
         }
     }
