@@ -281,27 +281,26 @@ pub async fn get_updates(
     let (request, server_state) = (&context.request, context.server_state);
 
     // todo(sharing): get all metadata shared with a user using a reasonable implementation; delete this
-    // let all_metadata = get_all_metadata(&context).await?;
-    // let all_metadata = server_state.index_db.metas.get_all()?;
-    // let accessible_metadata = filter_read_access(&all_metadata.into_iter().map(|(_, f)| f).collect::<Vec<EncryptedFileMetadata>>(), &context.public_key)?;
+    let all_metadata = server_state.index_db.metas.get_all()?;
+    let accessible_metadata = filter_read_access(&all_metadata.into_iter().map(|(_, f)| f).collect::<Vec<EncryptedFileMetadata>>(), &context.public_key)?;
 
-    // let updated_metadata = accessible_metadata.into_iter()
-    //     .filter(|meta| meta.metadata_version > context.request.since_metadata_version)
-    //     .collect();
-    // Ok(GetUpdatesResponse { file_metadata: updated_metadata })
+    let updated_metadata = accessible_metadata.into_iter()
+        .filter(|meta| meta.metadata_version > context.request.since_metadata_version)
+        .collect();
+    Ok(GetUpdatesResponse { file_metadata: updated_metadata })
 
-    server_state.index_db.transaction(|tx| {
-        let file_metadata = tx
-            .owned_files
-            .get(&Owner(context.public_key))
-            .ok_or(ClientError(GetUpdatesError::UserNotFound))?
-            .into_iter()
-            .filter_map(|id| tx.metas.get(&id))
-            .filter(|meta| meta.metadata_version > request.since_metadata_version)
-            .collect();
+    // server_state.index_db.transaction(|tx| {
+    //     let file_metadata = tx
+    //         .owned_files
+    //         .get(&Owner(context.public_key))
+    //         .ok_or(ClientError(GetUpdatesError::UserNotFound))?
+    //         .into_iter()
+    //         .filter_map(|id| tx.metas.get(&id))
+    //         .filter(|meta| meta.metadata_version > request.since_metadata_version)
+    //         .collect();
 
-        Ok(GetUpdatesResponse { file_metadata })
-    })?
+    //     Ok(GetUpdatesResponse { file_metadata })
+    // })?
 }
 
 // todo(sharing):
@@ -317,7 +316,7 @@ fn filter_read_access(metadata: &[EncryptedFileMetadata], pk: &PublicKey) -> Res
                 break;
             }
 
-            let parent = metadata.iter().find(|f| f.id == ancestor.parent).ok_or(internal!("Parent of metadata does not exist: {:?}", ancestor.id))?;
+            let parent = metadata.iter().find(|f| f.id == ancestor.parent).ok_or_else(|| internal!("Parent {:?} of metadata {:?} does not exist", ancestor.parent, ancestor.id))?;
             if ancestor.id == parent.id {
                 break;
             }
