@@ -3,6 +3,7 @@ package app.lockbook.model
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.map
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
@@ -381,8 +382,8 @@ object CoreModel {
         }
     }
 
-    fun getLocalChanges(): Result<List<String>, CoreError<Empty>> =
-        getLocalChangesParser.tryParse(
+    fun getLocalChanges(): Result<HashSet<String>, CoreError<Empty>> =
+        getLocalChangesParser.tryParse<List<String>, Empty>(
             app.lockbook.core.getLocalChanges()
-        )
+        ).map { it.toHashSet() }
 }
