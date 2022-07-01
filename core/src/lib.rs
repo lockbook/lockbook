@@ -38,21 +38,14 @@ use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service;
-use lockbook_models::account::Account;
-use lockbook_models::api::{StripeAccountTier, SubscriptionInfo};
-use lockbook_models::crypto::{AESKey, DecryptedDocument};
-use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType, ShareMode};
+use lockbook_models::crypto::{AESKey};
+use lockbook_models::file_metadata::{ShareMode};
 use model::errors::Error::UiError;
 pub use model::errors::{CoreError, Error, UnexpectedError};
 use serde::Deserialize;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 
-use lockbook_crypto::clock_service;
-use lockbook_models::crypto::AESKey;
-
-use crate::model::errors::Error::UiError;
 use crate::model::repo::RepoSource;
 use crate::repo::schema::{transaction, CoreV1, OneKey, Tx};
 use crate::service::log_service;
