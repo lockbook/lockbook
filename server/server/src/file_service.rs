@@ -3,6 +3,7 @@ use crate::ServerError::ClientError;
 use crate::Tx;
 use crate::{document_service, RequestContext};
 use hmdb::transaction::Transaction;
+use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::FileMetadataUpsertsError::{
     GetUpdatesRequired, NewFileHasOldParentAndName, NotPermissioned, RootImmutable,
@@ -19,6 +20,7 @@ pub async fn upsert_file_metadata(
     let (request, server_state) = (&context.request, context.server_state);
     let owner = Owner(context.public_key);
     check_for_changed_root(&request.updates)?;
+    check_access_keys(&request.updates)?;
     let now = get_time().0 as u64;
     let docs_to_delete: Result<Vec<EncryptedFileMetadata>, ServerError<FileMetadataUpsertsError>> =
         context.server_state.index_db.transaction(|tx| {
@@ -74,6 +76,19 @@ fn check_for_changed_root(
             }
         }
     }
+    Ok(())
+}
+
+// todo(sharing):
+// * root files have exactly one owner user access key
+// * non-root files do not have an owner user access key
+// * owner user access keys of existing files are not modified
+// * only the owner can update user access keys
+// * each file can only have one user access key per user
+// https://github.com/lockbook/lockbook/blob/master/docs/design-tech/sharing.md#change-document-content
+fn check_access_keys(
+    changes: &[FileMetadataDiff],
+) -> Result<(), ServerError<FileMetadataUpsertsError>> {
     Ok(())
 }
 
@@ -169,9 +184,14 @@ pub async fn change_document_content(
             .get(&request.id)?
             .ok_or(ClientError(ChangeDocumentContentError::DocumentNotFound))?;
 
-        if meta.owner.0 != context.public_key {
-            return Err(ClientError(ChangeDocumentContentError::NotPermissioned));
-        }
+        // todo(sharing):
+        // this currently permits a change_document_content iff requesting user == the file's owner
+        // it should additionally allow a change_document_content if any of the file's ancestors have
+        // an access info that grants *write* permision to the requesting user
+        // https://github.com/lockbook/lockbook/blob/master/docs/design-tech/sharing.md#change-document-content
+        // if meta.owner.0 != context.public_key {
+        //     return Err(ClientError(ChangeDocumentContentError::NotPermissioned));
+        // }
 
         // Perhaps these next two are redundant, but practically lets us boot out of this request
         // before interacting with s3
@@ -234,15 +254,21 @@ pub async fn get_document(
     context: RequestContext<'_, GetDocumentRequest>,
 ) -> Result<GetDocumentResponse, ServerError<GetDocumentError>> {
     let (request, server_state) = (&context.request, context.server_state);
-    let meta = server_state
-        .index_db
-        .metas
-        .get(&request.id)?
-        .ok_or(ClientError(GetDocumentError::DocumentNotFound))?;
 
-    if meta.owner.0 != context.public_key {
-        return Err(ClientError(GetDocumentError::NotPermissioned));
-    }
+    // todo(sharing):
+    // this currently permits a get_document iff requesting user == the file's owner
+    // it should additionally allow a get_document if any of the file's ancestors have an access
+    // info that grants *read* permision to the requesting user
+    // https://github.com/lockbook/lockbook/blob/master/docs/design-tech/sharing.md#get-document
+    // let meta = server_state
+    //     .index_db
+    //     .metas
+    //     .get(&request.id)?
+    //     .ok_or(ClientError(GetDocumentError::DocumentNotFound))?;
+
+    // if meta.owner.0 != context.public_key {
+    //     return Err(ClientError(GetDocumentError::NotPermissioned));
+    // }
 
     let content = document_service::get(server_state, request.id, request.content_version).await?;
 
@@ -253,6 +279,17 @@ pub async fn get_updates(
     context: RequestContext<'_, GetUpdatesRequest>,
 ) -> Result<GetUpdatesResponse, ServerError<GetUpdatesError>> {
     let (request, server_state) = (&context.request, context.server_state);
+
+    // todo(sharing): get all metadata shared with a user using a reasonable implementation; delete this
+    // let all_metadata = get_all_metadata(&context).await?;
+    // let all_metadata = server_state.index_db.metas.get_all()?;
+    // let accessible_metadata = filter_read_access(&all_metadata.into_iter().map(|(_, f)| f).collect::<Vec<EncryptedFileMetadata>>(), &context.public_key)?;
+
+    // let updated_metadata = accessible_metadata.into_iter()
+    //     .filter(|meta| meta.metadata_version > context.request.since_metadata_version)
+    //     .collect();
+    // Ok(GetUpdatesResponse { file_metadata: updated_metadata })
+
     server_state.index_db.transaction(|tx| {
         let file_metadata = tx
             .owned_files
@@ -264,4 +301,30 @@ pub async fn get_updates(
             .collect();
         Ok(GetUpdatesResponse { file_metadata })
     })?
+}
+
+// todo(sharing):
+// get all metadata shared with a user using a reasonable implementation; delete this
+fn filter_read_access(metadata: &[EncryptedFileMetadata], pk: &PublicKey) -> Result<Vec<EncryptedFileMetadata>, ServerError<GetUpdatesError>> {
+    let mut result = Vec::new();
+    for file in metadata {
+        let mut ancestor = file;
+        loop {
+            // any user access mode implies read access
+            if ancestor.user_access_keys.iter().find(|k| &k.encrypted_for_public_key == pk).is_some() {
+                result.push(file.clone());
+                break;
+            }
+
+            let parent = metadata.iter().find(|f| f.id == ancestor.parent).ok_or(internal!("Parent of metadata does not exist: {:?}", ancestor.id))?;
+            if ancestor.id == parent.id {
+                break;
+            }
+            ancestor = parent;
+            if ancestor.id == file.id {
+                break; // this is a cycle but not our problem
+            }
+        }
+    }
+    Ok(result)
 }
