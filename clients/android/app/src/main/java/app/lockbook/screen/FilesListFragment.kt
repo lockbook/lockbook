@@ -50,32 +50,32 @@ class FilesListFragment : Fragment(), FilesFragment {
                 return when (item?.itemId) {
                     R.id.menu_list_files_rename -> {
                         if (selectedFiles.size == 1) {
-                            activityModel.launchTransientScreen(TransientScreen.Rename(selectedFiles[0]))
+                            activityModel.launchTransientScreen(TransientScreen.Rename(selectedFiles[0].fileMetadata))
                         }
 
                         true
                     }
                     R.id.menu_list_files_delete -> {
-                        activityModel.launchTransientScreen(TransientScreen.Delete(model.selectableFiles.getSelectedItems()))
+                        activityModel.launchTransientScreen(TransientScreen.Delete(selectedFiles.intoFileMetadata()))
 
                         true
                     }
                     R.id.menu_list_files_info -> {
                         if (model.selectableFiles.getSelectionCount() == 1) {
-                            activityModel.launchTransientScreen(TransientScreen.Info(selectedFiles[0]))
+                            activityModel.launchTransientScreen(TransientScreen.Info(selectedFiles[0].fileMetadata))
                         }
 
                         true
                     }
                     R.id.menu_list_files_move -> {
                         activityModel.launchTransientScreen(
-                            TransientScreen.Move(selectedFiles)
+                            TransientScreen.Move(selectedFiles.intoFileMetadata())
                         )
 
                         true
                     }
                     R.id.menu_list_files_share -> {
-                        (activity as MainScreenActivity).model.shareSelectedFiles(model.selectableFiles.getSelectedItems(), requireActivity().cacheDir)
+                        (activity as MainScreenActivity).model.shareSelectedFiles(selectedFiles.intoFileMetadata(), requireActivity().cacheDir)
 
                         true
                     }
@@ -180,7 +180,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 @SuppressLint("NotifyDataSetChanged")
                 override fun run() {
                     handler.post {
-                        model.reloadSidebar()
+                        model.reloadWorkInfo()
                         binding.filesList.adapter?.notifyDataSetChanged()
                     }
                 }
@@ -282,52 +282,90 @@ class FilesListFragment : Fragment(), FilesFragment {
             withDataSource(model.selectableFiles)
             withEmptyView(binding.filesEmptyFolder)
 
-            withItem<DecryptedFileMetadata, LinearFileItemViewHolder>(R.layout.linear_layout_file_item) {
-                onBind(::LinearFileItemViewHolder) { _, item ->
-                    name.text = item.decryptedName
-                    description.text = resources.getString(
-                        R.string.last_synced,
-                        CoreModel.convertToHumanDuration(item.metadataVersion)
-                    )
-                    val extensionHelper = ExtensionHelper(item.decryptedName)
+            withItem<FileViewHolderInfo.FolderViewHolderInfo, FolderViewHolder>(R.layout.folder_file_item) {
+                onBind(::FolderViewHolder) { _, item ->
+                    name.text = item.fileMetadata.decryptedName
 
-                    val imageResource = when {
+                    when {
                         isSelected() -> {
-                            R.drawable.ic_baseline_check_24
+                            fileItemHolder.setBackgroundResource(R.color.md_theme_primaryContainer)
+                            actionIcon.setImageResource(R.drawable.ic_baseline_check_circle_24)
+                            actionIcon.visibility = View.VISIBLE
                         }
-                        item.fileType == FileType.Document && extensionHelper.isDrawing -> {
-                            R.drawable.ic_outline_draw_24
+                        item.needsToBePulled -> {
+                            fileItemHolder.setBackgroundResource(0)
+                            actionIcon.setImageResource(R.drawable.ic_baseline_cloud_download_24)
+                            actionIcon.visibility = View.VISIBLE
                         }
-                        item.fileType == FileType.Document && extensionHelper.isImage -> {
-                            R.drawable.ic_outline_image_24
-                        }
-                        item.fileType == FileType.Document && extensionHelper.isPdf -> {
-                            R.drawable.ic_outline_picture_as_pdf_24
-                        }
-                        item.fileType == FileType.Document -> {
-                            R.drawable.ic_outline_insert_drive_file_24
+                        item.needToBePushed -> {
+                            fileItemHolder.setBackgroundResource(0)
+                            actionIcon.setImageResource(R.drawable.ic_baseline_cloud_upload_24)
+                            actionIcon.visibility = View.VISIBLE
                         }
                         else -> {
-                            R.drawable.ic_baseline_folder_24
+                            fileItemHolder.setBackgroundResource(0)
+                            actionIcon.visibility = View.GONE
                         }
                     }
-
-                    icon.setImageResource(imageResource)
-
-                    if (isSelected()) {
-                        fileItemHolder.setBackgroundResource(R.color.md_theme_inversePrimary)
-                    } else {
-                        fileItemHolder.setBackgroundResource(0)
-                    }
                 }
+
                 onClick {
                     if (isSelected() || model.selectableFiles.hasSelection()) {
                         toggleSelection()
                         toggleMenuBar()
                     } else {
-                        enterFile(item)
+                        enterFile(item.fileMetadata)
                     }
                 }
+
+                onLongClick {
+                    this.toggleSelection()
+                    toggleMenuBar()
+                }
+            }
+
+            withItem<FileViewHolderInfo.DocumentViewHolderInfo, DocumentViewHolder>(R.layout.document_file_item) {
+                onBind(::DocumentViewHolder) { _, item ->
+                    name.text = item.fileMetadata.decryptedName
+                    if (item.fileMetadata.metadataVersion != 0L) {
+                        description.visibility = View.VISIBLE
+                        description.text = CoreModel.convertToHumanDuration(item.fileMetadata.metadataVersion)
+                    } else {
+                        description.visibility = View.GONE
+                    }
+
+                    when {
+                        isSelected() -> {
+                            fileItemHolder.setBackgroundResource(R.color.md_theme_primaryContainer)
+                            actionIcon.setImageResource(R.drawable.ic_baseline_check_circle_24)
+                            actionIcon.visibility = View.VISIBLE
+                        }
+                        item.needsToBePulled -> {
+                            fileItemHolder.setBackgroundResource(0)
+                            actionIcon.setImageResource(R.drawable.ic_baseline_cloud_download_24)
+                            actionIcon.visibility = View.VISIBLE
+                        }
+                        item.needToBePushed -> {
+                            fileItemHolder.setBackgroundResource(0)
+                            actionIcon.setImageResource(R.drawable.ic_baseline_cloud_upload_24)
+                            actionIcon.visibility = View.VISIBLE
+                        }
+                        else -> {
+                            fileItemHolder.setBackgroundResource(0)
+                            actionIcon.visibility = View.GONE
+                        }
+                    }
+                }
+
+                onClick {
+                    if (isSelected() || model.selectableFiles.hasSelection()) {
+                        toggleSelection()
+                        toggleMenuBar()
+                    } else {
+                        enterFile(item.fileMetadata)
+                    }
+                }
+
                 onLongClick {
                     this.toggleSelection()
                     toggleMenuBar()
