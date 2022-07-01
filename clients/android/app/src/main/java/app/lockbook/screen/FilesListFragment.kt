@@ -226,7 +226,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         if(!model.isRecentFilesVisible) {
-            binding.recentFilesList.visibility = View.GONE
+            binding.recentFilesLayout.visibility = View.GONE
         }
 
         (requireActivity().application as App).billingClientLifecycle.showInAppMessaging(requireActivity())
@@ -527,7 +527,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 }
             }
             is UpdateFilesUI.ToggleRecentFilesVisibility -> {
-                binding.recentFilesList.visibility = if(uiUpdates.show) View.VISIBLE else View.GONE
+                binding.recentFilesLayout.visibility = if(uiUpdates.show) View.VISIBLE else View.GONE
             }
         }
     }

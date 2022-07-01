@@ -15,6 +15,7 @@ import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.getOrElse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class FilesListViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -65,11 +66,13 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    private fun maybeToggleRecentFiles() {
-        val oldIsRecentFilesVisible = isRecentFilesVisible
-        isRecentFilesVisible = fileModel.parent.parent == fileModel.parent.id
-        if(oldIsRecentFilesVisible != isRecentFilesVisible) {
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.ToggleRecentFilesVisibility(isRecentFilesVisible))
+    private suspend fun maybeToggleRecentFiles() {
+        val newIsRecentFilesVisible = fileModel.parent.parent == fileModel.parent.id
+        if(newIsRecentFilesVisible != isRecentFilesVisible) {
+            isRecentFilesVisible = newIsRecentFilesVisible
+            withContext(Dispatchers.Main) {
+                _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleRecentFilesVisibility(isRecentFilesVisible)
+            }
         }
     }
 

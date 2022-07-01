@@ -106,6 +106,8 @@ class FileModel(
         }
 
         parent = fileDir.last()
+        children = files.filter { it.parent == parent.id && it.id != it.parent }
+        sortChildren()
     }
 
     fun isAtRoot(): Boolean = parent.id == parent.parent
@@ -128,20 +130,24 @@ class FileModel(
     fun refreshFiles(): Result<Unit, CoreError<Empty>> {
         return CoreModel.listMetadatas().map { files ->
             this.files = files
-            children = files.filter { it.parent == parent.id }
+            children = files.filter { it.parent == parent.id && it.id != it.parent }
             recentFiles = getTenMostRecentFiles(files)
             sortChildren()
         }
     }
 
     fun intoFile(newParent: DecryptedFileMetadata) {
-        children = files.filter { it.parent == newParent.id }
         parent = newParent
+        children = files.filter { it.parent == parent.id && it.id != it.parent }
+        sortChildren()
         fileDir.add(newParent)
     }
 
     fun intoParent() {
-        intoFile(files.filter { it.id == parent.parent }[0])
+        parent = files.filter { it.id == parent.parent }[0]
+        children = files.filter { it.parent == parent.id && it.id != it.parent }
+        sortChildren()
+        fileDir.removeLast()
     }
 
     private fun sortFilesAlpha(files: List<DecryptedFileMetadata>): List<DecryptedFileMetadata> =

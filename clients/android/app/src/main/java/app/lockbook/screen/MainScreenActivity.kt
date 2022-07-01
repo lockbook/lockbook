@@ -17,9 +17,7 @@ import app.lockbook.billing.BillingEvent
 import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.model.*
 import app.lockbook.ui.*
-import app.lockbook.util.Animate
-import app.lockbook.util.FilesFragment
-import app.lockbook.util.exhaustive
+import app.lockbook.util.*
 import java.io.File
 import java.lang.ref.WeakReference
 
@@ -37,9 +35,7 @@ class MainScreenActivity : AppCompatActivity() {
 
     private val fragmentFinishedCallback = object : FragmentManager.FragmentLifecycleCallbacks() {
         override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
-            val filesFragment =
-                supportFragmentManager.findFragmentById(R.id.files_fragment) as? FilesFragment
-                    ?: return
+            val filesFragment = maybeGetFilesFragment() ?: return
 
             when (f) {
                 is MoveFileDialogFragment,
@@ -53,13 +49,10 @@ class MainScreenActivity : AppCompatActivity() {
 
     private val onShare =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            val filesFragment =
-                (supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment)
-
             updateMainScreenUI(UpdateMainScreenUI.ShowHideProgressOverlay(false))
             model.shareModel.isLoadingOverlayVisible = false
 
-            filesFragment.unselectFiles()
+            getFilesFragment().unselectFiles()
         }
 
     val model: StateViewModel by viewModels()
@@ -222,7 +215,7 @@ class MainScreenActivity : AppCompatActivity() {
                 is DetailsScreen.ImageViewer -> replace<ImageViewerFragment>(R.id.detail_container)
                 is DetailsScreen.PdfViewer -> replace<PdfViewerFragment>(R.id.detail_container)
                 null -> {
-                    (supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment).syncBasedOnPreferences()
+                    getFilesFragment().syncBasedOnPreferences()
                     supportFragmentManager.findFragmentById(R.id.detail_container)?.let {
                         remove(it)
                     }
@@ -246,6 +239,7 @@ class MainScreenActivity : AppCompatActivity() {
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? DrawingFragment)?.let { fragment ->
             fragment.binding.drawingView.stopThread()
             fragment.saveOnExit()
+
         }
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? TextEditorFragment)?.saveOnExit()
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? PdfViewerFragment)?.deleteLocalPdfInstance()
@@ -259,13 +253,9 @@ class MainScreenActivity : AppCompatActivity() {
     override fun onBackPressed() {
         if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
             launchDetailsScreen(null)
-        } else if ((supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment).onBackPressed()) {
+        } else if (getFilesFragment().onBackPressed()) {
             super.onBackPressed()
         }
-    }
-
-    fun isThisANewAccount(): Boolean {
-        return intent.extras?.getBoolean(IS_THIS_A_NEW_ACCOUNT, false) ?: false
     }
 
     fun syncImportAccount() {
@@ -273,5 +263,3 @@ class MainScreenActivity : AppCompatActivity() {
         finishAffinity()
     }
 }
-
-const val IS_THIS_A_NEW_ACCOUNT = "is_this_a_new_account"
