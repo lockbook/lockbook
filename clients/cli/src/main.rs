@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 
 use lockbook_core::Core;
-use lockbook_core::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 use lockbook_core::{Config, Uuid};
 
 use crate::error::CliError;
@@ -84,17 +83,19 @@ enum Lockbook {
     ImportPrivateKey,
 
     /// List the absolute path of all Lockbook leaf nodes
-    List,
+    List {
+        #[structopt(short, long)]
+        all: bool,
 
-    /// List the absolute path of all lockbook files and folders
-    #[structopt(name = "list-all")]
-    ListAll,
+        #[structopt(short, long)]
+        folders: bool,
 
-    /// List the absolute path of your documents
-    ListDocs,
+        #[structopt(short, long)]
+        documents: bool,
 
-    /// List the absolute path of your folders
-    ListFolders,
+        #[structopt(short, long)]
+        ids: bool,
+    },
 
     /// Change the parent of a file or folder
     Move {
@@ -180,10 +181,9 @@ fn parse_and_run() -> Result<(), CliError> {
         Lockbook::ExportPrivateKey => export_private_key::export_private_key(&core),
         Lockbook::ImportPrivateKey => import_private_key::import_private_key(&core),
         Lockbook::NewAccount => new_account::new_account(&core),
-        Lockbook::List => list::list(&core, Some(LeafNodesOnly)),
-        Lockbook::ListAll => list::list(&core, None),
-        Lockbook::ListDocs => list::list(&core, Some(DocumentsOnly)),
-        Lockbook::ListFolders => list::list(&core, Some(FoldersOnly)),
+        Lockbook::List { ids, folders, documents, all } => {
+            list::list(&core, ids, documents, folders, all)
+        }
         Lockbook::Move { target, new_parent } => move_file::move_file(&core, &target, &new_parent),
         Lockbook::New { path } => new::new(&core, path.trim()),
         Lockbook::Print { path } => print::print(&core, path.trim()),

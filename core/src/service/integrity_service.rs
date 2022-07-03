@@ -5,7 +5,6 @@ use crate::service::file_service;
 use crate::service::integrity_service::TestRepoError::DocumentReadError;
 use crate::{Config, OneKey, RequestContext};
 use lockbook_models::tree::{FileMetaMapExt, FileMetadata, TestFileTreeError};
-use std::collections::HashMap;
 
 use std::path::Path;
 
