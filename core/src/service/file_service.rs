@@ -38,8 +38,13 @@ impl RequestContext<'_, '_> {
         let account = self.get_account()?;
         self.get_not_deleted_metadata(RepoSource::Local, parent)?;
         let all_metadata = self.get_all_metadata(RepoSource::Local)?;
-        let metadata =
-            files::apply_create(&all_metadata, file_type, parent, name, &account.public_key())?;
+        let metadata = files::apply_create(
+            &Owner(account.public_key()),
+            &all_metadata,
+            file_type,
+            parent,
+            name,
+        )?;
         self.insert_metadatum(config, RepoSource::Local, &metadata)?;
         Ok(metadata)
     }

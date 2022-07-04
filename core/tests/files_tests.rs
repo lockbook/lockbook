@@ -1,5 +1,6 @@
 use lockbook_core::pure_functions::files;
-use lockbook_core::CoreError;
+use lockbook_core::{CoreError, Uuid};
+use lockbook_models::crypto::{AESEncrypted, SecretFileName, UserAccessInfo, UserAccessMode};
 use lockbook_models::file_metadata::{FileType, Owner};
 use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, PathConflict};
 use std::collections::HashMap;
@@ -242,6 +243,95 @@ fn apply_move_1cycle() {
         folder1_id,
     );
     assert_eq!(result, Err(CoreError::FolderMovedIntoSelf));
+}
+
+#[test]
+fn apply_move_shared_link() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = files::create_root(&account).unwrap();
+    let sharer_public_key = test_core_with_account().get_account().unwrap().public_key();
+    let mut linked_shared_folder =
+        files::create(FileType::Folder, Uuid::new_v4(), "linked_shared_folder", &sharer_public_key);
+    linked_shared_folder.shares.push(UserAccessInfo {
+        mode: UserAccessMode::Read,
+        encrypted_by_username: String::from("sharer_username"),
+        encrypted_by_public_key: sharer_public_key,
+        encrypted_for_username: account.username.clone(),
+        encrypted_for_public_key: account.public_key(),
+        access_key: AESEncrypted::<[u8; 32]> {
+            value: Default::default(),
+            nonce: Default::default(),
+            _t: Default::default(),
+        },
+        file_name: SecretFileName {
+            encrypted_value: AESEncrypted::<String> {
+                value: Default::default(),
+                nonce: Default::default(),
+                _t: Default::default(),
+            },
+            hmac: Default::default(),
+        },
+    });
+    let link = files::create(
+        FileType::Link { linked_file: linked_shared_folder.id },
+        root.id,
+        "link",
+        &account.public_key(),
+    );
+
+    let result = files::apply_move(
+        &Owner(account.public_key()),
+        &[root, linked_shared_folder.clone(), link.clone()].to_map(),
+        link.id,
+        linked_shared_folder.id,
+    );
+    assert_eq!(result, Err(CoreError::LinkInSharedFolder));
+}
+
+#[test]
+fn apply_move_shared_link_in_folder() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = files::create_root(&account).unwrap();
+    let sharer_public_key = test_core_with_account().get_account().unwrap().public_key();
+    let mut linked_shared_folder =
+        files::create(FileType::Folder, Uuid::new_v4(), "linked_shared_folder", &sharer_public_key);
+    linked_shared_folder.shares.push(UserAccessInfo {
+        mode: UserAccessMode::Read,
+        encrypted_by_username: String::from("sharer_username"),
+        encrypted_by_public_key: sharer_public_key,
+        encrypted_for_username: account.username.clone(),
+        encrypted_for_public_key: account.public_key(),
+        access_key: AESEncrypted::<[u8; 32]> {
+            value: Default::default(),
+            nonce: Default::default(),
+            _t: Default::default(),
+        },
+        file_name: SecretFileName {
+            encrypted_value: AESEncrypted::<String> {
+                value: Default::default(),
+                nonce: Default::default(),
+                _t: Default::default(),
+            },
+            hmac: Default::default(),
+        },
+    });
+    let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
+    let link = files::create(
+        FileType::Link { linked_file: linked_shared_folder.id },
+        folder.id,
+        "link",
+        &account.public_key(),
+    );
+
+    let result = files::apply_move(
+        &Owner(account.public_key()),
+        &[root, linked_shared_folder.clone(), folder.clone(), link].to_map(),
+        folder.id,
+        linked_shared_folder.id,
+    );
+    assert_eq!(result, Err(CoreError::LinkInSharedFolder));
 }
 
 #[test]

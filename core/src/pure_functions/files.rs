@@ -73,9 +73,9 @@ pub fn create_root(account: &Account) -> Result<DecryptedFileMetadata, CoreError
 /// Validates a create operation for a file in the context of all files and returns a version of
 /// the file with the operation applied. This is a pure function.
 pub fn apply_create(
-    files: &DecryptedFiles, file_type: FileType, parent: Uuid, name: &str, owner: &PublicKey,
+    user: &Owner, files: &DecryptedFiles, file_type: FileType, parent: Uuid, name: &str,
 ) -> Result<DecryptedFileMetadata, CoreError> {
-    let file = create(file_type, parent, name, owner);
+    let file = create(file_type, parent, name, &user.0);
     validate_not_root(&file)?;
     validate_file_name(name)?;
     let parent = files
@@ -86,6 +86,9 @@ pub fn apply_create(
     let staged_changes = HashMap::with(file.clone());
     if !files.get_path_conflicts(&staged_changes)?.is_empty() {
         return Err(CoreError::PathTaken);
+    }
+    if !files.get_shared_links(user, &staged_changes)?.is_empty() {
+        return Err(CoreError::LinkInSharedFolder);
     }
 
     Ok(file)
@@ -128,6 +131,9 @@ pub fn apply_move(
     }
     if !files.get_path_conflicts(&staged_changes)?.is_empty() {
         return Err(CoreError::PathTaken);
+    }
+    if !files.get_shared_links(user, &staged_changes)?.is_empty() {
+        return Err(CoreError::LinkInSharedFolder);
     }
 
     Ok(file)

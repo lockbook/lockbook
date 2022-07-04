@@ -1,13 +1,13 @@
-use crate::crypto::{UserAccessInfo, UserAccessMode};
+use crate::crypto::UserAccessInfo;
 use crate::file_metadata::FileType::{Document, Folder};
 use crate::file_metadata::{FileType, Owner};
 use crate::tree::TreeError::{FileNonexistent, RootNonexistent};
 use std::collections::{HashMap, HashSet};
-use std::fmt::Display;
+use std::fmt::{Display, Debug};
 use std::hash::Hash;
 use uuid::Uuid;
 
-pub trait FileMetadata: Clone + Display {
+pub trait FileMetadata: Clone + Display + Debug {
     type Name: Hash + Eq;
 
     fn id(&self) -> Uuid;
@@ -33,19 +33,12 @@ pub trait FileMetadata: Clone + Display {
         self.id() == self.parent()
     }
 
-    // todo: use Username type (might have to impl PartialEq for &Username or something)
-    fn is_owned(&self, user: &Owner) -> bool {
-        self.shares().is_empty() ||
-            self.shares().iter().any(|s| s.mode == UserAccessMode::Owner && s.encrypted_for_public_key == user.0) ||
-            self.shares().iter().any(|s| s.encrypted_by_public_key == user.0) // only an owner can share a file
-    }
-
     fn is_shared(&self) -> bool {
         self.shares().iter().any(|s| s.encrypted_by_public_key != s.encrypted_for_public_key)
     }
 
-    fn is_pending_share(&self, user: &Owner) -> bool {
-        !self.is_owned(user) && self.shares().iter().any(|s| s.encrypted_for_public_key == user.0)
+    fn is_shared_with_user(&self, user: &Owner) -> bool {
+        &self.owner() != user && self.shares().iter().any(|s| s.encrypted_for_public_key == user.0)
     }
 }
 
@@ -136,7 +129,7 @@ pub trait FileMetaMapExt<Fm: FileMetadata> {
         &self, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<PathConflict>, TreeError>;
     fn get_shared_links(
-        &self, staged_changes: &HashMap<Uuid, Fm>,
+        &self, user: &Owner, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<LinkShare>, TreeError>;
     fn verify_integrity(&self, user: &Owner) -> Result<(), TestFileTreeError>;
     fn pretty_print(&self) -> String;
@@ -262,7 +255,7 @@ where
             let mut checked_path = vec![cur.id()];
             let mut ancestor_deleted = false;
             'ancestor_check: while !cur.is_root() {
-                if cur.is_pending_share(&self.find_root()?.owner()) {
+                if cur.is_shared_with_user(&self.find_root()?.owner()) {
                     break 'ancestor_check;
                 }
                 let parent = self.find_ref(cur.parent())?;
@@ -355,7 +348,7 @@ where
                     break;
                 }
                 checking.push(cur.clone());
-                if cur.is_pending_share(&user) {
+                if cur.is_shared_with_user(&user) {
                     break
                 }
                 cur = &staged_changes.get(&cur.parent()).ok_or(FileNonexistent)?.0;
@@ -412,11 +405,15 @@ where
         Ok(result)
     }
 
+    // todo(sharing): optimize
     fn get_shared_links(
-        &self, staged_changes: &HashMap<Uuid, Fm>,
+        &self, user: &Owner, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<LinkShare>, TreeError> {
         let mut result = Vec::new();
-        get_shared_links_helper(&self.stage_with_source(staged_changes), &self.find_root()?, &mut Vec::new(), &mut result)?;
+        for root in self.values().filter(|f| f.is_root() || f.is_shared_with_user(user)) {
+            get_shared_links_helper(&self.stage_with_source(staged_changes), &root, &mut Vec::new(), &mut result)?;
+        }
+
         Ok(result)
     }
 
@@ -432,7 +429,7 @@ where
         };
 
         for file in self.values() {
-            if !file.is_pending_share(&root.owner()) && !self.contains_key(&file.parent()) {
+            if !file.is_shared_with_user(&root.owner()) && !self.contains_key(&file.parent()) {
                 return Err(TestFileTreeError::FileOrphaned(file.id()));
             }
         }

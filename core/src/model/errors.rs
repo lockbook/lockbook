@@ -511,7 +511,7 @@ pub enum MoveFileError {
     FolderMovedIntoItself,
     TargetParentDoesNotExist,
     TargetParentHasChildNamedThat,
-    LinkInSharedFolder, // todo(sharing): cannot move a link (or a folder containing a link) into a shared folder
+    LinkInSharedFolder,
     InsufficientPermission, // todo(sharing): cannot move unowned files (can move files in folders shared with write access)
 }
 

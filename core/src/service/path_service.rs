@@ -3,7 +3,7 @@ use crate::pure_functions::files;
 use crate::{Config, CoreError, RequestContext};
 use lockbook_models::crypto::UserAccessMode;
 use lockbook_models::file_metadata::FileType::{Folder, Link};
-use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles, FileType};
+use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles, FileType, Owner};
 use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use uuid::Uuid;
 
@@ -89,11 +89,11 @@ impl RequestContext<'_, '_> {
             let file_type = if index != path_components.len() - 2 { Folder } else { file_type };
 
             current = files::apply_create(
+                &Owner(account.public_key()),
                 &files,
                 file_type,
                 current.id,
                 next_name,
-                &account.public_key(),
             )?;
             files.insert(current.id, current.clone());
             self.insert_metadatum(config, RepoSource::Local, &current)?;
