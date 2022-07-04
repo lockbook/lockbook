@@ -9,7 +9,7 @@ use lockbook_core::{Config, Core, RequestContext};
 use lockbook_models::api::{FileMetadataUpsertsError, PaymentMethod, StripeAccountTier};
 use lockbook_models::crypto::EncryptedDocument;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
-use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
+use lockbook_models::tree::FileMetaMapExt;
 use lockbook_models::work_unit::WorkUnit;
 use std::collections::HashMap;
 use std::env;
@@ -53,9 +53,8 @@ pub fn random_name() -> String {
         .collect()
 }
 
-pub fn path(core: &Core, path: &str) -> String {
-    let root = core.get_root().unwrap().name();
-    format!("{}/{}", root, path)
+pub fn path(_core: &Core, path: &str) -> String {
+    format!("/{}", path)
 }
 
 pub const UPDATES_REQ: Result<(), ApiError<FileMetadataUpsertsError>> =
@@ -103,8 +102,7 @@ pub fn run(ops: &[Operation]) {
             Operation::Create { client_num, path } => {
                 || -> Result<_, String> {
                     let core = &cores[*client_num];
-                    let path = root.decrypted_name.clone() + "/" + path;
-                    core.create_at_path(&path).map_err(err_to_string)
+                    core.create_at_path(path).map_err(err_to_string)
                 }()
                 .unwrap_or_else(|_| {
                     panic!("Operation::Create error. client_num={:?}, path={:?}", client_num, path)
@@ -113,8 +111,7 @@ pub fn run(ops: &[Operation]) {
             Operation::Rename { client_num, path, new_name } => {
                 || -> Result<_, String> {
                     let core = &cores[*client_num];
-                    let path = root.decrypted_name.clone() + "/" + path;
-                    let target = core.get_by_path(&path).map_err(err_to_string)?;
+                    let target = core.get_by_path(path).map_err(err_to_string)?;
                     core.rename_file(target.id, new_name).map_err(err_to_string)
                 }()
                 .unwrap_or_else(|_| {
@@ -127,10 +124,8 @@ pub fn run(ops: &[Operation]) {
             Operation::Move { client_num, path, new_parent_path } => {
                 || -> Result<_, String> {
                     let core = &cores[*client_num];
-                    let path = core.get_root().unwrap().decrypted_name + "/" + path;
-                    let new_parent_path = root.decrypted_name.clone() + "/" + new_parent_path;
-                    let target = core.get_by_path(&path).map_err(err_to_string)?;
-                    let new_parent = core.get_by_path(&new_parent_path).map_err(err_to_string)?;
+                    let target = core.get_by_path(path).map_err(err_to_string)?;
+                    let new_parent = core.get_by_path(new_parent_path).map_err(err_to_string)?;
                     core.move_file(target.id, new_parent.id)
                         .map_err(err_to_string)
                 }()
@@ -144,8 +139,7 @@ pub fn run(ops: &[Operation]) {
             Operation::Delete { client_num, path } => {
                 || -> Result<_, String> {
                     let core = &cores[*client_num];
-                    let path = root.decrypted_name.clone() + "/" + path;
-                    let target = core.get_by_path(&path).map_err(err_to_string)?;
+                    let target = core.get_by_path(path).map_err(err_to_string)?;
                     core.delete_file(target.id).map_err(err_to_string)
                 }()
                 .unwrap_or_else(|_| {
@@ -155,8 +149,7 @@ pub fn run(ops: &[Operation]) {
             Operation::Edit { client_num, path, content } => {
                 || -> Result<_, String> {
                     let core = &cores[*client_num];
-                    let path = root.decrypted_name.clone() + "/" + path;
-                    let target = core.get_by_path(&path).map_err(err_to_string)?;
+                    let target = core.get_by_path(path).map_err(err_to_string)?;
                     core.write_document(target.id, content)
                         .map_err(err_to_string)
                 }()
@@ -174,23 +167,13 @@ pub fn run(ops: &[Operation]) {
     }
 }
 
-pub fn assert_all_paths(core: &Core, root: &DecryptedFileMetadata, expected_paths: &[&str]) {
-    if expected_paths.iter().any(|&path| path.starts_with('/')) {
-        panic!(
-            "improper call to assert_all_paths; all paths must not begin with '/'. expected_paths={:?}",
-            expected_paths
-        );
-    }
+pub fn assert_all_paths(core: &Core, expected_paths: &[&str]) {
     let mut expected_paths: Vec<String> = expected_paths
         .iter()
         .map(|&path| String::from(path))
         .collect();
-    let mut actual_paths: Vec<String> = core
-        .list_paths(None)
-        .unwrap()
-        .iter()
-        .map(|path| String::from(&path[root.decrypted_name.len() + 1..]))
-        .collect();
+    let mut actual_paths: Vec<String> = core.list_paths(None).unwrap();
+
     actual_paths.sort();
     expected_paths.sort();
     if actual_paths != expected_paths {
@@ -223,9 +206,7 @@ pub fn assert_local_work_ids(db: &Core, ids: &[Uuid]) {
     assert!(slices_equal_ignore_order(&get_dirty_ids(db, false), ids));
 }
 
-pub fn assert_local_work_paths(
-    db: &Core, root: &DecryptedFileMetadata, expected_paths: &[&'static str],
-) {
+pub fn assert_local_work_paths(db: &Core, expected_paths: &[&'static str]) {
     let all_local_files = db
         .db
         .transaction(|tx| db.context(tx).unwrap().get_all_metadata(RepoSource::Local))
@@ -236,7 +217,7 @@ pub fn assert_local_work_paths(
     let mut actual_paths: Vec<String> = get_dirty_ids(db, false)
         .iter()
         .map(|&id| RequestContext::path_by_id_helper(&all_local_files, id).unwrap())
-        .map(|path| String::from(&path[root.decrypted_name.len() + 1..]))
+        .map(|path| String::from(&path))
         .collect();
     actual_paths.sort_unstable();
     expected_paths.sort_unstable();
@@ -248,9 +229,7 @@ pub fn assert_local_work_paths(
     }
 }
 
-pub fn assert_server_work_paths(
-    db: &Core, root: &DecryptedFileMetadata, expected_paths: &[&'static str],
-) {
+pub fn assert_server_work_paths(db: &Core, expected_paths: &[&'static str]) {
     let staged = db
         .db
         .transaction(|tx| {
@@ -279,7 +258,6 @@ pub fn assert_server_work_paths(
     let mut actual_paths: Vec<String> = get_dirty_ids(db, true)
         .iter()
         .map(|&id| RequestContext::path_by_id_helper(&staged, id).unwrap())
-        .map(|path| String::from(&path[root.decrypted_name.len() + 1..]))
         .collect();
     actual_paths.sort_unstable();
     expected_paths.sort_unstable();
@@ -295,12 +273,10 @@ pub fn assert_server_work_ids(db: &Core, ids: &[Uuid]) {
     assert!(slices_equal_ignore_order(&get_dirty_ids(db, true), ids));
 }
 
-pub fn assert_all_document_contents(
-    db: &Core, root: &DecryptedFileMetadata, expected_contents_by_path: &[(&str, &[u8])],
-) {
+pub fn assert_all_document_contents(db: &Core, expected_contents_by_path: &[(&str, &[u8])]) {
     let expected_contents_by_path = expected_contents_by_path
         .iter()
-        .map(|&(path, contents)| (root.decrypted_name.clone() + "/" + path, contents.to_vec()))
+        .map(|&(path, contents)| (path.to_string(), contents.to_vec()))
         .collect::<Vec<(String, Vec<u8>)>>();
     let actual_contents_by_path = db
         .list_paths(Some(DocumentsOnly))
