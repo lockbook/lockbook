@@ -53,10 +53,6 @@ pub fn random_name() -> String {
         .collect()
 }
 
-pub fn path(_core: &Core, path: &str) -> String {
-    format!("/{}", path)
-}
-
 pub const UPDATES_REQ: Result<(), ApiError<FileMetadataUpsertsError>> =
     Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
         FileMetadataUpsertsError::GetUpdatesRequired,
@@ -70,7 +66,7 @@ pub enum Operation<'a> {
     Move { client_num: usize, path: &'a str, new_parent_path: &'a str },
     Delete { client_num: usize, path: &'a str },
     Edit { client_num: usize, path: &'a str, content: &'a [u8] },
-    Custom { f: &'a dyn Fn(&[Core], &DecryptedFileMetadata) },
+    Custom { f: &'a dyn Fn(&[Core], &DecryptedFileMetadata) }, // TODO this does not need to take a root if it has a core...
 }
 
 pub fn run(ops: &[Operation]) {
