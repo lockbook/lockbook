@@ -90,6 +90,9 @@ pub fn apply_create(
     if !files.get_shared_links(user, &staged_changes)?.is_empty() {
         return Err(CoreError::LinkInSharedFolder);
     }
+    if !files.get_duplicate_links(&staged_changes)?.is_empty() {
+        return Err(CoreError::MultipleLinksToSameFile);
+    }
 
     Ok(file)
 }

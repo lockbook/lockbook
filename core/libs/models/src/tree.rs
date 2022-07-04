@@ -50,7 +50,7 @@ pub enum TreeError {
     Unexpected(String),
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum StageSource {
     Base,
     Staged,
@@ -64,9 +64,13 @@ pub struct PathConflict {
 
 #[derive(Debug, PartialEq)]
 pub struct LinkShare {
-    pub link_id: Uuid,
-    pub shared_ancestor: Uuid,
-    pub link_staged: bool,
+    pub link: (Uuid, StageSource),
+    pub shared_ancestor: (Uuid, StageSource),
+}
+
+pub struct LinkDuplicate {
+    pub links: Vec<(Uuid, StageSource)>,
+    pub target: Uuid,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -131,6 +135,9 @@ pub trait FileMetaMapExt<Fm: FileMetadata> {
     fn get_shared_links(
         &self, user: &Owner, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<LinkShare>, TreeError>;
+    fn get_duplicate_links(
+        &self, staged_changes: &HashMap<Uuid, Fm>,
+    ) -> Result<Vec<LinkDuplicate>, TreeError>;
     fn verify_integrity(&self, user: &Owner) -> Result<(), TestFileTreeError>;
     fn pretty_print(&self) -> String;
 }
@@ -417,6 +424,22 @@ where
         Ok(result)
     }
 
+    fn get_duplicate_links(
+        &self, staged_changes: &HashMap<Uuid, Fm>,
+    ) -> Result<Vec<LinkDuplicate>, TreeError> {
+        let mut links_by_target = HashMap::<Uuid, Vec<(Uuid, StageSource)>>::new();
+        for file in self.stage_with_source(staged_changes).values() {
+            if let FileType::Link { linked_file } = file.0.file_type() {
+                match links_by_target.get_mut(&linked_file) {
+                    Some(links) => { links.push((file.0.id(), file.1)) },
+                    None => { links_by_target.insert(linked_file, vec![(file.0.id(), file.1)]); },
+                }
+            }
+        }
+
+        Ok(links_by_target.into_iter().filter_map(|(target, links)| if links.len() > 1 { Some(LinkDuplicate{ links, target }) } else { None }).collect())
+    }
+
     fn verify_integrity(&self, user: &Owner) -> Result<(), TestFileTreeError> {
         if self.is_empty() {
             return Ok(());
@@ -516,9 +539,8 @@ fn get_shared_links_helper<Fm: FileMetadata>(files_with_sources: &HashMap<Uuid, 
     if let FileType::Link { linked_file: _ } = current.file_type() {
         for shared_ancestor in shared_ancestors.iter() {
             result.push(LinkShare{
-                link_id: current.id(),
-                shared_ancestor: shared_ancestor.clone(),
-                link_staged: files_with_sources.get(&current.id()).ok_or(TreeError::FileNonexistent)?.1 == StageSource::Staged,
+                link: (current.id(), files_with_sources.get(&current.id()).ok_or(TreeError::FileNonexistent)?.1),
+                shared_ancestor: (shared_ancestor.clone(), files_with_sources.get(&shared_ancestor).ok_or(TreeError::FileNonexistent)?.1),
             });
         }
     }

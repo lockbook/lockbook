@@ -340,7 +340,7 @@ pub enum CreateFileError {
     FileNameEmpty,
     FileNameContainsSlash,
     LinkInSharedFolder,
-    MultipleLinksToSameFile, // todo(sharing): self-explanatory
+    MultipleLinksToSameFile,
     InsufficientPermission, // todo(sharing): cannot create a file in a shared folder unless access >= write
 }
 
