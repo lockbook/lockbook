@@ -93,6 +93,9 @@ pub fn apply_create(
     if !files.get_duplicate_links(&staged_changes)?.is_empty() {
         return Err(CoreError::MultipleLinksToSameFile);
     }
+    if files.get_access_level(user, parent.id)? < UserAccessMode::Write {
+        return Err(CoreError::InsufficientPermission);
+    }
 
     Ok(file)
 }

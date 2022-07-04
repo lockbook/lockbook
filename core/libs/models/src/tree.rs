@@ -1,4 +1,4 @@
-use crate::crypto::UserAccessInfo;
+use crate::crypto::{UserAccessInfo, UserAccessMode};
 use crate::file_metadata::FileType::{Document, Folder};
 use crate::file_metadata::{FileType, Owner};
 use crate::tree::TreeError::{FileNonexistent, RootNonexistent};
@@ -39,6 +39,14 @@ pub trait FileMetadata: Clone + Display + Debug {
 
     fn is_shared_with_user(&self, user: &Owner) -> bool {
         &self.owner() != user && self.shares().iter().any(|s| s.encrypted_for_public_key == user.0)
+    }
+
+    fn get_access_mode(&self, user: &Owner) -> Option<UserAccessMode> {
+        if &self.owner() == user {
+            Some(UserAccessMode::Owner)
+        } else {
+            self.shares().iter().filter(|s| s.encrypted_for_public_key == user.0).map(|s| s.mode).max()
+        }
     }
 }
 
@@ -138,6 +146,9 @@ pub trait FileMetaMapExt<Fm: FileMetadata> {
     fn get_duplicate_links(
         &self, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<LinkDuplicate>, TreeError>;
+    fn get_access_level(
+        &self, user: &Owner, file: Uuid,
+    ) -> Result<UserAccessMode, TreeError>;
     fn verify_integrity(&self, user: &Owner) -> Result<(), TestFileTreeError>;
     fn pretty_print(&self) -> String;
 }
@@ -438,6 +449,18 @@ where
         }
 
         Ok(links_by_target.into_iter().filter_map(|(target, links)| if links.len() > 1 { Some(LinkDuplicate{ links, target }) } else { None }).collect())
+    }
+
+    fn get_access_level(
+        &self, user: &Owner, id: Uuid,
+    ) -> Result<UserAccessMode, TreeError> {
+        let mut current_metadata = self.find_ref(id)?;
+        loop {
+            if let Some(user_access_mode) = current_metadata.get_access_mode(user) {
+                return Ok(user_access_mode);
+            }
+            current_metadata = self.find_ref(current_metadata.parent())?;
+        }
     }
 
     fn verify_integrity(&self, user: &Owner) -> Result<(), TestFileTreeError> {

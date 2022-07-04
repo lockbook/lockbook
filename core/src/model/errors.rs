@@ -341,7 +341,7 @@ pub enum CreateFileError {
     FileNameContainsSlash,
     LinkInSharedFolder,
     MultipleLinksToSameFile,
-    InsufficientPermission, // todo(sharing): cannot create a file in a shared folder unless access >= write
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<CreateFileError> {

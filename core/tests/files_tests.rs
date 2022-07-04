@@ -90,7 +90,7 @@ fn apply_create_shared_link() {
         &[linked_shared_folder.clone(), root.clone()].to_map(),
         FileType::Link { linked_file: linked_shared_folder.id },
         linked_shared_folder.id,
-        "document",
+        "link",
     );
     assert_eq!(result, Err(CoreError::LinkInSharedFolder));
 }
@@ -123,15 +123,96 @@ fn apply_create_duplicate_link() {
             hmac: Default::default(),
         },
     });
-    let duplicate_link = files::create(FileType::Link { linked_file: linked_shared_folder.id }, root.id, "duplicate_link", &account.public_key());
+    let duplicate_link = files::create(
+        FileType::Link { linked_file: linked_shared_folder.id },
+        root.id,
+        "duplicate_link",
+        &account.public_key(),
+    );
     let result = files::apply_create(
         &Owner(account.public_key()),
         &[duplicate_link, linked_shared_folder.clone(), root.clone()].to_map(),
         FileType::Link { linked_file: linked_shared_folder.id },
         root.id,
-        "document",
+        "link",
     );
     assert_eq!(result, Err(CoreError::MultipleLinksToSameFile));
+}
+
+#[test]
+fn apply_create_in_read_shared_folder() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = files::create_root(&account).unwrap();
+    let sharer_public_key = test_core_with_account().get_account().unwrap().public_key();
+    let mut shared_folder =
+        files::create(FileType::Folder, Uuid::new_v4(), "linked_shared_folder", &sharer_public_key);
+    shared_folder.shares.push(UserAccessInfo {
+        mode: UserAccessMode::Read, // note: read access
+        encrypted_by_username: String::from("sharer_username"),
+        encrypted_by_public_key: sharer_public_key,
+        encrypted_for_username: account.username.clone(),
+        encrypted_for_public_key: account.public_key(),
+        access_key: AESEncrypted::<[u8; 32]> {
+            value: Default::default(),
+            nonce: Default::default(),
+            _t: Default::default(),
+        },
+        file_name: SecretFileName {
+            encrypted_value: AESEncrypted::<String> {
+                value: Default::default(),
+                nonce: Default::default(),
+                _t: Default::default(),
+            },
+            hmac: Default::default(),
+        },
+    });
+    let result = files::apply_create(
+        &Owner(account.public_key()),
+        &[shared_folder.clone(), root.clone()].to_map(),
+        FileType::Document,
+        shared_folder.id,
+        "document",
+    );
+    assert_eq!(result, Err(CoreError::InsufficientPermission));
+}
+
+#[test]
+fn apply_create_in_write_shared_folder() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = files::create_root(&account).unwrap();
+    let sharer_public_key = test_core_with_account().get_account().unwrap().public_key();
+    let mut shared_folder =
+        files::create(FileType::Folder, Uuid::new_v4(), "linked_shared_folder", &sharer_public_key);
+    shared_folder.shares.push(UserAccessInfo {
+        mode: UserAccessMode::Write, // note: write access
+        encrypted_by_username: String::from("sharer_username"),
+        encrypted_by_public_key: sharer_public_key,
+        encrypted_for_username: account.username.clone(),
+        encrypted_for_public_key: account.public_key(),
+        access_key: AESEncrypted::<[u8; 32]> {
+            value: Default::default(),
+            nonce: Default::default(),
+            _t: Default::default(),
+        },
+        file_name: SecretFileName {
+            encrypted_value: AESEncrypted::<String> {
+                value: Default::default(),
+                nonce: Default::default(),
+                _t: Default::default(),
+            },
+            hmac: Default::default(),
+        },
+    });
+    files::apply_create(
+        &Owner(account.public_key()),
+        &[shared_folder.clone(), root.clone()].to_map(),
+        FileType::Document,
+        shared_folder.id,
+        "document",
+    )
+    .unwrap();
 }
 
 #[test]

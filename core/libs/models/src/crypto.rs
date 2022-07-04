@@ -43,11 +43,11 @@ pub struct ECSigned<T> {
     pub public_key: PublicKey,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy, Hash, PartialOrd, Ord)]
 pub enum UserAccessMode {
-    Owner,
-    Write,
     Read,
+    Write,
+    Owner,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
