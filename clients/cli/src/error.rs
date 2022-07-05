@@ -2,9 +2,9 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
-use lockbook_core::GetAccountError;
 use lockbook_core::UnexpectedError;
 use lockbook_core::{DecryptedFileMetadata, Error as LbError};
+use lockbook_core::{GetAccountError, Uuid};
 
 pub struct CliError {
     pub code: ErrCode,
@@ -135,6 +135,10 @@ impl CliError {
 
     pub fn file_not_found<T: fmt::Display>(path: T) -> Self {
         Self::new(ErrCode::FileNotFound, format!("file '{}' not found", path))
+    }
+
+    pub fn file_id_not_found(id: Uuid) -> Self {
+        Self::new(ErrCode::FileNotFound, format!("file-id '{id}' not found"))
     }
 
     pub fn file_exists<P: fmt::Display>(path: P) -> Self {

@@ -3,10 +3,10 @@ use std::{env, fs};
 
 use hotwatch::{Event, Hotwatch};
 
-use lockbook_core::Core;
-use lockbook_core::Error as LbError;
-use lockbook_core::Uuid;
 use lockbook_core::WriteToDocumentError;
+use lockbook_core::{Core, DecryptedFileMetadata};
+use lockbook_core::{Error, Filter, GetFileByIdError, Uuid};
+use lockbook_core::{Error as LbError, GetFileByPathError};
 
 use crate::error::CliError;
 
@@ -54,6 +54,8 @@ pub fn get_directory_location() -> Result<PathBuf, CliError> {
     Ok(dir)
 }
 
+use dialoguer::theme::ColorfulTheme;
+use dialoguer::FuzzySelect;
 use std::path::Path;
 
 #[cfg(target_os = "windows")]
@@ -103,6 +105,52 @@ pub fn edit_file_with_editor<S: AsRef<Path>>(path: S) -> bool {
         .wait()
         .unwrap()
         .success()
+}
+
+pub fn select_document(
+    core: &Core, path: Option<String>, id: Option<Uuid>,
+) -> Result<DecryptedFileMetadata, CliError> {
+    match (path, id) {
+        // Process the Path provided
+        (Some(path), None) => core.get_by_path(&path).map_err(|err| match err {
+            LbError::UiError(GetFileByPathError::NoFileAtThatPath) => {
+                CliError::file_not_found(&path)
+            }
+            LbError::Unexpected(msg) => CliError::unexpected(msg),
+        }),
+
+        // Process the uuid provided
+        (None, Some(id)) => core.get_file_by_id(id).map_err(|err| match err {
+            Error::UiError(GetFileByIdError::NoFileWithThatId) => CliError::file_id_not_found(id),
+            Error::Unexpected(msg) => CliError::unexpected(msg),
+        }),
+
+        // Reject if both are provided
+        (Some(_), Some(_)) => {
+            Err(CliError::input("Provided both a path and an ID, only one is needed!"))
+        }
+
+        // If nothing is provided and we can go interactive, launch a fzf, otherwise reject
+        (None, None) => {
+            if atty::is(atty::Stream::Stdout) {
+                let docs = core.list_paths(Some(Filter::DocumentsOnly))?;
+                let selection = FuzzySelect::with_theme(&ColorfulTheme::default())
+                    .with_prompt("Select a document")
+                    .default(0)
+                    .items(&docs)
+                    .interact()
+                    .unwrap();
+                core.get_by_path(&docs[selection]).map_err(|err| match err {
+                    LbError::UiError(GetFileByPathError::NoFileAtThatPath) => {
+                        CliError::file_not_found(&docs[selection])
+                    }
+                    LbError::Unexpected(msg) => CliError::unexpected(msg),
+                })
+            } else {
+                Err(CliError::input("Either a path or an id is required!"))
+            }
+        }
+    }
 }
 
 pub fn print_last_successful_sync(core: &Core) -> Result<(), CliError> {

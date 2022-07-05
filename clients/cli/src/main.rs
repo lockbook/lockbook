@@ -14,13 +14,12 @@ mod copy;
 mod edit;
 mod error;
 mod export_drawing;
-mod export_private_key;
-mod import_private_key;
 mod list;
 mod move_file;
 mod new;
 mod new_account;
 mod print;
+mod private_key;
 mod remove;
 mod rename;
 mod status;
@@ -70,7 +69,13 @@ enum Lockbook {
     },
 
     /// Export your private key, if piped, account string, otherwise qr code
-    ExportPrivateKey,
+    PrivateKey {
+        #[structopt(short, long)]
+        import: bool,
+
+        #[structopt(short, long)]
+        export: bool,
+    },
 
     /// How much space does your Lockbook occupy on the server
     GetUsage {
@@ -78,9 +83,6 @@ enum Lockbook {
         #[structopt(long)]
         exact: bool,
     },
-
-    /// Import an account string via stdin
-    ImportPrivateKey,
 
     /// List the absolute path of all Lockbook leaf nodes
     List {
@@ -109,7 +111,13 @@ enum Lockbook {
     /// Create a new document or folder
     New {
         /// Absolute path of the file you're creating. Will create folders that do not exist.
-        path: String,
+        path: Option<String>,
+
+        #[structopt(short, long)]
+        parent: Option<Uuid>,
+
+        #[structopt(short, long)]
+        name: Option<String>,
     },
 
     /// Create a new Lockbook account
@@ -173,33 +181,27 @@ fn parse_and_run() -> Result<(), CliError> {
 
     let core = Core::init(&Config { logs: true, writeable_path })?;
 
+    use crate::Lockbook::*;
     match Lockbook::from_args() {
-        Lockbook::Copy { disk_files: files, destination } => {
-            copy::copy(&core, &files, &destination)
-        }
-        Lockbook::Edit { path, id } => edit::edit(&core, path, id),
-        Lockbook::ExportPrivateKey => export_private_key::export_private_key(&core),
-        Lockbook::ImportPrivateKey => import_private_key::import_private_key(&core),
-        Lockbook::NewAccount => new_account::new_account(&core),
-        Lockbook::List { ids, folders, documents, all } => {
-            list::list(&core, ids, documents, folders, all)
-        }
-        Lockbook::Move { target, new_parent } => move_file::move_file(&core, &target, &new_parent),
-        Lockbook::New { path } => new::new(&core, path.trim()),
-        Lockbook::Print { path } => print::print(&core, path.trim()),
-        Lockbook::Remove { path, force } => remove::remove(&core, path.trim(), force),
-        Lockbook::Rename { path, name } => rename::rename(&core, &path, &name),
-        Lockbook::Status => status::status(&core),
-        Lockbook::Sync => sync::sync(&core),
-        Lockbook::Tree => tree::tree(&core),
-        Lockbook::WhoAmI => whoami::whoami(&core),
-        Lockbook::Validate => validate::validate(&core),
-        Lockbook::Backup => backup::backup(&core),
-        Lockbook::GetUsage { exact } => calculate_usage::calculate_usage(&core, exact),
-        Lockbook::ExportDrawing { path, format } => {
-            export_drawing::export_drawing(&core, &path, &format)
-        }
-        Lockbook::Errors => error::print_err_table(),
+        Copy { disk_files: files, destination } => copy::copy(&core, &files, &destination),
+        Edit { path, id } => edit::edit(&core, path, id),
+        PrivateKey { import, export } => private_key::private_key(&core, import, export),
+        NewAccount => new_account::new_account(&core),
+        List { ids, folders, documents, all } => list::list(&core, ids, documents, folders, all),
+        Move { target, new_parent } => move_file::move_file(&core, &target, &new_parent),
+        New { path, parent, name } => new::new(&core, path, parent, name),
+        Print { path } => print::print(&core, path.trim()),
+        Remove { path, force } => remove::remove(&core, path.trim(), force),
+        Rename { path, name } => rename::rename(&core, &path, &name),
+        Status => status::status(&core),
+        Sync => sync::sync(&core),
+        Tree => tree::tree(&core),
+        WhoAmI => whoami::whoami(&core),
+        Validate => validate::validate(&core),
+        Backup => backup::backup(&core),
+        GetUsage { exact } => calculate_usage::calculate_usage(&core, exact),
+        ExportDrawing { path, format } => export_drawing::export_drawing(&core, &path, &format),
+        Errors => error::print_err_table(),
     }
 }
 

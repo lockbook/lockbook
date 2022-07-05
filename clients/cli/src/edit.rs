@@ -1,39 +1,21 @@
 use std::fs;
 use std::io::Write;
 
+use lockbook_core::Core;
 use lockbook_core::Error as LbError;
-use lockbook_core::GetFileByPathError;
 use lockbook_core::ReadDocumentError;
-use lockbook_core::{Core, Error, GetFileByIdError};
 
 use crate::error::CliError;
 use crate::utils::{
-    edit_file_with_editor, get_directory_location, save_temp_file_contents, set_up_auto_save,
-    stop_auto_save,
+    edit_file_with_editor, get_directory_location, save_temp_file_contents, select_document,
+    set_up_auto_save, stop_auto_save,
 };
 use crate::Uuid;
 
 pub fn edit(core: &Core, lb_path: Option<String>, id: Option<Uuid>) -> Result<(), CliError> {
     core.get_account()?;
 
-    let file_metadata = match (lb_path, id) {
-        (Some(path), None) => core.get_by_path(&path).map_err(|err| match err {
-            LbError::UiError(GetFileByPathError::NoFileAtThatPath) => {
-                CliError::file_not_found(&path)
-            }
-            LbError::Unexpected(msg) => CliError::unexpected(msg),
-        }),
-        (None, Some(id)) => core.get_file_by_id(id).map_err(|err| match err {
-            Error::UiError(GetFileByIdError::NoFileWithThatId) => {
-                CliError::unexpected(format!("No file with id {}", id))
-            }
-            Error::Unexpected(msg) => CliError::unexpected(msg),
-        }),
-        (Some(_), Some(_)) => {
-            Err(CliError::input(format!("Provided both a path and an ID, only one is needed!")))
-        }
-        (None, None) => Err(CliError::input(format!("Either a path or an input is required!"))),
-    }?;
+    let file_metadata = select_document(core, lb_path, id)?;
 
     let file_content = core
         .read_document(file_metadata.id)
