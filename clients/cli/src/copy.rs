@@ -63,7 +63,6 @@ fn get_or_create_file(core: &Core, lb_path: &str) -> Result<DecryptedFileMetadat
                 CreateFileAtPathError::PathContainsEmptyFile => {
                     CliError::path_has_empty_file(lb_path)
                 }
-                CreateFileAtPathError::PathDoesntStartWithRoot => CliError::path_no_root(lb_path),
                 CreateFileAtPathError::DocumentTreatedAsFolder => {
                     CliError::doc_treated_as_dir(lb_path)
                 }

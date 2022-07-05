@@ -11,7 +11,7 @@ fn rename_document() {
     let account = core.get_account().unwrap();
     let root = core.get_root().unwrap();
 
-    let doc = core.create_at_path(&path(&core, "test.md")).unwrap().id;
+    let doc = core.create_at_path("test.md").unwrap().id;
     let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     api_service::request(
@@ -39,7 +39,7 @@ fn rename_document_not_found() {
     let account = core.get_account().unwrap();
     let root = core.get_root().unwrap();
 
-    let doc = core.create_at_path(&path(&core, "test.md")).unwrap().id;
+    let doc = core.create_at_path("test.md").unwrap().id;
     let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     let result = api_service::request(
@@ -63,7 +63,7 @@ fn rename_document_deleted() {
     let account = core.get_account().unwrap();
     let root = core.get_root().unwrap();
 
-    let doc = core.create_at_path(&path(&core, "test.md")).unwrap().id;
+    let doc = core.create_at_path("test.md").unwrap().id;
     let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     api_service::request(
@@ -92,7 +92,7 @@ fn rename_document_conflict() {
     let account = core.get_account().unwrap();
     let root = core.get_root().unwrap();
 
-    let doc = core.create_at_path(&path(&core, "test.md")).unwrap().id;
+    let doc = core.create_at_path("test.md").unwrap().id;
     let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     api_service::request(
@@ -121,10 +121,10 @@ fn rename_document_path_taken() {
     let root = core.get_root().unwrap();
 
     // create 2 document
-    let doc1 = core.create_at_path(&path(&core, "test1.md")).unwrap().id;
+    let doc1 = core.create_at_path("test1.md").unwrap().id;
     let mut doc1 = core.db.local_metadata.get(&doc1).unwrap().unwrap();
 
-    let doc2 = core.create_at_path(&path(&core, "test2.md")).unwrap().id;
+    let doc2 = core.create_at_path("test2.md").unwrap().id;
     let doc2 = core.db.local_metadata.get(&doc2).unwrap().unwrap();
 
     api_service::request(

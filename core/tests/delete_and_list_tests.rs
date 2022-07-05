@@ -7,7 +7,7 @@ use test_utils::*;
 #[test]
 fn test_create_delete_list() {
     let core = test_core_with_account();
-    let id = core.create_at_path(&path(&core, "test.md")).unwrap().id;
+    let id = core.create_at_path("test.md").unwrap().id;
     assert_eq!(core.list_paths(Some(Filter::LeafNodesOnly)).unwrap().len(), 1);
     core.delete_file(id).unwrap();
     assert_eq!(core.list_paths(Some(Filter::LeafNodesOnly)).unwrap().len(), 0);
@@ -16,7 +16,7 @@ fn test_create_delete_list() {
 #[test]
 fn test_create_delete_read() {
     let core = test_core_with_account();
-    let id = core.create_at_path(&path(&core, "test.md")).unwrap().id;
+    let id = core.create_at_path("test.md").unwrap().id;
     core.delete_file(id).unwrap();
     assert_matches!(core.read_document(id), Err(UiError(ReadDocumentError::FileDoesNotExist)));
 }
@@ -24,7 +24,7 @@ fn test_create_delete_read() {
 #[test]
 fn test_create_delete_write() {
     let core = test_core_with_account();
-    let id = core.create_at_path(&path(&core, "test.md")).unwrap().id;
+    let id = core.create_at_path("test.md").unwrap().id;
     core.delete_file(id).unwrap();
     assert_matches!(
         core.write_document(id, "document content".as_bytes()),
@@ -35,7 +35,7 @@ fn test_create_delete_write() {
 #[test]
 fn test_create_parent_delete_create_in_parent() {
     let core = test_core_with_account();
-    let id = core.create_at_path(&path(&core, "folder/")).unwrap().id;
+    let id = core.create_at_path("folder/").unwrap().id;
     core.delete_file(id).unwrap();
 
     assert_matches!(
@@ -54,7 +54,7 @@ fn try_to_delete_root() {
 #[test]
 fn test_create_parent_delete_parent_read_doc() {
     let core = test_core_with_account();
-    let doc = core.create_at_path(&path(&core, "folder/test.md")).unwrap();
+    let doc = core.create_at_path("folder/test.md").unwrap();
     core.write_document(doc.id, "content".as_bytes()).unwrap();
     assert_eq!(core.read_document(doc.id).unwrap(), "content".as_bytes());
     core.delete_file(doc.parent).unwrap();
@@ -64,7 +64,7 @@ fn test_create_parent_delete_parent_read_doc() {
 #[test]
 fn test_create_parent_delete_parent_save_doc() {
     let core = test_core_with_account();
-    let doc = core.create_at_path(&path(&core, "folder/test.md")).unwrap();
+    let doc = core.create_at_path("folder/test.md").unwrap();
     core.write_document(doc.id, "content".as_bytes()).unwrap();
     core.delete_file(doc.parent).unwrap();
     assert_matches!(
@@ -76,7 +76,7 @@ fn test_create_parent_delete_parent_save_doc() {
 #[test]
 fn test_create_parent_delete_parent_rename_doc() {
     let core = test_core_with_account();
-    let doc = core.create_at_path(&path(&core, "folder/test.md")).unwrap();
+    let doc = core.create_at_path("folder/test.md").unwrap();
     core.delete_file(doc.parent).unwrap();
     assert_matches!(
         core.rename_file(doc.id, "test2.md"),
@@ -87,7 +87,7 @@ fn test_create_parent_delete_parent_rename_doc() {
 #[test]
 fn test_create_parent_delete_parent_rename_parent() {
     let core = test_core_with_account();
-    let doc = core.create_at_path(&path(&core, "folder/test.md")).unwrap();
+    let doc = core.create_at_path("folder/test.md").unwrap();
     core.delete_file(doc.parent).unwrap();
     assert_matches!(
         core.rename_file(doc.parent, "folder2"),
@@ -98,8 +98,8 @@ fn test_create_parent_delete_parent_rename_parent() {
 #[test]
 fn test_folder_move_delete_source_doc() {
     let core = test_core_with_account();
-    let doc = core.create_at_path(&path(&core, "folder/test.md")).unwrap();
-    let folder2 = core.create_at_path(&path(&core, "folder2/")).unwrap();
+    let doc = core.create_at_path("folder/test.md").unwrap();
+    let folder2 = core.create_at_path("folder2/").unwrap();
     core.delete_file(doc.parent).unwrap();
     assert_matches!(
         core.move_file(doc.id, folder2.id),
@@ -110,8 +110,8 @@ fn test_folder_move_delete_source_doc() {
 #[test]
 fn test_folder_move_delete_source_parent() {
     let core = test_core_with_account();
-    let doc = core.create_at_path(&path(&core, "folder/test.md")).unwrap();
-    let folder2 = core.create_at_path(&path(&core, "folder2/")).unwrap();
+    let doc = core.create_at_path("folder/test.md").unwrap();
+    let folder2 = core.create_at_path("folder2/").unwrap();
     core.delete_file(doc.parent).unwrap();
     assert_matches!(
         core.move_file(doc.parent, folder2.id),
@@ -122,8 +122,8 @@ fn test_folder_move_delete_source_parent() {
 #[test]
 fn test_folder_move_delete_destination_parent() {
     let core = test_core_with_account();
-    let doc = core.create_at_path(&path(&core, "folder/test.md")).unwrap();
-    let folder2 = core.create_at_path(&path(&core, "folder2/")).unwrap();
+    let doc = core.create_at_path("folder/test.md").unwrap();
+    let folder2 = core.create_at_path("folder2/").unwrap();
     core.delete_file(folder2.id).unwrap();
     assert_matches!(
         core.move_file(doc.id, folder2.id),
@@ -134,8 +134,8 @@ fn test_folder_move_delete_destination_parent() {
 #[test]
 fn test_folder_move_delete_destination_doc() {
     let core = test_core_with_account();
-    let doc = core.create_at_path(&path(&core, "folder/test.md")).unwrap();
-    let folder2 = core.create_at_path(&path(&core, "folder2/")).unwrap();
+    let doc = core.create_at_path("folder/test.md").unwrap();
+    let folder2 = core.create_at_path("folder2/").unwrap();
     core.delete_file(folder2.id).unwrap();
     assert_matches!(
         core.move_file(doc.parent, folder2.id),
@@ -146,9 +146,9 @@ fn test_folder_move_delete_destination_doc() {
 #[test]
 fn test_delete_list_files() {
     let core = test_core_with_account();
-    let f1 = core.create_at_path(&path(&core, "f1/")).unwrap();
-    core.create_at_path(&path(&core, "f1/f2/")).unwrap();
-    let d1 = core.create_at_path(&path(&core, "f1/f2/d1.md")).unwrap();
+    let f1 = core.create_at_path("f1/").unwrap();
+    core.create_at_path("f1/f2/").unwrap();
+    let d1 = core.create_at_path("f1/f2/d1.md").unwrap();
     core.delete_file(f1.id).unwrap();
 
     let mut files = core.list_metadatas().unwrap();
