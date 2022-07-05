@@ -20,34 +20,26 @@ impl RequestContext<'_, '_> {
 
         let mut files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
 
-        let mut current = files.find(self.root_id()?)?;
-        let root_id = current.id;
-        let account = self.get_account()?;
+        let mut current = files.find_ref(self.root_id()?)?;
+        let mut new_files = vec![];
 
-        if current.decrypted_name != path_components[0] {
-            return Err(CoreError::PathStartsWithNonRoot);
+        if path_components.is_empty() {
+            return Err(CoreError::PathContainsEmptyFileName);
         }
 
-        if path_components.len() == 1 {
-            return Err(CoreError::PathTaken);
-        }
+        'path: for index in 0..path_components.len() {
+            let children = files.find_children_ref(current.id);
+            let name = path_components[index];
 
-        // We're going to look ahead, and find or create the right child
-        'path: for index in 0..path_components.len() - 1 {
-            let children = files.find_children(current.id);
-
-            let next_name = path_components[index + 1];
-
-            for (_, child) in children {
-                if child.decrypted_name == next_name {
-                    // If we're at the end and we find this child, that means this path already exists
-                    if child.id != root_id && index == path_components.len() - 2 {
+            for child in children.values() {
+                if child.decrypted_name == path_components[index] {
+                    if index == path_components.len() - 1 {
                         return Err(CoreError::PathTaken);
                     }
 
                     if child.is_folder() {
                         current = child;
-                        continue 'path; // Child exists, onto the next one
+                        continue 'path;
                     } else {
                         return Err(CoreError::FileNotFolder);
                     }
@@ -56,41 +48,30 @@ impl RequestContext<'_, '_> {
 
             // Child does not exist, create it
             let file_type =
-                if is_folder || index != path_components.len() - 2 { Folder } else { Document };
-
-            current = files::apply_create(
-                &files,
-                file_type,
-                current.id,
-                next_name,
-                &account.public_key(),
-            )?;
+                if is_folder || index != path_components.len() - 1 { Folder } else { Document };
+            let new_file =
+                files::apply_create(&files, file_type, current.id, name, &self.get_public_key()?)?;
+            new_files.push(new_file);
+            current = new_files.last().unwrap();
             files.insert(current.id, current.clone());
-            self.insert_metadatum(config, RepoSource::Local, &current)?;
+            self.insert_metadatum(config, RepoSource::Local, current)?;
         }
-        Ok(current)
+
+        Ok(current.clone())
     }
 
     pub fn get_by_path(&mut self, path: &str) -> Result<DecryptedFileMetadata, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
         let paths = split_path(path);
 
-        let mut current = files.find(self.root_id()?)?;
+        let mut current = files.find_ref(self.root_id()?)?;
 
-        for (i, &value) in paths.iter().enumerate() {
-            if value != current.decrypted_name {
-                return Err(CoreError::FileNonexistent);
-            }
-
-            if i + 1 == paths.len() {
-                return Ok(current);
-            }
-
-            let children = files.find_children(current.id);
+        for value in paths {
+            let children = files.find_children_ref(current.id);
             let mut found_child = false;
 
-            for (_, child) in children {
-                if child.decrypted_name == paths[i + 1] {
+            for child in children.values() {
+                if child.decrypted_name == value {
                     current = child;
                     found_child = true;
                 }
@@ -101,7 +82,7 @@ impl RequestContext<'_, '_> {
             }
         }
 
-        Ok(current)
+        Ok(current.clone())
     }
 
     pub fn get_path_by_id(&mut self, id: Uuid) -> Result<String, CoreError> {
@@ -120,9 +101,8 @@ impl RequestContext<'_, '_> {
             current_metadata = files.find_ref(current_metadata.parent)?;
         }
 
-        {
-            path = format!("{}/{}", current_metadata.decrypted_name, path);
-        }
+        path = format!("/{}", path);
+
         // Remove the last forward slash if not a folder.
         if !is_folder {
             path.pop();
@@ -149,7 +129,7 @@ impl RequestContext<'_, '_> {
         for (_id, file) in filtered_files {
             let mut current = file.clone();
             let mut current_path = String::from("");
-            while current.id != current.parent {
+            while !current.is_root() {
                 if current.is_document() {
                     current_path = current.decrypted_name;
                 } else {
@@ -158,7 +138,7 @@ impl RequestContext<'_, '_> {
                 current = files.find(current.parent)?;
             }
 
-            current_path = format!("{}/{}", current.decrypted_name, current_path);
+            current_path = format!("/{}", current_path);
             paths.push(current_path.to_string());
         }
 

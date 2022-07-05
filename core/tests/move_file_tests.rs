@@ -10,8 +10,8 @@ fn move_document() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
     let root = core.get_root().unwrap();
-    let doc = core.create_at_path(&path(&core, "doc.md")).unwrap().id;
-    let folder = core.create_at_path(&path(&core, "folder/")).unwrap().id;
+    let doc = core.create_at_path("doc.md").unwrap().id;
+    let folder = core.create_at_path("folder/").unwrap().id;
     core.sync(None).unwrap();
 
     let mut doc = core.db.base_metadata.get(&doc).unwrap().unwrap();
@@ -34,12 +34,9 @@ fn move_document_not_found() {
     let root = core.get_root().unwrap();
 
     // create document and folder
-    let folder = core.create_at_path(&path(&core, "folder/")).unwrap().id;
+    let folder = core.create_at_path("folder/").unwrap().id;
     let folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
-    let doc = core
-        .create_at_path(&path(&core, "folder/doc.md"))
-        .unwrap()
-        .id;
+    let doc = core.create_at_path("folder/doc.md").unwrap().id;
     let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     let result = api_service::request(
@@ -66,10 +63,7 @@ fn move_document_parent_not_found() {
     let account = core.get_account().unwrap();
 
     // create document and folder, but don't send folder to server
-    let doc = core
-        .create_at_path(&path(&core, "folder/doc.md"))
-        .unwrap()
-        .id;
+    let doc = core.create_at_path("folder/doc.md").unwrap().id;
     let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     let result = api_service::request(
@@ -85,10 +79,10 @@ fn move_document_deleted() {
     let account = core.get_account().unwrap();
     let root = core.get_root().unwrap();
 
-    let doc = core.create_at_path(&path(&core, "doc.md")).unwrap().id;
+    let doc = core.create_at_path("doc.md").unwrap().id;
     let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
-    let folder = core.create_at_path(&path(&core, "folder/")).unwrap().id;
+    let folder = core.create_at_path("folder/").unwrap().id;
     let folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
 
     api_service::request(
@@ -116,10 +110,10 @@ fn move_document_conflict() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 
-    let doc = core.create_at_path(&path(&core, "doc.md")).unwrap().id;
+    let doc = core.create_at_path("doc.md").unwrap().id;
     let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
-    let folder = core.create_at_path(&path(&core, "folder/")).unwrap().id;
+    let folder = core.create_at_path("folder/").unwrap().id;
     let folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
 
     api_service::request(
@@ -148,16 +142,13 @@ fn move_document_path_taken() {
     let account = core.get_account().unwrap();
     let root = core.get_root().unwrap();
 
-    let folder = core.create_at_path(&path(&core, "folder/")).unwrap().id;
+    let folder = core.create_at_path("folder/").unwrap().id;
     let folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
 
-    let doc = core.create_at_path(&path(&core, "doc.md")).unwrap().id;
+    let doc = core.create_at_path("doc.md").unwrap().id;
     let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
-    let doc2 = core
-        .create_at_path(&path(&core, "folder/doc.md"))
-        .unwrap()
-        .id;
+    let doc2 = core.create_at_path("folder/doc.md").unwrap().id;
     let mut doc2 = core.db.local_metadata.get(&doc2).unwrap().unwrap();
     doc2.name = doc.name.clone();
 
@@ -191,7 +182,7 @@ fn move_folder_cannot_move_root() {
     let root = core.get_root().unwrap();
     let mut root = core.db.base_metadata.get(&root.id).unwrap().unwrap();
 
-    let folder = core.create_at_path(&path(&core, "folder/")).unwrap().id;
+    let folder = core.create_at_path("folder/").unwrap().id;
     let folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
 
     api_service::request(
@@ -222,7 +213,7 @@ fn move_folder_into_itself() {
     let account = core.get_account().unwrap();
     let root = core.get_root().unwrap();
 
-    let folder = core.create_at_path(&path(&core, "folder/")).unwrap().id;
+    let folder = core.create_at_path("folder/").unwrap().id;
     let mut folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
 
     api_service::request(
@@ -247,13 +238,10 @@ fn move_folder_into_descendants() {
     let account = core.get_account().unwrap();
     let root = core.get_root().unwrap();
 
-    let folder = core.create_at_path(&path(&core, "folder1/")).unwrap().id;
+    let folder = core.create_at_path("folder1/").unwrap().id;
     let mut folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
 
-    let folder2 = core
-        .create_at_path(&path(&core, "folder1/folder2/"))
-        .unwrap()
-        .id;
+    let folder2 = core.create_at_path("folder1/folder2/").unwrap().id;
     let folder2 = core.db.local_metadata.get(&folder2).unwrap().unwrap();
 
     api_service::request(
@@ -282,10 +270,10 @@ fn move_document_into_document() {
     let root = core.get_root().unwrap();
 
     // create documents
-    let doc = core.create_at_path(&path(&core, "doc1.md")).unwrap().id;
+    let doc = core.create_at_path("doc1.md").unwrap().id;
     let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
-    let doc2 = core.create_at_path(&path(&core, "doc2.md")).unwrap().id;
+    let doc2 = core.create_at_path("doc2.md").unwrap().id;
     let doc2 = core.db.local_metadata.get(&doc2).unwrap().unwrap();
 
     api_service::request(

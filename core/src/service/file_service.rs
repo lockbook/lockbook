@@ -25,11 +25,10 @@ impl RequestContext<'_, '_> {
     pub fn create_file(
         &mut self, config: &Config, name: &str, parent: Uuid, file_type: FileType,
     ) -> Result<DecryptedFileMetadata, CoreError> {
-        let account = self.get_account()?;
         self.get_not_deleted_metadata(RepoSource::Local, parent)?;
         let all_metadata = self.get_all_metadata(RepoSource::Local)?;
         let metadata =
-            files::apply_create(&all_metadata, file_type, parent, name, &account.public_key())?;
+            files::apply_create(&all_metadata, file_type, parent, name, &self.get_public_key()?)?;
         self.insert_metadatum(config, RepoSource::Local, &metadata)?;
         Ok(metadata)
     }

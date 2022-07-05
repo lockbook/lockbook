@@ -20,7 +20,6 @@ pub fn new(core: &Core, lb_path: &str) -> Result<(), CliError> {
             CreateFileAtPathError::NoRoot => CliError::no_root(),
             CreateFileAtPathError::FileAlreadyExists => CliError::file_exists(lb_path),
             CreateFileAtPathError::PathContainsEmptyFile => CliError::path_has_empty_file(lb_path),
-            CreateFileAtPathError::PathDoesntStartWithRoot => CliError::path_no_root(lb_path),
             CreateFileAtPathError::DocumentTreatedAsFolder => CliError::doc_treated_as_dir(lb_path),
         },
         LbError::Unexpected(msg) => CliError::unexpected(msg),

@@ -20,7 +20,7 @@ fn test_integrity_no_problems() {
 #[test]
 fn test_integrity_no_problems_but_more_complicated() {
     let core = test_core_with_account();
-    core.create_at_path(&path(&core, "test.md")).unwrap();
+    core.create_at_path("test.md").unwrap();
     core.validate().unwrap();
 }
 
@@ -42,11 +42,10 @@ fn test_no_root() {
 fn test_orphaned_children() {
     let core = test_core_with_account();
 
-    core.create_at_path(&path(&core, "folder1/folder2/document1.md"))
-        .unwrap();
+    core.create_at_path("folder1/folder2/document1.md").unwrap();
     core.validate().unwrap();
 
-    let parent = core.get_by_path(&path(&core, "folder1")).unwrap().id;
+    let parent = core.get_by_path("folder1").unwrap().id;
     core.db.local_metadata.delete(parent).unwrap();
     assert_matches!(core.validate(), Err(FileOrphaned(_)));
 }
@@ -54,7 +53,7 @@ fn test_orphaned_children() {
 #[test]
 fn test_invalid_file_name_slash() {
     let core = test_core_with_account();
-    let doc = core.create_at_path(&path(&core, "document1.md")).unwrap();
+    let doc = core.create_at_path("document1.md").unwrap();
     core.db
         .transaction(|tx| {
             let mut ctx = core.context(tx).unwrap();
@@ -71,7 +70,7 @@ fn test_invalid_file_name_slash() {
 #[test]
 fn test_invalid_file_name_empty() {
     let core = test_core_with_account();
-    let mut doc = core.create_at_path(&path(&core, "document1.md")).unwrap();
+    let mut doc = core.create_at_path("document1.md").unwrap();
     core.db
         .transaction(|tx| {
             let mut ctx = core.context(tx).unwrap();
@@ -88,11 +87,10 @@ fn test_invalid_file_name_empty() {
 #[test]
 fn test_cycle() {
     let core = test_core_with_account();
-    core.create_at_path(&path(&core, "folder1/folder2/document1.md"))
-        .unwrap();
-    let parent = core.get_by_path(&path(&core, "folder1")).unwrap().id;
+    core.create_at_path("folder1/folder2/document1.md").unwrap();
+    let parent = core.get_by_path("folder1").unwrap().id;
     let mut parent = core.db.local_metadata.get(&parent).unwrap().unwrap();
-    let child = core.get_by_path(&path(&core, "folder1/folder2")).unwrap();
+    let child = core.get_by_path("folder1/folder2").unwrap();
     parent.parent = child.id;
     core.db.local_metadata.insert(parent.id, parent).unwrap();
     assert_matches!(core.validate(), Err(CycleDetected(_)));
@@ -101,10 +99,8 @@ fn test_cycle() {
 #[test]
 fn test_cycle_with_three_files() {
     let core = test_core_with_account();
-    let folder3 = core
-        .create_at_path(&path(&core, "folder1/folder2/folder3/"))
-        .unwrap();
-    let parent = core.get_by_path(&path(&core, "folder1")).unwrap();
+    let folder3 = core.create_at_path("folder1/folder2/folder3/").unwrap();
+    let parent = core.get_by_path("folder1").unwrap();
     let mut parent = core.db.local_metadata.get(&parent.id).unwrap().unwrap();
     parent.parent = folder3.id;
     core.db.local_metadata.insert(parent.id, parent).unwrap();
@@ -114,9 +110,8 @@ fn test_cycle_with_three_files() {
 #[test]
 fn test_documents_treated_as_folders() {
     let core = test_core_with_account();
-    core.create_at_path(&path(&core, "folder1/folder2/document1.md"))
-        .unwrap();
-    let parent = core.get_by_path(&path(&core, "folder1")).unwrap();
+    core.create_at_path("folder1/folder2/document1.md").unwrap();
+    let parent = core.get_by_path("folder1").unwrap();
     let mut parent = core.db.local_metadata.get(&parent.id).unwrap().unwrap();
     parent.file_type = Document;
     core.db.local_metadata.insert(parent.id, parent).unwrap();
@@ -126,8 +121,8 @@ fn test_documents_treated_as_folders() {
 #[test]
 fn test_name_conflict() {
     let core = test_core_with_account();
-    let doc = core.create_at_path(&path(&core, "document1.md")).unwrap();
-    core.create_at_path(&path(&core, "document2.md")).unwrap();
+    let doc = core.create_at_path("document1.md").unwrap();
+    core.create_at_path("document2.md").unwrap();
     core.db
         .transaction(|tx| {
             let mut ctx = core.context(tx).unwrap();
@@ -143,7 +138,7 @@ fn test_name_conflict() {
 #[test]
 fn test_empty_file() {
     let core = test_core_with_account();
-    let doc = core.create_at_path(&path(&core, "document.txt")).unwrap();
+    let doc = core.create_at_path("document.txt").unwrap();
     core.write_document(doc.id, &[]).unwrap();
     let warnings = core.validate();
 
@@ -153,7 +148,7 @@ fn test_empty_file() {
 #[test]
 fn test_invalid_utf8() {
     let core = test_core_with_account();
-    let doc = core.create_at_path(&path(&core, "document.txt")).unwrap();
+    let doc = core.create_at_path("document.txt").unwrap();
     core.write_document(doc.id, rand::thread_rng().gen::<[u8; 32]>().as_ref())
         .unwrap();
     let warnings = core.validate();
@@ -163,7 +158,7 @@ fn test_invalid_utf8() {
 #[test]
 fn test_invalid_utf8_ignores_non_utf_file_extensions() {
     let core = test_core_with_account();
-    let doc = core.create_at_path(&path(&core, "document.png")).unwrap();
+    let doc = core.create_at_path("document.png").unwrap();
     core.write_document(doc.id, rand::thread_rng().gen::<[u8; 32]>().as_ref())
         .unwrap();
     let warnings = core.validate();
@@ -173,7 +168,7 @@ fn test_invalid_utf8_ignores_non_utf_file_extensions() {
 #[test]
 fn test_invalid_drawing() {
     let core = test_core_with_account();
-    let doc = core.create_at_path(&path(&core, "document.draw")).unwrap();
+    let doc = core.create_at_path("document.draw").unwrap();
     core.write_document(doc.id, rand::thread_rng().gen::<[u8; 32]>().as_ref())
         .unwrap();
     let warnings = core.validate();

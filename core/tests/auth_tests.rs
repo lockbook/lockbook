@@ -11,8 +11,7 @@ fn upsert_id_takeover() {
     let core2 = test_core_with_account();
 
     let mut file1 = {
-        let path = &path(&core1, "test.md");
-        let id = core1.create_at_path(path).unwrap().id;
+        let id = core1.create_at_path("/test.md").unwrap().id;
         core1.sync(None).unwrap();
         api_service::request(
             &core1.get_account().unwrap(),
@@ -49,8 +48,7 @@ fn upsert_id_takeover_change_parent() {
     let account2 = core2.get_account().unwrap();
 
     let file1 = {
-        let path = &path(&core1, "test.md");
-        let id = core1.create_at_path(path).unwrap().id;
+        let id = core1.create_at_path("/test.md").unwrap().id;
         core1.sync(None).unwrap();
         api_service::request(&account1, GetUpdatesRequest { since_metadata_version: 0 })
             .unwrap()
@@ -80,10 +78,9 @@ fn change_document_content() {
     let core2 = test_core_with_account();
 
     let file = {
-        let path = &path(&core1, "test.md");
-        core1.create_at_path(path).unwrap();
+        core1.create_at_path("/test.md").unwrap();
         core1.sync(None).unwrap();
-        core1.get_by_path(path).unwrap()
+        core1.get_by_path("/test.md").unwrap()
     };
 
     let result = api_service::request(
@@ -108,10 +105,9 @@ fn get_someone_else_document() {
     let core2 = test_core_with_account();
 
     let file = {
-        let path = &path(&core1, "test.md");
-        core1.create_at_path(path).unwrap();
+        core1.create_at_path("/test.md").unwrap();
         core1.sync(None).unwrap();
-        core1.get_by_path(path).unwrap()
+        core1.get_by_path("/test.md").unwrap()
     };
 
     let result =

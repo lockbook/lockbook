@@ -114,7 +114,6 @@ pub enum CoreError {
     NotPremium,
     PathContainsEmptyFileName,
     PathNonexistent,
-    PathStartsWithNonRoot,
     PathTaken,
     OldCardDoesNotExist,
     RootModificationInvalid,
@@ -271,7 +270,6 @@ impl From<CoreError> for Error<GetAccountError> {
 pub enum CreateFileAtPathError {
     FileAlreadyExists,
     NoRoot,
-    PathDoesntStartWithRoot,
     PathContainsEmptyFile,
     DocumentTreatedAsFolder,
 }
@@ -279,9 +277,6 @@ pub enum CreateFileAtPathError {
 impl From<CoreError> for Error<CreateFileAtPathError> {
     fn from(e: CoreError) -> Self {
         match e {
-            CoreError::PathStartsWithNonRoot => {
-                UiError(CreateFileAtPathError::PathDoesntStartWithRoot)
-            }
             CoreError::PathContainsEmptyFileName => {
                 UiError(CreateFileAtPathError::PathContainsEmptyFile)
             }

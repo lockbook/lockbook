@@ -8,7 +8,7 @@ use test_utils::*;
 fn delete_document() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
-    let doc = core.create_at_path(&path(&core, "test.md")).unwrap().id;
+    let doc = core.create_at_path("test.md").unwrap().id;
     core.sync(None).unwrap();
     let mut doc = core.db.base_metadata.get(&doc).unwrap().unwrap();
     let root = core.get_root().unwrap().id;
@@ -27,7 +27,7 @@ fn delete_document() {
 fn delete_document_not_found() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
-    let doc = core.create_at_path(&path(&core, "test.md")).unwrap().id;
+    let doc = core.create_at_path("test.md").unwrap().id;
     let root = core.get_root().unwrap().id;
     let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
     let mut diff = FileMetadataDiff::new_diff(root, &doc.name, &doc);
@@ -52,7 +52,7 @@ fn delete_document_new_document() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 
-    let doc = core.create_at_path(&path(&core, "test.md")).unwrap().id;
+    let doc = core.create_at_path("test.md").unwrap().id;
     let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
     doc.deleted = true;
 
@@ -69,7 +69,7 @@ fn delete_document_deleted() {
     let account = core.get_account().unwrap();
     let root = core.get_root().unwrap().id;
 
-    let doc = core.create_at_path(&path(&core, "test.md")).unwrap().id;
+    let doc = core.create_at_path("test.md").unwrap().id;
     let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
     core.sync(None).unwrap();
 

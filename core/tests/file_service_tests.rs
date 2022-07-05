@@ -341,7 +341,7 @@ fn get_metadata_nonexistent() {
 #[test]
 fn get_metadata_local_falls_back_to_base() {
     let core = test_core_with_account();
-    let dir = core.create_at_path(&path(&core, "test/")).unwrap();
+    let dir = core.create_at_path("test/").unwrap();
     let db_dir = core.db.local_metadata.delete(dir.id).unwrap().unwrap();
     core.db.base_metadata.insert(db_dir.id, db_dir).unwrap();
 

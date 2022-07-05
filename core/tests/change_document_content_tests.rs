@@ -12,7 +12,7 @@ fn change_document_content() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
     let root = core.get_root().unwrap();
-    let mut doc = core.create_at_path(&path(&core, "test.md")).unwrap();
+    let mut doc = core.create_at_path("test.md").unwrap();
     let doc_enc = core.db.local_metadata.get(&doc.id).unwrap().unwrap();
 
     // create document
@@ -51,7 +51,7 @@ fn change_document_content() {
 fn change_document_content_not_found() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
-    let doc = core.create_at_path(&path(&core, "test.md")).unwrap();
+    let doc = core.create_at_path("test.md").unwrap();
     core.write_document(doc.id, "content".as_bytes()).unwrap();
     let new_content = document_repo::get(&core.config, RepoSource::Local, doc.id).unwrap();
 

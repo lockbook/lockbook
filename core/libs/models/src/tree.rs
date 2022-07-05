@@ -98,6 +98,7 @@ pub trait FileMetaMapExt<Fm: FileMetadata> {
     fn find_parent(&self, id: Uuid) -> Result<&Fm, TreeError>;
     fn maybe_find_parent(&self, id: Uuid) -> Option<&Fm>;
     fn find_children(&self, id: Uuid) -> HashMap<Uuid, Fm>;
+    fn find_children_ref(&self, id: Uuid) -> HashMap<Uuid, &Fm>;
     fn filter_deleted(self) -> Result<HashMap<Uuid, Fm>, TreeError>;
     fn deleted_status(&self) -> Result<DeletedStatus, TreeError>;
     fn filter_not_deleted(self) -> Result<HashMap<Uuid, Fm>, TreeError>;
@@ -195,6 +196,18 @@ where
             .filter_map(|(id, file)| {
                 if file.parent() == folder_id && id != &file.parent() {
                     Some((*id, file.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    fn find_children_ref(&self, folder_id: Uuid) -> HashMap<Uuid, &Fm> {
+        self.iter()
+            .filter_map(|(id, file)| {
+                if file.parent() == folder_id && id != &file.parent() {
+                    Some((*id, file))
                 } else {
                     None
                 }

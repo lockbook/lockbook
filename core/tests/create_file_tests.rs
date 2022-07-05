@@ -8,7 +8,7 @@ use uuid::Uuid;
 fn create_document() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
-    let id = core.create_at_path(&path(&core, "test.md")).unwrap().id;
+    let id = core.create_at_path("test.md").unwrap().id;
     let doc = core.db.local_metadata.get(&id).unwrap().unwrap();
 
     api_service::request(
@@ -23,7 +23,7 @@ fn create_document_duplicate_id() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 
-    let id = core.create_at_path(&path(&core, "test.md")).unwrap().id;
+    let id = core.create_at_path("test.md").unwrap().id;
     let doc = core.db.local_metadata.get(&id).unwrap().unwrap();
     core.sync(None).unwrap();
 
@@ -41,7 +41,7 @@ fn create_document_duplicate_path() {
     let account = core.get_account().unwrap();
 
     // create document
-    let id = core.create_at_path(&path(&core, "test.md")).unwrap().id;
+    let id = core.create_at_path("test.md").unwrap().id;
     let mut doc = core.db.local_metadata.get(&id).unwrap().unwrap();
     core.sync(None).unwrap();
 
@@ -60,10 +60,7 @@ fn create_document_parent_not_found() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
     // create document
-    let id = core
-        .create_at_path(&path(&core, "parent/test.md"))
-        .unwrap()
-        .id;
+    let id = core.create_at_path("parent/test.md").unwrap().id;
     let doc = core.db.local_metadata.get(&id).unwrap().unwrap();
 
     // create document

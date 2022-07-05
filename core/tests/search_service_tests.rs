@@ -5,10 +5,10 @@ use test_utils::*;
 fn test_matches() {
     let core = test_core_with_account();
 
-    vec!["abc.md", "abcd.md", "abcde.md", "dir/doc1", "dir/doc2", "dir/doc3"]
+    vec!["/abc.md", "/abcd.md", "/abcde.md", "/dir/doc1", "/dir/doc2", "/dir/doc3"]
         .into_iter()
         .for_each(|item| {
-            core.create_at_path(&path(&core, item)).unwrap();
+            core.create_at_path(item).unwrap();
         });
 
     let search_results = core.search_file_paths("").unwrap();

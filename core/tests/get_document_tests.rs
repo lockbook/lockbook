@@ -10,7 +10,7 @@ use uuid::Uuid;
 fn get_document() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
-    let id = core.create_at_path(&path(&core, "test.md")).unwrap().id;
+    let id = core.create_at_path("test.md").unwrap().id;
     core.sync(None).unwrap();
     let metadata_version = core
         .db
