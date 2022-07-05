@@ -38,8 +38,7 @@ fn import_file_successfully() {
 
     core.import_files(&[doc_path], root.id, &f).unwrap();
 
-    core.get_by_path(&format!("/{}/{}", root.decrypted_name, name))
-        .unwrap();
+    core.get_by_path(&format!("/{}", name)).unwrap();
 
     // generating folder with a document in /tmp/
     let parent_name = Uuid::new_v4().to_string();
@@ -54,7 +53,7 @@ fn import_file_successfully() {
 
     core.import_files(&[parent_path], root.id, &f).unwrap();
 
-    core.get_by_path(&format!("/{}/{}/{}", root.decrypted_name, parent_name, child_name))
+    core.get_by_path(&format!("/{}/{}", parent_name, child_name))
         .unwrap();
 }
 
