@@ -34,17 +34,15 @@ impl RequestContext<'_, '_> {
             return Ok(Vec::new());
         }
 
-        let root_name = self.root()?.decrypted_name;
         let matcher = SkimMatcherV2::default();
 
         let mut results = Vec::new();
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
         for &id in files.keys() {
             let path = Self::path_by_id_helper(&files, id)?;
-            let path_without_root = path.strip_prefix(&root_name).unwrap_or(&path).to_string();
 
-            if let Some(score) = matcher.fuzzy_match(&path_without_root, input) {
-                results.push(SearchResultItem { id, path: path_without_root, score });
+            if let Some(score) = matcher.fuzzy_match(&path, input) {
+                results.push(SearchResultItem { id, path, score });
             }
         }
         results.sort();

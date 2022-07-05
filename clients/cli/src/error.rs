@@ -121,13 +121,6 @@ impl CliError {
         Self::new(ErrCode::UsernameInvalid, format!("username '{}' invalid (a-z || 0-9).", uname))
     }
 
-    pub fn path_no_root<T: fmt::Display>(path: T) -> Self {
-        Self::new(
-            ErrCode::PathNoRoot,
-            format!("path '{}' does not begin with your root folder.", path),
-        )
-    }
-
     pub fn path_has_empty_file<T: fmt::Display>(path: T) -> Self {
         Self::new(
             ErrCode::PathContainsEmptyFile,
@@ -287,7 +280,6 @@ make_errcode_enum!(
     42 => FileNameEmpty,
     43 => FileNameUnavailable,
     44 => FileNameHasSlash,
-    45 => PathNoRoot,
     46 => PathContainsEmptyFile,
     47 => DocTreatedAsFolder,
     48 => CannotMoveFolderIntoItself,
