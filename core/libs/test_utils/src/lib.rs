@@ -213,7 +213,6 @@ pub fn assert_local_work_paths(db: &Core, expected_paths: &[&'static str]) {
     let mut actual_paths: Vec<String> = get_dirty_ids(db, false)
         .iter()
         .map(|&id| RequestContext::path_by_id_helper(&all_local_files, id).unwrap())
-        .map(|path| String::from(&path))
         .collect();
     actual_paths.sort_unstable();
     expected_paths.sort_unstable();
