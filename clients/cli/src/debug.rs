@@ -3,12 +3,13 @@ use lockbook_core::{FileMetaMapExt, FileMetaVecExt};
 use lockbook_core::{TestRepoError, Warning};
 
 use crate::error::CliError;
+use crate::selector::select_meta;
 use crate::Debug::*;
-use crate::{error, Debug};
+use crate::{error, Debug, Uuid};
 
 pub fn debug(core: &Core, debug: Debug) -> Result<(), CliError> {
     match debug {
-        Info => todo! {},
+        Info { path, id } => info(core, path, id),
         Errors => error::print_err_table(),
         WhoAmiI => whoami(core),
         WhereAmI => whereami(core),
@@ -17,16 +18,22 @@ pub fn debug(core: &Core, debug: Debug) -> Result<(), CliError> {
     }
 }
 
-pub fn whoami(core: &Core) -> Result<(), CliError> {
+fn info(core: &Core, path: Option<String>, id: Option<Uuid>) -> Result<(), CliError> {
+    let meta = select_meta(core, path, id, None, None)?;
+    println!("{:#?}", meta);
+    Ok(())
+}
+
+fn whoami(core: &Core) -> Result<(), CliError> {
     println!("{}", core.get_account()?.username);
     Ok(())
 }
 
-pub fn whereami(core: &Core) -> Result<(), CliError> {
+fn whereami(core: &Core) -> Result<(), CliError> {
     let account = core.get_account()?;
     let config = &core.config;
     println!("Server: {}", account.api_url);
-    println!("Local Data: {}", config.writeable_path);
+    println!("Core: {}", config.writeable_path);
     Ok(())
 }
 
@@ -88,7 +95,7 @@ fn validate(core: &Core) -> Result<(), CliError> {
     Err(err)
 }
 
-pub fn tree(core: &Core) -> Result<(), CliError> {
+fn tree(core: &Core) -> Result<(), CliError> {
     core.get_account()?;
 
     let files = core

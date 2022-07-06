@@ -3,19 +3,21 @@ use std::io::Write;
 
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
+use lockbook_core::FileType::Document;
 use lockbook_core::ReadDocumentError;
 
 use crate::error::CliError;
+use crate::selector::select_meta;
 use crate::utils::{
-    edit_file_with_editor, get_directory_location, save_temp_file_contents, select_document,
-    set_up_auto_save, stop_auto_save,
+    edit_file_with_editor, get_directory_location, save_temp_file_contents, set_up_auto_save,
+    stop_auto_save,
 };
 use crate::Uuid;
 
 pub fn edit(core: &Core, lb_path: Option<String>, id: Option<Uuid>) -> Result<(), CliError> {
     core.get_account()?;
 
-    let file_metadata = select_document(core, lb_path, id)?;
+    let file_metadata = select_meta(core, lb_path, id, Some(Document), None)?;
 
     let file_content = core
         .read_document(file_metadata.id)
