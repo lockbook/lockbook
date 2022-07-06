@@ -23,7 +23,7 @@ pub fn list(
 
     for path in paths {
         if ids {
-            println!("{}: {}", get_by_path(&core, &path)?, path)
+            println!("{}: {}", get_by_path(core, &path)?, path)
         } else {
             println!("{}", path)
         }
@@ -33,7 +33,7 @@ pub fn list(
 }
 
 fn get_by_path(core: &Core, path: &str) -> Result<Uuid, CliError> {
-    let meta = core.get_by_path(&path).map_err(|err| match err {
+    let meta = core.get_by_path(path).map_err(|err| match err {
         Error::Unexpected(msg) => CliError::unexpected(msg),
         Error::UiError(GetFileByPathError::NoFileAtThatPath) => {
             CliError::unexpected(format!("could not find metadata for path: {path}"))

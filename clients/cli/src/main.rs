@@ -11,6 +11,7 @@ use crate::error::CliError;
 mod backup;
 mod calculate_usage;
 mod copy;
+mod debug;
 mod edit;
 mod error;
 mod export_drawing;
@@ -24,10 +25,7 @@ mod remove;
 mod rename;
 mod status;
 mod sync;
-mod tree;
 mod utils;
-mod validate;
-mod whoami;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "A secure and intuitive notebook.")]
@@ -55,9 +53,6 @@ enum Lockbook {
         #[structopt(short, long)]
         id: Option<Uuid>,
     },
-
-    /// Print out what each error code means
-    Errors,
 
     /// Export a drawing as an image
     ExportDrawing {
@@ -154,15 +149,17 @@ enum Lockbook {
     /// Get updates, push changes
     Sync,
 
-    /// Print the file tree with a given file as the head
-    Tree,
+    Debug(Debug),
+}
 
-    /// Display Lockbook username
-    #[structopt(name = "whoami")]
-    WhoAmI,
-
-    /// Find lockbook file structure problems, corrupted or missing files.
+#[derive(Debug, PartialEq, StructOpt)]
+pub enum Debug {
+    Info,
+    Errors,
+    WhoAmiI,
+    WhereAmI,
     Validate,
+    Tree,
 }
 
 fn exit_with(err: CliError) -> ! {
@@ -195,13 +192,10 @@ fn parse_and_run() -> Result<(), CliError> {
         Rename { path, name } => rename::rename(&core, &path, &name),
         Status => status::status(&core),
         Sync => sync::sync(&core),
-        Tree => tree::tree(&core),
-        WhoAmI => whoami::whoami(&core),
-        Validate => validate::validate(&core),
         Backup => backup::backup(&core),
         GetUsage { exact } => calculate_usage::calculate_usage(&core, exact),
         ExportDrawing { path, format } => export_drawing::export_drawing(&core, &path, &format),
-        Errors => error::print_err_table(),
+        Debug(debug) => debug::debug(&core, debug),
     }
 }
 

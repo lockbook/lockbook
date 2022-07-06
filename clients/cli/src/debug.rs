@@ -1,10 +1,36 @@
 use lockbook_core::Core;
-use lockbook_core::Uuid;
+use lockbook_core::{FileMetaMapExt, FileMetaVecExt};
 use lockbook_core::{TestRepoError, Warning};
 
 use crate::error::CliError;
+use crate::Debug::*;
+use crate::{error, Debug};
 
-pub fn validate(core: &Core) -> Result<(), CliError> {
+pub fn debug(core: &Core, debug: Debug) -> Result<(), CliError> {
+    match debug {
+        Info => todo! {},
+        Errors => error::print_err_table(),
+        WhoAmiI => whoami(core),
+        WhereAmI => whereami(core),
+        Validate => validate(core),
+        Tree => tree(core),
+    }
+}
+
+pub fn whoami(core: &Core) -> Result<(), CliError> {
+    println!("{}", core.get_account()?.username);
+    Ok(())
+}
+
+pub fn whereami(core: &Core) -> Result<(), CliError> {
+    let account = core.get_account()?;
+    let config = &core.config;
+    println!("Server: {}", account.api_url);
+    println!("Local Data: {}", config.writeable_path);
+    Ok(())
+}
+
+fn validate(core: &Core) -> Result<(), CliError> {
     core.get_account()?;
 
     let err = match core.validate() {
@@ -16,15 +42,15 @@ pub fn validate(core: &Core) -> Result<(), CliError> {
             for w in &warnings {
                 match w {
                     Warning::EmptyFile(id) => {
-                        let path = get_path_by_id_or_err(core, *id)?;
+                        let path = core.get_path_by_id(*id)?;
                         eprintln!("File at path {} is empty.", path);
                     }
                     Warning::InvalidUTF8(id) => {
-                        let path = get_path_by_id_or_err(core, *id)?;
+                        let path = core.get_path_by_id(*id)?;
                         eprintln!("File at path {} contains invalid UTF8.", path);
                     }
                     Warning::UnreadableDrawing(id) => {
-                        let path = get_path_by_id_or_err(core, *id)?;
+                        let path = core.get_path_by_id(*id)?;
                         eprintln!("Drawing at path {} is unreadable.", path);
                     }
                 }
@@ -36,21 +62,19 @@ pub fn validate(core: &Core) -> Result<(), CliError> {
             TestRepoError::NoAccount => CliError::no_account(),
             TestRepoError::NoRootFolder => CliError::no_root(),
             TestRepoError::DocumentTreatedAsFolder(id) => {
-                CliError::doc_treated_as_dir(get_path_by_id_or_err(core, id)?)
+                CliError::doc_treated_as_dir(core.get_path_by_id(id)?)
             }
-            TestRepoError::FileOrphaned(id) => {
-                CliError::file_orphaned(get_path_by_id_or_err(core, id)?)
-            }
+            TestRepoError::FileOrphaned(id) => CliError::file_orphaned(core.get_path_by_id(id)?),
             TestRepoError::CycleDetected(_) => CliError::cycle_detected(),
             TestRepoError::FileNameEmpty(_) => CliError::file_name_empty(),
             TestRepoError::FileNameContainsSlash(id) => {
-                CliError::file_name_has_slash(get_path_by_id_or_err(core, id)?)
+                CliError::file_name_has_slash(core.get_path_by_id(id)?)
             }
             TestRepoError::NameConflictDetected(id) => {
-                CliError::name_conflict_detected(get_path_by_id_or_err(core, id)?)
+                CliError::name_conflict_detected(core.get_path_by_id(id)?)
             }
             TestRepoError::DocumentReadError(id, err) => {
-                CliError::validate_doc_read(get_path_by_id_or_err(core, id)?, format!("{:#?}", err))
+                CliError::validate_doc_read(core.get_path_by_id(id)?, format!("{:#?}", err))
             }
             TestRepoError::Core(err) => {
                 CliError::unexpected(format!("unexpected error: {:#?}", err))
@@ -64,8 +88,14 @@ pub fn validate(core: &Core) -> Result<(), CliError> {
     Err(err)
 }
 
-fn get_path_by_id_or_err(core: &Core, id: Uuid) -> Result<String, CliError> {
-    core.get_path_by_id(id).map_err(|err| {
-        CliError::unexpected(format!("failed to get path by id: {} err: {:#?}", id, err))
-    })
+pub fn tree(core: &Core) -> Result<(), CliError> {
+    core.get_account()?;
+
+    let files = core
+        .list_metadatas()
+        .map_err(|err| CliError::unexpected(format!("{}", err)))?;
+
+    println!("{}", files.to_map().pretty_print());
+
+    Ok(())
 }

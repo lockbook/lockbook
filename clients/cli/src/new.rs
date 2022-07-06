@@ -59,7 +59,7 @@ pub fn new(
                 let name: String = Input::with_theme(&ColorfulTheme::default())
                     .with_prompt("Choose a file name:")
                     .interact_text()
-                    .map_err(|err| CliError::unexpected(err))?;
+                    .map_err(CliError::unexpected)?;
 
                 create_file(core, &name, parent)
             } else {
