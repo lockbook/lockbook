@@ -2156,6 +2156,7 @@ dependencies = [
  "chrono",
  "dialoguer",
  "hotwatch",
+ "indicatif 0.16.2",
  "lockbook-core",
  "qr2term",
  "structopt",
