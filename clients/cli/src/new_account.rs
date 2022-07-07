@@ -9,7 +9,7 @@ use crate::error::CliError;
 
 pub fn new_account(core: &Core) -> Result<(), CliError> {
     print!("Enter a Username: ");
-    io::stdout().flush().unwrap();
+    io::stdout().flush()?;
 
     let mut username = String::new();
     io::stdin()
