@@ -1,7 +1,6 @@
 use dialoguer::{Confirm, Input};
 
 use lockbook_core::Core;
-use lockbook_core::Error;
 use lockbook_core::Error as LbError;
 use lockbook_core::GetSubscriptionInfoError;
 use lockbook_core::GetUsageError;
@@ -43,9 +42,9 @@ fn status(core: &Core) -> Result<(), CliError> {
     }
 
     let cap = core.get_usage().map_err(|err| match err {
-        Error::UiError(GetUsageError::CouldNotReachServer) => CliError::network_issue(),
-        Error::UiError(GetUsageError::ClientUpdateRequired) => CliError::update_required(),
-        Error::Unexpected(msg) => CliError::unexpected(msg),
+        LbError::UiError(GetUsageError::CouldNotReachServer) => CliError::network_issue(),
+        LbError::UiError(GetUsageError::ClientUpdateRequired) => CliError::update_required(),
+        LbError::Unexpected(msg) => CliError::unexpected(msg),
     })?;
 
     println!(
@@ -163,10 +162,12 @@ fn solicit_card_info() -> Result<PaymentMethod, CliError> {
 
 fn get_subscription_info(core: &Core) -> Result<Option<SubscriptionInfo>, CliError> {
     core.get_subscription_info().map_err(|err| match err {
-        Error::UiError(GetSubscriptionInfoError::CouldNotReachServer) => CliError::network_issue(),
-        Error::UiError(GetSubscriptionInfoError::ClientUpdateRequired) => {
+        LbError::UiError(GetSubscriptionInfoError::CouldNotReachServer) => {
+            CliError::network_issue()
+        }
+        LbError::UiError(GetSubscriptionInfoError::ClientUpdateRequired) => {
             CliError::update_required()
         }
-        Error::Unexpected(msg) => CliError::unexpected(msg),
+        LbError::Unexpected(msg) => CliError::unexpected(msg),
     })
 }
