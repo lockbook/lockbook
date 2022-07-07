@@ -30,7 +30,7 @@ pub fn select_meta(
 
     let filter = target_file_type.map(|file_type| match file_type {
         FileType::Document => Filter::DocumentsOnly,
-        FileType::Folder => FilterFoldersOnly,
+        FileType::Folder => Filter::FoldersOnly,
     });
 
     match (path, id) {
@@ -97,7 +97,7 @@ pub fn create_meta(
         // If we can, interactively create the desired file
         (None, None, None) => {
             if atty::is(atty::Stream::Stdout) {
-                let dirs = core.list_paths(Some(FoldersOnly))?;
+                let dirs = core.list_paths(Some(Filter::FoldersOnly))?;
                 let selection = FuzzySelect::with_theme(&ColorfulTheme::default())
                     .with_prompt("Select a parent directory")
                     .default(0)
