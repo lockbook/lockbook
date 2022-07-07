@@ -784,6 +784,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "dialoguer"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8c8ae48e400addc32a8710c8d62d55cb84249a7d58ac4cd959daecfbaddc545"
+dependencies = [
+ "console",
+ "fuzzy-matcher",
+ "tempfile",
+ "zeroize",
+]
+
+[[package]]
 name = "diffy"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2142,10 +2154,11 @@ version = "0.4.3"
 dependencies = [
  "atty",
  "chrono",
+ "dialoguer",
  "hotwatch",
+ "indicatif 0.16.2",
  "lockbook-core",
  "qr2term",
- "serde_json",
  "structopt",
 ]
 
@@ -4713,3 +4726,9 @@ dependencies = [
  "tokio",
  "url 2.2.2",
 ]
+
+[[package]]
+name = "zeroize"
+version = "1.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20b578acffd8516a6c3f2a1bdefc1ec37e547bb4e0fb8b6b01a4cafc886b4442"

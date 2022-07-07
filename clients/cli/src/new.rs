@@ -1,29 +1,23 @@
 use std::fs;
 
-use lockbook_core::Core;
-use lockbook_core::CreateFileAtPathError;
 use lockbook_core::Error as LbError;
 use lockbook_core::FileDeleteError;
 use lockbook_core::FileMetadata;
+use lockbook_core::{Core, Uuid};
 
 use crate::error::CliError;
+use crate::selector::create_meta;
 use crate::utils::{
     edit_file_with_editor, get_directory_location, save_temp_file_contents, set_up_auto_save,
     stop_auto_save,
 };
 
-pub fn new(core: &Core, lb_path: &str) -> Result<(), CliError> {
+pub fn new(
+    core: &Core, lb_path: Option<String>, parent: Option<Uuid>, name: Option<String>,
+) -> Result<(), CliError> {
     core.get_account()?;
 
-    let file_metadata = core.create_at_path(lb_path).map_err(|err| match err {
-        LbError::UiError(err) => match err {
-            CreateFileAtPathError::NoRoot => CliError::no_root(),
-            CreateFileAtPathError::FileAlreadyExists => CliError::file_exists(lb_path),
-            CreateFileAtPathError::PathContainsEmptyFile => CliError::path_has_empty_file(lb_path),
-            CreateFileAtPathError::DocumentTreatedAsFolder => CliError::doc_treated_as_dir(lb_path),
-        },
-        LbError::Unexpected(msg) => CliError::unexpected(msg),
-    })?;
+    let file_metadata = create_meta(core, lb_path, parent, name)?;
 
     let mut temp_file_path = get_directory_location()?;
     temp_file_path.push(&file_metadata.decrypted_name);
@@ -51,10 +45,11 @@ pub fn new(core: &Core, lb_path: &str) -> Result<(), CliError> {
         }
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
+        let path = core.get_path_by_id(file_metadata.id)?;
         core.delete_file(file_metadata.id)
             .map_err(|err| match err {
                 LbError::UiError(err) => match err {
-                    FileDeleteError::FileDoesNotExist => CliError::file_not_found(lb_path),
+                    FileDeleteError::FileDoesNotExist => CliError::file_not_found(path),
                     FileDeleteError::CannotDeleteRoot => CliError::no_root_ops("delete"),
                 },
                 LbError::Unexpected(msg) => CliError::unexpected(msg),

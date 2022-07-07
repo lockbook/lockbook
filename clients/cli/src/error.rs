@@ -2,9 +2,9 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
-use lockbook_core::Error as LbError;
-use lockbook_core::GetAccountError;
 use lockbook_core::UnexpectedError;
+use lockbook_core::{DecryptedFileMetadata, Error as LbError};
+use lockbook_core::{GetAccountError, Uuid};
 
 pub struct CliError {
     pub code: ErrCode,
@@ -24,9 +24,14 @@ impl CliError {
 
     pub fn print(&self) {
         match self.code {
+            ErrCode::Input => eprintln!("input error: {}", self.msg),
             ErrCode::Unexpected => eprintln!("unexpected error: {}", self.msg),
             _ => eprintln!("error: {}", self.msg),
         }
+    }
+
+    pub fn input<S: ToString>(msg: S) -> Self {
+        Self { msg: msg.to_string(), code: ErrCode::Input }
     }
 
     pub fn unexpected<S: ToString>(msg: S) -> Self {
@@ -132,6 +137,10 @@ impl CliError {
         Self::new(ErrCode::FileNotFound, format!("file '{}' not found", path))
     }
 
+    pub fn file_id_not_found(id: Uuid) -> Self {
+        Self::new(ErrCode::FileNotFound, format!("file-id '{id}' not found"))
+    }
+
     pub fn file_exists<P: fmt::Display>(path: P) -> Self {
         Self::new(ErrCode::FileAlreadyExists, format!("the file '{}' already exists", path))
     }
@@ -151,10 +160,13 @@ impl CliError {
         )
     }
 
-    pub fn dir_treated_as_doc<T: fmt::Display>(lb_path: T) -> Self {
+    pub fn dir_treated_as_doc(meta: &DecryptedFileMetadata) -> Self {
         Self::new(
             ErrCode::FolderTreatedAsDoc,
-            format!("a file in path '{}' is a folder being treated as a document", lb_path),
+            format!(
+                "a file named '{}' is a folder being treated as a document",
+                meta.decrypted_name
+            ),
         )
     }
 
@@ -247,7 +259,8 @@ macro_rules! make_errcode_enum {
 
 // Error Codes, respect: http://www.tldp.org/LDP/abs/html/exitcodes.html
 make_errcode_enum!(
-    // Miscellaneous (3-19)
+    // Miscellaneous (1-19)
+    1 => Input,
     3 => Unexpected,
     4 => NetworkIssue,
     5 => UpdateRequired,

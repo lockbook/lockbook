@@ -6,17 +6,18 @@ use lockbook_core::Error as LbError;
 use lockbook_core::FileDeleteError;
 use lockbook_core::FileMetadata;
 use lockbook_core::GetAndGetChildrenError;
-use lockbook_core::GetFileByPathError;
+use lockbook_core::Uuid;
 
 use crate::error::CliError;
+use crate::selector::select_meta;
 
-pub fn remove(core: &Core, lb_path: &str, force: bool) -> Result<(), CliError> {
+pub fn remove(
+    core: &Core, lb_path: Option<String>, id: Option<Uuid>, force: bool,
+) -> Result<(), CliError> {
     core.get_account()?;
 
-    let meta = core.get_by_path(lb_path).map_err(|err| match err {
-        LbError::UiError(GetFileByPathError::NoFileAtThatPath) => CliError::file_not_found(lb_path),
-        LbError::Unexpected(msg) => CliError::unexpected(msg),
-    })?;
+    let meta = select_meta(core, lb_path, id, None, Some("Select a file to delete"))?;
+    let path = &core.get_path_by_id(meta.id)?;
 
     if meta.is_folder() && !force {
         let children = core
@@ -24,9 +25,9 @@ pub fn remove(core: &Core, lb_path: &str, force: bool) -> Result<(), CliError> {
             .map_err(|err| match err {
                 LbError::UiError(err) => match err {
                     GetAndGetChildrenError::DocumentTreatedAsFolder => {
-                        CliError::doc_treated_as_dir(lb_path)
+                        CliError::doc_treated_as_dir(path)
                     }
-                    GetAndGetChildrenError::FileDoesNotExist => CliError::file_not_found(lb_path),
+                    GetAndGetChildrenError::FileDoesNotExist => CliError::file_not_found(path),
                 },
                 LbError::Unexpected(msg) => CliError::unexpected(msg),
             })?;
@@ -53,7 +54,7 @@ pub fn remove(core: &Core, lb_path: &str, force: bool) -> Result<(), CliError> {
     }
 
     core.delete_file(meta.id).map_err(|err| match err {
-        LbError::UiError(FileDeleteError::FileDoesNotExist) => CliError::file_not_found(lb_path),
+        LbError::UiError(FileDeleteError::FileDoesNotExist) => CliError::file_not_found(path),
         LbError::UiError(FileDeleteError::CannotDeleteRoot) => CliError::no_root_ops("delete"),
         LbError::Unexpected(msg) => CliError::unexpected(msg),
     })
