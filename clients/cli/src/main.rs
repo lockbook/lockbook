@@ -3,137 +3,203 @@ use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-use lockbook_core::Config;
 use lockbook_core::Core;
-use lockbook_core::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
+use lockbook_core::{Config, Uuid};
 
 use crate::error::CliError;
 
 mod backup;
-mod calculate_usage;
 mod copy;
+mod debug;
+mod drawing;
 mod edit;
 mod error;
-mod export_drawing;
-mod export_private_key;
-mod import_private_key;
 mod list;
-mod move_file;
+mod mv;
 mod new;
 mod new_account;
 mod print;
+mod private_key;
 mod remove;
 mod rename;
+mod selector;
 mod status;
 mod sync;
-mod tree;
+mod usage;
 mod utils;
-mod validate;
-mod whoami;
 
 #[derive(Debug, PartialEq, StructOpt)]
-#[structopt(about = "A secure and intuitive notebook.")]
+#[structopt(about = "The best place to store and share thoughts.")]
 enum Lockbook {
     /// Backup your Lockbook files and structure to the current directory
     Backup,
 
     /// Copy a file from your file system into your Lockbook
+    ///
+    /// If neither dest or dest_id is provided an interactive selector will be launched.
     Copy {
         /// At-least one filesystem location
         #[structopt(required = true)]
-        disk_files: Vec<PathBuf>,
+        disk: Vec<PathBuf>,
 
-        /// A folder within your Lockbook, will be created if it does not exist
-        destination: String,
+        /// The path to a folder within lockbook.
+        dest: Option<String>,
+
+        /// The id of a folder within lockbook.
+        #[structopt(short, long)]
+        dest_id: Option<Uuid>,
     },
 
     /// Open a document for editing
+    ///
+    /// Open a document for editing in an external editor. The default editor is vim on unix-like
+    /// systems and vs-code on windows. The editor can be overridden by using the $LOCKBOOK_EDITOR
+    /// environment variable.
+    ///
+    /// If neither path or id is provided an interactive selector will be launched.
     Edit {
-        /// The lockbook location of the file you want to edit. Will use the LOCKBOOK_EDITOR env var
-        /// to select an editor. In the absence of this variable, it will default to vim. Editor
-        /// options are: Vim, Emacs, Nano, Sublime, Code
-        path: String,
+        /// The lockbook location of a document within lockbook
+        path: Option<String>,
+
+        /// The id of a document within lockbook
+        #[structopt(short, long)]
+        id: Option<Uuid>,
     },
 
-    /// Print out what each error code means
-    Errors,
-
     /// Export a drawing as an image
-    ExportDrawing {
+    ///
+    /// If neither path or id is provided an interactive selector will be launched.
+    Drawing {
         /// Path of the drawing within lockbook
-        path: String,
+        path: Option<String>,
+
+        /// The id of a drawing within lockbook
+        #[structopt(short, long)]
+        id: Option<Uuid>,
 
         /// Format for export format, options are: png, jpeg, bmp, tga, pnm, farbfeld
         format: String,
     },
 
-    /// Export your private key, if piped, account string, otherwise qr code
-    ExportPrivateKey,
+    /// Import or Export a private key
+    PrivateKey {
+        /// Import a private key from stdin
+        #[structopt(short, long)]
+        import: bool,
 
-    /// How much space does your Lockbook occupy on the server
+        /// Export a private key to stdout. If piped, it will print the private key as text. Otherwise, it
+        /// will produce a QR code.
+        #[structopt(short, long)]
+        export: bool,
+    },
+
+    /// Prints uncompressed & compressed local disk utilization, and server disk utilization
     GetUsage {
-        /// Show the amount in bytes, don't show a human readable interpretation
+        /// Show machine readable amounts, in bytes
         #[structopt(long)]
         exact: bool,
     },
 
-    /// Import an account string via stdin
-    ImportPrivateKey,
-
     /// List the absolute path of all Lockbook leaf nodes
-    List,
+    List {
+        #[structopt(short, long)]
+        all: bool,
 
-    /// List the absolute path of all lockbook files and folders
-    #[structopt(name = "list-all")]
-    ListAll,
+        #[structopt(short, long)]
+        folders: bool,
 
-    /// List the absolute path of your documents
-    ListDocs,
+        #[structopt(short, long)]
+        documents: bool,
 
-    /// List the absolute path of your folders
-    ListFolders,
+        #[structopt(short, long)]
+        ids: bool,
+    },
 
     /// Change the parent of a file or folder
+    ///
+    /// Source & Destination must exist prior to moving.
+    /// If neither src or src_id is provided an interactive selector will be launched.
+    /// If neither dest or dest_id is provided an interactive selector will be launched.
     Move {
-        /// File you are moving (lockbook list-all)
-        target: String,
+        /// Path of the file within lockbook to move
+        src: Option<String>,
 
-        /// New location (lockbook list-folders)
-        new_parent: String,
+        /// Id of the file within lockbook to move
+        #[structopt(short, long)]
+        src_id: Option<Uuid>,
+
+        /// Path to the desired destination folder within lockbook
+        dest: Option<String>,
+
+        /// Id of the desired destination folder within lockbook
+        #[structopt(short, long)]
+        dest_id: Option<Uuid>,
     },
 
     /// Create a new document or folder
+    ///
+    /// Can either provide a path or a parent-id + name.
+    /// If neither path, parent or name is provided, an interactive selector will be launched.
     New {
-        /// Absolute path of the file you're creating. Will create folders that do not exist.
-        path: String,
+        /// Desired path, folders that don't exist will be created. The terminal file type will be
+        /// determined based on whether the last character of the path is a '/' or not
+        path: Option<String>,
+
+        /// Id of the parent you're trying to create the file in
+        #[structopt(short, long)]
+        parent: Option<Uuid>,
+
+        /// Name of the file. file type will be determined based on whether the last character of
+        /// the path is a '/' or not
+        #[structopt(short, long)]
+        name: Option<String>,
     },
 
     /// Create a new Lockbook account
     NewAccount,
 
     /// Print the contents of a file to stdout
+    ///
+    /// If neither path or id is provided an interactive selector will be launched.
     Print {
-        /// Absolute path of a document (lockbook list-docs)
-        path: String,
+        /// The lockbook location of a document within lockbook
+        path: Option<String>,
+
+        /// The id of a document within lockbook
+        #[structopt(short, long)]
+        id: Option<Uuid>,
     },
 
     /// Delete a file
+    ///
+    /// If neither path or id is provided an interactive selector will be launched.
     Remove {
-        /// Absolute path of a file (lockbook list-all)
-        path: String,
+        /// The lockbook location of a file within lockbook
+        path: Option<String>,
 
-        /// Skip the confirmation check for a folder
+        /// The lockbook location of a file within lockbook
+        #[structopt(short, long)]
+        id: Option<Uuid>,
+
+        /// The id of a file within lockbook
         #[structopt(short, long)]
         force: bool,
     },
 
     /// Rename a file at a path to a target value
+    ///
+    /// If neither path or id is provided an interactive selector will be launched.
+    /// If name is not provided an interactive selector will be launched.
     Rename {
-        /// Absolute path of a file (lockbook list-all)
-        path: String,
+        /// The lockbook location of a file within lockbook
+        path: Option<String>,
+
+        /// The lockbook location of a file within lockbook
+        #[structopt(short, long)]
+        id: Option<Uuid>,
 
         /// New name
-        name: String,
+        name: Option<String>,
     },
 
     /// What operations a sync would perform
@@ -142,15 +208,34 @@ enum Lockbook {
     /// Get updates, push changes
     Sync,
 
-    /// Print the file tree with a given file as the head
-    Tree,
+    /// Subcommands that aid in extending lockbook
+    Debug(Debug),
+}
 
-    /// Display Lockbook username
-    #[structopt(name = "whoami")]
+#[derive(Debug, PartialEq, StructOpt)]
+pub enum Debug {
+    /// Prints metadata associated with a file
+    Info {
+        path: Option<String>,
+
+        #[structopt(short, long)]
+        id: Option<Uuid>,
+    },
+
+    /// Prints all the error codes that the cli can generate
+    Errors,
+
+    /// Prints who is logged into this lockbook
     WhoAmI,
 
-    /// Find lockbook file structure problems, corrupted or missing files.
+    /// Prints information about where this lockbook is stored and what server it communicates with
+    WhereAmI,
+
+    /// Helps find invalid states within lockbook
     Validate,
+
+    /// Visualizes the filetree as a graphical tree
+    Tree,
 }
 
 fn exit_with(err: CliError) -> ! {
@@ -169,34 +254,24 @@ fn parse_and_run() -> Result<(), CliError> {
 
     let core = Core::init(&Config { logs: true, writeable_path })?;
 
+    use Lockbook::*;
     match Lockbook::from_args() {
-        Lockbook::Copy { disk_files: files, destination } => {
-            copy::copy(&core, &files, &destination)
-        }
-        Lockbook::Edit { path } => edit::edit(&core, path.trim()),
-        Lockbook::ExportPrivateKey => export_private_key::export_private_key(&core),
-        Lockbook::ImportPrivateKey => import_private_key::import_private_key(&core),
-        Lockbook::NewAccount => new_account::new_account(&core),
-        Lockbook::List => list::list(&core, Some(LeafNodesOnly)),
-        Lockbook::ListAll => list::list(&core, None),
-        Lockbook::ListDocs => list::list(&core, Some(DocumentsOnly)),
-        Lockbook::ListFolders => list::list(&core, Some(FoldersOnly)),
-        Lockbook::Move { target, new_parent } => move_file::move_file(&core, &target, &new_parent),
-        Lockbook::New { path } => new::new(&core, path.trim()),
-        Lockbook::Print { path } => print::print(&core, path.trim()),
-        Lockbook::Remove { path, force } => remove::remove(&core, path.trim(), force),
-        Lockbook::Rename { path, name } => rename::rename(&core, &path, &name),
-        Lockbook::Status => status::status(&core),
-        Lockbook::Sync => sync::sync(&core),
-        Lockbook::Tree => tree::tree(&core),
-        Lockbook::WhoAmI => whoami::whoami(&core),
-        Lockbook::Validate => validate::validate(&core),
-        Lockbook::Backup => backup::backup(&core),
-        Lockbook::GetUsage { exact } => calculate_usage::calculate_usage(&core, exact),
-        Lockbook::ExportDrawing { path, format } => {
-            export_drawing::export_drawing(&core, &path, &format)
-        }
-        Lockbook::Errors => error::print_err_table(),
+        Copy { disk: files, dest, dest_id } => copy::copy(&core, &files, dest, dest_id),
+        Edit { path, id } => edit::edit(&core, path, id),
+        PrivateKey { import, export } => private_key::private_key(&core, import, export),
+        NewAccount => new_account::new_account(&core),
+        List { ids, folders, documents, all } => list::list(&core, ids, documents, folders, all),
+        Move { src, src_id, dest, dest_id } => mv::mv(&core, src, src_id, dest, dest_id),
+        New { path, parent, name } => new::new(&core, path, parent, name),
+        Print { path, id } => print::print(&core, path, id),
+        Remove { path, id, force } => remove::remove(&core, path, id, force),
+        Rename { path, id, name } => rename::rename(&core, path, id, name),
+        Status => status::status(&core),
+        Sync => sync::sync(&core),
+        Backup => backup::backup(&core),
+        GetUsage { exact } => usage::usage(&core, exact),
+        Drawing { path, id, format } => drawing::drawing(&core, path, id, &format),
+        Debug(debug) => debug::debug(&core, debug),
     }
 }
 
