@@ -11,7 +11,7 @@ pub fn debug(core: &Core, debug: Debug) -> Result<(), CliError> {
     match debug {
         Info { path, id } => info(core, path, id),
         Errors => error::print_err_table(),
-        WhoAmiI => whoami(core),
+        WhoAmI => whoami(core),
         WhereAmI => whereami(core),
         Validate => validate(core),
         Tree => tree(core),

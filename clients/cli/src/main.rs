@@ -226,7 +226,7 @@ pub enum Debug {
     Errors,
 
     /// Prints who is logged into this lockbook
-    WhoAmiI,
+    WhoAmI,
 
     /// Prints information about where this lockbook is stored and what server it communicates with
     WhereAmI,
