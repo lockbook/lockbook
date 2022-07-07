@@ -2159,7 +2159,6 @@ dependencies = [
  "indicatif 0.16.2",
  "lockbook-core",
  "qr2term",
- "shadow-rs",
  "structopt",
 ]
 
