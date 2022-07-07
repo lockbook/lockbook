@@ -1,11 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/menu_files_list_search"
+        android:icon="@drawable/ic_round_search_24"
+        android:title="@string/search"
+        app:actionViewClass="app.lockbook.ui.FixQueryChangeSearchView"
+        app:showAsAction="always|collapseActionView" />
+
     <item
         android:id="@+id/menu_list_files_sort"
         android:icon="@drawable/ic_baseline_sort_24"
         android:title="@string/menu_sort"
-        app:showAsAction="ifRoom">
+        app:showAsAction="always">
         <menu>
             <group
                 android:id="@+id/sorting_options"

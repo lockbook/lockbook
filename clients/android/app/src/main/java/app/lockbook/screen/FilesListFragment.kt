@@ -21,6 +21,7 @@ import app.lockbook.R
 import app.lockbook.databinding.FragmentFilesListBinding
 import app.lockbook.model.*
 import app.lockbook.ui.BreadCrumbItem
+import app.lockbook.ui.FixQueryChangeSearchView
 import app.lockbook.util.*
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.viewholder.isSelected
@@ -251,7 +252,6 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
         binding.filesToolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-
                 R.id.menu_list_files_sort_last_changed -> {
                     model.changeFileSort(SortStyle.LastChanged)
                     menu.menu!!.findItem(R.id.menu_list_files_sort_last_changed)?.isChecked = true
@@ -278,6 +278,12 @@ class FilesListFragment : Fragment(), FilesFragment {
 
             true
         }
+        val searchView = binding.filesToolbar.menu.findItem(R.id.menu_files_list_search).actionView as FixQueryChangeSearchView
+        searchView.setOnSearchClickListener {
+
+        }
+
+
 
         toggleMenuBar()
     }

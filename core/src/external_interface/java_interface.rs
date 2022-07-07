@@ -1,8 +1,10 @@
 #![allow(non_snake_case)]
 
+use std::sync::mpsc;
+use std::thread;
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
-use jni::objects::{JClass, JObject, JString, JValue};
+use jni::objects::{GlobalRef, JClass, JObject, JString, JValue};
 use jni::sys::{jboolean, jbyteArray, jlong, jstring};
 use jni::JNIEnv;
 use serde::de::DeserializeOwned;
@@ -18,6 +20,7 @@ use lockbook_models::work_unit::ClientWorkUnit;
 
 use crate::external_interface::json_interface::translate;
 use crate::external_interface::static_state;
+use crate::service::search_service::{SearchRequest, SearchResult};
 use crate::service::sync_service::SyncProgress;
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
@@ -335,7 +338,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocumentBytes(
         .ok()
         .and_then(|core| core.read_document(id).ok())
     {
-        None => ::std::ptr::null_mut() as jbyteArray,
+        None => std::ptr::null_mut() as jbyteArray,
         Some(document_bytes) => env
             .byte_array_from_slice(document_bytes.as_slice())
             .unwrap_or(::std::ptr::null_mut() as jbyteArray),
@@ -471,6 +474,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
             file_name,
         ]
         .to_vec();
+
         env_c
             .call_method(
                 jsyncmodel,
@@ -619,6 +623,99 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_listMetadatas(
             e => translate(e.map(|_| ())),
         },
     )
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
+    env: JNIEnv, _: JClass, jsearchModel: JObject<'static>
+) -> jstring {
+    let (search_tx, search_rx) = mpsc::channel::<SearchRequest>();
+    let (results_tx, results_rx) = mpsc::channel::<SearchResult>();
+
+    let env_c = env.clone();
+
+    thread::spawn(move || {
+        loop {
+            let search = env
+                .call_method(
+                    jsearchModel,
+                    "getSearchQuery",
+                    "()String",
+                    [].to_vec().as_slice(),
+                )
+                .unwrap();
+
+            match search {
+                JValue::Object(maybe_search) => {
+                    let request = if maybe_search.is_null() {
+                        SearchRequest::EndSearch
+                    } else {
+                        SearchRequest::Search { input: jstring_to_string(&env_c, JString::from(maybe_search), "").unwrap() }
+                    };
+
+                    search_tx.send(request);
+                }
+                _ => {}
+            }
+        }
+    });
+
+    if let Err(e) = static_state::get().and_then(|core| core.start_search(results_tx, search_rx)) {
+        return string_to_jstring(&env, translate(Err::<(), _>(e)))
+    }
+
+    // loop {
+    //     // call jsearchrequest model and ask if there are any updates
+    //     // it takes search requests and sends them through the channel, and then sleeps
+    //
+    //     // the function that is called will do a recv of its own so it doesnt need to sleep
+    // }
+
+    loop {
+        let results = results_rx.recv().unwrap();
+
+        match results{
+            SearchResult::Error(_) => {}
+            SearchResult::FileNameMatch {
+                id, name, score
+            } => {
+                let args = [
+                    JValue::Object(JObject::from(string_to_jstring(&env, id.to_string()))),
+                    JValue::Object(JObject::from(string_to_jstring(&env, name))),
+                    JValue::Int(score as i32)
+                ].to_vec();
+
+                env
+                    .clone()
+                    .call_method(
+                        jsearchModel,
+                        "addFileNameSearchResult",
+                        "(Ljava/lang/String;Ljava/lang/String;I)V",
+                        args.as_slice(),
+                    )
+                    .unwrap();
+            }
+            SearchResult::FileContentMatch {
+                id, file_name, content, score
+            } => {
+                let args = [
+                    JValue::Object(JObject::from(string_to_jstring(&env, id.to_string()))),
+                    JValue::Object(JObject::from(string_to_jstring(&env, file_name))),
+                    JValue::Object(JObject::from(string_to_jstring(&env, content))),
+                    JValue::Int(score as i32)
+                ].to_vec();
+
+                env
+                    .call_method(
+                        jsearchModel,
+                        "addFileNameSearchResult",
+                        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V",
+                        args.as_slice(),
+                    )
+                    .unwrap();
+            }
+        }
+    }
 }
 
 #[no_mangle]
