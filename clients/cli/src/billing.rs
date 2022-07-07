@@ -2,12 +2,10 @@ use dialoguer::{Confirm, Input};
 
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
-use lockbook_core::GetSubscriptionInfoError;
 use lockbook_core::GetUsageError;
 use lockbook_core::PaymentMethod;
 use lockbook_core::PaymentPlatform;
 use lockbook_core::StripeAccountTier;
-use lockbook_core::SubscriptionInfo;
 
 use crate::{Billing, CliError};
 
@@ -76,36 +74,30 @@ fn subscribe(core: &Core) -> Result<(), CliError> {
     };
 
     use lockbook_core::UpgradeAccountStripeError::*;
-
     core.upgrade_account_stripe(StripeAccountTier::Premium(payment_method))
         .map_err(|err| match err {
-            LbError::UiError(CouldNotReachServer) => CliError::network_issue(),
-            LbError::UiError(OldCardDoesNotExist) => {
-                CliError::unexpected("That card no longer exists!")
-            }
-            LbError::UiError(AlreadyPremium) => {
-                CliError::unexpected("You're already subscribed to this tier!")
-            }
-            LbError::UiError(InvalidCardNumber) => CliError::billing("Invalid Card Number."),
-            LbError::UiError(InvalidCardCvc) => CliError::billing("Invalid CVC."),
-            LbError::UiError(InvalidCardExpYear) => CliError::billing("Invalid Expiration Year."),
-            LbError::UiError(InvalidCardExpMonth) => CliError::billing("Invalid Expiration Month."),
-            LbError::UiError(CardDecline) => CliError::billing("Card declined."),
-            LbError::UiError(CardHasInsufficientFunds) => {
-                CliError::billing("Card has insufficient funds.")
-            }
-            LbError::UiError(TryAgain) => CliError::billing("Try again later."),
-            LbError::UiError(CardNotSupported) => {
-                CliError::billing("Card not supported by stripe.")
-            }
-            LbError::UiError(ExpiredCard) => CliError::billing("Card expired."),
-            LbError::UiError(ClientUpdateRequired) => CliError::update_required(),
-            LbError::UiError(CurrentUsageIsMoreThanNewTier) => {
-                CliError::billing("Your current usage exceeds the requested tier.")
-            }
-            LbError::UiError(ExistingRequestPending) => CliError::billing(
-                "Another billing request is being processed, please wait and try again later.",
-            ),
+            LbError::UiError(ui_err) => match ui_err {
+                CouldNotReachServer => CliError::network_issue(),
+                OldCardDoesNotExist => CliError::unexpected("That card no longer exists!"),
+                AlreadyPremium => CliError::unexpected("You're already subscribed to this tier!"),
+                InvalidCardNumber => CliError::billing("Invalid Card Number."),
+                InvalidCardCvc => CliError::billing("Invalid CVC."),
+                InvalidCardExpYear => CliError::billing("Invalid Expiration Year."),
+                InvalidCardExpMonth => CliError::billing("Invalid Expiration Month."),
+                CardDecline => CliError::billing("Card declined."),
+                CardHasInsufficientFunds => CliError::billing("Card has insufficient funds."),
+                TryAgain => CliError::billing("Try again later."),
+                CardNotSupported => CliError::billing("Card not supported by stripe."),
+                ExpiredCard => CliError::billing("Card expired."),
+                ClientUpdateRequired => CliError::update_required(),
+                CurrentUsageIsMoreThanNewTier => {
+                    CliError::billing("Your current usage exceeds the requested tier.")
+                }
+                ExistingRequestPending => CliError::billing(
+                    "Another billing request is being processed, please wait and try again later.",
+                ),
+            },
+
             LbError::Unexpected(msg) => CliError::unexpected(msg),
         })?;
 
