@@ -3,10 +3,10 @@ use std::io::Write;
 
 use lockbook_core::Core;
 use lockbook_core::FileType::Document;
+use lockbook_core::Uuid;
 
 use crate::error::CliError;
 use crate::selector::select_meta;
-use crate::Uuid;
 
 pub fn print(core: &Core, lb_path: Option<String>, id: Option<Uuid>) -> Result<(), CliError> {
     core.get_account()?;

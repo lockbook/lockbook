@@ -8,10 +8,10 @@ use lockbook_core::Error as LbError;
 use lockbook_core::FileType::Folder;
 use lockbook_core::ImportFileError;
 use lockbook_core::ImportStatus;
+use lockbook_core::Uuid;
 
 use crate::error::CliError;
 use crate::selector::select_meta;
-use crate::Uuid;
 
 pub fn copy(
     core: &Core, disk_paths: &[PathBuf], lb_path: Option<String>, dest_id: Option<Uuid>,

@@ -3,10 +3,10 @@ use dialoguer::Input;
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
 use lockbook_core::RenameFileError;
+use lockbook_core::Uuid;
 
 use crate::error::CliError;
 use crate::selector::select_meta;
-use crate::Uuid;
 
 pub fn rename(
     core: &Core, path: Option<String>, id: Option<Uuid>, new_name: Option<String>,

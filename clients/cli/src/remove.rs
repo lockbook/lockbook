@@ -6,10 +6,10 @@ use lockbook_core::Error as LbError;
 use lockbook_core::FileDeleteError;
 use lockbook_core::FileMetadata;
 use lockbook_core::GetAndGetChildrenError;
+use lockbook_core::Uuid;
 
 use crate::error::CliError;
 use crate::selector::select_meta;
-use crate::Uuid;
 
 pub fn remove(
     core: &Core, lb_path: Option<String>, id: Option<Uuid>, force: bool,

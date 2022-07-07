@@ -2,10 +2,10 @@ use lockbook_core::Core;
 use lockbook_core::Error as LbError;
 use lockbook_core::FileType::Folder;
 use lockbook_core::MoveFileError;
+use lockbook_core::Uuid;
 
 use crate::error::CliError;
 use crate::selector::select_meta;
-use crate::Uuid;
 
 pub fn mv(
     core: &Core, src: Option<String>, src_id: Option<Uuid>, dest: Option<String>,
