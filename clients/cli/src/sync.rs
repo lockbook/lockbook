@@ -1,10 +1,12 @@
+use std::rc::Rc;
+
 use indicatif::{ProgressBar, ProgressStyle};
+
 use lockbook_core::ClientWorkUnit;
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
 use lockbook_core::SyncAllError;
 use lockbook_core::SyncProgress;
-use std::rc::Rc;
 
 use crate::error::CliError;
 
