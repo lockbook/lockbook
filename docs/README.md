@@ -17,10 +17,10 @@ Know your customer? We sure don't. We don't collect your email, phone number, or
 ### Honest
 Be the customer, not the product. We make money by selling a note-taking app, not your data.
 
-| Payment Option | Monthly Fee   |
-|----------------|---------------|
-| Monthly        | $2.50 per 50gb   |
-| Annual         | $25 per 50gb  |
+| Payment Option | Monthly Fee  |
+|----------------|--------------|
+| Monthly        | $3 per 30gb  |
+| Annual         | $30 per 50gb |
 
 ### Developer Friendly
 The Lockbook CLI will right into your favorite chain of piped-together unix commands. Search your notes with `fzf`, edit them with `vim`, and schedule backups with `cron`. When scripting doesn't cut it, use our Rust library for a robust programmatic interface with Lockbook.
@@ -45,7 +45,7 @@ The Lockbook CLI will right into your favorite chain of piped-together unix comm
 | QR Import          |   ⛔️     |    📆     |     ✅      |     📆       |      ✅        |    📆     |
 | Import Account     |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
 | Space Utilized     |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
-| Billing            |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
+| Billing            |   📆✅     |    📆✅    |     📆 ✅     |     📆       |      📆        |    📆     |
 
 ### File Operations
 
