@@ -39,7 +39,7 @@ pub fn remove(
                 .filter(|child| child.is_document())
                 .count()
         );
-        io::stdout().flush().unwrap();
+        io::stdout().flush()?;
 
         let mut answer = String::new();
         io::stdin()

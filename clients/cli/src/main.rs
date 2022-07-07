@@ -9,6 +9,7 @@ use lockbook_core::{Config, Uuid};
 use crate::error::CliError;
 
 mod backup;
+mod billing;
 mod copy;
 mod debug;
 mod drawing;
@@ -33,6 +34,9 @@ mod utils;
 enum Lockbook {
     /// Backup your Lockbook files and structure to the current directory
     Backup,
+
+    /// Commands related to managing premium lockbook subscriptions
+    Billing(Billing),
 
     /// Copy a file from your file system into your Lockbook
     ///
@@ -238,6 +242,18 @@ pub enum Debug {
     Tree,
 }
 
+#[derive(Debug, PartialEq, StructOpt)]
+pub enum Billing {
+    /// Prints out information about your current tier
+    Status,
+
+    /// Create a new subscription using a credit card
+    Subscribe,
+
+    /// Terminate a lockbook subscription
+    UnSubscribe,
+}
+
 fn exit_with(err: CliError) -> ! {
     err.print();
     std::process::exit(err.code as i32)
@@ -257,6 +273,7 @@ fn parse_and_run() -> Result<(), CliError> {
     use Lockbook::*;
     match Lockbook::from_args() {
         Copy { disk: files, dest, dest_id } => copy::copy(&core, &files, dest, dest_id),
+        Billing(billing) => billing::billing(&core, billing),
         Edit { path, id } => edit::edit(&core, path, id),
         PrivateKey { import, export } => private_key::private_key(&core, import, export),
         NewAccount => new_account::new_account(&core),

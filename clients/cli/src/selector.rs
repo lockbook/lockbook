@@ -61,8 +61,7 @@ pub fn select_meta(
                     .with_prompt(prompt)
                     .default(0)
                     .items(&docs)
-                    .interact()
-                    .unwrap();
+                    .interact()?;
                 get_by_path(core, &docs[selection])
             } else {
                 Err(CliError::input("Either a path or an id is required!"))
@@ -102,8 +101,7 @@ pub fn create_meta(
                     .with_prompt("Select a parent directory")
                     .default(0)
                     .items(&dirs)
-                    .interact()
-                    .unwrap();
+                    .interact()?;
                 let parent = get_by_path(core, &dirs[selection])?.id;
 
                 let name: String = Input::with_theme(&ColorfulTheme::default())

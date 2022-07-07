@@ -2,9 +2,9 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
-use lockbook_core::UnexpectedError;
 use lockbook_core::{DecryptedFileMetadata, Error as LbError};
 use lockbook_core::{GetAccountError, Uuid};
+use lockbook_core::{GetSubscriptionInfoError, UnexpectedError};
 
 pub struct CliError {
     pub code: ErrCode,
@@ -242,6 +242,10 @@ impl CliError {
     pub fn validate_doc_read<T: fmt::Display>(lb_path: T, err: T) -> Self {
         Self::new(ErrCode::DocumentReadError, format!("{} unreadable: {}", lb_path, err))
     }
+
+    pub fn billing<T: fmt::Display>(msg: T) -> Self {
+        Self::new(ErrCode::Billing, msg)
+    }
 }
 
 macro_rules! make_errcode_enum {
@@ -277,6 +281,7 @@ make_errcode_enum!(
     24 => UsernameTaken,
     25 => UsernameInvalid,
     26 => UsernamePkMismatch,
+    27 => Billing,
 
     // OS (30s)
     30 => OsCwdMissing,
@@ -320,5 +325,25 @@ impl From<LbError<GetAccountError>> for CliError {
             LbError::UiError(GetAccountError::NoAccount) => Self::no_account(),
             LbError::Unexpected(msg) => Self::unexpected(msg),
         }
+    }
+}
+
+impl From<LbError<GetSubscriptionInfoError>> for CliError {
+    fn from(err: LbError<GetSubscriptionInfoError>) -> Self {
+        match err {
+            LbError::UiError(GetSubscriptionInfoError::CouldNotReachServer) => {
+                CliError::network_issue()
+            }
+            LbError::UiError(GetSubscriptionInfoError::ClientUpdateRequired) => {
+                CliError::update_required()
+            }
+            LbError::Unexpected(msg) => CliError::unexpected(msg),
+        }
+    }
+}
+
+impl From<io::Error> for CliError {
+    fn from(err: io::Error) -> Self {
+        Self::unexpected(err.to_string())
     }
 }

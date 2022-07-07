@@ -245,7 +245,7 @@ pub async fn cancel_subscription(
             info!("Canceling google play subscription of user. public_key: {:?}.", context.public_key);
 
             if let GooglePlayAccountState::Canceled = &info.account_state {
-                return Err(ClientError(CancelSubscriptionError::NotPremium))
+                return Err(ClientError(CancelSubscriptionError::AlreadyCanceled))
             }
 
             google_play_client::cancel_subscription(
