@@ -254,7 +254,7 @@ fn parse_and_run() -> Result<(), CliError> {
 
     let core = Core::init(&Config { logs: true, writeable_path })?;
 
-    use crate::Lockbook::*;
+    use Lockbook::*;
     match Lockbook::from_args() {
         Copy { disk: files, dest, dest_id } => copy::copy(&core, &files, dest, dest_id),
         Edit { path, id } => edit::edit(&core, path, id),
