@@ -115,9 +115,14 @@ p {
 }
 
 /* * * * Colors * * * */
-a {
+.button {
     text-decoration: none;
     color: white;
+}
+
+.link {
+    color: rgb(0, 122, 255);
+    text-decoration: none;
 }
 
 #term-icon:hover {
