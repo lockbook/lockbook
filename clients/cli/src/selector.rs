@@ -1,13 +1,18 @@
-use crate::utils::get_by_path;
-use crate::CliError;
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{FuzzySelect, Input};
-use lockbook_core::Filter::{DocumentsOnly, FoldersOnly};
-use lockbook_core::{
-    Core, CreateFileAtPathError, CreateFileError, DecryptedFileMetadata, FileType,
-    GetFileByPathError, Uuid,
-};
+
+use lockbook_core::Core;
+use lockbook_core::CreateFileAtPathError;
+use lockbook_core::CreateFileError;
+use lockbook_core::DecryptedFileMetadata;
+use lockbook_core::FileType;
+use lockbook_core::Filter;
+use lockbook_core::GetFileByPathError;
+use lockbook_core::Uuid;
 use lockbook_core::{Error as LbError, GetFileByIdError};
+
+use crate::utils::get_by_path;
+use crate::CliError;
 
 /// Select a metadata out of core, can provide a path, or an id, or neither, but but not both
 /// if neither are provided it will check if this is an interactive session and launch a fuzzy search
@@ -24,8 +29,8 @@ pub fn select_meta(
     });
 
     let filter = target_file_type.map(|file_type| match file_type {
-        FileType::Document => DocumentsOnly,
-        FileType::Folder => FoldersOnly,
+        FileType::Document => Filter::DocumentsOnly,
+        FileType::Folder => FilterFoldersOnly,
     });
 
     match (path, id) {
