@@ -1,6 +1,6 @@
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
-use lockbook_core::FileType::Folder;
+use lockbook_core::FileType;
 use lockbook_core::MoveFileError;
 use lockbook_core::Uuid;
 
@@ -16,8 +16,13 @@ pub fn mv(
     let src_meta = select_meta(core, src, src_id, None, Some("Select a file to move"))?;
     let src_path = core.get_path_by_id(src_meta.id)?;
 
-    let dest_meta =
-        select_meta(core, dest, dest_id, Some(Folder), Some("Select a target directory"))?;
+    let dest_meta = select_meta(
+        core,
+        dest,
+        dest_id,
+        Some(FileType::Folder),
+        Some("Select a target directory"),
+    )?;
     let dest_path = core.get_path_by_id(dest_meta.id)?;
 
     core.move_file(src_meta.id, dest_meta.id)

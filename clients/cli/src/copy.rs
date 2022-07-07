@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use lockbook_core::Core;
 use lockbook_core::CoreError;
 use lockbook_core::Error as LbError;
-use lockbook_core::FileType::Folder;
+use lockbook_core::FileType;
 use lockbook_core::ImportFileError;
 use lockbook_core::ImportStatus;
 use lockbook_core::Uuid;
@@ -34,8 +34,13 @@ pub fn copy(
         ImportStatus::FinishedItem(_meta) => println!("Done."),
     };
 
-    let dest =
-        select_meta(core, lb_path, dest_id, Some(Folder), Some("Select an import destination"))?;
+    let dest = select_meta(
+        core,
+        lb_path,
+        dest_id,
+        Some(FileType::Folder),
+        Some("Select an import destination"),
+    )?;
     let dest_path = core.get_path_by_id(dest.id)?;
 
     core.import_files(disk_paths, dest.id, &update_status)

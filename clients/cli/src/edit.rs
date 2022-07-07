@@ -3,7 +3,7 @@ use std::io::Write;
 
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
-use lockbook_core::FileType::Document;
+use lockbook_core::FileType;
 use lockbook_core::ReadDocumentError;
 use lockbook_core::Uuid;
 
@@ -17,7 +17,7 @@ use crate::utils::{
 pub fn edit(core: &Core, lb_path: Option<String>, id: Option<Uuid>) -> Result<(), CliError> {
     core.get_account()?;
 
-    let file_metadata = select_meta(core, lb_path, id, Some(Document), None)?;
+    let file_metadata = select_meta(core, lb_path, id, Some(FileType::Document), None)?;
 
     let file_content = core
         .read_document(file_metadata.id)
