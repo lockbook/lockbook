@@ -4,7 +4,7 @@ use lockbook_core::GetUsageError;
 
 use crate::error::CliError;
 
-pub fn calculate_usage(core: &Core, exact: bool) -> Result<(), CliError> {
+pub fn usage(core: &Core, exact: bool) -> Result<(), CliError> {
     core.get_account()?;
 
     let usage = core.get_usage()?;
