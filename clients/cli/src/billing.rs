@@ -20,7 +20,7 @@ pub fn billing(core: &Core, billing: Billing) -> Result<(), CliError> {
 }
 
 fn status(core: &Core) -> Result<(), CliError> {
-    let info = get_subscription_info(core)?;
+    let info = core.get_subscription_info()?;
 
     match info {
         Some(info) => {
@@ -58,7 +58,7 @@ fn status(core: &Core) -> Result<(), CliError> {
 
 fn subscribe(core: &Core) -> Result<(), CliError> {
     println!("Checking for existing payment methods...");
-    let info = get_subscription_info(core)?;
+    let info = core.get_subscription_info()?;
     let existing_credit_card = info.and_then(|info| match info.payment_platform {
         PaymentPlatform::Stripe { card_last_4_digits } => Some(card_last_4_digits),
         PaymentPlatform::GooglePlay { .. } => None,
@@ -158,16 +158,4 @@ fn solicit_card_info() -> Result<PaymentMethod, CliError> {
     let cvc: String = Input::new().with_prompt("CVC: ").interact_text()?;
 
     Ok(PaymentMethod::NewCard { number, exp_year, exp_month, cvc })
-}
-
-fn get_subscription_info(core: &Core) -> Result<Option<SubscriptionInfo>, CliError> {
-    core.get_subscription_info().map_err(|err| match err {
-        LbError::UiError(GetSubscriptionInfoError::CouldNotReachServer) => {
-            CliError::network_issue()
-        }
-        LbError::UiError(GetSubscriptionInfoError::ClientUpdateRequired) => {
-            CliError::update_required()
-        }
-        LbError::Unexpected(msg) => CliError::unexpected(msg),
-    })
 }

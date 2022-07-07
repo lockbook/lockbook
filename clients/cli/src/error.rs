@@ -2,9 +2,9 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
-use lockbook_core::UnexpectedError;
 use lockbook_core::{DecryptedFileMetadata, Error as LbError};
 use lockbook_core::{GetAccountError, Uuid};
+use lockbook_core::{GetSubscriptionInfoError, UnexpectedError};
 
 pub struct CliError {
     pub code: ErrCode,
@@ -324,6 +324,20 @@ impl From<LbError<GetAccountError>> for CliError {
         match e {
             LbError::UiError(GetAccountError::NoAccount) => Self::no_account(),
             LbError::Unexpected(msg) => Self::unexpected(msg),
+        }
+    }
+}
+
+impl From<LbError<GetSubscriptionInfoError>> for CliError {
+    fn from(err: LbError<GetSubscriptionInfoError>) -> Self {
+        match err {
+            LbError::UiError(GetSubscriptionInfoError::CouldNotReachServer) => {
+                CliError::network_issue()
+            }
+            LbError::UiError(GetSubscriptionInfoError::ClientUpdateRequired) => {
+                CliError::update_required()
+            }
+            LbError::Unexpected(msg) => CliError::unexpected(msg),
         }
     }
 }
