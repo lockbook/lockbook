@@ -7,7 +7,7 @@ use crate::selector::select_meta;
 use crate::{error, Debug, Uuid};
 
 pub fn debug(core: &Core, debug: Debug) -> Result<(), CliError> {
-    use crate::Debug::*;
+    use Debug::*;
     match debug {
         Info { path, id } => info(core, path, id),
         Errors => error::print_err_table(),
