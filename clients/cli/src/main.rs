@@ -87,7 +87,7 @@ enum Lockbook {
         #[structopt(short, long)]
         import: bool,
 
-        /// Export a private key to stdout. If piped will print the private key as text, otherwise
+        /// Export a private key to stdout. If piped, it will print the private key as text. Otherwise, it
         /// will produce a QR code.
         #[structopt(short, long)]
         export: bool,
@@ -228,7 +228,7 @@ pub enum Debug {
     /// Prints who is logged into this lockbook
     WhoAmiI,
 
-    /// Prints information about where this lockbook is stored, and what server it communicates with
+    /// Prints information about where this lockbook is stored and what server it communicates with
     WhereAmI,
 
     /// Helps find invalid states within lockbook

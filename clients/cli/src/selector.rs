@@ -67,8 +67,8 @@ pub fn select_meta(
 }
 
 /// Takes either an optional path, or {a parent + a name}, or neither, but not both.
-/// if neither are provided and we are interactive, we will launch an fzf selector
-/// If the name ends with a `/` it is assumed to be a folder, otherwise it is a document
+/// If neither are provided and we are interactive, we will launch an fzf selector.
+/// If the name ends with a `/` it is assumed to be a folder. Otherwise it is a document.
 pub fn create_meta(
     core: &Core, lb_path: Option<String>, parent: Option<Uuid>, name: Option<String>,
 ) -> Result<DecryptedFileMetadata, CliError> {
