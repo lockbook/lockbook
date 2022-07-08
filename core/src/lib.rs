@@ -371,12 +371,12 @@ impl Core {
     }
 
     #[instrument(level = "debug", skip(self, drawing_bytes), err(Debug))]
-    pub fn save_drawing(
+    pub fn save_drawing_bytes(
         &self, id: Uuid, drawing_bytes: &[u8],
     ) -> Result<(), Error<SaveDrawingError>> {
         let val = self.db.transaction(|tx| {
             self.context(tx)?
-                .save_drawing(&self.config, id, drawing_bytes)
+                .save_drawing_bytes(&self.config, id, drawing_bytes)
         })?;
         Ok(val?)
     }

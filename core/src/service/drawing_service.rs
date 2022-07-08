@@ -20,7 +20,7 @@ impl RequestContext<'_, '_> {
         drawing::parse_drawing(&drawing_bytes)
     }
 
-    pub fn save_drawing(
+    pub fn save_drawing_bytes(
         &mut self, config: &Config, id: Uuid, drawing_bytes: &[u8],
     ) -> Result<(), CoreError> {
         drawing::parse_drawing(drawing_bytes)?; // validate drawing
