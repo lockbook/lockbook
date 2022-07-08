@@ -102,11 +102,17 @@ pub fn apply_create(
 
 /// Validates a rename operation for a file in the context of all files and returns a version of the file with the operation applied. This is a pure function.
 pub fn apply_rename(
-    files: &DecryptedFiles, target_id: Uuid, new_name: &str,
+    user: &Owner, files: &DecryptedFiles, target_id: Uuid, new_name: &str,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let mut file = files.find(target_id)?;
     validate_not_root(&file)?;
     validate_file_name(new_name)?;
+
+    if files.get_access_level(user, target_id)? < UserAccessMode::Write
+        || file.is_shared_with_user(user)
+    {
+        return Err(CoreError::InsufficientPermission);
+    }
 
     file.decrypted_name = String::from(new_name);
     if !files
@@ -129,6 +135,12 @@ pub fn apply_move(
         .ok_or(CoreError::FileParentNonexistent)?;
     validate_not_root(&file)?;
     validate_is_folder(&parent)?;
+
+    if files.get_access_level(user, target_id)? < UserAccessMode::Write
+        || file.is_shared_with_user(user)
+    {
+        return Err(CoreError::InsufficientPermission);
+    }
 
     file.parent = new_parent;
     let staged_changes = HashMap::with(file.clone());
@@ -153,14 +165,13 @@ pub fn apply_delete(
     let mut file = files.find(target_id)?;
     validate_not_root(&file)?;
 
-    file.deleted = true;
-
     if files.get_access_level(user, target_id)? < UserAccessMode::Write
         || file.is_shared_with_user(user)
     {
         return Err(CoreError::InsufficientPermission);
     }
 
+    file.deleted = true;
     Ok(file)
 }
 

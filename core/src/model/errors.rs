@@ -486,7 +486,7 @@ pub enum RenameFileError {
     NewNameContainsSlash,
     FileNameNotAvailable,
     CannotRenameRoot,
-    InsufficientPermission, // todo(sharing): cannot rename unowned files (can rename files in folders shared with write access)
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<RenameFileError> {
@@ -512,7 +512,7 @@ pub enum MoveFileError {
     TargetParentDoesNotExist,
     TargetParentHasChildNamedThat,
     LinkInSharedFolder,
-    InsufficientPermission, // todo(sharing): cannot move unowned files (can move files in folders shared with write access)
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<MoveFileError> {
