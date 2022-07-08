@@ -465,11 +465,20 @@ impl RequestContext<'_, '_> {
     pub fn share_file(
         &mut self, config: &Config, id: Uuid, username: &str, mode: ShareMode,
     ) -> Result<(), CoreError> {
+        let user = Owner(self.get_public_key()?);
+        let access_mode = match mode {
+            ShareMode::Write => UserAccessMode::Write,
+            ShareMode::Read => UserAccessMode::Read,
+        };
+
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
         let files = files.filter_not_deleted()?;
         let mut file = files.find(id)?;
 
         files::validate_not_root(&file)?;
+        if mode == ShareMode::Write && file.owner.0 != self.get_public_key()? {
+            return Err(CoreError::InsufficientPermission);
+        }
 
         let account = self.get_account()?;
         let public_key = api_service::request(
@@ -484,14 +493,23 @@ impl RequestContext<'_, '_> {
             &public_key,
         )?;
 
-        // todo(sharing): check for duplicates, do any other reasonable checks
+        // check for and remove duplicate shares
+        if let Some(existing_access_mode) = file.get_access_mode(&Owner(public_key)) {
+            if existing_access_mode == access_mode {
+                return Err(CoreError::ShareAlreadyExists);
+            } else {
+                file.shares = file
+                    .shares
+                    .into_iter()
+                    .filter(|s| s.encrypted_for_public_key != public_key)
+                    .collect();
+            }
+        }
+
         let share_key =
             pubkey::get_aes_key(&account.private_key, &public_key).map_err(core_err_unexpected)?;
         file.shares.push(UserAccessInfo {
-            mode: match mode {
-                ShareMode::Write => UserAccessMode::Write,
-                ShareMode::Read => UserAccessMode::Read,
-            },
+            mode: access_mode,
             encrypted_by_username: account.username.clone(),
             encrypted_by_public_key: account.public_key(),
             encrypted_for_username: String::from(username),
@@ -502,6 +520,11 @@ impl RequestContext<'_, '_> {
                 &share_key,
             )?,
         });
+
+        let staged_changes = HashMap::with(file.clone());
+        if !files.get_shared_links(&user, &staged_changes)?.is_empty() {
+            return Err(CoreError::LinkInSharedFolder);
+        }
 
         self.insert_metadatum(config, RepoSource::Local, &file)?;
         Ok(())

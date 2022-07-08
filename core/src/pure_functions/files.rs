@@ -83,6 +83,12 @@ pub fn apply_create(
         .ok_or(CoreError::FileParentNonexistent)?;
     validate_is_folder(&parent)?;
 
+    if let FileType::Link { linked_file } = file_type {
+        if files.maybe_find_ref(linked_file).is_none() {
+            return Err(CoreError::LinkTargetNonexistent);
+        }
+    }
+
     let staged_changes = HashMap::with(file.clone());
     if !files.get_path_conflicts(&staged_changes)?.is_empty() {
         return Err(CoreError::PathTaken);

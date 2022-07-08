@@ -1776,3 +1776,138 @@ fn share_file_nonexistent() {
     let result = core.share_file(Uuid::new_v4(), &sharee_account.username, ShareMode::Read);
     assert_matches!(result, Err(Error::UiError(ShareFileError::FileNonexistent)));
 }
+
+#[test]
+fn share_file_in_shared_folder() {
+    let core = test_core_with_account();
+    let sharee_core = test_core_with_account();
+    let sharee_account = &sharee_core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let outer_folder = core
+        .create_file("outer_folder", root.id, FileType::Folder)
+        .unwrap();
+    let inner_folder = core
+        .create_file("inner_folder", outer_folder.id, FileType::Folder)
+        .unwrap();
+    core.share_file(outer_folder.id, &sharee_account.username, ShareMode::Read)
+        .unwrap();
+
+    core.share_file(inner_folder.id, &sharee_account.username, ShareMode::Read)
+        .unwrap();
+}
+
+#[test]
+fn share_file_deuplicate() {
+    let core = test_core_with_account();
+    let sharee_core = test_core_with_account();
+    let sharee_account = &sharee_core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let document = core
+        .create_file("document", root.id, FileType::Document)
+        .unwrap();
+    core.share_file(document.id, &sharee_account.username, ShareMode::Read)
+        .unwrap();
+
+    let result = core.share_file(document.id, &sharee_account.username, ShareMode::Read);
+    assert_matches!(result, Err(Error::UiError(ShareFileError::ShareAlreadyExists)));
+}
+
+#[test]
+fn share_file_duplicate_new_mode() {
+    let core = test_core_with_account();
+    let sharee_core = test_core_with_account();
+    let sharee_account = &sharee_core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let document = core
+        .create_file("document", root.id, FileType::Document)
+        .unwrap();
+    core.share_file(document.id, &sharee_account.username, ShareMode::Read)
+        .unwrap();
+    core.share_file(document.id, &sharee_account.username, ShareMode::Write)
+        .unwrap();
+    core.share_file(document.id, &sharee_account.username, ShareMode::Read)
+        .unwrap();
+    core.share_file(document.id, &sharee_account.username, ShareMode::Write)
+        .unwrap();
+}
+
+#[test]
+fn share_folder_with_link_inside() {
+    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder0 = cores[0]
+        .create_file("folder0", roots[0].id, FileType::Folder)
+        .unwrap();
+    cores[0]
+        .share_file(folder0.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    let folder1 = cores[1]
+        .create_file("folder1", roots[1].id, FileType::Folder)
+        .unwrap();
+    cores[1]
+        .create_file("link0", folder1.id, FileType::Link { linked_file: folder0.id })
+        .unwrap();
+
+    let result = cores[1].share_file(folder1.id, &accounts[2].username, ShareMode::Read);
+    assert_matches!(result, Err(Error::UiError(ShareFileError::LinkInSharedFolder)));
+}
+
+#[test]
+fn share_unowned_file_read() {
+    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder0 = cores[0]
+        .create_file("folder0", roots[0].id, FileType::Folder)
+        .unwrap();
+    cores[0]
+        .share_file(folder0.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+    cores[1]
+        .share_file(folder0.id, &accounts[2].username, ShareMode::Read)
+        .unwrap();
+}
+
+#[test]
+fn share_unowned_file_write() {
+    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder0 = cores[0]
+        .create_file("folder0", roots[0].id, FileType::Folder)
+        .unwrap();
+    cores[0]
+        .share_file(folder0.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+    let result = cores[1].share_file(folder0.id, &accounts[2].username, ShareMode::Write);
+    assert_matches!(result, Err(Error::UiError(ShareFileError::InsufficientPermission)));
+}

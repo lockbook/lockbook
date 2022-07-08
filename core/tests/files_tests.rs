@@ -57,6 +57,22 @@ fn apply_create_path_taken() {
 }
 
 #[test]
+fn apply_create_link_target_nonexistent() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = files::create_root(&account).unwrap();
+
+    let result = files::apply_create(
+        &Owner(account.public_key()),
+        &[root.clone()].to_map(),
+        FileType::Link { linked_file: Uuid::new_v4() },
+        root.id,
+        "link",
+    );
+    assert_eq!(result, Err(CoreError::LinkTargetNonexistent));
+}
+
+#[test]
 fn apply_create_shared_link() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();

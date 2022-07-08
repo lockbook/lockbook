@@ -340,6 +340,7 @@ pub enum CreateFileError {
     FileNameEmpty,
     FileNameContainsSlash,
     LinkInSharedFolder,
+    LinkTargetNonexistent,
     MultipleLinksToSameFile,
     InsufficientPermission,
 }
@@ -354,6 +355,7 @@ impl From<CoreError> for Error<CreateFileError> {
             CoreError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
             CoreError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
             CoreError::LinkInSharedFolder => UiError(CreateFileError::LinkInSharedFolder),
+            CoreError::LinkTargetNonexistent => UiError(CreateFileError::LinkTargetNonexistent),
             CoreError::InsufficientPermission => UiError(CreateFileError::InsufficientPermission),
             CoreError::MultipleLinksToSameFile => UiError(CreateFileError::MultipleLinksToSameFile),
             _ => unexpected!("{:#?}", e),
@@ -535,9 +537,9 @@ impl From<CoreError> for Error<MoveFileError> {
 pub enum ShareFileError {
     CannotShareRoot,
     FileNonexistent,
-    ShareAlreadyExists, // todo(sharing): cannot share the same file with the same user twice (can silently upgrade read access to write)
-    LinkInSharedFolder, // todo(sharing): cannot share a folder which contains a link
-    InsufficientPermission, // todo(sharing): cannot share with write access unowned files (can share with read access any files)
+    ShareAlreadyExists,
+    LinkInSharedFolder,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<ShareFileError> {
