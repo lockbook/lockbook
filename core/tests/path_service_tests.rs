@@ -1,8 +1,10 @@
 use lockbook_core::model::errors::CreateFileAtPathError::*;
 use lockbook_core::model::errors::GetPathByIdError::*;
 use lockbook_core::service::path_service::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
+use lockbook_core::CreateLinkAtPathError;
 use lockbook_core::Error::UiError;
 use lockbook_core::ShareMode;
+use lockbook_core::Uuid;
 use lockbook_models::file_metadata::FileType;
 use test_utils::*;
 
@@ -347,4 +349,93 @@ fn get_all_paths_leaf_nodes_only() {
         .iter()
         .any(|p| p == &format!("{}/folder/folder/document", &account.username)));
     assert_eq!(all_paths.len(), 2);
+}
+
+#[test]
+fn create_link_at_path_target_is_owned() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let document = core
+        .create_file("document0", root.id, FileType::Document)
+        .unwrap();
+
+    let result = core.create_link_at_path(&format!("{}/link", &account.username), document.id);
+    assert_matches!(result, Err(UiError(CreateLinkAtPathError::LinkTargetIsOwned)));
+}
+
+#[test]
+fn create_link_at_path_target_nonexistent() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+
+    let result = core.create_link_at_path(&format!("{}/link", &account.username), Uuid::new_v4());
+    assert_matches!(result, Err(UiError(CreateLinkAtPathError::LinkTargetNonexistent)));
+}
+
+#[test]
+fn create_link_at_path_link_in_shared_folder() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let document0 = cores[0]
+        .create_file("document0", roots[0].id, FileType::Document)
+        .unwrap();
+    let folder0 = cores[0]
+        .create_file("folder0", roots[0].id, FileType::Folder)
+        .unwrap();
+    cores[0]
+        .share_file(document0.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0]
+        .share_file(folder0.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    cores[1]
+        .create_file("folder_link", roots[1].id, FileType::Link { linked_file: folder0.id })
+        .unwrap();
+
+    let result = cores[1].create_link_at_path(
+        &format!("{}/folder_link/document", &accounts[1].username),
+        document0.id,
+    );
+    assert_matches!(result, Err(UiError(CreateLinkAtPathError::LinkInSharedFolder)));
+}
+
+#[test]
+fn create_link_at_path_link_duplicate() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let document0 = cores[0]
+        .create_file("document0", roots[0].id, FileType::Document)
+        .unwrap();
+    cores[0]
+        .share_file(document0.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    cores[1]
+        .create_link_at_path(&format!("{}/link1", &accounts[1].username), document0.id)
+        .unwrap();
+    let result =
+        cores[1].create_link_at_path(&format!("{}/link2", &accounts[1].username), document0.id);
+    assert_matches!(result, Err(UiError(CreateLinkAtPathError::MultipleLinksToSameFile)));
 }

@@ -113,6 +113,7 @@ pub enum CoreError {
     InvalidCardNumber,
     InvalidPurchaseToken,
     LinkInSharedFolder,
+    LinkTargetIsOwned,
     LinkTargetNonexistent,
     MultipleLinksToSameFile,
     NotPremium,
@@ -340,6 +341,7 @@ pub enum CreateFileError {
     FileNameEmpty,
     FileNameContainsSlash,
     LinkInSharedFolder,
+    LinkTargetIsOwned,
     LinkTargetNonexistent,
     MultipleLinksToSameFile,
     InsufficientPermission,
@@ -355,6 +357,7 @@ impl From<CoreError> for Error<CreateFileError> {
             CoreError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
             CoreError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
             CoreError::LinkInSharedFolder => UiError(CreateFileError::LinkInSharedFolder),
+            CoreError::LinkTargetIsOwned => UiError(CreateFileError::LinkTargetIsOwned),
             CoreError::LinkTargetNonexistent => UiError(CreateFileError::LinkTargetNonexistent),
             CoreError::InsufficientPermission => UiError(CreateFileError::InsufficientPermission),
             CoreError::MultipleLinksToSameFile => UiError(CreateFileError::MultipleLinksToSameFile),
@@ -571,14 +574,15 @@ impl From<CoreError> for Error<DeletePendingShareError> {
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum CreateLinkAtPathError {
-    FileAlreadyExists,       // todo(sharing): same as CreateFileAtPathError
-    NoRoot,                  // todo(sharing): same as CreateFileAtPathError
-    PathDoesntStartWithRoot, // todo(sharing): same as CreateFileAtPathError
-    PathContainsEmptyFile,   // todo(sharing): same as CreateFileAtPathError
-    DocumentTreatedAsFolder, // todo(sharing): same as CreateFileAtPathError
-    LinkInSharedFolder,      // todo(sharing): cannot share a folder which contains a link
-    LinkTargetNonexistent,   // todo(sharing): self-explanatory
-    MultipleLinksToSameFile, // todo(sharing): self-explanatory
+    FileAlreadyExists,
+    NoRoot,
+    PathDoesntStartWithRoot,
+    PathContainsEmptyFile,
+    DocumentTreatedAsFolder,
+    LinkInSharedFolder,
+    LinkTargetIsOwned,
+    LinkTargetNonexistent,
+    MultipleLinksToSameFile,
 }
 
 impl From<CoreError> for Error<CreateLinkAtPathError> {
@@ -594,6 +598,10 @@ impl From<CoreError> for Error<CreateLinkAtPathError> {
             CoreError::PathTaken => UiError(CreateLinkAtPathError::FileAlreadyExists),
             CoreError::FileNotFolder => UiError(CreateLinkAtPathError::DocumentTreatedAsFolder),
             CoreError::LinkInSharedFolder => UiError(CreateLinkAtPathError::LinkInSharedFolder),
+            CoreError::LinkTargetIsOwned => UiError(CreateLinkAtPathError::LinkTargetIsOwned),
+            CoreError::MultipleLinksToSameFile => {
+                UiError(CreateLinkAtPathError::MultipleLinksToSameFile)
+            }
             CoreError::LinkTargetNonexistent => {
                 UiError(CreateLinkAtPathError::LinkTargetNonexistent)
             }

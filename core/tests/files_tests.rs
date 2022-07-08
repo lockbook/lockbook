@@ -73,6 +73,23 @@ fn apply_create_link_target_nonexistent() {
 }
 
 #[test]
+fn apply_create_link_target_owned() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = files::create_root(&account).unwrap();
+    let document = files::create(FileType::Document, root.id, "document", &account.public_key());
+
+    let result = files::apply_create(
+        &Owner(account.public_key()),
+        &[root.clone(), document.clone()].to_map(),
+        FileType::Link { linked_file: document.id },
+        root.id,
+        "link",
+    );
+    assert_eq!(result, Err(CoreError::LinkTargetIsOwned));
+}
+
+#[test]
 fn apply_create_shared_link() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();

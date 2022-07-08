@@ -84,8 +84,15 @@ pub fn apply_create(
     validate_is_folder(&parent)?;
 
     if let FileType::Link { linked_file } = file_type {
-        if files.maybe_find_ref(linked_file).is_none() {
-            return Err(CoreError::LinkTargetNonexistent);
+        match files.maybe_find_ref(linked_file) {
+            Some(link_target) => {
+                if &link_target.owner == user {
+                    return Err(CoreError::LinkTargetIsOwned);
+                }
+            }
+            None => {
+                return Err(CoreError::LinkTargetNonexistent);
+            }
         }
     }
 

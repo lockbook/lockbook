@@ -11,28 +11,51 @@ impl RequestContext<'_, '_> {
     pub fn create_link_at_path(
         &mut self, config: &Config, path_and_name: &str, target_id: Uuid,
     ) -> Result<DecryptedFileMetadata, CoreError> {
-        // todo(sharing): target should itself not be a link... I think. I am drunk.
-        // todo(sharing): at most one link per target (this idea I had while sober)
-        self.create_at_path_with_type(
-            config,
+        let user = Owner(self.get_public_key()?);
+        let mut files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
+
+        match files.maybe_find_ref(target_id) {
+            Some(link_target) => {
+                if link_target.owner == user {
+                    return Err(CoreError::LinkTargetIsOwned);
+                }
+            }
+            None => {
+                return Err(CoreError::LinkTargetNonexistent);
+            }
+        }
+
+        let (result, created_files) = self.create_at_path_with_type(
+            &mut files,
             path_and_name,
             FileType::Link { linked_file: target_id },
-        )
+        )?;
+        if !files.get_shared_links(&user, &created_files)?.is_empty() {
+            return Err(CoreError::LinkInSharedFolder);
+        }
+        if !files.get_duplicate_links(&created_files)?.is_empty() {
+            return Err(CoreError::MultipleLinksToSameFile);
+        }
+        self.insert_metadata(config, RepoSource::Local, &created_files)?;
+        Ok(result)
     }
 
     pub fn create_at_path(
         &mut self, config: &Config, path_and_name: &str,
     ) -> Result<DecryptedFileMetadata, CoreError> {
-        self.create_at_path_with_type(
-            config,
+        let mut files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
+        let (result, created_files) = self.create_at_path_with_type(
+            &mut files,
             path_and_name,
             if path_and_name.ends_with('/') { FileType::Folder } else { FileType::Document },
-        )
+        )?;
+        self.insert_metadata(config, RepoSource::Local, &created_files)?;
+        Ok(result)
     }
 
     pub fn create_at_path_with_type(
-        &mut self, config: &Config, path_and_name: &str, file_type: FileType,
-    ) -> Result<DecryptedFileMetadata, CoreError> {
+        &mut self, files: &mut DecryptedFiles, path_and_name: &str, file_type: FileType,
+    ) -> Result<(DecryptedFileMetadata, DecryptedFiles), CoreError> {
         if path_and_name.contains("//") {
             return Err(CoreError::PathContainsEmptyFileName);
         }
@@ -42,9 +65,8 @@ impl RequestContext<'_, '_> {
             return Err(CoreError::PathTaken);
         }
 
-        let mut files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-
         let mut current = files.find(self.root_id()?)?;
+        let mut created_files = DecryptedFiles::new();
         let root_id = current.id;
         let account = self.get_account()?;
 
@@ -96,9 +118,9 @@ impl RequestContext<'_, '_> {
                 next_name,
             )?;
             files.insert(current.id, current.clone());
-            self.insert_metadatum(config, RepoSource::Local, &current)?;
+            created_files.insert(current.id, current.clone());
         }
-        Ok(current)
+        Ok((current, created_files))
     }
 
     pub fn get_by_path(&mut self, path: &str) -> Result<DecryptedFileMetadata, CoreError> {
