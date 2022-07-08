@@ -20,12 +20,12 @@ impl RequestContext<'_, '_> {
         drawing::parse_drawing(&drawing_bytes)
     }
 
-    pub fn save_drawing_bytes(
-        &mut self, config: &Config, id: Uuid, drawing_bytes: &[u8],
+    pub fn save_drawing(
+        &mut self, config: &Config, id: Uuid, d: &Drawing,
     ) -> Result<(), CoreError> {
-        drawing::parse_drawing(drawing_bytes)?; // validate drawing
         let metadata = self.get_not_deleted_metadata(RepoSource::Local, id)?;
-        self.insert_document(config, RepoSource::Local, &metadata, drawing_bytes)
+        let drawing_bytes = serde_json::to_vec(d)?;
+        self.insert_document(config, RepoSource::Local, &metadata, &drawing_bytes)
     }
 
     pub fn export_drawing(
