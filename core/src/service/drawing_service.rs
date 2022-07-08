@@ -1,14 +1,13 @@
-use crate::model::errors::CoreError;
 use std::collections::HashMap;
 
 use uuid::Uuid;
 
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 
+use crate::model::errors::CoreError;
 use crate::model::repo::RepoSource;
-use crate::pure_functions::{drawing, files};
-
 use crate::pure_functions::drawing::SupportedImageFormats;
+use crate::pure_functions::{drawing, files};
 use crate::service::file_service;
 use crate::{Config, RequestContext};
 
