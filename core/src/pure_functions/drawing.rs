@@ -24,13 +24,10 @@ pub fn parse_drawing(drawing_bytes: &[u8]) -> Result<Drawing, CoreError> {
     if drawing_bytes.is_empty() {
         return Ok(Drawing::default());
     }
-    match serde_json::from_slice::<Drawing>(drawing_bytes) {
-        Ok(d) => Ok(d),
-        Err(e) => match e.classify() {
-            Category::Io => Err(CoreError::Unexpected(String::from("json io"))),
-            Category::Syntax | Category::Data | Category::Eof => Err(CoreError::DrawingInvalid),
-        },
-    }
+    serde_json::from_slice::<Drawing>(drawing_bytes).map_err(|err| match err.classify() {
+        Category::Io => CoreError::Unexpected(String::from("json io")),
+        Category::Syntax | Category::Data | Category::Eof => CoreError::DrawingInvalid,
+    })
 }
 
 #[derive(Deserialize, Debug)]

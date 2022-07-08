@@ -1,14 +1,13 @@
-use crate::model::errors::CoreError;
 use std::collections::HashMap;
 
 use uuid::Uuid;
 
 use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
 
+use crate::model::errors::CoreError;
 use crate::model::repo::RepoSource;
-use crate::pure_functions::{drawing, files};
-
 use crate::pure_functions::drawing::SupportedImageFormats;
+use crate::pure_functions::{drawing, files};
 use crate::service::file_service;
 use crate::{Config, RequestContext};
 
@@ -21,11 +20,11 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn save_drawing(
-        &mut self, config: &Config, id: Uuid, drawing_bytes: &[u8],
+        &mut self, config: &Config, id: Uuid, d: &Drawing,
     ) -> Result<(), CoreError> {
-        drawing::parse_drawing(drawing_bytes)?; // validate drawing
         let metadata = self.get_not_deleted_metadata(RepoSource::Local, id)?;
-        self.insert_document(config, RepoSource::Local, &metadata, drawing_bytes)
+        let drawing_bytes = serde_json::to_vec(d)?;
+        self.insert_document(config, RepoSource::Local, &metadata, &drawing_bytes)
     }
 
     pub fn export_drawing(
