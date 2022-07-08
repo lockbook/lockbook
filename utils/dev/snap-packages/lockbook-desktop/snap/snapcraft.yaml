@@ -1,5 +1,5 @@
 name: lockbook-desktop
-base: core20
+base: core22
 version: '0.4.3'
 summary: The linux gui version of Lockbook
 description: |
@@ -7,20 +7,22 @@ description: |
 grade: stable
 confinement: strict
 
-apps:
-  lockbook-desktop:
-    command: bin/lockbook-desktop
-    extensions: [gnome-3-38]
-    plugs:
-      - network
-      - home
-
 parts:
   lockbook-desktop:
     plugin: rust
     source: https://github.com/lockbook/lockbook.git
+    source-tag: 0.4.3
     build-packages:
+      - cargo
       - git
-      - libgtksourceview-3.0-dev
+      - libgtksourceview-5-dev
       - libgspell-1-dev
     rust-path: ["clients/linux"]
+
+apps:
+  lockbook-desktop:
+    command: bin/lockbook-desktop
+    extensions: [gnome]
+    plugs:
+      - network
+      - home
