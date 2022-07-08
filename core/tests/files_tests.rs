@@ -552,7 +552,12 @@ fn apply_delete() {
     let document = files::create(FileType::Document, root.id, "document", &account.public_key());
 
     let document_id = document.id;
-    files::apply_delete(&[root, folder, document].to_map(), document_id).unwrap();
+    files::apply_delete(
+        &Owner(account.public_key()),
+        &[root, folder, document].to_map(),
+        document_id,
+    )
+    .unwrap();
 }
 
 #[test]
@@ -564,8 +569,129 @@ fn apply_delete_root() {
     let document = files::create(FileType::Document, root.id, "document", &account.public_key());
 
     let root_id = root.id;
-    let result = files::apply_delete(&[root, folder, document].to_map(), root_id);
+    let result = files::apply_delete(
+        &Owner(account.public_key()),
+        &[root, folder, document].to_map(),
+        root_id,
+    );
     assert_eq!(result, Err(CoreError::RootModificationInvalid));
+}
+
+#[test]
+fn apply_delete_in_read_shared_folder() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = files::create_root(&account).unwrap();
+    let sharer_public_key = test_core_with_account().get_account().unwrap().public_key();
+    let mut shared_folder =
+        files::create(FileType::Folder, Uuid::new_v4(), "linked_shared_folder", &sharer_public_key);
+    shared_folder.shares.push(UserAccessInfo {
+        mode: UserAccessMode::Read, // note: read access
+        encrypted_by_username: String::from("sharer_username"),
+        encrypted_by_public_key: sharer_public_key,
+        encrypted_for_username: account.username.clone(),
+        encrypted_for_public_key: account.public_key(),
+        access_key: AESEncrypted::<[u8; 32]> {
+            value: Default::default(),
+            nonce: Default::default(),
+            _t: Default::default(),
+        },
+        file_name: SecretFileName {
+            encrypted_value: AESEncrypted::<String> {
+                value: Default::default(),
+                nonce: Default::default(),
+                _t: Default::default(),
+            },
+            hmac: Default::default(),
+        },
+    });
+    let file_in_shared_folder =
+        files::create(FileType::Document, shared_folder.id, "document", &sharer_public_key);
+
+    let result = files::apply_delete(
+        &Owner(account.public_key()),
+        &[file_in_shared_folder.clone(), shared_folder, root].to_map(),
+        file_in_shared_folder.id,
+    );
+    assert_eq!(result, Err(CoreError::InsufficientPermission));
+}
+
+#[test]
+fn apply_delete_in_write_shared_folder() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = files::create_root(&account).unwrap();
+    let sharer_public_key = test_core_with_account().get_account().unwrap().public_key();
+    let mut shared_folder =
+        files::create(FileType::Folder, Uuid::new_v4(), "linked_shared_folder", &sharer_public_key);
+    shared_folder.shares.push(UserAccessInfo {
+        mode: UserAccessMode::Write, // note: write access
+        encrypted_by_username: String::from("sharer_username"),
+        encrypted_by_public_key: sharer_public_key,
+        encrypted_for_username: account.username.clone(),
+        encrypted_for_public_key: account.public_key(),
+        access_key: AESEncrypted::<[u8; 32]> {
+            value: Default::default(),
+            nonce: Default::default(),
+            _t: Default::default(),
+        },
+        file_name: SecretFileName {
+            encrypted_value: AESEncrypted::<String> {
+                value: Default::default(),
+                nonce: Default::default(),
+                _t: Default::default(),
+            },
+            hmac: Default::default(),
+        },
+    });
+    let file_in_shared_folder =
+        files::create(FileType::Document, shared_folder.id, "document", &sharer_public_key);
+
+    files::apply_delete(
+        &Owner(account.public_key()),
+        &[file_in_shared_folder.clone(), shared_folder, root].to_map(),
+        file_in_shared_folder.id,
+    )
+    .unwrap();
+}
+
+#[test]
+fn apply_delete_to_write_shared_folder() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let root = files::create_root(&account).unwrap();
+    let sharer_public_key = test_core_with_account().get_account().unwrap().public_key();
+    let mut shared_folder =
+        files::create(FileType::Folder, Uuid::new_v4(), "linked_shared_folder", &sharer_public_key);
+    shared_folder.shares.push(UserAccessInfo {
+        mode: UserAccessMode::Write, // note: write access
+        encrypted_by_username: String::from("sharer_username"),
+        encrypted_by_public_key: sharer_public_key,
+        encrypted_for_username: account.username.clone(),
+        encrypted_for_public_key: account.public_key(),
+        access_key: AESEncrypted::<[u8; 32]> {
+            value: Default::default(),
+            nonce: Default::default(),
+            _t: Default::default(),
+        },
+        file_name: SecretFileName {
+            encrypted_value: AESEncrypted::<String> {
+                value: Default::default(),
+                nonce: Default::default(),
+                _t: Default::default(),
+            },
+            hmac: Default::default(),
+        },
+    });
+    let file_in_shared_folder =
+        files::create(FileType::Document, shared_folder.id, "document", &sharer_public_key);
+
+    let result = files::apply_delete(
+        &Owner(account.public_key()),
+        &[file_in_shared_folder, shared_folder.clone(), root].to_map(),
+        shared_folder.id,
+    );
+    assert_eq!(result, Err(CoreError::InsufficientPermission));
 }
 
 #[test]

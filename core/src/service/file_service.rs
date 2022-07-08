@@ -328,7 +328,7 @@ impl RequestContext<'_, '_> {
 
     pub fn delete_file(&mut self, config: &Config, id: Uuid) -> Result<(), CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-        let file = files::apply_delete(&files, id)?;
+        let file = files::apply_delete(&Owner(self.get_public_key()?), &files, id)?;
         self.insert_metadatum(config, RepoSource::Local, &file)?;
         self.prune_deleted(config)
     }

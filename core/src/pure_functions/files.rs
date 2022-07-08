@@ -148,12 +148,18 @@ pub fn apply_move(
 /// Validates a delete operation for a file in the context of all files and returns a version of the
 /// file with the operation applied. This is a pure function.
 pub fn apply_delete(
-    files: &DecryptedFiles, target_id: Uuid,
+    user: &Owner, files: &DecryptedFiles, target_id: Uuid,
 ) -> Result<DecryptedFileMetadata, CoreError> {
     let mut file = files.find(target_id)?;
     validate_not_root(&file)?;
 
     file.deleted = true;
+
+    if files.get_access_level(user, target_id)? < UserAccessMode::Write
+        || file.is_shared_with_user(user)
+    {
+        return Err(CoreError::InsufficientPermission);
+    }
 
     Ok(file)
 }

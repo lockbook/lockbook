@@ -429,7 +429,7 @@ impl From<CoreError> for Error<GetFileByIdError> {
 pub enum FileDeleteError {
     CannotDeleteRoot,
     FileDoesNotExist,
-    InsufficientPermission, // todo(sharing): cannot delete unowned files (can delete files in folders shared with write access)
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<FileDeleteError> {

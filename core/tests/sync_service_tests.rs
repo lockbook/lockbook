@@ -2,7 +2,7 @@ use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use lockbook_core::model::repo::RepoSource;
 use lockbook_core::pure_functions::files;
-use lockbook_models::file_metadata::ShareMode;
+use lockbook_models::file_metadata::{Owner, ShareMode};
 use test_utils::Operation::*;
 use test_utils::*;
 
@@ -3978,15 +3978,19 @@ fn test_path_conflict2() {
 #[test]
 fn deleted_path_is_released() {
     let db1 = test_core_with_account();
+    let account = db1.get_account().unwrap();
     let file1 = db1.create_at_path(&path(&db1, "file1.md")).unwrap();
     db1.sync(None).unwrap();
 
     db1.db
         .transaction(|tx| {
             let mut ctx = db1.context(tx).unwrap();
-            let metadata =
-                &files::apply_delete(&(ctx.get_all_metadata(RepoSource::Local).unwrap()), file1.id)
-                    .unwrap();
+            let metadata = &files::apply_delete(
+                &Owner(account.public_key()),
+                &(ctx.get_all_metadata(RepoSource::Local).unwrap()),
+                file1.id,
+            )
+            .unwrap();
             ctx.insert_metadatum(&db1.config, RepoSource::Local, metadata)
         })
         .unwrap()

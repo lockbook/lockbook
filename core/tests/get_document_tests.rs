@@ -1,10 +1,8 @@
 use lockbook_core::service::api_service;
-use lockbook_core::service::api_service::ApiError;
 use lockbook_models::api::*;
 use lockbook_models::crypto::AESEncrypted;
 
 use test_utils::*;
-use uuid::Uuid;
 
 #[test]
 fn get_document() {
