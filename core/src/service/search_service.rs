@@ -109,7 +109,10 @@ impl RequestContext<'_, '_> {
 
             let input = match &last_search {
                 SearchRequest::Search { input } => input.clone(),
-                SearchRequest::EndSearch => return
+                SearchRequest::EndSearch => {
+                    results_tx.send(SearchResult::End).unwrap();
+                    return
+                }
             };
 
             let should_continue = Arc::new(Mutex::new(true));
@@ -185,7 +188,8 @@ pub enum SearchResult {
         file_name: String,
         content: String,
         score: isize
-    }
+    },
+    End
 }
 
 

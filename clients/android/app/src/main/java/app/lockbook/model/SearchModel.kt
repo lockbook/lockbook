@@ -2,6 +2,7 @@ package app.lockbook.model
 
 import app.lockbook.util.SingleMutableLiveData
 import kotlinx.coroutines.channels.Channel
+import kotlin.jvm.internal.Ref
 
 class SearchModel() {
 

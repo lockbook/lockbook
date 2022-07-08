@@ -1,12 +1,13 @@
 #![allow(non_snake_case)]
 
-use std::sync::mpsc;
-use std::thread;
+use std::sync::{Arc, mpsc, Mutex};
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
-use jni::objects::{GlobalRef, JClass, JObject, JString, JValue};
+use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jboolean, jbyteArray, jlong, jstring};
 use jni::JNIEnv;
+use lazy_static::lazy_static;
+use std::sync::mpsc::Sender;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use uuid::Uuid;
@@ -625,6 +626,11 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_listMetadatas(
     )
 }
 
+lazy_static! {
+    static ref MAYBE_SEARCH_TX: Arc<Mutex<Option<Sender<SearchRequest>>>> = Arc::new(Mutex::new(None));
+}
+
+
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
     env: JNIEnv, _: JClass, jsearchModel: JObject<'static>
@@ -632,44 +638,11 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
     let (search_tx, search_rx) = mpsc::channel::<SearchRequest>();
     let (results_tx, results_rx) = mpsc::channel::<SearchResult>();
 
-    let env_c = env.clone();
-
-    thread::spawn(move || {
-        loop {
-            let search = env
-                .call_method(
-                    jsearchModel,
-                    "getSearchQuery",
-                    "()String",
-                    [].to_vec().as_slice(),
-                )
-                .unwrap();
-
-            match search {
-                JValue::Object(maybe_search) => {
-                    let request = if maybe_search.is_null() {
-                        SearchRequest::EndSearch
-                    } else {
-                        SearchRequest::Search { input: jstring_to_string(&env_c, JString::from(maybe_search), "").unwrap() }
-                    };
-
-                    search_tx.send(request);
-                }
-                _ => {}
-            }
-        }
-    });
+    *MAYBE_SEARCH_TX.lock().unwrap() = Some(search_tx);
 
     if let Err(e) = static_state::get().and_then(|core| core.start_search(results_tx, search_rx)) {
         return string_to_jstring(&env, translate(Err::<(), _>(e)))
     }
-
-    // loop {
-    //     // call jsearchrequest model and ask if there are any updates
-    //     // it takes search requests and sends them through the channel, and then sleeps
-    //
-    //     // the function that is called will do a recv of its own so it doesnt need to sleep
-    // }
 
     loop {
         let results = results_rx.recv().unwrap();
@@ -714,8 +687,35 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
                     )
                     .unwrap();
             }
+            SearchResult::End => break
         }
     }
+
+    *MAYBE_SEARCH_TX.lock().unwrap() = None;
+    string_to_jstring(&env, translate(Ok::<_, ()>(())))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_search(
+    env: JNIEnv, _: JClass, jquery: JString
+) -> jstring {
+    let query = match jstring_to_string(&env, jquery, "query") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    MAYBE_SEARCH_TX.lock().unwrap().as_ref().unwrap().send(SearchRequest::Search { input: query }).unwrap();
+
+    string_to_jstring(&env, translate(Ok::<_, ()>(())))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_endSearch(
+    env: JNIEnv, _: JClass
+) -> jstring {
+    MAYBE_SEARCH_TX.lock().unwrap().as_ref().unwrap().send(SearchRequest::EndSearch).unwrap();
+
+    string_to_jstring(&env, translate(Ok::<_, ()>(())))
 }
 
 #[no_mangle]

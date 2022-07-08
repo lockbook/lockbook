@@ -29,6 +29,7 @@ import com.afollestad.recyclical.withItem
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textview.MaterialTextView
+import com.google.android.material.transition.MaterialSharedAxis
 import java.lang.ref.WeakReference
 import java.util.*
 
@@ -250,8 +251,12 @@ class FilesListFragment : Fragment(), FilesFragment {
             binding.drawerLayout.close()
             true
         }
+
         binding.filesToolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
+                R.id.menu_files_list_search -> {
+                    activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSearch)
+                }
                 R.id.menu_list_files_sort_last_changed -> {
                     model.changeFileSort(SortStyle.LastChanged)
                     menu.menu!!.findItem(R.id.menu_list_files_sort_last_changed)?.isChecked = true
@@ -278,11 +283,10 @@ class FilesListFragment : Fragment(), FilesFragment {
 
             true
         }
-        val searchView = binding.filesToolbar.menu.findItem(R.id.menu_files_list_search).actionView as FixQueryChangeSearchView
-        searchView.setOnSearchClickListener {
-
-        }
-
+//        val searchView = binding.filesToolbar.menu.findItem(R.id.menu_files_list_search).actionView as FixQueryChangeSearchView
+//        searchView.setOnSearchClickListener {
+//
+//        }
 
 
         toggleMenuBar()
