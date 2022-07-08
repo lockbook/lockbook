@@ -16,7 +16,7 @@ pub use lockbook_models::account::Account;
 pub use lockbook_models::api::{PaymentMethod, PaymentPlatform};
 pub use lockbook_models::api::{StripeAccountTier, SubscriptionInfo};
 pub use lockbook_models::crypto::DecryptedDocument;
-pub use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
+pub use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 pub use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 pub use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
 pub use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
