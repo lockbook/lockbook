@@ -4,7 +4,7 @@ use lockbook_core::pure_functions::files;
 use lockbook_core::repo::document_repo;
 use lockbook_core::service::sync_service::MaybeMergeResult;
 use lockbook_core::service::{file_service, sync_service};
-use lockbook_core::{Error, ShareFileError, ShareMode};
+use lockbook_core::{DeletePendingShareError, Error, ShareFileError, ShareMode};
 use lockbook_models::file_metadata::Owner;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use lockbook_models::tree::FileMetadata;
@@ -1910,4 +1910,86 @@ fn share_unowned_file_write() {
     cores[1].sync(None).unwrap();
     let result = cores[1].share_file(folder0.id, &accounts[2].username, ShareMode::Write);
     assert_matches!(result, Err(Error::UiError(ShareFileError::InsufficientPermission)));
+}
+
+#[test]
+fn delete_pending_share() {
+    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder0 = cores[0]
+        .create_file("folder0", roots[0].id, FileType::Folder)
+        .unwrap();
+    cores[0]
+        .share_file(folder0.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+    cores[1].delete_pending_share(folder0.id).unwrap();
+}
+
+#[test]
+fn delete_pending_share_root() {
+    let core = test_core_with_account();
+    let root = core.get_root().unwrap();
+
+    let result = core.delete_pending_share(root.id);
+    assert_matches!(result, Err(Error::UiError(DeletePendingShareError::FileNotShared)));
+}
+
+#[test]
+fn delete_pending_share_duplicate() {
+    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder0 = cores[0]
+        .create_file("folder0", roots[0].id, FileType::Folder)
+        .unwrap();
+    cores[0]
+        .share_file(folder0.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+    cores[1].delete_pending_share(folder0.id).unwrap();
+    let result = cores[1].delete_pending_share(folder0.id);
+    assert_matches!(result, Err(Error::UiError(DeletePendingShareError::FileNonexistent)));
+}
+
+#[test]
+fn delete_pending_share_nonexistent() {
+    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder0 = cores[0]
+        .create_file("folder0", roots[0].id, FileType::Folder)
+        .unwrap();
+    cores[0]
+        .share_file(folder0.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+    cores[1].delete_pending_share(folder0.id).unwrap();
+    let result = cores[1].delete_pending_share(folder0.id);
+    assert_matches!(result, Err(Error::UiError(DeletePendingShareError::FileNonexistent)));
 }

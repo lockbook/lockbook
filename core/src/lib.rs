@@ -10,6 +10,7 @@ pub mod service;
 
 mod external_interface;
 
+use lockbook_models::file_metadata::Owner;
 pub use uuid::Uuid;
 
 pub use lockbook_models::account::Account;
@@ -38,7 +39,7 @@ use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service;
-use lockbook_models::crypto::AESKey;
+use lockbook_models::crypto::{AESKey, UserAccessMode};
 pub use lockbook_models::file_metadata::ShareMode;
 use model::errors::Error::UiError;
 pub use model::errors::{CoreError, Error, UnexpectedError};
@@ -153,15 +154,15 @@ impl Core {
         &self, id: Uuid, content: &[u8],
     ) -> Result<(), Error<WriteToDocumentError>> {
         let val: Result<_, CoreError> = self.db.transaction(|tx| {
-            let metadata = self
-                .context(tx)?
-                .get_not_deleted_metadata(RepoSource::Local, id)?;
-            self.context(tx)?.insert_document(
-                &self.config,
-                RepoSource::Local,
-                &metadata,
-                content,
-            )?;
+            let mut context = self.context(tx)?;
+            let files = context.get_all_not_deleted_metadata(RepoSource::Local)?;
+            if files.get_access_level(&Owner(context.get_public_key()?), id)?
+                < UserAccessMode::Write
+            {
+                return Err(CoreError::InsufficientPermission);
+            }
+            let metadata = files.find_ref(id)?;
+            context.insert_document(&self.config, RepoSource::Local, metadata, content)?;
             Ok(())
         })?;
         Ok(val?)

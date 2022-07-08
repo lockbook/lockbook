@@ -64,7 +64,13 @@ pub fn encrypt_metadata(
                 metadata_version: target.metadata_version,
                 content_version: target.content_version,
                 deleted: target.deleted,
-                user_access_keys: target.shares.clone(),
+                // shares are marked for deletion so that they live long enough to re-encrypt the metadata
+                user_access_keys: target
+                    .shares
+                    .iter()
+                    .filter(|s| !s.marked_for_deletion)
+                    .cloned()
+                    .collect(),
                 folder_access_key, // todo(sharing): do something better?
             });
         } else {
@@ -159,8 +165,18 @@ pub fn decrypt_metadata(
                 folder_access_key: Some(target.folder_access_key.clone()),
             });
         } else {
-            let parent_key = decrypt_file_key(account, target.parent, files, key_cache)?;
-            result.push(decrypt_metadatum(&parent_key, target)?);
+            // todo(sharing): factor as tree::get_unshared_files(), delete these files after syncing
+            if files.maybe_find_ref(target.parent).is_none()
+                && target.owner.0 != account.public_key()
+            {
+                // file was shared, then the share was deleted, and now it's not decryptable
+                continue;
+            } else {
+                let maybe_parent_key = decrypt_file_key(account, target.parent, files, key_cache)?;
+                if let Some(parent_key) = maybe_parent_key {
+                    result.push(decrypt_metadatum(&parent_key, target)?);
+                }
+            }
         }
     }
     Ok(result)
@@ -171,9 +187,9 @@ pub fn decrypt_metadata(
 fn decrypt_file_key(
     account: &Account, target_id: Uuid, target_with_ancestors: &EncryptedFiles,
     key_cache: &mut HashMap<Uuid, AESKey>,
-) -> Result<AESKey, CoreError> {
+) -> Result<Option<AESKey>, CoreError> {
     if let Some(key) = key_cache.get(&target_id) {
-        return Ok(*key);
+        return Ok(Some(*key));
     }
 
     let target = target_with_ancestors.maybe_find(target_id).ok_or_else(|| {
@@ -182,7 +198,7 @@ fn decrypt_file_key(
         ))
     })?;
 
-    let key = match target
+    let maybe_key = match target
         .user_access_keys
         .iter()
         .find(|k| k.encrypted_for_username == account.username)
@@ -191,19 +207,30 @@ fn decrypt_file_key(
             let user_access_key =
                 pubkey::get_aes_key(&account.private_key, &user_access.encrypted_by_public_key)
                     .map_err(core_err_unexpected)?;
-            symkey::decrypt(&user_access_key, &user_access.access_key)
-                .map_err(core_err_unexpected)?
+            Some(
+                symkey::decrypt(&user_access_key, &user_access.access_key)
+                    .map_err(core_err_unexpected)?,
+            )
         }
         None => {
-            let parent_key =
+            let maybe_parent_key =
                 decrypt_file_key(account, target.parent, target_with_ancestors, key_cache)?;
-            symkey::decrypt(&parent_key, &target.folder_access_key).map_err(core_err_unexpected)?
+            if let Some(parent_key) = maybe_parent_key {
+                Some(
+                    symkey::decrypt(&parent_key, &target.folder_access_key)
+                        .map_err(core_err_unexpected)?,
+                )
+            } else {
+                None
+            }
         }
     };
 
-    key_cache.insert(target_id, key);
+    if let Some(key) = maybe_key {
+        key_cache.insert(target_id, key);
+    }
 
-    Ok(key)
+    Ok(maybe_key)
 }
 
 fn decrypt_file_name(

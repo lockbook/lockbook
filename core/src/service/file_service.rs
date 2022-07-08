@@ -519,6 +519,7 @@ impl RequestContext<'_, '_> {
                 &file.decrypted_name,
                 &share_key,
             )?,
+            marked_for_deletion: false,
         });
 
         let staged_changes = HashMap::with(file.clone());
@@ -532,13 +533,22 @@ impl RequestContext<'_, '_> {
 
     pub fn delete_pending_share(&mut self, config: &Config, id: Uuid) -> Result<(), CoreError> {
         let username = self.get_account()?.username;
-        let mut file = self.get_metadata(RepoSource::Local, id)?;
+        let files = self.get_all_metadata(RepoSource::Local)?;
+        let mut file = files.find(id)?;
 
-        // todo(sharing): make sure we don't remove shares for files we own (and probably a few other checks)
+        if files.get_access_level(&Owner(self.get_public_key()?), id)? == UserAccessMode::Owner {
+            return Err(CoreError::FileNotShared);
+        }
+
         file.shares = file
             .shares
             .into_iter()
-            .filter(|s| s.encrypted_for_username == username)
+            .map(|mut s| {
+                if s.encrypted_for_username == username && s.encrypted_by_username != username {
+                    s.marked_for_deletion = true;
+                }
+                s
+            })
             .collect();
 
         self.insert_metadatum(config, RepoSource::Local, &file)?;

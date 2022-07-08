@@ -99,6 +99,7 @@ pub enum CoreError {
     ExpiredCard,
     FileExists,
     FileIsLink,
+    FileNotShared,
     FileNameContainsSlash,
     FileNameEmpty,
     FileNonexistent,
@@ -127,7 +128,6 @@ pub enum CoreError {
     ServerDisabled,
     ServerUnreachable,
     ShareAlreadyExists,
-    ShareNonexistent,
     TryAgain,
     UsageIsOverFreeTierDataCap,
     UsernameInvalid,
@@ -370,7 +370,7 @@ impl From<CoreError> for Error<CreateFileError> {
 pub enum WriteToDocumentError {
     FileDoesNotExist,
     FolderTreatedAsDocument,
-    InsufficientPermission, // todo(sharing): cannot write to document without access >= write
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<WriteToDocumentError> {
@@ -560,13 +560,15 @@ impl From<CoreError> for Error<ShareFileError> {
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum DeletePendingShareError {
-    ShareNonexistent, // todo(sharing): self-explanatory
+    FileNotShared,
+    FileNonexistent,
 }
 
 impl From<CoreError> for Error<DeletePendingShareError> {
     fn from(e: CoreError) -> Self {
         match e {
-            CoreError::ShareNonexistent => UiError(DeletePendingShareError::ShareNonexistent),
+            CoreError::FileNonexistent => UiError(DeletePendingShareError::FileNonexistent),
+            CoreError::FileNotShared => UiError(DeletePendingShareError::FileNotShared),
             _ => unexpected!("{:#?}", e),
         }
     }

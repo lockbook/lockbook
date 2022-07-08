@@ -59,6 +59,7 @@ pub struct UserAccessInfo {
     pub encrypted_for_public_key: PublicKey,
     pub access_key: EncryptedUserAccessKey,
     pub file_name: SecretFileName,
+    pub marked_for_deletion: bool,
 }
 
 // todo(sharing): implement Hash for PublicKey or omit public keys from PartialEq and Eq impl's for Share

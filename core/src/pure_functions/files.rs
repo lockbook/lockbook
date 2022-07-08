@@ -54,6 +54,7 @@ pub fn create_root(account: &Account) -> Result<DecryptedFileMetadata, CoreError
             &public_key,
         )?,
         file_name: file_encryption_service::encrypt_file_name(&account.username, &share_key)?,
+        marked_for_deletion: false,
     }];
     Ok(DecryptedFileMetadata {
         id,

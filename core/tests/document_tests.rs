@@ -1,3 +1,4 @@
+use lockbook_core::{Error, FileType, ShareMode, WriteToDocumentError};
 use uuid::Uuid;
 
 use lockbook_core::model::repo::RepoSource;
@@ -158,4 +159,55 @@ fn insert_delete_all_different_source() {
     let result = test_utils::doc_repo_get_all(config, RepoSource::Local);
 
     assert_eq!(result, vec![document]);
+}
+
+#[test]
+fn write_document_read_share() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let document0 = cores[0]
+        .create_file("document0", roots[0].id, FileType::Document)
+        .unwrap();
+    cores[0]
+        .share_file(document0.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    let result = cores[1].write_document(document0.id, b"document content");
+    assert_matches!(result, Err(Error::UiError(WriteToDocumentError::InsufficientPermission)));
+}
+
+#[test]
+fn write_document_write_share() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let document0 = cores[0]
+        .create_file("document0", roots[0].id, FileType::Document)
+        .unwrap();
+    cores[0]
+        .share_file(document0.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    cores[1]
+        .write_document(document0.id, b"document content")
+        .unwrap();
 }
