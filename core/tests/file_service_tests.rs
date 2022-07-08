@@ -4,6 +4,7 @@ use lockbook_core::pure_functions::files;
 use lockbook_core::repo::document_repo;
 use lockbook_core::service::sync_service::MaybeMergeResult;
 use lockbook_core::service::{file_service, sync_service};
+use lockbook_core::{Error, ShareFileError, ShareMode};
 use lockbook_models::file_metadata::Owner;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 use lockbook_models::tree::FileMetadata;
@@ -1753,4 +1754,25 @@ fn prune_deleted_new_local_deleted_folder_with_deleted_existing_moved_child() {
     assert_metadata_count!(core, RepoSource::Local, 3);
     assert_document_count!(core, RepoSource::Base, 1);
     assert_document_count!(core, RepoSource::Local, 1);
+}
+
+#[test]
+fn share_file_root() {
+    let core = test_core_with_account();
+    let sharee_core = test_core_with_account();
+    let sharee_account = &sharee_core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+
+    let result = core.share_file(root.id, &sharee_account.username, ShareMode::Read);
+    assert_matches!(result, Err(Error::UiError(ShareFileError::CannotShareRoot)));
+}
+
+#[test]
+fn share_file_nonexistent() {
+    let core = test_core_with_account();
+    let sharee_core = test_core_with_account();
+    let sharee_account = &sharee_core.get_account().unwrap();
+
+    let result = core.share_file(Uuid::new_v4(), &sharee_account.username, ShareMode::Read);
+    assert_matches!(result, Err(Error::UiError(ShareFileError::FileNonexistent)));
 }

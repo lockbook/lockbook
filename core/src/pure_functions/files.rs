@@ -175,7 +175,7 @@ pub fn apply_delete(
     Ok(file)
 }
 
-fn validate_not_root(file: &DecryptedFileMetadata) -> Result<(), CoreError> {
+pub fn validate_not_root(file: &DecryptedFileMetadata) -> Result<(), CoreError> {
     if file.id != file.parent {
         Ok(())
     } else {
@@ -183,7 +183,7 @@ fn validate_not_root(file: &DecryptedFileMetadata) -> Result<(), CoreError> {
     }
 }
 
-fn validate_is_folder(file: &DecryptedFileMetadata) -> Result<(), CoreError> {
+pub fn validate_is_folder(file: &DecryptedFileMetadata) -> Result<(), CoreError> {
     if file.is_folder() {
         Ok(())
     } else {
@@ -191,7 +191,7 @@ fn validate_is_folder(file: &DecryptedFileMetadata) -> Result<(), CoreError> {
     }
 }
 
-fn validate_file_name(name: &str) -> Result<(), CoreError> {
+pub fn validate_file_name(name: &str) -> Result<(), CoreError> {
     if name.is_empty() {
         return Err(CoreError::FileNameEmpty);
     }

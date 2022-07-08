@@ -533,8 +533,8 @@ impl From<CoreError> for Error<MoveFileError> {
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum ShareFileError {
-    CannotShareRoot,        // todo(sharing): self-explanatory
-    FileNonexistent,        // todo(sharing): self-explanatory
+    CannotShareRoot,
+    FileNonexistent,
     ShareAlreadyExists, // todo(sharing): cannot share the same file with the same user twice (can silently upgrade read access to write)
     LinkInSharedFolder, // todo(sharing): cannot share a folder which contains a link
     InsufficientPermission, // todo(sharing): cannot share with write access unowned files (can share with read access any files)

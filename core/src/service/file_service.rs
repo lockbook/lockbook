@@ -469,6 +469,8 @@ impl RequestContext<'_, '_> {
         let files = files.filter_not_deleted()?;
         let mut file = files.find(id)?;
 
+        files::validate_not_root(&file)?;
+
         let account = self.get_account()?;
         let public_key = api_service::request(
             &account,
