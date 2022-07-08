@@ -1,12 +1,12 @@
 use std::fmt::{Display, Formatter};
 use std::io::ErrorKind;
 
-use lockbook_models::api;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use strum_macros::EnumIter;
 use uuid::Uuid;
 
+use lockbook_models::api;
 use lockbook_models::api::{GetPublicKeyError, GetUpdatesError, NewAccountError};
 use lockbook_models::tree::TreeError;
 
@@ -163,6 +163,12 @@ impl From<std::io::Error> for CoreError {
             ErrorKind::AlreadyExists => CoreError::DiskPathTaken,
             _ => core_err_unexpected(e),
         }
+    }
+}
+
+impl From<serde_json::Error> for CoreError {
+    fn from(err: serde_json::Error) -> Self {
+        Self::Unexpected(format!("{err}"))
     }
 }
 

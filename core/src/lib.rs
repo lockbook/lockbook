@@ -16,7 +16,7 @@ pub use lockbook_models::account::Account;
 pub use lockbook_models::api::{PaymentMethod, PaymentPlatform};
 pub use lockbook_models::api::{StripeAccountTier, SubscriptionInfo};
 pub use lockbook_models::crypto::DecryptedDocument;
-pub use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
+pub use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 pub use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 pub use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
 pub use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
@@ -370,14 +370,11 @@ impl Core {
         Ok(val?)
     }
 
-    #[instrument(level = "debug", skip(self, drawing_bytes), err(Debug))]
-    pub fn save_drawing(
-        &self, id: Uuid, drawing_bytes: &[u8],
-    ) -> Result<(), Error<SaveDrawingError>> {
-        let val = self.db.transaction(|tx| {
-            self.context(tx)?
-                .save_drawing(&self.config, id, drawing_bytes)
-        })?;
+    #[instrument(level = "debug", skip(self, d), err(Debug))]
+    pub fn save_drawing(&self, id: Uuid, d: &Drawing) -> Result<(), Error<SaveDrawingError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.save_drawing(&self.config, id, d))?;
         Ok(val?)
     }
 
