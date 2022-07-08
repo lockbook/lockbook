@@ -261,38 +261,3 @@ pub fn maybe_find_state<Fm: FileMetadata>(
         RepoState::Unmodified(b) => b.id(),
     } == target_id).cloned()
 }
-
-pub fn find_ancestors<Fm: FileMetadata>(
-    files: &HashMap<Uuid, Fm>, target_id: Uuid,
-) -> HashMap<Uuid, Fm> {
-    let mut result = HashMap::new();
-    let mut current_target_id = target_id;
-    while let Some(target) = files.maybe_find(current_target_id) {
-        result.push(target.clone());
-        if target.is_root() {
-            break;
-        }
-        current_target_id = target.parent();
-    }
-    result
-}
-
-pub fn find_with_descendants<Fm: FileMetadata>(
-    files: &HashMap<Uuid, Fm>, target_id: Uuid,
-) -> Result<HashMap<Uuid, Fm>, CoreError> {
-    let mut result = HashMap::new();
-    let mut unexplored: HashMap<Uuid, Fm> = HashMap::new();
-    unexplored.push(files.find(target_id)?);
-    while !unexplored.is_empty() {
-        let mut next_exploration = HashMap::new();
-        for file in unexplored.values() {
-            result.push(file.clone());
-            if file.is_folder() {
-                next_exploration.extend(files.find_children(file.id()));
-            }
-        }
-        unexplored = next_exploration;
-    }
-
-    Ok(result)
-}

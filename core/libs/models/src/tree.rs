@@ -88,6 +88,7 @@ pub enum TestFileTreeError {
     FileOrphaned(Uuid),
     CycleDetected(Uuid),
     NameConflictDetected(Uuid),
+    // todo: new sharing errors
     Tree(TreeError),
 }
 
@@ -146,6 +147,12 @@ pub trait FileMetaMapExt<Fm: FileMetadata> {
     fn get_duplicate_links(
         &self, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<LinkDuplicate>, TreeError>;
+    fn get_broken_links(
+        &self, staged_changes: &HashMap<Uuid, Fm>,
+    ) -> Result<Vec<Uuid>, TreeError>;
+    fn get_unshared_files(
+        &self, user: &Owner, staged_changes: &HashMap<Uuid, Fm>,
+    ) -> Result<Vec<Uuid>, TreeError>;
     fn get_access_level(
         &self, user: &Owner, file: Uuid,
     ) -> Result<UserAccessMode, TreeError>;
@@ -225,7 +232,6 @@ where
         self.get_mut(&id)
     }
 
-    // todo(sharing): this assumes at most one link per file, which should be enforced somewhere
     fn maybe_find_link(&self, target_id: Uuid) -> Option<Fm> {
         self.iter().find(|(_, f)| if let FileType::Link { linked_file } = f.file_type() {
             linked_file == target_id
@@ -451,6 +457,35 @@ where
         Ok(links_by_target.into_iter().filter_map(|(target, links)| if links.len() > 1 { Some(LinkDuplicate{ links, target }) } else { None }).collect())
     }
 
+    fn get_broken_links(
+        &self, staged_changes: &HashMap<Uuid, Fm>,
+    ) -> Result<Vec<Uuid>, TreeError> {
+        let mut result = Vec::new();
+        let files = self.clone().stage(staged_changes.clone()); // todo(sharing): don't clone
+        let not_deleted_files = files.clone().filter_not_deleted()?; // todo(sharing): don't clone
+        for file in files.values() {
+            if let FileType::Link { linked_file } = file.file_type() {
+                if not_deleted_files.maybe_find_ref(linked_file).is_none() {
+                    result.push(file.id());
+                }
+            }
+        }
+        Ok(result)
+    }
+
+    fn get_unshared_files(
+        &self, user: &Owner, staged_changes: &HashMap<Uuid, Fm>,
+    ) -> Result<Vec<Uuid>, TreeError> {
+        let mut result = Vec::new();
+        for file in self.clone().stage(staged_changes.clone()).values() { // todo(sharing): don't clone
+            if self.maybe_find_ref(file.parent()).is_none()
+             && &file.owner() != user {
+                result.append(&mut find_with_descendants(self, file.id())?.values().map(|f| f.id()).collect())
+            }
+        }
+        Ok(result)
+    }
+
     fn get_access_level(
         &self, user: &Owner, id: Uuid,
     ) -> Result<UserAccessMode, TreeError> {
@@ -580,4 +615,39 @@ fn get_shared_links_helper<Fm: FileMetadata>(files_with_sources: &HashMap<Uuid, 
         get_shared_links_helper(files_with_sources, child, shared_ancestors, result)?;
     }
     Ok(())
+}
+
+pub fn find_ancestors<Fm: FileMetadata>(
+    files: &HashMap<Uuid, Fm>, target_id: Uuid,
+) -> HashMap<Uuid, Fm> {
+    let mut result = HashMap::new();
+    let mut current_target_id = target_id;
+    while let Some(target) = files.maybe_find(current_target_id) {
+        result.push(target.clone());
+        if target.is_root() {
+            break;
+        }
+        current_target_id = target.parent();
+    }
+    result
+}
+
+pub fn find_with_descendants<Fm: FileMetadata>(
+    files: &HashMap<Uuid, Fm>, target_id: Uuid,
+) -> Result<HashMap<Uuid, Fm>, TreeError> {
+    let mut result = HashMap::new();
+    let mut unexplored: HashMap<Uuid, Fm> = HashMap::new();
+    unexplored.push(files.find(target_id)?);
+    while !unexplored.is_empty() {
+        let mut next_exploration = HashMap::new();
+        for file in unexplored.values() {
+            result.push(file.clone());
+            if file.is_folder() {
+                next_exploration.extend(files.find_children(file.id()));
+            }
+        }
+        unexplored = next_exploration;
+    }
+
+    Ok(result)
 }

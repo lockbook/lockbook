@@ -165,7 +165,6 @@ pub fn decrypt_metadata(
                 folder_access_key: Some(target.folder_access_key.clone()),
             });
         } else {
-            // todo(sharing): factor as tree::get_unshared_files(), delete these files after syncing
             if files.maybe_find_ref(target.parent).is_none()
                 && target.owner.0 != account.public_key()
             {

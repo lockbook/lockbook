@@ -15,6 +15,7 @@ use lockbook_models::file_metadata::Owner;
 use lockbook_models::file_metadata::{
     DecryptedFileMetadata, DecryptedFiles, EncryptedFiles, FileType,
 };
+use lockbook_models::tree::StageSource;
 use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
 use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
@@ -431,6 +432,7 @@ impl RequestContext<'_, '_> {
         F: FnMut(SyncProgressOperation),
     {
         let account = &self.get_account()?;
+        let user = Owner(self.get_public_key()?);
         let base_metadata = self.get_all_metadata(RepoSource::Base)?;
         let base_max_metadata_version = base_metadata
             .values()
@@ -545,7 +547,7 @@ impl RequestContext<'_, '_> {
             }
         }
 
-        // deleted orphaned updates
+        // delete orphaned updates
         for (id, _) in remote_orphans {
             if let Some(mut metadatum) = base_metadata.maybe_find(id) {
                 if let Some(mut metadatum_update) = base_metadata_updates.maybe_find_mut(id) {
@@ -565,7 +567,57 @@ impl RequestContext<'_, '_> {
             }
         }
 
-        // resolve cycles
+        // todo(sharing): delete unshared files
+        for _unshared_file_id in
+            local_metadata.get_unshared_files(&user, &local_metadata_updates)?
+        {
+            // base_metadata_updates.remove(&unshared_file_id);
+            // local_metadata_updates.remove(&unshared_file_id);
+        }
+
+        // resolve shared links by deleting the link
+        for shared_link in local_metadata.get_shared_links(&user, &local_metadata_updates)? {
+            if let Some(existing_update) = local_metadata_updates.maybe_find_mut(shared_link.link.0)
+            {
+                existing_update.deleted = true;
+            } else {
+                let mut new_metadatum_update = local_metadata.find(shared_link.link.0)?;
+                new_metadatum_update.deleted = true;
+                local_metadata_updates.push(new_metadatum_update);
+            }
+        }
+
+        // resolve duplicate links by deleting the local links
+        for link_duplicate in local_metadata.get_duplicate_links(&local_metadata_updates)? {
+            for (local_link_duplicated, _) in link_duplicate
+                .links
+                .into_iter()
+                .filter(|l| l.1 == StageSource::Staged)
+            {
+                if let Some(existing_update) =
+                    local_metadata_updates.maybe_find_mut(local_link_duplicated)
+                {
+                    existing_update.deleted = true;
+                } else {
+                    let mut new_metadatum_update = local_metadata.find(local_link_duplicated)?;
+                    new_metadatum_update.deleted = true;
+                    local_metadata_updates.push(new_metadatum_update);
+                }
+            }
+        }
+
+        // resolve broken links by deleting them
+        for broken_link in local_metadata.get_broken_links(&local_metadata_updates)? {
+            if let Some(existing_update) = local_metadata_updates.maybe_find_mut(broken_link) {
+                existing_update.deleted = true;
+            } else {
+                let mut new_metadatum_update = local_metadata.find(broken_link)?;
+                new_metadatum_update.deleted = true;
+                local_metadata_updates.push(new_metadatum_update);
+            }
+        }
+
+        // resolve cycles by unmoving a locally moved file in each cycle
         for self_descendant in local_metadata
             .get_invalid_cycles(&Owner(account.public_key()), &local_metadata_updates)?
         {
@@ -585,7 +637,7 @@ impl RequestContext<'_, '_> {
             }
         }
 
-        // resolve path conflicts
+        // resolve path conflicts by renaming the local file in each conflict
         for path_conflict in local_metadata.get_path_conflicts(&local_metadata_updates)? {
             let local_meta_updates_copy = local_metadata_updates.clone();
 
@@ -604,10 +656,6 @@ impl RequestContext<'_, '_> {
                 local_metadata_updates.push(new_metadatum_update);
             }
         }
-
-        // todo(sharing): resolve links in shared folders
-        // todo(sharing): resolve multiple links with same target
-        // todo(sharing): delete links to deleted files
 
         // update metadata
         self.insert_metadata_both_repos(config, &base_metadata_updates, &local_metadata_updates)?;

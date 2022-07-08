@@ -22,6 +22,7 @@ use lockbook_models::file_metadata::Owner;
 use lockbook_models::file_metadata::ShareMode;
 use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
 use lockbook_models::file_metadata::{EncryptedFileMetadata, EncryptedFiles};
+use lockbook_models::tree;
 use lockbook_models::tree::FileMetaVecExt;
 use lockbook_models::tree::TreeError;
 use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
@@ -205,7 +206,7 @@ impl RequestContext<'_, '_> {
         let mut parents = HashMap::new();
 
         for (_, f) in changes.iter() {
-            let ancestors = files::find_ancestors(&all_metadata_with_changes_staged, f.parent);
+            let ancestors = tree::find_ancestors(&all_metadata_with_changes_staged, f.parent);
             parents.extend(ancestors);
         }
 
@@ -290,7 +291,6 @@ impl RequestContext<'_, '_> {
 
     pub fn get_children(&mut self, id: Uuid) -> Result<DecryptedFiles, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-        // todo(sharing): this (and other uses) mean we do not support links pointing to links, so make sure you prevent that on link create/update
         let children = files
             .find_children(id)
             .iter()
@@ -313,7 +313,7 @@ impl RequestContext<'_, '_> {
         &mut self, id: Uuid,
     ) -> Result<DecryptedFiles, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-        let file_and_descendants = files::find_with_descendants(&files, id)?
+        let file_and_descendants = tree::find_with_descendants(&files, id)?
             .iter()
             .map(|(_, f)| {
                 if let FileType::Link { linked_file } = f.file_type {
@@ -377,11 +377,11 @@ impl RequestContext<'_, '_> {
             .collect::<HashSet<Uuid>>();
         let ancestors_of_not_deleted_base_ids = not_deleted_either_ids
             .iter()
-            .flat_map(|&id| files::find_ancestors(&all_base_metadata, id).into_keys())
+            .flat_map(|&id| tree::find_ancestors(&all_base_metadata, id).into_keys())
             .collect::<HashSet<Uuid>>();
         let ancestors_of_not_deleted_local_ids = not_deleted_either_ids
             .iter()
-            .flat_map(|&id| files::find_ancestors(&all_local_metadata, id).into_keys())
+            .flat_map(|&id| tree::find_ancestors(&all_local_metadata, id).into_keys())
             .collect::<HashSet<Uuid>>();
         let deleted_both_without_deleted_descendants_ids =
             prune_eligible_ids.into_iter().filter(|id| {
@@ -599,7 +599,7 @@ impl RequestContext<'_, '_> {
             Some(id) => staged.find(id),
             None => staged.find_root(),
         }?;
-        let non_orphans = files::find_with_descendants(&staged, root.id)?
+        let non_orphans = tree::find_with_descendants(&staged, root.id)?
             .into_iter()
             .map(|(_, f)| f)
             .chain(
