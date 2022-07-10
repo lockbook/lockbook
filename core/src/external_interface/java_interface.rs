@@ -633,7 +633,7 @@ lazy_static! {
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
-    env: JNIEnv, _: JClass, jsearchModel: JObject<'static>
+    env: JNIEnv, _: JClass, jsearchFilesViewModel: JObject<'static>
 ) -> jstring {
     let (search_tx, search_rx) = mpsc::channel::<SearchRequest>();
     let (results_tx, results_rx) = mpsc::channel::<SearchResult>();
@@ -645,49 +645,60 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
     }
 
     loop {
-        let results = results_rx.recv().unwrap();
+        let results = match results_rx.recv() {
+            Ok(last_search) => last_search,
+            Err(_) => break
+        };
 
         match results{
-            SearchResult::Error(_) => {}
+            SearchResult::Error(e) => return string_to_jstring(&env, translate(Err::<(), _>(e))),
             SearchResult::FileNameMatch {
-                id, name, score
+                id, path, matched_indices, score
             } => {
+                // let jmatchedIndices = env.new_int_array(matched_indices.len() as jsize).unwrap();
+                // env.set_int_array_region(jmatchedIndices, 0, matched_indices.iter().map(|ind| *ind as jint).collect::<Vec<i32>>().as_slice()).unwrap();
+
                 let args = [
                     JValue::Object(JObject::from(string_to_jstring(&env, id.to_string()))),
-                    JValue::Object(JObject::from(string_to_jstring(&env, name))),
-                    JValue::Int(score as i32)
+                    JValue::Object(JObject::from(string_to_jstring(&env, path))),
+                    JValue::Int(score as i32),
+                    JValue::Object(JObject::from(string_to_jstring(&env, serde_json::to_string(&matched_indices).unwrap())))
                 ].to_vec();
 
-                env
-                    .clone()
+                let callResult = env
                     .call_method(
-                        jsearchModel,
+                        jsearchFilesViewModel,
                         "addFileNameSearchResult",
-                        "(Ljava/lang/String;Ljava/lang/String;I)V",
+                        "(Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;)V",
                         args.as_slice(),
-                    )
-                    .unwrap();
+                    );
+
+                if let Err(e) = callResult {
+                    return string_to_jstring(&env, translate(Err::<(), _>(UnexpectedError(e.0.description().to_string()))))
+                }
             }
             SearchResult::FileContentMatch {
-                id, file_name, content, score
+                id, path, content, score
             } => {
                 let args = [
                     JValue::Object(JObject::from(string_to_jstring(&env, id.to_string()))),
-                    JValue::Object(JObject::from(string_to_jstring(&env, file_name))),
+                    JValue::Object(JObject::from(string_to_jstring(&env, path))),
                     JValue::Object(JObject::from(string_to_jstring(&env, content))),
-                    JValue::Int(score as i32)
+                    JValue::Int(score as i32),
                 ].to_vec();
 
-                env
+                let callResult = env
                     .call_method(
-                        jsearchModel,
-                        "addFileNameSearchResult",
+                        jsearchFilesViewModel,
+                        "addFileContentSearchResult",
                         "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V",
                         args.as_slice(),
-                    )
-                    .unwrap();
+                    );
+
+                if let Err(e) = callResult {
+                    return string_to_jstring(&env, translate(Err::<(), _>(UnexpectedError(e.0.description().to_string()))))
+                }
             }
-            SearchResult::End => break
         }
     }
 
@@ -704,7 +715,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_search(
         Err(err) => return err,
     };
 
-    MAYBE_SEARCH_TX.lock().unwrap().as_ref().unwrap().send(SearchRequest::Search { input: query }).unwrap();
+    match MAYBE_SEARCH_TX.lock().map_err(|e| "Could not get lock".to_string()) {
+        Ok(lock) => lock.as_ref().unwrap().send(SearchRequest::Search { input: query }),
+        Err(e) => return string_to_jstring(&env, translate(Err::<(), _>(UnexpectedError(e)))),
+    };
 
     string_to_jstring(&env, translate(Ok::<_, ()>(())))
 }
@@ -713,8 +727,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_search(
 pub extern "system" fn Java_app_lockbook_core_CoreKt_endSearch(
     env: JNIEnv, _: JClass
 ) -> jstring {
-    MAYBE_SEARCH_TX.lock().unwrap().as_ref().unwrap().send(SearchRequest::EndSearch).unwrap();
-
+    match MAYBE_SEARCH_TX.lock().map_err(|e| "Could not get lock".to_string()) {
+        Ok(lock) => lock.as_ref().unwrap().send(SearchRequest::EndSearch),
+        Err(e) => return string_to_jstring(&env, translate(Err::<(), _>(UnexpectedError(e)))),
+    };
     string_to_jstring(&env, translate(Ok::<_, ()>(())))
 }
 

@@ -349,6 +349,17 @@ class FilesListFragment : Fragment(), FilesFragment {
                         description.visibility = View.GONE
                     }
 
+                    val extensionHelper = ExtensionHelper(item.fileMetadata.decryptedName)
+
+                    val iconResource = when {
+                        extensionHelper.isDrawing -> R.drawable.ic_outline_draw_24
+                        extensionHelper.isImage -> R.drawable.ic_outline_image_24
+                        extensionHelper.isPdf -> R.drawable.ic_outline_picture_as_pdf_24
+                        else -> R.drawable.ic_outline_insert_drive_file_24
+                    }
+
+                    icon.setImageResource(iconResource)
+
                     when {
                         isSelected() -> {
                             fileItemHolder.setBackgroundResource(R.color.md_theme_primaryContainer)
@@ -454,6 +465,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
             is UpdateFilesUI.ShowSyncSnackBar -> {
                 binding.syncProgressIndicator.max = uiUpdates.totalSyncItems
+                binding.syncProgressIndicator.visibility = View.VISIBLE
                 binding.syncText.text = resources.getString(R.string.list_files_sync_snackbar, uiUpdates.totalSyncItems.toString())
                 binding.syncHolder.visibility = View.VISIBLE
             }

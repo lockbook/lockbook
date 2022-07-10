@@ -23,11 +23,29 @@
             app:navGraph="@navigation/files_navigation"
             app:defaultNavHost="true" />
 
-        <androidx.fragment.app.FragmentContainerView
-            android:id="@+id/detail_container"
+        <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="700dp"
             android:layout_height="match_parent"
-            android:layout_weight="1" />
+            android:layout_weight="1">
+
+            <androidx.fragment.app.FragmentContainerView
+                android:id="@+id/detail_container"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_weight="1" />
+
+            <ImageView
+                android:id="@+id/lockbook_backdrop"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/app_name"
+                android:src="@drawable/lockbook_backdrop"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
 
     </androidx.slidingpanelayout.widget.SlidingPaneLayout>
 

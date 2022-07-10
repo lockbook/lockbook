@@ -215,6 +215,7 @@ class MainScreenActivity : AppCompatActivity() {
         supportFragmentManager.commit {
             setReorderingAllowed(true)
             doOnDetailsExit(screen)
+            toggleTransparentLockbookLogo(screen)
 
             when (screen) {
                 is DetailsScreen.Loading -> replace<DetailsScreenLoaderFragment>(R.id.detail_container)
@@ -243,6 +244,14 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 
+    private fun toggleTransparentLockbookLogo(screen: DetailsScreen?) {
+        if(screen != null && binding.lockbookBackdrop.visibility == View.VISIBLE) {
+            binding.lockbookBackdrop.visibility = View.GONE
+        } else if (screen == null && binding.lockbookBackdrop.visibility == View.GONE) {
+            binding.lockbookBackdrop.visibility = View.VISIBLE
+        }
+    }
+
     private fun doOnDetailsExit(newScreen: DetailsScreen?) {
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? DrawingFragment)?.let { fragment ->
             fragment.binding.drawingView.stopThread()
@@ -258,9 +267,11 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
+        if(maybeGetSearchFilesFragment() != null) {
+            updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
+        } else if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
             launchDetailsScreen(null)
-        } else if (getFilesFragment().onBackPressed()) {
+        } else if (maybeGetFilesFragment()?.onBackPressed() == true) {
             super.onBackPressed()
         }
     }

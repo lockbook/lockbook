@@ -1,5 +1,5 @@
 use crate::model::repo::RepoSource;
-use crate::{CoreError, RequestContext};
+use crate::{CoreError, RequestContext, UnexpectedError};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use std::cmp::Ordering;
@@ -9,9 +9,10 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
+use itertools::Itertools;
 use sublime_fuzzy::FuzzySearch;
 use uuid::Uuid;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
+use lockbook_models::file_metadata::{DecryptedFiles, FileType};
 
 const DEBOUNCE_MILLIS: u64 = 100;
 
@@ -61,22 +62,29 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn start_search(&mut self, results_tx: Sender<SearchResult>, search_rx: Receiver<SearchRequest>) -> Result<JoinHandle<()>, CoreError> {
-        let files: Vec<DecryptedFileMetadata> = self.get_all_not_deleted_metadata(RepoSource::Local)?
-            .into_values()
-            .filter(|file| file.file_type == FileType::Document && (file.decrypted_name.as_str().ends_with(".txt") || file.decrypted_name.as_str().ends_with(".md")))
-            .collect();
+        let files_not_deleted: DecryptedFiles = self.get_all_not_deleted_metadata(RepoSource::Local)?;
 
+        let mut ids: Vec<Uuid> = Vec::new();
+        let mut paths: HashMap<Uuid, String> = HashMap::new();
         let mut files_contents: HashMap<Uuid, String> = HashMap::new();
 
-        for file in &files {
-            files_contents.insert(file.id, String::from(String::from_utf8_lossy(&self.read_document(self.config, RepoSource::Local, file.id)?)));
+        for (id, file) in &files_not_deleted {
+            if file.file_type == FileType::Document && (file.decrypted_name.as_str().ends_with(".txt") || file.decrypted_name.as_str().ends_with(".md")) {
+                ids.push(*id);
+                paths.insert(file.id, Self::path_by_id_helper(&files_not_deleted, file.id)?);
+                files_contents.insert(file.id, String::from(String::from_utf8_lossy(&self.read_document(self.config, RepoSource::Local, file.id)?)));
+            }
         }
 
-        Ok(thread::spawn(move || Self::search(results_tx, search_rx, Arc::new(files), Arc::new(files_contents))))
+        Ok(thread::spawn(move || Self::search(results_tx, search_rx, Arc::new(ids), Arc::new(paths), Arc::new(files_contents))))
     }
 
-    pub fn search(results_tx: Sender<SearchResult>, search_rx: Receiver<SearchRequest>, files: Arc<Vec<DecryptedFileMetadata>>, files_contents: Arc<HashMap<Uuid, String>>) {
-        let mut last_search = search_rx.recv().unwrap();
+    pub fn search(results_tx: Sender<SearchResult>, search_rx: Receiver<SearchRequest>, ids: Arc<Vec<Uuid>>, paths: Arc<HashMap<Uuid, String>>, files_contents: Arc<HashMap<Uuid, String>>) {
+        let mut last_search = match search_rx.recv() {
+            Ok(last_search) => last_search,
+            Err(_) => return
+        };
+
         let should_continue = Arc::new(Mutex::new(true));
 
         {
@@ -85,19 +93,29 @@ impl RequestContext<'_, '_> {
                 SearchRequest::EndSearch => return
             };
 
-            spawn_search(results_tx.clone(), files.clone(), files_contents.clone(), should_continue.clone(), input);
+            spawn_search(results_tx.clone(), ids.clone(), paths.clone(), files_contents.clone(), should_continue.clone(), input);
         }
-
 
         let mut skip_channel_check = false;
 
         loop {
             if !skip_channel_check {
-                last_search = search_rx.recv().unwrap();
+                last_search = match search_rx.recv() {
+                    Ok(last_search) => last_search,
+                    Err(_) => return
+                };
             } else {
                 skip_channel_check = false;
             }
-            *should_continue.lock().unwrap() = false;
+
+            match should_continue.lock() {
+                Ok(mut should_continue) => *should_continue = false,
+                Err(e) => {
+                    if let Err(_) = results_tx.send(SearchResult::Error(UnexpectedError(format!("{:?}", e)))) {
+                        return
+                    }
+                }
+            }
 
             thread::sleep(Duration::from_millis(DEBOUNCE_MILLIS));
             let current_search = search_rx.try_recv().ok();
@@ -109,63 +127,78 @@ impl RequestContext<'_, '_> {
 
             let input = match &last_search {
                 SearchRequest::Search { input } => input.clone(),
-                SearchRequest::EndSearch => {
-                    results_tx.send(SearchResult::End).unwrap();
-                    return
-                }
+                SearchRequest::EndSearch => return
             };
 
             let should_continue = Arc::new(Mutex::new(true));
-            spawn_search(results_tx.clone(), files.clone(), files_contents.clone(), should_continue.clone(), input);
+            spawn_search(results_tx.clone(), ids.clone(), paths.clone(), files_contents.clone(), should_continue.clone(), input);
         }
     }
 }
 
-pub fn spawn_search(results_tx: Sender<SearchResult>, files: Arc<Vec<DecryptedFileMetadata>>, files_contents: Arc<HashMap<Uuid, String>>, should_continue: Arc<Mutex<bool>>, input: String) {
-    *should_continue.lock().unwrap() = true;
-
+pub fn spawn_search(results_tx: Sender<SearchResult>, ids: Arc<Vec<Uuid>>, paths: Arc<HashMap<Uuid, String>>, files_contents: Arc<HashMap<Uuid, String>>, should_continue: Arc<Mutex<bool>>, input: String) {
     thread::spawn(move || {
-        search_file_names(results_tx.clone(), should_continue.clone(), files.clone(), &input);
-        if *should_continue.lock().unwrap() {
-            search_file_contents(results_tx, should_continue, files, files_contents, &input);
+        if let Err(e) = search_loop(results_tx.clone(), ids, paths, files_contents, should_continue, input) {
+            if let Err(_) = results_tx.send(SearchResult::Error(e)) {
+                // can't send the error, so nothing to do
+            }
         }
     });
 }
 
-pub fn search_file_names(results_tx: Sender<SearchResult>, should_continue: Arc<Mutex<bool>>, files: Arc<Vec<DecryptedFileMetadata>>, search: &str) {
-    for file in files.as_ref() {
-        if !*should_continue.lock().unwrap() {
-            return
-        }
-
-        if let Some(fuzzy_match) = FuzzySearch::new(search, &file.decrypted_name).case_insensitive().best_match() {
-            results_tx.send(SearchResult::FileNameMatch {
-                id: file.id,
-                name: file.decrypted_name.clone(),
-                score: fuzzy_match.score()
-            }).unwrap();
-        }
+pub fn search_loop(results_tx: Sender<SearchResult>, ids: Arc<Vec<Uuid>>, paths: Arc<HashMap<Uuid, String>>, files_contents: Arc<HashMap<Uuid, String>>, should_continue: Arc<Mutex<bool>>, input: String) -> Result<(), UnexpectedError> {
+    search_file_names(results_tx.clone(), should_continue.clone(), ids.clone(), paths.clone(), &input)?;
+    if *should_continue.lock().map_err(|e| UnexpectedError(format!("{:?}", e)))? {
+        search_file_contents(results_tx, should_continue, ids, paths.clone(), files_contents, &input)?;
     }
+
+    Ok(())
 }
 
-pub fn search_file_contents(results_tx: Sender<SearchResult>, should_continue: Arc<Mutex<bool>>, files: Arc<Vec<DecryptedFileMetadata>>, files_contents: Arc<HashMap<Uuid, String>>, search: &str) {
-    for file in files.as_ref() {
-        if !*should_continue.lock().unwrap() {
-            return
+pub fn search_file_names(results_tx: Sender<SearchResult>, should_continue: Arc<Mutex<bool>>, ids: Arc<Vec<Uuid>>, paths: Arc<HashMap<Uuid, String>>, search: &str) -> Result<(), UnexpectedError> {
+    for id in ids.as_ref() {
+        if !*should_continue.lock().map_err(|e| UnexpectedError(format!("{:?}", e)))? {
+            return Ok(())
         }
 
-        let content = files_contents.get(&file.id).unwrap();
+        if let Some(fuzzy_match) = FuzzySearch::new(search, &paths[id]).case_insensitive().best_match() {
 
-        if let Some(fuzzy_match) = FuzzySearch::new(search, &content).case_insensitive().best_match() {
-            // fuzzy_match.matched_indices().next().unwrap()
-            results_tx.send(SearchResult::FileContentMatch {
-                id: file.id,
-                file_name: file.decrypted_name.clone(),
-                content: "".to_string(),
+            if let Err(_) = results_tx.send(SearchResult::FileNameMatch {
+                id: id.clone(),
+                path: paths[id].clone(),
+                matched_indices: fuzzy_match.matched_indices().map(|ind| *ind).collect_vec(),
                 score: fuzzy_match.score()
-            }).unwrap();
+            }) {
+                break
+            }
         }
     }
+
+    Ok(())
+}
+
+pub fn search_file_contents(results_tx: Sender<SearchResult>, should_continue: Arc<Mutex<bool>>, ids: Arc<Vec<Uuid>>, paths: Arc<HashMap<Uuid, String>>, files_contents: Arc<HashMap<Uuid, String>>, search: &str) -> Result<(), UnexpectedError> {
+    for id in ids.as_ref() {
+        if !*should_continue.lock().map_err(|e| UnexpectedError(format!("{:?}", e)))? {
+            return Ok(())
+        }
+
+        let content = &files_contents[id];
+
+        if let Some(fuzzy_match) = FuzzySearch::new(search, content).case_insensitive().best_match() {
+            if let Err(_) = results_tx.send(SearchResult::FileContentMatch {
+                id: id.clone(),
+                path: paths[id].clone(),
+                content: "".to_string(),
+                score: fuzzy_match.score()
+            }) {
+                break
+            }
+        }
+
+    }
+
+    Ok(())
 }
 
 #[derive(Clone)]
@@ -177,19 +210,19 @@ pub enum SearchRequest {
 }
 
 pub enum SearchResult {
-    Error(CoreError),
+    Error(UnexpectedError),
     FileNameMatch {
         id: Uuid,
-        name: String,
+        path: String,
+        matched_indices: Vec<usize>,
         score: isize
     },
     FileContentMatch {
         id: Uuid,
-        file_name: String,
+        path: String,
         content: String,
         score: isize
     },
-    End
 }
 
 

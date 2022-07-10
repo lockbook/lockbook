@@ -14,6 +14,8 @@ import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.SerializersModuleBuilder
 import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
+import timber.log.Timber
+import kotlin.coroutines.Continuation
 
 object CoreModel {
     private const val PROD_API_URL = "https://api.prod.lockbook.net"
@@ -404,9 +406,9 @@ object CoreModel {
         }
     }
 
-    fun startSearch(searchModel: SearchModel): Result<Unit, CoreError<Empty>> =
+    fun startSearch(searchDocumentsViewModel: SearchDocumentsViewModel): Result<Unit, CoreError<Empty>> =
         startSearchParser.tryParse(
-            app.lockbook.core.startSearch(searchModel)
+            app.lockbook.core.startSearch(searchDocumentsViewModel)
         )
 
     private val searchParser = Json {
@@ -430,5 +432,4 @@ object CoreModel {
         endSearchParser.tryParse(
             app.lockbook.core.endSearch()
         )
-
 }

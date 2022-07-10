@@ -15,6 +15,6 @@
     </fragment>
     <fragment
         android:id="@+id/searchFilesFragment"
-        android:name="app.lockbook.screen.SearchFilesFragment"
+        android:name="app.lockbook.screen.SearchDocumentsFragment"
         android:label="SearchFilesFragment" />
 </navigation>

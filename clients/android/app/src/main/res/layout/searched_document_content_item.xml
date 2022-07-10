@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:id="@+id/searched_document_content_item_holder"
+    android:foreground="?attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true"
+    android:paddingStart="?android:listPreferredItemPaddingStart"
+    android:paddingEnd="?android:listPreferredItemPaddingEnd"
+    tools:ignore="UnusedAttribute">
+
+    <ImageView
+        android:id="@+id/searched_document_content_icon"
+        android:layout_width="30dp"
+        android:layout_height="45dp"
+        android:contentDescription="@string/document"
+        android:src="@drawable/ic_outline_insert_drive_file_24"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/searched_document_content_icon"
+        app:layout_constraintTop_toTopOf="parent"
+        android:layout_marginStart="20dp"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:layout_marginVertical="20dp">
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/searched_document_content_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="todo.md"
+            android:layout_marginBottom="5dp"
+            android:textAppearance="?attr/textAppearanceListItemSmall" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/searched_document_content_path"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:ellipsize="start"
+            android:text="/smailbarkouch/android/"
+            android:textAppearance="?attr/textAppearanceListItemSecondary"
+            app:layout_constraintBottom_toBottomOf="parent"
+            android:singleLine="true" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/searched_document_content"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Matched on this sort of text"
+                android:layout_margin="10dp"
+                android:textAppearance="?attr/textAppearanceBody2" />
+
+        </com.google.android.material.card.MaterialCardView>
+
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

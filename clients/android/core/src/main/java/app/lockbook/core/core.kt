@@ -30,6 +30,6 @@ external fun cancelSubscription(): String
 external fun getSubscriptionInfo(): String
 external fun getLocalChanges(): String
 external fun listMetadatas(): String
-external fun startSearch(searchModel: Any): String
+external fun startSearch(searchFilesViewModel: Any): String
 external fun search(query: String): String
 external fun endSearch(): String

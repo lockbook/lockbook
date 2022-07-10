@@ -16,7 +16,7 @@ import androidx.preference.Preference
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.screen.MainScreenActivity
-import app.lockbook.screen.SearchFilesFragment
+import app.lockbook.screen.SearchDocumentsFragment
 import app.lockbook.screen.SettingsActivity
 import app.lockbook.screen.SettingsFragment
 
@@ -66,5 +66,5 @@ fun MainScreenActivity.getFilesFragment(): FilesFragment =
 fun MainScreenActivity.maybeGetFilesFragment(): FilesFragment? =
     (supportFragmentManager.findFragmentById(R.id.files_container) as NavHostFragment).childFragmentManager.fragments[0] as? FilesFragment
 
-fun MainScreenActivity.maybeGetSearchFilesFragment(): SearchFilesFragment? =
-    (supportFragmentManager.findFragmentById(R.id.files_container) as NavHostFragment).childFragmentManager.fragments[0] as? SearchFilesFragment
+fun MainScreenActivity.maybeGetSearchFilesFragment(): SearchDocumentsFragment? =
+    (supportFragmentManager.findFragmentById(R.id.files_container) as NavHostFragment).childFragmentManager.fragments[0] as? SearchDocumentsFragment
