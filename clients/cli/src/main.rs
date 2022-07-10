@@ -260,13 +260,12 @@ fn exit_with(err: CliError) -> ! {
 }
 
 fn parse_and_run() -> Result<(), CliError> {
-    let lockbook_dir = match (env::var("LOCKBOOK_PATH"), env::var("HOME"), env::var("HOMEPATH")) {
+    let writeable_path = match (env::var("LOCKBOOK_PATH"), env::var("HOME"), env::var("HOMEPATH")) {
         (Ok(s), _, _) => s,
-        (Err(_), Ok(s), _) => format!("{}/.lockbook", s),
-        (Err(_), Err(_), Ok(s)) => format!("{}/.lockbook", s),
+        (Err(_), Ok(s), _) => format!("{}/.lockbook/cli", s),
+        (Err(_), Err(_), Ok(s)) => format!("{}/.lockbook/cli", s),
         _ => return Err(CliError::no_cli_location()),
     };
-    let writeable_path = format!("{}/cli", lockbook_dir);
 
     let core = Core::init(&Config { logs: true, writeable_path })?;
 
