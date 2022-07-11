@@ -1,14 +1,10 @@
 package app.lockbook.screen
 
-import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.inputmethod.InputMethodManager
-import android.widget.TextView
 import androidx.appcompat.widget.SearchView
-import androidx.core.content.ContextCompat.getSystemService
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
@@ -18,7 +14,6 @@ import app.lockbook.model.*
 import app.lockbook.util.*
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
-import timber.log.Timber
 import java.lang.ref.WeakReference
 
 
@@ -48,17 +43,16 @@ class SearchDocumentsFragment: Fragment() {
         }
 
         binding.searchDocumentsResults.setup {
-            withDataSource(model.fileResultsSource)
-            withEmptyView(binding.searchDocumentsNone)
+            withDataSource(model.fileResults)
 
             withItem<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo, SearchedDocumentNameViewHolder>(R.layout.searched_document_name_item) {
                 onBind(::SearchedDocumentNameViewHolder) { _, item ->
-                    name.setText(item.name, TextView.BufferType.SPANNABLE)
-                    path.setText(item.path, TextView.BufferType.SPANNABLE)
+                    name.text = item.name
+                    path.text = item.path
                 }
 
                 onClick {
-                    binding.searchDocumentsSearch.rootView.closeKeyboard()
+                    binding.searchDocumentsSearch.clearFocus()
                     model.openDocument(item.id)
                 }
             }
@@ -71,7 +65,7 @@ class SearchDocumentsFragment: Fragment() {
                 }
 
                 onClick {
-                    binding.searchDocumentsSearch.closeKeyboard()
+                    binding.searchDocumentsSearch.clearFocus()
                     model.openDocument(item.id)
                 }
             }
@@ -79,22 +73,15 @@ class SearchDocumentsFragment: Fragment() {
 
         binding.searchDocumentsSearch.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
-                if(query != null && query.isNotEmpty())  {
-                    model.newSearch(query)
-                }
+                model.newSearch(query)
 
-                Timber.e("Submit: $query")
+                binding.searchDocumentsSearch.clearFocus()
                 return true
             }
 
             override fun onQueryTextChange(newText: String?): Boolean {
-                if(newText != null && newText.isNotEmpty())  {
-                    model.newSearch(newText)
-                } else if(newText?.isEmpty() == true) {
-                    model.fileResultsSource.clear()
-                }
+                model.newSearch(newText)
 
-                Timber.e("NEW Text: $newText")
                 return true
             }
         })
@@ -102,9 +89,10 @@ class SearchDocumentsFragment: Fragment() {
         return binding.root
     }
 
-
     private fun updateSearchUI(uiUpdate: UpdateSearchUI) {
         when(uiUpdate) {
+            UpdateSearchUI.ToggleProgressSpinner -> binding.searchDocumentsLoader.visibility = if(model.isProgressSpinnerShown) View.VISIBLE else View.GONE
+            UpdateSearchUI.ToggleNoSearchResults -> binding.searchDocumentsNone.visibility = if(model.isNoSearchResultsShown) View.VISIBLE else View.GONE
             is UpdateSearchUI.Error -> alertModel.notifyError(uiUpdate.error)
             is UpdateSearchUI.OpenFile -> activityModel.launchDetailsScreen(DetailsScreen.Loading(uiUpdate.fileMetadata))
         }

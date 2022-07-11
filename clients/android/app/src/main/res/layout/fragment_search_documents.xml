@@ -28,6 +28,15 @@
 
     </com.google.android.material.appbar.MaterialToolbar>
 
+    <com.google.android.material.progressindicator.LinearProgressIndicator
+        android:id="@+id/search_documents_loader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:indeterminate="true"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@+id/search_documents_toolbar"
+        app:layout_constraintBottom_toTopOf="@+id/search_documents_results" />
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/search_documents_results"
         android:layout_width="match_parent"
@@ -35,7 +44,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/search_documents_toolbar" />
+        app:layout_constraintTop_toBottomOf="@+id/search_documents_loader" />
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/search_documents_none"
