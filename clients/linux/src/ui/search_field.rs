@@ -9,13 +9,13 @@ use crate::ui::icons;
 
 #[derive(Clone, Debug, Default)]
 pub struct SearchField {
-    pub searcher: Rc<RefCell<Option<lb::Searcher>>>,
     pub real_input: Rc<RefCell<String>>,
     pub entry: gtk::Entry,
     pub result_list_cntr: gtk::Box,
     pub result_list: gtk::ListBox,
     pub loading: gtk::Spinner,
     no_results: gtk::Label,
+    on_update: Rc<RefCell<Func>>,
     on_activate: Rc<RefCell<Func>>,
     on_blur: Rc<RefCell<Func>>,
 }
@@ -89,7 +89,6 @@ impl SearchField {
                     while let Some(row) = this.result_list.row_at_index(0) {
                         this.result_list.remove(&row);
                     }
-                    *this.searcher.borrow_mut() = None;
                     this.loading.hide();
                     this.no_results.hide();
                 } else if code == ARROW_DOWN {
@@ -122,11 +121,11 @@ impl SearchField {
             }
         });
         search_key_press.connect_key_released({
-            let this = self.clone();
+            let on_update = self.on_update.clone();
 
             move |_, _, code, _| match code {
                 ALT_L | ALT_R | CTRL_L | CTRL_R | ARROW_DOWN | ARROW_UP | ENTER => {}
-                _ => this.run_search(),
+                _ => on_update.borrow().0(),
             }
         });
         self.entry.add_controller(&search_key_press);
@@ -147,12 +146,8 @@ impl SearchField {
         self.result_list_cntr.append(&self.no_results);
     }
 
-    pub fn set_searcher(&self, searcher: Option<lb::Searcher>) {
-        *self.searcher.borrow_mut() = searcher;
-        self.loading.hide();
-        if self.searcher.borrow().is_some() {
-            self.run_search();
-        }
+    pub fn connect_update<F: Fn() + 'static>(&self, f: F) {
+        *self.on_activate.borrow_mut() = Func(Box::new(f))
     }
 
     pub fn connect_activate<F: Fn() + 'static>(&self, f: F) {
@@ -161,44 +156,6 @@ impl SearchField {
 
     pub fn connect_blur<F: Fn() + 'static>(&self, f: F) {
         *self.on_blur.borrow_mut() = Func(Box::new(f))
-    }
-
-    pub fn run_search(&self) {
-        let input = self.entry.text().to_string();
-        if let Some(searcher) = &*self.searcher.borrow() {
-            // clear any stale results.
-            while let Some(row) = self.result_list.row_at_index(0) {
-                self.result_list.remove(&row);
-            }
-
-            // if a searcher is present but there's no input, show and do nothing.
-            if input.is_empty() {
-                self.no_results.hide();
-                return;
-            }
-
-            let results = searcher.search(&input);
-            if results.is_empty() {
-                self.no_results.show();
-            } else {
-                self.no_results.hide();
-                for res in results {
-                    let row = ui::SearchRow::new();
-                    row.set_data(res.id, &res.path);
-                    self.result_list.append(&row);
-                }
-            }
-
-            if self.loading.is_spinning() {
-                self.loading.stop();
-            }
-            self.loading.hide();
-        } else if !input.is_empty() {
-            if !self.loading.is_spinning() {
-                self.loading.start();
-            }
-            self.loading.show();
-        }
     }
 }
 
