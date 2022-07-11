@@ -1,10 +1,10 @@
+pub use lockbook_core::service::search_service::SearchResultItem;
 pub use lockbook_core::AccountExportError as ExportAccountError;
 pub use lockbook_core::DecryptedFileMetadata as FileMetadata;
 pub use lockbook_core::Error::UiError;
 pub use lockbook_core::Error::Unexpected;
 pub use lockbook_core::ImportError as ImportAccountError;
 pub use lockbook_core::WriteToDocumentError as WriteDocumentError;
-pub use lockbook_core::service::search_service::SearchResultItem;
 pub use lockbook_core::*;
 
 use std::collections::HashMap;
