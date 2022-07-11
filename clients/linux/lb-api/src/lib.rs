@@ -1,5 +1,4 @@
-mod search;
-
+pub use lockbook_core::service::search_service::SearchResultItem;
 pub use lockbook_core::AccountExportError as ExportAccountError;
 pub use lockbook_core::DecryptedFileMetadata as FileMetadata;
 pub use lockbook_core::Error::UiError;
@@ -8,9 +7,6 @@ pub use lockbook_core::ImportError as ImportAccountError;
 pub use lockbook_core::WriteToDocumentError as WriteDocumentError;
 pub use lockbook_core::*;
 
-pub use search::SearchResultItem;
-pub use search::Searcher;
-
 use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
@@ -18,7 +14,6 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use lockbook_core::model::filename::NameComponents;
-use lockbook_core::FileMetadata as FileMetadataExt;
 
 pub trait Api: Send + Sync {
     fn create_account(
@@ -69,7 +64,7 @@ pub trait Api: Send + Sync {
     fn sync_all(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>>;
     fn is_syncing(&self) -> bool;
 
-    fn searcher(&self, filter: Option<Filter>) -> Result<Searcher, String>;
+    fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError>;
 
     fn get_subscription_info(
         &self,
@@ -247,26 +242,8 @@ impl Api for DefaultApi {
         self.sync_lock.try_lock().is_err()
     }
 
-    fn searcher(&self, filter: Option<Filter>) -> Result<Searcher, String> {
-        let root_name = self
-            .root()
-            .map_err(|_| "No root!".to_string())?
-            .decrypted_name;
-        let files = self.list_metadatas()?;
-
-        let mut paths = Vec::new();
-        for f in files {
-            if filter == None
-                || (filter == Some(Filter::FoldersOnly) && f.is_folder())
-                || (filter == Some(Filter::DocumentsOnly) && f.is_document())
-            {
-                let path = self.path_by_id(f.id)?;
-                let path_without_root = path.strip_prefix(&root_name).unwrap_or(&path).to_string();
-                paths.push((f.id, path_without_root));
-            }
-        }
-
-        Ok(Searcher::new(paths))
+    fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError> {
+        self.core.search_file_paths(input)
     }
 
     fn get_subscription_info(

@@ -8,6 +8,7 @@ use crate::ui;
 use crate::ui::icons;
 
 pub enum SearchOp {
+    Update,
     Exec,
 }
 
@@ -35,8 +36,32 @@ impl Titlebar {
         }
     }
 
-    pub fn set_searcher(&self, searcher: Option<lb::Searcher>) {
-        self.imp().search_field.set_searcher(searcher);
+    pub fn waiting_for_search_results(&self) {
+        let list = &self.imp().search_field.result_list;
+        while let Some(row) = list.row_at_index(0) {
+            list.remove(&row);
+        }
+        self.imp().search_field.loading.show();
+    }
+
+    pub fn search_input(&self) -> String {
+        self.imp().search_field.entry.text().to_string()
+    }
+
+    pub fn show_search_results(&self, results: &[lb::SearchResultItem]) {
+        self.imp().search_field.loading.hide();
+
+        let list = &self.imp().search_field.result_list;
+
+        while let Some(row) = list.row_at_index(0) {
+            list.remove(&row);
+        }
+
+        for res in results {
+            let row = ui::SearchRow::new();
+            row.set_data(res.id, &res.path);
+            list.append(&row);
+        }
     }
 
     pub fn clear_search(&self) {
@@ -44,9 +69,14 @@ impl Titlebar {
         if btn.is_active() {
             btn.emit_clicked();
         }
+
         self.imp().search_field.entry.set_text("");
         *self.imp().search_field.real_input.borrow_mut() = "".to_string();
-        *self.imp().search_field.searcher.borrow_mut() = None;
+
+        let list = &self.imp().search_field.result_list;
+        while let Some(row) = list.row_at_index(0) {
+            list.remove(&row);
+        }
     }
 
     pub fn receive_search_ops<F: FnMut(SearchOp) -> glib::Continue + 'static>(&self, f: F) {
@@ -92,7 +122,7 @@ impl Default for TitlebarImp {
         let (search_op_tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
         Self {
             title: Default::default(),
-            search_field: Default::default(),
+            search_field: ui::SearchField::default(),
             search_op_rx: RefCell::new(Some(rx)),
             search_op_tx,
             app_menu_btn: Default::default(),
@@ -121,6 +151,10 @@ impl ObjectImpl for TitlebarImp {
         self.title.set_markup("<b>Lockbook</b>");
 
         self.search_field.init();
+        self.search_field.connect_update({
+            let ch = self.search_op_tx.clone();
+            move || ch.send(SearchOp::Update).unwrap()
+        });
         self.search_field.connect_activate({
             let ch = self.search_op_tx.clone();
             move || ch.send(SearchOp::Exec).unwrap()

@@ -8,6 +8,7 @@ impl super::App {
         let app = self.clone();
         self.titlebar.receive_search_ops(move |op| {
             match op {
+                ui::SearchOp::Update => app.update_search(),
                 ui::SearchOp::Exec => app.exec_search(),
             }
             glib::Continue(true)
@@ -15,22 +16,26 @@ impl super::App {
     }
 
     pub fn open_search(&self) {
-        self.titlebar.set_searcher(None);
         self.titlebar.toggle_search_on();
+    }
+
+    pub fn update_search(&self) {
+        self.titlebar.waiting_for_search_results();
 
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
         let api = self.api.clone();
+        let input = self.titlebar.search_input();
         std::thread::spawn(move || {
-            let result = api.searcher(Some(lb::Filter::DocumentsOnly));
+            let result = api.search_file_paths(&input);
             tx.send(result).unwrap();
         });
 
         let app = self.clone();
-        rx.attach(None, move |searcher_result| {
-            match searcher_result {
-                Ok(searcher) => app.titlebar.set_searcher(Some(searcher)),
-                Err(msg) => app.show_err_dialog(&msg),
+        rx.attach(None, move |search_results| {
+            match search_results {
+                Ok(results) => app.titlebar.show_search_results(&results),
+                Err(msg) => app.show_err_dialog(&msg.0),
             }
             glib::Continue(false)
         });
@@ -46,24 +51,9 @@ impl super::App {
                 .unwrap()
                 .id();
             self.titlebar.clear_search();
-            self.repopulate_search_results(&[]);
             self.open_file(id);
         } else {
             self.show_err_dialog("no file path matches your search!");
-        }
-    }
-
-    fn repopulate_search_results(&self, data: &[lb::SearchResultItem]) {
-        let list = self.titlebar.search_result_list();
-
-        while let Some(row) = list.row_at_index(0) {
-            list.remove(&row);
-        }
-
-        for res in data {
-            let row = ui::SearchRow::new();
-            row.set_data(res.id, &res.path);
-            list.append(&row);
         }
     }
 }
