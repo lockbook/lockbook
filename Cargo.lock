@@ -474,17 +474,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
 
 [[package]]
-name = "colored"
-version = "1.9.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4ffc801dacf156c5854b9df4f425a626539c3a6ef7893cc0c5084a23f0b6c59"
-dependencies = [
- "atty",
- "lazy_static",
- "winapi 0.3.9",
-]
-
-[[package]]
 name = "combine"
 version = "3.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -908,16 +897,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3fcf0cee53519c866c09b5de1f6c56ff9d647101f81c1964fa632e148896cdf"
 dependencies = [
  "instant",
-]
-
-[[package]]
-name = "fern"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bdd7b0849075e79ee9a1836df22c717d1eba30451796fdc631b04565dd11e2a"
-dependencies = [
- "colored",
- "log 0.4.17",
 ]
 
 [[package]]
@@ -2261,7 +2240,6 @@ dependencies = [
  "bincode",
  "chrono",
  "constant_time_eq",
- "fern",
  "futures",
  "google-androidpublisher3",
  "hmdb",
@@ -2282,6 +2260,9 @@ dependencies = [
  "shadow-rs",
  "tokio",
  "tokio-test",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
  "uuid",
  "warp",
 ]

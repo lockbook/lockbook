@@ -29,8 +29,8 @@ unsafe fn str_from_ptr(s: *const c_char) -> String {
         .to_string()
 }
 
-unsafe fn config_from_ptr(path: *const c_char, logs: bool) -> Config {
-    Config { writeable_path: str_from_ptr(path), logs }
+unsafe fn config_from_ptr(path: *const c_char, logs: bool, colored_logs: bool) -> Config {
+    Config { writeable_path: str_from_ptr(path), logs, colored_logs }
 }
 
 unsafe fn uuid_from_ptr(s: *const c_char) -> Uuid {
@@ -62,8 +62,10 @@ pub unsafe extern "C" fn release_pointer(s: *mut c_char) {
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn init(writeable_path: *const c_char, logs: bool) -> *const c_char {
-    c_string(translate(static_state::init(&config_from_ptr(writeable_path, logs))))
+pub unsafe extern "C" fn init(
+    writeable_path: *const c_char, logs: bool, colored_logs: bool,
+) -> *const c_char {
+    c_string(translate(static_state::init(&config_from_ptr(writeable_path, logs, colored_logs))))
 }
 
 /// # Safety

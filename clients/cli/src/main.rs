@@ -268,7 +268,7 @@ fn parse_and_run() -> Result<(), CliError> {
     };
     let writeable_path = format!("{}/cli", lockbook_dir);
 
-    let core = Core::init(&Config { logs: true, writeable_path })?;
+    let core = Core::init(&Config { writeable_path, logs: true, colored_logs: true })?;
 
     use Lockbook::*;
     match Lockbook::from_args() {
