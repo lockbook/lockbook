@@ -8,12 +8,13 @@ use lazy_static::lazy_static;
 use lockbook_crypto::pubkey::ECVerifyError;
 use lockbook_models::api::*;
 use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper};
-use log::{error, warn};
 use prometheus::{register_histogram_vec, HistogramVec, TextEncoder};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::*;
+use tracing::{span, Level};
 use warp::http::{HeaderValue, Method, StatusCode};
 use warp::hyper::body::Bytes;
 use warp::{reject, Filter, Rejection};
@@ -34,7 +35,9 @@ macro_rules! core_req {
         use crate::router_service::{deserialize_and_check, method};
         use crate::{RequestContext, ServerError};
         use lockbook_models::api::{ErrorWrapper, Request};
-        use log::error;
+        use lockbook_models::file_metadata::Owner;
+        use tracing::*;
+        use tracing::{span, Level};
 
         let cloned_state = $state.clone();
 
@@ -43,6 +46,13 @@ macro_rules! core_req {
             .and(warp::any().map(move || cloned_state.clone()))
             .and(warp::body::bytes())
             .then(|state: Arc<ServerState>, request: Bytes| async move {
+                let span1 = span!(
+                    Level::INFO,
+                    "matched_request",
+                    method = &<$Req>::METHOD.as_str(),
+                    route = &<$Req>::ROUTE,
+                );
+                let _enter = span1.enter();
                 let state = state.as_ref();
                 let timer = router_service::HTTP_REQUEST_DURATION_HISTOGRAM
                     .with_label_values(&[<$Req>::ROUTE])
@@ -51,19 +61,47 @@ macro_rules! core_req {
                 let request: RequestWrapper<$Req> = match deserialize_and_check(state, request) {
                     Ok(req) => req,
                     Err(err) => {
+                        warn!("request failed to parse: {:?}", err);
                         return warp::reply::json::<Result<RequestWrapper<$Req>, _>>(&Err(err));
                     }
                 };
 
+                debug!("request verified successfully");
+                let req_pk = request.signed_request.public_key;
+                let username = match state.index_db.accounts.get(&Owner(req_pk)) {
+                    Ok(Some(account)) => account.username,
+                    Ok(None) => "~unknown~".to_string(),
+                    Err(err) => {
+                        error!("hmdb error! {:?}", err);
+                        "~error~".to_string()
+                    }
+                };
+                let req_pk = base64::encode(req_pk.serialize_compressed());
+
+                let span2 = span!(
+                    Level::INFO,
+                    "verified_request_signature",
+                    username = username.as_str(),
+                    public_key = req_pk.as_str()
+                );
+                let _enter = span2.enter();
                 let rc: RequestContext<$Req> = RequestContext {
                     server_state: state,
                     request: request.signed_request.timestamped_value.value,
                     public_key: request.signed_request.public_key,
                 };
 
-                let to_serialize = match $handler(rc).await {
-                    Ok(response) => Ok(response),
-                    Err(ServerError::ClientError(e)) => Err(ErrorWrapper::Endpoint(e)),
+                let result = span2.in_scope(|| $handler(rc)).await;
+
+                let to_serialize = match result {
+                    Ok(response) => {
+                        info!("request processed successfully");
+                        Ok(response)
+                    }
+                    Err(ServerError::ClientError(e)) => {
+                        warn!("request rejected due to a client error: {:?}", e);
+                        Err(ErrorWrapper::Endpoint(e))
+                    }
                     Err(ServerError::InternalError(e)) => {
                         error!("Internal error {}: {}", <$Req>::ROUTE, e);
                         Err(ErrorWrapper::InternalError)
@@ -78,7 +116,7 @@ macro_rules! core_req {
 
 pub fn core_routes(
     server_state: &Arc<ServerState>,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+) -> impl Filter<Extract = impl warp::Reply, Error = Rejection> + Clone {
     core_req!(NewAccountRequest, new_account, server_state)
         .or(core_req!(ChangeDocumentContentRequest, change_document_content, server_state))
         .or(core_req!(FileMetadataUpsertsRequest, upsert_file_metadata, server_state))
@@ -97,10 +135,18 @@ pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rej
     warp::get()
         .and(warp::path(&GetBuildInfoRequest::ROUTE[1..]))
         .map(|| {
+            let span = span!(
+                Level::INFO,
+                "matched_request",
+                method = &GetBuildInfoRequest::METHOD.as_str(),
+                route = &GetBuildInfoRequest::ROUTE,
+            );
+            let _enter = span.enter();
             let timer = router_service::HTTP_REQUEST_DURATION_HISTOGRAM
                 .with_label_values(&[GetBuildInfoRequest::ROUTE])
                 .start_timer();
             let resp = get_build_info();
+            info!("request processed successfully");
             let resp = warp::reply::json(&resp);
             timer.observe_duration();
             resp
@@ -109,8 +155,13 @@ pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rej
 
 pub fn get_metrics() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     warp::get().and(warp::path("metrics")).map(|| {
+        let span = span!(Level::INFO, "matched_request", method = "GET", route = "/metrics",);
+        let _enter = span.enter();
         match TextEncoder::new().encode_to_string(prometheus::gather().as_slice()) {
-            Ok(metrics) => metrics,
+            Ok(metrics) => {
+                info!("request processed successfully");
+                metrics
+            }
             Err(err) => {
                 error!("Error preparing response for prometheus: {:?}", err);
                 String::new()
@@ -119,18 +170,31 @@ pub fn get_metrics() -> impl Filter<Extract = impl warp::Reply, Error = warp::Re
     })
 }
 
+static STRIPE_WEBHOOK_ROUTE: &str = "stripe-webhooks";
 pub fn stripe_webhooks(
     server_state: &Arc<ServerState>,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     let cloned_state = server_state.clone();
 
     warp::post()
-        .and(warp::path("stripe-webhooks"))
+        .and(warp::path(STRIPE_WEBHOOK_ROUTE))
         .and(warp::any().map(move || cloned_state.clone()))
         .and(warp::body::bytes())
         .and(warp::header::header("Stripe-Signature"))
         .then(|state: Arc<ServerState>, request: Bytes, stripe_sig: HeaderValue| async move {
-            match billing_service::stripe_webhooks(&state, request, stripe_sig).await {
+            let span = span!(
+                Level::INFO,
+                "matched_request",
+                method = "POST",
+                route = format!("/{}", STRIPE_WEBHOOK_ROUTE).as_str()
+            );
+            let _enter = span.enter();
+            info!("webhook routed");
+            let response = span
+                .in_scope(|| billing_service::stripe_webhooks(&state, request, stripe_sig))
+                .await;
+
+            match response {
                 Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
                 Err(e) => {
                     error!("{:?}", e);
@@ -151,19 +215,26 @@ pub fn stripe_webhooks(
         })
 }
 
+static PLAY_WEBHOOK_ROUTE: &str = "google_play_notification_webhook";
 pub fn google_play_notification_webhooks(
     server_state: &Arc<ServerState>,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     let cloned_state = server_state.clone();
 
     warp::post()
-        .and(warp::path("google_play_notification_webhook"))
+        .and(warp::path(PLAY_WEBHOOK_ROUTE))
         .and(warp::any().map(move || cloned_state.clone()))
         .and(warp::body::bytes())
         .and(warp::query::query::<HashMap<String, String>>())
         .then(|state: Arc<ServerState>, request: Bytes, query_parameters: HashMap<String, String>| async move {
-            match billing_service::google_play_notification_webhooks(&state, request, query_parameters).await
-            {
+            let span =
+                span!(Level::INFO, "matched_request", method = "POST", route = format!("/{}", PLAY_WEBHOOK_ROUTE).as_str());
+            let _enter = span.enter();
+            info!("webhook routed");
+            let response = span
+                .in_scope(|| billing_service::google_play_notification_webhooks(&state, request, query_parameters))
+                .await;
+            match response {
                 Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
                 Err(e) => {
                     error!("{:?}", e);
@@ -216,9 +287,13 @@ where
 
     verify_auth(server_state, &request).map_err(|err| match err {
         ECVerifyError::SignatureExpired(_) | ECVerifyError::SignatureInTheFuture(_) => {
+            warn!("expired auth");
             ErrorWrapper::<Req::Error>::ExpiredAuth
         }
-        _ => ErrorWrapper::<Req::Error>::InvalidAuth,
+        _ => {
+            warn!("invalid auth");
+            ErrorWrapper::<Req::Error>::InvalidAuth
+        }
     })?;
 
     Ok(request)

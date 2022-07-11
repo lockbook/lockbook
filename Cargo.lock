@@ -2249,7 +2249,6 @@ dependencies = [
  "lockbook-core",
  "lockbook-crypto",
  "lockbook-models",
- "log 0.4.17",
  "num_cpus",
  "pagerduty-rs",
  "prometheus",

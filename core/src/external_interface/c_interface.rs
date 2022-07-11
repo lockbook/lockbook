@@ -62,10 +62,8 @@ pub unsafe extern "C" fn release_pointer(s: *mut c_char) {
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn init(
-    writeable_path: *const c_char, logs: bool, colored_logs: bool,
-) -> *const c_char {
-    c_string(translate(static_state::init(&config_from_ptr(writeable_path, logs, colored_logs))))
+pub unsafe extern "C" fn init(writeable_path: *const c_char, logs: bool) -> *const c_char {
+    c_string(translate(static_state::init(&config_from_ptr(writeable_path, logs, true))))
 }
 
 /// # Safety

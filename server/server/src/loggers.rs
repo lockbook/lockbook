@@ -30,6 +30,7 @@ pub fn init(config: &Config) {
         .with(
             fmt::Layer::new()
                 .pretty()
+                .with_target(false)
                 .with_filter(LevelFilter::INFO)
                 .with_filter(server_logs()),
         )

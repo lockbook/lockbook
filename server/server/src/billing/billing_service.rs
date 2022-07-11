@@ -23,10 +23,10 @@ use lockbook_models::api::{
     UpgradeAccountStripeRequest, UpgradeAccountStripeResponse,
 };
 use lockbook_models::file_metadata::Owner;
-use log::{info, warn};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
+use tracing::*;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
 
@@ -59,7 +59,7 @@ fn lock_subscription_profile(
         account.billing_info.last_in_payment_flow = current_time;
         tx.accounts.insert(owner, account.clone());
 
-        info!(
+        debug!(
         "User successfully entered payment flow. public_key: {}",
         stringify_public_key(public_key)
     );
@@ -89,10 +89,7 @@ pub async fn upgrade_account_google_play(
         return Err(ClientError(UpgradeAccountGooglePlayError::AlreadyPremium));
     }
 
-    info!(
-        "Upgrading the account of a user through google play billing. public_key: {:?}.",
-        context.public_key
-    );
+    debug!("Upgrading the account of a user through google play billing.");
 
     google_play_client::acknowledge_subscription(
         &server_state.config,
@@ -101,7 +98,7 @@ pub async fn upgrade_account_google_play(
     )
     .await?;
 
-    info!("Acknowledged a user's google play subscription. public_key {:?}", context.public_key);
+    debug!("Acknowledged a user's google play subscription");
 
     let expiry_info = google_play_client::get_subscription(
         &server_state.config,
@@ -128,10 +125,7 @@ pub async fn upgrade_account_google_play(
         account,
     )?;
 
-    info!(
-        "Successfully upgraded a user through a google play subscription. public_key: {:?}",
-        context.public_key
-    );
+    debug!("Successfully upgraded a user through a google play subscription. public_key");
 
     Ok(UpgradeAccountGooglePlayResponse {})
 }
@@ -141,7 +135,7 @@ pub async fn upgrade_account_stripe(
 ) -> Result<UpgradeAccountStripeResponse, ServerError<UpgradeAccountStripeError>> {
     let (request, server_state) = (&context.request, context.server_state);
 
-    info!("Attempting to upgrade the account tier of {:?} to premium", context.public_key);
+    debug!("Attempting to upgrade the account tier of to premium");
 
     let mut account = lock_subscription_profile(server_state, &context.public_key)?;
 
@@ -172,10 +166,7 @@ pub async fn upgrade_account_stripe(
         account,
     )?;
 
-    info!(
-        "Successfully upgraded the account tier of {:?} from free to premium.",
-        context.public_key
-    );
+    debug!("Successfully upgraded the account tier of from free to premium.");
 
     Ok(UpgradeAccountStripeResponse {})
 }
@@ -232,17 +223,14 @@ pub async fn cancel_subscription(
         .sum();
 
     if usage > FREE_TIER_USAGE_SIZE {
-        info!(
-            "Cannot downgrade user to free since they are over the data cap. public_key: {:?}",
-            context.public_key
-        );
+        debug!("Cannot downgrade user to free since they are over the data cap.");
         return Err(ClientError(CancelSubscriptionError::UsageIsOverFreeTierDataCap));
     }
 
     match account.billing_info.billing_platform {
         None => return Err(internal!("A user somehow has premium tier usage, but no billing information on redis. public_key: {:?}", context.public_key)),
         Some(BillingPlatform::GooglePlay(ref mut info)) => {
-            info!("Canceling google play subscription of user. public_key: {:?}.", context.public_key);
+            debug!("Canceling google play subscription of user.");
 
             if let GooglePlayAccountState::Canceled = &info.account_state {
                 return Err(ClientError(CancelSubscriptionError::AlreadyCanceled))
@@ -255,10 +243,10 @@ pub async fn cancel_subscription(
             ).await?;
 
             info.account_state = GooglePlayAccountState::Canceled;
-            info!("Successfully canceled google play subscription of user. public_key: {:?}.", context.public_key);
+            debug!("Successfully canceled google play subscription of user.");
         }
         Some(BillingPlatform::Stripe(ref info)) => {
-            info!("Canceling stripe subscription of user. public_key: {:?}.", context.public_key);
+            debug!("Canceling stripe subscription of user.");
 
             stripe_client::cancel_subscription(
                 &server_state.stripe_client,
@@ -269,7 +257,7 @@ pub async fn cancel_subscription(
 
             account.billing_info.billing_platform = None;
 
-            info!("Successfully canceled stripe subscription. public_key: {:?}", context.public_key);
+            debug!("Successfully canceled stripe subscription.");
         }
     }
 
@@ -318,14 +306,14 @@ pub async fn stripe_webhooks(
     let event =
         stripe_service::verify_request_and_get_event(server_state, &request_body, stripe_sig)?;
 
-    info!("Verified stripe request. event: {:?}.", event.event_type);
+    debug!("Verified stripe request. event: {:?}.", event.event_type);
 
     match (&event.event_type, &event.data.object) {
         (stripe::EventType::InvoicePaymentFailed, stripe::EventObject::Invoice(invoice)) => {
             if let Some(stripe::InvoiceBillingReason::SubscriptionCycle) = invoice.billing_reason {
                 let public_key = stripe_service::get_public_key(server_state, invoice)?;
 
-                info!(
+                debug!(
                     "User's tier is being reduced due to failed renewal payment in stripe. public_key: {}",
                     stringify_public_key(&public_key)
                 );
@@ -341,7 +329,7 @@ pub async fn stripe_webhooks(
             if let Some(stripe::InvoiceBillingReason::SubscriptionCycle) = invoice.billing_reason {
                 let public_key = stripe_service::get_public_key(server_state, invoice)?;
 
-                info!(
+                debug!(
                     "User's subscription period_end is being changed after successful renewal. public_key: {}",
                     stringify_public_key(&public_key)
                 );
@@ -398,7 +386,7 @@ pub async fn google_play_notification_webhooks(
     .await?;
 
     if let Some(sub_notif) = notification.subscription_notification {
-        info!("Notification is for a subscription: {:?}", sub_notif);
+        debug!("Notification is for a subscription: {:?}", sub_notif);
 
         let subscription = google_play_client::get_subscription(
             &server_state.config,
@@ -420,7 +408,7 @@ pub async fn google_play_notification_webhooks(
             &notification_type,
         )?;
 
-        info!("Updating google play user's subscription profile to match new subscription state. public_key: {:?}, notification_type: {:?}", public_key, notification_type);
+        debug!("Updating google play user's subscription profile to match new subscription state. public_key: {:?}, notification_type: {:?}", public_key, notification_type);
 
         save_subscription_profile(
             server_state,
@@ -456,12 +444,12 @@ pub async fn google_play_notification_webhooks(
                             if info.purchase_token == sub_notif.purchase_token {
                                 account.billing_info.billing_platform = None
                             } else {
-                                info!("Expired or revoked subscription was tied to an old purchase_token. old purchase_token: {:?}, new purchase_token: {:?}", sub_notif.purchase_token, info.purchase_token);
+                                debug!("Expired or revoked subscription was tied to an old purchase_token. old purchase_token: {:?}, new purchase_token: {:?}", sub_notif.purchase_token, info.purchase_token);
                             }
                         }
                         NotificationType::SubscriptionCanceled => {
                             info.account_state = GooglePlayAccountState::Canceled;
-                            info!(
+                            debug!(
                                 "Reason of cancellation: {:?}, public_key: {:?}",
                                 subscription.cancel_survey_result,
                                 public_key
@@ -498,7 +486,7 @@ pub async fn google_play_notification_webhooks(
     }
 
     if let Some(test_notif) = notification.test_notification {
-        info!("Test notification. version: {}", test_notif.version)
+        debug!("Test notification. version: {}", test_notif.version)
     }
 
     if let Some(otp_notif) = notification.one_time_product_notification {
