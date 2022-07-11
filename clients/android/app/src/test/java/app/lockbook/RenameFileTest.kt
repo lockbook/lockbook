@@ -20,7 +20,7 @@ class RenameFileTest {
 
     @Before
     fun initCore() {
-        CoreModel.init(Config(false, createRandomPath()))
+        CoreModel.init(Config(false, false,, createRandomPath()))
     }
 
     @Test

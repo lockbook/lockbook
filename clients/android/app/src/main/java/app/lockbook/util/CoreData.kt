@@ -61,6 +61,7 @@ data class WorkUnitMetadata(val metadata: DecryptedFileMetadata)
 @Serializable
 data class Config(
     val logs: Boolean,
+    val colored_logs: Boolean,
     val writeable_path: String
 )
 
