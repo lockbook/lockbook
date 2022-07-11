@@ -14,7 +14,6 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::*;
-use tracing::{span, Level};
 use warp::http::{HeaderValue, Method, StatusCode};
 use warp::hyper::body::Bytes;
 use warp::{reject, Filter, Rejection};
@@ -37,7 +36,6 @@ macro_rules! core_req {
         use lockbook_models::api::{ErrorWrapper, Request};
         use lockbook_models::file_metadata::Owner;
         use tracing::*;
-        use tracing::{span, Level};
 
         let cloned_state = $state.clone();
 

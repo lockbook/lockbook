@@ -10,7 +10,7 @@ use lockbook_server_lib::router_service::{
 use lockbook_server_lib::schema::ServerV1;
 use lockbook_server_lib::*;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::*;
 use warp::Filter;
 
 #[tokio::main]

@@ -1,7 +1,6 @@
 use crate::config::Config;
 use crate::{ServerError, FREE_TIER_USAGE_SIZE, PREMIUM_TIER_USAGE_SIZE};
 use google_androidpublisher3::api::SubscriptionPurchase;
-use libsecp256k1::PublicKey;
 use lockbook_models::api::{GooglePlayAccountState, UnixTimeMillis, UpgradeAccountGooglePlayError};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -39,8 +38,7 @@ pub enum BillingPlatform {
 
 impl BillingPlatform {
     pub fn new_play_sub(
-        config: &Config, public_key: &PublicKey, purchase_token: &str,
-        expiry_information: SubscriptionPurchase,
+        config: &Config, purchase_token: &str, expiry_information: SubscriptionPurchase,
     ) -> Result<Self, ServerError<UpgradeAccountGooglePlayError>> {
         let expiration_time = expiry_information
             .expiry_time_millis

@@ -109,7 +109,6 @@ pub async fn upgrade_account_google_play(
 
     account.billing_info.billing_platform = Some(BillingPlatform::new_play_sub(
         &server_state.config,
-        &context.public_key,
         &request.purchase_token,
         expiry_info,
     )?);
