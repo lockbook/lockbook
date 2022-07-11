@@ -4,6 +4,7 @@ import android.app.Application
 import android.graphics.Color
 import android.graphics.Typeface
 import android.text.Spannable
+import android.text.SpannableString
 import android.text.SpannableStringBuilder
 import android.text.style.BackgroundColorSpan
 import android.text.style.ForegroundColorSpan
@@ -16,6 +17,8 @@ import androidx.lifecycle.viewModelScope
 import app.lockbook.R
 import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.unwrap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -39,35 +42,33 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            CoreModel.startSearch(this@SearchDocumentsViewModel).unwrap()
+            val startSearchResult = CoreModel.startSearch(this@SearchDocumentsViewModel)
+
+            if(startSearchResult is Err) {
+                _updateSearchUI.value = UpdateSearchUI.Error(startSearchResult.error.toLbError(getRes()))
+            }
         }
     }
 
     fun newSearch(query: String) {
         filesResults.clear()
-        CoreModel.search(query).unwrap()
+        val searchResult = CoreModel.search(query)
+
+        if(searchResult is Err) {
+            _updateSearchUI.value = UpdateSearchUI.Error(searchResult.error.toLbError(getRes()))
+        }
     }
 
     private fun endSearch() {
-        CoreModel.endSearch().unwrap()
+        val endSearchResult = CoreModel.endSearch()
+
+        if(endSearchResult is Err) {
+            _updateSearchUI.value = UpdateSearchUI.Error(endSearchResult.error.toLbError(getRes()))
+        }
     }
 
     fun addFileNameSearchResult(id: String, path: String, score: Int, matchedIndicesJson: String) {
-        val file = File(path)
-
-        val parentPathSpan = (file.parentFile!!.path + "/").makeSpannableString()
-        val fileNameSpan = file.name.makeSpannableString()
-
-        val matchedIndices: List<Int> = Json.decodeFromString(matchedIndicesJson)
-
-        for (index in matchedIndices) {
-            if(index < parentPathSpan.length) {
-                parentPathSpan.setSpan(BackgroundColorSpan(highlightColor), index, index + 1, Spannable.SPAN_INCLUSIVE_EXCLUSIVE)
-            } else {
-                val newIndex = index - parentPathSpan.length
-                fileNameSpan.setSpan(BackgroundColorSpan(highlightColor), newIndex, newIndex + 1, Spannable.SPAN_INCLUSIVE_EXCLUSIVE)
-            }
-        }
+        val (parentPathSpan, fileNameSpan) = highlightMatchedPathParts(path, matchedIndicesJson)
 
         filesResults.add(SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo(id, parentPathSpan, fileNameSpan, score))
         filesResults.sortByDescending { it.score }
@@ -77,10 +78,90 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
-    fun addFileContentSearchResult(id: String, fileName: String, content: String, score: Int) {
-//        Timber.e("FILE CONTENT ADDED: $id $fileName $score")
+    private fun highlightMatchedPathParts(
+        path: String,
+        matchedIndicesJson: String
+    ): Pair<SpannableString, SpannableString> {
+        val (parentPathSpan, fileNameSpan) = getPathAndParentFile(path)
+
+        val matchedIndices: List<Int> = Json.decodeFromString(matchedIndicesJson)
+
+        for (index in matchedIndices) {
+            if (index < parentPathSpan.length) {
+                parentPathSpan.setSpan(
+                    BackgroundColorSpan(highlightColor),
+                    index,
+                    index + 1,
+                    Spannable.SPAN_INCLUSIVE_EXCLUSIVE
+                )
+            } else {
+                val newIndex = index - parentPathSpan.length
+                fileNameSpan.setSpan(
+                    BackgroundColorSpan(highlightColor),
+                    newIndex,
+                    newIndex + 1,
+                    Spannable.SPAN_INCLUSIVE_EXCLUSIVE
+                )
+            }
+        }
+        return Pair(parentPathSpan, fileNameSpan)
+    }
+
+    fun addFileContentSearchResult(id: String, path: String, contentMatchesJson: String) {
+        val (parentPath, fileName) = getPathAndParentFile(path)
+        val contentMatches = highlightMatchedParagraph(contentMatchesJson)
+
+        for(match in contentMatches) {
+            Timber.e("THIS SECOND SCORE: ${match.second} ${fileName}")
+
+            filesResults.add(SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo(id, parentPath, fileName, match.second, match.first))
+        }
+
+        filesResults.sortByDescending { it.score }
+
         viewModelScope.launch(Dispatchers.Main) {
-//            fileResults.add(SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo(id, fileName, score, content))
+            fileResultsSource.set(filesResults, { left, right -> left.id == right.id })
+        }
+    }
+
+    private fun highlightMatchedParagraph(
+        contentMatchesJson: String
+    ): List<Pair<SpannableString, Int>> {
+        val contentMatches: List<ContentMatch> = Json.decodeFromString(contentMatchesJson)
+        val paragraphsSpan: MutableList<Pair<SpannableString, Int>> = mutableListOf()
+
+        for(contentMatch in contentMatches) {
+            val paragraphSpan = contentMatch.paragraph.makeSpannableString()
+
+            paragraphsSpan.add(Pair(paragraphSpan, contentMatch.score))
+
+            for (index in contentMatch.matchedIndices) {
+                paragraphSpan.setSpan(
+                    BackgroundColorSpan(highlightColor),
+                    index,
+                    index + 1,
+                    Spannable.SPAN_INCLUSIVE_EXCLUSIVE
+                )
+            }
+        }
+
+        return paragraphsSpan
+    }
+
+    private fun getPathAndParentFile(path: String): Pair<SpannableString, SpannableString> {
+        val file = File(path)
+
+        return Pair((file.parentFile!!.path + "/").makeSpannableString(), (file.name).makeSpannableString())
+    }
+
+    fun openDocument(id: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val updateSearchUI = when (val result = CoreModel.getFileById(id)) {
+                is Ok -> UpdateSearchUI.OpenFile(result.value)
+                is Err -> UpdateSearchUI.Error(result.error.toLbError(getRes()))
+            }
+
+            _updateSearchUI.postValue(updateSearchUI)
         }
     }
 
@@ -90,7 +171,6 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
 }
 
 sealed class UpdateSearchUI {
-    data class NewFileNameResult(val id: String, val score: Int, val name: String) : UpdateSearchUI()
-    data class NewFileContentResult(val id: String, val score: Int, val file_name: String, val content: String) : UpdateSearchUI()
-//    data class Error(val error: LbError) : UpdateSearchUI()
+    data class OpenFile(val fileMetadata: DecryptedFileMetadata) : UpdateSearchUI()
+    data class Error(val error: LbError) : UpdateSearchUI()
 }

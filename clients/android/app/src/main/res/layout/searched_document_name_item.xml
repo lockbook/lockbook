@@ -14,8 +14,8 @@
 
     <ImageView
         android:id="@+id/searched_document_name_icon"
-        android:layout_width="30dp"
-        android:layout_height="45dp"
+        android:layout_width="25dp"
+        android:layout_height="25dp"
         android:contentDescription="@string/document"
         android:src="@drawable/ic_outline_insert_drive_file_24"
         app:layout_constraintBottom_toBottomOf="parent"

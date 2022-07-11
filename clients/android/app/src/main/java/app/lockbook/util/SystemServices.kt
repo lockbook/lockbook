@@ -41,6 +41,10 @@ fun Window?.requestKeyboardFocus(view: View?) {
     (view?.context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager?)?.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
 }
 
+fun View.closeKeyboard() {
+    (context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager?)?.hideSoftInputFromWindow(windowToken, InputMethodManager.SHOW_IMPLICIT)
+}
+
 fun Preference.getSettingsFragment(): SettingsFragment {
     return (context as SettingsActivity).supportFragmentManager.fragments[0] as SettingsFragment
 }

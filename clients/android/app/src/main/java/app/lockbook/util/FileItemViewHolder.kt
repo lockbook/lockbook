@@ -57,7 +57,7 @@ fun List<FileViewHolderInfo>.intoFileMetadata(): List<DecryptedFileMetadata> = t
 
 sealed class SearchedDocumentViewHolderInfo(open val id: String, open val path: SpannableString, open val name: SpannableString, open val score: Int) {
     data class DocumentNameViewHolderInfo(override val id: String, override val path: SpannableString, override val name: SpannableString, override val score: Int) : SearchedDocumentViewHolderInfo(id, path, name, score)
-    data class DocumentContentViewHolderInfo(override val id: String, override val path: SpannableString, override val name: SpannableString, override val score: Int, val content: String) : SearchedDocumentViewHolderInfo(id, path, name, score)
+    data class DocumentContentViewHolderInfo(override val id: String, override val path: SpannableString, override val name: SpannableString, override val score: Int, val content: SpannableString) : SearchedDocumentViewHolderInfo(id, path, name, score)
 }
 
 class SearchedDocumentNameViewHolder(itemView: View) : ViewHolder(itemView) {

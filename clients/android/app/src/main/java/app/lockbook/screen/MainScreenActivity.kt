@@ -224,7 +224,7 @@ class MainScreenActivity : AppCompatActivity() {
                 is DetailsScreen.ImageViewer -> replace<ImageViewerFragment>(R.id.detail_container)
                 is DetailsScreen.PdfViewer -> replace<PdfViewerFragment>(R.id.detail_container)
                 null -> {
-                    getFilesFragment().syncBasedOnPreferences()
+                    maybeGetFilesFragment()?.syncBasedOnPreferences()
                     supportFragmentManager.findFragmentById(R.id.detail_container)?.let {
                         remove(it)
                     }
@@ -267,11 +267,11 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        if(maybeGetSearchFilesFragment() != null) {
-            updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
-        } else if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
+         if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
             launchDetailsScreen(null)
-        } else if (maybeGetFilesFragment()?.onBackPressed() == true) {
+        } else if(maybeGetSearchFilesFragment() != null) {
+             updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
+         } else if (maybeGetFilesFragment()?.onBackPressed() == true) {
             super.onBackPressed()
         }
     }

@@ -13,8 +13,11 @@ use itertools::Itertools;
 use sublime_fuzzy::FuzzySearch;
 use uuid::Uuid;
 use lockbook_models::file_metadata::{DecryptedFiles, FileType};
+use serde::{Deserialize, Serialize};
 
-const DEBOUNCE_MILLIS: u64 = 100;
+
+const DEBOUNCE_MILLIS: u64 = 150;
+const LOWEST_SCORE_THRESHOLD: isize = 150;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct SearchResultItem {
@@ -162,14 +165,15 @@ pub fn search_file_names(results_tx: Sender<SearchResult>, should_continue: Arc<
         }
 
         if let Some(fuzzy_match) = FuzzySearch::new(search, &paths[id]).case_insensitive().best_match() {
-
-            if let Err(_) = results_tx.send(SearchResult::FileNameMatch {
-                id: id.clone(),
-                path: paths[id].clone(),
-                matched_indices: fuzzy_match.matched_indices().map(|ind| *ind).collect_vec(),
-                score: fuzzy_match.score()
-            }) {
-                break
+            if fuzzy_match.score() >= LOWEST_SCORE_THRESHOLD {
+                if let Err(_) = results_tx.send(SearchResult::FileNameMatch {
+                    id: id.clone(),
+                    path: paths[id].clone(),
+                    matched_indices: fuzzy_match.matched_indices().map(|ind| *ind).collect_vec(),
+                    score: fuzzy_match.score()
+                }) {
+                    break
+                }
             }
         }
     }
@@ -183,19 +187,26 @@ pub fn search_file_contents(results_tx: Sender<SearchResult>, should_continue: A
             return Ok(())
         }
 
-        let content = &files_contents[id];
+        let paragraphs = files_contents[id].split("\n");
+        let mut content_matches: Vec<ContentMatch> = Vec::new();
 
-        if let Some(fuzzy_match) = FuzzySearch::new(search, content).case_insensitive().best_match() {
-            if let Err(_) = results_tx.send(SearchResult::FileContentMatch {
+        for paragraph in paragraphs {
+            if let Some(fuzzy_match) = FuzzySearch::new(search, paragraph).case_insensitive().best_match() {
+                if fuzzy_match.score() >= LOWEST_SCORE_THRESHOLD {
+                    content_matches.push(ContentMatch { paragraph: paragraph.to_string(), matched_indices: fuzzy_match.matched_indices().map(|ind| *ind).collect_vec(), score: fuzzy_match.score()});
+                }
+            }
+        }
+
+        if !content_matches.is_empty() {
+            if let Err(_) = results_tx.send(SearchResult::FileContentMatches {
                 id: id.clone(),
                 path: paths[id].clone(),
-                content: "".to_string(),
-                score: fuzzy_match.score()
+                content_matches,
             }) {
                 break
             }
         }
-
     }
 
     Ok(())
@@ -217,12 +228,18 @@ pub enum SearchResult {
         matched_indices: Vec<usize>,
         score: isize
     },
-    FileContentMatch {
+    FileContentMatches {
         id: Uuid,
         path: String,
-        content: String,
-        score: isize
+        content_matches: Vec<ContentMatch>,
     },
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ContentMatch {
+    paragraph: String,
+    matched_indices: Vec<usize>,
+    score: isize
 }
 
 

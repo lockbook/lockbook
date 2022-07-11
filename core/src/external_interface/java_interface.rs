@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use std::sync::{Arc, mpsc, Mutex};
+use std::sync::{Arc, LockResult, mpsc, Mutex};
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use jni::objects::{JClass, JObject, JString, JValue};
@@ -638,7 +638,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
     let (search_tx, search_rx) = mpsc::channel::<SearchRequest>();
     let (results_tx, results_rx) = mpsc::channel::<SearchResult>();
 
-    *MAYBE_SEARCH_TX.lock().unwrap() = Some(search_tx);
+    match MAYBE_SEARCH_TX.lock() {
+        Ok(mut lock) => *lock = Some(search_tx),
+        Err(e) => return string_to_jstring(&env, translate(Err::<(), _>("Cannot get search lock.")))
+    }
 
     if let Err(e) = static_state::get().and_then(|core| core.start_search(results_tx, search_rx)) {
         return string_to_jstring(&env, translate(Err::<(), _>(e)))
@@ -677,21 +680,20 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
                     return string_to_jstring(&env, translate(Err::<(), _>(UnexpectedError(e.0.description().to_string()))))
                 }
             }
-            SearchResult::FileContentMatch {
-                id, path, content, score
+            SearchResult::FileContentMatches {
+                id, path, content_matches
             } => {
                 let args = [
                     JValue::Object(JObject::from(string_to_jstring(&env, id.to_string()))),
                     JValue::Object(JObject::from(string_to_jstring(&env, path))),
-                    JValue::Object(JObject::from(string_to_jstring(&env, content))),
-                    JValue::Int(score as i32),
+                    JValue::Object(JObject::from(string_to_jstring(&env, serde_json::to_string(&content_matches).unwrap()))),
                 ].to_vec();
 
                 let callResult = env
                     .call_method(
                         jsearchFilesViewModel,
                         "addFileContentSearchResult",
-                        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V",
+                        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
                         args.as_slice(),
                     );
 
