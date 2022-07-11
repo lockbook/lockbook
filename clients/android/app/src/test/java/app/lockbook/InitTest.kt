@@ -19,7 +19,7 @@ class InitTest {
 
     @Test
     fun initLoggerOk() {
-        CoreModel.init(Config(false, false,, createRandomPath())).unwrapOk()
+        CoreModel.init(Config(false, false, createRandomPath())).unwrapOk()
     }
 
     @Test
