@@ -3,6 +3,7 @@ use gtk::glib;
 use gtk::prelude::*;
 use qrcode_generator::QrCodeEcc;
 
+use crate::lbutil;
 use crate::ui;
 use crate::ui::icons;
 
@@ -31,7 +32,7 @@ impl super::App {
 
     fn acct_settings(&self, settings_win: &gtk::Dialog) -> gtk::Box {
         let cntr = settings_box();
-        match self.api.account() {
+        match lbutil::get_account(&self.core) {
             Ok(maybe_acct) => {
                 cntr.append(&heading("Info"));
                 cntr.append(&acct_info(maybe_acct.as_ref()));
@@ -58,7 +59,7 @@ impl super::App {
             .margin_bottom(20)
             .build();
 
-        let acct_secret = match self.api.export_account() {
+        let acct_secret = match self.core.export_account() {
             Ok(v) => v,
             Err(err) => {
                 cntr.append(&gtk::Label::new(Some(&format!("{:?}", err)))); //todo
@@ -131,16 +132,16 @@ impl super::App {
     }
 
     fn usage_settings(&self, settings_win: &gtk::Dialog) -> gtk::Stack {
-        let metrics_result = self.api.usage();
-        let uncompressed_result = self.api.uncompressed_usage();
+        let metrics_result = self.core.get_usage();
+        let uncompressed_result = self.core.get_uncompressed_usage();
 
         let usage = ui::UsageSettings::new();
         usage.set_metrics(metrics_result, uncompressed_result);
 
         let settings_win = settings_win.clone();
-        let api = self.api.clone();
+        let core = self.core.clone();
         usage.connect_begin_upgrade(move |usage| {
-            let maybe_subscription = match api.get_subscription_info() {
+            let maybe_subscription = match core.get_subscription_info() {
                 Ok(maybe_subscription) => maybe_subscription,
                 Err(err) => {
                     ui::show_err_dialog(&settings_win, &format!("{:?}", err));
@@ -158,17 +159,17 @@ impl super::App {
                 }
             });
             upgrading.connect_confirmed({
-                let api = api.clone();
+                let core = core.clone();
                 let usage = usage.clone();
 
                 move |upgrading, method| {
                     let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
                     std::thread::spawn({
-                        let api = api.clone();
+                        let core = core.clone();
 
                         move || {
                             let new_tier = lb::StripeAccountTier::Premium(method);
-                            let result = api.upgrade_account(new_tier);
+                            let result = core.upgrade_account_stripe(new_tier);
                             tx.send(result).unwrap();
                         }
                     });
@@ -182,13 +183,13 @@ impl super::App {
                     let btn_finish = gtk::Button::with_label("Finish");
                     btn_finish.set_halign(gtk::Align::Center);
                     btn_finish.connect_clicked({
-                        let api = api.clone();
+                        let core = core.clone();
                         let usage = usage.clone();
                         let upgrade_process_cntr = upgrading.cntr.clone();
 
                         move |_| {
-                            let metrics_result = api.usage();
-                            let uncompressed_result = api.uncompressed_usage();
+                            let metrics_result = core.get_usage();
+                            let uncompressed_result = core.get_uncompressed_usage();
                             usage.set_metrics(metrics_result, uncompressed_result);
                             usage.pages.set_visible_child_name("home");
                             usage.pages.remove(&upgrade_process_cntr);
@@ -390,7 +391,7 @@ fn grid_val(txt: &str) -> gtk::Label {
 fn payment_err_to_string(err: lb::Error<lb::UpgradeAccountStripeError>) -> String {
     use lb::UpgradeAccountStripeError::*;
     match err {
-        lb::UiError(err) => match err {
+        lb::Error::UiError(err) => match err {
             CouldNotReachServer => "Unable to connect to server.",
             OldCardDoesNotExist => "Could not find your current card.",
             AlreadyPremium => "You are already subscribed for this tier.",
@@ -412,7 +413,7 @@ fn payment_err_to_string(err: lb::Error<lb::UpgradeAccountStripeError>) -> Strin
             }
         }
         .to_string(),
-        lb::Unexpected(err) => err,
+        lb::Error::Unexpected(err) => err,
     }
 }
 

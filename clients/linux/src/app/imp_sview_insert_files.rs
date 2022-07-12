@@ -58,11 +58,11 @@ impl super::App {
 
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
-        let api = self.api.clone();
+        let core = self.core.clone();
         std::thread::spawn(move || {
             // Get the parent id of the target file. The files will all be imported to this
             // directory.
-            let parent_id = match api.file_by_id(target_file_id) {
+            let parent_id = match core.get_file_by_id(target_file_id) {
                 Ok(meta) => meta.parent,
                 Err(err) => {
                     tx.send(Some(Err(format!("{:?}", err)))).unwrap();
@@ -72,14 +72,14 @@ impl super::App {
             };
             // Import each top-level file (with any children).
             for path in paths {
-                let result = lbutil::import_file(&api, &path, parent_id, &new_file_tx);
+                let result = lbutil::import_file(&core, &path, parent_id, &new_file_tx);
                 tx.send(Some(result)).unwrap();
             }
             tx.send(None).unwrap();
         });
 
         let buf = buf.clone();
-        rx.attach(None, move |maybe_res: Option<Result<lb::FileMetadata, String>>| {
+        rx.attach(None, move |maybe_res: Option<Result<lb::DecryptedFileMetadata, String>>| {
             match maybe_res {
                 Some(res) => match res {
                     Ok(new_file) => {
@@ -112,7 +112,7 @@ impl super::App {
     ) {
         // Get the parent id of the target file. The image will be inserted under the same
         // directory.
-        let parent_id = match self.api.file_by_id(target_file_id) {
+        let parent_id = match self.core.get_file_by_id(target_file_id) {
             Ok(meta) => meta.parent,
             Err(err) => {
                 self.show_err_dialog(&format!("{:?}", err));
@@ -120,7 +120,7 @@ impl super::App {
             }
         };
 
-        let png_meta = match lbutil::save_texture_to_png(&self.api, parent_id, texture) {
+        let png_meta = match lbutil::save_texture_to_png(&self.core, parent_id, texture) {
             Ok(meta) => meta,
             Err(err) => {
                 self.show_err_dialog(&err);
