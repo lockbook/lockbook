@@ -108,7 +108,8 @@ impl DefaultApi {
     pub fn new() -> Result<Self, String> {
         let writeable_path = format!("{}/linux", data_dir());
 
-        let core = Core::init(&Config { logs: true, writeable_path }).map_err(|e| e.0)?;
+        let core = Core::init(&Config { logs: true, writeable_path, colored_logs: true })
+            .map_err(|e| e.0)?;
 
         let sync_lock = Mutex::new(0);
 

@@ -1,196 +1,112 @@
+use std::fmt::{Debug, Write};
+use std::time::SystemTime;
+
+use serde::Serialize;
+
+use tokio::runtime::Handle;
+
+use sha2::{Digest, Sha256};
+
+use tracing::field::{Field, Visit};
+use tracing::metadata::LevelFilter;
+use tracing::{Event, Subscriber};
+use tracing_appender::rolling::RollingFileAppender;
+use tracing_subscriber::filter::FilterFn;
+use tracing_subscriber::layer::Context;
+use tracing_subscriber::{filter, fmt, prelude::*, Layer};
+
+use pagerduty_rs::eventsv2async::EventsV2;
+use pagerduty_rs::types::Event as PagerEvent;
+use pagerduty_rs::types::{AlertTrigger, AlertTriggerPayload, Severity};
+
 use crate::config::Config;
 use crate::CARGO_PKG_VERSION;
-use fern::colors::{Color, ColoredLevelConfig};
-use fern::Dispatch;
-use log::{Level, Log, Metadata, Record};
-use pagerduty_rs::eventsv2async::EventsV2;
-use pagerduty_rs::types::{
-    AlertTrigger, AlertTriggerPayload, Change, ChangePayload, Event, Severity,
-};
-use serde::Serialize;
-use sha2::{Digest, Sha256};
-use std::fs;
-use std::path::Path;
-use std::time::SystemTime;
-use tokio::runtime::Handle;
 
 static LOG_FILE: &str = "lockbook_server.log";
 
 pub fn init(config: &Config) {
-    let log_path = Path::new(&config.server.log_path);
-    let handle = Handle::current();
-    let std_colors = true;
+    let subscriber = tracing_subscriber::Registry::default()
+        // Logger for stdout (local development)
+        .with(
+            fmt::Layer::new()
+                .pretty()
+                .with_target(false)
+                .with_filter(LevelFilter::INFO)
+                .with_filter(server_logs()),
+        )
+        // Logger for file (verbose and sent to loki)
+        .with(
+            fmt::Layer::new()
+                .with_writer(file_logger(config))
+                .with_ansi(false)
+                .with_filter(LevelFilter::DEBUG)
+                .with_filter(server_logs()),
+        )
+        // Logger for disaster response (any error logs sent to pagerduty)
+        .with(
+            PDLogger::new(config)
+                .with_filter(LevelFilter::ERROR)
+                .with_filter(server_logs()),
+        );
 
-    let colors_level = ColoredLevelConfig::new()
-        .error(Color::Red)
-        .warn(Color::Yellow)
-        .info(Color::Green)
-        .debug(Color::Blue)
-        .trace(Color::Black);
-
-    let stdout_logger = fern::Dispatch::new()
-        .format(move |out, message, record| {
-            if std_colors {
-                out.finish(format_args!(
-                    "[{timestamp}] [{target:<40}] [{level:<5}]: {message}\x1B[0m",
-                    timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                    target = record.target(),
-                    level = colors_level.color(record.level()),
-                    message = message.clone(),
-                ))
-            } else {
-                out.finish(format_args!(
-                    "[{timestamp}] [{target:<40}] [{level:<5}]: {message}",
-                    timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                    target = record.target(),
-                    level = record.level(),
-                    message = message.clone(),
-                ))
-            }
-        })
-        .chain(std::io::stdout())
-        .level(log::LevelFilter::Warn);
-
-    fs::create_dir_all(log_path).expect("unable to create directory for logger");
-    let log_file = fern::log_file(log_path.join(LOG_FILE)).expect("unable to create log file");
-
-    let file_logger = fern::Dispatch::new()
-        .format(move |out, message, record| {
-            out.finish(format_args!(
-                "[{timestamp}] [{target:<40}] [{level:<5}]: {message}\x1B[0m",
-                timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                target = record.target(),
-                level = record.level(),
-                message = message.clone(),
-            ))
-        })
-        .chain(log_file);
-
-    let base_logger = fern::Dispatch::new()
-        .chain(stdout_logger)
-        .chain(file_logger);
-
-    match config.server.pd_api_key {
-        Some(_) => base_logger.chain(pd_logger(config, handle)),
-        None => base_logger,
-    }
-    .level(log::LevelFilter::Info)
-    .level_for("lockbook_server", log::LevelFilter::Debug)
-    .apply()
-    .expect("Failed setting logger!");
+    tracing::subscriber::set_global_default(subscriber).unwrap();
 }
 
-fn pd_logger(config: &Config, handle: Handle) -> Dispatch {
-    let key = config.clone().server.pd_api_key.unwrap();
-    let config = config.clone();
-    notify(
-        &key,
-        &handle,
-        Event::Change(Change {
-            payload: ChangePayload {
-                summary: String::from("Lockbook Server is starting up..."),
-                timestamp: SystemTime::now().into(),
-                source: Some(config.server.env.to_string()),
-                custom_details: Some(ChangeDetail { build: CARGO_PKG_VERSION.to_string() }),
-            },
-            links: None,
-        }),
-    );
+fn file_logger(config: &Config) -> RollingFileAppender {
+    tracing_appender::rolling::never(&config.server.log_path, LOG_FILE)
+}
 
-    let pdl = PDLogger { key, handle, config };
-
-    fern::Dispatch::new()
-        .format(move |out, message, _| {
-            out.finish(format_args!("{message}", message = message.clone()))
-        })
-        .chain(Box::new(pdl) as Box<dyn Log>)
+fn server_logs() -> FilterFn {
+    filter::filter_fn(|metadata| metadata.target().starts_with("lockbook_server"))
 }
 
 struct PDLogger {
-    key: String,
-    handle: Handle,
     config: Config,
+    handle: Handle,
 }
 
-fn dedup_key(record: &Record) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(record.args().to_string());
-    let result = hasher.finalize();
-    base64::encode(result)
+impl<S: Subscriber> Layer<S> for PDLogger {
+    fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
+        self.page(AlertDetails::new(event));
+    }
 }
 
-impl Log for PDLogger {
-    /// This is where you decide what gets sent to pagerduty
-    /// Currently only errors are sent, and rustls::session is explicitly black-holed
-    /// Logs from rustls::session will still be logged to the file and standard streams, but they're
-    /// incredibly noisy and clients can cause them to "fatal log" quite easily (ex: attempt to connect via TLS 1.0)
-    fn enabled(&self, metadata: &Metadata) -> bool {
-        metadata.level() == Level::Error && metadata.target() != "rustls::session"
+impl PDLogger {
+    fn new(config: &Config) -> Self {
+        let handle = Handle::current();
+        let config = config.clone();
+        Self { config, handle }
     }
 
-    fn log(&self, record: &Record) {
-        if self.enabled(record.metadata()) {
-            notify(
-                &self.key,
-                &self.handle,
-                Event::AlertTrigger(AlertTrigger {
-                    payload: AlertTriggerPayload {
-                        severity: level_to_severity(record.level()),
-                        summary: record.args().to_string(),
-                        source: self.config.server.env.to_string(),
-                        timestamp: Some(SystemTime::now().into()),
-                        component: None,
-                        group: None,
-                        class: None,
-                        custom_details: Some(LogDetails {
-                            data: record.args().to_string(),
-                            logger: record.target().to_string(),
-                            file: record.file().map(|c| c.to_string()),
-                            line: record.line().map(|c| c.to_string()),
-                            build: CARGO_PKG_VERSION.to_string(),
-                        }),
-                    },
-                    dedup_key: Some(dedup_key(record)),
-                    images: None,
-                    links: None,
-                    client: None,
-                    client_url: None,
-                }),
-            );
+    fn page(&self, details: AlertDetails) {
+        let env = self.config.server.env.to_string();
+        match &self.config.server.pd_api_key {
+            Some(api_key) => send_to_pagerduty(&self.handle, env, api_key, details),
+            None => eprintln!("WOULD PAGE: {}", details.message),
         }
     }
-
-    fn flush(&self) {}
 }
 
-fn level_to_severity(level: Level) -> Severity {
-    match level {
-        Level::Error => Severity::Error,
-        Level::Warn => Severity::Info,
-        Level::Info => Severity::Info,
-        Level::Debug => Severity::Info,
-        Level::Trace => Severity::Info,
-    }
-}
-
-#[derive(Serialize)]
-struct LogDetails<T: serde::Serialize> {
-    data: T,
-    logger: String,
-    file: Option<String>,
-    line: Option<String>,
-    build: String,
-}
-
-#[derive(Serialize)]
-struct ChangeDetail {
-    build: String,
-}
-
-fn notify<T: serde::Serialize + std::marker::Send + std::marker::Sync + 'static>(
-    api_key: &str, handle: &Handle, event: Event<T>,
-) {
+fn send_to_pagerduty(handle: &Handle, env: String, api_key: &str, alert: AlertDetails) {
     let events = EventsV2::new(String::from(api_key), Some("lockbook-server".to_string())).unwrap();
+    let message = alert.message.clone();
+    let event = PagerEvent::AlertTrigger(AlertTrigger {
+        payload: AlertTriggerPayload {
+            severity: Severity::Error,
+            summary: message.clone(),
+            source: env,
+            timestamp: Some(SystemTime::now().into()),
+            component: None,
+            group: None,
+            class: None,
+            custom_details: Some(alert),
+        },
+        dedup_key: Some(dedup_key(&message)),
+        images: None,
+        links: None,
+        client: None,
+        client_url: None,
+    });
 
     // https://github.com/neonphog/tokio_safe_block_on/blob/074d40929ccab649b0dcc83a4ebdbdcb70b317fb/src/lib.rs#L72-L86
     tokio::task::block_in_place(move || {
@@ -208,4 +124,46 @@ fn notify<T: serde::Serialize + std::marker::Send + std::marker::Sync + 'static>
                 .map(|err| eprintln!("Failed spawning task in Tokio runtime! {}", err))
         })
     });
+}
+
+#[derive(Serialize, Default, Clone)]
+struct AlertDetails {
+    message: String,
+    logger: String,
+    file: Option<String>,
+    line: Option<String>,
+    build: String,
+}
+
+impl AlertDetails {
+    fn new(event: &Event) -> Self {
+        let mut details = Self::default();
+        let record = event.metadata();
+
+        // Populate the message field
+        event.record(&mut details);
+
+        // Populate the other fields
+        details.logger = record.target().to_string();
+        details.file = record.file().map(|file| file.to_string());
+        details.line = record.line().map(|line| line.to_string());
+        details.build = CARGO_PKG_VERSION.to_string();
+
+        details
+    }
+}
+
+impl Visit for AlertDetails {
+    fn record_debug(&mut self, field: &Field, value: &dyn Debug) {
+        if field.name() == "message" {
+            write!(self.message, "{:?}", value).unwrap();
+        }
+    }
+}
+
+fn dedup_key(record: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(record);
+    let result = hasher.finalize();
+    base64::encode(result)
 }
