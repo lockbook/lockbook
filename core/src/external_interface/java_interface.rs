@@ -1,15 +1,15 @@
 #![allow(non_snake_case)]
 
-use std::sync::{Arc, mpsc, Mutex};
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jboolean, jbyteArray, jlong, jstring};
 use jni::JNIEnv;
 use lazy_static::lazy_static;
-use std::sync::mpsc::Sender;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::sync::mpsc::Sender;
+use std::sync::{mpsc, Arc, Mutex};
 use uuid::Uuid;
 
 use crate::{
@@ -627,100 +627,101 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_listMetadatas(
 }
 
 lazy_static! {
-    static ref MAYBE_SEARCH_TX: Arc<Mutex<Option<Sender<SearchRequest>>>> = Arc::new(Mutex::new(None));
+    static ref MAYBE_SEARCH_TX: Arc<Mutex<Option<Sender<SearchRequest>>>> =
+        Arc::new(Mutex::new(None));
 }
 
 fn send_search_request(env: JNIEnv, request: SearchRequest) -> jstring {
-    let result = MAYBE_SEARCH_TX.lock()
+    let result = MAYBE_SEARCH_TX
+        .lock()
         .map_err(|_| UnexpectedError("Could not get lock".to_string()))
-        .and_then(|maybe_lock| maybe_lock.clone().ok_or(UnexpectedError("No search thread active.".to_string())))
-        .and_then(|lock| lock.send(request).map_err(|_| UnexpectedError("No search thread active.".to_string())));
+        .and_then(|maybe_lock| {
+            maybe_lock
+                .clone()
+                .ok_or(UnexpectedError("No search thread active.".to_string()))
+        })
+        .and_then(|lock| {
+            lock.send(request)
+                .map_err(|_| UnexpectedError("No search thread active.".to_string()))
+        });
 
     string_to_jstring(&env, translate(result))
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
-    env: JNIEnv, _: JClass, jsearchFilesViewModel: JObject<'static>
+    env: JNIEnv, _: JClass, jsearchFilesViewModel: JObject<'static>,
 ) -> jstring {
     let (search_tx, search_rx) = mpsc::channel::<SearchRequest>();
     let (results_tx, results_rx) = mpsc::channel::<SearchResult>();
 
     match MAYBE_SEARCH_TX.lock() {
         Ok(mut lock) => *lock = Some(search_tx),
-        Err(_) => return string_to_jstring(&env, translate(Err::<(), _>("Cannot get search lock.")))
+        Err(_) => {
+            return string_to_jstring(&env, translate(Err::<(), _>("Cannot get search lock.")))
+        }
     }
 
     if let Err(e) = static_state::get().and_then(|core| core.start_search(results_tx, search_rx)) {
-        return string_to_jstring(&env, translate(Err::<(), _>(e)))
+        return string_to_jstring(&env, translate(Err::<(), _>(e)));
     }
 
     loop {
         let results = match results_rx.recv() {
             Ok(last_search) => last_search,
-            Err(_) => break
+            Err(_) => break,
         };
 
-        match results{
+        match results {
             SearchResult::Error(e) => return string_to_jstring(&env, translate(Err::<(), _>(e))),
-            SearchResult::FileNameMatch {
-                id, path, matched_indices, score
-            } => {
+            SearchResult::FileNameMatch { id, path, matched_indices, score } => {
                 // let jmatchedIndices = env.new_int_array(matched_indices.len() as jsize).unwrap();
                 // env.set_int_array_region(jmatchedIndices, 0, matched_indices.iter().map(|ind| *ind as jint).collect::<Vec<i32>>().as_slice()).unwrap();
 
                 let matched_indices_json = match serde_json::to_string(&matched_indices) {
                     Ok(json) => json,
-                    Err(_) => return string_to_jstring(&env, "Failed to parse json.".to_string())
+                    Err(_) => return string_to_jstring(&env, "Failed to parse json.".to_string()),
                 };
 
                 let args = [
                     JValue::Object(JObject::from(string_to_jstring(&env, id.to_string()))),
                     JValue::Object(JObject::from(string_to_jstring(&env, path))),
                     JValue::Int(score as i32),
-                    JValue::Object(JObject::from(string_to_jstring(&env, matched_indices_json)))
-                ].to_vec();
+                    JValue::Object(JObject::from(string_to_jstring(&env, matched_indices_json))),
+                ]
+                .to_vec();
 
-                env
-                    .call_method(
-                        jsearchFilesViewModel,
-                        "addFileNameSearchResult",
-                        "(Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;)V",
-                        args.as_slice(),
-                    )
-                    .unwrap();
+                env.call_method(
+                    jsearchFilesViewModel,
+                    "addFileNameSearchResult",
+                    "(Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;)V",
+                    args.as_slice(),
+                )
+                .unwrap();
             }
-            SearchResult::FileContentMatches {
-                id, path, content_matches
-            } => {
+            SearchResult::FileContentMatches { id, path, content_matches } => {
                 let content_matches_json = match serde_json::to_string(&content_matches) {
                     Ok(json) => json,
-                    Err(_) => return string_to_jstring(&env, "Failed to parse json.".to_string())
+                    Err(_) => return string_to_jstring(&env, "Failed to parse json.".to_string()),
                 };
 
                 let args = [
                     JValue::Object(JObject::from(string_to_jstring(&env, id.to_string()))),
                     JValue::Object(JObject::from(string_to_jstring(&env, path))),
                     JValue::Object(JObject::from(string_to_jstring(&env, content_matches_json))),
-                ].to_vec();
+                ]
+                .to_vec();
 
-                env
-                    .call_method(
-                        jsearchFilesViewModel,
-                        "addFileContentSearchResult",
-                        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
-                        args.as_slice(),
-                    )
-                    .unwrap();
+                env.call_method(
+                    jsearchFilesViewModel,
+                    "addFileContentSearchResult",
+                    "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+                    args.as_slice(),
+                )
+                .unwrap();
             }
             SearchResult::NoMatch => {
-                env
-                    .call_method(
-                    jsearchFilesViewModel,
-                    "noMatch",
-                    "()V",
-                    &[],
-                )
+                env.call_method(jsearchFilesViewModel, "noMatch", "()V", &[])
                     .unwrap();
             }
         }
@@ -728,7 +729,9 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
 
     match MAYBE_SEARCH_TX.lock() {
         Ok(mut lock) => *lock = None,
-        Err(_) => return string_to_jstring(&env, translate(Err::<(), _>("Cannot get search lock.")))
+        Err(_) => {
+            return string_to_jstring(&env, translate(Err::<(), _>("Cannot get search lock.")))
+        }
     }
 
     string_to_jstring(&env, translate(Ok::<_, ()>(())))
@@ -736,7 +739,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_search(
-    env: JNIEnv, _: JClass, jquery: JString
+    env: JNIEnv, _: JClass, jquery: JString,
 ) -> jstring {
     let query = match jstring_to_string(&env, jquery, "query") {
         Ok(ok) => ok,
@@ -747,9 +750,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_search(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_endSearch(
-    env: JNIEnv, _: JClass
-) -> jstring {
+pub extern "system" fn Java_app_lockbook_core_CoreKt_endSearch(env: JNIEnv, _: JClass) -> jstring {
     send_search_request(env, SearchRequest::EndSearch)
 }
 

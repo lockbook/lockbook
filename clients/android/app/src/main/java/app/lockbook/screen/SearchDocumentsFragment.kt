@@ -16,8 +16,7 @@ import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import java.lang.ref.WeakReference
 
-
-class SearchDocumentsFragment: Fragment() {
+class SearchDocumentsFragment : Fragment() {
     private lateinit var binding: FragmentSearchDocumentsBinding
 
     private val model: SearchDocumentsViewModel by viewModels()
@@ -74,8 +73,8 @@ class SearchDocumentsFragment: Fragment() {
         binding.searchDocumentsSearch.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
                 model.newSearch(query)
-
                 binding.searchDocumentsSearch.clearFocus()
+
                 return true
             }
 
@@ -90,12 +89,11 @@ class SearchDocumentsFragment: Fragment() {
     }
 
     private fun updateSearchUI(uiUpdate: UpdateSearchUI) {
-        when(uiUpdate) {
-            UpdateSearchUI.ToggleProgressSpinner -> binding.searchDocumentsLoader.visibility = if(model.isProgressSpinnerShown) View.VISIBLE else View.GONE
-            UpdateSearchUI.ToggleNoSearchResults -> binding.searchDocumentsNone.visibility = if(model.isNoSearchResultsShown) View.VISIBLE else View.GONE
+        when (uiUpdate) {
+            UpdateSearchUI.ToggleProgressSpinner -> binding.searchDocumentsLoader.visibility = if (model.isProgressSpinnerShown) View.VISIBLE else View.GONE
+            UpdateSearchUI.ToggleNoSearchResults -> binding.searchDocumentsNone.visibility = if (model.isNoSearchResultsShown) View.VISIBLE else View.GONE
             is UpdateSearchUI.Error -> alertModel.notifyError(uiUpdate.error)
             is UpdateSearchUI.OpenFile -> activityModel.launchDetailsScreen(DetailsScreen.Loading(uiUpdate.fileMetadata))
         }
     }
-
 }

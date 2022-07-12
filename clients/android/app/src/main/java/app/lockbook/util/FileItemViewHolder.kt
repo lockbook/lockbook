@@ -73,4 +73,3 @@ class SearchedDocumentContentViewHolder(itemView: View) : ViewHolder(itemView) {
     val path: TextView = itemView.findViewById(R.id.searched_document_content_path)
     val content: TextView = itemView.findViewById(R.id.searched_document_content)
 }
-

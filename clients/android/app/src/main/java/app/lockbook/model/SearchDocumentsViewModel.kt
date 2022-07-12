@@ -17,7 +17,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import timber.log.Timber
 import java.io.File
 
 class SearchDocumentsViewModel(application: Application) : AndroidViewModel(application) {
@@ -39,7 +38,7 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
         viewModelScope.launch(Dispatchers.IO) {
             val startSearchResult = CoreModel.startSearch(this@SearchDocumentsViewModel)
 
-            if(startSearchResult is Err) {
+            if (startSearchResult is Err) {
                 _updateSearchUI.value = UpdateSearchUI.Error(startSearchResult.error.toLbError(getRes()))
             }
         }
@@ -51,7 +50,7 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
 
         hideNoSearchResultsIfVisible()
 
-        if(query == null || query.isEmpty()) {
+        if (query == null || query.isEmpty()) {
             hideProgressSpinnerIfVisible()
 
             return
@@ -61,7 +60,7 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
 
         val searchResult = CoreModel.search(query)
 
-        if(searchResult is Err) {
+        if (searchResult is Err) {
             _updateSearchUI.value = UpdateSearchUI.Error(searchResult.error.toLbError(getRes()))
         }
     }
@@ -69,7 +68,7 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     private fun endSearch() {
         val endSearchResult = CoreModel.endSearch()
 
-        if(endSearchResult is Err) {
+        if (endSearchResult is Err) {
             _updateSearchUI.value = UpdateSearchUI.Error(endSearchResult.error.toLbError(getRes()))
         }
     }
@@ -91,7 +90,7 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
         val (parentPath, fileName) = getPathAndParentFile(path)
         val contentMatches = highlightMatchedParagraph(contentMatchesJson)
 
-        for(match in contentMatches) {
+        for (match in contentMatches) {
             filesResultsSource.add(SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo(id, parentPath, fileName, match.second, match.first))
         }
 
@@ -112,33 +111,32 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     }
 
     private fun hideProgressSpinnerIfVisible() {
-        if(isProgressSpinnerShown) {
+        if (isProgressSpinnerShown) {
             isProgressSpinnerShown = false
             _updateSearchUI.value = UpdateSearchUI.ToggleProgressSpinner
         }
     }
 
     private fun hideNoSearchResultsIfVisible() {
-        if(isNoSearchResultsShown) {
+        if (isNoSearchResultsShown) {
             isNoSearchResultsShown = false
             _updateSearchUI.value = UpdateSearchUI.ToggleNoSearchResults
         }
     }
 
     private fun showProgressSpinnerIfGone() {
-        if(!isProgressSpinnerShown) {
+        if (!isProgressSpinnerShown) {
             isProgressSpinnerShown = true
             _updateSearchUI.value = UpdateSearchUI.ToggleProgressSpinner
         }
     }
 
     private fun showNoSearchResultsIfGone() {
-        if(!isNoSearchResultsShown) {
+        if (!isNoSearchResultsShown) {
             isNoSearchResultsShown = true
             _updateSearchUI.value = UpdateSearchUI.ToggleNoSearchResults
         }
     }
-
 
     private fun highlightMatchedPathParts(
         path: String,
@@ -175,7 +173,7 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
         val contentMatches: List<ContentMatch> = Json.decodeFromString(contentMatchesJson)
         val paragraphsSpan: MutableList<Pair<SpannableString, Int>> = mutableListOf()
 
-        for(contentMatch in contentMatches) {
+        for (contentMatch in contentMatches) {
             val paragraphSpan = contentMatch.paragraph.makeSpannableString()
 
             paragraphsSpan.add(Pair(paragraphSpan, contentMatch.score))
@@ -215,7 +213,7 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
 }
 
 sealed class UpdateSearchUI {
-    object ToggleNoSearchResults: UpdateSearchUI()
+    object ToggleNoSearchResults : UpdateSearchUI()
     object ToggleProgressSpinner : UpdateSearchUI()
     data class OpenFile(val fileMetadata: DecryptedFileMetadata) : UpdateSearchUI()
     data class Error(val error: LbError) : UpdateSearchUI()

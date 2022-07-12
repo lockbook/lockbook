@@ -21,7 +21,6 @@ import app.lockbook.R
 import app.lockbook.databinding.FragmentFilesListBinding
 import app.lockbook.model.*
 import app.lockbook.ui.BreadCrumbItem
-import app.lockbook.ui.FixQueryChangeSearchView
 import app.lockbook.util.*
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.viewholder.isSelected
@@ -29,7 +28,6 @@ import com.afollestad.recyclical.withItem
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textview.MaterialTextView
-import com.google.android.material.transition.MaterialSharedAxis
 import java.lang.ref.WeakReference
 import java.util.*
 
@@ -287,7 +285,6 @@ class FilesListFragment : Fragment(), FilesFragment {
 //        searchView.setOnSearchClickListener {
 //
 //        }
-
 
         toggleMenuBar()
     }

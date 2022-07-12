@@ -10,7 +10,6 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import androidx.fragment.app.*
-import androidx.navigation.fragment.NavHostFragment
 import androidx.slidingpanelayout.widget.SlidingPaneLayout
 import app.lockbook.App
 import app.lockbook.R
@@ -19,7 +18,6 @@ import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.model.*
 import app.lockbook.ui.*
 import app.lockbook.util.*
-import com.google.android.material.transition.MaterialSharedAxis
 import timber.log.Timber
 import java.io.File
 import java.lang.ref.WeakReference
@@ -245,7 +243,7 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     private fun toggleTransparentLockbookLogo(screen: DetailsScreen?) {
-        if(screen != null && binding.lockbookBackdrop.visibility == View.VISIBLE) {
+        if (screen != null && binding.lockbookBackdrop.visibility == View.VISIBLE) {
             binding.lockbookBackdrop.visibility = View.GONE
         } else if (screen == null && binding.lockbookBackdrop.visibility == View.GONE) {
             binding.lockbookBackdrop.visibility = View.VISIBLE
@@ -267,11 +265,11 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-         if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
+        if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
             launchDetailsScreen(null)
-        } else if(maybeGetSearchFilesFragment() != null) {
-             updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
-         } else if (maybeGetFilesFragment()?.onBackPressed() == true) {
+        } else if (maybeGetSearchFilesFragment() != null) {
+            updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
+        } else if (maybeGetFilesFragment()?.onBackPressed() == true) {
             super.onBackPressed()
         }
     }
