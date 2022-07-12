@@ -19,7 +19,7 @@ class CreateAccountTest {
 
     @Before
     fun initCore() {
-        CoreModel.init(Config(false, createRandomPath()))
+        CoreModel.init(Config(false, false, createRandomPath()))
     }
 
     @Test
@@ -33,7 +33,7 @@ class CreateAccountTest {
 
         CoreModel.createAccount(username).unwrapOk()
 
-        CoreModel.init(Config(false, createRandomPath()))
+        CoreModel.init(Config(false, false, createRandomPath()))
 
         CoreModel.createAccount(username)
             .unwrapErrorType(CreateAccountError.UsernameTaken)

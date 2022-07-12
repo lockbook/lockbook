@@ -1,5 +1,3 @@
-extern crate log;
-
 use google_androidpublisher3::AndroidPublisher;
 use hmdb::errors::Error;
 use std::env;
@@ -53,7 +51,7 @@ type Tx<'a> = transaction::ServerV1<'a>;
 macro_rules! internal {
     ($($arg:tt)*) => {{
         let msg = format!($($arg)*);
-        log::error!("{}", msg);
+        tracing::error!("{}", msg);
         crate::ServerError::InternalError(msg)
     }};
 }

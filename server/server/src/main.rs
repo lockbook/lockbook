@@ -1,5 +1,4 @@
 extern crate chrono;
-extern crate log;
 extern crate tokio;
 
 use hmdb::log::Reader;
@@ -10,8 +9,8 @@ use lockbook_server_lib::router_service::{
 };
 use lockbook_server_lib::schema::ServerV1;
 use lockbook_server_lib::*;
-use log::info;
 use std::sync::Arc;
+use tracing::*;
 use warp::Filter;
 
 #[tokio::main]
@@ -34,6 +33,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .or(google_play_notification_webhooks(&server_state));
 
     let server = warp::serve(routes);
+
+    error!("server started successfully");
 
     metrics::start_metrics_worker(&server_state);
 

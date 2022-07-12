@@ -40,7 +40,7 @@ class App : Application() {
 
     private fun loadLockbookCore() {
         System.loadLibrary("lockbook_core")
-        CoreModel.init(Config(true, this.filesDir.absolutePath))
+        CoreModel.init(Config(true, false, this.filesDir.absolutePath))
     }
 }
 

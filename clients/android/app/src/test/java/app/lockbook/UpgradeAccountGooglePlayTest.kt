@@ -20,7 +20,7 @@ class UpgradeAccountGooglePlayTest {
 
     @Before
     fun initCore() {
-        CoreModel.init(Config(false, createRandomPath()))
+        CoreModel.init(Config(false, false, createRandomPath()))
     }
 
     @Ignore("Does not work unless the environment variable GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY is defined in server.")

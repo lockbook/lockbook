@@ -19,7 +19,7 @@ class ImportAccountTest {
 
     @Before
     fun initCore() {
-        CoreModel.init(Config(false, createRandomPath()))
+        CoreModel.init(Config(false, false, createRandomPath()))
     }
 
     @Test
@@ -28,7 +28,7 @@ class ImportAccountTest {
 
         val exportAccountString = CoreModel.exportAccount().unwrapOk()
 
-        CoreModel.init(Config(false, createRandomPath()))
+        CoreModel.init(Config(false, false, createRandomPath()))
 
         CoreModel.importAccount(exportAccountString).unwrapOk()
     }

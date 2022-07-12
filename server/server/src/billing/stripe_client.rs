@@ -1,5 +1,5 @@
-use log::{debug, info, warn};
 use std::fmt::Debug;
+use tracing::*;
 
 use crate::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
 

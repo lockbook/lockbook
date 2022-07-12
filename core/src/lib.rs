@@ -53,6 +53,7 @@ use crate::service::search_service::SearchResultItem;
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
     pub logs: bool,
+    pub colored_logs: bool,
     pub writeable_path: String,
 }
 
@@ -91,9 +92,7 @@ pub struct RequestContext<'a, 'b> {
 impl Core {
     #[instrument(level = "info", skip_all, err(Debug))]
     pub fn init(config: &Config) -> Result<Self, UnexpectedError> {
-        if config.logs {
-            log_service::init(&config.writeable_path)?;
-        }
+        log_service::init(config)?;
         let db =
             CoreV1::init(&config.writeable_path).map_err(|err| unexpected_only!("{:#?}", err))?;
         let data_cache = Arc::new(Mutex::new(DataCache::default()));

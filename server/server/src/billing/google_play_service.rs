@@ -7,9 +7,9 @@ use google_androidpublisher3::api::SubscriptionPurchase;
 use google_androidpublisher3::hyper::body::Bytes;
 use libsecp256k1::PublicKey;
 use lockbook_models::api::UnixTimeMillis;
-use log::info;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::*;
 
 pub fn get_public_key(
     state: &ServerState, sub_notif: &SubscriptionNotification, subscription: &SubscriptionPurchase,
