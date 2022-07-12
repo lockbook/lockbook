@@ -230,9 +230,11 @@ pub enum Debug {
     Errors,
 
     /// Prints who is logged into this lockbook
+    #[structopt(name = "whoami")]
     WhoAmI,
 
     /// Prints information about where this lockbook is stored and what server it communicates with
+    #[structopt(name = "whereami")]
     WhereAmI,
 
     /// Helps find invalid states within lockbook
