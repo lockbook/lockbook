@@ -20,7 +20,7 @@ use std::path::Path;
 use uuid::Uuid;
 
 pub fn test_config() -> Config {
-    Config { writeable_path: format!("/tmp/{}", Uuid::new_v4()), logs: false }
+    Config { writeable_path: format!("/tmp/{}", Uuid::new_v4()), logs: false, colored_logs: false }
 }
 
 pub fn test_core() -> Core {
