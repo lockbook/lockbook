@@ -8,10 +8,10 @@ use google_androidpublisher3::hyper::header::HeaderValue;
 use libsecp256k1::PublicKey;
 use lockbook_models::api::{PaymentMethod, StripeAccountTier, UpgradeAccountStripeError};
 use lockbook_models::file_metadata::Owner;
-use log::info;
 use std::ops::Deref;
 use std::sync::Arc;
 use stripe::{Invoice, WebhookEvent};
+use tracing::*;
 use uuid::Uuid;
 
 pub async fn create_subscription(
