@@ -1,18 +1,20 @@
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::RwLock;
 
 use gtk::glib;
 use gtk::prelude::*;
 
 use crate::bg;
+use crate::lbutil;
 use crate::settings::Settings;
 use crate::ui;
 
 impl super::App {
-    pub fn activate(api: Arc<dyn lb::Api>, a: &gtk::Application) {
-        let data_dir = lb::data_dir();
+    pub fn activate(core: Arc<lb::Core>, a: &gtk::Application) {
+        let data_dir = lbutil::data_dir();
 
         let titlebar = ui::Titlebar::new();
 
@@ -53,7 +55,17 @@ impl super::App {
             &settings.read().unwrap().hidden_tree_cols,
         );
 
-        let app = Self { api, settings, window, overlay, titlebar, onboard, account, bg_state };
+        let app = Self {
+            sync_lock: Arc::new(Mutex::new(())),
+            core,
+            settings,
+            window,
+            overlay,
+            titlebar,
+            onboard,
+            account,
+            bg_state,
+        };
 
         app.clone().listen_for_theme_changes();
         app.clone().listen_for_onboard_ops(onboard_op_rx);
@@ -132,7 +144,7 @@ impl super::App {
             self.window.maximize();
         }
 
-        match self.api.account() {
+        match lbutil::get_account(&self.core) {
             Ok(Some(_acct)) => self.init_account_screen(),
             Ok(None) => self.overlay.set_child(Some(&self.onboard.cntr)),
             Err(msg) => show_launch_error(&self.window, &msg),
@@ -142,13 +154,13 @@ impl super::App {
     pub fn init_account_screen(&self) {
         self.window.set_titlebar(Some(&self.titlebar));
 
-        match self.api.list_metadatas() {
+        match self.core.list_metadatas() {
             Ok(mut metas) => self.account.tree.populate(&mut metas),
             Err(err) => println!("{}", err), //todo
         }
 
         self.update_sync_status();
-        self.bg_state.begin_work(&self.api, &self.settings);
+        self.bg_state.begin_work(&self.core, &self.settings);
         self.overlay.set_child(Some(&self.account.cntr));
         self.add_app_actions(&self.window.application().unwrap());
     }

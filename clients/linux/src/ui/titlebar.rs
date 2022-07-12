@@ -4,6 +4,8 @@ use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
+use lb::service::search_service::SearchResultItem;
+
 use crate::ui;
 use crate::ui::icons;
 
@@ -48,7 +50,7 @@ impl Titlebar {
         self.imp().search_field.entry.text().to_string()
     }
 
-    pub fn show_search_results(&self, results: &[lb::SearchResultItem]) {
+    pub fn show_search_results(&self, results: &[SearchResultItem]) {
         self.imp().search_field.loading.hide();
 
         let list = &self.imp().search_field.result_list;

@@ -1,11 +1,12 @@
 use gtk::glib;
 use gtk::prelude::*;
 
+use crate::lbutil::{SyncError, SyncProgressReport};
 use crate::ui;
 
 impl super::App {
     pub fn perform_sync(&self) {
-        if self.api.is_syncing() {
+        if self.sync_lock.try_lock().is_err() {
             return;
         }
 
@@ -13,31 +14,31 @@ impl super::App {
 
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
-        let api = self.api.clone();
+        let core = self.core.clone();
+        let sync_lock = self.sync_lock.clone();
         std::thread::spawn(move || {
+            let _lock = sync_lock.lock().unwrap();
             let closure = {
                 let tx = tx.clone();
-                move |msg| tx.send(lb::SyncProgressReport::Update(msg)).unwrap()
+                move |msg| tx.send(SyncProgressReport::Update(msg)).unwrap()
             };
-            let result = api
-                .sync_all(Some(Box::new(closure)))
-                .map_err(lb::SyncError::from);
-            tx.send(lb::SyncProgressReport::Done(result)).unwrap();
+            let result = core.sync(Some(Box::new(closure))).map_err(SyncError::from);
+            tx.send(SyncProgressReport::Done(result)).unwrap();
         });
 
         let app = self.clone();
-        rx.attach(None, move |pr: lb::SyncProgressReport| {
+        rx.attach(None, move |pr: SyncProgressReport| {
             match pr {
-                lb::SyncProgressReport::Update(msg) => app.account.sync.set_progress(&msg),
-                lb::SyncProgressReport::Done(result) => match result {
+                SyncProgressReport::Update(msg) => app.account.sync.set_progress(&msg),
+                SyncProgressReport::Done(result) => match result {
                     Ok(()) => {
                         app.account.sync.set_done(Ok("".to_string()));
                         app.refresh_tree_and_tabs();
                         app.update_sync_status();
                     }
                     Err(err) => match err {
-                        lb::SyncError::Minor(msg) => app.account.sync.set_done(Err(msg)),
-                        lb::SyncError::Major(msg) => eprintln!("{}", msg), //todo: show dialog or something
+                        SyncError::Minor(msg) => app.account.sync.set_done(Err(msg)),
+                        SyncError::Major(msg) => eprintln!("{}", msg), //todo: show dialog or something
                     },
                 },
             }
@@ -46,7 +47,7 @@ impl super::App {
     }
 
     fn refresh_tree_and_tabs(&self) {
-        let mut all_files = match self.api.list_metadatas() {
+        let mut all_files = match self.core.list_metadatas() {
             Ok(metas) => metas,
             Err(err) => {
                 self.show_err_dialog(&format!("listing metadatas: {}", err));

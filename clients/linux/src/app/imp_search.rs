@@ -24,10 +24,10 @@ impl super::App {
 
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
-        let api = self.api.clone();
+        let core = self.core.clone();
         let input = self.titlebar.search_input();
         std::thread::spawn(move || {
-            let result = api.search_file_paths(&input);
+            let result = core.search_file_paths(&input);
             tx.send(result).unwrap();
         });
 

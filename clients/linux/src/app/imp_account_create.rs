@@ -9,11 +9,11 @@ impl super::App {
 
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
         std::thread::spawn({
-            let api = self.api.clone();
+            let core = self.core.clone();
             let uname = uname.clone();
 
             move || {
-                let result = api.create_account(&uname, &url);
+                let result = core.create_account(&uname, &url);
                 tx.send(result).unwrap();
             }
         });

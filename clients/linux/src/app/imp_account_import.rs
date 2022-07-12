@@ -1,5 +1,6 @@
 use gtk::glib;
 
+use crate::lbutil::{SyncError, SyncProgressReport};
 use crate::ui;
 
 impl super::App {
@@ -10,9 +11,9 @@ impl super::App {
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
         // In a separate thread, import the account and send the result down the channel.
-        let api = self.api.clone();
+        let core = self.core.clone();
         std::thread::spawn(move || {
-            tx.send(api.import_account(&acct_str)).unwrap();
+            tx.send(core.import_account(&acct_str)).unwrap();
         });
 
         // If there is any error, it's shown on the import screen.
@@ -33,23 +34,21 @@ impl super::App {
 
         // In a separate thread, start syncing the account. Pass the sync channel which will be
         // used to receive progress updates as indicated above.
-        let api = self.api.clone();
+        let core = self.core.clone();
         std::thread::spawn(move || {
             let closure = {
                 let tx = tx.clone();
-                move |msg| tx.send(lb::SyncProgressReport::Update(msg)).unwrap()
+                move |msg| tx.send(SyncProgressReport::Update(msg)).unwrap()
             };
-            let result = api
-                .sync_all(Some(Box::new(closure)))
-                .map_err(lb::SyncError::from);
-            tx.send(lb::SyncProgressReport::Done(result)).unwrap();
+            let result = core.sync(Some(Box::new(closure))).map_err(SyncError::from);
+            tx.send(SyncProgressReport::Done(result)).unwrap();
         });
 
         let app = self.clone();
-        rx.attach(None, move |pr: lb::SyncProgressReport| {
+        rx.attach(None, move |pr: SyncProgressReport| {
             match pr {
-                lb::SyncProgressReport::Update(msg) => set_import_sync_progress(&app.onboard, &msg),
-                lb::SyncProgressReport::Done(result) => {
+                SyncProgressReport::Update(msg) => set_import_sync_progress(&app.onboard, &msg),
+                SyncProgressReport::Done(result) => {
                     app.onboard.stop(ui::OnboardRoute::Import);
                     match result {
                         Ok(_) => app.init_account_screen(),
@@ -73,9 +72,9 @@ fn set_import_sync_progress(onboard: &ui::OnboardScreen, sp: &lb::SyncProgress) 
     onboard.status.caption.set_text(&caption);
 }
 
-fn import_sync_done_with_err(app: &super::App, err: lb::SyncError) {
+fn import_sync_done_with_err(app: &super::App, err: SyncError) {
     match err {
-        lb::SyncError::Minor(msg) => app.onboard.set_import_err_msg(&msg),
-        lb::SyncError::Major(msg) => eprintln!("{}", msg), //todo: show dialog or something
+        SyncError::Minor(msg) => app.onboard.set_import_err_msg(&msg),
+        SyncError::Major(msg) => eprintln!("{}", msg), //todo: show dialog or something
     }
 }

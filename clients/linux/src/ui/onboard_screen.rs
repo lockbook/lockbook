@@ -134,8 +134,8 @@ impl OnboardScreen {
         self.stack.set_visible_child_name("create");
     }
 
-    pub fn handle_import_error(&self, err: lb::Error<lb::ImportAccountError>) {
-        use lb::ImportAccountError::*;
+    pub fn handle_import_error(&self, err: lb::Error<lb::ImportError>) {
+        use lb::ImportError::*;
 
         let txt = match err {
             lb::Error::UiError(err) => match err {

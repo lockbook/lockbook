@@ -3,12 +3,8 @@ name = "lockbook-desktop"
 version = "0.4.3"
 edition = "2021"
 
-[lib]
-path = "./src/lib.rs"
-name = "lockbook_desktop_gtk"
-
 [dependencies]
-lb = { package = "lb-api", path = "./lb-api" }
+lb = { package = "lockbook-core", path = "../../core" }
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.8"
 gtk = { package = "gtk4", version = "0.4.8", features = ["v4_6"] }

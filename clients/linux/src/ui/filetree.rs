@@ -168,7 +168,7 @@ impl FileTree {
         });
     }
 
-    pub fn populate(&self, metas: &mut Vec<lb::FileMetadata>) {
+    pub fn populate(&self, metas: &mut Vec<lb::DecryptedFileMetadata>) {
         let root = match metas.iter().position(|fm| fm.parent == fm.id) {
             Some(i) => metas.swap_remove(i),
             None => panic!("unable to find root in metadata list"),
@@ -179,9 +179,10 @@ impl FileTree {
     }
 
     pub fn append_any_children(
-        &self, parent_id: lb::Uuid, parent_iter: &gtk::TreeIter, metas: &[lb::FileMetadata],
+        &self, parent_id: lb::Uuid, parent_iter: &gtk::TreeIter,
+        metas: &[lb::DecryptedFileMetadata],
     ) {
-        let children: Vec<&lb::FileMetadata> =
+        let children: Vec<&lb::DecryptedFileMetadata> =
             metas.iter().filter(|fm| fm.parent == parent_id).collect();
 
         for child in children {
@@ -194,7 +195,7 @@ impl FileTree {
     }
 
     pub fn append(
-        &self, parent_iter: Option<&gtk::TreeIter>, fm: &lb::FileMetadata,
+        &self, parent_iter: Option<&gtk::TreeIter>, fm: &lb::DecryptedFileMetadata,
     ) -> gtk::TreeIter {
         let name = &fm.decrypted_name;
         let icon_name = get_icon_name(name, &fm.file_type);
@@ -225,7 +226,7 @@ impl FileTree {
         ui::id_from_tpath(&self.model, &tpath)
     }
 
-    pub fn add_file(&self, fm: &lb::FileMetadata) -> Result<(), String> {
+    pub fn add_file(&self, fm: &lb::DecryptedFileMetadata) -> Result<(), String> {
         match self.search(fm.parent) {
             Some(parent_iter) => {
                 self.append(Some(&parent_iter), fm);
