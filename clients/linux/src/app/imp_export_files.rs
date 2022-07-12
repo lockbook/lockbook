@@ -74,7 +74,7 @@ impl super::App {
             .expect("app window titlebar should be a `ui::Titlebar`");
         titlebar.base().pack_start(&menu_btn);
 
-        let total = match self.api.file_and_all_children(lb_file) {
+        let total = match self.api.get_and_get_children_recursively(lb_file) {
             Ok(children) => children.len(),
             Err(err) => {
                 self.show_err_dialog(&format!("{:?}", err));

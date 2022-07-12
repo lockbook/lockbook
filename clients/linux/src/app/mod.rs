@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::RwLock;
 
 use crate::bg;
@@ -7,7 +8,8 @@ use crate::ui;
 
 #[derive(Clone)]
 pub struct App {
-    pub api: Arc<dyn lb::Api>,
+    pub api: Arc<lb::Core>,
+    pub sync_lock: Arc<Mutex<()>>,
     pub settings: Arc<RwLock<Settings>>,
     pub titlebar: ui::Titlebar,
     pub window: gtk::ApplicationWindow,

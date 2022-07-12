@@ -1,12 +1,13 @@
 use gtk::prelude::*;
 
+use crate::lbutil;
 use crate::ui;
 
 impl super::App {
     pub fn prompt_new_file(&self) {
         let selected_id = self.account.tree.get_selected_uuid();
 
-        let (parent_id, parent_path) = match lb::parent_info(&self.api, selected_id) {
+        let (parent_id, parent_path) = match lbutil::parent_info(&self.api, selected_id) {
             Ok(v) => v,
             Err(err) => {
                 self.show_err_dialog(&err);

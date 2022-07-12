@@ -88,12 +88,12 @@ impl super::App {
 
             let path = self
                 .api
-                .path_by_id(id)
+                .get_path_by_id(id)
                 .map_err(|err| format!("{:?}", err))?;
 
             let meta = self
                 .api
-                .file_by_id(id)
+                .get_file_by_id(id)
                 .map_err(|err| format!("{:?}", err))?;
 
             let ftype = meta.file_type;
@@ -102,7 +102,7 @@ impl super::App {
                 lb::FileType::Document => vec![],
                 lb::FileType::Folder => self
                     .api
-                    .file_and_all_children(id)
+                    .get_and_get_children_recursively(id)
                     .map_err(|err| format!("{:?}", err))?,
             };
 

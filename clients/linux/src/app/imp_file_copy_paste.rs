@@ -48,7 +48,7 @@ impl super::App {
             None => self.account.tree.root_id(),
         };
 
-        let dest_id = match self.api.file_by_id(selected_id) {
+        let dest_id = match self.api.get_file_by_id(selected_id) {
             Ok(meta) => match meta.file_type {
                 lb::FileType::Document => meta.parent,
                 lb::FileType::Folder => meta.id,
@@ -252,7 +252,7 @@ impl super::App {
                     let iter = t.search(id).unwrap();
                     t.model.remove(&iter);
 
-                    let children = self.api.file_and_all_children(id).unwrap();
+                    let children = self.api.get_and_get_children_recursively(id).unwrap();
                     let parent_iter = t.search(dest_id).unwrap();
                     t.append_any_children(dest_id, &parent_iter, &children);
                 }

@@ -37,7 +37,7 @@ impl State {
         Self { bg_op_tx, edit_data, edit_alert_tx }
     }
 
-    pub fn begin_work(&self, api: &Arc<dyn lb::Api>, settings: &Arc<RwLock<Settings>>) {
+    pub fn begin_work(&self, core: &lb::Core, settings: &Arc<RwLock<Settings>>) {
         // Start auto saving.
         thread::spawn({
             let edit_data = self.edit_data.clone();
@@ -53,10 +53,10 @@ impl State {
         thread::spawn({
             let bg_op_tx = self.bg_op_tx.clone();
             let settings = settings.clone();
-            let api = api.clone();
+            let core = core.clone();
 
             move || loop {
-                sync_if_ready(&bg_op_tx, &settings, &api);
+                sync_if_ready(&bg_op_tx, &settings, &core);
                 thread::sleep(Duration::from_millis(AUTO_SYNC_CHECK_FREQ));
             }
         });
@@ -140,15 +140,15 @@ fn listen_for_edit_alerts(
 }
 
 fn sync_if_ready(
-    bg_op_tx: &glib::Sender<Op>, settings: &Arc<RwLock<Settings>>, api: &Arc<dyn lb::Api>,
+    bg_op_tx: &glib::Sender<Op>, settings: &Arc<RwLock<Settings>>, core: &lb::Core,
 ) {
     if settings
         .read()
         .expect("obtaining read on settings to check if auto_sync is on")
         .auto_sync
     {
-        let last_synced = api
-            .last_synced()
+        let last_synced = core
+            .get_last_synced()
             .map(|ts| ts as u128)
             .expect("getting last synced");
         if time_now() - last_synced > SYNC_AFTER_SYNC_DELAY {

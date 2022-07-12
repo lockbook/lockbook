@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use gtk::glib;
 
 impl super::App {
@@ -10,9 +8,9 @@ impl super::App {
 
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
-        let api = self.api.clone();
+        let core = self.api.clone();
         std::thread::spawn(move || {
-            let result = sync_status(api);
+            let result = sync_status(&core);
             tx.send(result).unwrap();
         });
 
@@ -24,13 +22,13 @@ impl super::App {
     }
 }
 
-fn sync_status(api: Arc<dyn lb::Api>) -> Result<String, String> {
+fn sync_status(core: &lb::Core) -> Result<String, String> {
     use lb::CalculateWorkError::*;
 
-    match api.last_synced().map_err(|err| err.0)? {
+    match core.get_last_synced().map_err(|err| err.0)? {
         0 => Ok("✘  Never synced.".to_string()),
         _ => {
-            let work = api.calculate_work().map_err(|err| match err {
+            let work = core.calculate_work().map_err(|err| match err {
                 lb::Error::UiError(err) => match err {
                     CouldNotReachServer => "Offline.",
                     ClientUpdateRequired => "Client upgrade required.",

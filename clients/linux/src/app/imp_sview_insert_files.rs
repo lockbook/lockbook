@@ -62,7 +62,7 @@ impl super::App {
         std::thread::spawn(move || {
             // Get the parent id of the target file. The files will all be imported to this
             // directory.
-            let parent_id = match api.file_by_id(target_file_id) {
+            let parent_id = match api.get_file_by_id(target_file_id) {
                 Ok(meta) => meta.parent,
                 Err(err) => {
                     tx.send(Some(Err(format!("{:?}", err)))).unwrap();
@@ -112,7 +112,7 @@ impl super::App {
     ) {
         // Get the parent id of the target file. The image will be inserted under the same
         // directory.
-        let parent_id = match self.api.file_by_id(target_file_id) {
+        let parent_id = match self.api.get_file_by_id(target_file_id) {
             Ok(meta) => meta.parent,
             Err(err) => {
                 self.show_err_dialog(&format!("{:?}", err));

@@ -5,7 +5,7 @@ use crate::ui;
 
 impl super::App {
     pub fn perform_sync(&self) {
-        if self.api.is_syncing() {
+        if self.sync_lock.try_lock().is_err() {
             return;
         }
 
@@ -13,14 +13,16 @@ impl super::App {
 
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
-        let api = self.api.clone();
+        let core = self.api.clone();
+        let sync_lock = self.sync_lock.clone();
         std::thread::spawn(move || {
+            let _lock = sync_lock.lock().unwrap();
             let closure = {
                 let tx = tx.clone();
                 move |msg| tx.send(lb::SyncProgressReport::Update(msg)).unwrap()
             };
-            let result = api
-                .sync_all(Some(Box::new(closure)))
+            let result = core
+                .sync(Some(Box::new(closure)))
                 .map_err(lb::SyncError::from);
             tx.send(lb::SyncProgressReport::Done(result)).unwrap();
         });

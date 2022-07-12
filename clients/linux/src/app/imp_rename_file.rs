@@ -91,7 +91,7 @@ impl super::App {
             .ok_or("no file selected!")?;
         let meta = self
             .api
-            .file_by_id(id)
+            .get_file_by_id(id)
             .map_err(|err| format!("getting current file name: {:?}", err))?;
         Ok(meta)
     }

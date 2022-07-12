@@ -1,5 +1,4 @@
 use std::io;
-use std::sync::Arc;
 
 use gdk_pixbuf::Pixbuf;
 use gtk::gdk;
@@ -161,10 +160,10 @@ struct DocInfo {
     ext: String,
 }
 
-fn load_doc_info(api: &Arc<dyn lb::Api>, id: lb::Uuid) -> Result<DocInfo, String> {
+fn load_doc_info(api: &lb::Core, id: lb::Uuid) -> Result<DocInfo, String> {
     use lb::GetFileByIdError::*;
     let name = api
-        .file_by_id(id)
+        .get_file_by_id(id)
         .map(|fm| fm.decrypted_name)
         .map_err(|err| match err {
             lb::UiError(NoFileWithThatId) => format!("no file with id '{}'", id),

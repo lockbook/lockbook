@@ -1,18 +1,20 @@
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::RwLock;
 
 use gtk::glib;
 use gtk::prelude::*;
 
 use crate::bg;
+use crate::lbutil;
 use crate::settings::Settings;
 use crate::ui;
 
 impl super::App {
-    pub fn activate(api: Arc<dyn lb::Api>, a: &gtk::Application) {
-        let data_dir = lb::data_dir();
+    pub fn activate(api: Arc<lb::Core>, a: &gtk::Application) {
+        let data_dir = lbutil::data_dir();
 
         let titlebar = ui::Titlebar::new();
 
@@ -53,7 +55,7 @@ impl super::App {
             &settings.read().unwrap().hidden_tree_cols,
         );
 
-        let app = Self { api, settings, window, overlay, titlebar, onboard, account, bg_state };
+        let app = Self { sync_lock: Arc::new(Mutex::new(())), api, settings, window, overlay, titlebar, onboard, account, bg_state };
 
         app.clone().listen_for_theme_changes();
         app.clone().listen_for_onboard_ops(onboard_op_rx);
@@ -132,7 +134,7 @@ impl super::App {
             self.window.maximize();
         }
 
-        match self.api.account() {
+        match lbutil::get_account(&self.api) {
             Ok(Some(_acct)) => self.init_account_screen(),
             Ok(None) => self.overlay.set_child(Some(&self.onboard.cntr)),
             Err(msg) => show_launch_error(&self.window, &msg),
