@@ -1,7 +1,0 @@
-[package]
-name = "lb-api"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-lockbook-core = { path = "../../../core" }
