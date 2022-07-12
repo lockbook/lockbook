@@ -48,7 +48,7 @@ impl super::App {
             None => self.account.tree.root_id(),
         };
 
-        let dest_id = match self.api.file_by_id(selected_id) {
+        let dest_id = match self.core.get_file_by_id(selected_id) {
             Ok(meta) => match meta.file_type {
                 lb::FileType::Document => meta.parent,
                 lb::FileType::Folder => meta.id,
@@ -105,7 +105,7 @@ impl super::App {
     }
 
     fn import_texture(&self, dest_id: lb::Uuid, texture: gdk::Texture) {
-        let png_meta = match lbutil::save_texture_to_png(&self.api, dest_id, texture) {
+        let png_meta = match lbutil::save_texture_to_png(&self.core, dest_id, texture) {
             Ok(meta) => meta,
             Err(err) => {
                 self.show_err_dialog(&err);
@@ -166,17 +166,17 @@ impl super::App {
 
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
-        let api = self.api.clone();
+        let core = self.core.clone();
         std::thread::spawn(move || {
             // Import each top-level file (with any children).
             for path in paths {
-                let result = lbutil::import_file(&api, &path, dest_id, &new_file_tx);
+                let result = lbutil::import_file(&core, &path, dest_id, &new_file_tx);
                 tx.send(Some(result)).unwrap();
             }
             tx.send(None).unwrap();
         });
 
-        rx.attach(None, move |maybe_res: Option<Result<lb::FileMetadata, String>>| {
+        rx.attach(None, move |maybe_res: Option<Result<lb::DecryptedFileMetadata, String>>| {
             match maybe_res {
                 Some(res) => match res {
                     Ok(_new_file) => {}
@@ -247,12 +247,12 @@ impl super::App {
 
         let t = &self.account.tree;
         for id in ids {
-            match self.api.move_file(id, dest_id) {
+            match self.core.move_file(id, dest_id) {
                 Ok(_) => {
                     let iter = t.search(id).unwrap();
                     t.model.remove(&iter);
 
-                    let children = self.api.file_and_all_children(id).unwrap();
+                    let children = self.core.get_and_get_children_recursively(id).unwrap();
                     let parent_iter = t.search(dest_id).unwrap();
                     t.append_any_children(dest_id, &parent_iter, &children);
                 }
