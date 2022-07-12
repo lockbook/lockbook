@@ -1,5 +1,4 @@
 use std::io;
-use std::sync::Arc;
 
 use gdk_pixbuf::Pixbuf;
 use gtk::gdk;
@@ -27,7 +26,7 @@ impl super::App {
     }
 
     fn read_file_and_open_tab(&self, id: lb::Uuid) -> Result<(), String> {
-        let info = load_doc_info(&self.api, id)?;
+        let info = load_doc_info(&self.core, id)?;
 
         let tab = ui::Tab::new(id);
         tab.set_name(&info.name);
@@ -45,14 +44,14 @@ impl super::App {
 
         // Load the document's content in a separate thread to prevent any UI locking.
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-        let api = self.api.clone();
+        let core = self.core.clone();
         let ext = info.ext.clone();
         std::thread::spawn(move || {
             let result = match ext.as_str() {
-                "draw" => api
+                "draw" => core
                     .export_drawing(id, lb::SupportedImageFormats::Png, None)
                     .map_err(export_drawing_err_to_string),
-                _ => api.read_document(id).map_err(read_doc_err_to_string),
+                _ => core.read_document(id).map_err(read_doc_err_to_string),
             };
             tx.send(result).unwrap();
         });
@@ -110,25 +109,25 @@ fn text_content(app: &super::App, info: &DocInfo, data: &[u8]) -> ui::TextEditor
 fn read_doc_err_to_string(err: lb::Error<lb::ReadDocumentError>) -> String {
     use lb::ReadDocumentError::*;
     match err {
-        lb::UiError(err) => match err {
+        lb::Error::UiError(err) => match err {
             TreatedFolderAsDocument => "treated folder as document",
             FileDoesNotExist => "file does not exist",
         }
         .to_string(),
-        lb::Unexpected(msg) => msg,
+        lb::Error::Unexpected(msg) => msg,
     }
 }
 
 fn export_drawing_err_to_string(err: lb::Error<lb::ExportDrawingError>) -> String {
     use lb::ExportDrawingError::*;
     match err {
-        lb::UiError(err) => match err {
+        lb::Error::UiError(err) => match err {
             FolderTreatedAsDrawing => "This is a folder, not a drawing.",
             FileDoesNotExist => "File doesn't exist.",
             InvalidDrawing => "Invalid drawing.",
         }
         .to_string(),
-        lb::Unexpected(msg) => msg,
+        lb::Error::Unexpected(msg) => msg,
     }
 }
 
@@ -161,14 +160,14 @@ struct DocInfo {
     ext: String,
 }
 
-fn load_doc_info(api: &Arc<dyn lb::Api>, id: lb::Uuid) -> Result<DocInfo, String> {
+fn load_doc_info(core: &lb::Core, id: lb::Uuid) -> Result<DocInfo, String> {
     use lb::GetFileByIdError::*;
-    let name = api
-        .file_by_id(id)
+    let name = core
+        .get_file_by_id(id)
         .map(|fm| fm.decrypted_name)
         .map_err(|err| match err {
-            lb::UiError(NoFileWithThatId) => format!("no file with id '{}'", id),
-            lb::Unexpected(msg) => msg,
+            lb::Error::UiError(NoFileWithThatId) => format!("no file with id '{}'", id),
+            lb::Error::Unexpected(msg) => msg,
         })?;
 
     let ext = std::path::Path::new(&name)
