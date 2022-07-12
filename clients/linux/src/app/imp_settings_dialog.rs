@@ -391,7 +391,7 @@ fn grid_val(txt: &str) -> gtk::Label {
 fn payment_err_to_string(err: lb::Error<lb::UpgradeAccountStripeError>) -> String {
     use lb::UpgradeAccountStripeError::*;
     match err {
-        lb::UiError(err) => match err {
+        lb::Error::UiError(err) => match err {
             CouldNotReachServer => "Unable to connect to server.",
             OldCardDoesNotExist => "Could not find your current card.",
             AlreadyPremium => "You are already subscribed for this tier.",
@@ -413,7 +413,7 @@ fn payment_err_to_string(err: lb::Error<lb::UpgradeAccountStripeError>) -> Strin
             }
         }
         .to_string(),
-        lb::Unexpected(err) => err,
+        lb::Error::Unexpected(err) => err,
     }
 }
 

@@ -141,13 +141,13 @@ fn export_err_to_string(err: lb::Error<lb::ExportFileError>) -> String {
     use lb::ExportFileError::*;
 
     match err {
-        lb::UiError(err) => match err {
+        lb::Error::UiError(err) => match err {
             ParentDoesNotExist => "parent lockbook file does not exist",
             DiskPathTaken => "destination path is taken",
             DiskPathInvalid => "destination path is invalid",
         }
         .to_string(),
-        lb::Unexpected(msg) => msg,
+        lb::Error::Unexpected(msg) => msg,
     }
 }
 

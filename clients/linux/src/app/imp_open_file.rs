@@ -109,25 +109,25 @@ fn text_content(app: &super::App, info: &DocInfo, data: &[u8]) -> ui::TextEditor
 fn read_doc_err_to_string(err: lb::Error<lb::ReadDocumentError>) -> String {
     use lb::ReadDocumentError::*;
     match err {
-        lb::UiError(err) => match err {
+        lb::Error::UiError(err) => match err {
             TreatedFolderAsDocument => "treated folder as document",
             FileDoesNotExist => "file does not exist",
         }
         .to_string(),
-        lb::Unexpected(msg) => msg,
+        lb::Error::Unexpected(msg) => msg,
     }
 }
 
 fn export_drawing_err_to_string(err: lb::Error<lb::ExportDrawingError>) -> String {
     use lb::ExportDrawingError::*;
     match err {
-        lb::UiError(err) => match err {
+        lb::Error::UiError(err) => match err {
             FolderTreatedAsDrawing => "This is a folder, not a drawing.",
             FileDoesNotExist => "File doesn't exist.",
             InvalidDrawing => "Invalid drawing.",
         }
         .to_string(),
-        lb::Unexpected(msg) => msg,
+        lb::Error::Unexpected(msg) => msg,
     }
 }
 
@@ -166,8 +166,8 @@ fn load_doc_info(core: &lb::Core, id: lb::Uuid) -> Result<DocInfo, String> {
         .get_file_by_id(id)
         .map(|fm| fm.decrypted_name)
         .map_err(|err| match err {
-            lb::UiError(NoFileWithThatId) => format!("no file with id '{}'", id),
-            lb::Unexpected(msg) => msg,
+            lb::Error::UiError(NoFileWithThatId) => format!("no file with id '{}'", id),
+            lb::Error::Unexpected(msg) => msg,
         })?;
 
     let ext = std::path::Path::new(&name)

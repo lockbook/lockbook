@@ -6,6 +6,8 @@ use gtk::gdk;
 use gtk::glib;
 use gtk::prelude::*;
 
+use lb::model::filename::NameComponents;
+
 pub fn data_dir() -> String {
     const ERR_MSG: &str = "Unable to determine a Lockbook data directory.\
  Please consider setting the LOCKBOOK_PATH environment variable.";
@@ -50,7 +52,7 @@ pub fn parent_info(
 
 pub fn save_texture_to_png(
     core: &lb::Core, parent_id: lb::Uuid, texture: gdk::Texture,
-) -> Result<lb::FileMetadata, String> {
+) -> Result<lb::DecryptedFileMetadata, String> {
     // There's a bit of a chicken and egg situation when it comes to naming a new file based on
     // its id. First, we'll create a new file with a random (temporary) name.
     let mut png_meta = core
@@ -72,8 +74,9 @@ pub fn save_texture_to_png(
 }
 
 pub fn import_file(
-    core: &lb::Core, disk_path: &Path, dest: lb::Uuid, new_file_tx: &glib::Sender<lb::FileMetadata>,
-) -> Result<lb::FileMetadata, String> {
+    core: &lb::Core, disk_path: &Path, dest: lb::Uuid,
+    new_file_tx: &glib::Sender<lb::DecryptedFileMetadata>,
+) -> Result<lb::DecryptedFileMetadata, String> {
     if !disk_path.exists() {
         return Err(format!("invalid disk path {:?}", disk_path));
     }
@@ -90,7 +93,7 @@ pub fn import_file(
 
     let file_name = {
         let siblings = core.get_children(dest).map_err(|e| e.0)?;
-        lb::get_non_conflicting_name(&siblings, disk_file_name)
+        get_non_conflicting_name(&siblings, disk_file_name)
     };
 
     let file_meta = core
@@ -113,4 +116,42 @@ pub fn import_file(
     }
 
     Ok(file_meta)
+}
+
+fn get_non_conflicting_name(siblings: &[lb::DecryptedFileMetadata], proposed_name: &str) -> String {
+    let mut new_name = NameComponents::from(proposed_name);
+    loop {
+        if !siblings
+            .iter()
+            .any(|f| f.decrypted_name == new_name.to_name())
+        {
+            return new_name.to_name();
+        }
+        new_name = new_name.generate_next();
+    }
+}
+
+pub enum SyncProgressReport {
+    Update(lb::SyncProgress),
+    Done(Result<(), SyncError>),
+}
+
+pub enum SyncError {
+    Major(String),
+    Minor(String),
+}
+
+impl From<lb::Error<lb::SyncAllError>> for SyncError {
+    fn from(err: lb::Error<lb::SyncAllError>) -> Self {
+        match err {
+            lb::Error::UiError(err) => Self::Minor(
+                match err {
+                    lb::SyncAllError::CouldNotReachServer => "Offline.",
+                    lb::SyncAllError::ClientUpdateRequired => "Client upgrade required.",
+                }
+                .to_string(),
+            ),
+            lb::Error::Unexpected(msg) => Self::Major(msg),
+        }
+    }
 }

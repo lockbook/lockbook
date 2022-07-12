@@ -1,6 +1,7 @@
 use gtk::glib;
 use gtk::prelude::*;
 
+use crate::lbutil::{SyncError, SyncProgressReport};
 use crate::ui;
 
 impl super::App {
@@ -19,27 +20,25 @@ impl super::App {
             let _lock = sync_lock.lock().unwrap();
             let closure = {
                 let tx = tx.clone();
-                move |msg| tx.send(lb::SyncProgressReport::Update(msg)).unwrap()
+                move |msg| tx.send(SyncProgressReport::Update(msg)).unwrap()
             };
-            let result = core
-                .sync(Some(Box::new(closure)))
-                .map_err(lb::SyncError::from);
-            tx.send(lb::SyncProgressReport::Done(result)).unwrap();
+            let result = core.sync(Some(Box::new(closure))).map_err(SyncError::from);
+            tx.send(SyncProgressReport::Done(result)).unwrap();
         });
 
         let app = self.clone();
-        rx.attach(None, move |pr: lb::SyncProgressReport| {
+        rx.attach(None, move |pr: SyncProgressReport| {
             match pr {
-                lb::SyncProgressReport::Update(msg) => app.account.sync.set_progress(&msg),
-                lb::SyncProgressReport::Done(result) => match result {
+                SyncProgressReport::Update(msg) => app.account.sync.set_progress(&msg),
+                SyncProgressReport::Done(result) => match result {
                     Ok(()) => {
                         app.account.sync.set_done(Ok("".to_string()));
                         app.refresh_tree_and_tabs();
                         app.update_sync_status();
                     }
                     Err(err) => match err {
-                        lb::SyncError::Minor(msg) => app.account.sync.set_done(Err(msg)),
-                        lb::SyncError::Major(msg) => eprintln!("{}", msg), //todo: show dialog or something
+                        SyncError::Minor(msg) => app.account.sync.set_done(Err(msg)),
+                        SyncError::Major(msg) => eprintln!("{}", msg), //todo: show dialog or something
                     },
                 },
             }

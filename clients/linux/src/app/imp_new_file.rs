@@ -111,7 +111,7 @@ impl super::App {
                 Err(err) => display_error(&{
                     use lb::CreateFileError::*;
                     match err {
-                        lb::UiError(err) => match err {
+                        lb::Error::UiError(err) => match err {
                             DocumentTreatedAsFolder => {
                                 "Can only create files within folders, not documents."
                             }
@@ -121,7 +121,7 @@ impl super::App {
                             FileNameContainsSlash => "File names cannot contain a slash (/).",
                         }
                         .to_string(),
-                        lb::Unexpected(msg) => msg,
+                        lb::Error::Unexpected(msg) => msg,
                     }
                 }),
             }

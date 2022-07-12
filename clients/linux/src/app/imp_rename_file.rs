@@ -83,7 +83,7 @@ impl super::App {
         popover.popup();
     }
 
-    fn get_selected_metadata(&self) -> Result<lb::FileMetadata, String> {
+    fn get_selected_metadata(&self) -> Result<lb::DecryptedFileMetadata, String> {
         let id = self
             .account
             .tree

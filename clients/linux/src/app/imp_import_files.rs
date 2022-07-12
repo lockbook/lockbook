@@ -175,11 +175,11 @@ enum Info {
 fn import_err_to_string(err: lb::Error<lb::ImportFileError>) -> String {
     use lb::ImportFileError::*;
     match err {
-        lb::UiError(err) => match err {
+        lb::Error::UiError(err) => match err {
             ParentDoesNotExist => "destination does not exist",
             DocumentTreatedAsFolder => "destination is a document",
         }
         .to_string(),
-        lb::Unexpected(err) => err,
+        lb::Error::Unexpected(err) => err,
     }
 }
