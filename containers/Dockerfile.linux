@@ -23,7 +23,6 @@ COPY containers/dummy.rs /core/libs/models/src/lib.rs
 COPY containers/dummy.rs /core/libs/crypto/src/lib.rs
 
 COPY containers/dummy.rs src/main.rs
-COPY containers/dummy.rs src/lib.rs
 COPY clients/linux/Cargo.toml .
 COPY rustfmt.toml .
 RUN cargo build --release
