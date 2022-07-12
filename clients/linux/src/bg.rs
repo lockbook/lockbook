@@ -139,9 +139,7 @@ fn listen_for_edit_alerts(
     }
 }
 
-fn sync_if_ready(
-    bg_op_tx: &glib::Sender<Op>, settings: &Arc<RwLock<Settings>>, core: &lb::Core,
-) {
+fn sync_if_ready(bg_op_tx: &glib::Sender<Op>, settings: &Arc<RwLock<Settings>>, core: &lb::Core) {
     if settings
         .read()
         .expect("obtaining read on settings to check if auto_sync is on")

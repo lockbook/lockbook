@@ -13,7 +13,7 @@ impl super::App {
 
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
-        let core = self.api.clone();
+        let core = self.core.clone();
         let sync_lock = self.sync_lock.clone();
         std::thread::spawn(move || {
             let _lock = sync_lock.lock().unwrap();
@@ -48,7 +48,7 @@ impl super::App {
     }
 
     fn refresh_tree_and_tabs(&self) {
-        let mut all_files = match self.api.list_metadatas() {
+        let mut all_files = match self.core.list_metadatas() {
             Ok(metas) => metas,
             Err(err) => {
                 self.show_err_dialog(&format!("listing metadatas: {}", err));

@@ -28,7 +28,9 @@ pub fn get_account(core: &lb::Core) -> Result<Option<lb::Account>, String> {
     }
 }
 
-pub fn parent_info(core: &lb::Core, maybe_id: Option<lb::Uuid>) -> Result<(lb::Uuid, String), String> {
+pub fn parent_info(
+    core: &lb::Core, maybe_id: Option<lb::Uuid>,
+) -> Result<(lb::Uuid, String), String> {
     let id = match maybe_id {
         Some(id) => {
             let meta = core.get_file_by_id(id).map_err(|e| format!("{:?}", e))?;
@@ -70,8 +72,7 @@ pub fn save_texture_to_png(
 }
 
 pub fn import_file(
-    core: &lb::Core, disk_path: &Path, dest: lb::Uuid,
-    new_file_tx: &glib::Sender<lb::FileMetadata>,
+    core: &lb::Core, disk_path: &Path, dest: lb::Uuid, new_file_tx: &glib::Sender<lb::FileMetadata>,
 ) -> Result<lb::FileMetadata, String> {
     if !disk_path.exists() {
         return Err(format!("invalid disk path {:?}", disk_path));

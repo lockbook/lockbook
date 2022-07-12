@@ -26,7 +26,7 @@ impl super::App {
     }
 
     fn read_file_and_open_tab(&self, id: lb::Uuid) -> Result<(), String> {
-        let info = load_doc_info(&self.api, id)?;
+        let info = load_doc_info(&self.core, id)?;
 
         let tab = ui::Tab::new(id);
         tab.set_name(&info.name);
@@ -44,14 +44,14 @@ impl super::App {
 
         // Load the document's content in a separate thread to prevent any UI locking.
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-        let api = self.api.clone();
+        let core = self.core.clone();
         let ext = info.ext.clone();
         std::thread::spawn(move || {
             let result = match ext.as_str() {
-                "draw" => api
+                "draw" => core
                     .export_drawing(id, lb::SupportedImageFormats::Png, None)
                     .map_err(export_drawing_err_to_string),
-                _ => api.read_document(id).map_err(read_doc_err_to_string),
+                _ => core.read_document(id).map_err(read_doc_err_to_string),
             };
             tx.send(result).unwrap();
         });
@@ -160,9 +160,9 @@ struct DocInfo {
     ext: String,
 }
 
-fn load_doc_info(api: &lb::Core, id: lb::Uuid) -> Result<DocInfo, String> {
+fn load_doc_info(core: &lb::Core, id: lb::Uuid) -> Result<DocInfo, String> {
     use lb::GetFileByIdError::*;
-    let name = api
+    let name = core
         .get_file_by_id(id)
         .map(|fm| fm.decrypted_name)
         .map_err(|err| match err {

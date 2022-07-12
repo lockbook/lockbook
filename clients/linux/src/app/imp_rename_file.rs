@@ -49,7 +49,7 @@ impl super::App {
         entry.connect_activate(move |entry| {
             let id = meta.id;
             let new_name = entry.buffer().text();
-            if let Err(err) = app.api.rename_file(id, &new_name) {
+            if let Err(err) = app.core.rename_file(id, &new_name) {
                 err_lbl.set_text(&format!("{:?}", err)); // todo
                 content.append(&err_lbl);
                 if matches!(err, lb::Error::Unexpected(_)) {
@@ -90,7 +90,7 @@ impl super::App {
             .get_selected_uuid()
             .ok_or("no file selected!")?;
         let meta = self
-            .api
+            .core
             .get_file_by_id(id)
             .map_err(|err| format!("getting current file name: {:?}", err))?;
         Ok(meta)

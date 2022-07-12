@@ -10,7 +10,7 @@ impl super::App {
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
         // In a separate thread, import the account and send the result down the channel.
-        let core = self.api.clone();
+        let core = self.core.clone();
         std::thread::spawn(move || {
             tx.send(core.import_account(&acct_str)).unwrap();
         });
@@ -33,7 +33,7 @@ impl super::App {
 
         // In a separate thread, start syncing the account. Pass the sync channel which will be
         // used to receive progress updates as indicated above.
-        let core = self.api.clone();
+        let core = self.core.clone();
         std::thread::spawn(move || {
             let closure = {
                 let tx = tx.clone();

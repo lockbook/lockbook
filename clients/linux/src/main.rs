@@ -14,25 +14,23 @@ fn main() {
 
     let writeable_path = format!("{}/linux", lbutil::data_dir());
 
-    let core = match lb::Core::init(&lb::Config { logs: true, writeable_path }) {
+    let cfg = lb::Config { logs: true, colored_logs: true, writeable_path };
+    let core = match lb::Core::init(&cfg) {
         Ok(core) => Arc::new(core),
         Err(err) => panic!("unable to init core: {}", err.0),
     };
 
     let a = gtk::Application::new(None, Default::default());
-    a.connect_startup(|_| load_css());
+    a.connect_startup(|_| {
+        // Load the CSS on startup.
+        let provider = gtk::CssProvider::new();
+        provider.load_from_data(include_bytes!("../style.css"));
+        gtk::StyleContext::add_provider_for_display(
+            &gtk::gdk::Display::default().expect("Could not connect to a display."),
+            &provider,
+            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+    });
     a.connect_activate(move |a| app::App::activate(core.clone(), a));
     a.run();
-}
-
-fn load_css() {
-    // Load the CSS file and add it to the provider
-    let provider = gtk::CssProvider::new();
-    provider.load_from_data(include_bytes!("../style.css"));
-    // Add the provider to the default screen
-    gtk::StyleContext::add_provider_for_display(
-        &gtk::gdk::Display::default().expect("Could not connect to a display."),
-        &provider,
-        gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
-    );
 }

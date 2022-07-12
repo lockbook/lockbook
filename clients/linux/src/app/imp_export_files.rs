@@ -74,7 +74,7 @@ impl super::App {
             .expect("app window titlebar should be a `ui::Titlebar`");
         titlebar.base().pack_start(&menu_btn);
 
-        let total = match self.api.get_and_get_children_recursively(lb_file) {
+        let total = match self.core.get_and_get_children_recursively(lb_file) {
             Ok(children) => children.len(),
             Err(err) => {
                 self.show_err_dialog(&format!("{:?}", err));
@@ -88,9 +88,9 @@ impl super::App {
             move |export_info| info_tx.send(Info::Progress(export_info)).unwrap()
         };
 
-        let api = self.api.clone();
+        let core = self.core.clone();
         std::thread::spawn(move || {
-            let result = api.export_file(lb_file, dest, false, Some(Box::new(update_status)));
+            let result = core.export_file(lb_file, dest, false, Some(Box::new(update_status)));
             info_tx.send(Info::Final(result)).unwrap();
         });
 

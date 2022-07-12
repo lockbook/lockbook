@@ -7,7 +7,7 @@ impl super::App {
     pub fn prompt_new_file(&self) {
         let selected_id = self.account.tree.get_selected_uuid();
 
-        let (parent_id, parent_path) = match lbutil::parent_info(&self.api, selected_id) {
+        let (parent_id, parent_path) = match lbutil::parent_info(&self.core, selected_id) {
             Ok(v) => v,
             Err(err) => {
                 self.show_err_dialog(&err);
@@ -95,7 +95,7 @@ impl super::App {
                 fname = format!("{}{}", fname, ext);
             }
 
-            match app.api.create_file(&fname, parent_id, ftype.lb_type()) {
+            match app.core.create_file(&fname, parent_id, ftype.lb_type()) {
                 Ok(new_file) => match app.account.tree.add_file(&new_file) {
                     Ok(_) => {
                         app.update_sync_status();

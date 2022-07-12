@@ -46,7 +46,7 @@ impl super::App {
             move |import_status| info_tx.send(Info::Progress(import_status)).unwrap()
         };
 
-        let core = self.api.clone();
+        let core = self.core.clone();
         std::thread::spawn(move || {
             let result = core.import_files(&file_paths, dest, &Box::new(update_status));
             info_tx.send(Info::Final(result)).unwrap();

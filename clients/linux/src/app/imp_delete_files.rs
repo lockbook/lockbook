@@ -53,7 +53,7 @@ impl super::App {
                 .collect::<Vec<FileInfo>>();
 
             for info in &files_to_delete {
-                if let Err(err) = app.api.delete_file(info.id) {
+                if let Err(err) = app.core.delete_file(info.id) {
                     app.show_err_dialog(&format!("{:?}", err));
                     break;
                 }
@@ -87,12 +87,12 @@ impl super::App {
             let id = ui::id_from_tpath(&model, tpath);
 
             let path = self
-                .api
+                .core
                 .get_path_by_id(id)
                 .map_err(|err| format!("{:?}", err))?;
 
             let meta = self
-                .api
+                .core
                 .get_file_by_id(id)
                 .map_err(|err| format!("{:?}", err))?;
 
@@ -101,7 +101,7 @@ impl super::App {
             let all_children = match meta.file_type {
                 lb::FileType::Document => vec![],
                 lb::FileType::Folder => self
-                    .api
+                    .core
                     .get_and_get_children_recursively(id)
                     .map_err(|err| format!("{:?}", err))?,
             };

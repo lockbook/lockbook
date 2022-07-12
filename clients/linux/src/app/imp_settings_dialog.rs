@@ -32,7 +32,7 @@ impl super::App {
 
     fn acct_settings(&self, settings_win: &gtk::Dialog) -> gtk::Box {
         let cntr = settings_box();
-        match lbutil::get_account(&self.api) {
+        match lbutil::get_account(&self.core) {
             Ok(maybe_acct) => {
                 cntr.append(&heading("Info"));
                 cntr.append(&acct_info(maybe_acct.as_ref()));
@@ -59,7 +59,7 @@ impl super::App {
             .margin_bottom(20)
             .build();
 
-        let acct_secret = match self.api.export_account() {
+        let acct_secret = match self.core.export_account() {
             Ok(v) => v,
             Err(err) => {
                 cntr.append(&gtk::Label::new(Some(&format!("{:?}", err)))); //todo
@@ -132,14 +132,14 @@ impl super::App {
     }
 
     fn usage_settings(&self, settings_win: &gtk::Dialog) -> gtk::Stack {
-        let metrics_result = self.api.get_usage();
-        let uncompressed_result = self.api.get_uncompressed_usage();
+        let metrics_result = self.core.get_usage();
+        let uncompressed_result = self.core.get_uncompressed_usage();
 
         let usage = ui::UsageSettings::new();
         usage.set_metrics(metrics_result, uncompressed_result);
 
         let settings_win = settings_win.clone();
-        let core = self.api.clone();
+        let core = self.core.clone();
         usage.connect_begin_upgrade(move |usage| {
             let maybe_subscription = match core.get_subscription_info() {
                 Ok(maybe_subscription) => maybe_subscription,

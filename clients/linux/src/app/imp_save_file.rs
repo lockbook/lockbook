@@ -25,7 +25,7 @@ impl super::App {
 
     fn save_file_content(&self, id: lb::Uuid, data: &str) -> Result<(), String> {
         use lb::WriteDocumentError::*;
-        self.api
+        self.core
             .write_document(id, data.as_bytes())
             .map_err(|err| match err {
                 lb::Error::UiError(err) => match err {

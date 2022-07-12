@@ -18,7 +18,7 @@ impl super::App {
 
         let dest = match ftree.view.path_at_pos(x, y) {
             Some((Some(tpath), _, _, _)) => ui::id_from_tpath(&ftree.model, &tpath),
-            _ => match self.api.get_root() {
+            _ => match self.core.get_root() {
                 Ok(fm) => fm.id,
                 Err(err) => {
                     self.show_err_dialog(&format!("{:?}", err));

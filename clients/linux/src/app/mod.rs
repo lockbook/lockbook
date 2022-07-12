@@ -8,7 +8,7 @@ use crate::ui;
 
 #[derive(Clone)]
 pub struct App {
-    pub api: Arc<lb::Core>,
+    pub core: Arc<lb::Core>,
     pub sync_lock: Arc<Mutex<()>>,
     pub settings: Arc<RwLock<Settings>>,
     pub titlebar: ui::Titlebar,

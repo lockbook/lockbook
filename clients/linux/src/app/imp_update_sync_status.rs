@@ -8,7 +8,7 @@ impl super::App {
 
         let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
-        let core = self.api.clone();
+        let core = self.core.clone();
         std::thread::spawn(move || {
             let result = sync_status(&core);
             tx.send(result).unwrap();
