@@ -74,13 +74,13 @@ impl RequestContext<'_, '_> {
         let mut files_contents: HashMap<Uuid, String> = HashMap::new();
 
         for (id, file) in &files_not_deleted {
+            ids.push(*id);
             paths.insert(file.id, RequestContext::path_by_id_helper(&files_not_deleted, file.id)?);
 
             if file.file_type == FileType::Document
                 && (file.decrypted_name.as_str().ends_with(".txt")
                     || file.decrypted_name.as_str().ends_with(".md"))
             {
-                ids.push(*id);
                 files_contents.insert(
                     file.id,
                     String::from(String::from_utf8_lossy(&self.read_document(
@@ -286,7 +286,7 @@ impl RequestContext<'_, '_> {
 
             let paragraphs = match files_contents.get(id) {
                 None => continue,
-                Some(content) => content.split("\n").map(),
+                Some(content) => content.split("\n"),
             };
 
             let mut content_matches: Vec<ContentMatch> = Vec::new();

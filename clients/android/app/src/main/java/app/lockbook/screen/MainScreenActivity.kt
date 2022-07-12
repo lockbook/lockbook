@@ -18,7 +18,6 @@ import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.model.*
 import app.lockbook.ui.*
 import app.lockbook.util.*
-import timber.log.Timber
 import java.io.File
 import java.lang.ref.WeakReference
 
@@ -167,10 +166,7 @@ class MainScreenActivity : AppCompatActivity() {
             UpdateMainScreenUI.ShowSubscriptionConfirmed -> {
                 alertModel.notifySuccessfulPurchaseConfirm()
             }
-            UpdateMainScreenUI.ShowSearch -> {
-                Timber.e("GOT HERE")
-                navHost().navController.navigate(R.id.action_files_to_search)
-            }
+            UpdateMainScreenUI.ShowSearch -> navHost().navController.navigate(R.id.action_files_to_search)
             UpdateMainScreenUI.ShowFiles -> navHost().navController.popBackStack()
         }
     }
