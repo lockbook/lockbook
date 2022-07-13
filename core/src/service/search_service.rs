@@ -2,12 +2,11 @@ use crate::model::repo::RepoSource;
 use crate::{CoreError, RequestContext, UnexpectedError};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use itertools::Itertools;
 use lockbook_models::file_metadata::{DecryptedFiles, FileType};
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::sync::mpsc::{Receiver, Sender, TryRecvError};
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
@@ -16,7 +15,7 @@ use sublime_fuzzy::{FuzzySearch, Scoring};
 use uuid::Uuid;
 
 const DEBOUNCE_MILLIS: u64 = 500;
-const LOWEST_SCORE_THRESHOLD: i64 = 100;
+const LOWEST_SCORE_THRESHOLD: i64 = 170;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct SearchResultItem {
@@ -104,8 +103,9 @@ impl RequestContext<'_, '_> {
                 Arc::new(paths),
                 Arc::new(files_contents),
             ) {
-                if let Err(_) =
-                    results_tx.send(SearchResult::Error(UnexpectedError(format!("{:?}", e))))
+                if results_tx
+                    .send(SearchResult::Error(UnexpectedError(format!("{:?}", e))))
+                    .is_err()
                 {
                     // can't send the error, so nothing to do
                 }
@@ -194,7 +194,7 @@ impl RequestContext<'_, '_> {
                 should_continue,
                 input,
             ) {
-                if let Err(_) = results_tx.send(SearchResult::Error(e)) {
+                if results_tx.send(SearchResult::Error(e)).is_err() {
                     // can't send the error, so nothing to do
                 }
             }
@@ -229,7 +229,7 @@ impl RequestContext<'_, '_> {
         }
 
         if no_matches && *should_continue.lock()? {
-            if let Err(_) = results_tx.send(SearchResult::NoMatch) {
+            if let Err(_e) = results_tx.send(SearchResult::NoMatch) {
                 // session already ended so no point
             }
         }
@@ -261,12 +261,15 @@ impl RequestContext<'_, '_> {
                         return Ok(());
                     }
 
-                    if let Err(_) = results_tx.send(SearchResult::FileNameMatch {
-                        id: id.clone(),
-                        path: paths[id].clone(),
-                        matched_indices: fuzzy_match.matched_indices().cloned().collect(),
-                        score: fuzzy_match.score() as i64,
-                    }) {
+                    if results_tx
+                        .send(SearchResult::FileNameMatch {
+                            id: *id,
+                            path: paths[id].clone(),
+                            matched_indices: fuzzy_match.matched_indices().cloned().collect(),
+                            score: fuzzy_match.score() as i64,
+                        })
+                        .is_err()
+                    {
                         break;
                     }
                 }
@@ -304,7 +307,7 @@ impl RequestContext<'_, '_> {
                         let (paragraph, matched_indices) = RequestContext::optimize_searched_text(
                             paragraph,
                             fuzzy_match.matched_indices().cloned().collect(),
-                        );
+                        )?;
 
                         content_matches.push(ContentMatch {
                             paragraph,
@@ -324,11 +327,14 @@ impl RequestContext<'_, '_> {
                     return Ok(());
                 }
 
-                if let Err(_) = results_tx.send(SearchResult::FileContentMatches {
-                    id: id.clone(),
-                    path: paths[id].clone(),
-                    content_matches,
-                }) {
+                if results_tx
+                    .send(SearchResult::FileContentMatches {
+                        id: *id,
+                        path: paths[id].clone(),
+                        content_matches,
+                    })
+                    .is_err()
+                {
                     break;
                 }
             }
@@ -339,11 +345,11 @@ impl RequestContext<'_, '_> {
 
     fn optimize_searched_text(
         paragraph: &str, matched_indices: Vec<usize>,
-    ) -> (String, Vec<usize>) {
+    ) -> Result<(String, Vec<usize>), UnexpectedError> {
         // let mut distance_between_indcies: Vec<usize> = Vec::new();
 
         if paragraph.len() <= IDEAL_PARAGRAPH_LENGTH {
-            return (paragraph.to_string(), matched_indices);
+            return Ok((paragraph.to_string(), matched_indices));
         }
 
         let mut index_offset: usize = 0;
@@ -358,13 +364,13 @@ impl RequestContext<'_, '_> {
                         .collect();
                     new_paragraph.push_str("...");
 
-                    return (
+                    return Ok((
                         new_paragraph,
                         matched_indices
                             .iter()
                             .map(|index| *index - index_offset)
                             .collect(),
-                    );
+                    ));
                 }
 
                 if *first_match > PARAGRAPH_SLICE_PADDING as usize {
@@ -382,13 +388,13 @@ impl RequestContext<'_, '_> {
                     new_paragraph.insert_str(0, "...");
 
                     if new_paragraph.len() <= IDEAL_PARAGRAPH_LENGTH {
-                        return (
+                        return Ok((
                             new_paragraph,
                             matched_indices
                                 .iter()
                                 .map(|index| *index - index_offset)
                                 .collect(),
-                        );
+                        ));
                     }
                 }
 
@@ -405,17 +411,38 @@ impl RequestContext<'_, '_> {
                     new_paragraph.push_str("...");
 
                     if new_paragraph.len() < IDEAL_PARAGRAPH_LENGTH {
-                        return (
+                        return Ok((
                             new_paragraph,
                             matched_indices
                                 .iter()
                                 .map(|index| *index - index_offset)
                                 .collect(),
-                        );
+                        ));
                     }
                 }
+
+                if new_paragraph.len() > MAX_PARAGRAPH_LENGTH {
+                    new_paragraph = new_paragraph.chars().take(MAX_PARAGRAPH_LENGTH).collect();
+
+                    Ok((
+                        new_paragraph,
+                        matched_indices
+                            .iter()
+                            .map(|index| *index - index_offset)
+                            .filter(|index| *index < MAX_PARAGRAPH_LENGTH)
+                            .collect(),
+                    ))
+                } else {
+                    Ok((
+                        new_paragraph,
+                        matched_indices
+                            .iter()
+                            .map(|index| *index - index_offset)
+                            .collect(),
+                    ))
+                }
             }
-            _ => {}
+            _ => Err(UnexpectedError("No matched indices.".to_string())),
         }
 
         // for index in 0..matched_indices.len() {
@@ -425,27 +452,6 @@ impl RequestContext<'_, '_> {
         //
         //     distance_between_indcies[index - 1] = matched_indices[index - 1] - matched_indices[index];
         // }
-
-        if new_paragraph.len() > MAX_PARAGRAPH_LENGTH {
-            new_paragraph = new_paragraph.chars().take(MAX_PARAGRAPH_LENGTH).collect();
-
-            (
-                new_paragraph,
-                matched_indices
-                    .iter()
-                    .map(|index| *index - index_offset)
-                    .filter(|index| *index < MAX_PARAGRAPH_LENGTH)
-                    .collect(),
-            )
-        } else {
-            (
-                new_paragraph,
-                matched_indices
-                    .iter()
-                    .map(|index| *index - index_offset)
-                    .collect(),
-            )
-        }
     }
 }
 

@@ -40,6 +40,12 @@ impl<T> From<std::sync::PoisonError<T>> for UnexpectedError {
     }
 }
 
+impl<T> From<std::sync::mpsc::SendError<T>> for UnexpectedError {
+    fn from(err: std::sync::mpsc::SendError<T>) -> Self {
+        UnexpectedError(format!("{:#?}", err))
+    }
+}
+
 impl Serialize for UnexpectedError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

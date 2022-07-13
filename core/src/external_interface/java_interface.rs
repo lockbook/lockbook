@@ -638,13 +638,9 @@ fn send_search_request(env: JNIEnv, request: SearchRequest) -> jstring {
         .and_then(|maybe_lock| {
             maybe_lock
                 .clone()
-                .ok_or(UnexpectedError("No search lock.".to_string()))
+                .ok_or_else(|| UnexpectedError("No search lock.".to_string()))
         })
-        .and_then(|search_tx| {
-            search_tx
-                .send(request)
-                .map_err(|_| UnexpectedError("No search thread active.".to_string()))
-        });
+        .and_then(|search_tx| search_tx.send(request).map_err(UnexpectedError::from));
 
     string_to_jstring(&env, translate(result))
 }
@@ -667,12 +663,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
         return string_to_jstring(&env, translate(Err::<(), _>(e)));
     }
 
-    loop {
-        let results = match results_rx.recv() {
-            Ok(last_search) => last_search,
-            Err(_) => break,
-        };
-
+    while let Ok(results) = results_rx.recv() {
         match results {
             SearchResult::Error(e) => return string_to_jstring(&env, translate(Err::<(), _>(e))),
             SearchResult::FileNameMatch { id, path, matched_indices, score } => {
