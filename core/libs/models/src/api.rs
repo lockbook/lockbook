@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::account::Account;
 use crate::account::Username;
 use crate::crypto::*;
-use crate::file_metadata::{FileMetadataDiff, UnsignedFile};
+use crate::file_metadata::{FileDiff, UnsignedFile};
 use crate::tree::FileLike;
 
 pub trait Request {
@@ -34,21 +34,7 @@ pub enum ErrorWrapper<E> {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct FileMetadataUpsertsRequest {
-    pub updates: Vec<FileMetadataDiff>,
-}
-
-impl FileMetadataUpsertsRequest {
-    pub fn new(metadata: &UnsignedFile) -> Self {
-        FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(metadata)] }
-    }
-
-    pub fn new_diff(
-        old_parent: Uuid, old_name: &SecretFileName, new_metadata: &UnsignedFile,
-    ) -> Self {
-        FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new_diff(old_parent, old_name, new_metadata)],
-        }
-    }
+    pub updates: Vec<FileDiff>,
 }
 
 impl Request for FileMetadataUpsertsRequest {

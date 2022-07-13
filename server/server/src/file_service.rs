@@ -8,7 +8,7 @@ use lockbook_models::api::FileMetadataUpsertsError::{
     GetUpdatesRequired, NewFileHasOldParentAndName, NotPermissioned, RootImmutable,
 };
 use lockbook_models::api::*;
-use lockbook_models::file_metadata::{EncryptedFiles, FileMetadataDiff, Owner, UnsignedFile};
+use lockbook_models::file_metadata::{EncryptedFiles, FileDiff, Owner, UnsignedFile};
 use lockbook_models::tree::{FileLike, FileMetaMapExt};
 
 pub async fn upsert_file_metadata(
@@ -59,7 +59,7 @@ pub async fn upsert_file_metadata(
 }
 
 fn check_for_changed_root(
-    changes: &[FileMetadataDiff],
+    changes: &[FileDiff],
 ) -> Result<(), ServerError<FileMetadataUpsertsError>> {
     for change in changes {
         if let Some((old_parent, _)) = change.old_parent_and_name {

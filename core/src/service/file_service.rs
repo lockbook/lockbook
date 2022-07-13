@@ -10,7 +10,6 @@ use crate::{Config, CoreError, RequestContext};
 use itertools::Itertools;
 use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::crypto::EncryptedDocument;
-use lockbook_models::file_metadata::FileMetadataDiff;
 use lockbook_models::file_metadata::FileType;
 use lockbook_models::file_metadata::{CoreFile, DecryptedFiles};
 use lockbook_models::file_metadata::{EncryptedFiles, UnsignedFile};

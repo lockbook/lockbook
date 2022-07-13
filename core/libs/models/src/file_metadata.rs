@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::account::{Account, Username};
-use crate::crypto::{AESKey, EncryptedFolderAccessKey, SecretFileName, UserAccessInfo};
+use crate::crypto::{AESKey, ECSigned, EncryptedFolderAccessKey, SecretFileName, UserAccessInfo};
 use crate::tree::FileLike;
 
 pub type EncryptedFiles = HashMap<Uuid, UnsignedFile>;
@@ -30,6 +30,13 @@ impl FromStr for FileType {
             _ => Err(()),
         }
     }
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Clone)]
+pub struct SignedFile {
+    pub file: ECSigned<UnsignedFile>,
+    pub metadata_version: u64,
+    pub content_version: u64,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
@@ -189,60 +196,8 @@ impl fmt::Debug for CoreFile {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone)]
-pub struct FileMetadataDiff {
-    pub id: Uuid,
-    pub file_type: FileType,
-    pub old_parent_and_name: Option<(Uuid, SecretFileName)>,
-    pub new_parent: Uuid,
-    pub new_name: SecretFileName,
-    pub new_deleted: bool,
-    pub new_folder_access_keys: EncryptedFolderAccessKey,
-}
-
-impl FileMetadataDiff {
-    pub fn new(metadata: &UnsignedFile) -> Self {
-        FileMetadataDiff {
-            id: metadata.id,
-            file_type: metadata.file_type,
-            old_parent_and_name: None,
-            new_parent: metadata.parent,
-            new_name: metadata.name.clone(),
-            new_deleted: metadata.is_deleted,
-            new_folder_access_keys: metadata.folder_access_keys.clone(),
-        }
-    }
-
-    pub fn new_diff(
-        old_parent: Uuid, old_name: &SecretFileName, new_metadata: &UnsignedFile,
-    ) -> Self {
-        FileMetadataDiff {
-            id: new_metadata.id,
-            file_type: new_metadata.file_type,
-            old_parent_and_name: Some((old_parent, old_name.clone())),
-            new_parent: new_metadata.parent,
-            new_name: new_metadata.name.clone(),
-            new_deleted: new_metadata.is_deleted,
-            new_folder_access_keys: new_metadata.folder_access_keys.clone(),
-        }
-    }
-}
-
-impl fmt::Debug for FileMetadataDiff {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("FileMetadataDiff")
-            .field("id", &self.id)
-            .field("file_type", &self.file_type)
-            .field("new_parent", &self.new_parent)
-            .field("new_deleted", &self.new_deleted)
-            .field("old_parent", &self.old_parent_and_name.clone().map(|(p, _)| p))
-            .field(
-                "old_name",
-                &self
-                    .old_parent_and_name
-                    .clone()
-                    .map(|(_, n)| base64::encode(n.hmac)),
-            )
-            .finish()
-    }
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub struct FileDiff {
+    pub old: ECSigned<UnsignedFile>,
+    pub new: ECSigned<UnsignedFile>,
 }
