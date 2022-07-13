@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 use lockbook_crypto::clock_service::get_time;
 use lockbook_models::api::FileUsage;
 use lockbook_models::file_metadata::{EncryptedFiles, Owner};
-use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
+use lockbook_models::tree::{FileLike, FileMetaMapExt};
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
 use std::collections::HashMap;

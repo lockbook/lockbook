@@ -12,9 +12,9 @@ use lockbook_models::crypto::DecryptedDocument;
 use lockbook_models::crypto::EncryptedDocument;
 use lockbook_models::file_metadata::FileMetadataDiff;
 use lockbook_models::file_metadata::FileType;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
-use lockbook_models::file_metadata::{EncryptedFileMetadata, EncryptedFiles};
-use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
+use lockbook_models::file_metadata::{CoreFile, DecryptedFiles};
+use lockbook_models::file_metadata::{EncryptedFiles, UnsignedFile};
+use lockbook_models::tree::{FileLike, FileMetaMapExt};
 use lockbook_models::utils;
 use sha2::Digest;
 use sha2::Sha256;
@@ -24,7 +24,7 @@ use uuid::Uuid;
 impl RequestContext<'_, '_> {
     pub fn create_file(
         &mut self, config: &Config, name: &str, parent: Uuid, file_type: FileType,
-    ) -> Result<DecryptedFileMetadata, CoreError> {
+    ) -> Result<CoreFile, CoreError> {
         self.get_not_deleted_metadata(RepoSource::Local, parent)?;
         let all_metadata = self.get_all_metadata(RepoSource::Local)?;
         let metadata =
@@ -37,7 +37,7 @@ impl RequestContext<'_, '_> {
         self.tx.root.get(&OneKey).ok_or(RootNonexistent)
     }
 
-    pub fn root(&mut self) -> Result<DecryptedFileMetadata, CoreError> {
+    pub fn root(&mut self) -> Result<CoreFile, CoreError> {
         let root_id = self.root_id()?;
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
         files.maybe_find(root_id).ok_or(RootNonexistent)
@@ -45,7 +45,7 @@ impl RequestContext<'_, '_> {
 
     /// Adds or updates the metadata of a file on disk.
     pub fn insert_metadatum(
-        &mut self, config: &Config, source: RepoSource, metadata: &DecryptedFileMetadata,
+        &mut self, config: &Config, source: RepoSource, metadata: &CoreFile,
     ) -> Result<(), CoreError> {
         self.insert_metadata(config, source, &HashMap::from([(metadata.id, metadata.clone())]))
     }
@@ -61,9 +61,7 @@ impl RequestContext<'_, '_> {
         Ok(())
     }
 
-    pub fn get_metadata(
-        &mut self, source: RepoSource, id: Uuid,
-    ) -> Result<DecryptedFileMetadata, CoreError> {
+    pub fn get_metadata(&mut self, source: RepoSource, id: Uuid) -> Result<CoreFile, CoreError> {
         self.maybe_get_metadata(source, id)
             .and_then(|f| f.ok_or(CoreError::FileNonexistent))
     }
@@ -101,8 +99,7 @@ impl RequestContext<'_, '_> {
     /// Disk optimization opportunity: this function needlessly writes to disk when setting local content = base content.
     /// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
     pub fn insert_document(
-        &mut self, config: &Config, source: RepoSource, metadata: &DecryptedFileMetadata,
-        document: &[u8],
+        &mut self, config: &Config, source: RepoSource, metadata: &CoreFile, document: &[u8],
     ) -> Result<(), CoreError> {
         // check that document exists and is a document
         self.get_metadata(RepoSource::Local, metadata.id)?;
@@ -199,7 +196,7 @@ impl RequestContext<'_, '_> {
             if let Some(opposite) = opposite_metadata {
                 if utils::slices_equal(&opposite.name.hmac, &encrypted_metadata.name.hmac)
                     && opposite.parent == metadatum.parent
-                    && opposite.deleted == metadatum.deleted
+                    && opposite.is_deleted == metadatum.deleted
                 {
                     self.tx.local_metadata.delete(id);
                 }
@@ -228,21 +225,21 @@ impl RequestContext<'_, '_> {
 
     pub fn maybe_get_metadata(
         &mut self, source: RepoSource, id: Uuid,
-    ) -> Result<Option<DecryptedFileMetadata>, CoreError> {
+    ) -> Result<Option<CoreFile>, CoreError> {
         let all_metadata = self.get_all_metadata(source)?;
         Ok(all_metadata.maybe_find(id))
     }
 
     pub fn get_not_deleted_metadata(
         &mut self, source: RepoSource, id: Uuid,
-    ) -> Result<DecryptedFileMetadata, CoreError> {
+    ) -> Result<CoreFile, CoreError> {
         self.maybe_get_not_deleted_metadata(source, id)
             .and_then(|f| f.ok_or(CoreError::FileNonexistent))
     }
 
     pub fn maybe_get_not_deleted_metadata(
         &mut self, source: RepoSource, id: Uuid,
-    ) -> Result<Option<DecryptedFileMetadata>, CoreError> {
+    ) -> Result<Option<CoreFile>, CoreError> {
         let all_not_deleted_metadata = self.get_all_not_deleted_metadata(source)?;
         Ok(all_not_deleted_metadata.maybe_find(id))
     }
@@ -462,9 +459,7 @@ impl RequestContext<'_, '_> {
         ))
     }
 
-    pub fn get_all_metadata_state(
-        &mut self,
-    ) -> Result<Vec<RepoState<DecryptedFileMetadata>>, CoreError> {
+    pub fn get_all_metadata_state(&mut self) -> Result<Vec<RepoState<CoreFile>>, CoreError> {
         let account = self.get_account()?;
         let base_encrypted = self.tx.base_metadata.get_all();
         let base = file_encryption_service::decrypt_metadata(
@@ -547,25 +542,26 @@ impl RequestContext<'_, '_> {
         let base_metadata = self.tx.base_metadata.get_all();
         let local_metadata = self.tx.local_metadata.get_all();
         let staged_metadata = base_metadata.stage_with_source(&local_metadata);
-        let staged_everything = staged_metadata
-            .values()
-            .map(|(f, _)| {
-                Ok((
-                    f.clone(),
-                    match document_repo::maybe_get(config, RepoSource::Local, f.id)? {
-                        Some(document) => Some(document),
-                        None => document_repo::maybe_get(config, RepoSource::Base, f.id)?,
-                    },
-                    match self.tx.local_digest.get(&f.id) {
-                        Some(digest) => Some(digest),
-                        None => self.tx.base_digest.get(&f.id),
-                    },
-                ))
-            })
-            .collect::<Result<
-                Vec<(EncryptedFileMetadata, Option<EncryptedDocument>, Option<Vec<u8>>)>,
-                CoreError,
-            >>()?;
+        let staged_everything =
+            staged_metadata
+                .values()
+                .map(|(f, _)| {
+                    Ok((
+                        f.clone(),
+                        match document_repo::maybe_get(config, RepoSource::Local, f.id)? {
+                            Some(document) => Some(document),
+                            None => document_repo::maybe_get(config, RepoSource::Base, f.id)?,
+                        },
+                        match self.tx.local_digest.get(&f.id) {
+                            Some(digest) => Some(digest),
+                            None => self.tx.base_digest.get(&f.id),
+                        },
+                    ))
+                })
+                .collect::<Result<
+                    Vec<(UnsignedFile, Option<EncryptedDocument>, Option<Vec<u8>>)>,
+                    CoreError,
+                >>()?;
 
         document_repo::delete_all(config, RepoSource::Base)?;
         self.tx.base_digest.clear();
@@ -614,16 +610,14 @@ impl RequestContext<'_, '_> {
         self.insert_new_docs(config, &local_metadata, local_metadata_changes)
     }
 
-    pub fn get_metadata_state(
-        &mut self, id: Uuid,
-    ) -> Result<RepoState<DecryptedFileMetadata>, CoreError> {
+    pub fn get_metadata_state(&mut self, id: Uuid) -> Result<RepoState<CoreFile>, CoreError> {
         self.maybe_get_metadata_state(id)
             .and_then(|f| f.ok_or(CoreError::FileNonexistent))
     }
 
     pub fn maybe_get_metadata_state(
         &mut self, id: Uuid,
-    ) -> Result<Option<RepoState<DecryptedFileMetadata>>, CoreError> {
+    ) -> Result<Option<RepoState<CoreFile>>, CoreError> {
         let all_metadata = self.get_all_metadata_state()?;
         Ok(files::maybe_find_state(&all_metadata, id))
     }
@@ -631,7 +625,7 @@ impl RequestContext<'_, '_> {
     pub fn get_all_document_state(
         &mut self, config: &Config,
     ) -> Result<Vec<RepoState<DecryptedDocument>>, CoreError> {
-        let doc_metadata: Vec<RepoState<DecryptedFileMetadata>> = self
+        let doc_metadata: Vec<RepoState<CoreFile>> = self
             .get_all_metadata_state()?
             .into_iter()
             .filter(|r| r.clone().local().is_document())
@@ -670,13 +664,13 @@ pub fn maybe_get_not_deleted_document(
 }
 
 pub fn get_document(
-    config: &Config, source: RepoSource, metadata: &DecryptedFileMetadata,
+    config: &Config, source: RepoSource, metadata: &CoreFile,
 ) -> Result<DecryptedDocument, CoreError> {
     maybe_get_document(config, source, metadata).and_then(|f| f.ok_or(CoreError::FileNonexistent))
 }
 
 pub fn maybe_get_document(
-    config: &Config, source: RepoSource, metadata: &DecryptedFileMetadata,
+    config: &Config, source: RepoSource, metadata: &CoreFile,
 ) -> Result<Option<DecryptedDocument>, CoreError> {
     if metadata.file_type != FileType::Document {
         return Err(CoreError::FileNotDocument);
@@ -703,7 +697,7 @@ pub fn maybe_get_document(
 }
 
 pub fn maybe_get_document_state(
-    config: &Config, metadata: &RepoState<DecryptedFileMetadata>,
+    config: &Config, metadata: &RepoState<CoreFile>,
 ) -> Result<Option<RepoState<DecryptedDocument>>, CoreError> {
     if metadata.clone().local().file_type != FileType::Document {
         return Err(CoreError::FileNotDocument);

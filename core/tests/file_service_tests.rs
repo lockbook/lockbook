@@ -5,8 +5,8 @@ use lockbook_core::repo::document_repo;
 use lockbook_core::service::sync_service::MaybeMergeResult;
 use lockbook_core::service::{file_service, sync_service};
 use lockbook_models::file_metadata::Owner;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
-use lockbook_models::tree::FileMetadata;
+use lockbook_models::file_metadata::{CoreFile, FileType};
+use lockbook_models::tree::FileLike;
 use test_utils::*;
 use uuid::Uuid;
 
@@ -205,7 +205,7 @@ fn merge_metadata_local_and_remote_moved() {
     let core = test_core_with_account();
     let account = &core.get_account().unwrap();
 
-    let base = DecryptedFileMetadata {
+    let base = CoreFile {
         id: "db63957b-3e52-410c-8e5e-66db2619fb33".parse().unwrap(),
         file_type: FileType::Document,
         parent: "a33b99e8-140d-4a74-b564-f72efdcb5b3a".parse().unwrap(),
@@ -216,7 +216,7 @@ fn merge_metadata_local_and_remote_moved() {
         owner: Owner::from(account),
         decrypted_access_key: Default::default(),
     };
-    let local = DecryptedFileMetadata {
+    let local = CoreFile {
         id: "db63957b-3e52-410c-8e5e-66db2619fb33".parse().unwrap(),
         file_type: FileType::Document,
         parent: "c13f10f7-9360-4dd2-8b3a-0891a81c8bf8".parse().unwrap(),
@@ -227,7 +227,7 @@ fn merge_metadata_local_and_remote_moved() {
         owner: Owner::from(account),
         decrypted_access_key: Default::default(),
     };
-    let remote = DecryptedFileMetadata {
+    let remote = CoreFile {
         id: "db63957b-3e52-410c-8e5e-66db2619fb33".parse().unwrap(),
         file_type: FileType::Document,
         parent: "c52d8737-0a89-45aa-8411-b74e0dd71470".parse().unwrap(),
@@ -243,7 +243,7 @@ fn merge_metadata_local_and_remote_moved() {
 
     assert_eq!(
         result,
-        DecryptedFileMetadata {
+        CoreFile {
             id: "db63957b-3e52-410c-8e5e-66db2619fb33".parse().unwrap(),
             file_type: FileType::Document,
             parent: "c52d8737-0a89-45aa-8411-b74e0dd71470".parse().unwrap(),
@@ -261,7 +261,7 @@ fn merge_metadata_local_and_remote_moved() {
 fn merge_maybe_metadata_local_and_remote_moved() {
     let core = test_core_with_account();
     let account = &core.get_account().unwrap();
-    let base = Some(DecryptedFileMetadata {
+    let base = Some(CoreFile {
         id: "db63957b-3e52-410c-8e5e-66db2619fb33".parse().unwrap(),
         file_type: FileType::Document,
         parent: "a33b99e8-140d-4a74-b564-f72efdcb5b3a".parse().unwrap(),
@@ -272,7 +272,7 @@ fn merge_maybe_metadata_local_and_remote_moved() {
         owner: Owner::from(account),
         decrypted_access_key: Default::default(),
     });
-    let local = Some(DecryptedFileMetadata {
+    let local = Some(CoreFile {
         id: "db63957b-3e52-410c-8e5e-66db2619fb33".parse().unwrap(),
         file_type: FileType::Document,
         parent: "c13f10f7-9360-4dd2-8b3a-0891a81c8bf8".parse().unwrap(),
@@ -283,7 +283,7 @@ fn merge_maybe_metadata_local_and_remote_moved() {
         owner: Owner::from(account),
         decrypted_access_key: Default::default(),
     });
-    let remote = Some(DecryptedFileMetadata {
+    let remote = Some(CoreFile {
         id: "db63957b-3e52-410c-8e5e-66db2619fb33".parse().unwrap(),
         file_type: FileType::Document,
         parent: "c52d8737-0a89-45aa-8411-b74e0dd71470".parse().unwrap(),
@@ -299,7 +299,7 @@ fn merge_maybe_metadata_local_and_remote_moved() {
 
     assert_eq!(
         result,
-        DecryptedFileMetadata {
+        CoreFile {
             id: "db63957b-3e52-410c-8e5e-66db2619fb33".parse().unwrap(),
             file_type: FileType::Document,
             parent: "c52d8737-0a89-45aa-8411-b74e0dd71470".parse().unwrap(),

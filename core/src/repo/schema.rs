@@ -1,5 +1,5 @@
 use lockbook_models::account::Account;
-use lockbook_models::file_metadata::EncryptedFileMetadata;
+use lockbook_models::file_metadata::UnsignedFile;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -15,7 +15,7 @@ hmdb::schema! {
         root: <OneKey, Uuid>,
         local_digest: <Uuid, Vec<u8>>,
         base_digest: <Uuid, Vec<u8>>,
-        local_metadata: <Uuid, EncryptedFileMetadata>,
-        base_metadata: <Uuid, EncryptedFileMetadata>
+        local_metadata: <Uuid, UnsignedFile>,
+        base_metadata: <Uuid, UnsignedFile>
     }
 }

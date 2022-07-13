@@ -176,7 +176,7 @@ impl super::App {
             tx.send(None).unwrap();
         });
 
-        rx.attach(None, move |maybe_res: Option<Result<lb::DecryptedFileMetadata, String>>| {
+        rx.attach(None, move |maybe_res: Option<Result<lb::CoreFile, String>>| {
             match maybe_res {
                 Some(res) => match res {
                     Ok(_new_file) => {}

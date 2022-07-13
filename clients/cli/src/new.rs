@@ -2,7 +2,7 @@ use std::fs;
 
 use lockbook_core::Error as LbError;
 use lockbook_core::FileDeleteError;
-use lockbook_core::FileMetadata;
+use lockbook_core::FileLike;
 use lockbook_core::{Core, Uuid};
 
 use crate::error::CliError;

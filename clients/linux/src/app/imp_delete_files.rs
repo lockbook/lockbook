@@ -8,7 +8,7 @@ struct FileInfo {
     id: lb::Uuid,
     ftype: lb::FileType,
     path: String,
-    all_children: Vec<lb::DecryptedFileMetadata>,
+    all_children: Vec<lb::CoreFile>,
 }
 
 impl super::App {

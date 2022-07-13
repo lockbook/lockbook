@@ -6,7 +6,7 @@ use std::fmt::Display;
 use std::hash::Hash;
 use uuid::Uuid;
 
-pub trait FileMetadata: Clone + Display {
+pub trait FileLike: Clone + Display {
     type Name: Hash + Eq;
 
     fn id(&self) -> Uuid;
@@ -16,7 +16,7 @@ pub trait FileMetadata: Clone + Display {
     fn owner(&self) -> Owner;
     fn metadata_version(&self) -> u64;
     fn content_version(&self) -> u64;
-    fn deleted(&self) -> bool;
+    fn is_deleted(&self) -> bool;
     fn display(&self) -> String;
 
     fn is_folder(&self) -> bool {
@@ -62,13 +62,13 @@ pub enum TestFileTreeError {
     Tree(TreeError),
 }
 
-pub trait FileMetaVecExt<T: FileMetadata> {
+pub trait FileMetaVecExt<T: FileLike> {
     fn to_map(&self) -> HashMap<Uuid, T>;
 }
 
 impl<Fm> FileMetaVecExt<Fm> for [Fm]
 where
-    Fm: FileMetadata,
+    Fm: FileLike,
 {
     fn to_map(&self) -> HashMap<Uuid, Fm> {
         self.iter()
@@ -82,7 +82,7 @@ pub struct DeletedStatus {
     pub not_deleted: HashSet<Uuid>,
 }
 
-pub trait FileMetaMapExt<Fm: FileMetadata> {
+pub trait FileMetaMapExt<Fm: FileLike> {
     fn with(fm: Fm) -> HashMap<Uuid, Fm>;
     fn ids(&self) -> Vec<Uuid>;
     fn push(&mut self, fm: Fm);
@@ -116,7 +116,7 @@ pub trait FileMetaMapExt<Fm: FileMetadata> {
 
 impl<Fm> FileMetaMapExt<Fm> for HashMap<Uuid, Fm>
 where
-    Fm: FileMetadata,
+    Fm: FileLike,
 {
     fn with(fm: Fm) -> HashMap<Uuid, Fm> {
         let mut hash = HashMap::new();
@@ -229,13 +229,13 @@ where
         let mut confirmed_deleted = HashSet::new();
         for meta in self.values() {
             // Itself is explicitly deleted
-            if meta.deleted() {
+            if meta.is_deleted() {
                 confirmed_deleted.insert(meta.id());
                 continue;
             }
 
             // Parent is confirmed to be not deleted, and is not explicitly deleted
-            if confirmed_not_delted.contains(&meta.parent()) && !meta.deleted() {
+            if confirmed_not_delted.contains(&meta.parent()) && !meta.is_deleted() {
                 confirmed_not_delted.insert(meta.id());
                 continue;
             }
@@ -245,7 +245,7 @@ where
             let mut checked_path = vec![meta.id(), cur.id()];
             let mut ancestor_deleted = false;
             'ansestor_check: while !cur.is_root() {
-                if cur.deleted() {
+                if cur.is_deleted() {
                     confirmed_deleted.extend(&checked_path);
                     ancestor_deleted = true;
                     break 'ansestor_check;
@@ -430,7 +430,7 @@ where
     }
 
     fn pretty_print(&self) -> String {
-        fn print_branch<Fm: FileMetadata>(
+        fn print_branch<Fm: FileLike>(
             tree: &HashMap<Uuid, Fm>, file_leaf: &Fm, children: &HashMap<Uuid, Fm>, branch: &str,
             crotch: &str, twig: &str,
         ) -> String {

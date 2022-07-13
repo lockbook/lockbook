@@ -2,14 +2,14 @@ use crate::model::repo::RepoSource;
 use crate::pure_functions::files;
 use crate::{Config, CoreError, RequestContext};
 use lockbook_models::file_metadata::FileType::{Document, Folder};
-use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
-use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
+use lockbook_models::file_metadata::{CoreFile, DecryptedFiles};
+use lockbook_models::tree::{FileLike, FileMetaMapExt};
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
     pub fn create_at_path(
         &mut self, config: &Config, path_and_name: &str,
-    ) -> Result<DecryptedFileMetadata, CoreError> {
+    ) -> Result<CoreFile, CoreError> {
         if path_and_name.contains("//") {
             return Err(CoreError::PathContainsEmptyFileName);
         }
@@ -60,7 +60,7 @@ impl RequestContext<'_, '_> {
         Ok(current.clone())
     }
 
-    pub fn get_by_path(&mut self, path: &str) -> Result<DecryptedFileMetadata, CoreError> {
+    pub fn get_by_path(&mut self, path: &str) -> Result<CoreFile, CoreError> {
         let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
         let paths = split_path(path);
 

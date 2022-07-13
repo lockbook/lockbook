@@ -12,7 +12,7 @@ use lockbook_models::api::{
     NewAccountRequest, NewAccountResponse,
 };
 use lockbook_models::file_metadata::{EncryptedFiles, Owner};
-use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
+use lockbook_models::tree::{FileLike, FileMetaMapExt};
 
 /// Create a new account given a username, public_key, and root folder.
 /// Checks that username is valid, and that username, public_key and root_folder are new.

@@ -7,7 +7,7 @@ use lockbook_core::model::errors::Warning::*;
 use lockbook_core::model::repo::RepoSource;
 use lockbook_core::pure_functions::files;
 use lockbook_models::file_metadata::FileType::Document;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
+use lockbook_models::file_metadata::{CoreFile, FileType};
 use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, TestFileTreeError};
 use test_utils::*;
 
@@ -177,7 +177,7 @@ fn test_invalid_drawing() {
 
 #[test]
 fn test_file_tree_integrity_empty() {
-    let files: Vec<DecryptedFileMetadata> = vec![];
+    let files: Vec<CoreFile> = vec![];
     let result = files.to_map().verify_integrity();
 
     assert_eq!(result, Ok(()));

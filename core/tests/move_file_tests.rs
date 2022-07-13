@@ -94,7 +94,7 @@ fn move_document_deleted() {
     .unwrap();
 
     // move & delete document
-    doc.deleted = true;
+    doc.is_deleted = true;
     doc.parent = folder.id;
     api_service::request(
         &account,

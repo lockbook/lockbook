@@ -6,8 +6,8 @@ use uuid::Uuid;
 use crate::account::Account;
 use crate::account::Username;
 use crate::crypto::*;
-use crate::file_metadata::{EncryptedFileMetadata, FileMetadataDiff};
-use crate::tree::FileMetadata;
+use crate::file_metadata::{FileMetadataDiff, UnsignedFile};
+use crate::tree::FileLike;
 
 pub trait Request {
     type Response;
@@ -38,12 +38,12 @@ pub struct FileMetadataUpsertsRequest {
 }
 
 impl FileMetadataUpsertsRequest {
-    pub fn new(metadata: &EncryptedFileMetadata) -> Self {
+    pub fn new(metadata: &UnsignedFile) -> Self {
         FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(metadata)] }
     }
 
     pub fn new_diff(
-        old_parent: Uuid, old_name: &SecretFileName, new_metadata: &EncryptedFileMetadata,
+        old_parent: Uuid, old_name: &SecretFileName, new_metadata: &UnsignedFile,
     ) -> Self {
         FileMetadataUpsertsRequest {
             updates: vec![FileMetadataDiff::new_diff(old_parent, old_name, new_metadata)],
@@ -103,7 +103,7 @@ pub struct GetDocumentRequest {
 
 impl<F> From<&F> for GetDocumentRequest
 where
-    F: FileMetadata,
+    F: FileLike,
 {
     fn from(meta: &F) -> Self {
         Self { id: meta.id(), content_version: meta.content_version() }
@@ -191,7 +191,7 @@ pub struct GetUpdatesRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUpdatesResponse {
-    pub file_metadata: Vec<EncryptedFileMetadata>,
+    pub file_metadata: Vec<UnsignedFile>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -210,11 +210,11 @@ impl Request for GetUpdatesRequest {
 pub struct NewAccountRequest {
     pub username: Username,
     pub public_key: PublicKey,
-    pub root_folder: EncryptedFileMetadata,
+    pub root_folder: UnsignedFile,
 }
 
 impl NewAccountRequest {
-    pub fn new(account: &Account, root_folder: &EncryptedFileMetadata) -> Self {
+    pub fn new(account: &Account, root_folder: &UnsignedFile) -> Self {
         let root_folder = root_folder.clone();
         NewAccountRequest {
             username: account.username.clone(),

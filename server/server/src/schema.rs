@@ -1,6 +1,6 @@
 use crate::billing::billing_model::SubscriptionProfile;
-use lockbook_models::file_metadata::EncryptedFileMetadata;
 use lockbook_models::file_metadata::Owner;
+use lockbook_models::file_metadata::UnsignedFile;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -9,7 +9,7 @@ hmdb::schema! {
         usernames: <String, Owner>,
         accounts: <Owner, Account>,
         owned_files: <Owner, Vec<Uuid>>,
-        metas: <Uuid, EncryptedFileMetadata>,
+        metas: <Uuid, UnsignedFile>,
         sizes: <Uuid, u64>,
         google_play_ids: <String, Owner>,
         stripe_ids: <String, Owner>

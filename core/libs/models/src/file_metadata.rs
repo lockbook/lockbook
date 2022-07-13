@@ -10,10 +10,10 @@ use uuid::Uuid;
 
 use crate::account::{Account, Username};
 use crate::crypto::{AESKey, EncryptedFolderAccessKey, SecretFileName, UserAccessInfo};
-use crate::tree::FileMetadata;
+use crate::tree::FileLike;
 
-pub type EncryptedFiles = HashMap<Uuid, EncryptedFileMetadata>;
-pub type DecryptedFiles = HashMap<Uuid, DecryptedFileMetadata>;
+pub type EncryptedFiles = HashMap<Uuid, UnsignedFile>;
+pub type DecryptedFiles = HashMap<Uuid, CoreFile>;
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Deserialize, Serialize, Copy)]
 pub enum FileType {
@@ -33,7 +33,7 @@ impl FromStr for FileType {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
-pub struct EncryptedFileMetadata {
+pub struct UnsignedFile {
     pub id: Uuid,
     pub file_type: FileType,
     pub parent: Uuid,
@@ -41,12 +41,12 @@ pub struct EncryptedFileMetadata {
     pub owner: Owner,
     pub metadata_version: u64,
     pub content_version: u64,
-    pub deleted: bool,
+    pub is_deleted: bool,
     pub user_access_keys: HashMap<Username, UserAccessInfo>,
     pub folder_access_keys: EncryptedFolderAccessKey,
 }
 
-impl FileMetadata for EncryptedFileMetadata {
+impl FileLike for UnsignedFile {
     type Name = SecretFileName;
 
     fn id(&self) -> Uuid {
@@ -70,8 +70,8 @@ impl FileMetadata for EncryptedFileMetadata {
     fn content_version(&self) -> u64 {
         self.content_version
     }
-    fn deleted(&self) -> bool {
-        self.deleted
+    fn is_deleted(&self) -> bool {
+        self.is_deleted
     }
     fn display(&self) -> String {
         match self.file_type() {
@@ -81,13 +81,13 @@ impl FileMetadata for EncryptedFileMetadata {
     }
 }
 
-impl fmt::Display for EncryptedFileMetadata {
+impl fmt::Display for UnsignedFile {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.display())
     }
 }
 
-impl fmt::Debug for EncryptedFileMetadata {
+impl fmt::Debug for UnsignedFile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FileMetadata")
             .field("id", &self.id)
@@ -95,7 +95,7 @@ impl fmt::Debug for EncryptedFileMetadata {
             .field("parent", &self.parent)
             .field("metadata_version", &self.metadata_version)
             .field("content_version", &self.content_version)
-            .field("deleted", &self.deleted)
+            .field("deleted", &self.is_deleted)
             .finish()
     }
 }
@@ -122,7 +122,7 @@ impl PartialEq for Owner {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
-pub struct DecryptedFileMetadata {
+pub struct CoreFile {
     pub id: Uuid,
     pub file_type: FileType,
     pub parent: Uuid,
@@ -134,7 +134,7 @@ pub struct DecryptedFileMetadata {
     pub decrypted_access_key: AESKey, // access key is the same whether it's decrypted for user or for folder
 }
 
-impl FileMetadata for DecryptedFileMetadata {
+impl FileLike for CoreFile {
     type Name = String;
 
     fn id(&self) -> Uuid {
@@ -158,7 +158,7 @@ impl FileMetadata for DecryptedFileMetadata {
     fn content_version(&self) -> u64 {
         self.content_version
     }
-    fn deleted(&self) -> bool {
+    fn is_deleted(&self) -> bool {
         self.deleted
     }
     fn display(&self) -> String {
@@ -169,13 +169,13 @@ impl FileMetadata for DecryptedFileMetadata {
     }
 }
 
-impl fmt::Display for DecryptedFileMetadata {
+impl fmt::Display for CoreFile {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.display())
     }
 }
 
-impl fmt::Debug for DecryptedFileMetadata {
+impl fmt::Debug for CoreFile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DecryptedFileMetadata")
             .field("id", &self.id)
@@ -201,20 +201,20 @@ pub struct FileMetadataDiff {
 }
 
 impl FileMetadataDiff {
-    pub fn new(metadata: &EncryptedFileMetadata) -> Self {
+    pub fn new(metadata: &UnsignedFile) -> Self {
         FileMetadataDiff {
             id: metadata.id,
             file_type: metadata.file_type,
             old_parent_and_name: None,
             new_parent: metadata.parent,
             new_name: metadata.name.clone(),
-            new_deleted: metadata.deleted,
+            new_deleted: metadata.is_deleted,
             new_folder_access_keys: metadata.folder_access_keys.clone(),
         }
     }
 
     pub fn new_diff(
-        old_parent: Uuid, old_name: &SecretFileName, new_metadata: &EncryptedFileMetadata,
+        old_parent: Uuid, old_name: &SecretFileName, new_metadata: &UnsignedFile,
     ) -> Self {
         FileMetadataDiff {
             id: new_metadata.id,
@@ -222,7 +222,7 @@ impl FileMetadataDiff {
             old_parent_and_name: Some((old_parent, old_name.clone())),
             new_parent: new_metadata.parent,
             new_name: new_metadata.name.clone(),
-            new_deleted: new_metadata.deleted,
+            new_deleted: new_metadata.is_deleted,
             new_folder_access_keys: new_metadata.folder_access_keys.clone(),
         }
     }

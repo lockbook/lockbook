@@ -5,9 +5,9 @@ use indicatif::{ProgressBar, ProgressStyle};
 use lockbook_core::model::errors::MoveFileError;
 use lockbook_core::Core;
 use lockbook_core::Error::UiError;
-use lockbook_models::file_metadata::DecryptedFileMetadata;
+use lockbook_models::file_metadata::CoreFile;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
-use lockbook_models::tree::FileMetadata;
+use lockbook_models::tree::FileLike;
 use rand::distributions::{Alphanumeric, Distribution, Standard};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -189,7 +189,7 @@ impl Actions {
             .collect()
     }
 
-    fn pick_random_file(core: &Core, rng: &mut StdRng) -> Option<DecryptedFileMetadata> {
+    fn pick_random_file(core: &Core, rng: &mut StdRng) -> Option<CoreFile> {
         let mut possible_files = core.list_metadatas().unwrap();
         possible_files.retain(|meta| meta.parent != meta.id);
         possible_files.sort_by(Self::deterministic_sort());
@@ -202,7 +202,7 @@ impl Actions {
         }
     }
 
-    fn deterministic_sort() -> fn(&DecryptedFileMetadata, &DecryptedFileMetadata) -> Ordering {
+    fn deterministic_sort() -> fn(&CoreFile, &CoreFile) -> Ordering {
         |lhs, rhs| {
             if lhs.parent == lhs.id {
                 Ordering::Less
@@ -214,7 +214,7 @@ impl Actions {
         }
     }
 
-    fn pick_random_parent(core: &Core, rng: &mut StdRng) -> DecryptedFileMetadata {
+    fn pick_random_parent(core: &Core, rng: &mut StdRng) -> CoreFile {
         let mut possible_parents = core.list_metadatas().unwrap();
         possible_parents.retain(|meta| meta.is_folder());
         possible_parents.sort_by(Self::deterministic_sort());
@@ -223,7 +223,7 @@ impl Actions {
         possible_parents[parent_index].clone()
     }
 
-    fn pick_random_document(core: &Core, rng: &mut StdRng) -> Option<DecryptedFileMetadata> {
+    fn pick_random_document(core: &Core, rng: &mut StdRng) -> Option<CoreFile> {
         let mut possible_documents = core.list_metadatas().unwrap();
         possible_documents.retain(|meta| meta.is_document());
         possible_documents.sort_by(Self::deterministic_sort());

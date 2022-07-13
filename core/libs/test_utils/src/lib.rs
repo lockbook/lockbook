@@ -8,7 +8,7 @@ use lockbook_core::service::path_service::Filter::DocumentsOnly;
 use lockbook_core::{Config, Core, RequestContext};
 use lockbook_models::api::{FileMetadataUpsertsError, PaymentMethod, StripeAccountTier};
 use lockbook_models::crypto::EncryptedDocument;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles};
+use lockbook_models::file_metadata::{CoreFile, DecryptedFiles};
 use lockbook_models::tree::FileMetaMapExt;
 use lockbook_models::work_unit::WorkUnit;
 use std::collections::HashMap;
@@ -66,7 +66,7 @@ pub enum Operation<'a> {
     Move { client_num: usize, path: &'a str, new_parent_path: &'a str },
     Delete { client_num: usize, path: &'a str },
     Edit { client_num: usize, path: &'a str, content: &'a [u8] },
-    Custom { f: &'a dyn Fn(&[Core], &DecryptedFileMetadata) }, // TODO this does not need to take a root if it has a core...
+    Custom { f: &'a dyn Fn(&[Core], &CoreFile) }, // TODO this does not need to take a root if it has a core...
 }
 
 pub fn run(ops: &[Operation]) {
@@ -299,7 +299,7 @@ pub fn assert_deleted_files_pruned(core: &Core) {
         for source in [RepoSource::Local, RepoSource::Base] {
             let all_metadata = tx.get_all_metadata(source).unwrap();
             let not_deleted_metadata = tx.get_all_not_deleted_metadata(source).unwrap();
-            if !slices_equal_ignore_order(&all_metadata.values().cloned().collect::<Vec<DecryptedFileMetadata>>(), &not_deleted_metadata.values().cloned().collect::<Vec<DecryptedFileMetadata>>()) {
+            if !slices_equal_ignore_order(&all_metadata.values().cloned().collect::<Vec<CoreFile>>(), &not_deleted_metadata.values().cloned().collect::<Vec<CoreFile>>()) {
                 panic!(
                     "some deleted files are not pruned. not_deleted_metadata={:?}; all_metadata={:?}",
                     not_deleted_metadata, all_metadata

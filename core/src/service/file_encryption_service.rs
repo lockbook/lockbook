@@ -6,24 +6,22 @@ use uuid::Uuid;
 use lockbook_crypto::{pubkey, symkey};
 use lockbook_models::account::Account;
 use lockbook_models::crypto::*;
-use lockbook_models::file_metadata::{
-    DecryptedFileMetadata, DecryptedFiles, EncryptedFileMetadata, EncryptedFiles,
-};
-use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
+use lockbook_models::file_metadata::{CoreFile, DecryptedFiles, EncryptedFiles, UnsignedFile};
+use lockbook_models::tree::{FileLike, FileMetaMapExt};
 
 use crate::model::errors::{core_err_unexpected, CoreError};
 
 /// Converts a DecryptedFileMetadata to a FileMetadata using its decrypted parent key. Sharing is
 /// not supported; user access keys are encrypted for the provided account. This is a pure function.
 pub fn encrypt_metadatum(
-    account: &Account, public_key: &PublicKey, parent_key: &AESKey, target: &DecryptedFileMetadata,
-) -> Result<EncryptedFileMetadata, CoreError> {
+    account: &Account, public_key: &PublicKey, parent_key: &AESKey, target: &CoreFile,
+) -> Result<UnsignedFile, CoreError> {
     let user_access_keys = if target.is_root() {
         encrypt_user_access_keys(account, public_key, &target.decrypted_access_key)?
     } else {
         Default::default()
     };
-    Ok(EncryptedFileMetadata {
+    Ok(UnsignedFile {
         id: target.id,
         file_type: target.file_type,
         parent: target.parent,
@@ -31,7 +29,7 @@ pub fn encrypt_metadatum(
         owner: target.owner.clone(),
         metadata_version: target.metadata_version,
         content_version: target.content_version,
-        deleted: target.deleted,
+        is_deleted: target.deleted,
         user_access_keys,
         folder_access_keys: encrypt_folder_access_keys(&target.decrypted_access_key, parent_key)?,
     })
@@ -91,9 +89,9 @@ fn encrypt_folder_access_keys(
 /// Converts a FileMetadata to a DecryptedFileMetadata using its decrypted parent key. Sharing is
 /// not supported; user access keys not for the provided account are ignored. This is a pure function.
 pub fn decrypt_metadatum(
-    parent_key: &AESKey, target: &EncryptedFileMetadata,
-) -> Result<DecryptedFileMetadata, CoreError> {
-    Ok(DecryptedFileMetadata {
+    parent_key: &AESKey, target: &UnsignedFile,
+) -> Result<CoreFile, CoreError> {
+    Ok(CoreFile {
         id: target.id,
         file_type: target.file_type,
         parent: target.parent,
@@ -101,7 +99,7 @@ pub fn decrypt_metadatum(
         owner: target.owner.clone(),
         metadata_version: target.metadata_version,
         content_version: target.content_version,
-        deleted: target.deleted,
+        deleted: target.is_deleted,
         decrypted_access_key: decrypt_folder_access_keys(&target.folder_access_keys, parent_key)?,
     })
 }
@@ -171,13 +169,13 @@ fn decrypt_folder_access_keys(
 }
 
 pub fn encrypt_document(
-    document: &[u8], metadata: &DecryptedFileMetadata,
+    document: &[u8], metadata: &CoreFile,
 ) -> Result<EncryptedDocument, CoreError> {
     symkey::encrypt(&metadata.decrypted_access_key, &document.to_vec()).map_err(core_err_unexpected)
 }
 
 pub fn decrypt_document(
-    document: &EncryptedDocument, metadata: &DecryptedFileMetadata,
+    document: &EncryptedDocument, metadata: &CoreFile,
 ) -> Result<DecryptedDocument, CoreError> {
     symkey::decrypt(&metadata.decrypted_access_key, document).map_err(core_err_unexpected)
 }

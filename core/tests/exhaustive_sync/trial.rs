@@ -8,7 +8,7 @@ use lockbook_core::Core;
 use lockbook_core::Error::UiError;
 use lockbook_models::api::DeleteAccountRequest;
 use lockbook_models::file_metadata::FileType::{Document, Folder};
-use lockbook_models::tree::FileMetadata;
+use lockbook_models::tree::FileLike;
 use std::time::Instant;
 use std::{fs, thread};
 use test_utils::*;

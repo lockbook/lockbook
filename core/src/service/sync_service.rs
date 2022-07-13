@@ -11,10 +11,8 @@ use lockbook_models::api::{
     ChangeDocumentContentRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,
 };
 use lockbook_models::crypto::DecryptedDocument;
-use lockbook_models::file_metadata::{
-    DecryptedFileMetadata, DecryptedFiles, EncryptedFiles, FileType,
-};
-use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
+use lockbook_models::file_metadata::{CoreFile, DecryptedFiles, EncryptedFiles, FileType};
+use lockbook_models::tree::{FileLike, FileMetaMapExt};
 use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
 use std::collections::HashMap;
@@ -86,9 +84,7 @@ pub fn merge_maybe<T>(
     }))
 }
 
-pub fn merge_metadata(
-    base: DecryptedFileMetadata, local: DecryptedFileMetadata, remote: DecryptedFileMetadata,
-) -> DecryptedFileMetadata {
+pub fn merge_metadata(base: CoreFile, local: CoreFile, remote: CoreFile) -> CoreFile {
     let local_renamed = local.decrypted_name != base.decrypted_name;
     let remote_renamed = remote.decrypted_name != base.decrypted_name;
     let decrypted_name = match (local_renamed, remote_renamed) {
@@ -107,7 +103,7 @@ pub fn merge_metadata(
         (true, true) => remote.parent, // resolve move conflicts in favor of remote
     };
 
-    DecryptedFileMetadata {
+    CoreFile {
         id: base.id,               // ids never change
         file_type: base.file_type, // file types never change
         parent,
@@ -121,9 +117,8 @@ pub fn merge_metadata(
 }
 
 pub fn merge_maybe_metadata(
-    maybe_base: Option<DecryptedFileMetadata>, maybe_local: Option<DecryptedFileMetadata>,
-    maybe_remote: Option<DecryptedFileMetadata>,
-) -> Result<DecryptedFileMetadata, CoreError> {
+    maybe_base: Option<CoreFile>, maybe_local: Option<CoreFile>, maybe_remote: Option<CoreFile>,
+) -> Result<CoreFile, CoreError> {
     Ok(match merge_maybe(maybe_base, maybe_local, maybe_remote)? {
         MaybeMergeResult::Resolved(merged) => merged,
         MaybeMergeResult::Conflict { base, local, remote } => merge_metadata(base, local, remote),
@@ -132,7 +127,7 @@ pub fn merge_maybe_metadata(
 }
 
 fn merge_maybe_documents(
-    merged_metadata: &DecryptedFileMetadata, remote_metadata: &DecryptedFileMetadata,
+    merged_metadata: &CoreFile, remote_metadata: &CoreFile,
     maybe_base_document: Option<DecryptedDocument>,
     maybe_local_document: Option<DecryptedDocument>, remote_document: DecryptedDocument,
 ) -> Result<ResolvedDocument, CoreError> {
@@ -231,15 +226,15 @@ fn merge_maybe_documents(
 
 enum ResolvedDocument {
     Merged {
-        remote_metadata: DecryptedFileMetadata,
+        remote_metadata: CoreFile,
         remote_document: DecryptedDocument,
-        merged_metadata: DecryptedFileMetadata,
+        merged_metadata: CoreFile,
         merged_document: DecryptedDocument,
     },
     Copied {
-        remote_metadata: DecryptedFileMetadata,
+        remote_metadata: CoreFile,
         remote_document: DecryptedDocument,
-        copied_local_metadata: DecryptedFileMetadata,
+        copied_local_metadata: CoreFile,
         copied_local_document: DecryptedDocument,
     },
 }
@@ -279,8 +274,8 @@ impl fmt::Debug for ResolvedDocument {
 /// have old contents copied to a new file. Remote document is returned so that caller can update base.
 #[instrument(level = "debug", skip_all, err(Debug))]
 fn get_resolved_document(
-    config: &Config, account: &Account, all_metadata_state: &[RepoState<DecryptedFileMetadata>],
-    remote_metadatum: &DecryptedFileMetadata, merged_metadatum: &DecryptedFileMetadata,
+    config: &Config, account: &Account, all_metadata_state: &[RepoState<CoreFile>],
+    remote_metadatum: &CoreFile, merged_metadatum: &CoreFile,
 ) -> Result<ResolvedDocument, CoreError> {
     let remote_document = if remote_metadatum.content_version != 0 {
         let remote_document_encrypted =
@@ -346,8 +341,7 @@ fn get_resolved_document(
 }
 
 fn should_pull_document(
-    maybe_base: &Option<DecryptedFileMetadata>, maybe_local: &Option<DecryptedFileMetadata>,
-    maybe_remote: &Option<DecryptedFileMetadata>,
+    maybe_base: &Option<CoreFile>, maybe_local: &Option<CoreFile>, maybe_remote: &Option<CoreFile>,
 ) -> bool {
     if let Some(remote) = maybe_remote {
         remote.is_document()
@@ -706,7 +700,7 @@ impl RequestContext<'_, '_> {
 
             match self.maybe_get_metadata(RepoSource::Local, id)? {
                 None => {
-                    if !metadata.deleted {
+                    if !metadata.is_deleted {
                         // no work for files we don't have that have been deleted
                         work_units.push(WorkUnit::ServerChange { metadata: all_metadata.find(id)? })
                     }

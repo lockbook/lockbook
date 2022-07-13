@@ -13,7 +13,7 @@ fn delete_document() {
     let mut doc = core.db.base_metadata.get(&doc).unwrap().unwrap();
     let root = core.get_root().unwrap().id;
     // delete document
-    doc.deleted = true;
+    doc.is_deleted = true;
     api_service::request(
         &account,
         FileMetadataUpsertsRequest {
@@ -54,7 +54,7 @@ fn delete_document_new_document() {
 
     let doc = core.create_at_path("test.md").unwrap().id;
     let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
-    doc.deleted = true;
+    doc.is_deleted = true;
 
     let result = api_service::request(
         &account,
@@ -74,7 +74,7 @@ fn delete_document_deleted() {
     core.sync(None).unwrap();
 
     // delete document
-    doc.deleted = true;
+    doc.is_deleted = true;
     api_service::request(
         &account,
         FileMetadataUpsertsRequest {
@@ -100,7 +100,7 @@ fn delete_cannot_delete_root() {
     let root = core.get_root().unwrap().id;
     let mut root = core.db.base_metadata.get(&root).unwrap().unwrap();
 
-    root.deleted = true;
+    root.is_deleted = true;
     let result = api_service::request(
         &account,
         FileMetadataUpsertsRequest {

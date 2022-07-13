@@ -5,7 +5,7 @@ use hotwatch::{Event, Hotwatch};
 
 use lockbook_core::Uuid;
 use lockbook_core::WriteToDocumentError;
-use lockbook_core::{Core, DecryptedFileMetadata};
+use lockbook_core::{Core, CoreFile};
 use lockbook_core::{Error as LbError, GetFileByPathError};
 
 use crate::error::CliError;
@@ -45,7 +45,7 @@ pub fn get_editor() -> SupportedEditors {
     }
 }
 
-pub fn get_by_path(core: &Core, path: &str) -> Result<DecryptedFileMetadata, CliError> {
+pub fn get_by_path(core: &Core, path: &str) -> Result<CoreFile, CliError> {
     core.get_by_path(path).map_err(|err| match err {
         LbError::UiError(GetFileByPathError::NoFileAtThatPath) => CliError::file_not_found(path),
         LbError::Unexpected(msg) => CliError::unexpected(msg),

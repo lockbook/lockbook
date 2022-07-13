@@ -2,7 +2,7 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
-use lockbook_core::{DecryptedFileMetadata, Error as LbError};
+use lockbook_core::{CoreFile, Error as LbError};
 use lockbook_core::{GetAccountError, Uuid};
 use lockbook_core::{GetSubscriptionInfoError, UnexpectedError};
 
@@ -160,7 +160,7 @@ impl CliError {
         )
     }
 
-    pub fn dir_treated_as_doc(meta: &DecryptedFileMetadata) -> Self {
+    pub fn dir_treated_as_doc(meta: &CoreFile) -> Self {
         Self::new(
             ErrCode::FolderTreatedAsDoc,
             format!(

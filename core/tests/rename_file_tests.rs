@@ -75,7 +75,7 @@ fn rename_document_deleted() {
     let old_name = doc.name.clone();
     core.rename_file(doc.id, &random_name()).unwrap();
     let mut doc = core.db.local_metadata.get(&doc.id).unwrap().unwrap();
-    doc.deleted = true;
+    doc.is_deleted = true;
 
     api_service::request(
         &account,

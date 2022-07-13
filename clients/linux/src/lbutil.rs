@@ -52,7 +52,7 @@ pub fn parent_info(
 
 pub fn save_texture_to_png(
     core: &lb::Core, parent_id: lb::Uuid, texture: gdk::Texture,
-) -> Result<lb::DecryptedFileMetadata, String> {
+) -> Result<lb::CoreFile, String> {
     // There's a bit of a chicken and egg situation when it comes to naming a new file based on
     // its id. First, we'll create a new file with a random (temporary) name.
     let mut png_meta = core
@@ -74,9 +74,8 @@ pub fn save_texture_to_png(
 }
 
 pub fn import_file(
-    core: &lb::Core, disk_path: &Path, dest: lb::Uuid,
-    new_file_tx: &glib::Sender<lb::DecryptedFileMetadata>,
-) -> Result<lb::DecryptedFileMetadata, String> {
+    core: &lb::Core, disk_path: &Path, dest: lb::Uuid, new_file_tx: &glib::Sender<lb::CoreFile>,
+) -> Result<lb::CoreFile, String> {
     if !disk_path.exists() {
         return Err(format!("invalid disk path {:?}", disk_path));
     }
@@ -118,7 +117,7 @@ pub fn import_file(
     Ok(file_meta)
 }
 
-fn get_non_conflicting_name(siblings: &[lb::DecryptedFileMetadata], proposed_name: &str) -> String {
+fn get_non_conflicting_name(siblings: &[lb::CoreFile], proposed_name: &str) -> String {
     let mut new_name = NameComponents::from(proposed_name);
     loop {
         if !siblings

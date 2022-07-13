@@ -1,8 +1,8 @@
 use crate::model::filename::NameComponents;
 use crate::model::repo::RepoSource;
 use crate::{Config, CoreError, RequestContext};
-use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles, FileType};
-use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
+use lockbook_models::file_metadata::{CoreFile, DecryptedFiles, FileType};
+use lockbook_models::tree::{FileLike, FileMetaMapExt};
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -13,7 +13,7 @@ pub enum ImportStatus {
     CalculatedTotal(usize),
     Error(PathBuf, CoreError),
     StartingItem(String),
-    FinishedItem(DecryptedFileMetadata),
+    FinishedItem(CoreFile),
 }
 
 impl RequestContext<'_, '_> {
@@ -120,9 +120,8 @@ impl RequestContext<'_, '_> {
     }
 
     fn export_file_recursively(
-        &mut self, config: &Config, all: &DecryptedFiles,
-        parent_file_metadata: &DecryptedFileMetadata, disk_path: &Path, edit: bool,
-        export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
+        &mut self, config: &Config, all: &DecryptedFiles, parent_file_metadata: &CoreFile,
+        disk_path: &Path, edit: bool, export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> Result<(), CoreError> {
         let dest_with_new = disk_path.join(&parent_file_metadata.decrypted_name);
 

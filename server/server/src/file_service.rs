@@ -8,10 +8,8 @@ use lockbook_models::api::FileMetadataUpsertsError::{
     GetUpdatesRequired, NewFileHasOldParentAndName, NotPermissioned, RootImmutable,
 };
 use lockbook_models::api::*;
-use lockbook_models::file_metadata::{
-    EncryptedFileMetadata, EncryptedFiles, FileMetadataDiff, Owner,
-};
-use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
+use lockbook_models::file_metadata::{EncryptedFiles, FileMetadataDiff, Owner, UnsignedFile};
+use lockbook_models::tree::{FileLike, FileMetaMapExt};
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, FileMetadataUpsertsRequest>,
@@ -20,7 +18,7 @@ pub async fn upsert_file_metadata(
     let owner = Owner(context.public_key);
     check_for_changed_root(&request.updates)?;
     let now = get_time().0 as u64;
-    let docs_to_delete: Result<Vec<EncryptedFileMetadata>, ServerError<FileMetadataUpsertsError>> =
+    let docs_to_delete: Result<Vec<UnsignedFile>, ServerError<FileMetadataUpsertsError>> =
         context.server_state.index_db.transaction(|tx| {
             let mut files: EncryptedFiles = tx
                 .owned_files
@@ -41,7 +39,7 @@ pub async fn upsert_file_metadata(
 
             // TODO possibly more efficient to keep track of which id's actually changed
             for (id, file) in files {
-                if file.deleted && file.is_document() {
+                if file.is_deleted && file.is_document() {
                     tx.sizes.delete(id);
                 }
                 tx.metas.insert(id, file);
@@ -80,13 +78,13 @@ fn check_for_changed_root(
 fn apply_changes(
     tx: &mut Tx<'_>, now: u64, owner: &Owner, changes: &[FileMetadataDiff],
     metas: &mut EncryptedFiles,
-) -> Result<Vec<EncryptedFileMetadata>, ServerError<FileMetadataUpsertsError>> {
+) -> Result<Vec<UnsignedFile>, ServerError<FileMetadataUpsertsError>> {
     let mut deleted_documents = vec![];
     let mut new_files = vec![];
     for change in changes {
         match metas.maybe_find_mut(change.id) {
             Some(meta) => {
-                meta.deleted = change.new_deleted;
+                meta.is_deleted = change.new_deleted;
 
                 if let Some((old_parent, old_name)) = &change.old_parent_and_name {
                     if meta.parent != *old_parent || meta.name != *old_name {
@@ -128,8 +126,8 @@ fn apply_changes(
     for id in deleted_ids {
         if let Some(deleted_fm) = metas.maybe_find_mut(id) {
             // Check if implicitly deleted
-            if !deleted_fm.deleted {
-                deleted_fm.deleted = true;
+            if !deleted_fm.is_deleted {
+                deleted_fm.is_deleted = true;
                 deleted_fm.metadata_version = now;
                 if deleted_fm.is_document() {
                     deleted_documents.push(deleted_fm.clone());
@@ -141,8 +139,8 @@ fn apply_changes(
     Ok(deleted_documents)
 }
 
-fn new_meta(now: u64, diff: &FileMetadataDiff, owner: &Owner) -> EncryptedFileMetadata {
-    EncryptedFileMetadata {
+fn new_meta(now: u64, diff: &FileMetadataDiff, owner: &Owner) -> UnsignedFile {
+    UnsignedFile {
         id: diff.id,
         file_type: diff.file_type,
         parent: diff.new_parent,
@@ -150,7 +148,7 @@ fn new_meta(now: u64, diff: &FileMetadataDiff, owner: &Owner) -> EncryptedFileMe
         owner: owner.clone(),
         metadata_version: now,
         content_version: 0,
-        deleted: diff.new_deleted,
+        is_deleted: diff.new_deleted,
         user_access_keys: Default::default(),
         folder_access_keys: diff.new_folder_access_keys.clone(),
     }
@@ -174,7 +172,7 @@ pub async fn change_document_content(
 
         // Perhaps these next two are redundant, but practically lets us boot out of this request
         // before interacting with s3
-        if meta.deleted {
+        if meta.is_deleted {
             return Err(ClientError(ChangeDocumentContentError::DocumentDeleted));
         }
 
@@ -198,7 +196,7 @@ pub async fn change_document_content(
             .get(&request.id)
             .ok_or(ClientError(ChangeDocumentContentError::DocumentNotFound))?;
 
-        if meta.deleted {
+        if meta.is_deleted {
             return Err(ClientError(ChangeDocumentContentError::DocumentDeleted));
         }
 

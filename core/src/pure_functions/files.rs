@@ -9,16 +9,14 @@ use uuid::Uuid;
 
 use lockbook_crypto::symkey;
 use lockbook_models::account::Account;
-use lockbook_models::file_metadata::{DecryptedFileMetadata, DecryptedFiles, FileType, Owner};
-use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
+use lockbook_models::file_metadata::{CoreFile, DecryptedFiles, FileType, Owner};
+use lockbook_models::tree::{FileLike, FileMetaMapExt, FileMetaVecExt};
 
 use crate::model::filename::NameComponents;
 use crate::{model::repo::RepoState, CoreError};
 
-pub fn create(
-    file_type: FileType, parent: Uuid, name: &str, owner: &PublicKey,
-) -> DecryptedFileMetadata {
-    DecryptedFileMetadata {
+pub fn create(file_type: FileType, parent: Uuid, name: &str, owner: &PublicKey) -> CoreFile {
+    CoreFile {
         id: Uuid::new_v4(),
         file_type,
         parent,
@@ -31,9 +29,9 @@ pub fn create(
     }
 }
 
-pub fn create_root(account: &Account) -> DecryptedFileMetadata {
+pub fn create_root(account: &Account) -> CoreFile {
     let id = Uuid::new_v4();
-    DecryptedFileMetadata {
+    CoreFile {
         id,
         file_type: FileType::Folder,
         parent: id,
@@ -50,7 +48,7 @@ pub fn create_root(account: &Account) -> DecryptedFileMetadata {
 /// the file with the operation applied. This is a pure function.
 pub fn apply_create(
     files: &DecryptedFiles, file_type: FileType, parent: Uuid, name: &str, owner: &PublicKey,
-) -> Result<DecryptedFileMetadata, CoreError> {
+) -> Result<CoreFile, CoreError> {
     let file = create(file_type, parent, name, owner);
     validate_not_root(&file)?;
     validate_file_name(name)?;
@@ -70,7 +68,7 @@ pub fn apply_create(
 /// Validates a rename operation for a file in the context of all files and returns a version of the file with the operation applied. This is a pure function.
 pub fn apply_rename(
     files: &DecryptedFiles, target_id: Uuid, new_name: &str,
-) -> Result<DecryptedFileMetadata, CoreError> {
+) -> Result<CoreFile, CoreError> {
     let mut file = files.find(target_id)?;
     validate_not_root(&file)?;
     validate_file_name(new_name)?;
@@ -89,7 +87,7 @@ pub fn apply_rename(
 /// Validates a move operation for a file in the context of all files and returns a version of the file with the operation applied. This is a pure function.
 pub fn apply_move(
     files: &DecryptedFiles, target_id: Uuid, new_parent: Uuid,
-) -> Result<DecryptedFileMetadata, CoreError> {
+) -> Result<CoreFile, CoreError> {
     let mut file = files.find(target_id)?;
     let parent = files
         .maybe_find(new_parent)
@@ -111,9 +109,7 @@ pub fn apply_move(
 
 /// Validates a delete operation for a file in the context of all files and returns a version of the
 /// file with the operation applied. This is a pure function.
-pub fn apply_delete(
-    files: &DecryptedFiles, target_id: Uuid,
-) -> Result<DecryptedFileMetadata, CoreError> {
+pub fn apply_delete(files: &DecryptedFiles, target_id: Uuid) -> Result<CoreFile, CoreError> {
     let mut file = files.find(target_id)?;
     validate_not_root(&file)?;
 
@@ -122,7 +118,7 @@ pub fn apply_delete(
     Ok(file)
 }
 
-fn validate_not_root(file: &DecryptedFileMetadata) -> Result<(), CoreError> {
+fn validate_not_root(file: &CoreFile) -> Result<(), CoreError> {
     if file.id != file.parent {
         Ok(())
     } else {
@@ -130,7 +126,7 @@ fn validate_not_root(file: &DecryptedFileMetadata) -> Result<(), CoreError> {
     }
 }
 
-fn validate_is_folder(file: &DecryptedFileMetadata) -> Result<(), CoreError> {
+fn validate_is_folder(file: &CoreFile) -> Result<(), CoreError> {
     if file.is_folder() {
         Ok(())
     } else {
@@ -185,7 +181,7 @@ pub fn save_document_to_disk(document: &[u8], location: String) -> Result<(), Co
     Ok(())
 }
 
-pub fn maybe_find_state<Fm: FileMetadata>(
+pub fn maybe_find_state<Fm: FileLike>(
     files: &[RepoState<Fm>], target_id: Uuid,
 ) -> Option<RepoState<Fm>> {
     files.iter().find(|f| match f {
@@ -195,7 +191,7 @@ pub fn maybe_find_state<Fm: FileMetadata>(
     } == target_id).cloned()
 }
 
-pub fn find_ancestors<Fm: FileMetadata>(
+pub fn find_ancestors<Fm: FileLike>(
     files: &HashMap<Uuid, Fm>, target_id: Uuid,
 ) -> HashMap<Uuid, Fm> {
     let mut result = HashMap::new();
@@ -210,7 +206,7 @@ pub fn find_ancestors<Fm: FileMetadata>(
     result
 }
 
-pub fn find_with_descendants<Fm: FileMetadata>(
+pub fn find_with_descendants<Fm: FileLike>(
     files: &HashMap<Uuid, Fm>, target_id: Uuid,
 ) -> Result<HashMap<Uuid, Fm>, CoreError> {
     let mut result = HashMap::new();

@@ -17,8 +17,8 @@ pub use lockbook_models::api::{PaymentMethod, PaymentPlatform};
 pub use lockbook_models::api::{StripeAccountTier, SubscriptionInfo};
 pub use lockbook_models::crypto::DecryptedDocument;
 pub use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
-pub use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
-pub use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
+pub use lockbook_models::file_metadata::{CoreFile, FileType};
+pub use lockbook_models::tree::{FileLike, FileMetaMapExt, FileMetaVecExt};
 pub use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
 
 pub use crate::model::errors::*;
@@ -138,7 +138,7 @@ impl Core {
     #[instrument(level = "debug", skip(self, name), err(Debug))]
     pub fn create_file(
         &self, name: &str, parent: Uuid, file_type: FileType,
-    ) -> Result<DecryptedFileMetadata, Error<CreateFileError>> {
+    ) -> Result<CoreFile, Error<CreateFileError>> {
         let val = self.db.transaction(|tx| {
             self.context(tx)?
                 .create_file(&self.config, name, parent, file_type)
@@ -166,13 +166,13 @@ impl Core {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn get_root(&self) -> Result<DecryptedFileMetadata, Error<GetRootError>> {
+    pub fn get_root(&self) -> Result<CoreFile, Error<GetRootError>> {
         let val = self.db.transaction(|tx| self.context(tx)?.root())?;
         Ok(val?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_children(&self, id: Uuid) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
+    pub fn get_children(&self, id: Uuid) -> Result<Vec<CoreFile>, UnexpectedError> {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.get_children(id))??
@@ -184,7 +184,7 @@ impl Core {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn get_and_get_children_recursively(
         &self, id: Uuid,
-    ) -> Result<Vec<DecryptedFileMetadata>, Error<GetAndGetChildrenError>> {
+    ) -> Result<Vec<CoreFile>, Error<GetAndGetChildrenError>> {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.get_and_get_children_recursively(id))??
@@ -195,9 +195,7 @@ impl Core {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_file_by_id(
-        &self, id: Uuid,
-    ) -> Result<DecryptedFileMetadata, Error<GetFileByIdError>> {
+    pub fn get_file_by_id(&self, id: Uuid) -> Result<CoreFile, Error<GetFileByIdError>> {
         let val = self.db.transaction(|tx| {
             self.context(tx)?
                 .get_not_deleted_metadata(RepoSource::Local, id)
@@ -236,7 +234,7 @@ impl Core {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn list_metadatas(&self) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
+    pub fn list_metadatas(&self) -> Result<Vec<CoreFile>, UnexpectedError> {
         let val = self
             .db
             .transaction(|tx| {
@@ -268,7 +266,7 @@ impl Core {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn create_at_path(
         &self, path_and_name: &str,
-    ) -> Result<DecryptedFileMetadata, Error<CreateFileAtPathError>> {
+    ) -> Result<CoreFile, Error<CreateFileAtPathError>> {
         let val = self.db.transaction(|tx| {
             self.context(tx)?
                 .create_at_path(&self.config, path_and_name)
@@ -278,9 +276,7 @@ impl Core {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn get_by_path(
-        &self, path: &str,
-    ) -> Result<DecryptedFileMetadata, Error<GetFileByPathError>> {
+    pub fn get_by_path(&self, path: &str) -> Result<CoreFile, Error<GetFileByPathError>> {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.get_by_path(path))??;
