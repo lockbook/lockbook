@@ -7,7 +7,6 @@ import android.widget.TextView
 import androidx.constraintlayout.widget.ConstraintLayout
 import app.lockbook.R
 import com.afollestad.recyclical.ViewHolder
-import com.google.android.material.card.MaterialCardView
 
 sealed class FileViewHolderInfo(open val fileMetadata: DecryptedFileMetadata, open val needToBePushed: Boolean, open val needsToBePulled: Boolean) {
     data class DocumentViewHolderInfo(override val fileMetadata: DecryptedFileMetadata, override val needToBePushed: Boolean, override val needsToBePulled: Boolean) : FileViewHolderInfo(fileMetadata, needToBePushed, needsToBePulled)
@@ -62,13 +61,11 @@ sealed class SearchedDocumentViewHolderInfo(open val id: String, open val path: 
 }
 
 class SearchedDocumentNameViewHolder(itemView: View) : ViewHolder(itemView) {
-    val holder: MaterialCardView = itemView.findViewById(R.id.searched_document_item_holder)
     val name: TextView = itemView.findViewById(R.id.searched_document_name)
     val path: TextView = itemView.findViewById(R.id.searched_document_name_path)
 }
 
 class SearchedDocumentContentViewHolder(itemView: View) : ViewHolder(itemView) {
-    val holder: MaterialCardView = itemView.findViewById(R.id.searched_document_content_item_holder)
     val name: TextView = itemView.findViewById(R.id.searched_document_content_name)
     val path: TextView = itemView.findViewById(R.id.searched_document_content_path)
     val content: TextView = itemView.findViewById(R.id.searched_document_content)

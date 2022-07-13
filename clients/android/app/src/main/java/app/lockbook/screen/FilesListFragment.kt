@@ -281,10 +281,6 @@ class FilesListFragment : Fragment(), FilesFragment {
 
             true
         }
-//        val searchView = binding.filesToolbar.menu.findItem(R.id.menu_files_list_search).actionView as FixQueryChangeSearchView
-//        searchView.setOnSearchClickListener {
-//
-//        }
 
         toggleMenuBar()
     }

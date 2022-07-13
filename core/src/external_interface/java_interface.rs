@@ -3,7 +3,7 @@
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use jni::objects::{JClass, JObject, JString, JValue};
-use jni::sys::{jboolean, jbyteArray, jlong, jstring};
+use jni::sys::{jboolean, jbyteArray, jint, jlong, jstring};
 use jni::JNIEnv;
 use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;
@@ -675,7 +675,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
                 let args = [
                     JValue::Object(JObject::from(string_to_jstring(&env, id.to_string()))),
                     JValue::Object(JObject::from(string_to_jstring(&env, path))),
-                    JValue::Int(score as i32),
+                    JValue::Int(score as jint),
                     JValue::Object(JObject::from(string_to_jstring(&env, matched_indices_json))),
                 ]
                 .to_vec();

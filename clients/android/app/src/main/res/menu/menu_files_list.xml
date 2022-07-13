@@ -7,9 +7,6 @@
         android:icon="@drawable/ic_round_search_24"
         android:title="@string/search"
         app:showAsAction="always"/>
-<!--        app:actionViewClass="app.lockbook.ui.FixQueryChangeSearchView"-->
-<!--        app:showAsAction="always|collapseActionView"-->
-
 
     <item
         android:id="@+id/menu_list_files_sort"
