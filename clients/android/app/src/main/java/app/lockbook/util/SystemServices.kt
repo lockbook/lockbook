@@ -68,7 +68,7 @@ fun MainScreenActivity.getFilesFragment(): FilesFragment =
     (supportFragmentManager.findFragmentById(R.id.files_container) as NavHostFragment).childFragmentManager.fragments[0] as FilesFragment
 
 fun MainScreenActivity.maybeGetFilesFragment(): FilesFragment? =
-    (supportFragmentManager.findFragmentById(R.id.files_container) as NavHostFragment).childFragmentManager.fragments[0] as? FilesFragment
+    (supportFragmentManager.findFragmentById(R.id.files_container) as? NavHostFragment)?.childFragmentManager?.fragments?.get(0) as? FilesFragment
 
 fun MainScreenActivity.maybeGetSearchFilesFragment(): SearchDocumentsFragment? =
-    (supportFragmentManager.findFragmentById(R.id.files_container) as NavHostFragment).childFragmentManager.fragments[0] as? SearchDocumentsFragment
+    (supportFragmentManager.findFragmentById(R.id.files_container) as? NavHostFragment)?.childFragmentManager?.fragments?.get(0) as? SearchDocumentsFragment

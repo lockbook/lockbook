@@ -36,11 +36,7 @@
         <activity
             android:name=".screen.ImportAccountActivity"
             android:alwaysRetainTaskState="true" />
-        <activity android:name=".screen.MainScreenActivity"
-            android:label="Mainscreen">
-            <meta-data android:name="android.app.searchable"
-                android:resource="@xml/searchable" />
-        </activity>
+        <activity android:name=".screen.MainScreenActivity" />
         <activity android:name=".screen.SettingsActivity" />
         <activity android:name=".screen.LogActivity" />
         <activity android:name=".screen.UpgradeAccountActivity"

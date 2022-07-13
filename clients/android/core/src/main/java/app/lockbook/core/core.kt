@@ -33,3 +33,4 @@ external fun listMetadatas(): String
 external fun startSearch(searchFilesViewModel: Any): String
 external fun search(query: String): String
 external fun endSearch(): String
+external fun stopCurrentSearch(): String

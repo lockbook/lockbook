@@ -430,4 +430,15 @@ object CoreModel {
         endSearchParser.tryParse(
             app.lockbook.core.endSearch()
         )
+
+    private val stopCurrentSearchParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), Empty.serializer())
+        }
+    }
+
+    fun stopCurrentSearch(): Result<Unit, CoreError<Empty>> =
+        stopCurrentSearchParser.tryParse(
+            app.lockbook.core.stopCurrentSearch()
+        )
 }

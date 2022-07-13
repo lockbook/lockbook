@@ -638,10 +638,11 @@ fn send_search_request(env: JNIEnv, request: SearchRequest) -> jstring {
         .and_then(|maybe_lock| {
             maybe_lock
                 .clone()
-                .ok_or(UnexpectedError("No search thread active.".to_string()))
+                .ok_or(UnexpectedError("No search lock.".to_string()))
         })
-        .and_then(|lock| {
-            lock.send(request)
+        .and_then(|search_tx| {
+            search_tx
+                .send(request)
                 .map_err(|_| UnexpectedError("No search thread active.".to_string()))
         });
 
@@ -675,9 +676,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
         match results {
             SearchResult::Error(e) => return string_to_jstring(&env, translate(Err::<(), _>(e))),
             SearchResult::FileNameMatch { id, path, matched_indices, score } => {
-                // let jmatchedIndices = env.new_int_array(matched_indices.len() as jsize).unwrap();
-                // env.set_int_array_region(jmatchedIndices, 0, matched_indices.iter().map(|ind| *ind as jint).collect::<Vec<i32>>().as_slice()).unwrap();
-
                 let matched_indices_json = match serde_json::to_string(&matched_indices) {
                     Ok(json) => json,
                     Err(_) => return string_to_jstring(&env, "Failed to parse json.".to_string()),
@@ -747,6 +745,13 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_search(
     };
 
     send_search_request(env, SearchRequest::Search { input: query })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_stopCurrentSearch(
+    env: JNIEnv, _: JClass,
+) -> jstring {
+    send_search_request(env, SearchRequest::StopCurrentSearch)
 }
 
 #[no_mangle]

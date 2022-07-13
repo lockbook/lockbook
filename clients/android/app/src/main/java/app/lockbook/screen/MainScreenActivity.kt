@@ -62,6 +62,8 @@ class MainScreenActivity : AppCompatActivity() {
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        toggleTransparentLockbookLogo(model.detailsScreen)
+
         supportFragmentManager.registerFragmentLifecycleCallbacks(
             fragmentFinishedCallback,
             false

@@ -12,11 +12,11 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
-use sublime_fuzzy::FuzzySearch;
+use sublime_fuzzy::{FuzzySearch, Scoring};
 use uuid::Uuid;
 
-const DEBOUNCE_MILLIS: u64 = 100;
-const LOWEST_SCORE_THRESHOLD: isize = 150;
+const DEBOUNCE_MILLIS: u64 = 500;
+const LOWEST_SCORE_THRESHOLD: i64 = 100;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct SearchResultItem {
@@ -74,21 +74,25 @@ impl RequestContext<'_, '_> {
         let mut files_contents: HashMap<Uuid, String> = HashMap::new();
 
         for (id, file) in &files_not_deleted {
-            ids.push(*id);
-            paths.insert(file.id, RequestContext::path_by_id_helper(&files_not_deleted, file.id)?);
-
-            if file.file_type == FileType::Document
-                && (file.decrypted_name.as_str().ends_with(".txt")
-                    || file.decrypted_name.as_str().ends_with(".md"))
-            {
-                files_contents.insert(
+            if file.file_type == FileType::Document {
+                ids.push(*id);
+                paths.insert(
                     file.id,
-                    String::from(String::from_utf8_lossy(&self.read_document(
-                        self.config,
-                        RepoSource::Local,
-                        file.id,
-                    )?)),
+                    RequestContext::path_by_id_helper(&files_not_deleted, file.id)?,
                 );
+
+                if file.decrypted_name.as_str().ends_with(".txt")
+                    || file.decrypted_name.as_str().ends_with(".md")
+                {
+                    files_contents.insert(
+                        file.id,
+                        String::from(String::from_utf8_lossy(&self.read_document(
+                            self.config,
+                            RepoSource::Local,
+                            file.id,
+                        )?)),
+                    );
+                }
             }
         }
 
@@ -118,7 +122,7 @@ impl RequestContext<'_, '_> {
             Err(_) => return Ok(()),
         };
 
-        let should_continue = Arc::new(Mutex::new(true));
+        let mut should_continue = Arc::new(Mutex::new(true));
 
         match &last_search {
             SearchRequest::Search { input } => {
@@ -132,6 +136,7 @@ impl RequestContext<'_, '_> {
                 );
             }
             SearchRequest::EndSearch => return Ok(()),
+            SearchRequest::StopCurrentSearch => {}
         };
 
         let mut skip_channel_check = false;
@@ -142,30 +147,24 @@ impl RequestContext<'_, '_> {
                     Ok(last_search) => last_search,
                     Err(_) => return Ok(()),
                 };
+
+                *should_continue.lock()? = false;
             } else {
                 skip_channel_check = false;
             }
 
-            *should_continue.lock()? = false;
-
             thread::sleep(Duration::from_millis(DEBOUNCE_MILLIS));
-            let current_search = search_rx.try_recv();
 
-            match current_search {
-                Ok(search) => {
-                    last_search = search;
-                    skip_channel_check = true;
-                    continue;
-                }
-                Err(err) => match err {
-                    TryRecvError::Empty => {}
-                    TryRecvError::Disconnected => return Ok(()),
-                },
+            if let Some(search) = search_rx.try_iter().last() {
+                last_search = search;
+                skip_channel_check = true;
+                continue;
             }
 
             match &last_search {
                 SearchRequest::Search { input } => {
-                    let should_continue = Arc::new(Mutex::new(true));
+                    should_continue = Arc::new(Mutex::new(true));
+
                     RequestContext::spawn_search(
                         results_tx.clone(),
                         ids.clone(),
@@ -176,6 +175,7 @@ impl RequestContext<'_, '_> {
                     );
                 }
                 SearchRequest::EndSearch => return Ok(()),
+                SearchRequest::StopCurrentSearch => {}
             };
         }
     }
@@ -249,21 +249,23 @@ impl RequestContext<'_, '_> {
 
             if let Some(fuzzy_match) = FuzzySearch::new(search, &paths[id])
                 .case_insensitive()
+                .score_with(&Scoring::emphasize_distance())
                 .best_match()
             {
-                if fuzzy_match.score() >= LOWEST_SCORE_THRESHOLD {
+                if fuzzy_match.score().is_positive() {
                     if *no_matches {
                         *no_matches = false;
+                    }
+
+                    if !*should_continue.lock()? {
+                        return Ok(());
                     }
 
                     if let Err(_) = results_tx.send(SearchResult::FileNameMatch {
                         id: id.clone(),
                         path: paths[id].clone(),
-                        matched_indices: fuzzy_match
-                            .matched_indices()
-                            .map(|ind| *ind)
-                            .collect_vec(),
-                        score: fuzzy_match.score(),
+                        matched_indices: fuzzy_match.matched_indices().cloned().collect(),
+                        score: fuzzy_match.score() as i64,
                     }) {
                         break;
                     }
@@ -286,24 +288,28 @@ impl RequestContext<'_, '_> {
 
             let paragraphs = match files_contents.get(id) {
                 None => continue,
-                Some(content) => content.split("\n"),
+                Some(content) => content.split("\n\n"),
             };
 
             let mut content_matches: Vec<ContentMatch> = Vec::new();
 
             for paragraph in paragraphs {
+                // matcher.fuzzy_indices(paragraph, search)
                 if let Some(fuzzy_match) = FuzzySearch::new(search, paragraph)
                     .case_insensitive()
+                    .score_with(&Scoring::emphasize_distance())
                     .best_match()
                 {
-                    if fuzzy_match.score() >= LOWEST_SCORE_THRESHOLD {
+                    if fuzzy_match.score() >= LOWEST_SCORE_THRESHOLD as isize {
+                        let (paragraph, matched_indices) = RequestContext::optimize_searched_text(
+                            paragraph,
+                            fuzzy_match.matched_indices().cloned().collect(),
+                        );
+
                         content_matches.push(ContentMatch {
-                            paragraph: paragraph.to_string(),
-                            matched_indices: fuzzy_match
-                                .matched_indices()
-                                .map(|ind| *ind)
-                                .collect_vec(),
-                            score: fuzzy_match.score(),
+                            paragraph,
+                            matched_indices,
+                            score: fuzzy_match.score() as i64,
                         });
                     }
                 }
@@ -312,6 +318,10 @@ impl RequestContext<'_, '_> {
             if !content_matches.is_empty() {
                 if *no_matches {
                     *no_matches = false;
+                }
+
+                if !*should_continue.lock()? {
+                    return Ok(());
                 }
 
                 if let Err(_) = results_tx.send(SearchResult::FileContentMatches {
@@ -326,17 +336,133 @@ impl RequestContext<'_, '_> {
 
         Ok(())
     }
+
+    fn optimize_searched_text(
+        paragraph: &str, matched_indices: Vec<usize>,
+    ) -> (String, Vec<usize>) {
+        // let mut distance_between_indcies: Vec<usize> = Vec::new();
+
+        if paragraph.len() <= IDEAL_PARAGRAPH_LENGTH {
+            return (paragraph.to_string(), matched_indices);
+        }
+
+        let mut index_offset: usize = 0;
+        let mut new_paragraph: String = paragraph.to_string();
+
+        match (matched_indices.first(), matched_indices.last()) {
+            (Some(first_match), Some(last_match)) => {
+                if *last_match < IDEAL_PARAGRAPH_LENGTH {
+                    new_paragraph = new_paragraph
+                        .chars()
+                        .take(IDEAL_PARAGRAPH_LENGTH + PARAGRAPH_SLICE_PADDING)
+                        .collect();
+                    new_paragraph.push_str("...");
+
+                    return (
+                        new_paragraph,
+                        matched_indices
+                            .iter()
+                            .map(|index| *index - index_offset)
+                            .collect(),
+                    );
+                }
+
+                if *first_match > PARAGRAPH_SLICE_PADDING as usize {
+                    let at_least_take = new_paragraph.len() - first_match + PARAGRAPH_SLICE_PADDING;
+
+                    let deleted_chars_len = if at_least_take > IDEAL_PARAGRAPH_LENGTH {
+                        first_match - PARAGRAPH_SLICE_PADDING
+                    } else {
+                        new_paragraph.len() - IDEAL_PARAGRAPH_LENGTH
+                    };
+
+                    index_offset = deleted_chars_len - 3;
+
+                    new_paragraph = new_paragraph.chars().skip(deleted_chars_len).collect();
+                    new_paragraph.insert_str(0, "...");
+
+                    if new_paragraph.len() <= IDEAL_PARAGRAPH_LENGTH {
+                        return (
+                            new_paragraph,
+                            matched_indices
+                                .iter()
+                                .map(|index| *index - index_offset)
+                                .collect(),
+                        );
+                    }
+                }
+
+                if matched_indices.len() - last_match > PARAGRAPH_SLICE_PADDING {
+                    let at_least_take = *last_match - index_offset + PARAGRAPH_SLICE_PADDING;
+
+                    let take_chars_len = if at_least_take > IDEAL_PARAGRAPH_LENGTH {
+                        at_least_take
+                    } else {
+                        new_paragraph.len() - (IDEAL_PARAGRAPH_LENGTH - last_match - 3)
+                    };
+
+                    new_paragraph = new_paragraph.chars().take(take_chars_len).collect();
+                    new_paragraph.push_str("...");
+
+                    if new_paragraph.len() < IDEAL_PARAGRAPH_LENGTH {
+                        return (
+                            new_paragraph,
+                            matched_indices
+                                .iter()
+                                .map(|index| *index - index_offset)
+                                .collect(),
+                        );
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        // for index in 0..matched_indices.len() {
+        //     if index == 0 {
+        //         continue
+        //     }
+        //
+        //     distance_between_indcies[index - 1] = matched_indices[index - 1] - matched_indices[index];
+        // }
+
+        if new_paragraph.len() > MAX_PARAGRAPH_LENGTH {
+            new_paragraph = new_paragraph.chars().take(MAX_PARAGRAPH_LENGTH).collect();
+
+            (
+                new_paragraph,
+                matched_indices
+                    .iter()
+                    .map(|index| *index - index_offset)
+                    .filter(|index| *index < MAX_PARAGRAPH_LENGTH)
+                    .collect(),
+            )
+        } else {
+            (
+                new_paragraph,
+                matched_indices
+                    .iter()
+                    .map(|index| *index - index_offset)
+                    .collect(),
+            )
+        }
+    }
 }
+
+const MAX_PARAGRAPH_LENGTH: usize = 400;
+const IDEAL_PARAGRAPH_LENGTH: usize = 100;
+const PARAGRAPH_SLICE_PADDING: usize = 8;
 
 #[derive(Clone)]
 pub enum SearchRequest {
     Search { input: String },
     EndSearch,
+    StopCurrentSearch,
 }
 
 pub enum SearchResult {
     Error(UnexpectedError),
-    FileNameMatch { id: Uuid, path: String, matched_indices: Vec<usize>, score: isize },
+    FileNameMatch { id: Uuid, path: String, matched_indices: Vec<usize>, score: i64 },
     FileContentMatches { id: Uuid, path: String, content_matches: Vec<ContentMatch> },
     NoMatch,
 }
@@ -345,5 +471,5 @@ pub enum SearchResult {
 pub struct ContentMatch {
     paragraph: String,
     matched_indices: Vec<usize>,
-    score: isize,
+    score: i64,
 }
