@@ -5,8 +5,9 @@ use fuzzy_matcher::FuzzyMatcher;
 use lockbook_models::file_metadata::{DecryptedFiles, FileType};
 use serde::Serialize;
 use std::cmp::Ordering;
+use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, Mutex};
+use std::sync::{atomic, Arc};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -116,7 +117,7 @@ impl RequestContext<'_, '_> {
             Err(_) => return Ok(()),
         };
 
-        let mut should_continue = Arc::new(Mutex::new(true));
+        let mut should_continue = Arc::new(AtomicBool::new(true));
 
         match &last_search {
             SearchRequest::Search { input } => {
@@ -140,7 +141,7 @@ impl RequestContext<'_, '_> {
                     Err(_) => return Ok(()),
                 };
 
-                *should_continue.lock()? = false;
+                should_continue.store(false, atomic::Ordering::Relaxed);
             } else {
                 skip_channel_check = false;
             }
@@ -155,7 +156,7 @@ impl RequestContext<'_, '_> {
 
             match &last_search {
                 SearchRequest::Search { input } => {
-                    should_continue = Arc::new(Mutex::new(true));
+                    should_continue = Arc::new(AtomicBool::new(true));
 
                     RequestContext::spawn_search(
                         results_tx.clone(),
@@ -172,7 +173,7 @@ impl RequestContext<'_, '_> {
 
     fn spawn_search(
         results_tx: Sender<SearchResult>, files_info: Arc<Vec<SearchableFileInfo>>,
-        should_continue: Arc<Mutex<bool>>, input: String,
+        should_continue: Arc<AtomicBool>, input: String,
     ) {
         thread::spawn(move || {
             if let Err(search_err) =
@@ -187,7 +188,7 @@ impl RequestContext<'_, '_> {
 
     fn search_loop(
         results_tx: Sender<SearchResult>, files_info: Arc<Vec<SearchableFileInfo>>,
-        should_continue: Arc<Mutex<bool>>, search: String,
+        should_continue: Arc<AtomicBool>, search: String,
     ) -> Result<(), UnexpectedError> {
         let mut no_matches = true;
 
@@ -199,7 +200,7 @@ impl RequestContext<'_, '_> {
             &mut no_matches,
         )?;
 
-        if *should_continue.lock()? {
+        if should_continue.load(atomic::Ordering::Relaxed) {
             RequestContext::search_file_contents(
                 &results_tx,
                 &should_continue,
@@ -208,7 +209,7 @@ impl RequestContext<'_, '_> {
                 &mut no_matches,
             )?;
 
-            if no_matches && *should_continue.lock()? {
+            if no_matches && should_continue.load(atomic::Ordering::Relaxed) {
                 results_tx.send(SearchResult::NoMatch)?;
             }
         }
@@ -217,11 +218,11 @@ impl RequestContext<'_, '_> {
     }
 
     fn search_file_names(
-        results_tx: &Sender<SearchResult>, should_continue: &Arc<Mutex<bool>>,
+        results_tx: &Sender<SearchResult>, should_continue: &Arc<AtomicBool>,
         files_info: &Arc<Vec<SearchableFileInfo>>, search: &str, no_matches: &mut bool,
     ) -> Result<(), UnexpectedError> {
         for info in files_info.as_ref() {
-            if !*should_continue.lock()? {
+            if !should_continue.load(atomic::Ordering::Relaxed) {
                 return Ok(());
             }
 
@@ -235,7 +236,7 @@ impl RequestContext<'_, '_> {
                         *no_matches = false;
                     }
 
-                    if !*should_continue.lock()? {
+                    if !should_continue.load(atomic::Ordering::Relaxed) {
                         return Ok(());
                     }
 
@@ -258,11 +259,11 @@ impl RequestContext<'_, '_> {
     }
 
     fn search_file_contents(
-        results_tx: &Sender<SearchResult>, should_continue: &Arc<Mutex<bool>>,
+        results_tx: &Sender<SearchResult>, should_continue: &Arc<AtomicBool>,
         files_info: &Arc<Vec<SearchableFileInfo>>, search: &str, no_matches: &mut bool,
     ) -> Result<(), UnexpectedError> {
         for info in files_info.as_ref() {
-            if !*should_continue.lock()? {
+            if !should_continue.load(atomic::Ordering::Relaxed) {
                 return Ok(());
             }
 
@@ -298,7 +299,7 @@ impl RequestContext<'_, '_> {
                         *no_matches = false;
                     }
 
-                    if !*should_continue.lock()? {
+                    if !should_continue.load(atomic::Ordering::Relaxed) {
                         return Ok(());
                     }
 
