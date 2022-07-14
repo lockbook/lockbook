@@ -4,11 +4,11 @@ use crate::repo::schema::OneKey;
 use crate::service::{api_service, file_encryption_service};
 use crate::{CoreError, RequestContext};
 use libsecp256k1::PublicKey;
-use lockbook_crypto::clock_service::get_time;
-use lockbook_crypto::pubkey;
-use lockbook_models::account::Account;
-use lockbook_models::api::{GetPublicKeyRequest, NewAccountRequest};
-use lockbook_models::tree::FileMetaMapExt;
+use lockbook_shared::account::Account;
+use lockbook_shared::api::{GetPublicKeyRequest, NewAccountRequest};
+use lockbook_shared::clock_service::get_time;
+use lockbook_shared::pubkey;
+use lockbook_shared::tree::FileMetaMapExt;
 use std::collections::HashMap;
 
 impl RequestContext<'_, '_> {
@@ -19,13 +19,13 @@ impl RequestContext<'_, '_> {
             return Err(CoreError::AccountExists);
         }
 
-        let keys = pubkey::generate_key();
+        let private_key = pubkey::generate_key();
 
-        let account = Account { username, api_url: api_url.to_string(), private_key: keys };
+        let account = Account { username, api_url: api_url.to_string(), private_key };
         let public_key = account.public_key();
         self.data_cache.public_key = Some(public_key);
 
-        let mut root_metadata = files::create_root(&account);
+        let mut root_metadata = file_encryption_service::create_root(&account)?;
         let encrypted_metadata = file_encryption_service::encrypt_metadata(
             &account,
             &public_key,

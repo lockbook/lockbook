@@ -43,8 +43,7 @@ tracing-subscriber = "0.3.9"
 tracing-appender = "0.2"
 hmdb = "0.1.12"
 lazy_static = "1.4.0"
-lockbook-models = { path = "libs/models" }
-lockbook-crypto = { path = "libs/crypto" }
+lockbook-shared = { path = "libs/shared" }
 
 [profile.release]
 debug = true

@@ -1,7 +1,7 @@
 use lockbook_core::pure_functions::files;
 use lockbook_core::CoreError;
-use lockbook_models::file_metadata::FileType;
-use lockbook_models::tree::FileMetaVecExt;
+use lockbook_shared::file_metadata::FileType;
+use lockbook_shared::tree::FileMetaVecExt;
 use test_utils::test_core_with_account;
 
 #[test]

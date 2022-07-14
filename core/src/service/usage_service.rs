@@ -1,7 +1,7 @@
 use serde::Serialize;
 
-use lockbook_models::api::{FileUsage, GetUsageRequest, GetUsageResponse};
-use lockbook_models::tree::FileMetaMapExt;
+use lockbook_shared::api::{FileUsage, GetUsageRequest, GetUsageResponse};
+use lockbook_shared::tree::FileMetaMapExt;
 
 use crate::model::repo::RepoSource;
 use crate::service::{api_service, file_service};

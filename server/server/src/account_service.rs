@@ -4,15 +4,15 @@ use crate::ServerError::ClientError;
 use crate::{document_service, RequestContext, ServerError, ServerState, Tx};
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
-use lockbook_crypto::clock_service::get_time;
-use lockbook_models::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
-use lockbook_models::api::{
+use lockbook_shared::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
+use lockbook_shared::api::{
     DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError, GetPublicKeyRequest,
     GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse, NewAccountError,
     NewAccountRequest, NewAccountResponse,
 };
-use lockbook_models::file_metadata::{EncryptedFiles, Owner};
-use lockbook_models::tree::{FileLike, FileMetaMapExt};
+use lockbook_shared::clock_service::get_time;
+use lockbook_shared::file_metadata::{EncryptedFiles, Owner};
+use lockbook_shared::tree::{FileLike, FileMetaMapExt};
 
 /// Create a new account given a username, public_key, and root folder.
 /// Checks that username is valid, and that username, public_key and root_folder are new.

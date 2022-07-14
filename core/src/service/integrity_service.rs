@@ -4,7 +4,7 @@ use crate::pure_functions::drawing;
 use crate::service::file_service;
 use crate::service::integrity_service::TestRepoError::DocumentReadError;
 use crate::{Config, OneKey, RequestContext};
-use lockbook_models::tree::{FileLike, FileMetaMapExt, TestFileTreeError};
+use lockbook_shared::tree::{FileLike, FileMetaMapExt, TestFileTreeError};
 
 use std::path::Path;
 

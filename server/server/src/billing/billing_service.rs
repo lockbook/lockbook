@@ -14,15 +14,15 @@ use crate::{
 use base64::DecodeError;
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
-use lockbook_crypto::clock_service::get_time;
-use lockbook_models::api::{
+use lockbook_shared::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, CancelSubscriptionResponse,
     GetSubscriptionInfoError, GetSubscriptionInfoRequest, GetSubscriptionInfoResponse,
     GooglePlayAccountState, PaymentPlatform, SubscriptionInfo, UpgradeAccountGooglePlayError,
     UpgradeAccountGooglePlayRequest, UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError,
     UpgradeAccountStripeRequest, UpgradeAccountStripeResponse,
 };
-use lockbook_models::file_metadata::Owner;
+use lockbook_shared::clock_service::get_time;
+use lockbook_shared::file_metadata::Owner;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;

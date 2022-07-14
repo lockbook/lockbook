@@ -6,9 +6,9 @@ use lockbook_core::model::errors::TestRepoError::*;
 use lockbook_core::model::errors::Warning::*;
 use lockbook_core::model::repo::RepoSource;
 use lockbook_core::pure_functions::files;
-use lockbook_models::file_metadata::FileType::Document;
-use lockbook_models::file_metadata::{CoreFile, FileType};
-use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, TestFileTreeError};
+use lockbook_shared::file_metadata::FileType::Document;
+use lockbook_shared::file_metadata::{CoreFile, FileType};
+use lockbook_shared::tree::{FileMetaMapExt, FileMetaVecExt, TestFileTreeError};
 use test_utils::*;
 
 #[test]

@@ -1,9 +1,9 @@
 use crate::model::repo::RepoSource;
 use crate::pure_functions::files;
 use crate::{Config, CoreError, RequestContext};
-use lockbook_models::file_metadata::FileType::{Document, Folder};
-use lockbook_models::file_metadata::{CoreFile, DecryptedFiles};
-use lockbook_models::tree::{FileLike, FileMetaMapExt};
+use lockbook_shared::file_metadata::FileType::{Document, Folder};
+use lockbook_shared::file_metadata::{CoreFile, DecryptedFiles};
+use lockbook_shared::tree::{FileLike, FileMetaMapExt};
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {

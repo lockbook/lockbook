@@ -1,7 +1,7 @@
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
-use lockbook_models::api::*;
-use lockbook_models::crypto::AESEncrypted;
+use lockbook_shared::api::*;
+use lockbook_shared::crypto::AESEncrypted;
 
 use test_utils::*;
 use uuid::Uuid;

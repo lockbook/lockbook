@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use lockbook_models::crypto::*;
+use lockbook_shared::crypto::*;
 
 use crate::model::errors::core_err_unexpected;
 use crate::model::repo::RepoSource;

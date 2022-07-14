@@ -2,7 +2,7 @@ use crate::model::errors::core_err_unexpected;
 use crate::service::api_service;
 use crate::service::api_service::ApiError;
 use crate::{CoreError, RequestContext};
-use lockbook_models::api::{
+use lockbook_shared::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequest,
     StripeAccountTier, SubscriptionInfo, UpgradeAccountGooglePlayError,
     UpgradeAccountGooglePlayRequest, UpgradeAccountStripeError, UpgradeAccountStripeRequest,

@@ -2,8 +2,8 @@ use uuid::Uuid;
 
 use lockbook_core::model::repo::RepoSource;
 use lockbook_core::repo::document_repo;
-use lockbook_crypto::symkey;
-use lockbook_models::crypto::AESEncrypted;
+use lockbook_shared::crypto::AESEncrypted;
+use lockbook_shared::symkey;
 use test_utils::*;
 
 #[test]

@@ -7,12 +7,14 @@ use std::path::Path;
 
 use uuid::Uuid;
 
-use lockbook_crypto::symkey;
-use lockbook_models::account::Account;
-use lockbook_models::file_metadata::{CoreFile, DecryptedFiles, FileType, Owner};
-use lockbook_models::tree::{FileLike, FileMetaMapExt, FileMetaVecExt};
+use lockbook_shared::account::Account;
+use lockbook_shared::crypto::ECSigned;
+use lockbook_shared::file_metadata::{CoreFile, DecryptedFiles, FileType, Owner, UnsignedFile};
+use lockbook_shared::symkey;
+use lockbook_shared::tree::{FileLike, FileMetaMapExt, FileMetaVecExt};
 
 use crate::model::filename::NameComponents;
+use crate::service::file_encryption_service;
 use crate::{model::repo::RepoState, CoreError};
 
 pub fn create(file_type: FileType, parent: Uuid, name: &str, owner: &PublicKey) -> CoreFile {
@@ -29,7 +31,8 @@ pub fn create(file_type: FileType, parent: Uuid, name: &str, owner: &PublicKey) 
     }
 }
 
-pub fn create_root(account: &Account) -> CoreFile {
+// TODO flagged for deletion
+pub fn create_root2(account: &Account) -> CoreFile {
     let id = Uuid::new_v4();
     CoreFile {
         id,

@@ -2,8 +2,8 @@ use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
 use test_utils::*;
 
-use lockbook_models::api::*;
-use lockbook_models::file_metadata::FileMetadataDiff;
+use lockbook_shared::api::*;
+use lockbook_shared::file_metadata::FileMetadataDiff;
 
 #[test]
 fn move_document() {

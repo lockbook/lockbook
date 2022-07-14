@@ -3,13 +3,17 @@ use std::collections::HashMap;
 
 use uuid::Uuid;
 
-use lockbook_crypto::{pubkey, symkey};
-use lockbook_models::account::Account;
-use lockbook_models::crypto::*;
-use lockbook_models::file_metadata::{CoreFile, DecryptedFiles, EncryptedFiles, UnsignedFile};
-use lockbook_models::tree::{FileLike, FileMetaMapExt};
+use lockbook_shared::account::Account;
+use lockbook_shared::crypto::*;
+use lockbook_shared::file_metadata::{
+    CoreFile, DecryptedFiles, EncryptedFiles, FileType, Owner, UnsignedFile,
+};
+use lockbook_shared::tree::{FileLike, FileMetaMapExt};
+use lockbook_shared::{pubkey, symkey};
 
 use crate::model::errors::{core_err_unexpected, CoreError};
+
+pub fn create_root(account: &Account) -> Result<UnsignedFile, CoreError> {}
 
 /// Converts a DecryptedFileMetadata to a FileMetadata using its decrypted parent key. Sharing is
 /// not supported; user access keys are encrypted for the provided account. This is a pure function.
@@ -27,8 +31,6 @@ pub fn encrypt_metadatum(
         parent: target.parent,
         name: encrypt_file_name(&target.decrypted_name, parent_key)?,
         owner: target.owner.clone(),
-        metadata_version: target.metadata_version,
-        content_version: target.content_version,
         is_deleted: target.deleted,
         user_access_keys,
         folder_access_keys: encrypt_folder_access_keys(&target.decrypted_access_key, parent_key)?,
@@ -62,7 +64,7 @@ fn encrypt_file_name(
 }
 
 fn encrypt_user_access_keys(
-    account: &Account, public_key: &PublicKey, decrypted_file_key: &AESKey,
+    account: &Account, decrypted_file_key: &AESKey,
 ) -> Result<HashMap<String, UserAccessInfo>, CoreError> {
     let user_key =
         pubkey::get_aes_key(&account.private_key, public_key).map_err(core_err_unexpected)?;
@@ -73,7 +75,7 @@ fn encrypt_user_access_keys(
         account.username.clone(),
         UserAccessInfo {
             username: account.username.clone(),
-            encrypted_by: *public_key,
+            encrypted_by: account.public_key(),
             access_key: encrypted_file_key,
         },
     );

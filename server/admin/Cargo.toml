@@ -7,7 +7,7 @@ edition = "2018"
 structopt = "0.3.13"
 lockbook-server = { path = "../server" }
 tokio = { version = "1.5.0", features = ["full"] }
-lockbook-models = { path = "../../core/libs/models" }
+lockbook-shared = { path = "../../core/libs/shared" }
 async-stripe = { version = "0.15.0", default-features = true, features = ["runtime-tokio-hyper-rustls"] }
 google-androidpublisher3 = "3.1.0"
 hmdb = "0.1.12"

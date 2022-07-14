@@ -5,15 +5,15 @@ use crate::pure_functions::files;
 use crate::repo::schema::OneKey;
 use crate::service::{api_service, file_encryption_service, file_service};
 use crate::{Config, CoreError, RequestContext};
-use lockbook_crypto::clock_service::get_time;
-use lockbook_models::account::Account;
-use lockbook_models::api::{
+use lockbook_shared::account::Account;
+use lockbook_shared::api::{
     ChangeDocumentContentRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,
 };
-use lockbook_models::crypto::DecryptedDocument;
-use lockbook_models::file_metadata::{CoreFile, DecryptedFiles, EncryptedFiles, FileType};
-use lockbook_models::tree::{FileLike, FileMetaMapExt};
-use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
+use lockbook_shared::clock_service::get_time;
+use lockbook_shared::crypto::DecryptedDocument;
+use lockbook_shared::file_metadata::{CoreFile, DecryptedFiles, EncryptedFiles, FileType};
+use lockbook_shared::tree::{FileLike, FileMetaMapExt};
+use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fmt;

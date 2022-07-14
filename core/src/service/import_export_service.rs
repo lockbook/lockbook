@@ -1,8 +1,8 @@
 use crate::model::filename::NameComponents;
 use crate::model::repo::RepoSource;
 use crate::{Config, CoreError, RequestContext};
-use lockbook_models::file_metadata::{CoreFile, DecryptedFiles, FileType};
-use lockbook_models::tree::{FileLike, FileMetaMapExt};
+use lockbook_shared::file_metadata::{CoreFile, DecryptedFiles, FileType};
+use lockbook_shared::tree::{FileLike, FileMetaMapExt};
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;

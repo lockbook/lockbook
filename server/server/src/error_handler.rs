@@ -4,7 +4,7 @@ use crate::ServerError::InternalError;
 use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
-use lockbook_models::api::{
+use lockbook_shared::api::{
     CancelSubscriptionError, GetUsageError, UpgradeAccountGooglePlayError,
     UpgradeAccountStripeError,
 };

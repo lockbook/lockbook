@@ -1,6 +1,6 @@
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
-use lockbook_models::api::*;
+use lockbook_shared::api::*;
 use test_utils::*;
 
 #[test]

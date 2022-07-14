@@ -1,9 +1,9 @@
 use lockbook_core::pure_functions::files;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_core::service::{api_service, file_encryption_service};
-use lockbook_crypto::pubkey;
-use lockbook_models::account::Account;
-use lockbook_models::api::*;
+use lockbook_shared::account::Account;
+use lockbook_shared::api::*;
+use lockbook_shared::pubkey;
 use test_utils::*;
 
 fn random_account() -> Account {

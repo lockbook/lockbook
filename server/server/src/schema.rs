@@ -1,6 +1,6 @@
 use crate::billing::billing_model::SubscriptionProfile;
-use lockbook_models::file_metadata::Owner;
-use lockbook_models::file_metadata::UnsignedFile;
+use lockbook_shared::file_metadata::Owner;
+use lockbook_shared::file_metadata::UnsignedFile;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

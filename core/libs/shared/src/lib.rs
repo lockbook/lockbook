@@ -1,8 +1,11 @@
 pub mod account;
 pub mod api;
+pub mod clock_service;
 pub mod crypto;
 pub mod drawing;
 pub mod file_metadata;
+pub mod pubkey;
+pub mod symkey;
 pub mod tree;
 pub mod utils;
 pub mod work_unit;

@@ -1,5 +1,6 @@
-use lockbook_models::account::Account;
-use lockbook_models::file_metadata::UnsignedFile;
+use lockbook_shared::account::Account;
+use lockbook_shared::crypto::ECSigned;
+use lockbook_shared::file_metadata::{SignedFile, UnsignedFile};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -15,7 +16,7 @@ hmdb::schema! {
         root: <OneKey, Uuid>,
         local_digest: <Uuid, Vec<u8>>,
         base_digest: <Uuid, Vec<u8>>,
-        local_metadata: <Uuid, UnsignedFile>,
-        base_metadata: <Uuid, UnsignedFile>
+        local_metadata: <Uuid, ECSigned<UnsignedFile>>,
+        base_metadata: <Uuid, SignedFile>
     }
 }

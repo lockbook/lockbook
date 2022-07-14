@@ -4,9 +4,9 @@ use std::env;
 use std::fmt::Debug;
 
 use libsecp256k1::PublicKey;
-use lockbook_crypto::pubkey::ECVerifyError;
-use lockbook_crypto::{clock_service, pubkey};
-use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper};
+use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
+use lockbook_shared::pubkey::ECVerifyError;
+use lockbook_shared::{clock_service, pubkey};
 use serde::{Deserialize, Serialize};
 
 use crate::account_service::GetUsageHelperError;

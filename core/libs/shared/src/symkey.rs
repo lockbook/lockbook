@@ -8,7 +8,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sha2::Sha256;
 
-use lockbook_models::crypto::*;
+use crate::crypto::*;
 
 use self::rand::rngs::OsRng;
 use self::rand::RngCore;

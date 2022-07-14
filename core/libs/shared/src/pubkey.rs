@@ -6,7 +6,7 @@ use rand::rngs::OsRng;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-use lockbook_models::crypto::*;
+use crate::crypto::*;
 
 use crate::clock_service::{timestamp, TimeGetter};
 

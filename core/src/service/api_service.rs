@@ -4,11 +4,11 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::get_code_version;
-use lockbook_crypto::clock_service::{get_time, Timestamp};
-use lockbook_crypto::pubkey;
-use lockbook_crypto::pubkey::ECSignError;
-use lockbook_models::account::Account;
-use lockbook_models::api::*;
+use lockbook_shared::account::Account;
+use lockbook_shared::api::*;
+use lockbook_shared::clock_service::{get_time, Timestamp};
+use lockbook_shared::pubkey;
+use lockbook_shared::pubkey::ECSignError;
 
 impl<E> From<ErrorWrapper<E>> for ApiError<E> {
     fn from(err: ErrorWrapper<E>) -> Self {

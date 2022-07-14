@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use uuid::Uuid;
 
-use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing};
+use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing};
 
 use crate::model::errors::CoreError;
 use crate::model::repo::RepoSource;

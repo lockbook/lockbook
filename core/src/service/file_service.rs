@@ -8,13 +8,13 @@ use crate::service::file_encryption_service;
 use crate::CoreError::RootNonexistent;
 use crate::{Config, CoreError, RequestContext};
 use itertools::Itertools;
-use lockbook_models::crypto::DecryptedDocument;
-use lockbook_models::crypto::EncryptedDocument;
-use lockbook_models::file_metadata::FileType;
-use lockbook_models::file_metadata::{CoreFile, DecryptedFiles};
-use lockbook_models::file_metadata::{EncryptedFiles, UnsignedFile};
-use lockbook_models::tree::{FileLike, FileMetaMapExt};
-use lockbook_models::utils;
+use lockbook_shared::crypto::DecryptedDocument;
+use lockbook_shared::crypto::EncryptedDocument;
+use lockbook_shared::file_metadata::{CoreFile, DecryptedFiles};
+use lockbook_shared::file_metadata::{EncryptedFiles, UnsignedFile};
+use lockbook_shared::file_metadata::{FileDiff, FileType};
+use lockbook_shared::tree::{FileLike, FileMetaMapExt};
+use lockbook_shared::utils;
 use sha2::Digest;
 use sha2::Sha256;
 use std::collections::{HashMap, HashSet};
@@ -519,18 +519,18 @@ impl RequestContext<'_, '_> {
         Ok(())
     }
 
-    pub fn get_all_metadata_changes(&self) -> Result<Vec<FileMetadataDiff>, CoreError> {
+    pub fn get_all_metadata_changes(&self) -> Result<Vec<FileDiff>, CoreError> {
         let local = self.tx.local_metadata.get_all().into_values().collect_vec();
         let base = self.tx.base_metadata.get_all().into_values().collect_vec();
 
         let new = local
             .iter()
             .filter(|l| !base.iter().any(|r| r.id == l.id))
-            .map(FileMetadataDiff::new);
+            .map(FileDiff::new);
         let changed = local
             .iter()
             .filter_map(|l| base.iter().find(|r| r.id == l.id).map(|r| (l, r)))
-            .map(|(l, r)| FileMetadataDiff::new_diff(r.parent, &r.name, l));
+            .map(|(l, r)| FileDiff::from);
 
         Ok(new.chain(changed).collect())
     }

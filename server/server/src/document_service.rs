@@ -1,5 +1,5 @@
 use crate::{ServerError, ServerState};
-use lockbook_models::crypto::EncryptedDocument;
+use lockbook_shared::crypto::EncryptedDocument;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use tokio::fs::{remove_file, File};

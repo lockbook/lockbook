@@ -12,14 +12,14 @@ mod external_interface;
 
 pub use uuid::Uuid;
 
-pub use lockbook_models::account::Account;
-pub use lockbook_models::api::{PaymentMethod, PaymentPlatform};
-pub use lockbook_models::api::{StripeAccountTier, SubscriptionInfo};
-pub use lockbook_models::crypto::DecryptedDocument;
-pub use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
-pub use lockbook_models::file_metadata::{CoreFile, FileType};
-pub use lockbook_models::tree::{FileLike, FileMetaMapExt, FileMetaVecExt};
-pub use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
+pub use lockbook_shared::account::Account;
+pub use lockbook_shared::api::{PaymentMethod, PaymentPlatform};
+pub use lockbook_shared::api::{StripeAccountTier, SubscriptionInfo};
+pub use lockbook_shared::crypto::DecryptedDocument;
+pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
+pub use lockbook_shared::file_metadata::{CoreFile, FileType};
+pub use lockbook_shared::tree::{FileLike, FileMetaMapExt, FileMetaVecExt};
+pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 
 pub use crate::model::errors::*;
 pub use crate::pure_functions::drawing::SupportedImageFormats;
@@ -41,8 +41,8 @@ use serde::Deserialize;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 
-use lockbook_crypto::clock_service;
-use lockbook_models::crypto::AESKey;
+use lockbook_shared::clock_service;
+use lockbook_shared::crypto::AESKey;
 
 use crate::model::errors::Error::UiError;
 use crate::model::repo::RepoSource;

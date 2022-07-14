@@ -1,8 +1,8 @@
 use lockbook_core::pure_functions::files;
 use lockbook_core::service::file_encryption_service;
-use lockbook_crypto::symkey;
-use lockbook_models::file_metadata::FileType;
-use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt};
+use lockbook_shared::file_metadata::FileType;
+use lockbook_shared::symkey;
+use lockbook_shared::tree::{FileMetaMapExt, FileMetaVecExt};
 use std::collections::HashMap;
 use test_utils::*;
 use uuid::Uuid;

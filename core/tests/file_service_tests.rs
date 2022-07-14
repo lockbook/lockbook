@@ -4,9 +4,9 @@ use lockbook_core::pure_functions::files;
 use lockbook_core::repo::document_repo;
 use lockbook_core::service::sync_service::MaybeMergeResult;
 use lockbook_core::service::{file_service, sync_service};
-use lockbook_models::file_metadata::Owner;
-use lockbook_models::file_metadata::{CoreFile, FileType};
-use lockbook_models::tree::FileLike;
+use lockbook_shared::file_metadata::Owner;
+use lockbook_shared::file_metadata::{CoreFile, FileType};
+use lockbook_shared::tree::FileLike;
 use test_utils::*;
 use uuid::Uuid;
 

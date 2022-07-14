@@ -3,13 +3,13 @@ use crate::ServerError::ClientError;
 use crate::Tx;
 use crate::{document_service, RequestContext};
 use hmdb::transaction::Transaction;
-use lockbook_crypto::clock_service::get_time;
-use lockbook_models::api::FileMetadataUpsertsError::{
+use lockbook_shared::api::FileMetadataUpsertsError::{
     GetUpdatesRequired, NewFileHasOldParentAndName, NotPermissioned, RootImmutable,
 };
-use lockbook_models::api::*;
-use lockbook_models::file_metadata::{EncryptedFiles, FileDiff, Owner, UnsignedFile};
-use lockbook_models::tree::{FileLike, FileMetaMapExt};
+use lockbook_shared::api::*;
+use lockbook_shared::clock_service::get_time;
+use lockbook_shared::file_metadata::{EncryptedFiles, FileDiff, Owner, UnsignedFile};
+use lockbook_shared::tree::{FileLike, FileMetaMapExt};
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, FileMetadataUpsertsRequest>,

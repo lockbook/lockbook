@@ -6,9 +6,9 @@ use serde::{Serialize, Serializer};
 use strum_macros::EnumIter;
 use uuid::Uuid;
 
-use lockbook_models::api;
-use lockbook_models::api::{GetPublicKeyError, GetUpdatesError, NewAccountError};
-use lockbook_models::tree::TreeError;
+use lockbook_shared::api;
+use lockbook_shared::api::{GetPublicKeyError, GetUpdatesError, NewAccountError};
+use lockbook_shared::tree::TreeError;
 
 use crate::service::api_service::ApiError;
 use crate::UiError;

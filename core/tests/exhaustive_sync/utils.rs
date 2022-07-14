@@ -3,7 +3,7 @@ use rand::rngs::OsRng;
 use rand::Rng;
 
 use lockbook_core::Core;
-use lockbook_models::file_metadata::CoreFile;
+use lockbook_shared::file_metadata::CoreFile;
 
 pub fn find_by_name(core: &Core, name: &str) -> CoreFile {
     let mut possible_matches = core.list_metadatas().unwrap();

@@ -196,11 +196,11 @@ impl Request for GetUpdatesRequest {
 pub struct NewAccountRequest {
     pub username: Username,
     pub public_key: PublicKey,
-    pub root_folder: UnsignedFile,
+    pub root_folder: ECSigned<UnsignedFile>,
 }
 
 impl NewAccountRequest {
-    pub fn new(account: &Account, root_folder: &UnsignedFile) -> Self {
+    pub fn new(account: &Account, root_folder: &ECSigned<UnsignedFile>) -> Self {
         let root_folder = root_folder.clone();
         NewAccountRequest {
             username: account.username.clone(),
