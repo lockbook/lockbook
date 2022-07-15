@@ -70,6 +70,12 @@ class SearchDocumentsFragment : Fragment() {
             }
         }
 
+        binding.searchDocumentsSearch.setOnQueryTextFocusChangeListener { _, focus ->
+            if (focus) {
+                requireActivity().window.requestKeyboardFocus(binding.searchDocumentsSearch.findFocus())
+            }
+        }
+
         binding.searchDocumentsSearch.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
                 model.newSearch(query)
@@ -85,6 +91,7 @@ class SearchDocumentsFragment : Fragment() {
             }
         })
 
+        binding.searchDocumentsSearch.requestFocus()
         return binding.root
     }
 

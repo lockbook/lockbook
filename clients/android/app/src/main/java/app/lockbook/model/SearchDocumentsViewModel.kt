@@ -17,7 +17,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import timber.log.Timber
 import java.io.File
 
 class SearchDocumentsViewModel(application: Application) : AndroidViewModel(application) {
@@ -184,8 +183,6 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
 
         for (contentMatch in contentMatches) {
             val paragraphSpan = contentMatch.paragraph.makeSpannableString()
-
-            Timber.e("THIS IS IT LO: $paragraphSpan ${contentMatch.score}")
 
             paragraphsSpan.add(Pair(paragraphSpan, contentMatch.score))
 
