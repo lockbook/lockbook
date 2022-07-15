@@ -24,7 +24,7 @@ fun AndroidViewModel.getString(
     @StringRes stringRes: Int,
     vararg formatArgs: Any = emptyArray()
 ): String {
-    return app.lockbook.util.getString(this.getRes(), stringRes, *formatArgs)
+    return getString(this.getRes(), stringRes, *formatArgs)
 }
 
 fun AndroidViewModel.getContext(): Context {

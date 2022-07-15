@@ -21,8 +21,6 @@
             android:layout_height="wrap_content"
             android:layout_marginEnd="20dp"
             android:imeOptions="flagNoExtractUi"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
             app:iconifiedByDefault="false" />
 
 
