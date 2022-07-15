@@ -43,6 +43,10 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
         _launchDetailsScreen.postValue(detailsScreen)
     }
 
+    fun updateMainScreenUI(uiUpdate: UpdateMainScreenUI) {
+        _updateMainScreenUI.postValue(uiUpdate)
+    }
+
     fun shareSelectedFiles(selectedFiles: List<DecryptedFileMetadata>, appDataDir: File) {
         viewModelScope.launch(Dispatchers.IO) {
             val shareResult = shareModel.shareDocuments(selectedFiles, appDataDir)
@@ -155,6 +159,8 @@ sealed class UpdateMainScreenUI {
     data class ShareDocuments(val files: ArrayList<File>) : UpdateMainScreenUI()
     data class NotifyError(val error: LbError) : UpdateMainScreenUI()
     object ShowSubscriptionConfirmed : UpdateMainScreenUI()
+    object ShowSearch : UpdateMainScreenUI()
+    object ShowFiles : UpdateMainScreenUI()
 }
 
 sealed class ExtendedFileType {
