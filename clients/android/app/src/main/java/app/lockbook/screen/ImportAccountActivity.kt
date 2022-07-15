@@ -28,6 +28,15 @@ class ImportAccountActivity : AppCompatActivity() {
             getApp().isInImportSync = true
         }
 
+        binding.importExitApp.setOnClickListener {
+            super.onBackPressed()
+        }
+
+        if (model.isErrorVisible) {
+            binding.importAccountProgressBar.visibility = View.GONE
+            binding.importExitApp.visibility = View.VISIBLE
+        }
+
         model.syncModel.notifySyncStepInfo.observe(
             this
         ) { stepInfo ->
@@ -50,6 +59,8 @@ class ImportAccountActivity : AppCompatActivity() {
                 }
                 is UpdateImportUI.NotifyError -> {
                     binding.importAccountProgressBar.visibility = View.GONE
+                    binding.importExitApp.visibility = View.VISIBLE
+
                     binding.importInfo.text = updateImportUI.error.msg
                 }
             }.exhaustive
