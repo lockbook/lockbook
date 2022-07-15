@@ -1,7 +1,7 @@
 use crate::access_info::{EncryptedFolderAccessKey, UserAccessInfo};
 use crate::account::Username;
-use crate::core_file::LazyFile;
 use crate::file_metadata::{FileMetadata, FileType, Owner};
+use crate::lazy_file::LazyFile;
 use crate::secret_filename::SecretFileName;
 use crate::server_file::ServerFile;
 use crate::signed_file::SignedFile;

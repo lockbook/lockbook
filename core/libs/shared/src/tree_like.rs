@@ -1,7 +1,7 @@
 use crate::account::Account;
-use crate::core_file::LazyFile;
 use crate::crypto::AESKey;
 use crate::file_like::FileLike;
+use crate::lazy_file::LazyFile;
 use crate::tree_like::TreeError::*;
 use crate::{pubkey, symkey};
 use std::collections::HashSet;

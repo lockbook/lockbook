@@ -4,20 +4,20 @@ pub mod access_info;
 pub mod account;
 pub mod api;
 pub mod clock;
-pub mod core_file;
 pub mod crypto;
 pub mod drawing;
 pub mod file_like;
 pub mod file_metadata;
+pub mod lazy_file;
 pub mod pubkey;
 pub mod secret_filename;
 pub mod server_file;
 pub mod signed_file;
 pub mod symkey;
 pub mod tree;
+pub mod tree_like;
 pub mod utils;
 pub mod work_unit;
-pub mod tree_like;
 
 type SharedResult<T> = Result<T, SharedError>;
 
