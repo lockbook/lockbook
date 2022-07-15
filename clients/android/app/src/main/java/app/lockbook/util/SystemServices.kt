@@ -11,10 +11,12 @@ import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.AndroidViewModel
+import androidx.navigation.fragment.NavHostFragment
 import androidx.preference.Preference
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.screen.MainScreenActivity
+import app.lockbook.screen.SearchDocumentsFragment
 import app.lockbook.screen.SettingsActivity
 import app.lockbook.screen.SettingsFragment
 
@@ -55,8 +57,14 @@ fun Fragment.getApp(): App {
     return requireActivity().application as App
 }
 
+fun MainScreenActivity.navHost(): NavHostFragment =
+    (supportFragmentManager.findFragmentById(R.id.files_container) as NavHostFragment)
+
 fun MainScreenActivity.getFilesFragment(): FilesFragment =
-    supportFragmentManager.findFragmentById(R.id.files_fragment) as FilesFragment
+    (supportFragmentManager.findFragmentById(R.id.files_container) as NavHostFragment).childFragmentManager.fragments[0] as FilesFragment
 
 fun MainScreenActivity.maybeGetFilesFragment(): FilesFragment? =
-    supportFragmentManager.findFragmentById(R.id.files_fragment) as? FilesFragment
+    (supportFragmentManager.findFragmentById(R.id.files_container) as? NavHostFragment)?.childFragmentManager?.fragments?.get(0) as? FilesFragment
+
+fun MainScreenActivity.maybeGetSearchFilesFragment(): SearchDocumentsFragment? =
+    (supportFragmentManager.findFragmentById(R.id.files_container) as? NavHostFragment)?.childFragmentManager?.fragments?.get(0) as? SearchDocumentsFragment
