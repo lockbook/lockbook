@@ -41,7 +41,7 @@ use serde::Deserialize;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 
-use lockbook_shared::clock_service;
+use lockbook_shared::clock;
 use lockbook_shared::crypto::AESKey;
 
 use crate::model::errors::Error::UiError;
@@ -335,7 +335,7 @@ impl Core {
         let last_synced = self.db.last_synced.get(&OneKey {})?.unwrap_or(0);
 
         Ok(if last_synced != 0 {
-            Duration::milliseconds(clock_service::get_time().0 - last_synced)
+            Duration::milliseconds(clock::get_time().0 - last_synced)
                 .format_human()
                 .to_string()
         } else {

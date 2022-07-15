@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use lockbook_shared::account::Account;
 use lockbook_shared::crypto::ECSigned;
-use lockbook_shared::file_metadata::{CoreFile, DecryptedFiles, FileType, Owner, UnsignedFile};
+use lockbook_shared::file_metadata::{CoreFile, DecryptedFiles, FileType, Owner, FileMetadata};
 use lockbook_shared::symkey;
 use lockbook_shared::tree::{FileLike, FileMetaMapExt, FileMetaVecExt};
 

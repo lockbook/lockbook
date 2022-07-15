@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use std::hash::Hash;
 use std::marker::PhantomData;
 
 use libsecp256k1::PublicKey;
@@ -9,8 +8,6 @@ use serde::{Deserialize, Serialize};
 pub type AESKey = [u8; 32];
 pub type DecryptedDocument = Vec<u8>;
 pub type EncryptedDocument = AESEncrypted<DecryptedDocument>;
-pub type EncryptedUserAccessKey = AESEncrypted<AESKey>;
-pub type EncryptedFolderAccessKey = AESEncrypted<AESKey>;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct AESEncrypted<T: DeserializeOwned> {
@@ -41,33 +38,4 @@ pub struct ECSigned<T> {
     #[serde(with = "serde_bytes")]
     pub signature: Vec<u8>,
     pub public_key: PublicKey,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct UserAccessInfo {
-    pub username: String,
-    pub encrypted_by: PublicKey,
-    pub access_key: EncryptedUserAccessKey,
-}
-
-/// A secret value that can impl an equality check by hmac'ing the
-/// inner secret.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SecretFileName {
-    pub encrypted_value: AESEncrypted<String>,
-    pub hmac: [u8; 32],
-}
-
-impl PartialEq for SecretFileName {
-    fn eq(&self, other: &Self) -> bool {
-        self.hmac == other.hmac
-    }
-}
-
-impl Eq for SecretFileName {}
-
-impl Hash for SecretFileName {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.hmac.hash(state);
-    }
 }

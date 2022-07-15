@@ -6,7 +6,7 @@ use serde::Serialize;
 use crate::get_code_version;
 use lockbook_shared::account::Account;
 use lockbook_shared::api::*;
-use lockbook_shared::clock_service::{get_time, Timestamp};
+use lockbook_shared::clock::{get_time, Timestamp};
 use lockbook_shared::pubkey;
 use lockbook_shared::pubkey::ECSignError;
 

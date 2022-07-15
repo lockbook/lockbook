@@ -2,17 +2,20 @@ use crate::model::errors::core_err_unexpected;
 use crate::pure_functions::files;
 use crate::repo::schema::OneKey;
 use crate::service::{api_service, file_encryption_service};
-use crate::{CoreError, RequestContext};
+use crate::{CoreError, CoreResult, RequestContext};
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Account;
 use lockbook_shared::api::{GetPublicKeyRequest, NewAccountRequest};
-use lockbook_shared::clock_service::get_time;
+use lockbook_shared::clock::get_time;
+use lockbook_shared::file_like::FileLike;
+use lockbook_shared::file_metadata::FileMetadata;
 use lockbook_shared::pubkey;
+use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::tree::FileMetaMapExt;
 use std::collections::HashMap;
 
 impl RequestContext<'_, '_> {
-    pub fn create_account(&mut self, username: &str, api_url: &str) -> Result<Account, CoreError> {
+    pub fn create_account(&mut self, username: &str, api_url: &str) -> CoreResult<Account> {
         let username = String::from(username).to_lowercase();
 
         if self.tx.account.get(&OneKey {}).is_some() {
@@ -25,36 +28,19 @@ impl RequestContext<'_, '_> {
         let public_key = account.public_key();
         self.data_cache.public_key = Some(public_key);
 
-        let mut root_metadata = file_encryption_service::create_root(&account)?;
-        let encrypted_metadata = file_encryption_service::encrypt_metadata(
-            &account,
-            &public_key,
-            &HashMap::with(root_metadata.clone()),
-        )?;
-        let encrypted_metadatum = if encrypted_metadata.len() == 1 {
-            Ok(encrypted_metadata.into_values().next().unwrap())
-        } else {
-            Err(CoreError::Unexpected(String::from(
-                "create_account: multiple metadata decrypted from root",
-            )))
-        }?;
+        let mut root = FileMetadata::create_root(&account)?.sign(&account)?;
 
-        root_metadata.metadata_version =
+        let version =
             api_service::request(&account, NewAccountRequest::new(&account, &encrypted_metadatum))?
                 .folder_metadata_version;
 
-        let root = file_encryption_service::encrypt_metadata(
-            &account,
-            &public_key,
-            &HashMap::with(root_metadata.clone()),
-        )?
-        .get(&root_metadata.id)
-        .ok_or_else(|| CoreError::Unexpected("Failed to encrypt root".to_string()))?
-        .clone();
+        let root = root.add_time(version);
+        let root_id = root.id();
+
         self.tx.account.insert(OneKey {}, account.clone());
-        self.tx.base_metadata.insert(root.id, root.clone());
+        self.tx.base_metadata.insert(root.id, root);
         self.tx.last_synced.insert(OneKey {}, get_time().0);
-        self.tx.root.insert(OneKey {}, root.id);
+        self.tx.root.insert(OneKey {}, root_id);
         Ok(account)
     }
 

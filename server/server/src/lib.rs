@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use libsecp256k1::PublicKey;
 use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
 use lockbook_shared::pubkey::ECVerifyError;
-use lockbook_shared::{clock_service, pubkey};
+use lockbook_shared::{clock, pubkey};
 use serde::{Deserialize, Serialize};
 
 use crate::account_service::GetUsageHelperError;
@@ -73,7 +73,7 @@ pub fn verify_auth<TRequest: Request + Serialize>(
         &request.signed_request,
         server_state.config.server.max_auth_delay as u64,
         server_state.config.server.max_auth_delay as u64,
-        clock_service::get_time,
+        clock::get_time,
     )
 }
 

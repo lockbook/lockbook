@@ -9,7 +9,7 @@ use lockbook_shared::account::Account;
 use lockbook_shared::api::{
     ChangeDocumentContentRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,
 };
-use lockbook_shared::clock_service::get_time;
+use lockbook_shared::clock::get_time;
 use lockbook_shared::crypto::DecryptedDocument;
 use lockbook_shared::file_metadata::{CoreFile, DecryptedFiles, EncryptedFiles, FileType};
 use lockbook_shared::tree::{FileLike, FileMetaMapExt};

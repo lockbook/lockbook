@@ -11,7 +11,7 @@ use itertools::Itertools;
 use lockbook_shared::crypto::DecryptedDocument;
 use lockbook_shared::crypto::EncryptedDocument;
 use lockbook_shared::file_metadata::{CoreFile, DecryptedFiles};
-use lockbook_shared::file_metadata::{EncryptedFiles, UnsignedFile};
+use lockbook_shared::file_metadata::{EncryptedFiles, FileMetadata};
 use lockbook_shared::file_metadata::{FileDiff, FileType};
 use lockbook_shared::tree::{FileLike, FileMetaMapExt};
 use lockbook_shared::utils;
@@ -558,7 +558,7 @@ impl RequestContext<'_, '_> {
                     ))
                 })
                 .collect::<Result<
-                    Vec<(UnsignedFile, Option<EncryptedDocument>, Option<Vec<u8>>)>,
+                    Vec<(FileMetadata, Option<EncryptedDocument>, Option<Vec<u8>>)>,
                     CoreError,
                 >>()?;
 

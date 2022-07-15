@@ -10,7 +10,7 @@ use lockbook_shared::api::{
     GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse, NewAccountError,
     NewAccountRequest, NewAccountResponse,
 };
-use lockbook_shared::clock_service::get_time;
+use lockbook_shared::clock::get_time;
 use lockbook_shared::file_metadata::{EncryptedFiles, Owner};
 use lockbook_shared::tree::{FileLike, FileMetaMapExt};
 

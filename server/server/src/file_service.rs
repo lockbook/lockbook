@@ -7,8 +7,8 @@ use lockbook_shared::api::FileMetadataUpsertsError::{
     GetUpdatesRequired, NewFileHasOldParentAndName, NotPermissioned, RootImmutable,
 };
 use lockbook_shared::api::*;
-use lockbook_shared::clock_service::get_time;
-use lockbook_shared::file_metadata::{EncryptedFiles, FileDiff, Owner, UnsignedFile};
+use lockbook_shared::clock::get_time;
+use lockbook_shared::file_metadata::{EncryptedFiles, FileDiff, Owner, FileMetadata};
 use lockbook_shared::tree::{FileLike, FileMetaMapExt};
 
 pub async fn upsert_file_metadata(
@@ -18,7 +18,7 @@ pub async fn upsert_file_metadata(
     let owner = Owner(context.public_key);
     check_for_changed_root(&request.updates)?;
     let now = get_time().0 as u64;
-    let docs_to_delete: Result<Vec<UnsignedFile>, ServerError<FileMetadataUpsertsError>> =
+    let docs_to_delete: Result<Vec<FileMetadata>, ServerError<FileMetadataUpsertsError>> =
         context.server_state.index_db.transaction(|tx| {
             let mut files: EncryptedFiles = tx
                 .owned_files
@@ -78,7 +78,7 @@ fn check_for_changed_root(
 fn apply_changes(
     tx: &mut Tx<'_>, now: u64, owner: &Owner, changes: &[FileMetadataDiff],
     metas: &mut EncryptedFiles,
-) -> Result<Vec<UnsignedFile>, ServerError<FileMetadataUpsertsError>> {
+) -> Result<Vec<FileMetadata>, ServerError<FileMetadataUpsertsError>> {
     let mut deleted_documents = vec![];
     let mut new_files = vec![];
     for change in changes {
@@ -139,8 +139,8 @@ fn apply_changes(
     Ok(deleted_documents)
 }
 
-fn new_meta(now: u64, diff: &FileMetadataDiff, owner: &Owner) -> UnsignedFile {
-    UnsignedFile {
+fn new_meta(now: u64, diff: &FileMetadataDiff, owner: &Owner) -> FileMetadata {
+    FileMetadata {
         id: diff.id,
         file_type: diff.file_type,
         parent: diff.new_parent,

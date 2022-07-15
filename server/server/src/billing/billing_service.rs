@@ -21,7 +21,7 @@ use lockbook_shared::api::{
     UpgradeAccountGooglePlayRequest, UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError,
     UpgradeAccountStripeRequest, UpgradeAccountStripeResponse,
 };
-use lockbook_shared::clock_service::get_time;
+use lockbook_shared::clock::get_time;
 use lockbook_shared::file_metadata::Owner;
 use std::collections::HashMap;
 use std::fmt::Debug;

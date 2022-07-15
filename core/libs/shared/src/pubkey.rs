@@ -8,26 +8,20 @@ use sha2::{Digest, Sha256};
 
 use crate::crypto::*;
 
-use crate::clock_service::{timestamp, TimeGetter};
+use crate::clock::{timestamp, TimeGetter};
+use crate::{SharedError, SharedResult};
 
 pub fn generate_key() -> SecretKey {
     SecretKey::random(&mut OsRng)
 }
 
-#[derive(Debug, Eq, PartialEq)]
-pub enum ECSignError {
-    ParseError(libsecp256k1::Error),
-    Serialization(String),
-}
-
 pub fn sign<T: Serialize>(
     sk: &SecretKey, to_sign: T, time_getter: TimeGetter,
-) -> Result<ECSigned<T>, ECSignError> {
+) -> SharedResult<ECSigned<T>> {
     let timestamped = timestamp(to_sign, time_getter);
-    let serialized = bincode::serialize(&timestamped)
-        .map_err(|err| ECSignError::Serialization(err.to_string()))?;
+    let serialized = bincode::serialize(&timestamped).map_err(SharedError::Serialization)?;
     let digest = Sha256::digest(&serialized);
-    let message = &Message::parse_slice(&digest).map_err(ECSignError::ParseError)?;
+    let message = &Message::parse_slice(&digest).map_err(SharedError::ParseError)?;
     let (signature, _) = libsecp256k1::sign(message, sk);
     Ok(ECSigned {
         timestamped_value: timestamped,
@@ -36,22 +30,12 @@ pub fn sign<T: Serialize>(
     })
 }
 
-#[derive(Debug)]
-pub enum ECVerifyError {
-    SignatureInvalid,
-    WrongPublicKey,
-    SignatureInTheFuture(u64),
-    SignatureExpired(u64),
-    ParseError(libsecp256k1::Error),
-    Serialization(bincode::Error),
-}
-
 pub fn verify<T: Serialize>(
     pk: &PublicKey, signed: &ECSigned<T>, max_delay_ms: u64, max_skew_ms: u64,
     time_getter: TimeGetter,
-) -> Result<(), ECVerifyError> {
+) -> SharedResult<()> {
     if &signed.public_key != pk {
-        return Err(ECVerifyError::WrongPublicKey);
+        return Err(SharedError::WrongPublicKey);
     }
 
     let auth_time = signed.timestamped_value.timestamp;
@@ -60,51 +44,45 @@ pub fn verify<T: Serialize>(
     let max_delay_ms = max_delay_ms as i64;
 
     if current_time < auth_time - max_skew_ms {
-        return Err(ECVerifyError::SignatureInTheFuture(
+        return Err(SharedError::SignatureInTheFuture(
             (current_time - (auth_time - max_delay_ms)) as u64,
         ));
     }
 
     if current_time > auth_time + max_delay_ms {
-        return Err(ECVerifyError::SignatureExpired(
+        return Err(SharedError::SignatureExpired(
             (auth_time + max_delay_ms - current_time) as u64,
         ));
     }
 
     let serialized =
-        bincode::serialize(&signed.timestamped_value).map_err(ECVerifyError::Serialization)?;
+        bincode::serialize(&signed.timestamped_value).map_err(SharedError::Serialization)?;
 
     let digest = Sha256::digest(&serialized).to_vec();
-    let message = &Message::parse_slice(&digest).map_err(ECVerifyError::ParseError)?;
+    let message = &Message::parse_slice(&digest).map_err(SharedError::ParseError)?;
     let signature =
-        Signature::parse_standard_slice(&signed.signature).map_err(ECVerifyError::ParseError)?;
+        Signature::parse_standard_slice(&signed.signature).map_err(SharedError::ParseError)?;
 
     if libsecp256k1::verify(message, &signature, &signed.public_key) {
         Ok(())
     } else {
-        Err(ECVerifyError::SignatureInvalid)
+        Err(SharedError::SignatureInvalid)
     }
 }
 
-#[derive(Debug)]
-pub enum GetAesKeyError {
-    SharedSecretUnexpectedSize,
-    SharedSecretError(libsecp256k1::Error),
-}
-
-pub fn get_aes_key(sk: &SecretKey, pk: &PublicKey) -> Result<AESKey, GetAesKeyError> {
+pub fn get_aes_key(sk: &SecretKey, pk: &PublicKey) -> SharedResult<AESKey> {
     SharedSecret::<Sha256>::new(pk, sk)
-        .map_err(GetAesKeyError::SharedSecretError)?
+        .map_err(SharedError::SharedSecretError)?
         .as_ref()
         .try_into()
-        .map_err(|_| GetAesKeyError::SharedSecretUnexpectedSize)
+        .map_err(|_| SharedError::SharedSecretUnexpectedSize)
 }
 
 #[cfg(test)]
 mod unit_tests {
     use libsecp256k1::PublicKey;
 
-    use crate::clock_service::Timestamp;
+    use crate::clock::Timestamp;
     use crate::pubkey::*;
 
     static EARLY_CLOCK: fn() -> Timestamp = || Timestamp(500);

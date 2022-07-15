@@ -6,9 +6,9 @@ use serde::{Serialize, Serializer};
 use strum_macros::EnumIter;
 use uuid::Uuid;
 
-use lockbook_shared::api;
 use lockbook_shared::api::{GetPublicKeyError, GetUpdatesError, NewAccountError};
 use lockbook_shared::tree::TreeError;
+use lockbook_shared::{api, SharedError};
 
 use crate::service::api_service::ApiError;
 use crate::UiError;
@@ -78,6 +78,8 @@ macro_rules! unexpected_only {
         UnexpectedError(format!($base $(, $args )*))
     }};
 }
+
+pub type CoreResult<T> = Result<T, CoreError>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CoreError {
@@ -169,6 +171,12 @@ impl From<std::io::Error> for CoreError {
 impl From<serde_json::Error> for CoreError {
     fn from(err: serde_json::Error) -> Self {
         Self::Unexpected(format!("{err}"))
+    }
+}
+
+impl From<SharedError> for CoreError {
+    fn from(err: SharedError) -> Self {
+        Self::Unexpected(format!("{:?}", err))
     }
 }
 

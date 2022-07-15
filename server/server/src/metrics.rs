@@ -2,7 +2,7 @@ use crate::{ServerError, ServerState};
 use lazy_static::lazy_static;
 
 use lockbook_shared::api::FileUsage;
-use lockbook_shared::clock_service::get_time;
+use lockbook_shared::clock::get_time;
 use lockbook_shared::file_metadata::{EncryptedFiles, Owner};
 use lockbook_shared::tree::{FileLike, FileMetaMapExt};
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
