@@ -14,8 +14,8 @@ import kotlinx.coroutines.launch
 class ImportAccountViewModel(application: Application) : AndroidViewModel(application) {
     val syncModel = SyncModel()
 
+    var isErrorVisible = false
     private val _updateImportUI = SingleMutableLiveData<UpdateImportUI>()
-    private val _syncStarted = SingleMutableLiveData<Unit>()
 
     val updateImportUI: LiveData<UpdateImportUI>
         get() = _updateImportUI
@@ -25,9 +25,11 @@ class ImportAccountViewModel(application: Application) : AndroidViewModel(applic
             val syncResult = syncModel.trySync()
 
             if (syncResult is Err) {
+                isErrorVisible = true
                 _updateImportUI.postValue(UpdateImportUI.NotifyError(syncResult.error.toLbError(getRes())))
+            } else {
+                _updateImportUI.postValue(UpdateImportUI.FinishedSync)
             }
-            _updateImportUI.postValue(UpdateImportUI.FinishedSync)
         }
     }
 }
