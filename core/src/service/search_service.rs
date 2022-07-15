@@ -177,7 +177,7 @@ impl RequestContext<'_, '_> {
     ) {
         thread::spawn(move || {
             if let Err(search_err) =
-            RequestContext::search_loop(results_tx.clone(), files_info, should_continue, input)
+                RequestContext::search_loop(results_tx.clone(), files_info, should_continue, input)
             {
                 if let Err(err) = results_tx.send(SearchResult::Error(search_err)) {
                     warn!("Send failed: {:#?}", err);
