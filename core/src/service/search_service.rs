@@ -177,7 +177,7 @@ impl RequestContext<'_, '_> {
     ) {
         thread::spawn(move || {
             if let Err(search_err) =
-                RequestContext::search_loop(results_tx.clone(), files_info, should_continue, input)
+            RequestContext::search_loop(results_tx.clone(), files_info, should_continue, input)
             {
                 if let Err(err) = results_tx.send(SearchResult::Error(search_err)) {
                     warn!("Send failed: {:#?}", err);
@@ -338,6 +338,7 @@ impl RequestContext<'_, '_> {
                         .chars()
                         .take(IDEAL_CONTENT_MATCH_LENGTH + CONTENT_MATCH_PADDING)
                         .collect();
+
                     new_paragraph.push_str("...");
                 } else {
                     if *first_match > CONTENT_MATCH_PADDING as usize {
@@ -356,13 +357,14 @@ impl RequestContext<'_, '_> {
                         new_paragraph.insert_str(0, "...");
                     }
 
-                    if new_indices.len() - last_match > CONTENT_MATCH_PADDING {
+                    if new_paragraph.len() > IDEAL_CONTENT_MATCH_LENGTH + CONTENT_MATCH_PADDING + 3
+                    {
                         let at_least_take = *last_match - index_offset + CONTENT_MATCH_PADDING;
 
                         let take_chars_len = if at_least_take > IDEAL_CONTENT_MATCH_LENGTH {
                             at_least_take
                         } else {
-                            new_paragraph.len() - (IDEAL_CONTENT_MATCH_LENGTH - last_match - 3)
+                            IDEAL_CONTENT_MATCH_LENGTH - (last_match - index_offset)
                         };
 
                         new_paragraph = new_paragraph.chars().take(take_chars_len).collect();
@@ -377,7 +379,7 @@ impl RequestContext<'_, '_> {
 
                         new_indices = new_indices
                             .into_iter()
-                            .filter(|index| *index < MAX_CONTENT_MATCH_LENGTH)
+                            .filter(|index| (*index - index_offset) < MAX_CONTENT_MATCH_LENGTH)
                             .collect()
                     }
                 }
