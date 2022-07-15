@@ -14,7 +14,6 @@ pub mod secret_filename;
 pub mod server_file;
 pub mod signed_file;
 pub mod symkey;
-pub mod tree;
 pub mod tree_like;
 pub mod utils;
 pub mod work_unit;
