@@ -265,4 +265,5 @@
     <string name="recent_files_folder">%s/</string>
     <string name="search">Search</string>
     <string name="no_search_results">No search results</string>
+    <string name="exit_app">Exit App</string>
 </resources>
