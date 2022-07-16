@@ -1,6 +1,7 @@
 use lockbook_shared::account::Account;
 use lockbook_shared::crypto::ECSigned;
-use lockbook_shared::file_metadata::{FileMetadata, ServerFile};
+use lockbook_shared::server_file::ServerFile;
+use lockbook_shared::signed_file::SignedFile;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

@@ -41,7 +41,7 @@ libsecp256k1 = { git = "https://github.com/steverusso/libsecp256k1" }
 tracing = "0.1.5"
 tracing-subscriber = "0.3.9"
 tracing-appender = "0.2"
-hmdb = "0.1.12"
+hmdb = { path = "../../../hmdb" }
 lazy_static = "1.4.0"
 lockbook-shared = { path = "libs/shared" }
 

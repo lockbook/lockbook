@@ -58,7 +58,7 @@ pub struct LazyTree<T: TreeLike> {
 }
 
 impl<T: TreeLike> LazyTree<T> {
-    fn new(tree: T) -> Self {
+    pub fn new(tree: T) -> Self {
         Self {
             tree,
             name_by_id: HashMap::new(),
@@ -69,7 +69,7 @@ impl<T: TreeLike> LazyTree<T> {
 }
 
 impl<'a, T: TreeLike> LazyTree<T> {
-    fn calculate_deleted(&mut self, id: Uuid) -> Result<bool, TreeError> {
+    pub fn calculate_deleted(&mut self, id: Uuid) -> Result<bool, TreeError> {
         let (visited_ids, deleted) = {
             let mut file = self.find(id)?;
             let mut visited_ids = vec![];
@@ -100,7 +100,7 @@ impl<'a, T: TreeLike> LazyTree<T> {
         Ok(deleted)
     }
 
-    fn decrypt_key(&mut self, id: Uuid, account: &Account) -> Result<AESKey, TreeError> {
+    pub fn decrypt_key(&mut self, id: Uuid, account: &Account) -> Result<AESKey, TreeError> {
         let mut file = self.find(id)?;
         let mut visited_ids = vec![];
 
@@ -134,7 +134,7 @@ impl<'a, T: TreeLike> LazyTree<T> {
         Ok(*self.key_by_id.get(&id).unwrap())
     }
 
-    fn name(&mut self, id: Uuid, account: &Account) -> Result<String, TreeError> {
+    pub fn name(&mut self, id: Uuid, account: &Account) -> Result<String, TreeError> {
         let meta = self.find(id)?;
         if let Some(name) = self.name_by_id.get(&id) {
             return Ok(name.clone());
@@ -250,8 +250,8 @@ impl<'a, Base: FileLike, Staged: FileLike> FileLike for StagedFile<'a, Base, Sta
 }
 
 pub struct StagedTree<'a, Base: TreeLike, Staged: TreeLike> {
-    base: &'a Base,
-    local: &'a Staged,
+    pub base: &'a Base,
+    pub local: &'a Staged,
 }
 
 impl<'a, Base: TreeLike, Staged: TreeLike> TreeLike for StagedTree<'a, Base, Staged> {
