@@ -12,20 +12,22 @@ use std::fmt::Display;
 use uuid::Uuid;
 
 pub trait TreeLike {
-    type F: FileLike;
+    type F<'a>: FileLike
+    where
+        Self: 'a;
 
     fn ids(&self) -> HashSet<Uuid>;
-    fn maybe_find(&self, id: Uuid) -> Option<&Self::F>;
+    fn maybe_find(&self, id: Uuid) -> Option<Self::F<'_>>;
 
-    fn find(&self, id: Uuid) -> Result<&Self::F, TreeError> {
+    fn find(&self, id: Uuid) -> Result<Self::F<'_>, TreeError> {
         self.maybe_find(id).ok_or(FileNonexistent)
     }
 
-    fn maybe_find_parent<F2: FileLike>(&self, file: &F2) -> Option<&Self::F> {
+    fn maybe_find_parent<F2: FileLike>(&self, file: &F2) -> Option<Self::F<'_>> {
         self.maybe_find(file.parent())
     }
 
-    fn find_parent<F2: FileLike>(&self, file: &F2) -> Result<&Self::F, TreeError> {
+    fn find_parent<F2: FileLike>(&self, file: &F2) -> Result<Self::F<'_>, TreeError> {
         self.maybe_find_parent(file).ok_or(FileParentNonexistent)
     }
 
@@ -34,18 +36,18 @@ pub trait TreeLike {
         Staged: TreeLike,
         Self: Sized,
     {
-        StagedTree { base: self, local: staged }
+        StagedTree { base: self, staged }
     }
 }
 
-impl<F: FileLike> TreeLike for [F] {
-    type F = F;
+impl<F: FileLike> TreeLike for Vec<F> {
+    type F<'a> = &'a F where F: 'a;
 
     fn ids(&self) -> HashSet<Uuid> {
         self.iter().map(|f| f.id()).collect()
     }
 
-    fn maybe_find<'a>(&'a self, id: Uuid) -> Option<&'a Self::F> {
+    fn maybe_find(&self, id: Uuid) -> Option<Self::F<'_>> {
         self.iter().find(|f| f.id() == id)
     }
 }
@@ -87,7 +89,7 @@ impl<'a, T: TreeLike> LazyTree<T> {
                     break;
                 }
 
-                file = self.find_parent(file)?;
+                file = self.find_parent(&file)?;
             }
 
             (visited_ids, deleted)
@@ -101,33 +103,44 @@ impl<'a, T: TreeLike> LazyTree<T> {
     }
 
     fn decrypt_key(&mut self, id: Uuid, account: &Account) -> Result<AESKey, TreeError> {
-        let mut file = self.find(id)?;
+        let mut file_id = self.find(id)?.id();
         let mut visited_ids = vec![];
 
         loop {
-            if self.key_by_id.get(&file.id()).is_some() {
+            if self.key_by_id.get(&file_id).is_some() {
                 break;
             }
 
-            if let Some(user_access) = file.user_access_keys().get(&account.username) {
+            let maybe_file_key = if let Some(user_access) = self
+                .find(file_id)?
+                .user_access_keys()
+                .get(&account.username)
+            {
                 let user_access_key =
                     pubkey::get_aes_key(&account.private_key, &user_access.encrypted_by).unwrap();
                 let file_key = symkey::decrypt(&user_access_key, &user_access.access_key).unwrap();
-                let id = file.id();
-                self.key_by_id.insert(file.id(), file_key);
+                Some(file_key)
+            } else {
+                None
+            };
+            if let Some(file_key) = maybe_file_key {
+                self.key_by_id.insert(file_id, file_key);
                 break;
             }
 
-            visited_ids.push(file.id());
-            file = self.find_parent(file)?;
+            visited_ids.push(file_id);
+            file_id = self.find_parent(&self.find(file_id)?)?.id();
         }
 
         for id in visited_ids.iter().rev() {
-            let file = self.find(*id)?;
-            let parent = self.find_parent(file)?;
-            let parent_key = self.key_by_id.get(&parent.id()).unwrap();
-            let encrypted_key = file.folder_access_keys();
-            let decrypted_key = symkey::decrypt(&parent_key, encrypted_key).unwrap();
+            let decrypted_key = {
+                let file = self.find(*id)?;
+                let parent = self.find_parent(&file)?;
+                let parent_key = self.key_by_id.get(&parent.id()).unwrap();
+                let encrypted_key = file.folder_access_keys();
+                let decrypted_key = symkey::decrypt(&parent_key, encrypted_key).unwrap();
+                decrypted_key
+            };
             self.key_by_id.insert(*id, decrypted_key);
         }
 
@@ -135,47 +148,45 @@ impl<'a, T: TreeLike> LazyTree<T> {
     }
 
     fn name(&mut self, id: Uuid, account: &Account) -> Result<String, TreeError> {
-        let meta = self.find(id)?;
         if let Some(name) = self.name_by_id.get(&id) {
             return Ok(name.clone());
         }
 
-        let parent_id = meta.parent();
+        let parent_id = self.find(id)?.parent();
         let parent_key = self.decrypt_key(parent_id, account)?;
 
-        let meta = self.find(id)?;
-        let name = meta.secret_name().to_string(&parent_key).unwrap();
+        let name = self.find(id)?.secret_name().to_string(&parent_key).unwrap();
         self.name_by_id.insert(id, name.clone());
         Ok(name)
     }
 }
 
 impl<T: TreeLike> TreeLike for LazyTree<T> {
-    type F = T::F;
+    type F<'a> = T::F<'a> where T: 'a;
 
     fn ids(&self) -> HashSet<Uuid> {
         self.tree.ids()
     }
 
-    fn maybe_find(&self, id: Uuid) -> Option<&Self::F> {
+    fn maybe_find(&self, id: Uuid) -> Option<Self::F<'_>> {
         self.tree.maybe_find(id)
     }
 }
 
 #[derive(Clone)]
-pub enum StagedFile<'a, Base: FileLike, Staged: FileLike> {
-    Base(&'a Base),
-    Staged(&'a Staged),
-    Both { base: &'a Base, staged: &'a Staged },
+pub enum StagedFile<Base: FileLike, Staged: FileLike> {
+    Base(Base),
+    Staged(Staged),
+    Both { base: Base, staged: Staged },
 }
 
-impl<'a, Base: FileLike, Staged: FileLike> Display for StagedFile<'a, Base, Staged> {
+impl<'a, Base: FileLike, Staged: FileLike> Display for StagedFile<Base, Staged> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.display())
     }
 }
 
-impl<'a, Base: FileLike, Staged: FileLike> FileLike for StagedFile<'a, Base, Staged> {
+impl<'a, Base: FileLike, Staged: FileLike> FileLike for StagedFile<Base, Staged> {
     fn id(&self) -> Uuid {
         match self {
             StagedFile::Base(file) => file.id(),
@@ -251,20 +262,29 @@ impl<'a, Base: FileLike, Staged: FileLike> FileLike for StagedFile<'a, Base, Sta
 
 pub struct StagedTree<'a, Base: TreeLike, Staged: TreeLike> {
     base: &'a Base,
-    local: &'a Staged,
+    staged: &'a Staged,
 }
 
-impl<'a, Base: TreeLike, Staged: TreeLike> TreeLike for StagedTree<'a, Base, Staged> {
-    type F = StagedFile<'a, Base::F, Staged::F>;
+impl<'a, Base: TreeLike<F<'a>: Copy>, Staged: TreeLike<F<'a>: Copy>> TreeLike
+    for StagedTree<'a, Base, Staged>
+{
+    type F<'b> = StagedFile<Base::F<'a>, Staged::F<'a>> where 'a : 'b;
 
     fn ids(&self) -> HashSet<Uuid> {
-        let mut ids = self.base.ids();
-        ids.extend(self.local.ids());
-        ids
+        self.base
+            .ids()
+            .into_iter()
+            .chain(self.staged.ids().into_iter())
+            .collect()
     }
 
-    fn maybe_find(&self, id: Uuid) -> Option<&Self::F> {
-        None
+    fn maybe_find(&self, id: Uuid) -> Option<Self::F<'_>> {
+        match (self.base.maybe_find(id), self.staged.maybe_find(id)) {
+            (None, None) => None,
+            (None, Some(staged)) => Some(StagedFile::Staged(staged)),
+            (Some(base), None) => Some(StagedFile::Base(base)),
+            (Some(base), Some(staged)) => Some(StagedFile::Both { base, staged }),
+        }
     }
 }
 

@@ -1,3 +1,6 @@
+#![feature(generic_associated_types)]
+#![feature(associated_type_bounds)]
+
 use hmac::crypto_mac::{InvalidKeyLength, MacError};
 
 pub mod access_info;

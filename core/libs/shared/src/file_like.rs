@@ -147,3 +147,41 @@ impl FileLike for ServerFile {
         self.file.folder_access_keys()
     }
 }
+
+impl<'a, F: FileLike> FileLike for &'a F {
+    fn id(&self) -> Uuid {
+        (*self).id()
+    }
+
+    fn file_type(&self) -> FileType {
+        (*self).file_type()
+    }
+
+    fn parent(&self) -> Uuid {
+        (*self).parent()
+    }
+
+    fn secret_name(&self) -> &SecretFileName {
+        (*self).secret_name()
+    }
+
+    fn owner(&self) -> Owner {
+        (*self).owner()
+    }
+
+    fn explicitly_deleted(&self) -> bool {
+        (*self).explicitly_deleted()
+    }
+
+    fn display(&self) -> String {
+        (*self).display()
+    }
+
+    fn user_access_keys(&self) -> &HashMap<Username, UserAccessInfo> {
+        (*self).user_access_keys()
+    }
+
+    fn folder_access_keys(&self) -> &EncryptedFolderAccessKey {
+        (*self).folder_access_keys()
+    }
+}
