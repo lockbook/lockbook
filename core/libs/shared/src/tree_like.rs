@@ -29,13 +29,13 @@ pub trait TreeLike {
         self.maybe_find_parent(file).ok_or(FileParentNonexistent)
     }
 
-    // fn stage<'a, Staged>(&'a self, staged: &'a Staged) -> StagedTree<'a, Self, Staged>
-    // where
-    //     Staged: TreeLike,
-    //     Self: Sized,
-    // {
-    //     StagedTree { base: self, local: staged }
-    // }
+    fn stage<'a, Staged>(&'a self, staged: &'a Staged) -> StagedTree<'a, Self, Staged>
+    where
+        Staged: TreeLike,
+        Self: Sized,
+    {
+        StagedTree { base: self, local: staged }
+    }
 }
 
 impl<F: FileLike> TreeLike for [F] {
@@ -166,6 +166,7 @@ impl<T: TreeLike> TreeLike for LazyTree<T> {
 pub enum StagedFile<'a, Base: FileLike, Staged: FileLike> {
     Base(&'a Base),
     Staged(&'a Staged),
+    Both { base: &'a Base, staged: &'a Staged },
 }
 
 impl<'a, Base: FileLike, Staged: FileLike> Display for StagedFile<'a, Base, Staged> {
@@ -179,6 +180,7 @@ impl<'a, Base: FileLike, Staged: FileLike> FileLike for StagedFile<'a, Base, Sta
         match self {
             StagedFile::Base(file) => file.id(),
             StagedFile::Staged(file) => file.id(),
+            StagedFile::Both { base: _, staged: file } => file.id(),
         }
     }
 
@@ -186,6 +188,7 @@ impl<'a, Base: FileLike, Staged: FileLike> FileLike for StagedFile<'a, Base, Sta
         match self {
             StagedFile::Base(file) => file.file_type(),
             StagedFile::Staged(file) => file.file_type(),
+            StagedFile::Both { base: _, staged: file } => file.file_type(),
         }
     }
 
@@ -193,6 +196,7 @@ impl<'a, Base: FileLike, Staged: FileLike> FileLike for StagedFile<'a, Base, Sta
         match self {
             StagedFile::Base(file) => file.parent(),
             StagedFile::Staged(file) => file.parent(),
+            StagedFile::Both { base: _, staged: file } => file.parent(),
         }
     }
 
@@ -200,6 +204,7 @@ impl<'a, Base: FileLike, Staged: FileLike> FileLike for StagedFile<'a, Base, Sta
         match self {
             StagedFile::Base(file) => file.secret_name(),
             StagedFile::Staged(file) => file.secret_name(),
+            StagedFile::Both { base: _, staged: file } => file.secret_name(),
         }
     }
 
@@ -207,6 +212,7 @@ impl<'a, Base: FileLike, Staged: FileLike> FileLike for StagedFile<'a, Base, Sta
         match self {
             StagedFile::Base(file) => file.owner(),
             StagedFile::Staged(file) => file.owner(),
+            StagedFile::Both { base: _, staged: file } => file.owner(),
         }
     }
 
@@ -214,6 +220,7 @@ impl<'a, Base: FileLike, Staged: FileLike> FileLike for StagedFile<'a, Base, Sta
         match self {
             StagedFile::Base(file) => file.explicitly_deleted(),
             StagedFile::Staged(file) => file.explicitly_deleted(),
+            StagedFile::Both { base: _, staged: file } => file.explicitly_deleted(),
         }
     }
 
@@ -221,6 +228,7 @@ impl<'a, Base: FileLike, Staged: FileLike> FileLike for StagedFile<'a, Base, Sta
         match self {
             StagedFile::Base(file) => file.display(),
             StagedFile::Staged(file) => file.display(),
+            StagedFile::Both { base: _, staged: file } => file.display(),
         }
     }
 
@@ -228,6 +236,7 @@ impl<'a, Base: FileLike, Staged: FileLike> FileLike for StagedFile<'a, Base, Sta
         match self {
             StagedFile::Base(file) => file.user_access_keys(),
             StagedFile::Staged(file) => file.user_access_keys(),
+            StagedFile::Both { base: _, staged: file } => file.user_access_keys(),
         }
     }
 
@@ -235,47 +244,29 @@ impl<'a, Base: FileLike, Staged: FileLike> FileLike for StagedFile<'a, Base, Sta
         match self {
             StagedFile::Base(file) => file.folder_access_keys(),
             StagedFile::Staged(file) => file.folder_access_keys(),
+            StagedFile::Both { base: _, staged: file } => file.folder_access_keys(),
         }
     }
 }
 
-// pub struct StagedTree<'a, Base: TreeLike, Staged: TreeLike>
-// {
-//     base: &'a Base,
-//     local: &'a Staged,
-//     map: HashMap<Uuid, LazyFile<StagedFile<'a, Base::F, Staged::F>>>,
-// }
+pub struct StagedTree<'a, Base: TreeLike, Staged: TreeLike> {
+    base: &'a Base,
+    local: &'a Staged,
+}
 
-// impl<'a, Base: TreeLike, Staged: TreeLike> TreeLike for StagedTree<'a, Base, Staged>
-// {
-//     type F = StagedFile<'a, Base::F, Staged::F>;
+impl<'a, Base: TreeLike, Staged: TreeLike> TreeLike for StagedTree<'a, Base, Staged> {
+    type F = StagedFile<'a, Base::F, Staged::F>;
 
-//     fn ids(&self) -> HashSet<Uuid> {
-//         let mut ids = self.base.ids();
-//         ids.extend(self.local.ids());
-//         ids
-//     }
+    fn ids(&self) -> HashSet<Uuid> {
+        let mut ids = self.base.ids();
+        ids.extend(self.local.ids());
+        ids
+    }
 
-//     fn maybe_find(&self, id: Uuid) -> Option<&LazyFile<Self::F>> {
-//         if let Some(local) = self.local.maybe_find(id) {
-//             Some(&LazyFile::new(&StagedFile::Staged(local.file)))
-//         } else if let Some(base) = self.base.maybe_find(id) {
-//             Some(&LazyFile::new(&StagedFile::Base(base.file)))
-//         } else {
-//             None
-//         }
-//     }
-
-//     fn maybe_find_mut(&mut self, id: Uuid) -> Option<&mut LazyFile<Self::F>> {
-//         if let Some(local) = self.local.maybe_find(id) {
-//             Some(&mut LazyFile::new(&StagedFile::Staged(local.file)))
-//         } else if let Some(base) = self.base.maybe_find(id) {
-//             Some(&mut LazyFile::new(&StagedFile::Base(base.file)))
-//         } else {
-//             None
-//         }
-//     }
-// }
+    fn maybe_find(&self, id: Uuid) -> Option<&Self::F> {
+        None
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TreeError {
