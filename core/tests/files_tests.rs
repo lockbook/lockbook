@@ -116,7 +116,7 @@ fn apply_create_shared_link() {
             },
             hmac: Default::default(),
         },
-        marked_for_deletion: false,
+        deleted: false,
     });
 
     let result = files::apply_create(
@@ -156,7 +156,7 @@ fn apply_create_duplicate_link() {
             },
             hmac: Default::default(),
         },
-        marked_for_deletion: false,
+        deleted: false,
     });
     let duplicate_link = files::create(
         FileType::Link { linked_file: linked_shared_folder.id },
@@ -201,7 +201,7 @@ fn apply_create_in_read_shared_folder() {
             },
             hmac: Default::default(),
         },
-        marked_for_deletion: false,
+        deleted: false,
     });
     let result = files::apply_create(
         &Owner(account.public_key()),
@@ -240,7 +240,7 @@ fn apply_create_in_write_shared_folder() {
             },
             hmac: Default::default(),
         },
-        marked_for_deletion: false,
+        deleted: false,
     });
     files::apply_create(
         &Owner(account.public_key()),
@@ -369,7 +369,7 @@ fn apply_rename_in_read_shared_folder() {
             },
             hmac: Default::default(),
         },
-        marked_for_deletion: false,
+        deleted: false,
     });
     let file_in_shared_folder =
         files::create(FileType::Document, shared_folder.id, "document", &sharer_public_key);
@@ -410,7 +410,7 @@ fn apply_rename_in_write_shared_folder() {
             },
             hmac: Default::default(),
         },
-        marked_for_deletion: false,
+        deleted: false,
     });
     let file_in_shared_folder =
         files::create(FileType::Document, shared_folder.id, "document", &sharer_public_key);
@@ -451,7 +451,7 @@ fn apply_rename_to_write_shared_folder() {
             },
             hmac: Default::default(),
         },
-        marked_for_deletion: false,
+        deleted: false,
     });
     let file_in_shared_folder =
         files::create(FileType::Document, shared_folder.id, "document", &sharer_public_key);
@@ -662,7 +662,7 @@ fn apply_move_shared_link() {
             },
             hmac: Default::default(),
         },
-        marked_for_deletion: false,
+        deleted: false,
     });
     let link = files::create(
         FileType::Link { linked_file: linked_shared_folder.id },
@@ -707,7 +707,7 @@ fn apply_move_shared_link_in_folder() {
             },
             hmac: Default::default(),
         },
-        marked_for_deletion: false,
+        deleted: false,
     });
     let folder = files::create(FileType::Folder, root.id, "folder", &account.public_key());
     let link = files::create(
@@ -753,7 +753,7 @@ fn apply_move_in_read_shared_folder() {
             },
             hmac: Default::default(),
         },
-        marked_for_deletion: false,
+        deleted: false,
     });
     let file_in_shared_folder =
         files::create(FileType::Document, shared_folder.id, "document", &sharer_public_key);
@@ -794,7 +794,7 @@ fn apply_move_in_write_shared_folder() {
             },
             hmac: Default::default(),
         },
-        marked_for_deletion: false,
+        deleted: false,
     });
     let file_in_shared_folder =
         files::create(FileType::Document, shared_folder.id, "document", &sharer_public_key);
@@ -835,7 +835,7 @@ fn apply_move_to_write_shared_folder() {
             },
             hmac: Default::default(),
         },
-        marked_for_deletion: false,
+        deleted: false,
     });
     let file_in_shared_folder =
         files::create(FileType::Document, shared_folder.id, "document", &sharer_public_key);
@@ -910,7 +910,7 @@ fn apply_delete_in_read_shared_folder() {
             },
             hmac: Default::default(),
         },
-        marked_for_deletion: false,
+        deleted: false,
     });
     let file_in_shared_folder =
         files::create(FileType::Document, shared_folder.id, "document", &sharer_public_key);
@@ -950,7 +950,7 @@ fn apply_delete_in_write_shared_folder() {
             },
             hmac: Default::default(),
         },
-        marked_for_deletion: false,
+        deleted: false,
     });
     let file_in_shared_folder =
         files::create(FileType::Document, shared_folder.id, "document", &sharer_public_key);
@@ -990,7 +990,7 @@ fn apply_delete_to_write_shared_folder() {
             },
             hmac: Default::default(),
         },
-        marked_for_deletion: false,
+        deleted: false,
     });
     let file_in_shared_folder =
         files::create(FileType::Document, shared_folder.id, "document", &sharer_public_key);

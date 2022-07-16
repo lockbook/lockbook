@@ -151,7 +151,7 @@ pub trait FileMetaMapExt<Fm: FileMetadata> {
         &self, staged_changes: &HashMap<Uuid, Fm>,
     ) -> Result<Vec<Uuid>, TreeError>;
     fn get_unshared_files(
-        &self, user: &Owner, staged_changes: &HashMap<Uuid, Fm>,
+        &self, user: &Owner,
     ) -> Result<Vec<Uuid>, TreeError>;
     fn get_access_level(
         &self, user: &Owner, file: Uuid,
@@ -474,10 +474,10 @@ where
     }
 
     fn get_unshared_files(
-        &self, user: &Owner, staged_changes: &HashMap<Uuid, Fm>,
+        &self, user: &Owner,
     ) -> Result<Vec<Uuid>, TreeError> {
         let mut result = Vec::new();
-        for file in self.clone().stage(staged_changes.clone()).values() { // todo(sharing): don't clone
+        for file in self.values() {
             if self.maybe_find_ref(file.parent()).is_none()
              && &file.owner() != user {
                 result.append(&mut find_with_descendants(self, file.id())?.values().map(|f| f.id()).collect())

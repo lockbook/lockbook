@@ -396,6 +396,14 @@ impl RequestContext<'_, '_> {
                 self.delete_document(config, id)?;
             }
         }
+
+        // todo(sharing): remove unshared files from disk
+        for unshared_file_id in all_local_metadata.get_unshared_files(&Owner(self.get_public_key()?))?
+        {
+            // base_metadata_updates.remove(&unshared_file_id);
+            // local_metadata_updates.remove(&unshared_file_id);
+        }
+
         Ok(())
     }
 
@@ -519,7 +527,7 @@ impl RequestContext<'_, '_> {
                 &file.decrypted_name,
                 &share_key,
             )?,
-            marked_for_deletion: false,
+            deleted: false,
         });
 
         let staged_changes = HashMap::with(file.clone());
@@ -545,7 +553,7 @@ impl RequestContext<'_, '_> {
             .into_iter()
             .map(|mut s| {
                 if s.encrypted_for_username == username && s.encrypted_by_username != username {
-                    s.marked_for_deletion = true;
+                    s.deleted = true;
                 }
                 s
             })

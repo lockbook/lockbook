@@ -54,7 +54,7 @@ pub fn create_root(account: &Account) -> Result<DecryptedFileMetadata, CoreError
             &public_key,
         )?,
         file_name: file_encryption_service::encrypt_file_name(&account.username, &share_key)?,
-        marked_for_deletion: false,
+        deleted: false,
     }];
     Ok(DecryptedFileMetadata {
         id,
@@ -88,7 +88,7 @@ pub fn apply_create(
         match files.maybe_find_ref(linked_file) {
             Some(link_target) => {
                 if &link_target.owner == user {
-                    return Err(CoreError::LinkTargetIsOwned);
+                    return Err(CoreError::LinkTargetIsOwned); // todo(sharing): LinkTargetNotShared
                 }
             }
             None => {

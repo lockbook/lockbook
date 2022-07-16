@@ -567,14 +567,6 @@ impl RequestContext<'_, '_> {
             }
         }
 
-        // todo(sharing): delete unshared files
-        for _unshared_file_id in
-            local_metadata.get_unshared_files(&user, &local_metadata_updates)?
-        {
-            // base_metadata_updates.remove(&unshared_file_id);
-            // local_metadata_updates.remove(&unshared_file_id);
-        }
-
         // resolve shared links by deleting the link
         for shared_link in local_metadata.get_shared_links(&user, &local_metadata_updates)? {
             if let Some(existing_update) = local_metadata_updates.maybe_find_mut(shared_link.link.0)

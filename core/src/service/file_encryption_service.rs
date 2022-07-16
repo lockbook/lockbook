@@ -68,7 +68,7 @@ pub fn encrypt_metadata(
                 user_access_keys: target
                     .shares
                     .iter()
-                    .filter(|s| !s.marked_for_deletion)
+                    .filter(|s| !s.deleted)
                     .cloned()
                     .collect(),
                 folder_access_key, // todo(sharing): do something better?
