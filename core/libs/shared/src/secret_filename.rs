@@ -1,10 +1,13 @@
 use crate::crypto::{AESEncrypted, AESKey};
-use crate::symkey::{convert_key, generate_nonce, HmacSha256};
+use crate::symkey::{convert_key, generate_nonce};
 use crate::{SharedError, SharedResult};
 use aead::{generic_array::GenericArray, Aead};
-use hmac::{Mac, NewMac};
+use hmac::{Mac, NewMac, Hmac};
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 use std::hash::Hash;
+
+pub type HmacSha256 = Hmac<Sha256>;
 
 /// A secret value that can impl an equality check by hmac'ing the
 /// inner secret.
@@ -68,5 +71,48 @@ impl Eq for SecretFileName {}
 impl Hash for SecretFileName {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.hmac.hash(state);
+    }
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use uuid::Uuid;
+
+    use crate::{symkey::generate_key, secret_filename::SecretFileName};
+
+    #[test]
+    fn test_to_string_from_string() {
+        let key = generate_key();
+        let test_value = Uuid::new_v4().to_string();
+        let secret = SecretFileName::from_str(&test_value, &key).unwrap();
+        let decrypted = secret.to_string(&key).unwrap();
+
+        assert_eq!(test_value, decrypted);
+    }
+
+    #[test]
+    fn test_hmac_encryption_failure() {
+        let key = generate_key();
+        let test_value = Uuid::new_v4().to_string();
+        let mut secret = SecretFileName::from_str(&test_value, &key).unwrap();
+        secret.hmac[10] = !secret.hmac[10];
+        secret.hmac[11] = !secret.hmac[11];
+        secret.hmac[12] = !secret.hmac[12];
+        secret.hmac[13] = !secret.hmac[13];
+        secret.hmac[14] = !secret.hmac[14];
+        secret.to_string(&key).unwrap_err();
+    }
+
+    #[test]
+    fn attempt_value_forge() {
+        let key = generate_key();
+        let test_value1 = Uuid::new_v4().to_string();
+        let test_value2 = Uuid::new_v4().to_string();
+        let secret1 = SecretFileName::from_str(&test_value1, &key).unwrap();
+        let mut secret2 = SecretFileName::from_str(&test_value2, &key).unwrap();
+
+        secret2.encrypted_value = secret1.encrypted_value;
+
+        secret2.to_string(&key).unwrap_err();
     }
 }
