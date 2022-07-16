@@ -2,8 +2,10 @@ use crate::access_info::{EncryptedFolderAccessKey, UserAccessInfo};
 use crate::account::{Account, Username};
 use crate::crypto::AESKey;
 use crate::file_like::FileLike;
-use crate::file_metadata::{FileType, Owner};
+use crate::file_metadata::{FileType, Owner, FileMetadata};
 use crate::secret_filename::SecretFileName;
+use crate::server_file::ServerFile;
+use crate::signed_file::SignedFile;
 use crate::tree_like::TreeError::*;
 use crate::{pubkey, symkey};
 use core::fmt;
@@ -44,6 +46,22 @@ impl<F: FileLike> TreeLike<F> for Vec<F> {
 
     fn maybe_find(&self, id: Uuid) -> Option<&F> {
         self.iter().find(|f| f.id() == id)
+    }
+}
+
+impl<'a> Into<&'a SignedFile> for &'a ServerFile {
+    fn into(self) -> &'a SignedFile {
+        &self.file
+    }
+}
+
+impl<T: TreeLike<ServerFile>> TreeLike<SignedFile> for T {
+    fn ids(&self) -> HashSet<Uuid> {
+        self.ids()
+    }
+
+    fn maybe_find(&self, id: Uuid) -> Option<&SignedFile> {
+        self.maybe_find(id).map(|f| f.into())
     }
 }
 
