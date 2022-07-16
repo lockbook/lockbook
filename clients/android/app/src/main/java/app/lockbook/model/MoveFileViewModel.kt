@@ -76,7 +76,8 @@ class MoveFileViewModel(application: Application, val startId: String) :
                         0,
                         DecryptedFileMetadata(
                             id = PARENT_ID,
-                            decryptedName = "..",
+                            fileType = FileType.Folder,
+                            decryptedName = "...",
                         )
                     )
                 }
