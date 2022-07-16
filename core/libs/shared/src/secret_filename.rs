@@ -2,7 +2,7 @@ use crate::crypto::{AESEncrypted, AESKey};
 use crate::symkey::{convert_key, generate_nonce};
 use crate::{SharedError, SharedResult};
 use aead::{generic_array::GenericArray, Aead};
-use hmac::{Mac, NewMac, Hmac};
+use hmac::{Hmac, Mac, NewMac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::hash::Hash;
@@ -78,7 +78,7 @@ impl Hash for SecretFileName {
 mod unit_tests {
     use uuid::Uuid;
 
-    use crate::{symkey::generate_key, secret_filename::SecretFileName};
+    use crate::{secret_filename::SecretFileName, symkey::generate_key};
 
     #[test]
     fn test_to_string_from_string() {
