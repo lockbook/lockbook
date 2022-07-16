@@ -9,68 +9,65 @@ use crate::{pubkey, symkey};
 use core::fmt;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
+use std::marker::PhantomData;
 use uuid::Uuid;
 
-pub trait TreeLike {
-    type F<'a>: FileLike
-    where
-        Self: 'a;
-
+pub trait TreeLike<F: FileLike> {
     fn ids(&self) -> HashSet<Uuid>;
-    fn maybe_find(&self, id: Uuid) -> Option<Self::F<'_>>;
+    fn maybe_find(&self, id: Uuid) -> Option<&F>;
 
-    fn find(&self, id: Uuid) -> Result<Self::F<'_>, TreeError> {
+    fn find(&self, id: Uuid) -> Result<&F, TreeError> {
         self.maybe_find(id).ok_or(FileNonexistent)
     }
 
-    fn maybe_find_parent<F2: FileLike>(&self, file: &F2) -> Option<Self::F<'_>> {
+    fn maybe_find_parent<F2: FileLike>(&self, file: &F2) -> Option<&F> {
         self.maybe_find(file.parent())
     }
 
-    fn find_parent<F2: FileLike>(&self, file: &F2) -> Result<Self::F<'_>, TreeError> {
+    fn find_parent<F2: FileLike>(&self, file: &F2) -> Result<&F, TreeError> {
         self.maybe_find_parent(file).ok_or(FileParentNonexistent)
     }
 
-    fn stage<'a, Staged>(&'a self, staged: &'a Staged) -> StagedTree<'a, Self, Staged>
+    fn stage<'a, Staged>(&'a self, staged: &'a Staged) -> StagedTree<'a, F, Self, Staged>
     where
-        Staged: TreeLike,
+        Staged: TreeLike<F>,
         Self: Sized,
     {
-        StagedTree { base: self, staged }
+        StagedTree::new(self, staged)
     }
 }
 
-impl<F: FileLike> TreeLike for Vec<F> {
-    type F<'a> = &'a F where F: 'a;
-
+impl<F: FileLike> TreeLike<F> for Vec<F> {
     fn ids(&self) -> HashSet<Uuid> {
         self.iter().map(|f| f.id()).collect()
     }
 
-    fn maybe_find(&self, id: Uuid) -> Option<Self::F<'_>> {
+    fn maybe_find(&self, id: Uuid) -> Option<&F> {
         self.iter().find(|f| f.id() == id)
     }
 }
 
-pub struct LazyTree<T: TreeLike> {
+pub struct LazyTree<F: FileLike, T: TreeLike<F>> {
     tree: T,
     name_by_id: HashMap<Uuid, String>,
     key_by_id: HashMap<Uuid, AESKey>,
     implicitly_deleted_by_id: HashMap<Uuid, bool>,
+    _f: PhantomData<F>,
 }
 
-impl<T: TreeLike> LazyTree<T> {
+impl<F: FileLike, T: TreeLike<F>> LazyTree<F, T> {
     fn new(tree: T) -> Self {
         Self {
             tree,
             name_by_id: HashMap::new(),
             key_by_id: HashMap::new(),
             implicitly_deleted_by_id: HashMap::new(),
+            _f: Default::default(),
         }
     }
 }
 
-impl<'a, T: TreeLike> LazyTree<T> {
+impl<F: FileLike, T: TreeLike<F>> LazyTree<F, T> {
     fn calculate_deleted(&mut self, id: Uuid) -> Result<bool, TreeError> {
         let (visited_ids, deleted) = {
             let mut file = self.find(id)?;
@@ -161,14 +158,12 @@ impl<'a, T: TreeLike> LazyTree<T> {
     }
 }
 
-impl<T: TreeLike> TreeLike for LazyTree<T> {
-    type F<'a> = T::F<'a> where T: 'a;
-
+impl<F: FileLike, T: TreeLike<F>> TreeLike<F> for LazyTree<F, T> {
     fn ids(&self) -> HashSet<Uuid> {
         self.tree.ids()
     }
 
-    fn maybe_find(&self, id: Uuid) -> Option<Self::F<'_>> {
+    fn maybe_find(&self, id: Uuid) -> Option<&F> {
         self.tree.maybe_find(id)
     }
 }
@@ -260,16 +255,21 @@ impl<'a, Base: FileLike, Staged: FileLike> FileLike for StagedFile<Base, Staged>
     }
 }
 
-pub struct StagedTree<'a, Base: TreeLike, Staged: TreeLike> {
+pub struct StagedTree<'a, F: FileLike, Base: TreeLike<F>, Staged: TreeLike<F>> {
     base: &'a Base,
     staged: &'a Staged,
+    _f: PhantomData<F>,
 }
 
-impl<'a, Base: TreeLike<F<'a>: Copy>, Staged: TreeLike<F<'a>: Copy>> TreeLike
-    for StagedTree<'a, Base, Staged>
-{
-    type F<'b> = StagedFile<Base::F<'a>, Staged::F<'a>> where 'a : 'b;
+impl<'a, F: FileLike, Base: TreeLike<F>, Staged: TreeLike<F>> StagedTree<'a, F, Base, Staged> {
+    fn new(base: &'a Base, staged: &'a Staged) -> Self {
+        Self { base, staged, _f: Default::default() }
+    }
+}
 
+impl<'a, F: FileLike, Base: TreeLike<F>, Staged: TreeLike<F>> TreeLike<F>
+    for StagedTree<'a, F, Base, Staged>
+{
     fn ids(&self) -> HashSet<Uuid> {
         self.base
             .ids()
@@ -278,12 +278,11 @@ impl<'a, Base: TreeLike<F<'a>: Copy>, Staged: TreeLike<F<'a>: Copy>> TreeLike
             .collect()
     }
 
-    fn maybe_find(&self, id: Uuid) -> Option<Self::F<'_>> {
+    fn maybe_find(&self, id: Uuid) -> Option<&F> {
         match (self.base.maybe_find(id), self.staged.maybe_find(id)) {
+            (_, Some(staged)) => Some(staged),
+            (Some(base), None) => Some(base),
             (None, None) => None,
-            (None, Some(staged)) => Some(StagedFile::Staged(staged)),
-            (Some(base), None) => Some(StagedFile::Base(base)),
-            (Some(base), Some(staged)) => Some(StagedFile::Both { base, staged }),
         }
     }
 }
