@@ -171,6 +171,11 @@ class FilesListFragment : Fragment(), FilesFragment {
             binding.fabSpeedDial.close()
             true
         }
+        binding.fabSpeedDial.mainFab.setOnLongClickListener { view ->
+            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            model.generateQuickNote(activityModel)
+            true
+        }
 
         binding.listFilesRefresh.setOnRefreshListener {
             model.onSwipeToRefresh()
