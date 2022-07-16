@@ -1,15 +1,13 @@
 use crate::access_info::{EncryptedFolderAccessKey, UserAccessInfo};
 use crate::account::Username;
 use crate::file_metadata::{FileMetadata, FileType, Owner};
-use crate::lazy_file::LazyFile;
 use crate::secret_filename::SecretFileName;
 use crate::server_file::ServerFile;
 use crate::signed_file::SignedFile;
 use std::collections::HashMap;
-use std::fmt::Display;
 use uuid::Uuid;
 
-pub trait FileLike: Clone + Display {
+pub trait FileLike {
     fn id(&self) -> Uuid;
     fn file_type(&self) -> FileType;
     fn parent(&self) -> Uuid;
@@ -149,79 +147,3 @@ impl FileLike for ServerFile {
         self.file.folder_access_keys()
     }
 }
-
-impl<'a, F> FileLike for LazyFile<'a, F>
-where
-    F: FileLike,
-{
-    fn id(&self) -> Uuid {
-        self.file.id()
-    }
-
-    fn file_type(&self) -> FileType {
-        self.file.file_type()
-    }
-
-    fn parent(&self) -> Uuid {
-        self.file.parent()
-    }
-
-    fn secret_name(&self) -> &SecretFileName {
-        self.file.secret_name()
-    }
-
-    fn owner(&self) -> Owner {
-        self.file.owner()
-    }
-
-    fn explicitly_deleted(&self) -> bool {
-        self.file.explicitly_deleted()
-    }
-
-    fn display(&self) -> String {
-        self.file.display()
-    }
-
-    fn user_access_keys(&self) -> &HashMap<Username, UserAccessInfo> {
-        self.file.user_access_keys()
-    }
-
-    fn folder_access_keys(&self) -> &EncryptedFolderAccessKey {
-        self.file.folder_access_keys()
-    }
-}
-//
-// impl<F> FileLike for OwnedLazyFile<F>
-// where
-//     F: FileLike,
-// {
-//     type Name = F::Name;
-//
-//     fn id(&self) -> Uuid {
-//         self.file.id()
-//     }
-//
-//     fn file_type(&self) -> FileType {
-//         self.file.file_type()
-//     }
-//
-//     fn parent(&self) -> Uuid {
-//         self.file.parent()
-//     }
-//
-//     fn name(&self) -> &Self::Name {
-//         self.file.name()
-//     }
-//
-//     fn owner(&self) -> Owner {
-//         self.file.owner()
-//     }
-//
-//     fn is_deleted(&self) -> bool {
-//         self.file.is_deleted()
-//     }
-//
-//     fn display(&self) -> String {
-//         self.file.display()
-//     }
-// }

@@ -8,7 +8,6 @@ pub mod crypto;
 pub mod drawing;
 pub mod file_like;
 pub mod file_metadata;
-pub mod lazy_file;
 pub mod pubkey;
 pub mod secret_filename;
 pub mod server_file;
