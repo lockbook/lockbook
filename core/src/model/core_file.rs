@@ -10,13 +10,13 @@ use uuid::Uuid;
 struct Base<'a>(&'a Tx<'a>);
 struct Local<'a>(&'a Tx<'a>);
 
-impl TreeLike<SignedFile> for Base<'_> {
+impl TreeLike<ServerFile> for Base<'_> {
     fn ids(&self) -> HashSet<Uuid> {
         todo!()
     }
 
-    fn maybe_find(&self, id: Uuid) -> Option<&SignedFile> {
-        self.0.base_metadata.get(&id).map(|f| &f.file)
+    fn maybe_find(&self, id: Uuid) -> Option<&ServerFile> {
+        self.0.base_metadata.get(&id)
     }
 }
 
