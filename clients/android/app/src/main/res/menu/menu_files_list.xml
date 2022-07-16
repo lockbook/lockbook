@@ -8,31 +8,4 @@
         android:title="@string/search"
         app:showAsAction="always"/>
 
-    <item
-        android:id="@+id/menu_list_files_sort"
-        android:icon="@drawable/ic_baseline_sort_24"
-        android:title="@string/menu_sort"
-        app:showAsAction="always">
-        <menu>
-            <group
-                android:id="@+id/sorting_options"
-                android:checkableBehavior="single">
-                <item
-                    android:id="@+id/menu_list_files_sort_a_z"
-                    android:title="@string/menu_list_files_sort_a_z" />
-                <item
-                    android:id="@+id/menu_list_files_sort_z_a"
-                    android:title="@string/menu_list_files_sort_z_a" />
-                <item
-                    android:id="@+id/menu_list_files_sort_last_changed"
-                    android:title="@string/menu_list_files_last_changed" />
-                <item
-                    android:id="@+id/menu_list_files_sort_first_changed"
-                    android:title="@string/menu_list_files_sort_first_changed" />
-                <item
-                    android:id="@+id/menu_list_files_sort_type"
-                    android:title="@string/menu_list_files_sort_type" />
-            </group>
-        </menu>
-    </item>
 </menu>

@@ -135,26 +135,6 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
         })
 
-        when (
-            PreferenceManager.getDefaultSharedPreferences(requireContext()).getString(
-                getString(R.string.sort_files_key),
-                getString(R.string.sort_files_a_z_value)
-            )
-        ) {
-            getString(R.string.sort_files_a_z_value) -> menu.menu!!.findItem(R.id.menu_list_files_sort_a_z)?.isChecked = true
-            getString(R.string.sort_files_z_a_value) -> menu.menu!!.findItem(R.id.menu_list_files_sort_z_a)?.isChecked = true
-            getString(R.string.sort_files_last_changed_value) ->
-                menu.menu!!.findItem(R.id.menu_list_files_sort_last_changed)?.isChecked =
-                    true
-            getString(R.string.sort_files_first_changed_value) ->
-                menu.menu!!.findItem(R.id.menu_list_files_sort_first_changed)?.isChecked =
-                    true
-            getString(R.string.sort_files_type_value) -> menu.menu!!.findItem(R.id.menu_list_files_sort_type)?.isChecked = true
-            else -> {
-                alertModel.notifyBasicError()
-            }
-        }.exhaustive
-
         binding.fabSpeedDial.inflate(R.menu.menu_files_list_speed_dial)
         binding.fabSpeedDial.setOnActionSelectedListener {
             val extendedFileType = when (it.id) {
@@ -254,26 +234,6 @@ class FilesListFragment : Fragment(), FilesFragment {
             when (item.itemId) {
                 R.id.menu_files_list_search -> {
                     activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSearch)
-                }
-                R.id.menu_list_files_sort_last_changed -> {
-                    model.changeFileSort(SortStyle.LastChanged)
-                    menu.menu!!.findItem(R.id.menu_list_files_sort_last_changed)?.isChecked = true
-                }
-                R.id.menu_list_files_sort_a_z -> {
-                    model.changeFileSort(SortStyle.AToZ)
-                    menu.menu!!.findItem(R.id.menu_list_files_sort_a_z)?.isChecked = true
-                }
-                R.id.menu_list_files_sort_z_a -> {
-                    model.changeFileSort(SortStyle.ZToA)
-                    menu.menu!!.findItem(R.id.menu_list_files_sort_z_a)?.isChecked = true
-                }
-                R.id.menu_list_files_sort_first_changed -> {
-                    model.changeFileSort(SortStyle.FirstChanged)
-                    menu.menu!!.findItem(R.id.menu_list_files_sort_first_changed)?.isChecked = true
-                }
-                R.id.menu_list_files_sort_type -> {
-                    model.changeFileSort(SortStyle.FileType)
-                    menu.menu!!.findItem(R.id.menu_list_files_sort_type)?.isChecked = true
                 }
             }
 
