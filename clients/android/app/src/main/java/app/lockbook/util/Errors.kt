@@ -10,6 +10,7 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonClassDiscriminator
+import timber.log.Timber
 
 @OptIn(ExperimentalSerializationApi::class)
 @JsonClassDiscriminator("tag")
@@ -238,21 +239,6 @@ enum class ReadDocumentError : UiCoreError {
 }
 
 @Serializable
-enum class SaveDocumentToDiskError : UiCoreError {
-    TreatedFolderAsDocument,
-    FileDoesNotExist,
-    BadPath,
-    FileAlreadyExistsInDisk;
-
-    override fun toLbError(res: Resources): LbError = when (this) {
-        TreatedFolderAsDocument -> LbError.newUserError(getString(res, R.string.folder_treated_as_document))
-        FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
-        BadPath -> LbError.newUserError(getString(res, R.string.bad_path))
-        FileAlreadyExistsInDisk -> LbError.newUserError(getString(res, R.string.file_already_exists_on_disk))
-    }
-}
-
-@Serializable
 enum class ExportDrawingToDiskError : UiCoreError {
     FolderTreatedAsDrawing,
     FileDoesNotExist,
@@ -383,8 +369,14 @@ enum class ExportFileError : UiCoreError {
     override fun toLbError(res: Resources): LbError = when (this) {
         ParentDoesNotExist -> LbError.newUserError(getString(res, R.string.could_not_find_a_parent))
         // Used basic errors since specific errors are not useful to the user
-        DiskPathTaken -> LbError.newUserError(getString(res, R.string.basic_error))
-        DiskPathInvalid -> LbError.newUserError(getString(res, R.string.basic_error))
+        DiskPathTaken -> {
+            Timber.e("GOT THIS TAKEN")
+            LbError.newUserError(getString(res, R.string.basic_error))
+        }
+        DiskPathInvalid -> {
+            Timber.e("GOT THIS INVALID")
+            LbError.newUserError(getString(res, R.string.basic_error))
+        }
     }
 }
 

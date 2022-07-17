@@ -62,18 +62,6 @@ fn test_create_parent_delete_parent_read_doc() {
 }
 
 #[test]
-fn test_create_parent_delete_parent_save_doc() {
-    let core = test_core_with_account();
-    let doc = core.create_at_path("folder/test.md").unwrap();
-    core.write_document(doc.id, "content".as_bytes()).unwrap();
-    core.delete_file(doc.parent).unwrap();
-    assert_matches!(
-        core.save_document_to_disk(doc.id, "/dev/null"),
-        Err(UiError(SaveDocumentToDiskError::FileDoesNotExist))
-    );
-}
-
-#[test]
 fn test_create_parent_delete_parent_rename_doc() {
     let core = test_core_with_account();
     let doc = core.create_at_path("folder/test.md").unwrap();

@@ -6,7 +6,6 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import java.io.File
-import java.util.*
 import kotlin.collections.ArrayList
 
 class ShareModel(
@@ -78,17 +77,17 @@ class ShareModel(
                     }
                 }
             } else {
-                val doc = File(
-                    shareItemFolder,
-                    file.decryptedName
-                ).absoluteFile
-
-                when (val saveDocumentToDiskResult = CoreModel.saveDocumentToDisk(file.id, doc.absolutePath)) {
-                    is Ok -> filesToShare.add(doc)
+                when (val exportFileResult = CoreModel.exportFile(file.id, shareItemFolder.absolutePath, false)) {
+                    is Ok -> filesToShare.add(
+                        File(
+                            shareItemFolder,
+                            file.decryptedName
+                        ).absoluteFile
+                    )
                     is Err -> {
                         isLoadingOverlayVisible = false
                         _updateMainScreenUI.postValue(UpdateMainScreenUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
-                        return saveDocumentToDiskResult
+                        return exportFileResult
                     }
                 }
             }
