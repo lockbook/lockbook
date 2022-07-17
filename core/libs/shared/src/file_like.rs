@@ -4,6 +4,7 @@ use crate::file_metadata::{FileMetadata, FileType, Owner};
 use crate::secret_filename::SecretFileName;
 use crate::server_file::ServerFile;
 use crate::signed_file::SignedFile;
+use crate::staged::StagedFile;
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -183,5 +184,79 @@ impl<'a, F: FileLike> FileLike for &'a F {
 
     fn folder_access_keys(&self) -> &EncryptedFolderAccessKey {
         (*self).folder_access_keys()
+    }
+}
+
+impl<'a, Base: FileLike, Staged: FileLike> FileLike for StagedFile<Base, Staged> {
+    fn id(&self) -> Uuid {
+        match self {
+            StagedFile::Base(file) => file.id(),
+            StagedFile::Staged(file) => file.id(),
+            StagedFile::Both { base: _, staged: file } => file.id(),
+        }
+    }
+
+    fn file_type(&self) -> FileType {
+        match self {
+            StagedFile::Base(file) => file.file_type(),
+            StagedFile::Staged(file) => file.file_type(),
+            StagedFile::Both { base: _, staged: file } => file.file_type(),
+        }
+    }
+
+    fn parent(&self) -> Uuid {
+        match self {
+            StagedFile::Base(file) => file.parent(),
+            StagedFile::Staged(file) => file.parent(),
+            StagedFile::Both { base: _, staged: file } => file.parent(),
+        }
+    }
+
+    fn secret_name(&self) -> &SecretFileName {
+        match self {
+            StagedFile::Base(file) => file.secret_name(),
+            StagedFile::Staged(file) => file.secret_name(),
+            StagedFile::Both { base: _, staged: file } => file.secret_name(),
+        }
+    }
+
+    fn owner(&self) -> Owner {
+        match self {
+            StagedFile::Base(file) => file.owner(),
+            StagedFile::Staged(file) => file.owner(),
+            StagedFile::Both { base: _, staged: file } => file.owner(),
+        }
+    }
+
+    fn explicitly_deleted(&self) -> bool {
+        match self {
+            StagedFile::Base(file) => file.explicitly_deleted(),
+            StagedFile::Staged(file) => file.explicitly_deleted(),
+            StagedFile::Both { base: _, staged: file } => file.explicitly_deleted(),
+        }
+    }
+
+    fn display(&self) -> String {
+        match self {
+            StagedFile::Base(file) => file.display(),
+            StagedFile::Staged(file) => file.display(),
+            StagedFile::Both { base: _, staged: file } => file.display(),
+        }
+    }
+
+    fn user_access_keys(&self) -> &HashMap<Username, UserAccessInfo> {
+        match self {
+            StagedFile::Base(file) => file.user_access_keys(),
+            StagedFile::Staged(file) => file.user_access_keys(),
+            StagedFile::Both { base: _, staged: file } => file.user_access_keys(),
+        }
+    }
+
+    fn folder_access_keys(&self) -> &EncryptedFolderAccessKey {
+        match self {
+            StagedFile::Base(file) => file.folder_access_keys(),
+            StagedFile::Staged(file) => file.folder_access_keys(),
+            StagedFile::Both { base: _, staged: file } => file.folder_access_keys(),
+        }
     }
 }

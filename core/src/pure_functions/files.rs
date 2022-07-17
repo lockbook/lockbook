@@ -9,64 +9,13 @@ use uuid::Uuid;
 
 use lockbook_shared::account::Account;
 use lockbook_shared::crypto::ECSigned;
-use lockbook_shared::file_metadata::{CoreFile, DecryptedFiles, FileType, Owner, FileMetadata};
+use lockbook_shared::file_metadata::{CoreFile, DecryptedFiles, FileMetadata, FileType, Owner};
 use lockbook_shared::symkey;
 use lockbook_shared::tree::{FileLike, FileMetaMapExt, FileMetaVecExt};
 
 use crate::model::filename::NameComponents;
 use crate::service::file_encryption_service;
 use crate::{model::repo::RepoState, CoreError};
-
-pub fn create(file_type: FileType, parent: Uuid, name: &str, owner: &PublicKey) -> CoreFile {
-    CoreFile {
-        id: Uuid::new_v4(),
-        file_type,
-        parent,
-        decrypted_name: String::from(name),
-        owner: Owner(*owner),
-        metadata_version: 0,
-        content_version: 0,
-        deleted: false,
-        decrypted_access_key: symkey::generate_key(),
-    }
-}
-
-// TODO flagged for deletion
-pub fn create_root2(account: &Account) -> CoreFile {
-    let id = Uuid::new_v4();
-    CoreFile {
-        id,
-        file_type: FileType::Folder,
-        parent: id,
-        decrypted_name: account.username.clone(),
-        owner: Owner::from(account),
-        metadata_version: 0,
-        content_version: 0,
-        deleted: false,
-        decrypted_access_key: symkey::generate_key(),
-    }
-}
-
-/// Validates a create operation for a file in the context of all files and returns a version of
-/// the file with the operation applied. This is a pure function.
-pub fn apply_create(
-    files: &DecryptedFiles, file_type: FileType, parent: Uuid, name: &str, owner: &PublicKey,
-) -> Result<CoreFile, CoreError> {
-    let file = create(file_type, parent, name, owner);
-    validate_not_root(&file)?;
-    validate_file_name(name)?;
-    let parent = files
-        .maybe_find(parent)
-        .ok_or(CoreError::FileParentNonexistent)?;
-    validate_is_folder(&parent)?;
-
-    let staged_changes = HashMap::with(file.clone());
-    if !files.get_path_conflicts(&staged_changes)?.is_empty() {
-        return Err(CoreError::PathTaken);
-    }
-
-    Ok(file)
-}
 
 /// Validates a rename operation for a file in the context of all files and returns a version of the file with the operation applied. This is a pure function.
 pub fn apply_rename(
