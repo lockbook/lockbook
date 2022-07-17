@@ -226,20 +226,6 @@ object CoreModel {
         id: String
     ): ByteArray? = app.lockbook.core.readDocumentBytes(id)
 
-    private val saveDocumentToDiskParser = Json {
-        serializersModule = SerializersModule {
-            createPolyRelation(Unit.serializer(), SaveDocumentToDiskError.serializer())
-        }
-    }
-
-    fun saveDocumentToDisk(
-        id: String,
-        location: String
-    ): Result<Unit, CoreError<SaveDocumentToDiskError>> =
-        saveDocumentToDiskParser.tryParse(
-            app.lockbook.core.saveDocumentToDisk(id, location)
-        )
-
     private val exportDrawingToDiskParser = Json {
         serializersModule = SerializersModule {
             createPolyRelation(Unit.serializer(), ExportDrawingToDiskError.serializer())
