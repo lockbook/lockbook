@@ -77,7 +77,7 @@ impl NameComponents {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::model::filename::NameComponents;
+    use crate::filename::NameComponents;
 
     fn from_components(
         name: &str, variant: Option<usize>, extension: Option<&str>,

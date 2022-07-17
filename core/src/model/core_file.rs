@@ -1,9 +1,11 @@
 use crate::Tx;
 use hmdb::transaction::TransactionTable;
 use lockbook_shared::file_like::FileLike;
+use lockbook_shared::lazy::LazyTree;
 use lockbook_shared::server_file::ServerFile;
 use lockbook_shared::signed_file::SignedFile;
-use lockbook_shared::tree_like::{LazyTree, StagedFile, StagedTree, TreeLike};
+use lockbook_shared::staged::StagedTree;
+use lockbook_shared::tree_like::TreeLike;
 use std::collections::HashSet;
 use uuid::Uuid;
 

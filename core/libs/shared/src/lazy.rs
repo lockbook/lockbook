@@ -116,6 +116,15 @@ impl<F: FileLike, T: TreeLike<F>> LazyTree<F, T> {
         self.name_by_id.insert(id, name.clone());
         Ok(name)
     }
+
+    pub fn validate(&mut self) -> Result<(), ValidationError> {
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub enum ValidationError {
+    Todo,
 }
 
 impl<F: FileLike, T: TreeLike<F>> TreeLike<F> for LazyTree<F, T> {

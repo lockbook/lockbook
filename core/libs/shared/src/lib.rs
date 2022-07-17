@@ -1,3 +1,5 @@
+extern crate core;
+
 use hmac::crypto_mac::{InvalidKeyLength, MacError};
 
 pub mod access_info;
@@ -8,6 +10,8 @@ pub mod crypto;
 pub mod drawing;
 pub mod file_like;
 pub mod file_metadata;
+pub mod file_ops;
+mod filename;
 pub mod lazy;
 pub mod pubkey;
 pub mod secret_filename;

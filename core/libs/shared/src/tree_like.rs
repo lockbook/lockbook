@@ -6,10 +6,6 @@ use crate::tree_like::TreeError::*;
 use std::collections::HashSet;
 use uuid::Uuid;
 
-pub enum ValidationError {
-    Todo,
-}
-
 pub trait TreeLike<F: FileLike> {
     fn ids(&self) -> HashSet<Uuid>;
     fn maybe_find(&self, id: Uuid) -> Option<&F>;
@@ -32,10 +28,6 @@ pub trait TreeLike<F: FileLike> {
         Self: Sized,
     {
         StagedTree::new(self, staged)
-    }
-
-    fn validate(&self) -> Result<(), ValidationError> {
-        Ok(())
     }
 }
 
