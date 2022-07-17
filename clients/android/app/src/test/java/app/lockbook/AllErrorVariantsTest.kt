@@ -66,9 +66,6 @@ class AllErrorVariantsTest {
         @SerialName("ReadDocumentError")
         val readDocumentErrors: List<ReadDocumentError>,
 
-        @SerialName("SaveDocumentToDiskError")
-        val saveDocumentToDiskErrors: List<SaveDocumentToDiskError>,
-
         @SerialName("ExportDrawingToDiskError")
         val exportDrawingToDiskErrors: List<ExportDrawingToDiskError>,
 
