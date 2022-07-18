@@ -8,6 +8,7 @@ pub mod api;
 pub mod clock;
 pub mod crypto;
 pub mod drawing;
+pub mod file;
 pub mod file_like;
 pub mod file_metadata;
 pub mod file_ops;
@@ -25,7 +26,7 @@ pub mod work_unit;
 
 type SharedResult<T> = Result<T, SharedError>;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum SharedError {
     RootNonexistent,
     FileNonexistent,

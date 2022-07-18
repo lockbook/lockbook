@@ -1,7 +1,6 @@
 use crate::model::errors::core_err_unexpected;
-use crate::pure_functions::files;
 use crate::repo::schema::OneKey;
-use crate::service::{api_service, file_encryption_service};
+use crate::service::api_service;
 use crate::{CoreError, CoreResult, RequestContext};
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Account;
@@ -11,8 +10,6 @@ use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileMetadata;
 use lockbook_shared::pubkey;
 use lockbook_shared::server_file::IntoServerFile;
-use lockbook_shared::tree::FileMetaMapExt;
-use std::collections::HashMap;
 
 impl RequestContext<'_, '_> {
     pub fn create_account(&mut self, username: &str, api_url: &str) -> CoreResult<Account> {
@@ -30,15 +27,14 @@ impl RequestContext<'_, '_> {
 
         let mut root = FileMetadata::create_root(&account)?.sign(&account)?;
 
-        let version =
-            api_service::request(&account, NewAccountRequest::new(&account, &encrypted_metadatum))?
-                .folder_metadata_version;
+        let version = api_service::request(&account, NewAccountRequest::new(&account, &root))?
+            .folder_metadata_version;
 
         let root = root.add_time(version);
         let root_id = root.id();
 
         self.tx.account.insert(OneKey {}, account.clone());
-        self.tx.base_metadata.insert(root.id, root);
+        self.tx.base_metadata.insert(root_id, root);
         self.tx.last_synced.insert(OneKey {}, get_time().0);
         self.tx.root.insert(OneKey {}, root_id);
         Ok(account)
@@ -92,7 +88,7 @@ impl RequestContext<'_, '_> {
         Ok(base64::encode(&encoded))
     }
 
-    pub fn get_account(&self) -> Result<Account, CoreError> {
+    pub fn get_account(&self) -> Result<&Account, CoreError> {
         self.tx
             .account
             .get(&OneKey {})

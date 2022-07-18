@@ -7,88 +7,83 @@ extern crate core;
 pub mod model;
 // pub mod pure_functions;
 pub mod repo;
-// pub mod service;
-//
-// mod external_interface;
-//
-// pub use uuid::Uuid;
-//
-// pub use lockbook_shared::account::Account;
-// pub use lockbook_shared::api::{PaymentMethod, PaymentPlatform};
-// pub use lockbook_shared::api::{StripeAccountTier, SubscriptionInfo};
-// pub use lockbook_shared::crypto::DecryptedDocument;
-// pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
-// pub use lockbook_shared::file_metadata::{CoreFile, FileType};
-// pub use lockbook_shared::tree::{FileLike, FileMetaMapExt, FileMetaVecExt};
-// pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
-//
-// pub use crate::model::errors::*;
-// pub use crate::pure_functions::drawing::SupportedImageFormats;
-// pub use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
-// pub use crate::service::path_service::Filter;
-// pub use crate::service::sync_service::{SyncProgress, WorkCalculated};
-// pub use crate::service::usage_service::{bytes_to_human, UsageItemMetric, UsageMetrics};
-//
-// use std::collections::HashMap;
-// use std::path::PathBuf;
-// use std::sync::{Arc, Mutex, MutexGuard};
-//
-// use basic_human_duration::ChronoHumanDuration;
-// use chrono::Duration;
-// use hmdb::log::Reader;
-// use hmdb::transaction::Transaction;
-// use libsecp256k1::PublicKey;
-// use serde::Deserialize;
-// use serde_json::{json, value::Value};
-// use strum::IntoEnumIterator;
-//
-// use lockbook_shared::clock;
-// use lockbook_shared::crypto::AESKey;
-//
-// use crate::model::errors::Error::UiError;
-// use crate::model::repo::RepoSource;
+pub mod service;
+
+mod external_interface;
+
+pub use uuid::Uuid;
+
+pub use lockbook_shared::account::Account;
+pub use lockbook_shared::api::{PaymentMethod, PaymentPlatform};
+pub use lockbook_shared::api::{StripeAccountTier, SubscriptionInfo};
+pub use lockbook_shared::crypto::DecryptedDocument;
+pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
+
+pub use crate::model::errors::*;
+pub use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
+pub use crate::service::path_service::Filter;
+pub use crate::service::sync_service::{SyncProgress, WorkCalculated};
+pub use crate::service::usage_service::{bytes_to_human, UsageItemMetric, UsageMetrics};
+
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex, MutexGuard};
+
+use basic_human_duration::ChronoHumanDuration;
+use chrono::Duration;
+use hmdb::log::Reader;
+use hmdb::transaction::Transaction;
+use libsecp256k1::PublicKey;
+use serde::Deserialize;
+use serde_json::{json, value::Value};
+use strum::IntoEnumIterator;
+
+use lockbook_shared::clock;
+use lockbook_shared::crypto::AESKey;
+
+use crate::model::errors::Error::UiError;
 use crate::repo::schema::{transaction, CoreV1, OneKey, Tx};
-// use crate::service::log_service;
-// use crate::service::search_service::SearchResultItem;
-//
-// #[derive(Debug, Deserialize, Clone)]
-// pub struct Config {
-//     pub logs: bool,
-//     pub colored_logs: bool,
-//     pub writeable_path: String,
-// }
-//
-// #[derive(Clone, Debug, Default)]
-// pub struct DataCache {
-//     pub key_cache: HashMap<Uuid, AESKey>,
-//     pub public_key: Option<PublicKey>,
-// }
-//
-// #[derive(Clone, Debug)]
-// pub struct Core {
-//     // TODO not pub?
-//     pub config: Config,
-//     pub data_cache: Arc<Mutex<DataCache>>, // Or Rc<RefCell>>
-//     pub db: CoreV1,
-// }
-//
-// impl Core {
-//     pub fn context<'a, 'b>(
-//         &'a self, tx: &'a mut Tx<'b>,
-//     ) -> Result<RequestContext<'a, 'b>, CoreError> {
-//         let config = &self.config;
-//         let data_cache = self.data_cache.lock().map_err(|err| {
-//             CoreError::Unexpected(format!("Could not get key_cache mutex: {:?}", err))
-//         })?;
-//         Ok(RequestContext { config, data_cache, tx })
-//     }
-// }
-//
-// pub struct RequestContext<'a, 'b> {
-//     pub config: &'a Config,
-//     pub data_cache: MutexGuard<'a, DataCache>,
-//     pub tx: &'a mut transaction::CoreV1<'b>,
-// }
+use crate::service::log_service;
+use crate::service::search_service::SearchResultItem;
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Config {
+    pub logs: bool,
+    pub colored_logs: bool,
+    pub writeable_path: String,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct DataCache {
+    pub key_cache: HashMap<Uuid, AESKey>,
+    pub public_key: Option<PublicKey>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Core {
+    // TODO not pub?
+    pub config: Config,
+    pub data_cache: Arc<Mutex<DataCache>>, // Or Rc<RefCell>>
+    pub db: CoreV1,
+}
+
+impl Core {
+    pub fn context<'a, 'b>(
+        &'a self, tx: &'a mut Tx<'b>,
+    ) -> Result<RequestContext<'a, 'b>, CoreError> {
+        let config = &self.config;
+        let data_cache = self.data_cache.lock().map_err(|err| {
+            CoreError::Unexpected(format!("Could not get key_cache mutex: {:?}", err))
+        })?;
+        Ok(RequestContext { config, data_cache, tx })
+    }
+}
+
+pub struct RequestContext<'a, 'b> {
+    pub config: &'a Config,
+    pub data_cache: MutexGuard<'a, DataCache>,
+    pub tx: &'a mut transaction::CoreV1<'b>,
+}
 //
 // impl Core {
 //     #[instrument(level = "info", skip_all, err(Debug))]
@@ -482,9 +477,9 @@ use crate::repo::schema::{transaction, CoreV1, OneKey, Tx};
 //     }
 // }
 //
-// pub fn get_code_version() -> &'static str {
-//     env!("CARGO_PKG_VERSION")
-// }
+pub fn get_code_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
 //
 // // This basically generates a function called `get_all_error_variants`,
 // // which will produce a big json dict of { "Error": ["Values"] }.

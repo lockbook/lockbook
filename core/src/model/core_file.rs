@@ -1,4 +1,4 @@
-use crate::Tx;
+use crate::{RequestContext, Tx};
 use lockbook_shared::lazy::LazyTree;
 use lockbook_shared::server_file::ServerFile;
 use lockbook_shared::signed_file::SignedFile;
@@ -30,12 +30,12 @@ impl TreeLike<SignedFile> for Local<'_> {
     }
 }
 
-pub struct StagedChanges<'a> {
+struct StagedDbFiles<'a> {
     base: Base<'a>,
     local: Local<'a>,
 }
 
-impl<'a> StagedChanges<'a> {
+impl<'a> StagedDbFiles<'a> {
     fn from_tx(tx: &'a Tx) -> Self {
         let base = Base(tx);
         let local = Local(tx);
@@ -44,5 +44,11 @@ impl<'a> StagedChanges<'a> {
     }
     fn get_tree(&self) -> LazyTree<SignedFile, StagedTree<SignedFile, Base, Local>> {
         LazyTree::new(StagedTree::new(&self.base, &self.local))
+    }
+}
+
+impl RequestContext<'_, '_> {
+    pub fn get_tree(&self) -> LazyTree<SignedFile, StagedTree<SignedFile, Base, Local>> {
+        StagedDbFiles::from_tx(self.tx).get_tree()
     }
 }

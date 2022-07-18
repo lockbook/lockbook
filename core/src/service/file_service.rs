@@ -1,19 +1,11 @@
-use crate::model::repo::RepoSource;
-use crate::model::repo::RepoState;
-use crate::pure_functions::files;
-use crate::repo::document_repo;
-use crate::repo::schema::OneKey;
 use crate::service::file_compression_service;
-use crate::service::file_encryption_service;
 use crate::CoreError::RootNonexistent;
-use crate::{Config, CoreError, RequestContext};
+use crate::{Config, CoreError, OneKey, RequestContext};
 use itertools::Itertools;
 use lockbook_shared::crypto::DecryptedDocument;
 use lockbook_shared::crypto::EncryptedDocument;
-use lockbook_shared::file_metadata::{CoreFile, DecryptedFiles};
-use lockbook_shared::file_metadata::{EncryptedFiles, FileMetadata};
-use lockbook_shared::file_metadata::{FileDiff, FileType};
-use lockbook_shared::tree::{FileLike, FileMetaMapExt};
+use lockbook_shared::file::File;
+use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::utils;
 use sha2::Digest;
 use sha2::Sha256;
@@ -23,7 +15,7 @@ use uuid::Uuid;
 impl RequestContext<'_, '_> {
     pub fn create_file(
         &mut self, config: &Config, name: &str, parent: Uuid, file_type: FileType,
-    ) -> Result<CoreFile, CoreError> {
+    ) -> Result<File, CoreError> {
         self.get_not_deleted_metadata(RepoSource::Local, parent)?;
         let all_metadata = self.get_all_metadata(RepoSource::Local)?;
         let metadata =
@@ -32,7 +24,7 @@ impl RequestContext<'_, '_> {
         Ok(metadata)
     }
 
-    pub fn root_id(&self) -> Result<Uuid, CoreError> {
+    pub fn root_id(&self) -> Result<&Uuid, CoreError> {
         self.tx.root.get(&OneKey).ok_or(RootNonexistent)
     }
 

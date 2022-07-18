@@ -1,6 +1,4 @@
-use crate::crypto::ECSigned;
 use crate::file_like::FileLike;
-use crate::file_metadata::FileMetadata;
 use crate::signed_file::SignedFile;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
