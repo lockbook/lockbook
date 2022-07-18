@@ -1,6 +1,4 @@
 use crate::Tx;
-use hmdb::transaction::TransactionTable;
-use lockbook_shared::file_like::FileLike;
 use lockbook_shared::lazy::LazyTree;
 use lockbook_shared::server_file::ServerFile;
 use lockbook_shared::signed_file::SignedFile;

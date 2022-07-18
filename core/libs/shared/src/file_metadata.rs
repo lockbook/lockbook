@@ -12,7 +12,7 @@ use uuid::Uuid;
 use crate::access_info::{EncryptedFolderAccessKey, UserAccessInfo};
 use crate::account::{Account, Username};
 use crate::clock::get_time;
-use crate::crypto::ECSigned;
+use crate::crypto::{AESKey, ECSigned};
 use crate::file_like::FileLike;
 use crate::secret_filename::SecretFileName;
 use crate::signed_file::SignedFile;
@@ -45,6 +45,24 @@ impl FileMetadata {
             is_deleted: false,
             user_access_keys: UserAccessInfo::encrypt(&account, &pub_key, &key)?,
             folder_access_keys: symkey::encrypt(&key, &key)?,
+        })
+    }
+
+    pub fn create(
+        pub_key: &PublicKey, parent: Uuid, parent_key: &AESKey, name: &str, file_type: FileType,
+    ) -> SharedResult<Self> {
+        let id = Uuid::new_v4();
+        let key = symkey::generate_key();
+
+        Ok(FileMetadata {
+            id,
+            file_type,
+            parent,
+            name: SecretFileName::from_str(name, parent_key)?,
+            owner: Owner(*pub_key),
+            is_deleted: false,
+            user_access_keys: Default::default(),
+            folder_access_keys: symkey::encrypt(parent_key, &key)?,
         })
     }
 

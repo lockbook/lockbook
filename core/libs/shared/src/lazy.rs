@@ -1,8 +1,8 @@
 use crate::account::Account;
 use crate::crypto::AESKey;
 use crate::file_like::FileLike;
-use crate::tree_like::{TreeError, TreeLike};
-use crate::{pubkey, symkey};
+use crate::tree_like::TreeLike;
+use crate::{pubkey, symkey, SharedError, SharedResult};
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use uuid::Uuid;
@@ -28,7 +28,7 @@ impl<F: FileLike, T: TreeLike<F>> LazyTree<F, T> {
 }
 
 impl<F: FileLike, T: TreeLike<F>> LazyTree<F, T> {
-    pub fn calculate_deleted(&mut self, id: Uuid) -> Result<bool, TreeError> {
+    pub fn calculate_deleted(&mut self, id: Uuid) -> SharedResult<bool> {
         let (visited_ids, deleted) = {
             let mut file = self.find(id)?;
             let mut visited_ids = vec![];
@@ -59,7 +59,7 @@ impl<F: FileLike, T: TreeLike<F>> LazyTree<F, T> {
         Ok(deleted)
     }
 
-    pub fn decrypt_key(&mut self, id: Uuid, account: &Account) -> Result<AESKey, TreeError> {
+    pub fn decrypt_key(&mut self, id: Uuid, account: &Account) -> SharedResult<AESKey> {
         let mut file_id = self.find(id)?.id();
         let mut visited_ids = vec![];
 
@@ -74,8 +74,8 @@ impl<F: FileLike, T: TreeLike<F>> LazyTree<F, T> {
                 .get(&account.username)
             {
                 let user_access_key =
-                    pubkey::get_aes_key(&account.private_key, &user_access.encrypted_by).unwrap();
-                let file_key = symkey::decrypt(&user_access_key, &user_access.access_key).unwrap();
+                    pubkey::get_aes_key(&account.private_key, &user_access.encrypted_by)?;
+                let file_key = symkey::decrypt(&user_access_key, &user_access.access_key)?;
                 Some(file_key)
             } else {
                 None
@@ -93,18 +93,24 @@ impl<F: FileLike, T: TreeLike<F>> LazyTree<F, T> {
             let decrypted_key = {
                 let file = self.find(*id)?;
                 let parent = self.find_parent(&file)?;
-                let parent_key = self.key_by_id.get(&parent.id()).unwrap();
+                let parent_key =
+                    self.key_by_id
+                        .get(&parent.id())
+                        .ok_or(SharedError::Unexpected(
+                            "parent key should have been populated by prior routine",
+                        ))?;
                 let encrypted_key = file.folder_access_keys();
-                let decrypted_key = symkey::decrypt(&parent_key, encrypted_key).unwrap();
-                decrypted_key
+                symkey::decrypt(parent_key, encrypted_key)?
             };
             self.key_by_id.insert(*id, decrypted_key);
         }
 
-        Ok(*self.key_by_id.get(&id).unwrap())
+        Ok(*self.key_by_id.get(&id).ok_or(SharedError::Unexpected(
+            "parent key should have been populated by prior routine (2)",
+        ))?)
     }
 
-    pub fn name(&mut self, id: Uuid, account: &Account) -> Result<String, TreeError> {
+    pub fn name(&mut self, id: Uuid, account: &Account) -> SharedResult<String> {
         if let Some(name) = self.name_by_id.get(&id) {
             return Ok(name.clone());
         }
@@ -112,19 +118,14 @@ impl<F: FileLike, T: TreeLike<F>> LazyTree<F, T> {
         let parent_id = self.find(id)?.parent();
         let parent_key = self.decrypt_key(parent_id, account)?;
 
-        let name = self.find(id)?.secret_name().to_string(&parent_key).unwrap();
+        let name = self.find(id)?.secret_name().to_string(&parent_key)?;
         self.name_by_id.insert(id, name.clone());
         Ok(name)
     }
 
-    pub fn validate(&mut self) -> Result<(), ValidationError> {
+    pub fn validate(&mut self) -> SharedResult<()> {
         Ok(())
     }
-}
-
-#[derive(Debug)]
-pub enum ValidationError {
-    Todo,
 }
 
 impl<F: FileLike, T: TreeLike<F>> TreeLike<F> for LazyTree<F, T> {

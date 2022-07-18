@@ -27,6 +27,9 @@ type SharedResult<T> = Result<T, SharedError>;
 
 #[derive(Debug)]
 pub enum SharedError {
+    RootNonexistent,
+    FileNonexistent,
+    FileParentNonexistent,
     SignatureInvalid,
     WrongPublicKey,
     SignatureInTheFuture(u64),
@@ -40,4 +43,5 @@ pub enum SharedError {
     ParseError(libsecp256k1::Error),
     SharedSecretUnexpectedSize,
     SharedSecretError(libsecp256k1::Error),
+    Unexpected(&'static str),
 }
