@@ -7,7 +7,7 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ServerFile {
-    pub file: ECSigned<FileMetadata>,
+    pub file: SignedFile,
     pub metadata_version: u64,
     pub content_version: u64,
 }
