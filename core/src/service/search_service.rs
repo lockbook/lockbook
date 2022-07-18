@@ -1,8 +1,10 @@
+use crate::model::filename::DocumentType;
 use crate::model::repo::RepoSource;
 use crate::{CoreError, RequestContext, UnexpectedError};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use lockbook_models::file_metadata::{DecryptedFiles, FileType};
+use lockbook_models::file_metadata::DecryptedFiles;
+use lockbook_models::tree::FileMetadata;
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::sync::atomic::AtomicBool;
@@ -20,8 +22,6 @@ const LOWEST_CONTENT_SCORE_THRESHOLD: i64 = 170;
 const MAX_CONTENT_MATCH_LENGTH: usize = 400;
 const IDEAL_CONTENT_MATCH_LENGTH: usize = 150;
 const CONTENT_MATCH_PADDING: usize = 8;
-
-const QUERIED_EXTENSIONS: [&str; 2] = [".md", ".txt"];
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct SearchResultItem {
@@ -77,19 +77,15 @@ impl RequestContext<'_, '_> {
         let mut files_info = Vec::new();
 
         for file in files_not_deleted.values() {
-            if file.file_type == FileType::Document {
-                let content = if QUERIED_EXTENSIONS
-                    .iter()
-                    .any(|extension| file.decrypted_name.as_str().ends_with(extension))
-                {
-                    Some(String::from(String::from_utf8_lossy(&self.read_document(
-                        self.config,
-                        RepoSource::Local,
-                        file.id,
-                    )?)))
-                } else {
-                    None
-                };
+            if file.is_document() {
+                let content =
+                    match DocumentType::from_file_name_using_extension(&file.decrypted_name) {
+                        DocumentType::Text => self
+                            .read_document(self.config, RepoSource::Local, file.id)
+                            .map(|content| String::from(String::from_utf8_lossy(content.as_ref())))
+                            .map(Some)?,
+                        _ => None,
+                    };
 
                 files_info.push(SearchableFileInfo {
                     id: file.id,
@@ -100,7 +96,7 @@ impl RequestContext<'_, '_> {
         }
 
         Ok(thread::spawn(move || {
-            if let Err(search_err) = Self::search(&results_tx, search_rx, Arc::new(files_info)) {
+            if let Err(search_err) = Self::search(&results_tx, search_rx, files_info) {
                 if let Err(err) = results_tx.send(SearchResult::Error(search_err)) {
                     warn!("Send failed: {:#?}", err);
                 }
@@ -110,90 +106,77 @@ impl RequestContext<'_, '_> {
 
     fn search(
         results_tx: &Sender<SearchResult>, search_rx: Receiver<SearchRequest>,
-        files_info: Arc<Vec<SearchableFileInfo>>,
+        files_info: Vec<SearchableFileInfo>,
     ) -> Result<(), UnexpectedError> {
-        let mut last_search = match search_rx.recv() {
-            Ok(last_search) => last_search,
-            Err(_) => return Ok(()),
-        };
-
+        let files_info = Arc::new(files_info);
         let mut should_continue = Arc::new(AtomicBool::new(true));
-
-        match &last_search {
-            SearchRequest::Search { input } => {
-                RequestContext::spawn_search(
-                    results_tx.clone(),
-                    files_info.clone(),
-                    should_continue.clone(),
-                    input.clone(),
-                );
-            }
-            SearchRequest::EndSearch => return Ok(()),
-            SearchRequest::StopCurrentSearch => {}
-        };
-
-        let mut skip_channel_check = false;
+        let mut last_search = None;
 
         loop {
-            if !skip_channel_check {
-                last_search = match search_rx.recv() {
-                    Ok(last_search) => last_search,
-                    Err(_) => return Ok(()),
-                };
-
-                should_continue.store(false, atomic::Ordering::Relaxed);
-            } else {
-                skip_channel_check = false;
-            }
+            let search = match last_search {
+                None => match search_rx.try_iter().last() {
+                    Some(search) => search,
+                    None => match search_rx.recv() {
+                        Ok(search) => search,
+                        Err(_) => return Ok(()),
+                    },
+                },
+                Some(search) => {
+                    last_search = None;
+                    search
+                }
+            };
 
             thread::sleep(Duration::from_millis(DEBOUNCE_MILLIS));
 
-            if let Some(search) = search_rx.try_iter().last() {
-                last_search = search;
-                skip_channel_check = true;
-                continue;
-            }
+            match search_rx.try_iter().last() {
+                None => {
+                    match &search {
+                        SearchRequest::Search { input } => {
+                            should_continue.store(false, atomic::Ordering::Relaxed);
+                            should_continue = Arc::new(AtomicBool::new(true));
 
-            match &last_search {
-                SearchRequest::Search { input } => {
-                    should_continue = Arc::new(AtomicBool::new(true));
+                            let results_tx = results_tx.clone();
+                            let files_info = files_info.clone();
+                            let should_continue = should_continue.clone();
+                            let input = input.clone();
 
-                    RequestContext::spawn_search(
-                        results_tx.clone(),
-                        files_info.clone(),
-                        should_continue.clone(),
-                        input.clone(),
-                    );
+                            thread::spawn(move || {
+                                if let Err(search_err) = RequestContext::search_loop(
+                                    &results_tx,
+                                    files_info,
+                                    should_continue,
+                                    input,
+                                ) {
+                                    if let Err(err) =
+                                        results_tx.send(SearchResult::Error(search_err))
+                                    {
+                                        warn!("Send failed: {:#?}", err);
+                                    }
+                                }
+                            });
+                        }
+                        SearchRequest::EndSearch => return Ok(()),
+                        SearchRequest::StopCurrentSearch => {
+                            should_continue.store(false, atomic::Ordering::Relaxed)
+                        }
+                    };
                 }
-                SearchRequest::EndSearch => return Ok(()),
-                SearchRequest::StopCurrentSearch => {}
-            };
+                Some(search) => {
+                    last_search = Some(search);
+                }
+            }
         }
     }
 
-    fn spawn_search(
-        results_tx: Sender<SearchResult>, files_info: Arc<Vec<SearchableFileInfo>>,
-        should_continue: Arc<AtomicBool>, input: String,
-    ) {
-        thread::spawn(move || {
-            if let Err(search_err) =
-                RequestContext::search_loop(results_tx.clone(), files_info, should_continue, input)
-            {
-                if let Err(err) = results_tx.send(SearchResult::Error(search_err)) {
-                    warn!("Send failed: {:#?}", err);
-                }
-            }
-        });
-    }
-
     fn search_loop(
-        results_tx: Sender<SearchResult>, files_info: Arc<Vec<SearchableFileInfo>>,
+        results_tx: &Sender<SearchResult>, files_info: Arc<Vec<SearchableFileInfo>>,
         should_continue: Arc<AtomicBool>, search: String,
     ) -> Result<(), UnexpectedError> {
         let mut no_matches = true;
 
         RequestContext::search_file_names(
-            &results_tx,
+            results_tx,
             &should_continue,
             &files_info,
             &search,
@@ -202,7 +185,7 @@ impl RequestContext<'_, '_> {
 
         if should_continue.load(atomic::Ordering::Relaxed) {
             RequestContext::search_file_contents(
-                &results_tx,
+                results_tx,
                 &should_continue,
                 &files_info,
                 &search,
