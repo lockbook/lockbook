@@ -19,41 +19,41 @@ class EditTextModel(
         changeListener = EditTextChangeListener()
     }
 
-    private val canUndo get() = editHistory.position > 0
-    private val canRedo get() = editHistory.position < editHistory.history.size
+    private val canUndo get() = editHistory.position >= 0
+    private val canRedo get() = editHistory.position < editHistory.history.size - 1
 
     fun addTextChangeListener() {
         editText.addTextChangedListener(changeListener)
     }
 
     fun undo() {
-        val change = editHistory.previous ?: return
-        val text = editText.editableText
+        val change = editHistory.previous
 
         val start = change.start
-        val end = start + (change.after?.length ?: 0)
+        val end = start + change.after.length
+        val newEnd = start + change.before.length
 
         isUndoRedo = true
-        text.replace(start, end, change.before)
+        editText.editableText.replace(start, end, change.before)
         isUndoRedo = false
 
-        editText.setSelection(start + (change.before?.length ?: 0))
+        editText.setSelection(newEnd)
 
         updateUndoRedoButtons()
     }
 
     fun redo() {
-        val change = editHistory.next ?: return
-        val text = editText.editableText
+        val change = editHistory.next
 
         val start = change.start
-        val end = start + (change.before?.length ?: 0)
+        val end = start + change.before.length
+        val newEnd = start + change.after.length
 
         isUndoRedo = true
-        text.replace(start, end, change.after)
+        editText.editableText.replace(start, end, change.after)
         isUndoRedo = false
 
-        editText.setSelection(start + (change.after?.length ?: 0))
+        editText.setSelection(newEnd)
 
         updateUndoRedoButtons()
     }
@@ -64,61 +64,53 @@ class EditTextModel(
     }
 
     class EditHistory {
-        var position = 0
+        var position = -1
         val history = mutableListOf<EditItem>()
         var isDirty = false
 
         fun add(item: EditItem) {
-            while (history.size > position) {
+            while (history.size - 1 > position) {
                 history.removeLast()
             }
 
-            history.add(item)
-            position++
-
-            while (history.size > MAX_HISTORY_SIZE) {
+            if (position + 1 < MAX_HISTORY_SIZE) {
+                position++
+                history.add(item)
+            } else {
                 history.removeFirst()
-                position--
-            }
-
-            if (position < 0) {
-                position = 0
+                history.add(item)
             }
         }
 
-        val previous: EditItem?
+        val previous: EditItem
             get() {
-                if (position == 0) {
-                    return null
-                }
+                val previous = history[position]
                 position--
-                return history[position]
+
+                return previous
             }
 
-        val next: EditItem?
+        val next: EditItem
             get() {
-                if (position >= history.size - 1) {
-                    return null
-                }
-
                 position++
+
                 return history[position]
             }
 
         companion object {
-            const val MAX_HISTORY_SIZE: Int = 30
+            const val MAX_HISTORY_SIZE: Int = 100
         }
     }
 
     inner class EditItem(
         val start: Int,
-        val before: CharSequence?,
-        val after: CharSequence?
+        val before: CharSequence,
+        val after: CharSequence
     )
 
     private inner class EditTextChangeListener : TextWatcher {
-        private var beforeChange: CharSequence? = null
-        private var afterChange: CharSequence? = null
+        private lateinit var beforeChange: CharSequence
+        private lateinit var afterChange: CharSequence
 
         override fun beforeTextChanged(
             s: CharSequence, start: Int, count: Int,
