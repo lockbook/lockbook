@@ -75,11 +75,11 @@ class EditTextModel(
 
             if (position + 1 < MAX_HISTORY_SIZE) {
                 position++
-                history.add(item)
             } else {
                 history.removeFirst()
-                history.add(item)
             }
+
+            history.add(item)
         }
 
         val previous: EditItem
