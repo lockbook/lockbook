@@ -1,6 +1,6 @@
+use crate::model::drawing;
 use crate::model::errors::{TestRepoError, Warning};
 use crate::model::repo::RepoSource;
-use crate::pure_functions::drawing;
 use crate::service::file_service;
 use crate::service::integrity_service::TestRepoError::DocumentReadError;
 use crate::{Config, OneKey, RequestContext};

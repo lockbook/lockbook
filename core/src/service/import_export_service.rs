@@ -1,4 +1,3 @@
-use crate::model::filename::NameComponents;
 use crate::model::repo::RepoSource;
 use crate::{Config, CoreError, RequestContext};
 use lockbook_shared::file_metadata::{CoreFile, DecryptedFiles, FileType};

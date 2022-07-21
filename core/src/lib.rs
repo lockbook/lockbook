@@ -5,7 +5,6 @@ extern crate tracing;
 extern crate core;
 
 pub mod model;
-pub mod pure_functions;
 pub mod repo;
 pub mod service;
 

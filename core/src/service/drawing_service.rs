@@ -1,13 +1,17 @@
 use std::collections::HashMap;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::path::Path;
 
 use uuid::Uuid;
 
 use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing};
 
+use crate::model::drawing;
+use crate::model::drawing::SupportedImageFormats;
 use crate::model::errors::CoreError;
 use crate::model::repo::RepoSource;
-use crate::pure_functions::drawing::SupportedImageFormats;
-use crate::pure_functions::{drawing, files};
+use crate::pure_functions::files;
 use crate::service::file_service;
 use crate::{Config, RequestContext};
 
@@ -45,6 +49,17 @@ impl RequestContext<'_, '_> {
         let drawing_bytes =
             file_service::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
         let exported_drawing_bytes = drawing::export_drawing(&drawing_bytes, format, render_theme)?;
-        files::save_document_to_disk(&exported_drawing_bytes, location.to_string())
+        save_document_to_disk(&exported_drawing_bytes, location.to_string())
+    }
+
+    fn save_document_to_disk(document: &[u8], location: String) -> Result<(), CoreError> {
+        OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(Path::new(&location))
+            .map_err(CoreError::from)?
+            .write_all(document)
+            .map_err(CoreError::from)?;
+        Ok(())
     }
 }

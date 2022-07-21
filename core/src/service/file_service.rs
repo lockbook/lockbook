@@ -58,8 +58,9 @@ impl RequestContext<'_, '_> {
     /// Adds or updates the content of a document on disk.
     /// Disk optimization opportunity: this function needlessly writes to disk when setting local content = base content.
     pub fn insert_document(
-        &mut self, tree: &mut AllFiles, source: RepoSource, id: Uuid, document: &[u8],
+        &mut self, source: RepoSource, id: Uuid, document: &[u8],
     ) -> Result<(), CoreError> {
+        let mut tree = self.tree();
         let account = self.get_account()?;
         let config = self.config;
         // check that document exists and is a document
@@ -163,17 +164,13 @@ impl RequestContext<'_, '_> {
 
         // remove files from disk
         for id in deleted_both_without_deleted_descendants_ids {
-            self.delete_metadata(id);
+            self.tx.local_metadata.delete(id);
+            self.tx.base_metadata.delete(id);
             if all_local_metadata.find_ref(id)?.is_document() {
                 self.delete_document(config, id)?;
             }
         }
         Ok(())
-    }
-
-    fn delete_metadata(&mut self, id: Uuid) {
-        self.tx.local_metadata.delete(id);
-        self.tx.base_metadata.delete(id);
     }
 
     fn delete_document(&mut self, config: &Config, id: Uuid) -> Result<(), CoreError> {

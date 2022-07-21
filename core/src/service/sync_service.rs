@@ -12,11 +12,13 @@ use lockbook_shared::api::{
 use lockbook_shared::clock::get_time;
 use lockbook_shared::crypto::DecryptedDocument;
 use lockbook_shared::file_metadata::{CoreFile, DecryptedFiles, EncryptedFiles, FileType};
+use lockbook_shared::filename::NameComponents;
 use lockbook_shared::tree::{FileLike, FileMetaMapExt};
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fmt;
+use uuid::Uuid;
 
 use super::file_compression_service;
 
@@ -729,5 +731,30 @@ impl RequestContext<'_, '_> {
         }
 
         Ok(WorkCalculated { work_units, most_recent_update_from_server: last_sync })
+    }
+}
+
+pub fn suggest_non_conflicting_filename(
+    id: Uuid, files: &DecryptedFiles, staged_changes: &DecryptedFiles,
+) -> Result<String, CoreError> {
+    let files: DecryptedFiles = files
+        .stage_with_source(staged_changes)
+        .into_iter()
+        .map(|(id, (f, _))| (id, f))
+        .collect::<DecryptedFiles>();
+
+    let file = files.find(id)?;
+    let sibblings = files.find_children(file.parent);
+
+    let mut new_name = NameComponents::from(&file.decrypted_name).generate_next();
+    loop {
+        if !sibblings
+            .values()
+            .any(|f| f.decrypted_name == new_name.to_name())
+        {
+            return Ok(new_name.to_name());
+        } else {
+            new_name = new_name.generate_next();
+        }
     }
 }
