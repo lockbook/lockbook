@@ -213,18 +213,6 @@ impl Core {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn save_document_to_disk(
-        &self, id: Uuid, location: &str,
-    ) -> Result<(), Error<SaveDocumentToDiskError>> {
-        let val = self.db.transaction(|tx| {
-            self.context(tx)?
-                .save_document_to_disk(&self.config, id, location)
-        })?;
-
-        Ok(val?)
-    }
-
-    #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn list_metadatas(&self) -> Result<Vec<CoreFile>, UnexpectedError> {
         let val = self
             .db

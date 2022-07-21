@@ -263,4 +263,7 @@
     <string name="recent_documents">Recent Documents</string>
     <string name="recent_file_icon">Recent file icon</string>
     <string name="recent_files_folder">%s/</string>
+    <string name="exit_app">Exit App</string>
+
+    <string name="note">note</string>
 </resources>

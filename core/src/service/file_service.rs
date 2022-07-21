@@ -211,13 +211,6 @@ impl RequestContext<'_, '_> {
         }
     }
 
-    pub fn save_document_to_disk(
-        &mut self, config: &Config, id: Uuid, location: &str,
-    ) -> Result<(), CoreError> {
-        let document = self.read_document(config, RepoSource::Local, id)?;
-        files::save_document_to_disk(&document, location.to_string())
-    }
-
     pub fn get_all_with_document_changes(
         &mut self, config: &Config,
     ) -> Result<Vec<Uuid>, CoreError> {

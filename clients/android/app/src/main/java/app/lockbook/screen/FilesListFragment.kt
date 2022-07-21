@@ -171,6 +171,11 @@ class FilesListFragment : Fragment(), FilesFragment {
             binding.fabSpeedDial.close()
             true
         }
+        binding.fabSpeedDial.mainFab.setOnLongClickListener { view ->
+            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            model.generateQuickNote(activityModel)
+            true
+        }
 
         binding.listFilesRefresh.setOnRefreshListener {
             model.onSwipeToRefresh()
@@ -338,6 +343,17 @@ class FilesListFragment : Fragment(), FilesFragment {
                     } else {
                         description.visibility = View.GONE
                     }
+
+                    val extensionHelper = ExtensionHelper(item.fileMetadata.decryptedName)
+
+                    val iconResource = when {
+                        extensionHelper.isDrawing -> R.drawable.ic_outline_draw_24
+                        extensionHelper.isImage -> R.drawable.ic_outline_image_24
+                        extensionHelper.isPdf -> R.drawable.ic_outline_picture_as_pdf_24
+                        else -> R.drawable.ic_outline_insert_drive_file_24
+                    }
+
+                    icon.setImageResource(iconResource)
 
                     when {
                         isSelected() -> {
