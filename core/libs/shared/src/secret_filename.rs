@@ -19,7 +19,7 @@ pub struct SecretFileName {
 
 impl SecretFileName {
     pub fn from_str(to_encrypt: &str, key: &AESKey) -> SharedResult<Self> {
-        let serialized = bincode::serialize(to_encrypt).map_err(SharedError::Serialization)?;
+        let serialized = bincode::serialize(to_encrypt)?;
 
         let hmac = {
             let mut mac =
@@ -48,8 +48,7 @@ impl SecretFileName {
         let decrypted = convert_key(key)
             .decrypt(nonce, aead::Payload { msg: &self.encrypted_value.value, aad: &[] })
             .map_err(SharedError::Decryption)?;
-        let deserialized =
-            bincode::deserialize(&decrypted).map_err(SharedError::Deserialization)?;
+        let deserialized = bincode::deserialize(&decrypted)?;
 
         let mut mac = HmacSha256::new_from_slice(key).map_err(SharedError::HmacCreationError)?;
         mac.update(decrypted.as_ref());

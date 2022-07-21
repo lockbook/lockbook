@@ -1,5 +1,3 @@
-use libsecp256k1::PublicKey;
-
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -7,94 +5,10 @@ use std::path::Path;
 
 use uuid::Uuid;
 
-use lockbook_shared::account::Account;
-use lockbook_shared::crypto::ECSigned;
-use lockbook_shared::file_metadata::{CoreFile, DecryptedFiles, FileMetadata, FileType, Owner};
-use lockbook_shared::symkey;
-use lockbook_shared::tree::{FileLike, FileMetaMapExt, FileMetaVecExt};
+use lockbook_shared::file_metadata::{DecryptedFiles, FileMetadata, FileType, Owner};
+use lockbook_shared::validate::{file_name, not_root};
 
-use crate::model::filename::NameComponents;
-use crate::service::file_encryption_service;
 use crate::{model::repo::RepoState, CoreError};
-
-/// Validates a rename operation for a file in the context of all files and returns a version of the file with the operation applied. This is a pure function.
-pub fn apply_rename(
-    files: &DecryptedFiles, target_id: Uuid, new_name: &str,
-) -> Result<CoreFile, CoreError> {
-    let mut file = files.find(target_id)?;
-    validate_not_root(&file)?;
-    validate_file_name(new_name)?;
-
-    file.decrypted_name = String::from(new_name);
-    if !files
-        .get_path_conflicts(&[file.clone()].to_map())?
-        .is_empty()
-    {
-        return Err(CoreError::PathTaken);
-    }
-
-    Ok(file)
-}
-
-/// Validates a move operation for a file in the context of all files and returns a version of the file with the operation applied. This is a pure function.
-pub fn apply_move(
-    files: &DecryptedFiles, target_id: Uuid, new_parent: Uuid,
-) -> Result<CoreFile, CoreError> {
-    let mut file = files.find(target_id)?;
-    let parent = files
-        .maybe_find(new_parent)
-        .ok_or(CoreError::FileParentNonexistent)?;
-    validate_not_root(&file)?;
-    validate_is_folder(&parent)?;
-
-    file.parent = new_parent;
-    let staged_changes = HashMap::with(file.clone());
-    if !files.get_invalid_cycles(&staged_changes)?.is_empty() {
-        return Err(CoreError::FolderMovedIntoSelf);
-    }
-    if !files.get_path_conflicts(&staged_changes)?.is_empty() {
-        return Err(CoreError::PathTaken);
-    }
-
-    Ok(file)
-}
-
-/// Validates a delete operation for a file in the context of all files and returns a version of the
-/// file with the operation applied. This is a pure function.
-pub fn apply_delete(files: &DecryptedFiles, target_id: Uuid) -> Result<CoreFile, CoreError> {
-    let mut file = files.find(target_id)?;
-    validate_not_root(&file)?;
-
-    file.deleted = true;
-
-    Ok(file)
-}
-
-fn validate_not_root(file: &CoreFile) -> Result<(), CoreError> {
-    if file.id != file.parent {
-        Ok(())
-    } else {
-        Err(CoreError::RootModificationInvalid)
-    }
-}
-
-fn validate_is_folder(file: &CoreFile) -> Result<(), CoreError> {
-    if file.is_folder() {
-        Ok(())
-    } else {
-        Err(CoreError::FileNotFolder)
-    }
-}
-
-fn validate_file_name(name: &str) -> Result<(), CoreError> {
-    if name.is_empty() {
-        return Err(CoreError::FileNameEmpty);
-    }
-    if name.contains('/') {
-        return Err(CoreError::FileNameContainsSlash);
-    }
-    Ok(())
-}
 
 pub fn suggest_non_conflicting_filename(
     id: Uuid, files: &DecryptedFiles, staged_changes: &DecryptedFiles,

@@ -18,7 +18,7 @@ pub fn generate_key() -> AESKey {
 pub fn encrypt<T: Serialize + DeserializeOwned>(
     key: &AESKey, to_encrypt: &T,
 ) -> SharedResult<AESEncrypted<T>> {
-    let serialized = bincode::serialize(to_encrypt).map_err(SharedError::Serialization)?;
+    let serialized = bincode::serialize(to_encrypt)?;
     let nonce = &generate_nonce();
     let encrypted = convert_key(key)
         .encrypt(GenericArray::from_slice(nonce), aead::Payload { msg: &serialized, aad: &[] })
@@ -30,7 +30,7 @@ pub fn decrypt<T: DeserializeOwned>(key: &AESKey, to_decrypt: &AESEncrypted<T>) 
     let decrypted = convert_key(key)
         .decrypt(nonce, aead::Payload { msg: &to_decrypt.value, aad: &[] })
         .map_err(SharedError::Decryption)?;
-    let deserialized = bincode::deserialize(&decrypted).map_err(SharedError::Deserialization)?;
+    let deserialized = bincode::deserialize(&decrypted)?;
     Ok(deserialized)
 }
 

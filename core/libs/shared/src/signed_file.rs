@@ -1,7 +1,7 @@
 use crate::crypto::ECSigned;
 use crate::file_like::FileLike;
 use crate::file_metadata::FileMetadata;
-use crate::tree_like::TreeLike;
+use crate::tree_like::{Stagable, TreeLike};
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
@@ -28,4 +28,15 @@ impl TreeLike<SignedFile> for SignedFile {
             None
         }
     }
+
+    fn insert(&mut self, f: SignedFile) -> Option<SignedFile> {
+        *self = f;
+        None
+    }
+
+    fn remove(&mut self, id: Uuid) -> Option<SignedFile> {
+        unimplemented!()
+    }
 }
+
+impl Stagable<SignedFile> for SignedFile {}

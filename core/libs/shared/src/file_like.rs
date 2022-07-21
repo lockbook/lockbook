@@ -8,7 +8,7 @@ use crate::staged::StagedFile;
 use std::collections::HashMap;
 use uuid::Uuid;
 
-pub trait FileLike {
+pub trait FileLike: PartialEq {
     fn id(&self) -> Uuid;
     fn file_type(&self) -> FileType;
     fn parent(&self) -> Uuid;
@@ -187,7 +187,7 @@ impl<'a, F: FileLike> FileLike for &'a F {
     }
 }
 
-impl<'a, Base: FileLike, Staged: FileLike> FileLike for StagedFile<Base, Staged> {
+impl<Base: FileLike, Staged: FileLike> FileLike for StagedFile<Base, Staged> {
     fn id(&self) -> Uuid {
         match self {
             StagedFile::Base(file) => file.id(),

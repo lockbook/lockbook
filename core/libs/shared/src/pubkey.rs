@@ -19,7 +19,7 @@ pub fn sign<T: Serialize>(
     sk: &SecretKey, to_sign: T, time_getter: TimeGetter,
 ) -> SharedResult<ECSigned<T>> {
     let timestamped = timestamp(to_sign, time_getter);
-    let serialized = bincode::serialize(&timestamped).map_err(SharedError::Serialization)?;
+    let serialized = bincode::serialize(&timestamped)?;
     let digest = Sha256::digest(&serialized);
     let message = &Message::parse_slice(&digest).map_err(SharedError::ParseError)?;
     let (signature, _) = libsecp256k1::sign(message, sk);
@@ -55,8 +55,7 @@ pub fn verify<T: Serialize>(
         ));
     }
 
-    let serialized =
-        bincode::serialize(&signed.timestamped_value).map_err(SharedError::Serialization)?;
+    let serialized = bincode::serialize(&signed.timestamped_value)?;
 
     let digest = Sha256::digest(&serialized).to_vec();
     let message = &Message::parse_slice(&digest).map_err(SharedError::ParseError)?;

@@ -6,8 +6,8 @@ use serde::{Serialize, Serializer};
 use strum_macros::EnumIter;
 use uuid::Uuid;
 
+use crate::CoreError::Unexpected;
 use lockbook_shared::api::{GetPublicKeyError, GetUpdatesError, NewAccountError};
-use lockbook_shared::tree::TreeError;
 use lockbook_shared::{api, SharedError};
 
 use crate::service::api_service::ApiError;
@@ -133,6 +133,19 @@ pub fn core_err_unexpected<T: std::fmt::Debug>(err: T) -> CoreError {
     CoreError::Unexpected(format!("{:#?}", err))
 }
 
+impl From<SharedError> for CoreError {
+    fn from(err: SharedError) -> Self {
+        use SharedError::*;
+        match err {
+            RootNonexistent => CoreError::RootNonexistent,
+            FileNonexistent => CoreError::FileNonexistent,
+            FileParentNonexistent => CoreError::FileParentNonexistent,
+            Unexpected(err) => CoreError::Unexpected(err.to_string()),
+            _ => CoreError::Unexpected(format!("unexpected shared error {:?}", err)),
+        }
+    }
+}
+
 impl From<hmdb::errors::Error> for CoreError {
     fn from(err: hmdb::errors::Error) -> Self {
         core_err_unexpected(err)
@@ -142,17 +155,6 @@ impl From<hmdb::errors::Error> for CoreError {
 impl<E: Serialize> From<hmdb::errors::Error> for Error<E> {
     fn from(err: hmdb::errors::Error) -> Self {
         Self::Unexpected(format!("{:#?}", err))
-    }
-}
-
-impl From<TreeError> for CoreError {
-    fn from(tree: TreeError) -> Self {
-        match tree {
-            TreeError::FileNonexistent => CoreError::FileNonexistent,
-            TreeError::FileParentNonexistent => CoreError::FileParentNonexistent,
-            TreeError::RootNonexistent => CoreError::RootNonexistent,
-            TreeError::Unexpected(err) => CoreError::Unexpected(err),
-        }
     }
 }
 
@@ -171,12 +173,6 @@ impl From<std::io::Error> for CoreError {
 impl From<serde_json::Error> for CoreError {
     fn from(err: serde_json::Error) -> Self {
         Self::Unexpected(format!("{err}"))
-    }
-}
-
-impl From<SharedError> for CoreError {
-    fn from(err: SharedError) -> Self {
-        Self::Unexpected(format!("{:?}", err))
     }
 }
 

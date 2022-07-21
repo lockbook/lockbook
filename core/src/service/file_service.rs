@@ -1,3 +1,5 @@
+use crate::model::repo::RepoSource;
+use crate::repo::document_repo;
 use crate::service::file_compression_service;
 use crate::CoreError::RootNonexistent;
 use crate::{Config, CoreError, OneKey, RequestContext};
@@ -5,7 +7,10 @@ use itertools::Itertools;
 use lockbook_shared::crypto::DecryptedDocument;
 use lockbook_shared::crypto::EncryptedDocument;
 use lockbook_shared::file::File;
+use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType;
+use lockbook_shared::lazy::LazyTree;
+use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::utils;
 use sha2::Digest;
 use sha2::Sha256;
@@ -14,86 +19,56 @@ use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
     pub fn create_file(
-        &mut self, config: &Config, name: &str, parent: Uuid, file_type: FileType,
+        &mut self, name: &str, parent: Uuid, file_type: FileType,
     ) -> Result<File, CoreError> {
-        self.get_not_deleted_metadata(RepoSource::Local, parent)?;
-        let all_metadata = self.get_all_metadata(RepoSource::Local)?;
-        let metadata =
-            files::apply_create(&all_metadata, file_type, parent, name, &self.get_public_key()?)?;
-        self.insert_metadatum(config, RepoSource::Local, &metadata)?;
-        Ok(metadata)
+        let pub_key = self.get_public_key()?;
+        let account = self.get_account()?;
+
+        let (mut tree, id) = self
+            .tree()
+            .create(parent, name, file_type, account, &pub_key)?;
+
+        let ui_file = tree.finalize(id, account)?;
+
+        Ok(ui_file)
+    }
+
+    pub fn rename_file(&mut self, id: Uuid, new_name: &str) -> Result<(), CoreError> {
+        let account = self.get_account()?;
+        self.tree().rename(id, new_name, account)?;
+        Ok(())
+    }
+
+    pub fn move_file(&mut self, id: Uuid, new_parent: Uuid) -> Result<(), CoreError> {
+        let account = self.get_account()?;
+        self.tree().move_file(id, new_parent, account)?;
+        Ok(())
+    }
+
+    pub fn delete(&mut self, id: Uuid) -> Result<(), CoreError> {
+        let account = self.get_account()?;
+        self.tree().delete(id, account)?;
+        Ok(())
     }
 
     pub fn root_id(&self) -> Result<&Uuid, CoreError> {
         self.tx.root.get(&OneKey).ok_or(RootNonexistent)
     }
 
-    pub fn root(&mut self) -> Result<CoreFile, CoreError> {
-        let root_id = self.root_id()?;
-        let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-        files.maybe_find(root_id).ok_or(RootNonexistent)
-    }
-
-    /// Adds or updates the metadata of a file on disk.
-    pub fn insert_metadatum(
-        &mut self, config: &Config, source: RepoSource, metadata: &CoreFile,
-    ) -> Result<(), CoreError> {
-        self.insert_metadata(config, source, &HashMap::from([(metadata.id, metadata.clone())]))
-    }
-
-    pub fn insert_metadata(
-        &mut self, config: &Config, source: RepoSource, metadata_changes: &DecryptedFiles,
-    ) -> Result<(), CoreError> {
-        let all_metadata = self.get_all_metadata(source)?;
-        self.insert_metadata_given_decrypted_metadata(source, &all_metadata, metadata_changes)?;
-        if source == RepoSource::Local {
-            self.insert_new_docs(config, &all_metadata, metadata_changes)?;
-        }
-        Ok(())
-    }
-
-    pub fn get_metadata(&mut self, source: RepoSource, id: Uuid) -> Result<CoreFile, CoreError> {
-        self.maybe_get_metadata(source, id)
-            .and_then(|f| f.ok_or(CoreError::FileNonexistent))
-    }
-
-    pub fn get_all_not_deleted_metadata(
-        &mut self, source: RepoSource,
-    ) -> Result<DecryptedFiles, CoreError> {
-        Ok(self.get_all_metadata(source)?.filter_not_deleted()?)
-    }
-
-    // TODO: should this even exist? Could impl get on a tx with a source and it will do the lookup
-    //       at that point in time
-    pub fn get_all_metadata(&mut self, source: RepoSource) -> Result<DecryptedFiles, CoreError> {
-        let account = self.get_account()?;
-        let base: EncryptedFiles = self.tx.base_metadata.get_all();
-        match source {
-            RepoSource::Base => file_encryption_service::decrypt_metadata(
-                &account,
-                &base,
-                &mut self.data_cache.key_cache,
-            ),
-            RepoSource::Local => {
-                let local: EncryptedFiles = self.tx.local_metadata.get_all();
-                let staged = base.stage(local);
-                file_encryption_service::decrypt_metadata(
-                    &account,
-                    &staged,
-                    &mut self.data_cache.key_cache,
-                )
-            }
-        }
-    }
-
     /// Adds or updates the content of a document on disk.
     /// Disk optimization opportunity: this function needlessly writes to disk when setting local content = base content.
-    /// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
     pub fn insert_document(
-        &mut self, config: &Config, source: RepoSource, metadata: &CoreFile, document: &[u8],
+        &mut self, tree: &mut AllFiles, source: RepoSource, id: Uuid, document: &[u8],
     ) -> Result<(), CoreError> {
+        let account = self.get_account()?;
+        let config = self.config;
         // check that document exists and is a document
-        self.get_metadata(RepoSource::Local, metadata.id)?;
+        let metadata = tree.find(id)?;
+
+        if tree.calculate_deleted(id)? {
+            return Err(CoreError::FileParentNonexistent);
+        }
+
         if metadata.is_folder() {
             return Err(CoreError::FileNotDocument);
         }
@@ -101,11 +76,10 @@ impl RequestContext<'_, '_> {
         // encrypt document and compute digest
         let digest = Sha256::digest(document);
         let compressed_document = file_compression_service::compress(document)?;
-        let encrypted_document =
-            file_encryption_service::encrypt_document(&compressed_document, metadata)?;
+        let encrypted_document = tree.encrypt_document(id, &compressed_document, account)?;
 
         // perform insertions
-        document_repo::insert(config, source, metadata.id, &encrypted_document)?;
+        document_repo::insert(self.config, source, metadata.id, &encrypted_document)?;
         match source {
             RepoSource::Local => {
                 self.tx.local_digest.insert(metadata.id, digest.to_vec());
@@ -129,130 +103,6 @@ impl RequestContext<'_, '_> {
         }
 
         Ok(())
-    }
-
-    /// Adds or updates the metadata of files on disk.
-    /// Disk optimization opportunity: this function needlessly writes to disk when setting local metadata = base metadata.
-    /// CPU optimization opportunity: this function needlessly decrypts all metadata rather than just ancestors of metadata parameter.
-    fn insert_metadata_given_decrypted_metadata(
-        &mut self, source: RepoSource, all_metadata: &DecryptedFiles,
-        metadata_changes: &DecryptedFiles,
-    ) -> Result<(), CoreError> {
-        // encrypt metadata
-        let account = self.get_account()?;
-        let all_metadata_with_changes_staged = all_metadata
-            .stage_with_source(metadata_changes)
-            .into_iter()
-            .map(|(id, (f, _))| (id, f))
-            .collect::<DecryptedFiles>();
-
-        let changes = metadata_changes.clone();
-        let mut parents = HashMap::new();
-
-        for (_, f) in changes.iter() {
-            let ancestors = files::find_ancestors(&all_metadata_with_changes_staged, f.parent);
-            parents.extend(ancestors);
-        }
-
-        let changes_and_parents = changes.into_iter().chain(parents.into_iter()).collect();
-        let necessary_metadata_encrypted = file_encryption_service::encrypt_metadata(
-            &account,
-            &self.get_public_key()?,
-            &changes_and_parents,
-        )?;
-
-        for (&id, metadatum) in metadata_changes {
-            let encrypted_metadata = necessary_metadata_encrypted.find(id)?;
-
-            // perform insertion
-            match source {
-                RepoSource::Local => {
-                    self.tx
-                        .local_metadata
-                        .insert(encrypted_metadata.id, encrypted_metadata.clone());
-                }
-                RepoSource::Base => {
-                    self.tx
-                        .base_metadata
-                        .insert(encrypted_metadata.id, encrypted_metadata.clone());
-                }
-            }
-
-            // remove local if local == base
-            let opposite_metadata = match source.opposite() {
-                RepoSource::Local => self.tx.local_metadata.get(&encrypted_metadata.id),
-                RepoSource::Base => self.tx.base_metadata.get(&encrypted_metadata.id),
-            };
-
-            if let Some(opposite) = opposite_metadata {
-                if utils::slices_equal(&opposite.name.hmac, &encrypted_metadata.name.hmac)
-                    && opposite.parent == metadatum.parent
-                    && opposite.is_deleted == metadatum.deleted
-                {
-                    self.tx.local_metadata.delete(id);
-                }
-            }
-
-            // update root
-            if metadatum.parent == id {
-                self.tx.root.insert(OneKey {}, id);
-            }
-        }
-
-        Ok(())
-    }
-
-    fn insert_new_docs(
-        &mut self, config: &Config, local_metadata: &DecryptedFiles,
-        metadata_changes: &DecryptedFiles,
-    ) -> Result<(), CoreError> {
-        for metadatum in metadata_changes.values() {
-            if metadatum.is_document() && local_metadata.maybe_find(metadatum.id).is_none() {
-                self.insert_document(config, RepoSource::Local, metadatum, &[])?;
-            }
-        }
-        Ok(())
-    }
-
-    pub fn maybe_get_metadata(
-        &mut self, source: RepoSource, id: Uuid,
-    ) -> Result<Option<CoreFile>, CoreError> {
-        let all_metadata = self.get_all_metadata(source)?;
-        Ok(all_metadata.maybe_find(id))
-    }
-
-    pub fn get_not_deleted_metadata(
-        &mut self, source: RepoSource, id: Uuid,
-    ) -> Result<CoreFile, CoreError> {
-        self.maybe_get_not_deleted_metadata(source, id)
-            .and_then(|f| f.ok_or(CoreError::FileNonexistent))
-    }
-
-    pub fn maybe_get_not_deleted_metadata(
-        &mut self, source: RepoSource, id: Uuid,
-    ) -> Result<Option<CoreFile>, CoreError> {
-        let all_not_deleted_metadata = self.get_all_not_deleted_metadata(source)?;
-        Ok(all_not_deleted_metadata.maybe_find(id))
-    }
-
-    pub fn get_children(&mut self, id: Uuid) -> Result<DecryptedFiles, CoreError> {
-        let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-        Ok(files.find_children(id))
-    }
-
-    pub fn get_and_get_children_recursively(
-        &mut self, id: Uuid,
-    ) -> Result<DecryptedFiles, CoreError> {
-        let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-        let file_and_descendants = files::find_with_descendants(&files, id)?;
-        Ok(file_and_descendants)
-    }
-
-    pub fn delete_file(&mut self, config: &Config, id: Uuid) -> Result<(), CoreError> {
-        let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-        let file = files::apply_delete(&files, id)?;
-        self.insert_metadatum(config, RepoSource::Local, &file)?;
-        self.prune_deleted(config)
     }
 
     /// Removes deleted files which are safe to delete. Call this function after a set of operations rather than in-between
@@ -366,22 +216,6 @@ impl RequestContext<'_, '_> {
     ) -> Result<(), CoreError> {
         let document = self.read_document(config, RepoSource::Local, id)?;
         files::save_document_to_disk(&document, location.to_string())
-    }
-
-    pub fn rename_file(
-        &mut self, config: &Config, id: Uuid, new_name: &str,
-    ) -> Result<(), CoreError> {
-        let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-        let file = files::apply_rename(&files, id, new_name)?;
-        self.insert_metadatum(config, RepoSource::Local, &file)
-    }
-
-    pub fn move_file(
-        &mut self, config: &Config, id: Uuid, new_parent: Uuid,
-    ) -> Result<(), CoreError> {
-        let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-        let file = files::apply_move(&files, id, new_parent)?;
-        self.insert_metadatum(config, RepoSource::Local, &file)
     }
 
     pub fn get_all_with_document_changes(
