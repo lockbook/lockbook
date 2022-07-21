@@ -46,6 +46,18 @@ impl<T> From<std::sync::mpsc::SendError<T>> for UnexpectedError {
     }
 }
 
+impl From<std::sync::mpsc::RecvError> for UnexpectedError {
+    fn from(err: std::sync::mpsc::RecvError) -> Self {
+        UnexpectedError(format!("{:#?}", err))
+    }
+}
+
+impl From<std::sync::mpsc::RecvTimeoutError> for UnexpectedError {
+    fn from(err: std::sync::mpsc::RecvTimeoutError) -> Self {
+        UnexpectedError(format!("{:#?}", err))
+    }
+}
+
 impl Serialize for UnexpectedError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
