@@ -149,7 +149,18 @@ impl<F: FileLike, T: Stagable<F>> LazyTree<F, T> {
     }
 
     pub fn stage<T2: Stagable<F>>(self, staged: T2) -> LazyTree<F, StagedTree<F, T, T2>> {
-        todo!()
+        // todo: optimize by performing minimal updates on self caches
+        LazyTree::<F, StagedTree::<F, T, T2>>{
+            tree: StagedTree::<F, T, T2>{
+                base: self.tree,
+                staged,
+                _f: Default::default(),
+            },
+            name_by_id: Default::default(),
+            key_by_id: self.key_by_id,
+            implicitly_deleted_by_id: Default::default(),
+            _f: Default::default(),
+        }
     }
 
     pub fn validate(&mut self) -> SharedResult<()> {
@@ -201,11 +212,12 @@ where
             }
         }
 
+        // todo: optimize by performing minimal updates on self caches
         LazyStaged1 {
             tree: base,
-            name_by_id: self.name_by_id,
+            name_by_id: Default::default(),
             key_by_id: self.key_by_id,
-            implicitly_deleted_by_id: self.implicitly_deleted_by_id,
+            implicitly_deleted_by_id: Default::default(),
             _f: Default::default(),
         }
     }
