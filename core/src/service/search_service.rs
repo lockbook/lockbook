@@ -336,8 +336,11 @@ impl RequestContext<'_, '_> {
 
                 index_offset = deleted_chars_len - 3;
 
-                new_paragraph = new_paragraph.chars().skip(deleted_chars_len).collect();
-                new_paragraph.insert_str(0, "...");
+                new_paragraph = new_paragraph
+                    .chars()
+                    .skip(deleted_chars_len)
+                    .chain("...".chars())
+                    .collect();
             }
 
             if new_paragraph.len() > IDEAL_CONTENT_MATCH_LENGTH + CONTENT_MATCH_PADDING + 3 {
@@ -349,14 +352,18 @@ impl RequestContext<'_, '_> {
                     IDEAL_CONTENT_MATCH_LENGTH - (last_match - index_offset)
                 };
 
-                new_paragraph = new_paragraph.chars().take(take_chars_len).collect();
-                new_paragraph.push_str("...");
+                new_paragraph = new_paragraph
+                    .chars()
+                    .take(take_chars_len)
+                    .chain("...".chars())
+                    .collect();
             }
 
             if new_paragraph.len() > MAX_CONTENT_MATCH_LENGTH {
                 new_paragraph = new_paragraph
                     .chars()
                     .take(MAX_CONTENT_MATCH_LENGTH)
+                    .chain("...".chars())
                     .collect();
 
                 new_indices = new_indices
