@@ -322,9 +322,8 @@ impl RequestContext<'_, '_> {
             new_paragraph = new_paragraph
                 .chars()
                 .take(IDEAL_CONTENT_MATCH_LENGTH + CONTENT_MATCH_PADDING)
+                .chain("...".chars())
                 .collect();
-
-            new_paragraph.push_str("...");
         } else {
             if *first_match > CONTENT_MATCH_PADDING as usize {
                 let at_least_take = new_paragraph.len() - first_match + CONTENT_MATCH_PADDING;
