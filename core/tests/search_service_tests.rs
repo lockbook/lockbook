@@ -1,6 +1,6 @@
+use crossbeam::channel::{Receiver, Sender};
 use lockbook_core::service::search_service::{SearchRequest, SearchResult, SearchResultItem};
 use std::collections::HashSet;
-use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 use test_utils::*;
@@ -86,8 +86,7 @@ fn test_async_name_matches() {
         .search_tx
         .send(SearchRequest::Search { input: "".to_string() })
         .unwrap();
-    thread::sleep(Duration::from_secs(1));
-    let result = start_search.results_rx.try_recv().unwrap();
+    let result = start_search.results_rx.recv().unwrap();
     match result {
         SearchResult::NoMatch => {}
         _ => panic!("There should be no matched search results, search_result: {:?}", result),

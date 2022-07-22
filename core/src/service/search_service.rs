@@ -1,6 +1,8 @@
 use crate::model::filename::DocumentType;
 use crate::model::repo::RepoSource;
 use crate::{CoreError, RequestContext, UnexpectedError};
+use crossbeam::channel;
+use crossbeam::channel::{Receiver, RecvTimeoutError, Sender};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use lockbook_models::file_metadata::DecryptedFiles;
@@ -8,8 +10,7 @@ use lockbook_models::tree::FileMetadata;
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::sync::atomic::AtomicBool;
-use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
-use std::sync::{atomic, mpsc, Arc};
+use std::sync::{atomic, Arc};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -93,8 +94,8 @@ impl RequestContext<'_, '_> {
             }
         }
 
-        let (search_tx, search_rx) = mpsc::channel::<SearchRequest>();
-        let (results_tx, results_rx) = mpsc::channel::<SearchResult>();
+        let (search_tx, search_rx) = channel::unbounded::<SearchRequest>();
+        let (results_tx, results_rx) = channel::unbounded::<SearchResult>();
         let join_handle = thread::spawn(move || {
             if let Err(search_err) = Self::search_loop(&results_tx, search_rx, files_info) {
                 if let Err(err) = results_tx.send(SearchResult::Error(search_err)) {
@@ -109,7 +110,7 @@ impl RequestContext<'_, '_> {
     fn recv_with_debounce(
         search_rx: &Receiver<SearchRequest>, debounce_duration: Duration,
     ) -> Result<SearchRequest, UnexpectedError> {
-        let mut result = search_rx.recv()?; // block and wait
+        let mut result = search_rx.recv()?;
 
         loop {
             match search_rx.recv_timeout(debounce_duration) {

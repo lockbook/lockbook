@@ -40,20 +40,20 @@ impl<T> From<std::sync::PoisonError<T>> for UnexpectedError {
     }
 }
 
-impl<T> From<std::sync::mpsc::SendError<T>> for UnexpectedError {
-    fn from(err: std::sync::mpsc::SendError<T>) -> Self {
+impl From<crossbeam::channel::RecvError> for UnexpectedError {
+    fn from(err: crossbeam::channel::RecvError) -> Self {
         UnexpectedError(format!("{:#?}", err))
     }
 }
 
-impl From<std::sync::mpsc::RecvError> for UnexpectedError {
-    fn from(err: std::sync::mpsc::RecvError) -> Self {
+impl From<crossbeam::channel::RecvTimeoutError> for UnexpectedError {
+    fn from(err: crossbeam::channel::RecvTimeoutError) -> Self {
         UnexpectedError(format!("{:#?}", err))
     }
 }
 
-impl From<std::sync::mpsc::RecvTimeoutError> for UnexpectedError {
-    fn from(err: std::sync::mpsc::RecvTimeoutError) -> Self {
+impl<T> From<crossbeam::channel::SendError<T>> for UnexpectedError {
+    fn from(err: crossbeam::channel::SendError<T>) -> Self {
         UnexpectedError(format!("{:#?}", err))
     }
 }
