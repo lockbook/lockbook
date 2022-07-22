@@ -22,7 +22,7 @@ impl<Base: FileLike, Staged: FileLike> Display for StagedFile<Base, Staged> {
 pub struct StagedTree<F: FileLike, Base: Stagable<F>, Staged: Stagable<F>> {
     pub base: Base,
     pub staged: Staged,
-    _f: PhantomData<F>,
+    pub _f: PhantomData<F>,
 }
 
 impl<F: FileLike, Base: Stagable<F>, Staged: Stagable<F>> StagedTree<F, Base, Staged> {
