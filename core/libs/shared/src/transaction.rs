@@ -5,11 +5,13 @@ use hmdb::transaction::TransactionTable;
 use std::collections::HashSet;
 use uuid::Uuid;
 
-impl<'a, F, Log> TreeLike<F> for TransactionTable<'a, Uuid, F, Log>
+impl<'a, F, Log> TreeLike for TransactionTable<'a, Uuid, F, Log>
 where
     F: FileLike + Clone,
     Log: SchemaEvent<Uuid, F>,
 {
+    type F = F;
+
     fn ids(&self) -> HashSet<&Uuid> {
         self.keys()
     }

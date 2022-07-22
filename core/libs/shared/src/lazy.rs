@@ -10,27 +10,25 @@ use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use uuid::Uuid;
 
-pub struct LazyTree<F: FileLike, T: Stagable<F>> {
+pub struct LazyTree<T: Stagable> {
     tree: T,
     name_by_id: HashMap<Uuid, String>,
     key_by_id: HashMap<Uuid, AESKey>,
     implicitly_deleted_by_id: HashMap<Uuid, bool>,
-    _f: PhantomData<F>,
 }
 
-impl<F: FileLike, T: Stagable<F>> LazyTree<F, T> {
+impl<T: Stagable> LazyTree<T> {
     pub fn new(tree: T) -> Self {
         Self {
             tree,
             name_by_id: HashMap::new(),
             key_by_id: HashMap::new(),
             implicitly_deleted_by_id: HashMap::new(),
-            _f: Default::default(),
         }
     }
 }
 
-impl<F: FileLike, T: Stagable<F>> LazyTree<F, T> {
+impl<T: Stagable> LazyTree<T> {
     pub fn calculate_deleted(&mut self, id: &Uuid) -> SharedResult<bool> {
         let (visited_ids, deleted) = {
             let mut file = self.find(id)?;
@@ -149,18 +147,13 @@ impl<F: FileLike, T: Stagable<F>> LazyTree<F, T> {
         Ok(File { id, parent, name, file_type })
     }
 
-    pub fn stage<T2: Stagable<F>>(self, staged: T2) -> LazyTree<F, StagedTree<F, T, T2>> {
+    pub fn stage<T2: Stagable<F = T::F>>(self, staged: T2) -> LazyTree<StagedTree<T, T2>> {
         // todo: optimize by performing minimal updates on self caches
-        LazyTree::<F, StagedTree::<F, T, T2>>{
-            tree: StagedTree::<F, T, T2>{
-                base: self.tree,
-                staged,
-                _f: Default::default(),
-            },
+        LazyTree::<StagedTree<T, T2>> {
+            tree: StagedTree::<T, T2> { base: self.tree, staged },
             name_by_id: Default::default(),
             key_by_id: self.key_by_id,
             implicitly_deleted_by_id: Default::default(),
-            _f: Default::default(),
         }
     }
 
@@ -169,10 +162,8 @@ impl<F: FileLike, T: Stagable<F>> LazyTree<F, T> {
     }
 }
 
-impl<Base: Stagable<SignedFile>, Local: Stagable<SignedFile>>
-    LazyTree<SignedFile, StagedTree<SignedFile, Base, Local>>
-{
-    pub fn get_changes(&self) -> SharedResult<Vec<&SignedFile>> {
+impl<Base: Stagable, Local: Stagable<F = Base::F>> LazyTree<StagedTree<Base, Local>> {
+    pub fn get_changes(&self) -> SharedResult<Vec<&Base::F>> {
         let base = self.tree.base.ids();
         let local = self.tree.staged.ids();
         let exists_both = local.iter().filter(|id| base.contains(**id));
@@ -191,20 +182,18 @@ impl<Base: Stagable<SignedFile>, Local: Stagable<SignedFile>>
     }
 }
 
-pub type Tree<F, T> = LazyTree<F, T>;
-pub type Stage1<F, Base, Local> = StagedTree<F, Base, Local>;
-pub type LazyStaged1<F, Base, Local> = LazyTree<F, Stage1<F, Base, Local>>;
-pub type Stage2<F, Base, Local, Staged> = StagedTree<F, StagedTree<F, Base, Local>, Staged>;
-pub type LazyStage2<F, Base, Local, Staged> = Tree<F, Stage2<F, Base, Local, Staged>>;
+pub type Stage1<Base, Local> = StagedTree<Base, Local>;
+pub type LazyStaged1<Base, Local> = LazyTree<Stage1<Base, Local>>;
+pub type Stage2<Base, Local, Staged> = StagedTree<StagedTree<Base, Local>, Staged>;
+pub type LazyStage2<Base, Local, Staged> = LazyTree<Stage2<Base, Local, Staged>>;
 
-impl<F, Base, Local, Staged> LazyStage2<F, Base, Local, Staged>
+impl<Base, Local, Staged> LazyStage2<Base, Local, Staged>
 where
-    F: FileLike,
-    Base: Stagable<F>,
-    Local: Stagable<F>,
-    Staged: Stagable<F>,
+    Base: Stagable,
+    Local: Stagable<F = Base::F>,
+    Staged: Stagable<F = Base::F>,
 {
-    pub fn promote(self) -> LazyStaged1<F, Base, Local> {
+    pub fn promote(self) -> LazyStaged1<Base, Local> {
         let mut staged = self.tree.staged;
         let mut base = self.tree.base;
         for id in staged.owned_ids() {
@@ -219,25 +208,26 @@ where
             name_by_id: Default::default(),
             key_by_id: self.key_by_id,
             implicitly_deleted_by_id: Default::default(),
-            _f: Default::default(),
         }
     }
 }
 
-impl<F: FileLike, T: Stagable<F>> TreeLike<F> for LazyTree<F, T> {
+impl<T: Stagable> TreeLike for LazyTree<T> {
+    type F = T::F;
+
     fn ids(&self) -> HashSet<&Uuid> {
         self.tree.ids()
     }
 
-    fn maybe_find(&self, id: &Uuid) -> Option<&F> {
+    fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
         self.tree.maybe_find(id)
     }
 
-    fn insert(&mut self, f: F) -> Option<F> {
+    fn insert(&mut self, f: Self::F) -> Option<Self::F> {
         self.tree.insert(f)
     }
 
-    fn remove(&mut self, id: Uuid) -> Option<F> {
+    fn remove(&mut self, id: Uuid) -> Option<Self::F> {
         self.tree.remove(id)
     }
 }

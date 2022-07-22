@@ -19,21 +19,24 @@ impl<Base: FileLike, Staged: FileLike> Display for StagedFile<Base, Staged> {
     }
 }
 
-pub struct StagedTree<F: FileLike, Base: Stagable<F>, Staged: Stagable<F>> {
+pub struct StagedTree<Base, Staged>
+where
+    Base: Stagable,
+    Staged: Stagable<F = Base::F>,
+{
     pub base: Base,
     pub staged: Staged,
-    pub _f: PhantomData<F>,
 }
 
-impl<F: FileLike, Base: Stagable<F>, Staged: Stagable<F>> StagedTree<F, Base, Staged> {
+impl<Base: Stagable, Staged: Stagable<F = Base::F>> StagedTree<Base, Staged> {
     pub fn new(base: Base, staged: Staged) -> Self {
-        Self { base, staged, _f: Default::default() }
+        Self { base, staged }
     }
 }
 
-impl<F: FileLike, Base: Stagable<F>, Staged: Stagable<F>> TreeLike<F>
-    for StagedTree<F, Base, Staged>
-{
+impl<Base: Stagable, Staged: Stagable<F = Base::F>> TreeLike for StagedTree<Base, Staged> {
+    type F = Base::F;
+
     fn ids(&self) -> HashSet<&Uuid> {
         self.base
             .ids()
@@ -42,7 +45,7 @@ impl<F: FileLike, Base: Stagable<F>, Staged: Stagable<F>> TreeLike<F>
             .collect()
     }
 
-    fn maybe_find(&self, id: &Uuid) -> Option<&F> {
+    fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
         match (self.base.maybe_find(id), self.staged.maybe_find(id)) {
             (_, Some(staged)) => Some(staged),
             (Some(base), None) => Some(base),
@@ -50,7 +53,7 @@ impl<F: FileLike, Base: Stagable<F>, Staged: Stagable<F>> TreeLike<F>
         }
     }
 
-    fn insert(&mut self, f: F) -> Option<F> {
+    fn insert(&mut self, f: Self::F) -> Option<Self::F> {
         if let Some(base) = self.base.maybe_find(f.id()) {
             if *base == f {
                 return self.staged.remove(*f.id());
@@ -60,15 +63,12 @@ impl<F: FileLike, Base: Stagable<F>, Staged: Stagable<F>> TreeLike<F>
         self.staged.insert(f)
     }
 
-    fn remove(&mut self, id: Uuid) -> Option<F> {
+    fn remove(&mut self, id: Uuid) -> Option<Self::F> {
         self.staged.remove(id)
     }
 }
 
-impl<F: FileLike, Base: Stagable<F>, Staged: Stagable<F>> Stagable<F>
-    for StagedTree<F, Base, Staged>
-{
-}
+impl<Base: Stagable, Staged: Stagable<F = Base::F>> Stagable for StagedTree<Base, Staged> {}
 
 // pub type NestedStage<'a, F, T1, T2, T3> = StagedTree<'a, F, T1, StagedTree<'a, F, T2, T3>>;
 //

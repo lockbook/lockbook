@@ -14,7 +14,9 @@ impl Display for SignedFile {
     }
 }
 
-impl TreeLike<SignedFile> for SignedFile {
+impl TreeLike for SignedFile {
+    type F = Self;
+
     fn ids(&self) -> HashSet<&Uuid> {
         let mut hashset = HashSet::new();
         hashset.insert(self.id());
@@ -39,4 +41,4 @@ impl TreeLike<SignedFile> for SignedFile {
     }
 }
 
-impl Stagable<SignedFile> for SignedFile {}
+impl Stagable for SignedFile {}

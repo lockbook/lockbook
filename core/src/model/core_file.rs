@@ -13,7 +13,7 @@ use uuid::Uuid;
 pub struct Base<'a>(pub &'a mut TransactionTable<'a, Uuid, ServerFile, base_metadata>);
 pub struct Local<'a>(pub &'a mut TransactionTable<'a, Uuid, SignedFile, local_metadata>);
 
-impl TreeLike<ServerFile> for Base<'_> {
+impl TreeLike for Base<'_> {
     fn ids(&self) -> HashSet<Uuid> {
         todo!()
     }

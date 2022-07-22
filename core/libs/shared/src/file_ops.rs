@@ -11,15 +11,15 @@ use crate::{symkey, validate, SharedError, SharedResult};
 use libsecp256k1::PublicKey;
 use uuid::Uuid;
 
-impl<Base, Local> LazyStaged1<SignedFile, Base, Local>
+impl<Base, Local> LazyStaged1<Base, Local>
 where
-    Base: Stagable<SignedFile>,
-    Local: Stagable<SignedFile>,
+    Base: Stagable<F = SignedFile>,
+    Local: Stagable<F = Base::F>,
 {
     pub fn create(
         mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
         pub_key: &PublicKey,
-    ) -> SharedResult<(LazyStaged1<SignedFile, Base, Local>, Uuid)> {
+    ) -> SharedResult<(LazyStaged1<Base, Local>, Uuid)> {
         validate::file_name(name)?;
 
         if self.calculate_deleted(parent)? {
@@ -37,7 +37,7 @@ where
 
     pub fn rename(
         mut self, id: &Uuid, name: &str, account: &Account,
-    ) -> SharedResult<LazyStaged1<SignedFile, Base, Local>> {
+    ) -> SharedResult<LazyStaged1<Base, Local>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
 
         validate::file_name(name)?;
@@ -58,7 +58,7 @@ where
 
     pub fn move_file(
         mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
-    ) -> SharedResult<LazyStaged1<SignedFile, Base, Local>> {
+    ) -> SharedResult<LazyStaged1<Base, Local>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
         let parent = self.find(new_parent)?;
 
@@ -85,9 +85,7 @@ where
         Ok(tree.promote())
     }
 
-    pub fn delete(
-        self, id: &Uuid, account: &Account,
-    ) -> SharedResult<LazyStaged1<SignedFile, Base, Local>> {
+    pub fn delete(self, id: &Uuid, account: &Account) -> SharedResult<LazyStaged1<Base, Local>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
         validate::not_root(&file)?;
         file.is_deleted = true;
@@ -100,7 +98,7 @@ where
 
     /// Removes deleted files which are safe to delete. Call this function after a set of operations rather than in-between
     /// each operation because otherwise you'll prune e.g. a file that was moved out of a folder that was deleted.
-    pub fn prune_deleted(self) -> SharedResult<(LazyStaged1<SignedFile, Base, Local>, Vec<Uuid>)> {
+    pub fn prune_deleted(self) -> SharedResult<(LazyStaged1<Base, Local>, Vec<Uuid>)> {
         // If a file is deleted or has a deleted ancestor, we say that it is deleted. Whether a file is deleted is specific
         // to the source (base or local). We cannot prune (delete from disk) a file in one source and not in the other in
         // order to preserve the semantics of having a file present on one, the other, or both (unmodified/new/modified).

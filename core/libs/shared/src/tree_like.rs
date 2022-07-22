@@ -7,21 +7,23 @@ use crate::{SharedError, SharedResult};
 use std::collections::HashSet;
 use uuid::Uuid;
 
-pub trait TreeLike<F: FileLike>: Sized {
-    fn ids(&self) -> HashSet<&Uuid>;
-    fn maybe_find(&self, id: &Uuid) -> Option<&F>;
-    fn insert(&mut self, f: F) -> Option<F>;
-    fn remove(&mut self, id: Uuid) -> Option<F>;
+pub trait TreeLike: Sized {
+    type F: FileLike;
 
-    fn find(&self, id: &Uuid) -> SharedResult<&F> {
+    fn ids(&self) -> HashSet<&Uuid>;
+    fn maybe_find(&self, id: &Uuid) -> Option<&Self::F>;
+    fn insert(&mut self, f: Self::F) -> Option<Self::F>;
+    fn remove(&mut self, id: Uuid) -> Option<Self::F>;
+
+    fn find(&self, id: &Uuid) -> SharedResult<&Self::F> {
         self.maybe_find(id).ok_or(SharedError::FileNonexistent)
     }
 
-    fn maybe_find_parent<F2: FileLike>(&self, file: &F2) -> Option<&F> {
+    fn maybe_find_parent<F2: FileLike>(&self, file: &F2) -> Option<&Self::F> {
         self.maybe_find(file.parent())
     }
 
-    fn find_parent<F2: FileLike>(&self, file: &F2) -> SharedResult<&F> {
+    fn find_parent<F2: FileLike>(&self, file: &F2) -> SharedResult<&Self::F> {
         self.maybe_find_parent(file)
             .ok_or(SharedError::FileParentNonexistent)
     }
@@ -31,21 +33,26 @@ pub trait TreeLike<F: FileLike>: Sized {
     }
 }
 
-pub trait Stagable<F: FileLike>: TreeLike<F> {
-    fn stage<Staged>(self, staged: Staged) -> StagedTree<F, Self, Staged>
+pub trait Stagable: TreeLike {
+    fn stage<Staged>(self, staged: Staged) -> StagedTree<Self, Staged>
     where
-        Staged: Stagable<F>,
+        Staged: Stagable<F = Self::F>,
         Self: Sized,
     {
         StagedTree::new(self, staged)
     }
 
-    fn to_lazy(self) -> LazyTree<F, Self> {
+    fn to_lazy(self) -> LazyTree<Self> {
         LazyTree::new(self)
     }
 }
 
-impl<F: FileLike> TreeLike<F> for Vec<F> {
+impl<F> TreeLike for Vec<F>
+where
+    F: FileLike,
+{
+    type F = F;
+
     fn ids(&self) -> HashSet<&Uuid> {
         self.iter().map(|f| f.id()).collect()
     }
@@ -82,23 +89,5 @@ impl<F: FileLike> TreeLike<F> for Vec<F> {
 impl<'a> Into<&'a SignedFile> for &'a ServerFile {
     fn into(self) -> &'a SignedFile {
         &self.file
-    }
-}
-
-impl<T: TreeLike<ServerFile>> TreeLike<SignedFile> for T {
-    fn ids(&self) -> HashSet<&Uuid> {
-        self.ids()
-    }
-
-    fn maybe_find(&self, id: &Uuid) -> Option<&SignedFile> {
-        self.maybe_find(id).map(|f| f.into())
-    }
-
-    fn insert(&mut self, f: SignedFile) -> Option<SignedFile> {
-        unimplemented!()
-    }
-
-    fn remove(&mut self, id: Uuid) -> Option<SignedFile> {
-        self.remove(id).map(|f| f.file)
     }
 }
