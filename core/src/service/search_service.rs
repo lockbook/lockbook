@@ -336,10 +336,9 @@ impl RequestContext<'_, '_> {
 
                 index_offset = deleted_chars_len - 3;
 
-                new_paragraph = new_paragraph
+                new_paragraph = "..."
                     .chars()
-                    .skip(deleted_chars_len)
-                    .chain("...".chars())
+                    .chain(new_paragraph.chars().skip(deleted_chars_len))
                     .collect();
             }
 

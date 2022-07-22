@@ -1,8 +1,6 @@
 use crossbeam::channel::{Receiver, Sender};
 use lockbook_core::service::search_service::{SearchRequest, SearchResult, SearchResultItem};
 use std::collections::HashSet;
-use std::thread;
-use std::time::Duration;
 use test_utils::*;
 
 const FILE_PATHS: [&str; 6] =
