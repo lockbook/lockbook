@@ -26,3 +26,11 @@ pub fn is_folder<F: FileLike>(file: &F) -> SharedResult<()> {
         Err(SharedError::FileNotFolder)
     }
 }
+
+pub fn is_document<F: FileLike>(file: &F) -> SharedResult<()> {
+    if file.is_document() {
+        Ok(())
+    } else {
+        Err(SharedError::FileNotFolder)
+    }
+}

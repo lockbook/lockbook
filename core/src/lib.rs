@@ -39,6 +39,8 @@ use strum::IntoEnumIterator;
 
 use lockbook_shared::clock;
 use lockbook_shared::crypto::AESKey;
+use lockbook_shared::file::File;
+use lockbook_shared::file_metadata::FileType;
 
 use crate::model::errors::Error::UiError;
 use crate::model::repo::RepoSource;
@@ -97,51 +99,50 @@ impl Core {
         Ok(Self { config, data_cache, db })
     }
 
-    //     #[instrument(level = "info", skip_all, err(Debug))]
-    //     pub fn create_account(
-    //         &self, username: &str, api_url: &str,
-    //     ) -> Result<Account, Error<CreateAccountError>> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.create_account(username, api_url))?;
-    //         Ok(val?)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip_all, err(Debug))]
-    //     pub fn import_account(&self, account_string: &str) -> Result<Account, Error<ImportError>> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.import_account(account_string))?;
-    //         Ok(val?)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip_all, err(Debug))]
-    //     pub fn export_account(&self) -> Result<String, Error<AccountExportError>> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.export_account())?;
-    //         Ok(val?)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip_all, err(Debug))]
-    //     pub fn get_account(&self) -> Result<Account, Error<GetAccountError>> {
-    //         let account = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.get_account())??;
-    //         Ok(account)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip(self, name), err(Debug))]
-    //     pub fn create_file(
-    //         &self, name: &str, parent: Uuid, file_type: FileType,
-    //     ) -> Result<CoreFile, Error<CreateFileError>> {
-    //         let val = self.db.transaction(|tx| {
-    //             self.context(tx)?
-    //                 .create_file(&self.config, name, parent, file_type)
-    //         })?;
-    //         Ok(val?)
-    //     }
-    //
+    #[instrument(level = "info", skip_all, err(Debug))]
+    pub fn create_account(
+        &self, username: &str, api_url: &str,
+    ) -> Result<Account, Error<CreateAccountError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.create_account(username, api_url))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn import_account(&self, account_string: &str) -> Result<Account, Error<ImportError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.import_account(account_string))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn export_account(&self) -> Result<String, Error<AccountExportError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.export_account())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn get_account(&self) -> Result<Account, Error<GetAccountError>> {
+        let account = self
+            .db
+            .transaction(|tx| self.context(tx)?.get_account().map(|f| f.clone()))??;
+        Ok(account)
+    }
+
+    #[instrument(level = "debug", skip(self, name), err(Debug))]
+    pub fn create_file(
+        &self, name: &str, parent: Uuid, file_type: FileType,
+    ) -> Result<File, Error<CreateFileError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.create_file(name, &parent, file_type))?;
+        Ok(val?)
+    }
+
     //     #[instrument(level = "debug", skip(self, content), err(Debug))]
     //     pub fn write_document(
     //         &self, id: Uuid, content: &[u8],
