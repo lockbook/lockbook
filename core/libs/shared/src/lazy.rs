@@ -31,14 +31,14 @@ impl<F: FileLike, T: Stagable<F>> LazyTree<F, T> {
 }
 
 impl<F: FileLike, T: Stagable<F>> LazyTree<F, T> {
-    pub fn calculate_deleted(&mut self, id: Uuid) -> SharedResult<bool> {
+    pub fn calculate_deleted(&mut self, id: &Uuid) -> SharedResult<bool> {
         let (visited_ids, deleted) = {
             let mut file = self.find(id)?;
             let mut visited_ids = vec![];
             let mut deleted = false;
 
             while !file.is_root() {
-                visited_ids.push(file.id());
+                visited_ids.push(*file.id());
                 if let Some(&implicit) = self.implicitly_deleted_by_id.get(&file.id()) {
                     deleted = implicit;
                     break;
@@ -62,8 +62,8 @@ impl<F: FileLike, T: Stagable<F>> LazyTree<F, T> {
         Ok(deleted)
     }
 
-    pub fn decrypt_key(&mut self, id: Uuid, account: &Account) -> SharedResult<AESKey> {
-        let mut file_id = self.find(id)?.id();
+    pub fn decrypt_key(&mut self, id: &Uuid, account: &Account) -> SharedResult<AESKey> {
+        let mut file_id = *self.find(id)?.id();
         let mut visited_ids = vec![];
 
         loop {
@@ -72,7 +72,7 @@ impl<F: FileLike, T: Stagable<F>> LazyTree<F, T> {
             }
 
             let maybe_file_key = if let Some(user_access) = self
-                .find(file_id)?
+                .find(&file_id)?
                 .user_access_keys()
                 .get(&account.username)
             {
@@ -89,12 +89,12 @@ impl<F: FileLike, T: Stagable<F>> LazyTree<F, T> {
             }
 
             visited_ids.push(file_id);
-            file_id = self.find_parent(&self.find(file_id)?)?.id();
+            file_id = *self.find_parent(&self.find(&file_id)?)?.id();
         }
 
         for id in visited_ids.iter().rev() {
             let decrypted_key = {
-                let file = self.find(*id)?;
+                let file = self.find(id)?;
                 let parent = self.find_parent(&file)?;
                 let parent_key =
                     self.key_by_id
@@ -113,38 +113,39 @@ impl<F: FileLike, T: Stagable<F>> LazyTree<F, T> {
         ))?)
     }
 
-    pub fn name(&mut self, id: Uuid, account: &Account) -> SharedResult<String> {
+    pub fn name(&mut self, id: &Uuid, account: &Account) -> SharedResult<String> {
         if let Some(name) = self.name_by_id.get(&id) {
             return Ok(name.clone());
         }
 
-        let parent_id = self.find(id)?.parent();
-        let parent_key = self.decrypt_key(parent_id, account)?;
+        let parent_id = *self.find(id)?.parent();
+        let parent_key = self.decrypt_key(&parent_id, account)?;
 
         let name = self.find(id)?.secret_name().to_string(&parent_key)?;
-        self.name_by_id.insert(id, name.clone());
+        self.name_by_id.insert(*id, name.clone());
         Ok(name)
     }
 
     pub fn encrypt_document(
-        &mut self, id: Uuid, document: &DecryptedDocument, account: &Account,
+        &mut self, id: &Uuid, document: &DecryptedDocument, account: &Account,
     ) -> SharedResult<EncryptedDocument> {
         let key = self.decrypt_key(id, account)?;
         symkey::encrypt(&key, document)
     }
 
     pub fn decrypt_document(
-        &mut self, id: Uuid, encrypted: &EncryptedDocument, account: &Account,
+        &mut self, id: &Uuid, encrypted: &EncryptedDocument, account: &Account,
     ) -> SharedResult<DecryptedDocument> {
         let key = self.decrypt_key(id, account)?;
         symkey::decrypt(&key, encrypted)
     }
 
-    pub fn finalize(&mut self, id: Uuid, account: &Account) -> SharedResult<File> {
+    pub fn finalize(&mut self, id: &Uuid, account: &Account) -> SharedResult<File> {
         let meta = self.find(id)?;
         let file_type = meta.file_type();
-        let parent = meta.parent();
+        let parent = *meta.parent();
         let name = self.name(id, account)?;
+        let id = *id;
         Ok(File { id, parent, name, file_type })
     }
 
@@ -163,7 +164,7 @@ impl<Base: Stagable<SignedFile>, Local: Stagable<SignedFile>>
     pub fn get_changes(&self) -> SharedResult<Vec<&SignedFile>> {
         let base = self.tree.base.ids();
         let local = self.tree.staged.ids();
-        let exists_both = local.iter().filter(|id| base.contains(id));
+        let exists_both = local.iter().filter(|id| base.contains(**id));
 
         let mut changed = vec![];
 
@@ -195,7 +196,7 @@ where
     pub fn promote(self) -> LazyStaged1<F, Base, Local> {
         let mut staged = self.tree.staged;
         let mut base = self.tree.base;
-        for id in staged.ids() {
+        for id in staged.owned_ids() {
             if let Some(removed) = staged.remove(id) {
                 base.insert(removed);
             }
@@ -212,11 +213,11 @@ where
 }
 
 impl<F: FileLike, T: Stagable<F>> TreeLike<F> for LazyTree<F, T> {
-    fn ids(&self) -> HashSet<Uuid> {
+    fn ids(&self) -> HashSet<&Uuid> {
         self.tree.ids()
     }
 
-    fn maybe_find(&self, id: Uuid) -> Option<&F> {
+    fn maybe_find(&self, id: &Uuid) -> Option<&F> {
         self.tree.maybe_find(id)
     }
 

@@ -9,9 +9,9 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 pub trait FileLike: PartialEq {
-    fn id(&self) -> Uuid;
+    fn id(&self) -> &Uuid;
     fn file_type(&self) -> FileType;
-    fn parent(&self) -> Uuid;
+    fn parent(&self) -> &Uuid;
     fn secret_name(&self) -> &SecretFileName;
     fn owner(&self) -> Owner;
     fn explicitly_deleted(&self) -> bool;
@@ -33,16 +33,16 @@ pub trait FileLike: PartialEq {
 }
 
 impl FileLike for FileMetadata {
-    fn id(&self) -> Uuid {
-        self.id
+    fn id(&self) -> &Uuid {
+        &self.id
     }
 
     fn file_type(&self) -> FileType {
         self.file_type
     }
 
-    fn parent(&self) -> Uuid {
-        self.parent
+    fn parent(&self) -> &Uuid {
+        &self.parent
     }
 
     fn secret_name(&self) -> &SecretFileName {
@@ -74,7 +74,7 @@ impl FileLike for FileMetadata {
 }
 
 impl FileLike for SignedFile {
-    fn id(&self) -> Uuid {
+    fn id(&self) -> &Uuid {
         self.timestamped_value.value.id()
     }
 
@@ -82,7 +82,7 @@ impl FileLike for SignedFile {
         self.timestamped_value.value.file_type()
     }
 
-    fn parent(&self) -> Uuid {
+    fn parent(&self) -> &Uuid {
         self.timestamped_value.value.parent()
     }
 
@@ -112,7 +112,7 @@ impl FileLike for SignedFile {
 }
 
 impl FileLike for ServerFile {
-    fn id(&self) -> Uuid {
+    fn id(&self) -> &Uuid {
         self.file.id()
     }
 
@@ -120,7 +120,7 @@ impl FileLike for ServerFile {
         self.file.file_type()
     }
 
-    fn parent(&self) -> Uuid {
+    fn parent(&self) -> &Uuid {
         self.file.parent()
     }
 
@@ -150,16 +150,16 @@ impl FileLike for ServerFile {
 }
 
 impl<'a, F: FileLike> FileLike for &'a F {
-    fn id(&self) -> Uuid {
-        (*self).id()
+    fn id(&self) -> &Uuid {
+        self.id()
     }
 
     fn file_type(&self) -> FileType {
         (*self).file_type()
     }
 
-    fn parent(&self) -> Uuid {
-        (*self).parent()
+    fn parent(&self) -> &Uuid {
+        self.parent()
     }
 
     fn secret_name(&self) -> &SecretFileName {
@@ -188,7 +188,7 @@ impl<'a, F: FileLike> FileLike for &'a F {
 }
 
 impl<Base: FileLike, Staged: FileLike> FileLike for StagedFile<Base, Staged> {
-    fn id(&self) -> Uuid {
+    fn id(&self) -> &Uuid {
         match self {
             StagedFile::Base(file) => file.id(),
             StagedFile::Staged(file) => file.id(),
@@ -204,7 +204,7 @@ impl<Base: FileLike, Staged: FileLike> FileLike for StagedFile<Base, Staged> {
         }
     }
 
-    fn parent(&self) -> Uuid {
+    fn parent(&self) -> &Uuid {
         match self {
             StagedFile::Base(file) => file.parent(),
             StagedFile::Staged(file) => file.parent(),

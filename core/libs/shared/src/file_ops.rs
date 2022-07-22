@@ -17,7 +17,7 @@ where
     Local: Stagable<SignedFile>,
 {
     pub fn create(
-        mut self, parent: Uuid, name: &str, file_type: FileType, account: &Account,
+        mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
         pub_key: &PublicKey,
     ) -> SharedResult<(LazyStaged1<SignedFile, Base, Local>, Uuid)> {
         validate::file_name(name)?;
@@ -28,15 +28,15 @@ where
 
         let parent_key = self.decrypt_key(parent, account)?;
         let new_file =
-            FileMetadata::create(pub_key, parent, &parent_key, name, file_type)?.sign(account)?;
-        let id = new_file.id();
+            FileMetadata::create(pub_key, *parent, &parent_key, name, file_type)?.sign(account)?;
+        let id = *new_file.id();
         let mut staged = self.stage(new_file);
         staged.validate()?;
         Ok((staged.promote(), id))
     }
 
     pub fn rename(
-        mut self, id: Uuid, name: &str, account: &Account,
+        mut self, id: &Uuid, name: &str, account: &Account,
     ) -> SharedResult<LazyStaged1<SignedFile, Base, Local>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
 
@@ -57,7 +57,7 @@ where
     }
 
     pub fn move_file(
-        mut self, id: Uuid, new_parent: Uuid, account: &Account,
+        mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
     ) -> SharedResult<LazyStaged1<SignedFile, Base, Local>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
         let parent = self.find(new_parent)?;
@@ -75,7 +75,7 @@ where
 
         let key = self.decrypt_key(id, account)?;
         let parent_key = self.decrypt_key(new_parent, account)?;
-        file.parent = new_parent;
+        file.parent = *new_parent;
         file.folder_access_keys = symkey::encrypt(&parent_key, &key)?;
         let file = file.sign(account)?;
 
@@ -86,7 +86,7 @@ where
     }
 
     pub fn delete(
-        self, id: Uuid, account: &Account,
+        self, id: &Uuid, account: &Account,
     ) -> SharedResult<LazyStaged1<SignedFile, Base, Local>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
         validate::not_root(&file)?;

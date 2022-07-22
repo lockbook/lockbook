@@ -91,7 +91,7 @@ pub struct GetDocumentRequest {
 
 impl From<&ServerFile> for GetDocumentRequest {
     fn from(meta: &ServerFile) -> Self {
-        Self { id: meta.id(), content_version: meta.content_version }
+        Self { id: *meta.id(), content_version: meta.content_version }
     }
 }
 

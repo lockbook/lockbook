@@ -34,7 +34,7 @@ impl<F: FileLike, Base: Stagable<F>, Staged: Stagable<F>> StagedTree<F, Base, St
 impl<F: FileLike, Base: Stagable<F>, Staged: Stagable<F>> TreeLike<F>
     for StagedTree<F, Base, Staged>
 {
-    fn ids(&self) -> HashSet<Uuid> {
+    fn ids(&self) -> HashSet<&Uuid> {
         self.base
             .ids()
             .into_iter()
@@ -42,7 +42,7 @@ impl<F: FileLike, Base: Stagable<F>, Staged: Stagable<F>> TreeLike<F>
             .collect()
     }
 
-    fn maybe_find(&self, id: Uuid) -> Option<&F> {
+    fn maybe_find(&self, id: &Uuid) -> Option<&F> {
         match (self.base.maybe_find(id), self.staged.maybe_find(id)) {
             (_, Some(staged)) => Some(staged),
             (Some(base), None) => Some(base),
@@ -53,7 +53,7 @@ impl<F: FileLike, Base: Stagable<F>, Staged: Stagable<F>> TreeLike<F>
     fn insert(&mut self, f: F) -> Option<F> {
         if let Some(base) = self.base.maybe_find(f.id()) {
             if *base == f {
-                return self.staged.remove(f.id());
+                return self.staged.remove(*f.id());
             }
         }
 

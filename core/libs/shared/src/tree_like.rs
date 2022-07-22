@@ -8,12 +8,12 @@ use std::collections::HashSet;
 use uuid::Uuid;
 
 pub trait TreeLike<F: FileLike>: Sized {
-    fn ids(&self) -> HashSet<Uuid>;
-    fn maybe_find(&self, id: Uuid) -> Option<&F>;
+    fn ids(&self) -> HashSet<&Uuid>;
+    fn maybe_find(&self, id: &Uuid) -> Option<&F>;
     fn insert(&mut self, f: F) -> Option<F>;
     fn remove(&mut self, id: Uuid) -> Option<F>;
 
-    fn find(&self, id: Uuid) -> SharedResult<&F> {
+    fn find(&self, id: &Uuid) -> SharedResult<&F> {
         self.maybe_find(id).ok_or(SharedError::FileNonexistent)
     }
 
@@ -24,6 +24,10 @@ pub trait TreeLike<F: FileLike>: Sized {
     fn find_parent<F2: FileLike>(&self, file: &F2) -> SharedResult<&F> {
         self.maybe_find_parent(file)
             .ok_or(SharedError::FileParentNonexistent)
+    }
+
+    fn owned_ids(&self) -> HashSet<Uuid> {
+        self.ids().iter().map(|id| **id).collect()
     }
 }
 
@@ -42,11 +46,11 @@ pub trait Stagable<F: FileLike>: TreeLike<F> {
 }
 
 impl<F: FileLike> TreeLike<F> for Vec<F> {
-    fn ids(&self) -> HashSet<Uuid> {
+    fn ids(&self) -> HashSet<&Uuid> {
         self.iter().map(|f| f.id()).collect()
     }
 
-    fn maybe_find(&self, id: Uuid) -> Option<&F> {
+    fn maybe_find(&self, id: &Uuid) -> Option<&F> {
         self.iter().find(|f| f.id() == id)
     }
 
@@ -66,7 +70,7 @@ impl<F: FileLike> TreeLike<F> for Vec<F> {
 
     fn remove(&mut self, id: Uuid) -> Option<F> {
         for (i, value) in self.iter().enumerate() {
-            if value.id() == id {
+            if *value.id() == id {
                 return Some(self.remove(i));
             }
         }
@@ -82,11 +86,11 @@ impl<'a> Into<&'a SignedFile> for &'a ServerFile {
 }
 
 impl<T: TreeLike<ServerFile>> TreeLike<SignedFile> for T {
-    fn ids(&self) -> HashSet<Uuid> {
+    fn ids(&self) -> HashSet<&Uuid> {
         self.ids()
     }
 
-    fn maybe_find(&self, id: Uuid) -> Option<&SignedFile> {
+    fn maybe_find(&self, id: &Uuid) -> Option<&SignedFile> {
         self.maybe_find(id).map(|f| f.into())
     }
 

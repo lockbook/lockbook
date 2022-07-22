@@ -15,13 +15,13 @@ impl Display for SignedFile {
 }
 
 impl TreeLike<SignedFile> for SignedFile {
-    fn ids(&self) -> HashSet<Uuid> {
+    fn ids(&self) -> HashSet<&Uuid> {
         let mut hashset = HashSet::new();
         hashset.insert(self.id());
         hashset
     }
 
-    fn maybe_find(&self, id: Uuid) -> Option<&SignedFile> {
+    fn maybe_find(&self, id: &Uuid) -> Option<&SignedFile> {
         if id == self.id() {
             Some(&self)
         } else {

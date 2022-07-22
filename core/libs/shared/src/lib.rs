@@ -21,6 +21,7 @@ pub mod server_file;
 pub mod signed_file;
 pub mod staged;
 pub mod symkey;
+pub mod transaction;
 pub mod tree_like;
 pub mod utils;
 pub mod validate;
