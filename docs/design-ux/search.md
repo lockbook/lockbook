@@ -76,7 +76,6 @@ imperdiet ex. Curabitur sagittis augue vel orci eleifend, sed cursus ante porta.
 id...
 ```
 
-
 # Text editor search
 
 Implementation will be upto the text editors in question, will perform similar to "Search this page" in your web

@@ -128,10 +128,10 @@ impl RequestContext<'_, '_> {
 
         loop {
             let search = RequestContext::recv_with_debounce(&search_rx, debounce_duration)?;
+            should_continue.store(false, atomic::Ordering::Relaxed);
 
             match search {
                 SearchRequest::Search { input } => {
-                    should_continue.store(false, atomic::Ordering::Relaxed);
                     should_continue = Arc::new(AtomicBool::new(true));
 
                     let results_tx = results_tx.clone();
@@ -149,13 +149,8 @@ impl RequestContext<'_, '_> {
                         }
                     });
                 }
-                SearchRequest::EndSearch => {
-                    should_continue.store(false, atomic::Ordering::Relaxed);
-                    return Ok(());
-                }
-                SearchRequest::StopCurrentSearch => {
-                    should_continue.store(false, atomic::Ordering::Relaxed)
-                }
+                SearchRequest::EndSearch => return Ok(()),
+                SearchRequest::StopCurrentSearch => {}
             }
         }
     }
