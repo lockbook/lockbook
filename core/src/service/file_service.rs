@@ -1,4 +1,3 @@
-use crate::model::core_file::{Base, Local};
 use crate::model::repo::RepoSource;
 use crate::repo::document_repo;
 use crate::service::file_compression_service;
@@ -20,7 +19,7 @@ use uuid::Uuid;
 
 impl<'a> RequestContext<'a, 'a> {
     pub fn create_file(
-        &'a mut self, name: &str, parent: Uuid, file_type: FileType,
+        &'a mut self, name: &str, parent: &Uuid, file_type: FileType,
     ) -> Result<File, CoreError> {
         let pub_key = self.get_public_key()?;
         let account = self
@@ -29,33 +28,63 @@ impl<'a> RequestContext<'a, 'a> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let (mut tree, id) = Base(&mut self.tx.base_metadata)
-            .stage(Local(&mut self.tx.local_metadata))
+        let (mut tree, id) = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
             .to_lazy()
             .create(parent, name, file_type, account, &pub_key)?;
 
-        let ui_file = tree.finalize(id, account)?;
+        let ui_file = tree.finalize(&id, account)?;
 
         Ok(ui_file)
     }
 
-    // pub fn rename_file(&'a mut self, id: Uuid, new_name: &str) -> Result<(), CoreError> {
-    //     let account = self.get_account()?;
-    //     self.tree().rename(id, new_name, account)?;
-    //     Ok(())
-    // }
-    //
-    // pub fn move_file(&'a mut self, id: Uuid, new_parent: Uuid) -> Result<(), CoreError> {
-    //     let account = self.get_account()?;
-    //     self.tree().move_file(id, new_parent, account)?;
-    //     Ok(())
-    // }
-    //
-    // pub fn delete(&'a mut self, id: Uuid) -> Result<(), CoreError> {
-    //     let account = self.get_account()?;
-    //     self.tree().delete(id, account)?;
-    //     Ok(())
-    // }
+    pub fn rename_file(&'a mut self, id: &Uuid, new_name: &str) -> Result<(), CoreError> {
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
+
+        self.tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy()
+            .rename(id, new_name, account)?;
+
+        Ok(())
+    }
+
+    pub fn move_file(&'a mut self, id: &Uuid, new_parent: &Uuid) -> Result<(), CoreError> {
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
+
+        self.tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy()
+            .move_file(id, new_parent, account)?;
+        Ok(())
+    }
+
+    pub fn delete(&'a mut self, id: &Uuid) -> Result<(), CoreError> {
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
+
+        self.tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy()
+            .delete(id, account)?;
+        Ok(())
+    }
     //
     // pub fn root_id(&self) -> Result<&Uuid, CoreError> {
     //     self.tx.root.get(&OneKey).ok_or(RootNonexistent)

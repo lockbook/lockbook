@@ -18,6 +18,6 @@ hmdb::schema! {
         local_digest: <Uuid, Vec<u8>>,
         base_digest: <Uuid, Vec<u8>>,
         local_metadata: <Uuid, SignedFile>,
-        base_metadata: <Uuid, ServerFile>
+        base_metadata: <Uuid, SignedFile>
     }
 }

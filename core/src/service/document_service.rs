@@ -1,4 +1,3 @@
-use crate::model::core_file::{Base, Local};
 use crate::{CoreError, RepoSource, RequestContext};
 use lockbook_shared::crypto::DecryptedDocument;
 use lockbook_shared::tree_like::Stagable;
