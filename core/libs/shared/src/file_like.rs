@@ -151,7 +151,7 @@ impl FileLike for ServerFile {
 
 impl<'a, F: FileLike> FileLike for &'a F {
     fn id(&self) -> &Uuid {
-        self.id()
+        (*self).id()
     }
 
     fn file_type(&self) -> FileType {
@@ -159,7 +159,7 @@ impl<'a, F: FileLike> FileLike for &'a F {
     }
 
     fn parent(&self) -> &Uuid {
-        self.parent()
+        (*self).parent()
     }
 
     fn secret_name(&self) -> &SecretFileName {

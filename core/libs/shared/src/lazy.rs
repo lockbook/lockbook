@@ -2,12 +2,10 @@ use crate::account::Account;
 use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::file::File;
 use crate::file_like::FileLike;
-use crate::signed_file::SignedFile;
 use crate::staged::StagedTree;
 use crate::tree_like::{Stagable, TreeLike};
 use crate::{pubkey, symkey, SharedError, SharedResult};
 use std::collections::{HashMap, HashSet};
-use std::marker::PhantomData;
 use uuid::Uuid;
 
 pub struct LazyTree<T: Stagable> {
@@ -20,10 +18,10 @@ pub struct LazyTree<T: Stagable> {
 impl<T: Stagable> LazyTree<T> {
     pub fn new(tree: T) -> Self {
         Self {
-            tree,
             name_by_id: HashMap::new(),
             key_by_id: HashMap::new(),
             implicitly_deleted_by_id: HashMap::new(),
+            tree,
         }
     }
 }
@@ -150,16 +148,21 @@ impl<T: Stagable> LazyTree<T> {
     pub fn stage<T2: Stagable<F = T::F>>(self, staged: T2) -> LazyTree<StagedTree<T, T2>> {
         // todo: optimize by performing minimal updates on self caches
         LazyTree::<StagedTree<T, T2>> {
-            tree: StagedTree::<T, T2> { base: self.tree, staged },
-            name_by_id: Default::default(),
+            name_by_id: HashMap::new(),
             key_by_id: self.key_by_id,
-            implicitly_deleted_by_id: Default::default(),
+            implicitly_deleted_by_id: HashMap::new(),
+            tree: StagedTree::<T, T2> { base: self.tree, staged },
         }
     }
+}
 
-    pub fn validate(&mut self) -> SharedResult<()> {
-        todo!()
-    }
+pub enum ValidationFailure {
+    Orphan(Uuid),
+    SelfDescendent(Vec<Uuid>),
+    PathConflict(Vec<Uuid>),
+    SharedLink(Uuid),
+    DuplicateLink(Vec<Uuid>),
+    BrokenLink(Uuid),
 }
 
 impl<Base: Stagable, Local: Stagable<F = Base::F>> LazyTree<StagedTree<Base, Local>> {
@@ -180,6 +183,184 @@ impl<Base: Stagable, Local: Stagable<F = Base::F>> LazyTree<StagedTree<Base, Loc
 
         Ok(changed)
     }
+
+    // todo: remove?
+    pub fn validate(&mut self) -> SharedResult<()> {
+        todo!()
+    }
+
+    pub fn resolve_validation_failures(&mut self) -> SharedResult<()> {
+        while let Some(validation_failure) = self.get_validation_failures()? {
+            match validation_failure {
+                ValidationFailure::Orphan(id) => {
+                    self.remove(id);
+                    //todo: minimally invalidate cache
+                    self.name_by_id.remove(&id);
+                    self.key_by_id.remove(&id);
+                    self.implicitly_deleted_by_id.remove(&id);
+                }
+                ValidationFailure::SelfDescendent(_) => todo!(),
+                ValidationFailure::PathConflict(_) => todo!(),
+                ValidationFailure::SharedLink(_) => todo!(),
+                ValidationFailure::DuplicateLink(_) => todo!(),
+                ValidationFailure::BrokenLink(_) => todo!(),
+            }
+        }
+        Ok(())
+    }
+
+    pub fn get_validation_failures(&mut self) -> SharedResult<Option<ValidationFailure>> {
+        todo!()
+        // self.get_orphans()?;
+        // self.get_invalid_cycles()?;
+        // self.get_path_conflicts()?;
+        // self.get_shared_links()?;
+        // self.get_duplicate_links()?;
+        // self.get_broken_links()
+    }
+
+    fn get_orphans(&mut self) -> SharedResult<Option<Uuid>> {
+        Ok(None)
+    }
+
+    // fn get_self_descendents(&mut self) -> SharedResult<Option<Vec<Uuid>>> {
+    //     let mut root_found = false;
+    //     let mut prev_checked = HashMap::new();
+    //     let mut result = Vec::new();
+    //     for id in self.ids() {
+
+    //     }
+
+    //     let mut root_found = false;
+    //     let mut prev_checked = HashMap::new();
+    //     let staged_changes = self.stage_with_source(staged_changes);
+    //     let mut result = Vec::new();
+    //     for (_, (f, _)) in staged_changes.clone().into_iter() {
+    //         let mut checking = HashMap::new();
+    //         let mut cur = &f;
+    //         if cur.is_root() {
+    //             if root_found {
+    //                 result.push(cur.id());
+    //             } else {
+    //                 root_found = true;
+    //             }
+    //         }
+    //         while !cur.is_root() && prev_checked.get(&cur.id()).is_none() {
+    //             if checking.contains_key(&cur.id()) {
+    //                 result.extend(checking.keys());
+    //                 break;
+    //             }
+    //             checking.push(cur.clone());
+    //             if cur.is_shared_with_user(&user) {
+    //                 break;
+    //             }
+    //             cur = &staged_changes.get(&cur.parent()).ok_or(FileNonexistent)?.0;
+    //         }
+    //         prev_checked.extend(checking);
+    //     }
+    //     Ok(result)
+    // }
+
+    // fn get_path_conflicts(&mut self) -> SharedResult<()> {
+    //     let files = self
+    //         .clone()
+    //         .stage(staged_changes.clone())
+    //         .filter_not_deleted()?;
+    //     let files_with_sources = self.stage_with_source(staged_changes);
+    //     let mut name_tree: HashMap<Uuid, HashMap<Fm::Name, Uuid>> = HashMap::new();
+    //     let mut result = Vec::new();
+    //     for (id, f) in files {
+    //         let source = files_with_sources
+    //             .get(&id)
+    //             .ok_or_else(|| {
+    //                 TreeError::Unexpected(
+    //                     "get_path_conflicts: could not find source by id".to_string(),
+    //                 )
+    //             })?
+    //             .clone()
+    //             .1;
+    //         let parent_id = f.parent();
+    //         if f.is_root() {
+    //             continue;
+    //         };
+    //         let name = f.name();
+    //         let parent_children = name_tree.entry(parent_id).or_insert_with(HashMap::new);
+    //         let cloned_id = id;
+    //         if let Some(conflicting_child_id) = parent_children.get(&name) {
+    //             match source {
+    //                 StageSource::Base => result.push(PathConflict {
+    //                     existing: cloned_id,
+    //                     staged: conflicting_child_id.to_owned(),
+    //                 }),
+    //                 StageSource::Staged => result.push(PathConflict {
+    //                     existing: conflicting_child_id.to_owned(),
+    //                     staged: cloned_id,
+    //                 }),
+    //             }
+    //         } else {
+    //             parent_children.insert(name, cloned_id);
+    //         };
+    //     }
+    //     Ok(result)
+    // }
+
+    // fn get_shared_links(&mut self) -> SharedResult<()> {
+    //     let mut result = Vec::new();
+    //     for root in self
+    //         .values()
+    //         .filter(|f| f.is_root() || f.is_shared_with_user(user))
+    //     {
+    //         get_shared_links_helper(
+    //             &self.stage_with_source(staged_changes),
+    //             &root,
+    //             &mut Vec::new(),
+    //             &mut result,
+    //         )?;
+    //     }
+
+    //     Ok(result)
+    // }
+
+    // fn get_duplicate_links(&mut self) -> SharedResult<()> {
+    //     let mut links_by_target = HashMap::<Uuid, Vec<(Uuid, StageSource)>>::new();
+    //     for file in self.stage_with_source(staged_changes).values() {
+    //         if let FileType::Link { linked_file } = file.0.file_type() {
+    //             match links_by_target.get_mut(&linked_file) {
+    //                 Some(links) => links.push((file.0.id(), file.1)),
+    //                 None => {
+    //                     links_by_target.insert(linked_file, vec![(file.0.id(), file.1)]);
+    //                 }
+    //             }
+    //         }
+    //     }
+
+    //     Ok(links_by_target
+    //         .into_iter()
+    //         .filter_map(
+    //             |(target, links)| {
+    //                 if links.len() > 1 {
+    //                     Some(LinkDuplicate { links, target })
+    //                 } else {
+    //                     None
+    //                 }
+    //             },
+    //         )
+    //         .collect())
+    // }
+
+    // fn get_broken_links(&mut self) -> SharedResult<()> {
+    //     let mut result = Vec::new();
+    //     let files = self.clone().stage(staged_changes.clone()); // todo(sharing): don't clone
+    //     let not_deleted_files = files.clone().filter_not_deleted()?; // todo(sharing): don't clone
+    //     for file in files.values() {
+    //         if let FileType::Link { linked_file } = file.file_type() {
+    //             if not_deleted_files.maybe_find_ref(linked_file).is_none() {
+    //                 result.push(file.id());
+    //             }
+    //         }
+    //     }
+    //     Ok(result)
+    // }
 }
 
 pub type Stage1<Base, Local> = StagedTree<Base, Local>;
@@ -205,9 +386,9 @@ where
         // todo: optimize by performing minimal updates on self caches
         LazyStaged1 {
             tree: base,
-            name_by_id: Default::default(),
+            name_by_id: HashMap::new(),
             key_by_id: self.key_by_id,
-            implicitly_deleted_by_id: Default::default(),
+            implicitly_deleted_by_id: HashMap::new(),
         }
     }
 }

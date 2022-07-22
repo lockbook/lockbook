@@ -1,9 +1,7 @@
 use crate::account::Account;
-use crate::crypto::{DecryptedDocument, EncryptedDocument};
-use crate::file::File;
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileMetadata, FileType};
-use crate::lazy::{LazyStaged1, LazyTree};
+use crate::lazy::LazyStaged1;
 use crate::secret_filename::SecretFileName;
 use crate::signed_file::SignedFile;
 use crate::tree_like::{Stagable, TreeLike};
