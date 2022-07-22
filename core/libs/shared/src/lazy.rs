@@ -1,5 +1,6 @@
 use crate::account::Account;
-use crate::crypto::AESKey;
+use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
+use crate::file::File;
 use crate::file_like::FileLike;
 use crate::signed_file::SignedFile;
 use crate::staged::StagedTree;
@@ -123,6 +124,28 @@ impl<F: FileLike, T: Stagable<F>> LazyTree<F, T> {
         let name = self.find(id)?.secret_name().to_string(&parent_key)?;
         self.name_by_id.insert(id, name.clone());
         Ok(name)
+    }
+
+    pub fn encrypt_document(
+        &mut self, id: Uuid, document: &DecryptedDocument, account: &Account,
+    ) -> SharedResult<EncryptedDocument> {
+        let key = self.decrypt_key(id, account)?;
+        symkey::encrypt(&key, document)
+    }
+
+    pub fn decrypt_document(
+        &mut self, id: Uuid, encrypted: &EncryptedDocument, account: &Account,
+    ) -> SharedResult<DecryptedDocument> {
+        let key = self.decrypt_key(id, account)?;
+        symkey::decrypt(&key, encrypted)
+    }
+
+    pub fn finalize(&mut self, id: Uuid, account: &Account) -> SharedResult<File> {
+        let meta = self.find(id)?;
+        let file_type = meta.file_type();
+        let parent = meta.parent();
+        let name = self.name(id, account)?;
+        Ok(File { id, parent, name, file_type })
     }
 
     pub fn stage<T2: Stagable<F>>(self, staged: T2) -> LazyTree<F, StagedTree<F, T, T2>> {

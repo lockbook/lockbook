@@ -25,7 +25,7 @@ impl RequestContext<'_, '_> {
         let public_key = account.public_key();
         self.data_cache.public_key = Some(public_key);
 
-        let mut root = FileMetadata::create_root(&account)?.sign(&account)?;
+        let root = FileMetadata::create_root(&account)?.sign(&account)?;
 
         let version = api_service::request(&account, NewAccountRequest::new(&account, &root))?
             .folder_metadata_version;

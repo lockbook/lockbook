@@ -580,16 +580,16 @@ impl From<CoreError> for Error<GetUsageError> {
         }
     }
 }
-
-impl From<ApiError<api::GetUsageError>> for CoreError {
-    fn from(e: ApiError<api::GetUsageError>) -> Self {
-        match e {
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            e => core_err_unexpected(e),
-        }
-    }
-}
+//
+// impl From<ApiError<api::GetUsageError>> for CoreError {
+//     fn from(e: ApiError<api::GetUsageError>) -> Self {
+//         match e {
+//             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+//             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+//             e => core_err_unexpected(e),
+//         }
+//     }
+// }
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum GetDrawingError {
@@ -844,7 +844,7 @@ pub enum TestRepoError {
     FileNameContainsSlash(Uuid),
     NameConflictDetected(Uuid),
     DocumentReadError(Uuid, CoreError),
-    Tree(TreeError),
+    // Tree(TreeError),
     Core(CoreError),
 }
 

@@ -1,4 +1,6 @@
+use crate::repo::schema::helper_log::{base_metadata, local_metadata};
 use crate::{RequestContext, Tx};
+use hmdb::transaction::TransactionTable;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::lazy::{LazyStaged1, LazyTree};
 use lockbook_shared::server_file::ServerFile;
@@ -8,8 +10,8 @@ use lockbook_shared::tree_like::{Stagable, TreeLike};
 use std::collections::HashSet;
 use uuid::Uuid;
 
-struct Base<'a>(&'a mut Tx<'a>);
-struct Local<'a>(&'a mut Tx<'a>);
+pub struct Base<'a>(pub &'a mut TransactionTable<'a, Uuid, ServerFile, base_metadata>);
+pub struct Local<'a>(pub &'a mut TransactionTable<'a, Uuid, SignedFile, local_metadata>);
 
 impl TreeLike<ServerFile> for Base<'_> {
     fn ids(&self) -> HashSet<Uuid> {
@@ -17,19 +19,19 @@ impl TreeLike<ServerFile> for Base<'_> {
     }
 
     fn maybe_find(&self, id: Uuid) -> Option<&ServerFile> {
-        self.0.base_metadata.get(&id)
+        self.0.get(&id)
     }
 
     fn insert(&mut self, f: ServerFile) -> Option<ServerFile> {
-        self.0.base_metadata.insert(f.id(), f)
+        self.0.insert(f.id(), f)
     }
 
     fn remove(&mut self, id: Uuid) -> Option<ServerFile> {
-        self.0.base_metadata.delete(id)
+        self.0.delete(id)
     }
 }
 
-impl<'a> Stagable<ServerFile> for Base<'a> {}
+impl<'a> Stagable<SignedFile> for Base<'a> {}
 
 impl TreeLike<SignedFile> for Local<'_> {
     fn ids(&self) -> HashSet<Uuid> {
@@ -37,15 +39,15 @@ impl TreeLike<SignedFile> for Local<'_> {
     }
 
     fn maybe_find(&self, id: Uuid) -> Option<&SignedFile> {
-        self.0.local_metadata.get(&id)
+        self.0.get(&id)
     }
 
     fn insert(&mut self, f: SignedFile) -> Option<SignedFile> {
-        self.0.local_metadata.insert(f.id(), f)
+        self.0.insert(f.id(), f)
     }
 
     fn remove(&mut self, id: Uuid) -> Option<SignedFile> {
-        self.0.local_metadata.delete(id)
+        self.0.delete(id)
     }
 }
 
@@ -53,13 +55,10 @@ impl<'a> Stagable<SignedFile> for Local<'a> {}
 
 pub type CoreTree<'a> = LazyStaged1<SignedFile, Base<'a>, Local<'a>>;
 
-struct StagedDbFiles<'a> {
-    base: Base<'a>,
-    local: Local<'a>,
-}
-
-impl RequestContext<'_, '_> {
-    pub fn tree(&self) -> CoreTree {
-        Base(self.tx).stage(Local(self.tx)).lazy()
+impl<'a> RequestContext<'a, 'a> {
+    pub fn tree(&'a mut self) -> CoreTree<'a> {
+        Base(&mut self.tx.base_metadata)
+            .stage(Local(&mut self.tx.local_metadata))
+            .to_lazy()
     }
 }
