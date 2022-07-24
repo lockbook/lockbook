@@ -45,6 +45,8 @@ hmdb = "0.1.12"
 lazy_static = "1.4.0"
 lockbook-models = { path = "libs/models" }
 lockbook-crypto = { path = "libs/crypto" }
+sublime_fuzzy = "0.7.0"
+crossbeam = "0.8.1"
 
 [profile.release]
 debug = true
