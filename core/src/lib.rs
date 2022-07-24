@@ -48,7 +48,7 @@ use crate::model::errors::Error::UiError;
 use crate::model::repo::RepoSource;
 use crate::repo::schema::{transaction, CoreV1, OneKey, Tx};
 use crate::service::log_service;
-use crate::service::search_service::SearchResultItem;
+use crate::service::search_service::{SearchResultItem, StartSearchInfo};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
@@ -422,6 +422,12 @@ impl Core {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.search_file_paths(input))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn start_search(&self) -> Result<StartSearchInfo, UnexpectedError> {
+        let val = self.db.transaction(|tx| self.context(tx)?.start_search())?;
         Ok(val?)
     }
 
