@@ -1,18 +1,16 @@
 use crate::model::filename::DocumentType;
 use crate::model::repo::RepoSource;
 use crate::{CoreError, RequestContext, UnexpectedError};
-use crossbeam::channel;
-use crossbeam::channel::{Receiver, RecvTimeoutError, Sender};
+use crossbeam::channel::{self, Receiver, RecvTimeoutError, Sender};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use lockbook_models::file_metadata::DecryptedFiles;
 use lockbook_models::tree::FileMetadata;
 use serde::Serialize;
 use std::cmp::Ordering;
-use std::sync::atomic::AtomicBool;
-use std::sync::{atomic, Arc};
-use std::thread;
-use std::thread::JoinHandle;
+use std::sync::atomic::{self, AtomicBool};
+use std::sync::Arc;
+use std::thread::{self, JoinHandle};
 use std::time::Duration;
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use uuid::Uuid;
@@ -81,8 +79,7 @@ impl RequestContext<'_, '_> {
                     match DocumentType::from_file_name_using_extension(&file.decrypted_name) {
                         DocumentType::Text => self
                             .read_document(self.config, RepoSource::Local, file.id)
-                            .map(|content| String::from(String::from_utf8_lossy(content.as_ref())))
-                            .map(Some)?,
+                            .map(|bytes| Some(String::from_utf8_lossy(&bytes).to_string()))?,
                         _ => None,
                     };
 
@@ -131,10 +128,10 @@ impl RequestContext<'_, '_> {
 
         loop {
             let search = RequestContext::recv_with_debounce(&search_rx, debounce_duration)?;
+            should_continue.store(false, atomic::Ordering::Relaxed);
 
             match search {
                 SearchRequest::Search { input } => {
-                    should_continue.store(false, atomic::Ordering::Relaxed);
                     should_continue = Arc::new(AtomicBool::new(true));
 
                     let results_tx = results_tx.clone();
@@ -152,13 +149,8 @@ impl RequestContext<'_, '_> {
                         }
                     });
                 }
-                SearchRequest::EndSearch => {
-                    should_continue.store(false, atomic::Ordering::Relaxed);
-                    return Ok(());
-                }
-                SearchRequest::StopCurrentSearch => {
-                    should_continue.store(false, atomic::Ordering::Relaxed)
-                }
+                SearchRequest::EndSearch => return Ok(()),
+                SearchRequest::StopCurrentSearch => {}
             }
         }
     }

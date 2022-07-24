@@ -347,29 +347,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocumentBytes(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_saveDocumentToDisk(
-    env: JNIEnv, _: JClass, jid: JString, jlocation: JString,
-) -> jstring {
-    let id = match deserialize_id(&env, jid) {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    let location = match jstring_to_string(&env, jlocation, "path") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    string_to_jstring(
-        &env,
-        match static_state::get() {
-            Ok(core) => translate(core.save_document_to_disk(id, &location)),
-            e => translate(e.map(|_| ())),
-        },
-    )
-}
-
-#[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawingToDisk(
     env: JNIEnv, _: JClass, jid: JString, jformat: JString, jlocation: JString,
 ) -> jstring {

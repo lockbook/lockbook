@@ -45,8 +45,8 @@ __Returned Window:__
 *Lorem ipsum dolor sit amet, consectetur adipiscing elit.* Vivamus lorem purus, malesuada a dui a, auctor lobortis dolor.
 Proin ut placerat lectus. Vest...
 ```
-3. The section matched on is greater than 150 characters, but most matched indices lie at the end of the area or 
-beginning. We remove the minimum number of characters, starting from the beginning, to get that 150-character window. 
+3. The section matched on is greater than 150 characters, but most matched indices lie at the beginning or end.
+We remove the minimum number of characters, starting from the beginning, to get that 150-character window. 
 Suppose there are not enough characters before the first matched index. In that case, we leave an 8-character buffer 
 before the first matched index and remove as many characters as possible after the last matched index, following the 
 same rules.
@@ -75,7 +75,6 @@ __Returned Window:__
 imperdiet ex. Curabitur sagittis augue vel orci eleifend, sed cursus ante porta. Phasellus pellentesque vulputate* ante
 id...
 ```
-
 
 # Text editor search
 
