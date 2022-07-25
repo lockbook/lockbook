@@ -32,6 +32,8 @@ type SharedResult<T> = Result<T, SharedError>;
 
 #[derive(Debug, PartialEq)]
 pub enum SharedError {
+    PathContainsEmptyFileName,
+    PathTaken,
     RootNonexistent,
     FileNonexistent,
     FileNameContainsSlash,

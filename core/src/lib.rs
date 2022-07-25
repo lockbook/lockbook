@@ -240,19 +240,18 @@ impl Core {
     //             .transaction(|tx| self.context(tx)?.move_file(&self.config, id, new_parent))?;
     //         Ok(val?)
     //     }
-    //
-    //     #[instrument(level = "debug", skip_all, err(Debug))]
-    //     pub fn create_at_path(
-    //         &self, path_and_name: &str,
-    //     ) -> Result<CoreFile, Error<CreateFileAtPathError>> {
-    //         let val = self.db.transaction(|tx| {
-    //             self.context(tx)?
-    //                 .create_at_path(&self.config, path_and_name)
-    //         })??;
-    //
-    //         Ok(val)
-    //     }
-    //
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn create_at_path(
+        &self, path_and_name: &str,
+    ) -> Result<File, Error<CreateFileAtPathError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.create_at_path(path_and_name))??;
+
+        Ok(val)
+    }
+
     //     #[instrument(level = "debug", skip_all, err(Debug))]
     //     pub fn get_by_path(&self, path: &str) -> Result<CoreFile, Error<GetFileByPathError>> {
     //         let val = self
@@ -468,6 +467,8 @@ impl Core {
 pub fn get_code_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
+
+pub type CoreResult<T> = Result<T, CoreError>;
 
 // This basically generates a function called `get_all_error_variants`,
 // which will produce a big json dict of { "Error": ["Values"] }.

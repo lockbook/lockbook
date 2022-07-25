@@ -34,3 +34,11 @@ pub fn is_document<F: FileLike>(file: &F) -> SharedResult<()> {
         Err(SharedError::FileNotFolder)
     }
 }
+
+pub fn path(path: &str) -> SharedResult<()> {
+    if path.contains("//") || path.is_empty() {
+        return Err(SharedError::PathContainsEmptyFileName);
+    }
+
+    Ok(())
+}

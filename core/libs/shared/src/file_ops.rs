@@ -93,4 +93,54 @@ where
         let tree = tree.promote();
         Ok(tree)
     }
+
+    pub fn create_at_path(
+        mut self, path: &str, root: Uuid, account: &Account, pub_key: &PublicKey,
+    ) -> SharedResult<(LazyStaged1<Base, Local>, Uuid)> {
+        validate::path(path)?;
+        let is_folder = path.ends_with('/');
+
+        let path_components = split_path(path);
+        let mut current = root;
+        'path: for index in 0..path_components.len() {
+            'child: for child in self.children(&current)? {
+                if self.calculate_deleted(&child)? {
+                    continue 'child;
+                }
+
+                if self.name(&child, account)? == path_components[index] {
+                    if index == path_components.len() - 1 {
+                        return Err(SharedError::PathTaken);
+                    }
+
+                    if self.find(&child)?.is_folder() {
+                        current = child;
+                        continue 'path;
+                    } else {
+                        return Err(SharedError::FileNotFolder);
+                    }
+                }
+            }
+
+            // Child does not exist, create it
+            let file_type = if is_folder || index != path_components.len() - 1 {
+                FileType::Folder
+            } else {
+                FileType::Document
+            };
+
+            (self, current) =
+                self.create(&current, path_components[index], file_type, account, pub_key)?;
+        }
+
+        Ok((self, current))
+    }
+}
+
+fn split_path(path: &str) -> Vec<&str> {
+    path.split('/')
+        .collect::<Vec<&str>>()
+        .into_iter()
+        .filter(|s| !s.is_empty()) // Remove the trailing empty element in the case this is a folder
+        .collect::<Vec<&str>>()
 }

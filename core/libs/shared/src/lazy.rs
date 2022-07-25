@@ -129,7 +129,12 @@ impl<T: Stagable> LazyTree<T> {
     /// Returns ids of files whose parent is the argument. Does not include the argument.
     pub fn children(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
         // todo: caching?
-        Ok(self.all_files()?.into_iter().filter(|f| f.parent() == id && f.id() != id).map(|f| *f.id()).collect())
+        Ok(self
+            .all_files()?
+            .into_iter()
+            .filter(|f| f.parent() == id && !f.is_root())
+            .map(|f| *f.id())
+            .collect())
     }
 
     /// Returns ids of files for which the argument is an ancestor—the files' children, recursively. Does not include the argument.
@@ -140,7 +145,11 @@ impl<T: Stagable> LazyTree<T> {
         let mut to_process = vec![*id];
         let mut i = 0;
         while i < to_process.len() {
-            let new_descendents = self.children(&to_process[i])?.into_iter().filter(|f| !result.contains(f)).collect::<Vec<Uuid>>();
+            let new_descendents = self
+                .children(&to_process[i])?
+                .into_iter()
+                .filter(|f| !result.contains(f))
+                .collect::<Vec<Uuid>>();
             to_process.extend(new_descendents.iter());
             result.extend(new_descendents.into_iter());
             i += 1;
