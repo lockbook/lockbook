@@ -12,10 +12,10 @@ use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 pub struct LazyTree<T: Stagable> {
-    tree: T,
-    name_by_id: HashMap<Uuid, String>,
-    key_by_id: HashMap<Uuid, AESKey>,
-    implicitly_deleted_by_id: HashMap<Uuid, bool>,
+    pub tree: T,
+    pub name_by_id: HashMap<Uuid, String>,
+    pub key_by_id: HashMap<Uuid, AESKey>,
+    pub implicitly_deleted_by_id: HashMap<Uuid, bool>,
 }
 
 impl<T: Stagable> LazyTree<T> {
@@ -123,10 +123,6 @@ impl<T: Stagable> LazyTree<T> {
         let name = self.find(id)?.secret_name().to_string(&parent_key)?;
         self.name_by_id.insert(*id, name.clone());
         Ok(name)
-    }
-
-    pub fn all_files(&mut self) -> SharedResult<Vec<&T::F>> {
-        todo!()
     }
 
     /// Returns ids of files whose parent is the argument. Does not include the argument.

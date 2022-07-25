@@ -1,7 +1,9 @@
+use std::collections::HashSet;
+
 use crate::account::Account;
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileMetadata, FileType};
-use crate::lazy::LazyStaged1;
+use crate::lazy::{LazyStaged1, LazyTree};
 use crate::secret_filename::SecretFileName;
 use crate::signed_file::SignedFile;
 use crate::tree_like::{Stagable, TreeLike};
@@ -92,6 +94,56 @@ where
         tree.validate()?;
         let tree = tree.promote();
         Ok(tree)
+    }
+
+    /// Removes deleted files which are safe to delete. Call this function after a set of operations rather than in-between
+    /// each operation because otherwise you'll prune e.g. a file that was moved out of a folder that was deleted.
+    pub fn prunable_ids(&mut self) -> SharedResult<HashSet<Uuid>> {
+        // If a file is deleted or has a deleted ancestor, we say that it is deleted. Whether a file is deleted is specific
+        // to the source (base or local). We cannot prune (delete from disk) a file in one source and not in the other in
+        // order to preserve the semantics of having a file present on one, the other, or both (unmodified/new/modified).
+        // For a file to be pruned, it must be deleted on both sources but also have no non-deleted descendants on either
+        // source - otherwise, the metadata for those descendants can no longer be decrypted. For an example of a situation
+        // where this is important, see the test prune_deleted_document_moved_from_deleted_folder_local_only.
+
+        // find files deleted on base and local; new deleted local files are also eligible
+        
+        let (base, deleted_base) = {
+            let mut tree = LazyTree::new(self.tree.base.all_files()?.into_iter().cloned().collect::<Vec<SignedFile>>());
+            let mut deleted = HashSet::new();
+            for id in tree.owned_ids() {
+                if tree.calculate_deleted(&id)? {
+                    deleted.insert(id);
+                }
+            }
+            (tree, deleted)
+        };
+        let (staged, deleted_staged) = {
+            let tree = self;
+            let mut deleted = HashSet::new();
+            for id in tree.owned_ids() {
+                if tree.calculate_deleted(&id)? {
+                    deleted.insert(id);
+                }
+            }
+            (tree, deleted)
+        };
+
+        let deleted_either = deleted_base.union(&deleted_staged).map(|&id| id).collect();
+        let not_deleted_either = staged.owned_ids().difference(&deleted_either).map(|&id| id).collect::<HashSet<_>>();
+
+        // exclude files with not deleted descendants i.e. exclude files that are the ancestors of not deleted files
+        let mut to_prune = deleted_either;
+        for id in not_deleted_either {
+            for ancestor in base.ancestors(&id)? {
+                to_prune.remove(&ancestor);
+            }
+            for ancestor in staged.ancestors(&id)? {
+                to_prune.remove(&ancestor);
+            }
+        }
+
+        Ok(to_prune)
     }
 
     pub fn create_at_path(

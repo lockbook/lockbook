@@ -31,6 +31,10 @@ pub trait TreeLike: Sized {
     fn owned_ids(&self) -> HashSet<Uuid> {
         self.ids().iter().map(|id| **id).collect()
     }
+
+    fn all_files(&mut self) -> SharedResult<Vec<&Self::F>> {
+        todo!()
+    }
 }
 
 pub trait Stagable: TreeLike {
