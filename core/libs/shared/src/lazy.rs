@@ -122,6 +122,44 @@ impl<T: Stagable> LazyTree<T> {
         Ok(name)
     }
 
+    pub fn all_files(&mut self) -> SharedResult<Vec<&T::F>> {
+        todo!()
+    }
+
+    /// Returns ids of files whose parent is the argument. Does not include the argument.
+    pub fn children(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+        // todo: caching?
+        Ok(self.all_files()?.into_iter().filter(|f| f.parent() == id && f.id() != id).map(|f| *f.id()).collect())
+    }
+
+    /// Returns ids of files for which the argument is an ancestor—the files' children, recursively. Does not include the argument.
+    /// This function tolerates cycles.
+    pub fn descendents(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+        // todo: caching?
+        let mut result = HashSet::new();
+        let mut to_process = vec![*id];
+        let mut i = 0;
+        while i < to_process.len() {
+            let new_descendents = self.children(&to_process[i])?.into_iter().filter(|f| !result.contains(f)).collect::<Vec<Uuid>>();
+            to_process.extend(new_descendents.iter());
+            result.extend(new_descendents.into_iter());
+            i += 1;
+        }
+        Ok(result)
+    }
+
+    /// Returns ids of files for which the argument is a descendent—the files' parent, recursively. Does not include the argument.
+    /// This function tolerates cycles.
+    pub fn ancestors(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+        let mut result = HashSet::new();
+        let mut current_file = self.find(id)?;
+        while !current_file.is_root() && !result.contains(current_file.parent()) {
+            result.insert(*current_file.parent());
+            current_file = self.find_parent(current_file)?;
+        }
+        Ok(result)
+    }
+
     pub fn encrypt_document(
         &mut self, id: &Uuid, document: &DecryptedDocument, account: &Account,
     ) -> SharedResult<EncryptedDocument> {
@@ -156,12 +194,13 @@ impl<T: Stagable> LazyTree<T> {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub enum ValidationFailure {
     Orphan(Uuid),
-    SelfDescendent(Vec<Uuid>),
-    PathConflict(Vec<Uuid>),
+    Cycle(HashSet<Uuid>),
+    PathConflict(HashSet<Uuid>),
     SharedLink(Uuid),
-    DuplicateLink(Vec<Uuid>),
+    DuplicateLink(HashSet<Uuid>),
     BrokenLink(Uuid),
 }
 
@@ -184,60 +223,88 @@ impl<Base: Stagable, Local: Stagable<F = Base::F>> LazyTree<StagedTree<Base, Loc
         Ok(changed)
     }
 
-    // todo: remove?
     pub fn validate(&mut self) -> SharedResult<()> {
-        todo!()
+        self.assert_no_orphans()?;
+        // self.assert_no_cycles()?;
+        Ok(())
     }
 
-    pub fn resolve_validation_failures(&mut self) -> SharedResult<()> {
-        while let Some(validation_failure) = self.get_validation_failures()? {
-            match validation_failure {
-                ValidationFailure::Orphan(id) => {
-                    self.remove(id);
-                    //todo: minimally invalidate cache
-                    self.name_by_id.remove(&id);
-                    self.key_by_id.remove(&id);
-                    self.implicitly_deleted_by_id.remove(&id);
-                }
-                ValidationFailure::SelfDescendent(_) => todo!(),
-                ValidationFailure::PathConflict(_) => todo!(),
-                ValidationFailure::SharedLink(_) => todo!(),
-                ValidationFailure::DuplicateLink(_) => todo!(),
-                ValidationFailure::BrokenLink(_) => todo!(),
+    pub fn resolve_merge_conflicts(&mut self) -> SharedResult<()> {
+        self.prune_orphans()?;
+        // self.unmove_moved_files_in_cycles()?;
+        Ok(())
+    }
+
+    fn assert_no_orphans(&mut self) -> SharedResult<()> {
+        for file in self.ids().into_iter().filter_map(|id| self.maybe_find(id)) {
+            if self.maybe_find_parent(file).is_none() {
+                return Err(SharedError::ValidationFailure(ValidationFailure::Orphan(*file.id())));
             }
         }
         Ok(())
     }
 
-    pub fn get_validation_failures(&mut self) -> SharedResult<Option<ValidationFailure>> {
-        todo!()
-        // self.get_orphans()?;
-        // self.get_invalid_cycles()?;
-        // self.get_path_conflicts()?;
-        // self.get_shared_links()?;
-        // self.get_duplicate_links()?;
-        // self.get_broken_links()
+    // assumptions: none
+    // changes: prunes files
+    // invalidated by: nothing
+    fn prune_orphans(&mut self) -> SharedResult<()> {
+        let mut to_prune = HashSet::new();
+        for id in self.owned_ids() {
+            if self.maybe_find_parent(self.find(&id)?).is_none() {
+                to_prune.extend(self.descendents(&id)?);
+            }
+        }
+        for id in to_prune {
+            self.remove(id);
+            self.name_by_id.remove(&id);
+            self.key_by_id.remove(&id);
+            self.implicitly_deleted_by_id.remove(&id);
+        }
+        Ok(())
     }
 
-    fn get_orphans(&mut self) -> SharedResult<Option<Uuid>> {
-        Ok(None)
-    }
-
-    // fn get_self_descendents(&mut self) -> SharedResult<Option<Vec<Uuid>>> {
+    //  // assumptions: no orphans
+    // fn assert_no_cycles(&mut self) -> SharedResult<()> {
     //     let mut root_found = false;
-    //     let mut prev_checked = HashMap::new();
-    //     let mut result = Vec::new();
-    //     for id in self.ids() {
+    //     let mut prev_checked = HashSet::<Uuid>::new();
+    //     for id in self.owned_ids() {
+    //         let mut checking = HashSet::<Uuid>::new();
+    //         let mut cur = self.find(&id)?;
+    //         loop {
+    //             match (cur.is_root(), root_found, prev_checked.contains(&cur.id())) {
+    //                 (true, false, _) => root_found = true,
+    //                 (true, true, _) => return Err(SharedError::ValidationFailure(ValidationFailure::Cycle(checking.into_iter().collect()))),
+    //                 (false, _, false) => todo!(),
+    //                 (false, _, true) => return Err(SharedError::ValidationFailure(ValidationFailure::Cycle(checking.into_iter().collect()))),
+    //             }
+    //         }
 
+    //         while !cur.is_root() && prev_checked.get(&cur.id()).is_none() {
+    //             if checking.contains_key(&cur.id()) {
+    //                 result.extend(checking.keys());
+    //                 break;
+    //             }
+    //             checking.push(cur.clone());
+    //             if cur.is_shared_with_user(&user) {
+    //                 break;
+    //             }
+    //             cur = &staged_changes.get(&cur.parent()).ok_or(FileNonexistent)?.0;
+    //         }
+    //         prev_checked.extend(checking);
     //     }
+    //     Ok(())
+    // }
 
+    // // assumptions: no orphans
+    // // changes: moves files
+    // // invalidated by: moved files
+    // fn unmove_moved_files_in_cycles(&mut self) -> SharedResult<()> {
     //     let mut root_found = false;
     //     let mut prev_checked = HashMap::new();
-    //     let staged_changes = self.stage_with_source(staged_changes);
     //     let mut result = Vec::new();
-    //     for (_, (f, _)) in staged_changes.clone().into_iter() {
+    //     for id in self.owned_ids() {
     //         let mut checking = HashMap::new();
-    //         let mut cur = &f;
+    //         let mut cur = self.find(&id)?;
     //         if cur.is_root() {
     //             if root_found {
     //                 result.push(cur.id());
@@ -300,64 +367,6 @@ impl<Base: Stagable, Local: Stagable<F = Base::F>> LazyTree<StagedTree<Base, Loc
     //         } else {
     //             parent_children.insert(name, cloned_id);
     //         };
-    //     }
-    //     Ok(result)
-    // }
-
-    // fn get_shared_links(&mut self) -> SharedResult<()> {
-    //     let mut result = Vec::new();
-    //     for root in self
-    //         .values()
-    //         .filter(|f| f.is_root() || f.is_shared_with_user(user))
-    //     {
-    //         get_shared_links_helper(
-    //             &self.stage_with_source(staged_changes),
-    //             &root,
-    //             &mut Vec::new(),
-    //             &mut result,
-    //         )?;
-    //     }
-
-    //     Ok(result)
-    // }
-
-    // fn get_duplicate_links(&mut self) -> SharedResult<()> {
-    //     let mut links_by_target = HashMap::<Uuid, Vec<(Uuid, StageSource)>>::new();
-    //     for file in self.stage_with_source(staged_changes).values() {
-    //         if let FileType::Link { linked_file } = file.0.file_type() {
-    //             match links_by_target.get_mut(&linked_file) {
-    //                 Some(links) => links.push((file.0.id(), file.1)),
-    //                 None => {
-    //                     links_by_target.insert(linked_file, vec![(file.0.id(), file.1)]);
-    //                 }
-    //             }
-    //         }
-    //     }
-
-    //     Ok(links_by_target
-    //         .into_iter()
-    //         .filter_map(
-    //             |(target, links)| {
-    //                 if links.len() > 1 {
-    //                     Some(LinkDuplicate { links, target })
-    //                 } else {
-    //                     None
-    //                 }
-    //             },
-    //         )
-    //         .collect())
-    // }
-
-    // fn get_broken_links(&mut self) -> SharedResult<()> {
-    //     let mut result = Vec::new();
-    //     let files = self.clone().stage(staged_changes.clone()); // todo(sharing): don't clone
-    //     let not_deleted_files = files.clone().filter_not_deleted()?; // todo(sharing): don't clone
-    //     for file in files.values() {
-    //         if let FileType::Link { linked_file } = file.file_type() {
-    //             if not_deleted_files.maybe_find_ref(linked_file).is_none() {
-    //                 result.push(file.id());
-    //             }
-    //         }
     //     }
     //     Ok(result)
     // }

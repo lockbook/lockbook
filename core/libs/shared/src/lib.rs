@@ -2,6 +2,7 @@ extern crate core;
 
 use bincode::Error;
 use hmac::crypto_mac::{InvalidKeyLength, MacError};
+pub use lazy::ValidationFailure;
 
 pub mod access_info;
 pub mod account;
@@ -50,6 +51,7 @@ pub enum SharedError {
     ParseError(libsecp256k1::Error),
     SharedSecretUnexpectedSize,
     SharedSecretError(libsecp256k1::Error),
+    ValidationFailure(ValidationFailure),
     Unexpected(&'static str),
 }
 
