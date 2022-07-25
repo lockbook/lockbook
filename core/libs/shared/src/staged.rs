@@ -63,7 +63,11 @@ impl<Base: Stagable, Staged: Stagable<F = Base::F>> TreeLike for StagedTree<Base
     }
 
     fn remove(&mut self, id: Uuid) -> Option<Self::F> {
-        self.staged.remove(id)
+        match (self.base.remove(id), self.staged.remove(id)) {
+            (_, Some(staged)) => Some(staged),
+            (Some(base), None) => Some(base),
+            (None, None) => None,
+        }
     }
 }
 

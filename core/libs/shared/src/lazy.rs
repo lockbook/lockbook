@@ -2,6 +2,9 @@ use crate::account::Account;
 use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::file::File;
 use crate::file_like::FileLike;
+use crate::file_metadata::FileMetadata;
+use crate::filename::NameComponents;
+use crate::secret_filename::SecretFileName;
 use crate::staged::StagedTree;
 use crate::tree_like::{Stagable, TreeLike};
 use crate::{pubkey, symkey, SharedError, SharedResult};
@@ -157,9 +160,10 @@ impl<T: Stagable> LazyTree<T> {
         Ok(result)
     }
 
+    // todo: move to TreeLike
     /// Returns ids of files for which the argument is a descendent—the files' parent, recursively. Does not include the argument.
     /// This function tolerates cycles.
-    pub fn ancestors(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+    pub fn ancestors(&self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
         let mut result = HashSet::new();
         let mut current_file = self.find(id)?;
         while !current_file.is_root() && !result.contains(current_file.parent()) {
@@ -201,6 +205,67 @@ impl<T: Stagable> LazyTree<T> {
             tree: StagedTree::<T, T2> { base: self.tree, staged },
         }
     }
+
+    pub fn validate(&mut self) -> SharedResult<()> {
+        self.assert_no_orphans()?;
+        self.assert_no_cycles()?;
+        self.assert_no_path_conflicts()?;
+        Ok(())
+    }
+
+    fn assert_no_orphans(&mut self) -> SharedResult<()> {
+        for file in self.ids().into_iter().filter_map(|id| self.maybe_find(id)) {
+            if self.maybe_find_parent(file).is_none() {
+                return Err(SharedError::ValidationFailure(ValidationFailure::Orphan(*file.id())));
+            }
+        }
+        Ok(())
+    }
+
+    // assumption: no orphans
+    fn assert_no_cycles(&mut self) -> SharedResult<()> {
+       let mut root_found = false;
+       let mut no_cycles_in_ancestors = HashSet::new();
+       for id in self.owned_ids() {
+           let mut ancestors = HashSet::new();
+           let mut current_file = self.find(&id)?;
+           loop {
+               if no_cycles_in_ancestors.contains(&id) {
+                   break;
+               } else if current_file.is_root() {
+                   if !root_found {
+                       root_found = true;
+                       break;
+                   } else {
+                       return Err(SharedError::ValidationFailure(ValidationFailure::Cycle(HashSet::from([id]))))
+                   }
+               } else if ancestors.contains(current_file.parent()) {
+                   return Err(SharedError::ValidationFailure(ValidationFailure::Cycle(self.ancestors(current_file.id())?)))
+               } 
+               ancestors.insert(*current_file.id());
+               current_file = self.find_parent(current_file)?;
+           }
+           no_cycles_in_ancestors.extend(ancestors);
+       }
+       Ok(())
+    }
+
+    // todo: optimize
+   fn assert_no_path_conflicts(&mut self) -> SharedResult<()> {
+        let mut children_by_parent_and_name = HashMap::<(Uuid, SecretFileName), HashSet<Uuid>>::new();
+        for id in self.owned_ids() {
+            if !self.calculate_deleted(&id)? {
+                let file = self.find(&id)?;
+                children_by_parent_and_name.entry((*file.parent(), file.secret_name().clone())).or_insert_with(HashSet::new).insert(*file.id());
+            }
+        }
+        for (_, siblings_with_same_name) in children_by_parent_and_name {
+            if siblings_with_same_name.len() > 1 {
+                return Err(SharedError::ValidationFailure(ValidationFailure::PathConflict(siblings_with_same_name)))
+            }
+        }
+        Ok(())
+   }
 }
 
 #[derive(Debug, PartialEq)]
@@ -213,7 +278,7 @@ pub enum ValidationFailure {
     BrokenLink(Uuid),
 }
 
-impl<Base: Stagable, Local: Stagable<F = Base::F>> LazyTree<StagedTree<Base, Local>> {
+impl<Base: Stagable<F = FileMetadata>, Local: Stagable<F = Base::F>> LazyTree<StagedTree<Base, Local>> {
     pub fn get_changes(&self) -> SharedResult<Vec<&Base::F>> {
         let base = self.tree.base.ids();
         let local = self.tree.staged.ids();
@@ -232,153 +297,94 @@ impl<Base: Stagable, Local: Stagable<F = Base::F>> LazyTree<StagedTree<Base, Loc
         Ok(changed)
     }
 
-    pub fn validate(&mut self) -> SharedResult<()> {
-        self.assert_no_orphans()?;
-        // self.assert_no_cycles()?;
-        Ok(())
+    // todo: optimize subroutines by checking only staged things
+    pub fn resolve_merge_conflicts(mut self, account: &Account) -> SharedResult<Self> {
+        let mut change = self.unmove_moved_files_in_cycles()?;
+        self = self.stage(change).promote();
+        change = self.rename_files_with_path_conflicts(account)?;
+        self = self.stage(change).promote();
+        Ok(self)
     }
 
-    pub fn resolve_merge_conflicts(&mut self) -> SharedResult<()> {
-        self.prune_orphans()?;
-        // self.unmove_moved_files_in_cycles()?;
-        Ok(())
-    }
-
-    fn assert_no_orphans(&mut self) -> SharedResult<()> {
-        for file in self.ids().into_iter().filter_map(|id| self.maybe_find(id)) {
-            if self.maybe_find_parent(file).is_none() {
-                return Err(SharedError::ValidationFailure(ValidationFailure::Orphan(*file.id())));
-            }
-        }
-        Ok(())
-    }
-
-    // assumptions: none
-    // changes: prunes files
-    // invalidated by: nothing
-    fn prune_orphans(&mut self) -> SharedResult<()> {
-        let mut to_prune = HashSet::new();
+    // assumptions: no orphans
+    // changes: moves files
+    // invalidated by: moved files
+    fn unmove_moved_files_in_cycles(&mut self) -> SharedResult<Vec<Base::F>> {
+        let mut root_found = false;
+        let mut no_cycles_in_ancestors = HashSet::new();
+        let mut to_revert = HashSet::new();
         for id in self.owned_ids() {
-            if self.maybe_find_parent(self.find(&id)?).is_none() {
-                to_prune.extend(self.descendents(&id)?);
+            let mut ancestors = HashSet::new();
+            let mut current_file = self.find(&id)?;
+            loop {
+                if no_cycles_in_ancestors.contains(&id) {
+                    break;
+                } else if current_file.is_root() {
+                    if !root_found {
+                        root_found = true;
+                        break;
+                    } else {
+                        to_revert.insert(id);
+                        break;
+                    }
+                } else if ancestors.contains(current_file.parent()) {
+                    to_revert.extend(self.ancestors(current_file.id())?);
+                    break;
+                } 
+                ancestors.insert(*current_file.id());
+                current_file = self.find_parent(current_file)?;
+            }
+            no_cycles_in_ancestors.extend(ancestors);
+        }
+        let mut result = Vec::new();
+        for id in to_revert {
+            match (self.tree.base.maybe_find(&id), self.tree.staged.maybe_find(&id)) {
+                (Some(base), Some(staged)) => {
+                    let mut update = staged.clone();
+                    update.parent = base.parent;
+                    result.push(update);
+                },
+                _ => {},
             }
         }
-        for id in to_prune {
-            self.remove(id);
-            self.name_by_id.remove(&id);
-            self.key_by_id.remove(&id);
-            self.implicitly_deleted_by_id.remove(&id);
-        }
-        Ok(())
+        Ok(result)
     }
 
-    //  // assumptions: no orphans
-    // fn assert_no_cycles(&mut self) -> SharedResult<()> {
-    //     let mut root_found = false;
-    //     let mut prev_checked = HashSet::<Uuid>::new();
-    //     for id in self.owned_ids() {
-    //         let mut checking = HashSet::<Uuid>::new();
-    //         let mut cur = self.find(&id)?;
-    //         loop {
-    //             match (cur.is_root(), root_found, prev_checked.contains(&cur.id())) {
-    //                 (true, false, _) => root_found = true,
-    //                 (true, true, _) => return Err(SharedError::ValidationFailure(ValidationFailure::Cycle(checking.into_iter().collect()))),
-    //                 (false, _, false) => todo!(),
-    //                 (false, _, true) => return Err(SharedError::ValidationFailure(ValidationFailure::Cycle(checking.into_iter().collect()))),
-    //             }
-    //         }
+    // assumptions: no orphans
+    // changes: renames files
+    // invalidated by: moved files, renamed files
+    fn rename_files_with_path_conflicts(&mut self, account: &Account) -> SharedResult<Vec<Base::F>> {
+        let mut children = HashMap::<Uuid, HashSet<Uuid>>::new();
+        let mut names = HashMap::<Uuid, String>::new();
+        let mut keys = HashMap::<Uuid, AESKey>::new();
+        for id in self.owned_ids() {
+            if !self.calculate_deleted(&id)? {
+                let file = self.find(&id)?;
+                children.entry(*file.parent()).or_insert_with(HashSet::new).insert(id);
+                names.insert(id, self.name(&id, account)?);
+                keys.insert(id, self.decrypt_key(&id, account)?);
+            }
+        }
 
-    //         while !cur.is_root() && prev_checked.get(&cur.id()).is_none() {
-    //             if checking.contains_key(&cur.id()) {
-    //                 result.extend(checking.keys());
-    //                 break;
-    //             }
-    //             checking.push(cur.clone());
-    //             if cur.is_shared_with_user(&user) {
-    //                 break;
-    //             }
-    //             cur = &staged_changes.get(&cur.parent()).ok_or(FileNonexistent)?.0;
-    //         }
-    //         prev_checked.extend(checking);
-    //     }
-    //     Ok(())
-    // }
-
-    // // assumptions: no orphans
-    // // changes: moves files
-    // // invalidated by: moved files
-    // fn unmove_moved_files_in_cycles(&mut self) -> SharedResult<()> {
-    //     let mut root_found = false;
-    //     let mut prev_checked = HashMap::new();
-    //     let mut result = Vec::new();
-    //     for id in self.owned_ids() {
-    //         let mut checking = HashMap::new();
-    //         let mut cur = self.find(&id)?;
-    //         if cur.is_root() {
-    //             if root_found {
-    //                 result.push(cur.id());
-    //             } else {
-    //                 root_found = true;
-    //             }
-    //         }
-    //         while !cur.is_root() && prev_checked.get(&cur.id()).is_none() {
-    //             if checking.contains_key(&cur.id()) {
-    //                 result.extend(checking.keys());
-    //                 break;
-    //             }
-    //             checking.push(cur.clone());
-    //             if cur.is_shared_with_user(&user) {
-    //                 break;
-    //             }
-    //             cur = &staged_changes.get(&cur.parent()).ok_or(FileNonexistent)?.0;
-    //         }
-    //         prev_checked.extend(checking);
-    //     }
-    //     Ok(result)
-    // }
-
-    // fn get_path_conflicts(&mut self) -> SharedResult<()> {
-    //     let files = self
-    //         .clone()
-    //         .stage(staged_changes.clone())
-    //         .filter_not_deleted()?;
-    //     let files_with_sources = self.stage_with_source(staged_changes);
-    //     let mut name_tree: HashMap<Uuid, HashMap<Fm::Name, Uuid>> = HashMap::new();
-    //     let mut result = Vec::new();
-    //     for (id, f) in files {
-    //         let source = files_with_sources
-    //             .get(&id)
-    //             .ok_or_else(|| {
-    //                 TreeError::Unexpected(
-    //                     "get_path_conflicts: could not find source by id".to_string(),
-    //                 )
-    //             })?
-    //             .clone()
-    //             .1;
-    //         let parent_id = f.parent();
-    //         if f.is_root() {
-    //             continue;
-    //         };
-    //         let name = f.name();
-    //         let parent_children = name_tree.entry(parent_id).or_insert_with(HashMap::new);
-    //         let cloned_id = id;
-    //         if let Some(conflicting_child_id) = parent_children.get(&name) {
-    //             match source {
-    //                 StageSource::Base => result.push(PathConflict {
-    //                     existing: cloned_id,
-    //                     staged: conflicting_child_id.to_owned(),
-    //                 }),
-    //                 StageSource::Staged => result.push(PathConflict {
-    //                     existing: conflicting_child_id.to_owned(),
-    //                     staged: cloned_id,
-    //                 }),
-    //             }
-    //         } else {
-    //             parent_children.insert(name, cloned_id);
-    //         };
-    //     }
-    //     Ok(result)
-    // }
+        let mut result = Vec::new();
+        for (_, sibling_ids) in children {
+            let siblings = sibling_ids.iter().filter_map(|s| self.maybe_find(&s)).collect::<Vec<_>>();
+            for sibling in siblings {
+                let mut name = names.get(sibling.id()).ok_or(SharedError::FileNonexistent)?.clone();
+                let mut changed = false;
+                while sibling_ids.iter().filter_map(|id| names.get(id)).any(|sibling_name| sibling_name == &name) {
+                    name = NameComponents::from(&name).generate_next().to_name();
+                    changed = true;
+                }
+                if changed {
+                    let mut update = sibling.clone();
+                    update.name = SecretFileName::from_str(&name, &keys[sibling.parent()])?;
+                    result.push(update);
+                }
+            }
+        }
+        Ok(result)
+    }
 }
 
 pub type Stage1<Base, Local> = StagedTree<Base, Local>;
