@@ -93,17 +93,4 @@ where
         let tree = tree.promote();
         Ok(tree)
     }
-
-    /// Removes deleted files which are safe to delete. Call this function after a set of operations rather than in-between
-    /// each operation because otherwise you'll prune e.g. a file that was moved out of a folder that was deleted.
-    pub fn prune_deleted(self) -> SharedResult<(LazyStaged1<Base, Local>, Vec<Uuid>)> {
-        // If a file is deleted or has a deleted ancestor, we say that it is deleted. Whether a file is deleted is specific
-        // to the source (base or local). We cannot prune (delete from disk) a file in one source and not in the other in
-        // order to preserve the semantics of having a file present on one, the other, or both (unmodified/new/modified).
-        // For a file to be pruned, it must be deleted on both sources but also have no non-deleted descendants on either
-        // source - otherwise, the metadata for those descendants can no longer be decrypted. For an example of a situation
-        // where this is important, see the test prune_deleted_document_moved_from_deleted_folder_local_only.
-
-        todo!()
-    }
 }

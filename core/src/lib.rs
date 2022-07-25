@@ -203,15 +203,14 @@ impl Core {
     //         Ok(val?)
     //     }
     //
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
-    //         let val = self.db.transaction(|tx| {
-    //             self.context(tx)?
-    //                 .read_document(&self.config, RepoSource::Local, id)
-    //         })?;
-    //         Ok(val?)
-    //     }
-    //
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.read_document(id))?;
+        Ok(val?)
+    }
+
     //     #[instrument(level = "debug", skip(self), err(Debug))]
     //     pub fn list_metadatas(&self) -> Result<Vec<CoreFile>, UnexpectedError> {
     //         let val = self

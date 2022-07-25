@@ -10,9 +10,7 @@ use lockbook_shared::validate;
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
-    pub fn read_document(
-        &mut self, id: Uuid, source: RepoSource,
-    ) -> Result<DecryptedDocument, CoreError> {
+    pub fn read_document(&mut self, id: Uuid) -> Result<DecryptedDocument, CoreError> {
         let account = self
             .tx
             .account
@@ -32,15 +30,11 @@ impl RequestContext<'_, '_> {
         let meta = tree.find(&id)?;
         validate::is_document(&meta)?;
 
-        let maybe_encrypted_document = match source {
-            RepoSource::Local => {
-                match document_repo::maybe_get(self.config, RepoSource::Local, meta.id())? {
-                    Some(local) => Some(local),
-                    None => document_repo::maybe_get(self.config, RepoSource::Base, meta.id())?,
-                }
-            }
-            RepoSource::Base => document_repo::maybe_get(self.config, RepoSource::Base, meta.id())?,
-        };
+        let maybe_encrypted_document =
+            match document_repo::maybe_get(self.config, RepoSource::Local, meta.id())? {
+                Some(local) => Some(local),
+                None => document_repo::maybe_get(self.config, RepoSource::Base, meta.id())?,
+            };
 
         let doc = match maybe_encrypted_document {
             Some(doc) => {
@@ -51,5 +45,9 @@ impl RequestContext<'_, '_> {
         };
 
         Ok(doc)
+    }
+
+    pub fn write_document(&mut self, id: Uuid) -> Result<(), CoreError> {
+        todo!()
     }
 }
