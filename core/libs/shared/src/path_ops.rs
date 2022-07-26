@@ -6,6 +6,7 @@ use crate::signed_file::SignedFile;
 use crate::tree_like::{Stagable, TreeLike};
 use crate::{symkey, validate, SharedError, SharedResult};
 use libsecp256k1::PublicKey;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 impl<Base, Local> LazyStaged1<Base, Local>
@@ -92,9 +93,34 @@ where
         }
     }
 
-    pub fn list_paths(&mut self, filter: Option<Filter>) -> SharedResult<Vec<String>> {
-        // let mut ids = self.ids().into_iter().filter()
-        todo!()
+    pub fn list_paths(
+        &mut self, filter: Option<Filter>, account: &Account,
+    ) -> SharedResult<Vec<String>> {
+        let mut files = self.all_files()?;
+
+        if let Some(filter) = &filter {
+            match filter {
+                Filter::DocumentsOnly => files.retain(|f| f.is_document()),
+                Filter::FoldersOnly => files.retain(|f| f.is_folder()),
+                Filter::LeafNodesOnly => {
+                    let mut retained = self.owned_ids();
+                    for file in &files {
+                        retained.remove(file.parent());
+                    }
+                    files.retain(|f| retained.contains(f.id()))
+                }
+            }
+        }
+
+        let mut paths = vec![];
+
+        let ids: Vec<Uuid> = files.into_iter().map(|f| *f.id()).collect();
+
+        for id in ids {
+            paths.push(self.id_to_path(&id, account)?);
+        }
+
+        Ok(paths)
     }
 }
 

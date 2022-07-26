@@ -32,7 +32,7 @@ pub trait TreeLike: Sized {
         self.ids().iter().map(|id| **id).collect()
     }
 
-    fn all_files(&mut self) -> SharedResult<Vec<&Self::F>> {
+    fn all_files(&self) -> SharedResult<Vec<&Self::F>> {
         todo!()
     }
 }

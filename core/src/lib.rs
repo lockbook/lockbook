@@ -41,6 +41,7 @@ use lockbook_shared::clock;
 use lockbook_shared::crypto::AESKey;
 use lockbook_shared::file::File;
 use lockbook_shared::file_metadata::FileType;
+use lockbook_shared::path_ops::Filter;
 
 use crate::model::errors::Error::UiError;
 use crate::model::repo::RepoSource;
@@ -268,16 +269,16 @@ impl Core {
             .transaction(|tx| self.context(tx)?.get_path_by_id(id))?;
         Ok(val?)
     }
-    //
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn list_paths(&self, filter: Option<Filter>) -> Result<Vec<String>, UnexpectedError> {
-    //         let val: Result<_, CoreError> = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.list_paths(filter))?;
-    //
-    //         Ok(val?)
-    //     }
-    //
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn list_paths(&self, filter: Option<Filter>) -> Result<Vec<String>, UnexpectedError> {
+        let val: Result<_, CoreError> = self
+            .db
+            .transaction(|tx| self.context(tx)?.list_paths(filter))?;
+
+        Ok(val?)
+    }
+
     //     #[instrument(level = "debug", skip(self), err(Debug))]
     //     pub fn get_local_changes(&self) -> Result<Vec<Uuid>, UnexpectedError> {
     //         let val = self
