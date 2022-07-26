@@ -2,11 +2,14 @@
 
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
+use crossbeam::channel::Sender;
 use jni::objects::{JClass, JObject, JString, JValue};
-use jni::sys::{jboolean, jbyteArray, jlong, jstring};
+use jni::sys::{jboolean, jbyteArray, jint, jlong, jstring};
 use jni::JNIEnv;
+use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 use crate::{
@@ -18,6 +21,7 @@ use lockbook_models::work_unit::ClientWorkUnit;
 
 use crate::external_interface::json_interface::translate;
 use crate::external_interface::static_state;
+use crate::service::search_service::{SearchRequest, SearchResult};
 use crate::service::sync_service::SyncProgress;
 
 fn serialize_to_jstring<U: Serialize>(env: &JNIEnv, result: U) -> jstring {
@@ -335,7 +339,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocumentBytes(
         .ok()
         .and_then(|core| core.read_document(id).ok())
     {
-        None => ::std::ptr::null_mut() as jbyteArray,
+        None => std::ptr::null_mut() as jbyteArray,
         Some(document_bytes) => env
             .byte_array_from_slice(document_bytes.as_slice())
             .unwrap_or(::std::ptr::null_mut() as jbyteArray),
@@ -448,6 +452,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_syncAll(
             file_name,
         ]
         .to_vec();
+
         env_c
             .call_method(
                 jsyncmodel,
@@ -596,6 +601,128 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_listMetadatas(
             e => translate(e.map(|_| ())),
         },
     )
+}
+
+lazy_static! {
+    static ref MAYBE_SEARCH_TX: Arc<Mutex<Option<Sender<SearchRequest>>>> =
+        Arc::new(Mutex::new(None));
+}
+
+fn send_search_request(env: JNIEnv, request: SearchRequest) -> jstring {
+    let result = MAYBE_SEARCH_TX
+        .lock()
+        .map_err(|_| UnexpectedError("Could not get lock".to_string()))
+        .and_then(|maybe_lock| {
+            maybe_lock
+                .clone()
+                .ok_or_else(|| UnexpectedError("No search lock.".to_string()))
+        })
+        .and_then(|search_tx| search_tx.send(request).map_err(UnexpectedError::from));
+
+    string_to_jstring(&env, translate(result))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
+    env: JNIEnv, _: JClass, jsearchFilesViewModel: JObject<'static>,
+) -> jstring {
+    let (results_rx, search_tx) = match static_state::get().and_then(|core| core.start_search()) {
+        Ok(search_info) => (search_info.results_rx, search_info.search_tx),
+        Err(e) => return string_to_jstring(&env, translate(Err::<(), _>(e))),
+    };
+
+    match MAYBE_SEARCH_TX.lock() {
+        Ok(mut lock) => *lock = Some(search_tx),
+        Err(_) => {
+            return string_to_jstring(&env, translate(Err::<(), _>("Cannot get search lock.")))
+        }
+    }
+
+    while let Ok(results) = results_rx.recv() {
+        match results {
+            SearchResult::Error(e) => return string_to_jstring(&env, translate(Err::<(), _>(e))),
+            SearchResult::FileNameMatch { id, path, matched_indices, score } => {
+                let matched_indices_json = match serde_json::to_string(&matched_indices) {
+                    Ok(json) => json,
+                    Err(_) => return string_to_jstring(&env, "Failed to parse json.".to_string()),
+                };
+
+                let args = [
+                    JValue::Object(JObject::from(string_to_jstring(&env, id.to_string()))),
+                    JValue::Object(JObject::from(string_to_jstring(&env, path))),
+                    JValue::Int(score as jint),
+                    JValue::Object(JObject::from(string_to_jstring(&env, matched_indices_json))),
+                ]
+                .to_vec();
+
+                env.call_method(
+                    jsearchFilesViewModel,
+                    "addFileNameSearchResult",
+                    "(Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;)V",
+                    args.as_slice(),
+                )
+                .unwrap();
+            }
+            SearchResult::FileContentMatches { id, path, content_matches } => {
+                let content_matches_json = match serde_json::to_string(&content_matches) {
+                    Ok(json) => json,
+                    Err(_) => return string_to_jstring(&env, "Failed to parse json.".to_string()),
+                };
+
+                let args = [
+                    JValue::Object(JObject::from(string_to_jstring(&env, id.to_string()))),
+                    JValue::Object(JObject::from(string_to_jstring(&env, path))),
+                    JValue::Object(JObject::from(string_to_jstring(&env, content_matches_json))),
+                ]
+                .to_vec();
+
+                env.call_method(
+                    jsearchFilesViewModel,
+                    "addFileContentSearchResult",
+                    "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+                    args.as_slice(),
+                )
+                .unwrap();
+            }
+            SearchResult::NoMatch => {
+                env.call_method(jsearchFilesViewModel, "noMatch", "()V", &[])
+                    .unwrap();
+            }
+        }
+    }
+
+    match MAYBE_SEARCH_TX.lock() {
+        Ok(mut lock) => *lock = None,
+        Err(_) => {
+            return string_to_jstring(&env, translate(Err::<(), _>("Cannot get search lock.")))
+        }
+    }
+
+    string_to_jstring(&env, translate(Ok::<_, ()>(())))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_search(
+    env: JNIEnv, _: JClass, jquery: JString,
+) -> jstring {
+    let query = match jstring_to_string(&env, jquery, "query") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    send_search_request(env, SearchRequest::Search { input: query })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_stopCurrentSearch(
+    env: JNIEnv, _: JClass,
+) -> jstring {
+    send_search_request(env, SearchRequest::StopCurrentSearch)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_endSearch(env: JNIEnv, _: JClass) -> jstring {
+    send_search_request(env, SearchRequest::EndSearch)
 }
 
 #[no_mangle]

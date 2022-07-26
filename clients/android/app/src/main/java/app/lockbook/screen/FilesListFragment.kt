@@ -254,9 +254,12 @@ class FilesListFragment : Fragment(), FilesFragment {
             binding.drawerLayout.close()
             true
         }
+
         binding.filesToolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-
+                R.id.menu_files_list_search -> {
+                    activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSearch)
+                }
                 R.id.menu_list_files_sort_last_changed -> {
                     model.changeFileSort(SortStyle.LastChanged)
                     menu.menu!!.findItem(R.id.menu_list_files_sort_last_changed)?.isChecked = true
@@ -460,6 +463,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
             is UpdateFilesUI.ShowSyncSnackBar -> {
                 binding.syncProgressIndicator.max = uiUpdates.totalSyncItems
+                binding.syncProgressIndicator.visibility = View.VISIBLE
                 binding.syncText.text = resources.getString(R.string.list_files_sync_snackbar, uiUpdates.totalSyncItems.toString())
                 binding.syncHolder.visibility = View.VISIBLE
             }
