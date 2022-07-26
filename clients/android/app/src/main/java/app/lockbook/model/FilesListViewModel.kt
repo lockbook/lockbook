@@ -9,6 +9,7 @@ import app.lockbook.R
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
+import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.afollestad.recyclical.datasource.emptySelectableDataSourceTyped
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -27,7 +28,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     lateinit var fileModel: FileModel
 
     val files = emptySelectableDataSourceTyped<FileViewHolderInfo>()
-    val recentFiles = emptySelectableDataSourceTyped<RecentFileViewHolderInfo>()
+    val recentFiles = emptyDataSourceTyped<RecentFileViewHolderInfo>()
 
     var breadcrumbItems = listOf<BreadCrumbItem>()
 

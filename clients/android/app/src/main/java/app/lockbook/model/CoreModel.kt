@@ -383,4 +383,48 @@ object CoreModel {
         listMetadatasParser.tryParse(
             app.lockbook.core.listMetadatas()
         )
+
+    private val startSearchParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), Empty.serializer())
+        }
+    }
+
+    fun startSearch(searchDocumentsViewModel: SearchDocumentsViewModel): Result<Unit, CoreError<Empty>> =
+        startSearchParser.tryParse(
+            app.lockbook.core.startSearch(searchDocumentsViewModel)
+        )
+
+    private val searchParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), Empty.serializer())
+        }
+    }
+
+    fun search(query: String): Result<Unit, CoreError<Empty>> =
+        searchParser.tryParse(
+            app.lockbook.core.search(query)
+        )
+
+    private val endSearchParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), Empty.serializer())
+        }
+    }
+
+    fun endSearch(): Result<Unit, CoreError<Empty>> =
+        endSearchParser.tryParse(
+            app.lockbook.core.endSearch()
+        )
+
+    private val stopCurrentSearchParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), Empty.serializer())
+        }
+    }
+
+    fun stopCurrentSearch(): Result<Unit, CoreError<Empty>> =
+        stopCurrentSearchParser.tryParse(
+            app.lockbook.core.stopCurrentSearch()
+        )
 }

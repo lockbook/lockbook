@@ -125,3 +125,11 @@ enum class GooglePlayAccountState {
     GracePeriod,
     OnHold
 }
+
+@Serializable
+data class ContentMatch(
+    val paragraph: String,
+    @SerialName("matched_indices")
+    val matchedIndices: List<Int>,
+    val score: Int
+)

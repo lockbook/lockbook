@@ -56,7 +56,6 @@
     <PreferenceCategory
         android:icon="@drawable/ic_baseline_sync_24"
         android:title="@string/settings_preference_title_background_sync">
-
         <SwitchPreference
             android:defaultValue="true"
             android:key="@string/background_sync_enabled_key"
@@ -69,8 +68,6 @@
             android:summary="@string/settings_preference_background_summary_sync_period"
             android:title="@string/settings_preference_background_title_sync_period"
             app:iconSpaceReserved="false" />
-
-
     </PreferenceCategory>
 
     <PreferenceCategory

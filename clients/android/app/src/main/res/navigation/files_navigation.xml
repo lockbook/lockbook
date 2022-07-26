@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/files_navigation"
+    app:startDestination="@id/filesListFragment">
+
+    <fragment
+        android:id="@+id/filesListFragment"
+        android:name="app.lockbook.screen.FilesListFragment"
+        android:label="FilesListFragment" >
+        <action
+            android:id="@+id/action_files_to_search"
+            app:destination="@id/searchFilesFragment"
+            app:popUpTo="@id/filesListFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/searchFilesFragment"
+        android:name="app.lockbook.screen.SearchDocumentsFragment"
+        android:label="SearchFilesFragment" />
+</navigation>
