@@ -13,17 +13,19 @@ use uuid::Uuid;
 
 pub struct LazyTree<T: Stagable> {
     tree: T,
-    name_by_id: HashMap<Uuid, String>,
-    key_by_id: HashMap<Uuid, AESKey>,
-    implicitly_deleted_by_id: HashMap<Uuid, bool>,
+    name: HashMap<Uuid, String>,
+    key: HashMap<Uuid, AESKey>,
+    implicit_deleted: HashMap<Uuid, bool>,
+    children: HashMap<Uuid, HashSet<Uuid>>,
 }
 
 impl<T: Stagable> LazyTree<T> {
     pub fn new(tree: T) -> Self {
         Self {
-            name_by_id: HashMap::new(),
-            key_by_id: HashMap::new(),
-            implicitly_deleted_by_id: HashMap::new(),
+            name: HashMap::new(),
+            key: HashMap::new(),
+            implicit_deleted: HashMap::new(),
+            children: HashMap::new(),
             tree,
         }
     }
@@ -38,7 +40,7 @@ impl<T: Stagable> LazyTree<T> {
 
             while !file.is_root() {
                 visited_ids.push(*file.id());
-                if let Some(&implicit) = self.implicitly_deleted_by_id.get(&file.id()) {
+                if let Some(&implicit) = self.implicit_deleted.get(&file.id()) {
                     deleted = implicit;
                     break;
                 }
@@ -55,7 +57,7 @@ impl<T: Stagable> LazyTree<T> {
         };
 
         for id in visited_ids {
-            self.implicitly_deleted_by_id.insert(id, deleted);
+            self.implicit_deleted.insert(id, deleted);
         }
 
         Ok(deleted)
@@ -66,7 +68,7 @@ impl<T: Stagable> LazyTree<T> {
         let mut visited_ids = vec![];
 
         loop {
-            if self.key_by_id.get(&file_id).is_some() {
+            if self.key.get(&file_id).is_some() {
                 break;
             }
 
@@ -83,7 +85,7 @@ impl<T: Stagable> LazyTree<T> {
                 None
             };
             if let Some(file_key) = maybe_file_key {
-                self.key_by_id.insert(file_id, file_key);
+                self.key.insert(file_id, file_key);
                 break;
             }
 
@@ -95,25 +97,22 @@ impl<T: Stagable> LazyTree<T> {
             let decrypted_key = {
                 let file = self.find(id)?;
                 let parent = self.find_parent(&file)?;
-                let parent_key =
-                    self.key_by_id
-                        .get(&parent.id())
-                        .ok_or(SharedError::Unexpected(
-                            "parent key should have been populated by prior routine",
-                        ))?;
+                let parent_key = self.key.get(&parent.id()).ok_or(SharedError::Unexpected(
+                    "parent key should have been populated by prior routine",
+                ))?;
                 let encrypted_key = file.folder_access_keys();
                 symkey::decrypt(parent_key, encrypted_key)?
             };
-            self.key_by_id.insert(*id, decrypted_key);
+            self.key.insert(*id, decrypted_key);
         }
 
-        Ok(*self.key_by_id.get(&id).ok_or(SharedError::Unexpected(
+        Ok(*self.key.get(&id).ok_or(SharedError::Unexpected(
             "parent key should have been populated by prior routine (2)",
         ))?)
     }
 
     pub fn name(&mut self, id: &Uuid, account: &Account) -> SharedResult<String> {
-        if let Some(name) = self.name_by_id.get(&id) {
+        if let Some(name) = self.name.get(&id) {
             return Ok(name.clone());
         }
 
@@ -121,23 +120,43 @@ impl<T: Stagable> LazyTree<T> {
         let parent_key = self.decrypt_key(&parent_id, account)?;
 
         let name = self.find(id)?.secret_name().to_string(&parent_key)?;
-        self.name_by_id.insert(*id, name.clone());
+        self.name.insert(*id, name.clone());
         Ok(name)
     }
 
-    pub fn all_files(&mut self) -> SharedResult<Vec<&T::F>> {
+    pub fn all_files(&self) -> SharedResult<Vec<&T::F>> {
         todo!()
     }
 
     /// Returns ids of files whose parent is the argument. Does not include the argument.
+    /// TODO could consider returning a reference to the underlying cached value
     pub fn children(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
-        // todo: caching?
-        Ok(self
-            .all_files()?
-            .into_iter()
-            .filter(|f| f.parent() == id && !f.is_root())
-            .map(|f| *f.id())
-            .collect())
+        // Check cache
+        if let Some(children) = self.children.get(id) {
+            return Ok(children.clone());
+        }
+
+        // Confirm file exists
+        let file = self.find(id)?;
+        if file.is_document() {
+            return Ok(HashSet::default());
+        }
+
+        // Populate cache
+        let mut all_children: HashMap<Uuid, HashSet<Uuid>> = HashMap::new();
+        for file in self.all_files()? {
+            let mut children = all_children.remove(file.parent()).unwrap_or_default();
+            children.insert(*file.id());
+            all_children.insert(*file.parent(), children);
+        }
+        self.children = all_children;
+
+        // Return value from cache
+        if let Some(children) = self.children.get(id) {
+            return Ok(children.clone());
+        }
+
+        return Ok(HashSet::new());
     }
 
     /// Returns ids of files for which the argument is an ancestor—the files' children, recursively. Does not include the argument.
@@ -153,6 +172,7 @@ impl<T: Stagable> LazyTree<T> {
                 .into_iter()
                 .filter(|f| !result.contains(f))
                 .collect::<Vec<Uuid>>();
+            // TODO could consider optimizing by not exploring documents
             to_process.extend(new_descendents.iter());
             result.extend(new_descendents.into_iter());
             i += 1;
@@ -199,10 +219,11 @@ impl<T: Stagable> LazyTree<T> {
     pub fn stage<T2: Stagable<F = T::F>>(self, staged: T2) -> LazyTree<StagedTree<T, T2>> {
         // todo: optimize by performing minimal updates on self caches
         LazyTree::<StagedTree<T, T2>> {
-            name_by_id: HashMap::new(),
-            key_by_id: self.key_by_id,
-            implicitly_deleted_by_id: HashMap::new(),
+            name: HashMap::new(),
+            key: self.key,
+            implicit_deleted: HashMap::new(),
             tree: StagedTree::<T, T2> { base: self.tree, staged },
+            children: HashMap::new(),
         }
     }
 
@@ -224,48 +245,58 @@ impl<T: Stagable> LazyTree<T> {
 
     // assumption: no orphans
     fn assert_no_cycles(&mut self) -> SharedResult<()> {
-       let mut root_found = false;
-       let mut no_cycles_in_ancestors = HashSet::new();
-       for id in self.owned_ids() {
-           let mut ancestors = HashSet::new();
-           let mut current_file = self.find(&id)?;
-           loop {
-               if no_cycles_in_ancestors.contains(&id) {
-                   break;
-               } else if current_file.is_root() {
-                   if !root_found {
-                       root_found = true;
-                       break;
-                   } else {
-                       return Err(SharedError::ValidationFailure(ValidationFailure::Cycle(HashSet::from([id]))))
-                   }
-               } else if ancestors.contains(current_file.parent()) {
-                   return Err(SharedError::ValidationFailure(ValidationFailure::Cycle(self.ancestors(current_file.id())?)))
-               } 
-               ancestors.insert(*current_file.id());
-               current_file = self.find_parent(current_file)?;
-           }
-           no_cycles_in_ancestors.extend(ancestors);
-       }
-       Ok(())
+        let mut root_found = false;
+        let mut no_cycles_in_ancestors = HashSet::new();
+        for id in self.owned_ids() {
+            let mut ancestors = HashSet::new();
+            let mut current_file = self.find(&id)?;
+            loop {
+                if no_cycles_in_ancestors.contains(&id) {
+                    break;
+                } else if current_file.is_root() {
+                    if !root_found {
+                        root_found = true;
+                        break;
+                    } else {
+                        return Err(SharedError::ValidationFailure(ValidationFailure::Cycle(
+                            HashSet::from([id]),
+                        )));
+                    }
+                } else if ancestors.contains(current_file.parent()) {
+                    return Err(SharedError::ValidationFailure(ValidationFailure::Cycle(
+                        self.ancestors(current_file.id())?,
+                    )));
+                }
+                ancestors.insert(*current_file.id());
+                current_file = self.find_parent(current_file)?;
+            }
+            no_cycles_in_ancestors.extend(ancestors);
+        }
+        Ok(())
     }
 
     // todo: optimize
-   fn assert_no_path_conflicts(&mut self) -> SharedResult<()> {
-        let mut children_by_parent_and_name = HashMap::<(Uuid, SecretFileName), HashSet<Uuid>>::new();
+    fn assert_no_path_conflicts(&mut self) -> SharedResult<()> {
+        let mut children_by_parent_and_name =
+            HashMap::<(Uuid, SecretFileName), HashSet<Uuid>>::new();
         for id in self.owned_ids() {
             if !self.calculate_deleted(&id)? {
                 let file = self.find(&id)?;
-                children_by_parent_and_name.entry((*file.parent(), file.secret_name().clone())).or_insert_with(HashSet::new).insert(*file.id());
+                children_by_parent_and_name
+                    .entry((*file.parent(), file.secret_name().clone()))
+                    .or_insert_with(HashSet::new)
+                    .insert(*file.id());
             }
         }
         for (_, siblings_with_same_name) in children_by_parent_and_name {
             if siblings_with_same_name.len() > 1 {
-                return Err(SharedError::ValidationFailure(ValidationFailure::PathConflict(siblings_with_same_name)))
+                return Err(SharedError::ValidationFailure(ValidationFailure::PathConflict(
+                    siblings_with_same_name,
+                )));
             }
         }
         Ok(())
-   }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -278,7 +309,9 @@ pub enum ValidationFailure {
     BrokenLink(Uuid),
 }
 
-impl<Base: Stagable<F = FileMetadata>, Local: Stagable<F = Base::F>> LazyTree<StagedTree<Base, Local>> {
+impl<Base: Stagable<F = FileMetadata>, Local: Stagable<F = Base::F>>
+    LazyTree<StagedTree<Base, Local>>
+{
     pub fn get_changes(&self) -> SharedResult<Vec<&Base::F>> {
         let base = self.tree.base.ids();
         let local = self.tree.staged.ids();
@@ -330,7 +363,7 @@ impl<Base: Stagable<F = FileMetadata>, Local: Stagable<F = Base::F>> LazyTree<St
                 } else if ancestors.contains(current_file.parent()) {
                     to_revert.extend(self.ancestors(current_file.id())?);
                     break;
-                } 
+                }
                 ancestors.insert(*current_file.id());
                 current_file = self.find_parent(current_file)?;
             }
@@ -343,8 +376,8 @@ impl<Base: Stagable<F = FileMetadata>, Local: Stagable<F = Base::F>> LazyTree<St
                     let mut update = staged.clone();
                     update.parent = base.parent;
                     result.push(update);
-                },
-                _ => {},
+                }
+                _ => {}
             }
         }
         Ok(result)
@@ -353,14 +386,19 @@ impl<Base: Stagable<F = FileMetadata>, Local: Stagable<F = Base::F>> LazyTree<St
     // assumptions: no orphans
     // changes: renames files
     // invalidated by: moved files, renamed files
-    fn rename_files_with_path_conflicts(&mut self, account: &Account) -> SharedResult<Vec<Base::F>> {
+    fn rename_files_with_path_conflicts(
+        &mut self, account: &Account,
+    ) -> SharedResult<Vec<Base::F>> {
         let mut children = HashMap::<Uuid, HashSet<Uuid>>::new();
         let mut names = HashMap::<Uuid, String>::new();
         let mut keys = HashMap::<Uuid, AESKey>::new();
         for id in self.owned_ids() {
             if !self.calculate_deleted(&id)? {
                 let file = self.find(&id)?;
-                children.entry(*file.parent()).or_insert_with(HashSet::new).insert(id);
+                children
+                    .entry(*file.parent())
+                    .or_insert_with(HashSet::new)
+                    .insert(id);
                 names.insert(id, self.name(&id, account)?);
                 keys.insert(id, self.decrypt_key(&id, account)?);
             }
@@ -368,11 +406,21 @@ impl<Base: Stagable<F = FileMetadata>, Local: Stagable<F = Base::F>> LazyTree<St
 
         let mut result = Vec::new();
         for (_, sibling_ids) in children {
-            let siblings = sibling_ids.iter().filter_map(|s| self.maybe_find(&s)).collect::<Vec<_>>();
+            let siblings = sibling_ids
+                .iter()
+                .filter_map(|s| self.maybe_find(&s))
+                .collect::<Vec<_>>();
             for sibling in siblings {
-                let mut name = names.get(sibling.id()).ok_or(SharedError::FileNonexistent)?.clone();
+                let mut name = names
+                    .get(sibling.id())
+                    .ok_or(SharedError::FileNonexistent)?
+                    .clone();
                 let mut changed = false;
-                while sibling_ids.iter().filter_map(|id| names.get(id)).any(|sibling_name| sibling_name == &name) {
+                while sibling_ids
+                    .iter()
+                    .filter_map(|id| names.get(id))
+                    .any(|sibling_name| sibling_name == &name)
+                {
                     name = NameComponents::from(&name).generate_next().to_name();
                     changed = true;
                 }
@@ -410,9 +458,10 @@ where
         // todo: optimize by performing minimal updates on self caches
         LazyStaged1 {
             tree: base,
-            name_by_id: HashMap::new(),
-            key_by_id: self.key_by_id,
-            implicitly_deleted_by_id: HashMap::new(),
+            name: HashMap::new(),
+            key: self.key,
+            implicit_deleted: HashMap::new(),
+            children: HashMap::new(),
         }
     }
 }

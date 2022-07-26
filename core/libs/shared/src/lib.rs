@@ -16,6 +16,7 @@ pub mod file_metadata;
 pub mod file_ops;
 pub mod filename;
 pub mod lazy;
+pub mod path_ops;
 pub mod pubkey;
 pub mod secret_filename;
 pub mod server_file;

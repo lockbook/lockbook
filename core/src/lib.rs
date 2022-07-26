@@ -252,22 +252,22 @@ impl Core {
         Ok(val)
     }
 
-    //     #[instrument(level = "debug", skip_all, err(Debug))]
-    //     pub fn get_by_path(&self, path: &str) -> Result<CoreFile, Error<GetFileByPathError>> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.get_by_path(path))??;
-    //
-    //         Ok(val)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn get_path_by_id(&self, id: Uuid) -> Result<String, UnexpectedError> {
-    //         let val: Result<_, CoreError> = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.get_path_by_id(id))?;
-    //         Ok(val?)
-    //     }
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn get_by_path(&self, path: &str) -> Result<File, Error<GetFileByPathError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.get_by_path(path))??;
+
+        Ok(val)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_path_by_id(&self, id: Uuid) -> Result<String, UnexpectedError> {
+        let val: Result<_, CoreError> = self
+            .db
+            .transaction(|tx| self.context(tx)?.get_path_by_id(id))?;
+        Ok(val?)
+    }
     //
     //     #[instrument(level = "debug", skip(self), err(Debug))]
     //     pub fn list_paths(&self, filter: Option<Filter>) -> Result<Vec<String>, UnexpectedError> {
