@@ -2239,7 +2239,7 @@ dependencies = [
  "constant_time_eq",
  "futures",
  "google-androidpublisher3",
- "hmdb 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hmdb 0.1.12",
  "indicatif 0.16.2",
  "lazy_static",
  "libsecp256k1",

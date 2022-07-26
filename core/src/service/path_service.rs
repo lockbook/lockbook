@@ -38,11 +38,13 @@ impl RequestContext<'_, '_> {
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
+
         let root = self
             .tx
             .root
             .get(&OneKey {})
             .ok_or(CoreError::RootNonexistent)?;
+
         let mut tree = self
             .tx
             .base_metadata

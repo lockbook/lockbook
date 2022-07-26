@@ -5,7 +5,6 @@ use std::fmt::Debug;
 
 use libsecp256k1::PublicKey;
 use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
-use lockbook_shared::pubkey::ECVerifyError;
 use lockbook_shared::{clock, pubkey};
 use serde::{Deserialize, Serialize};
 

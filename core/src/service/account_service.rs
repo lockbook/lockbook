@@ -27,15 +27,14 @@ impl RequestContext<'_, '_> {
 
         let root = FileMetadata::create_root(&account)?.sign(&account)?;
 
-        // TODO: @travis no more server files in core
-        let _version = api_service::request(&account, NewAccountRequest::new(&account, &root))?
-            .folder_metadata_version;
+        let last_synced =
+            api_service::request(&account, NewAccountRequest::new(&account, &root))?.last_synced;
 
         let root_id = *root.id();
 
         self.tx.account.insert(OneKey {}, account.clone());
         self.tx.base_metadata.insert(root_id, root);
-        self.tx.last_synced.insert(OneKey {}, get_time().0);
+        self.tx.last_synced.insert(OneKey {}, last_synced as i64);
         self.tx.root.insert(OneKey {}, root_id);
         Ok(account)
     }

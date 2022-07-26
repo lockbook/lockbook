@@ -26,6 +26,7 @@ pub struct FileMetadata {
     pub name: SecretFileName,
     pub owner: Owner,
     pub is_deleted: bool,
+    pub document_hmac: Option<[u8; 32]>,
     pub user_access_keys: HashMap<Username, UserAccessInfo>,
     pub folder_access_keys: EncryptedFolderAccessKey,
 }
@@ -43,6 +44,7 @@ impl FileMetadata {
             name: SecretFileName::from_str(&account.username, &key)?,
             owner: Owner(pub_key),
             is_deleted: false,
+            document_hmac: None,
             user_access_keys: UserAccessInfo::encrypt(&account, &pub_key, &key)?,
             folder_access_keys: symkey::encrypt(&key, &key)?,
         })
@@ -61,6 +63,7 @@ impl FileMetadata {
             name: SecretFileName::from_str(name, parent_key)?,
             owner: Owner(*pub_key),
             is_deleted: false,
+            document_hmac: None,
             user_access_keys: Default::default(),
             folder_access_keys: symkey::encrypt(parent_key, &key)?,
         })

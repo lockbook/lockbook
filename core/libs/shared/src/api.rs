@@ -86,13 +86,7 @@ impl Request for ChangeDocumentContentRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetDocumentRequest {
     pub id: Uuid,
-    pub content_version: u64,
-}
-
-impl From<&ServerFile> for GetDocumentRequest {
-    fn from(meta: &ServerFile) -> Self {
-        Self { id: *meta.id(), content_version: meta.content_version }
-    }
+    pub hmac: [u8; 32],
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -212,7 +206,7 @@ impl NewAccountRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct NewAccountResponse {
-    pub folder_metadata_version: u64,
+    pub last_synced: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

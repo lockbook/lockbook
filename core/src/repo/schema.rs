@@ -15,8 +15,6 @@ hmdb::schema! {
         account: <OneKey, Account>,
         last_synced: <OneKey, i64>,
         root: <OneKey, Uuid>,
-        local_digest: <Uuid, Vec<u8>>,
-        base_digest: <Uuid, Vec<u8>>,
         local_metadata: <Uuid, SignedFile>,
         base_metadata: <Uuid, SignedFile>
     }

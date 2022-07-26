@@ -11,8 +11,8 @@ use lockbook_shared::api::{
     NewAccountRequest, NewAccountResponse,
 };
 use lockbook_shared::clock::get_time;
-use lockbook_shared::file_metadata::{EncryptedFiles, Owner};
-use lockbook_shared::tree::{FileLike, FileMetaMapExt};
+use lockbook_shared::file_metadata::Owner;
+use lockbook_shared::server_file::IntoServerFile;
 
 /// Create a new account given a username, public_key, and root folder.
 /// Checks that username is valid, and that username, public_key and root_folder are new.
@@ -34,7 +34,7 @@ pub async fn new_account(
 
     let mut root = request.root_folder.clone();
     let now = get_time().0 as u64;
-    root.metadata_version = now;
+    let root = root.add_time(now);
 
     server_state.index_db.transaction(|tx| {
         if tx.accounts.exists(&Owner(request.public_key)) {
@@ -59,7 +59,7 @@ pub async fn new_account(
         tx.owned_files.insert(owner, vec![root.id]);
         tx.metas.insert(root.id, root.clone());
 
-        Ok(NewAccountResponse { folder_metadata_version: root.metadata_version })
+        Ok(NewAccountResponse { last_synced: root.metadata_version })
     })?
 }
 
@@ -109,10 +109,10 @@ pub fn get_usage_helper(
         .get(&Owner(*public_key))
         .ok_or(GetUsageHelperError::UserNotFound)?
         .into_iter()
-        .filter_map(|file_id| {
+        .filter_map(|&file_id| {
             tx.sizes
                 .get(&file_id)
-                .map(|size_bytes| FileUsage { file_id, size_bytes })
+                .map(|&size_bytes| FileUsage { file_id, size_bytes })
         })
         .collect())
 }
