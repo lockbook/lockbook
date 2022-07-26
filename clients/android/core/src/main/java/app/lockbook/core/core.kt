@@ -19,7 +19,7 @@ external fun readDocumentBytes(id: String): ByteArray?
 external fun exportDrawingToDisk(id: String, format: String, location: String): String
 external fun writeDocument(id: String, content: String): String
 external fun moveFile(id: String, parentId: String): String
-external fun syncAll(fragment: Any): String
+external fun syncAll(syncModel: Any): String
 external fun backgroundSync(): String
 external fun calculateWork(): String
 external fun exportFile(id: String, destination: String, edit: Boolean): String
@@ -29,3 +29,7 @@ external fun cancelSubscription(): String
 external fun getSubscriptionInfo(): String
 external fun getLocalChanges(): String
 external fun listMetadatas(): String
+external fun startSearch(searchFilesViewModel: Any): String
+external fun search(query: String): String
+external fun endSearch(): String
+external fun stopCurrentSearch(): String
