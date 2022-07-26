@@ -195,15 +195,13 @@ impl Core {
     //
     //         Ok(val?)
     //     }
-    //
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn delete_file(&self, id: Uuid) -> Result<(), Error<FileDeleteError>> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.delete_file(&self.config, id))?;
-    //         Ok(val?)
-    //     }
-    //
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn delete_file(&self, id: Uuid) -> Result<(), Error<FileDeleteError>> {
+        let val = self.db.transaction(|tx| self.context(tx)?.delete(&id))?;
+        Ok(val?)
+    }
+
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
         let val = self
@@ -224,23 +222,23 @@ impl Core {
     //             .collect();
     //         Ok(val)
     //     }
-    //
-    //     #[instrument(level = "debug", skip(self, new_name), err(Debug))]
-    //     pub fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), Error<RenameFileError>> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.rename_file(&self.config, id, new_name))?;
-    //
-    //         Ok(val?)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn move_file(&self, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.move_file(&self.config, id, new_parent))?;
-    //         Ok(val?)
-    //     }
+
+    #[instrument(level = "debug", skip(self, new_name), err(Debug))]
+    pub fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), Error<RenameFileError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.rename_file(&id, new_name))?;
+
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn move_file(&self, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.move_file(&id, &new_parent))?;
+        Ok(val?)
+    }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn create_at_path(
@@ -425,44 +423,44 @@ impl Core {
     //             .map_err(TestRepoError::Core)?
     //     }
     //
-    //     #[instrument(level = "debug", err(Debug))]
-    //     pub fn upgrade_account_stripe(
-    //         &self, account_tier: StripeAccountTier,
-    //     ) -> Result<(), Error<UpgradeAccountStripeError>> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.upgrade_account_stripe(account_tier))?;
-    //         Ok(val?)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip(purchase_token), err(Debug))]
-    //     pub fn upgrade_account_google_play(
-    //         &self, purchase_token: &str, account_id: &str,
-    //     ) -> Result<(), Error<UpgradeAccountGooglePlayError>> {
-    //         let val = self.db.transaction(|tx| {
-    //             self.context(tx)?
-    //                 .upgrade_account_google_play(purchase_token, account_id)
-    //         })?;
-    //         Ok(val?)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn cancel_subscription(&self) -> Result<(), Error<CancelSubscriptionError>> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.cancel_subscription())?;
-    //         Ok(val?)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn get_subscription_info(
-    //         &self,
-    //     ) -> Result<Option<SubscriptionInfo>, Error<GetSubscriptionInfoError>> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.get_subscription_info())?;
-    //         Ok(val?)
-    //     }
+    #[instrument(level = "debug", err(Debug))]
+    pub fn upgrade_account_stripe(
+        &self, account_tier: StripeAccountTier,
+    ) -> Result<(), Error<UpgradeAccountStripeError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.upgrade_account_stripe(account_tier))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(purchase_token), err(Debug))]
+    pub fn upgrade_account_google_play(
+        &self, purchase_token: &str, account_id: &str,
+    ) -> Result<(), Error<UpgradeAccountGooglePlayError>> {
+        let val = self.db.transaction(|tx| {
+            self.context(tx)?
+                .upgrade_account_google_play(purchase_token, account_id)
+        })?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn cancel_subscription(&self) -> Result<(), Error<CancelSubscriptionError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.cancel_subscription())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_subscription_info(
+        &self,
+    ) -> Result<Option<SubscriptionInfo>, Error<GetSubscriptionInfoError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.get_subscription_info())?;
+        Ok(val?)
+    }
 }
 
 pub fn get_code_version() -> &'static str {
