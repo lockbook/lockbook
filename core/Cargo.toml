@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-core"
-version = "0.4.3"
+version = "0.5.0"
 edition = "2018"
 description = "The functional components of the iOS and Android lockbook clients."
 license = "BSD-3-Clause"

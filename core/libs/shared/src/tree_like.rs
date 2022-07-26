@@ -10,6 +10,7 @@ use uuid::Uuid;
 pub trait TreeLike: Sized {
     type F: FileLike;
 
+    // TODO perf, it would be nice to make this a reference type, some point in the future
     fn ids(&self) -> HashSet<&Uuid>;
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F>;
     fn insert(&mut self, f: Self::F) -> Option<Self::F>;

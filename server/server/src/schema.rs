@@ -2,13 +2,14 @@ use crate::billing::billing_model::SubscriptionProfile;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::server_file::ServerFile;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use uuid::Uuid;
 
 hmdb::schema! {
     ServerV1 {
         usernames: <String, Owner>,
         accounts: <Owner, Account>,
-        owned_files: <Owner, Vec<Uuid>>,
+        owned_files: <Owner, HashSet<Uuid>>,
         metas: <Uuid, ServerFile>,
         sizes: <Uuid, u64>,
         google_play_ids: <String, Owner>,

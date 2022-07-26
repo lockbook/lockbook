@@ -8,8 +8,7 @@ use lockbook_shared::api::FileMetadataUpsertsError::{
 };
 use lockbook_shared::api::*;
 use lockbook_shared::clock::get_time;
-use lockbook_shared::file_metadata::{EncryptedFiles, FileDiff, Owner, FileMetadata};
-use lockbook_shared::tree::{FileLike, FileMetaMapExt};
+use lockbook_shared::file_metadata::Owner;
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, FileMetadataUpsertsRequest>,
@@ -176,7 +175,7 @@ pub async fn change_document_content(
             return Err(ClientError(ChangeDocumentContentError::DocumentDeleted));
         }
 
-        if request.old_metadata_version != meta.metadata_version {
+        if request.old_metadata_version != meta.version {
             return Err(ClientError(ChangeDocumentContentError::EditConflict));
         }
 
@@ -200,14 +199,14 @@ pub async fn change_document_content(
             return Err(ClientError(ChangeDocumentContentError::DocumentDeleted));
         }
 
-        if request.old_metadata_version != meta.metadata_version {
+        if request.old_metadata_version != meta.version {
             return Err(ClientError(ChangeDocumentContentError::EditConflict));
         }
 
         old_content_version = meta.content_version;
 
         meta.content_version = new_version;
-        meta.metadata_version = new_version;
+        meta.version = new_version;
 
         tx.sizes.insert(meta.id, new_size);
         tx.metas.insert(meta.id, meta);
@@ -257,7 +256,7 @@ pub async fn get_updates(
             .ok_or(ClientError(GetUpdatesError::UserNotFound))?
             .into_iter()
             .filter_map(|id| tx.metas.get(&id))
-            .filter(|meta| meta.metadata_version > request.since_metadata_version)
+            .filter(|meta| meta.version > request.since_metadata_version)
             .collect();
         Ok(GetUpdatesResponse { file_metadata })
     })?

@@ -11,8 +11,13 @@ use lockbook_shared::api::{
     NewAccountRequest, NewAccountResponse,
 };
 use lockbook_shared::clock::get_time;
+use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::server_file::IntoServerFile;
+use lockbook_shared::transaction::ServerTree;
+use lockbook_shared::tree_like::{Stagable, TreeLike};
+use std::collections::HashSet;
+use uuid::Uuid;
 
 /// Create a new account given a username, public_key, and root folder.
 /// Checks that username is valid, and that username, public_key and root_folder are new.
@@ -32,7 +37,7 @@ pub async fn new_account(
         return Err(ClientError(NewAccountError::Disabled));
     }
 
-    let mut root = request.root_folder.clone();
+    let root = request.root_folder.clone();
     let now = get_time().0 as u64;
     let root = root.add_time(now);
 
@@ -45,7 +50,7 @@ pub async fn new_account(
             return Err(ClientError(UsernameTaken));
         }
 
-        if tx.metas.exists(&root.id) {
+        if tx.metas.exists(root.id()) {
             return Err(ClientError(FileIdTaken));
         }
 
@@ -54,12 +59,15 @@ pub async fn new_account(
 
         let owner = Owner(request.public_key);
 
+        let mut owned_files = HashSet::new();
+        owned_files.insert(*root.id());
+
         tx.accounts.insert(owner.clone(), account);
         tx.usernames.insert(username, owner.clone());
-        tx.owned_files.insert(owner, vec![root.id]);
-        tx.metas.insert(root.id, root.clone());
+        tx.owned_files.insert(owner, owned_files);
+        tx.metas.insert(*root.id(), root.clone());
 
-        Ok(NewAccountResponse { last_synced: root.metadata_version })
+        Ok(NewAccountResponse { last_synced: root.version })
     })?
 }
 
@@ -117,29 +125,33 @@ pub fn get_usage_helper(
         .collect())
 }
 
-/// Delete's an account's files out of s3 and clears their file tree within redis
-/// Does not free up the username or public key for re-use
 pub async fn delete_account(
     context: RequestContext<'_, DeleteAccountRequest>,
 ) -> Result<(), ServerError<DeleteAccountError>> {
-    let all_files: Result<EncryptedFiles, ServerError<DeleteAccountError>> =
+    let all_files: Result<Vec<(Uuid, u64)>, ServerError<DeleteAccountError>> =
         context.server_state.index_db.transaction(|tx| {
-            let files: EncryptedFiles = tx
-                .owned_files
-                .get(&Owner(context.public_key))
-                .ok_or(ClientError(DeleteAccountError::UserNotFound))?
-                .iter()
-                .filter_map(|id| tx.metas.get(id))
-                .map(|f| (f.id, f))
-                .collect();
+            let mut tree = ServerTree {
+                owner: Owner(context.public_key),
+                owned: &mut tx.owned_files,
+                metas: &mut tx.metas,
+            }
+            .to_lazy();
+            let mut docs_to_delete = vec![];
+            let metas_to_delete = tree.owned_ids();
 
-            for file in files.values() {
-                tx.metas.delete(file.id);
-                if file.is_document() {
-                    tx.sizes.delete(file.id);
+            for id in tree.owned_ids() {
+                if !tree.calculate_deleted(&id)? {
+                    let meta = tree.find(&id)?;
+                    if meta.is_document() {
+                        docs_to_delete.push((*meta.id(), meta.version));
+                        tx.sizes.delete(id);
+                    }
                 }
             }
             tx.owned_files.delete(Owner(context.public_key));
+            for id in metas_to_delete {
+                tx.metas.delete(id);
+            }
 
             if !context.server_state.config.is_prod() {
                 let username = tx
@@ -149,20 +161,11 @@ pub async fn delete_account(
                     .username;
                 tx.usernames.delete(username);
             }
-            Ok(files)
+            Ok(docs_to_delete)
         })?;
 
-    let all_files = all_files?
-        .filter_not_deleted()
-        .map_err(|err| internal!("Could not get non-deleted files: {:?}", err))?;
-
-    let non_deleted_document_ids = all_files.documents();
-
-    for file in non_deleted_document_ids {
-        let file = all_files
-            .find(file)
-            .map_err(|_| internal!("Could not find non-deleted file: {file}"))?;
-        document_service::delete(context.server_state, file.id, file.content_version).await?;
+    for (id, version) in all_files? {
+        document_service::delete(context.server_state, id, version).await?;
     }
 
     Ok(())

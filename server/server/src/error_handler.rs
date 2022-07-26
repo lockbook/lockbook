@@ -5,9 +5,10 @@ use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
 use lockbook_shared::api::{
-    CancelSubscriptionError, GetUsageError, UpgradeAccountGooglePlayError,
+    CancelSubscriptionError, DeleteAccountError, GetUsageError, UpgradeAccountGooglePlayError,
     UpgradeAccountStripeError,
 };
+use lockbook_shared::SharedError;
 use std::fmt::Debug;
 use std::io::Error;
 
@@ -157,5 +158,11 @@ impl From<ServerError<LockBillingWorkflowError>> for ServerError<CancelSubscript
             }
             InternalError(msg) => InternalError(msg),
         }
+    }
+}
+
+impl From<SharedError> for ServerError<DeleteAccountError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
     }
 }

@@ -7,7 +7,7 @@ use crate::{router_service, verify_auth, verify_client_version, ServerError, Ser
 use lazy_static::lazy_static;
 use lockbook_shared::api::*;
 use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
-use lockbook_shared::pubkey::ECVerifyError;
+use lockbook_shared::SharedError;
 use prometheus::{register_histogram_vec, HistogramVec, TextEncoder};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -284,7 +284,7 @@ where
     verify_client_version(&request)?;
 
     verify_auth(server_state, &request).map_err(|err| match err {
-        ECVerifyError::SignatureExpired(_) | ECVerifyError::SignatureInTheFuture(_) => {
+        SharedError::SignatureExpired(_) | SharedError::SignatureInTheFuture(_) => {
             warn!("expired auth");
             ErrorWrapper::<Req::Error>::ExpiredAuth
         }

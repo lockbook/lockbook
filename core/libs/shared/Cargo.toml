@@ -18,6 +18,7 @@ bincode = "1.2.1"
 sha2 = "0.9.0"
 hmac = "0.11.0"
 hmdb = { path = "../../../../../hmdb" }
+tracing = "0.1.5"
 
 [dev-dependencies]
 bincode = "1.2.1"

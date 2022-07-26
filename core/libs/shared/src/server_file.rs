@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter};
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ServerFile {
     pub file: SignedFile,
-    pub metadata_version: u64,
+    pub version: u64,
 }
 
 pub trait IntoServerFile {
@@ -14,8 +14,8 @@ pub trait IntoServerFile {
 }
 
 impl IntoServerFile for SignedFile {
-    fn add_time(self, metadata_version: u64) -> ServerFile {
-        ServerFile { file: self, metadata_version }
+    fn add_time(self, version: u64) -> ServerFile {
+        ServerFile { file: self, version }
     }
 }
 
