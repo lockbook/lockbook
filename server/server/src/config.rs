@@ -1,4 +1,6 @@
 use crate::config::Environment::{Local, Prod, Unknown};
+use lockbook_models::account::Username;
+use std::collections::HashSet;
 use std::fmt::Display;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -11,7 +13,7 @@ pub struct Config {
     pub files: FilesConfig,
     pub metrics: MetricsConfig,
     pub billing: BillingConfig,
-    pub features: FeatureFlags,
+    pub admin: AdminConfig,
 }
 
 impl Config {
@@ -22,7 +24,7 @@ impl Config {
             server: ServerConfig::from_env_vars(),
             metrics: MetricsConfig::from_env_vars(),
             billing: BillingConfig::from_env_vars(),
-            features: FeatureFlags::from_env_vars(),
+            admin: AdminConfig::from_env_vars(),
         }
     }
 
@@ -45,17 +47,18 @@ impl IndexDbConf {
 }
 
 #[derive(Clone)]
-pub struct FeatureFlags {
-    pub new_accounts: bool,
+pub struct AdminConfig {
+    pub admins: HashSet<Username>,
 }
 
-impl FeatureFlags {
+impl AdminConfig {
     pub fn from_env_vars() -> Self {
         Self {
-            new_accounts: env::var("FEATURE_NEW_ACCOUNTS")
-                .unwrap_or_else(|_| "true".to_string())
-                .parse()
-                .unwrap(),
+            admins: env::var("ADMINS")
+                .unwrap_or_else(|_| "".to_string())
+                .split(", ")
+                .map(|part| part.to_string())
+                .collect(),
         }
     }
 }

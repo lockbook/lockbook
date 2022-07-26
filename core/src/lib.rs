@@ -13,6 +13,7 @@ mod external_interface;
 pub use uuid::Uuid;
 
 pub use lockbook_models::account::Account;
+pub use lockbook_models::api::FeatureFlag;
 pub use lockbook_models::api::{PaymentMethod, PaymentPlatform};
 pub use lockbook_models::api::{StripeAccountTier, SubscriptionInfo};
 pub use lockbook_models::crypto::DecryptedDocument;
@@ -475,6 +476,36 @@ impl Core {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.get_subscription_info())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self, username), err(Debug))]
+    pub fn admin_delete_account(
+        &self, username: &str,
+    ) -> Result<(), Error<AdminDeleteAccountError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.delete_account(username))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self, feature, enable), err(Debug))]
+    pub fn toggle_feature_flag(
+        &self, feature: FeatureFlag, enable: bool,
+    ) -> Result<(), Error<ToggleFeatureFlagError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.toggle_feature_flag(feature, enable))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_feature_flags_state(
+        &self,
+    ) -> Result<HashMap<FeatureFlag, bool>, Error<GetFeatureFlagsStateError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.get_feature_flags_state())?;
         Ok(val?)
     }
 }

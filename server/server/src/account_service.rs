@@ -1,18 +1,22 @@
+use crate::feature_flags;
 use crate::schema::Account;
 use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
-use crate::{document_service, RequestContext, ServerError, ServerState, Tx};
+use crate::{document_service, RequestContext, ServerError, ServerState, ServerV1, Tx};
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
 use lockbook_crypto::clock_service::get_time;
+use lockbook_models::account::Username;
 use lockbook_models::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
 use lockbook_models::api::{
-    DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError, GetPublicKeyRequest,
-    GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse, NewAccountError,
-    NewAccountRequest, NewAccountResponse,
+    AdminDeleteAccountError, AdminDeleteAccountRequest, FileUsage, GetPublicKeyError,
+    GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
+    NewAccountError, NewAccountRequest, NewAccountResponse,
 };
 use lockbook_models::file_metadata::{EncryptedFiles, Owner};
 use lockbook_models::tree::{FileMetaMapExt, FileMetadata};
+use std::collections::HashSet;
+use std::fmt::Debug;
 
 /// Create a new account given a username, public_key, and root folder.
 /// Checks that username is valid, and that username, public_key and root_folder are new.
@@ -28,7 +32,7 @@ pub async fn new_account(
         return Err(ClientError(NewAccountError::InvalidUsername));
     }
 
-    if !context.server_state.config.features.new_accounts {
+    if !feature_flags::is_new_accounts_enabled(&context.server_state.index_db)? {
         return Err(ClientError(NewAccountError::Disabled));
     }
 
@@ -120,14 +124,25 @@ pub fn get_usage_helper(
 /// Delete's an account's files out of s3 and clears their file tree within redis
 /// Does not free up the username or public key for re-use
 pub async fn delete_account(
-    context: RequestContext<'_, DeleteAccountRequest>,
-) -> Result<(), ServerError<DeleteAccountError>> {
-    let all_files: Result<EncryptedFiles, ServerError<DeleteAccountError>> =
+    context: RequestContext<'_, AdminDeleteAccountRequest>,
+) -> Result<(), ServerError<AdminDeleteAccountError>> {
+    let db = &context.server_state.index_db;
+
+    if !is_user_authorized(&context.public_key, &context.server_state.config.admin.admins, db)? {
+        return Err(ClientError(AdminDeleteAccountError::Unauthorized));
+    }
+
+    let owner = db
+        .usernames
+        .get(&context.request.username)?
+        .ok_or(ClientError(AdminDeleteAccountError::UsernameNotFound))?;
+
+    let all_files: Result<EncryptedFiles, ServerError<AdminDeleteAccountError>> =
         context.server_state.index_db.transaction(|tx| {
             let files: EncryptedFiles = tx
                 .owned_files
-                .get(&Owner(context.public_key))
-                .ok_or(ClientError(DeleteAccountError::UserNotFound))?
+                .get(&owner)
+                .ok_or(ClientError(AdminDeleteAccountError::UsernameNotFound))?
                 .iter()
                 .filter_map(|id| tx.metas.get(id))
                 .map(|f| (f.id, f))
@@ -142,12 +157,7 @@ pub async fn delete_account(
             tx.owned_files.delete(Owner(context.public_key));
 
             if !context.server_state.config.is_prod() {
-                let username = tx
-                    .accounts
-                    .delete(Owner(context.public_key))
-                    .ok_or(ClientError(DeleteAccountError::UserNotFound))?
-                    .username;
-                tx.usernames.delete(username);
+                tx.usernames.delete(context.request.username.clone());
             }
             Ok(files)
         })?;
@@ -166,4 +176,23 @@ pub async fn delete_account(
     }
 
     Ok(())
+}
+
+pub fn is_user_authorized<T: Debug>(
+    public_key: &PublicKey, admins: &HashSet<Username>, db: &ServerV1,
+) -> Result<bool, ServerError<T>> {
+    let mut is_authorized = false;
+
+    for admin_username in admins {
+        let admin = db.usernames.get(admin_username)?.ok_or_else(|| {
+            internal!("An admin does not exist in db, username: {}", admin_username)
+        })?;
+
+        if admin.0 == *public_key {
+            is_authorized = true;
+            break;
+        }
+    }
+
+    Ok(is_authorized)
 }

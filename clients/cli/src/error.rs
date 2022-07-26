@@ -246,6 +246,14 @@ impl CliError {
     pub fn billing<T: fmt::Display>(msg: T) -> Self {
         Self::new(ErrCode::Billing, msg)
     }
+
+    pub fn username_not_found(uname: &str) -> Self {
+        Self::new(ErrCode::UsernameNotFound, format!("username '{}' was not found.", uname))
+    }
+
+    pub fn unauthorized() -> Self {
+        Self::new(ErrCode::Unauthorized, "your account is unauthorized.".to_string())
+    }
 }
 
 macro_rules! make_errcode_enum {
@@ -311,6 +319,11 @@ make_errcode_enum!(
     55 => NameConflictDetected,
     56 => DocumentReadError,
     57 => WarningsFound,
+
+    // Admin errors (58 - 60)
+
+    58 => UsernameNotFound,
+    59 => Unauthorized,
 );
 
 impl From<UnexpectedError> for CliError {

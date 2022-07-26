@@ -1,6 +1,7 @@
 use http::Method;
 use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::account::Account;
@@ -407,6 +408,67 @@ impl Request for GetSubscriptionInfoRequest {
     type Error = GetSubscriptionInfoError;
     const METHOD: Method = Method::GET;
     const ROUTE: &'static str = "/get-subscription-info";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct AdminDeleteAccountRequest {
+    pub username: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum AdminDeleteAccountError {
+    Unauthorized,
+    UsernameNotFound,
+}
+
+impl Request for AdminDeleteAccountRequest {
+    type Response = ();
+    type Error = AdminDeleteAccountError;
+    const METHOD: Method = Method::DELETE;
+    const ROUTE: &'static str = "/admin-delete-account";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
+pub enum FeatureFlag {
+    NewAccounts,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct ToggleFeatureFlagRequest {
+    pub feature: FeatureFlag,
+    pub enable: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum ToggleFeatureFlagError {
+    Unauthorized,
+}
+
+impl Request for ToggleFeatureFlagRequest {
+    type Response = ();
+    type Error = ToggleFeatureFlagError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/toggle-feature-flag";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetFeatureFlagsStateRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetFeatureFlagsStateResponse {
+    pub states: HashMap<FeatureFlag, bool>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum GetFeatureFlagsStateError {
+    Unauthorized,
+}
+
+impl Request for GetFeatureFlagsStateRequest {
+    type Response = GetFeatureFlagsStateResponse;
+    type Error = GetFeatureFlagsStateError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/get-feature-flags-state";
 }
 
 // number of milliseconds that have elapsed since the unix epoch

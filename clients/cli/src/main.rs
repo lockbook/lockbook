@@ -8,6 +8,7 @@ use lockbook_core::{Config, Uuid};
 
 use crate::error::CliError;
 
+mod admin;
 mod backup;
 mod billing;
 mod copy;
@@ -214,6 +215,33 @@ enum Lockbook {
 
     /// Subcommands that aid in extending lockbook
     Debug(Debug),
+
+    Admin(Admin),
+}
+
+#[derive(Debug, PartialEq, StructOpt)]
+pub enum Admin {
+    /// Subcommands that aid in manipulating feature flags
+    FeatureFlags(FeatureFlags),
+
+    /// Delete a user
+    DeleteAccount { username: String },
+}
+
+#[derive(Debug, PartialEq, StructOpt)]
+pub enum FeatureFlags {
+    /// Prints out the current state of all feature flags
+    List,
+
+    /// Subcommands of the new account feature flag
+    NewAccount(FeaturesSwitchOptions),
+}
+
+#[derive(Debug, PartialEq, StructOpt)]
+pub enum FeaturesSwitchOptions {
+    SetOn,
+
+    SetOff,
 }
 
 #[derive(Debug, PartialEq, StructOpt)]
@@ -290,6 +318,7 @@ fn parse_and_run() -> Result<(), CliError> {
         GetUsage { exact } => usage::usage(&core, exact),
         Drawing { path, id, format } => drawing::drawing(&core, path, id, &format),
         Debug(debug) => debug::debug(&core, debug),
+        Admin(admin) => admin::admin(&core, admin),
     }
 }
 

@@ -1,6 +1,7 @@
 use crate::account_service::*;
 use crate::billing::billing_service;
 use crate::billing::billing_service::*;
+use crate::feature_flags::*;
 use crate::file_service::*;
 use crate::utils::get_build_info;
 use crate::{router_service, verify_auth, verify_client_version, ServerError, ServerState};
@@ -122,11 +123,13 @@ pub fn core_routes(
         .or(core_req!(GetPublicKeyRequest, get_public_key, server_state))
         .or(core_req!(GetUsageRequest, get_usage, server_state))
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
-        .or(core_req!(DeleteAccountRequest, delete_account, server_state))
         .or(core_req!(UpgradeAccountGooglePlayRequest, upgrade_account_google_play, server_state))
         .or(core_req!(UpgradeAccountStripeRequest, upgrade_account_stripe, server_state))
         .or(core_req!(CancelSubscriptionRequest, cancel_subscription, server_state))
         .or(core_req!(GetSubscriptionInfoRequest, get_subscription_info, server_state))
+        .or(core_req!(AdminDeleteAccountRequest, delete_account, server_state))
+        .or(core_req!(ToggleFeatureFlagRequest, toggle_feature_flag, server_state))
+        .or(core_req!(GetFeatureFlagsStateRequest, get_feature_flags_state, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {

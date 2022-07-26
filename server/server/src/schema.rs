@@ -1,4 +1,5 @@
 use crate::billing::billing_model::SubscriptionProfile;
+use lockbook_models::api::FeatureFlag;
 use lockbook_models::file_metadata::EncryptedFileMetadata;
 use lockbook_models::file_metadata::Owner;
 use serde::{Deserialize, Serialize};
@@ -12,7 +13,8 @@ hmdb::schema! {
         metas: <Uuid, EncryptedFileMetadata>,
         sizes: <Uuid, u64>,
         google_play_ids: <String, Owner>,
-        stripe_ids: <String, Owner>
+        stripe_ids: <String, Owner>,
+        feature_flags: <FeatureFlag, bool>
     }
 }
 

@@ -6,7 +6,6 @@ members = [
 	"core/libs/models",
 	"core/libs/test_utils",
 	"server/server",
-	"server/admin",
 	"clients/linux",
 	"clients/cli",
 ]

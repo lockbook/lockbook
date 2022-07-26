@@ -26,6 +26,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let server_state =
         Arc::new(ServerState { config, index_db, stripe_client, google_play_client });
 
+    feature_flags::initialize_flags(&server_state.index_db);
+
     let routes = core_routes(&server_state)
         .or(build_info())
         .or(get_metrics())
