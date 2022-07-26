@@ -1,6 +1,7 @@
 use std::env;
 use std::path::PathBuf;
 
+use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
 use lockbook_core::Core;
@@ -216,12 +217,14 @@ enum Lockbook {
     /// Subcommands that aid in extending lockbook
     Debug(Debug),
 
+    /// Subcommands for admin users
+    #[structopt(setting(AppSettings::Hidden))]
     Admin(Admin),
 }
 
 #[derive(Debug, PartialEq, StructOpt)]
 pub enum Admin {
-    /// Subcommands that aid in manipulating feature flags
+    /// Commands related to feature flags
     FeatureFlags(FeatureFlags),
 
     /// Delete a user
@@ -234,14 +237,14 @@ pub enum FeatureFlags {
     List,
 
     /// Subcommands of the new account feature flag
-    NewAccount(FeaturesSwitchOptions),
+    NewAccounts(FeaturesSwitchOptions),
 }
 
 #[derive(Debug, PartialEq, StructOpt)]
 pub enum FeaturesSwitchOptions {
-    SetOn,
+    ToggleOn,
 
-    SetOff,
+    ToggleOff,
 }
 
 #[derive(Debug, PartialEq, StructOpt)]

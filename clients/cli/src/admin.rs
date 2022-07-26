@@ -14,7 +14,7 @@ pub fn admin(core: &Core, admin: Admin) -> Result<(), CliError> {
 fn features(core: &Core, features: FeatureFlags) -> Result<(), CliError> {
     match features {
         FeatureFlags::List => {
-            core.get_feature_flags_state().map_err(|err| match err {
+            let feature_flags = core.get_feature_flags_state().map_err(|err| match err {
                 Error::UiError(err) => match err {
                     GetFeatureFlagsStateError::Unauthorized => CliError::unauthorized(),
                     GetFeatureFlagsStateError::CouldNotReachServer => CliError::network_issue(),
@@ -22,8 +22,16 @@ fn features(core: &Core, features: FeatureFlags) -> Result<(), CliError> {
                 },
                 Error::Unexpected(msg) => CliError::unexpected(msg),
             })?;
+
+            for (feature, enabled) in feature_flags {
+                let feature_str = match feature {
+                    FeatureFlag::NewAccounts => "new accounts",
+                };
+
+                println!("{}: {}", feature_str, enabled);
+            }
         }
-        FeatureFlags::NewAccount(option) => {
+        FeatureFlags::NewAccounts(option) => {
             features_switch_options(core, FeatureFlag::NewAccounts, option)?
         }
     }
@@ -35,8 +43,8 @@ fn features_switch_options(
     core: &Core, feature_flag: FeatureFlag, option: FeaturesSwitchOptions,
 ) -> Result<(), CliError> {
     let enable = match option {
-        FeaturesSwitchOptions::SetOn => true,
-        FeaturesSwitchOptions::SetOff => false,
+        FeaturesSwitchOptions::ToggleOn => true,
+        FeaturesSwitchOptions::ToggleOff => false,
     };
 
     core.toggle_feature_flag(feature_flag, enable)
