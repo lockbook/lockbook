@@ -1,15 +1,16 @@
+use crate::model::filename::DocumentType;
 use crate::model::repo::RepoSource;
 use crate::{CoreError, RequestContext, UnexpectedError};
+use crossbeam::channel::{self, Receiver, RecvTimeoutError, Sender};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use lockbook_models::file_metadata::{DecryptedFiles, FileType};
+use lockbook_models::file_metadata::DecryptedFiles;
+use lockbook_models::tree::FileMetadata;
 use serde::Serialize;
 use std::cmp::Ordering;
-use std::sync::atomic::AtomicBool;
-use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{atomic, Arc};
-use std::thread;
-use std::thread::JoinHandle;
+use std::sync::atomic::{self, AtomicBool};
+use std::sync::Arc;
+use std::thread::{self, JoinHandle};
 use std::time::Duration;
 use sublime_fuzzy::{FuzzySearch, Scoring};
 use uuid::Uuid;
@@ -20,8 +21,6 @@ const LOWEST_CONTENT_SCORE_THRESHOLD: i64 = 170;
 const MAX_CONTENT_MATCH_LENGTH: usize = 400;
 const IDEAL_CONTENT_MATCH_LENGTH: usize = 150;
 const CONTENT_MATCH_PADDING: usize = 8;
-
-const QUERIED_EXTENSIONS: [&str; 2] = [".md", ".txt"];
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct SearchResultItem {
@@ -68,28 +67,21 @@ impl RequestContext<'_, '_> {
         Ok(results)
     }
 
-    pub fn start_search(
-        &mut self, results_tx: Sender<SearchResult>, search_rx: Receiver<SearchRequest>,
-    ) -> Result<JoinHandle<()>, CoreError> {
+    pub fn start_search(&mut self) -> Result<StartSearchInfo, CoreError> {
         let files_not_deleted: DecryptedFiles =
             self.get_all_not_deleted_metadata(RepoSource::Local)?;
 
         let mut files_info = Vec::new();
 
         for file in files_not_deleted.values() {
-            if file.file_type == FileType::Document {
-                let content = if QUERIED_EXTENSIONS
-                    .iter()
-                    .any(|extension| file.decrypted_name.as_str().ends_with(extension))
-                {
-                    Some(String::from(String::from_utf8_lossy(&self.read_document(
-                        self.config,
-                        RepoSource::Local,
-                        file.id,
-                    )?)))
-                } else {
-                    None
-                };
+            if file.is_document() {
+                let content =
+                    match DocumentType::from_file_name_using_extension(&file.decrypted_name) {
+                        DocumentType::Text => self
+                            .read_document(self.config, RepoSource::Local, file.id)
+                            .map(|bytes| Some(String::from_utf8_lossy(&bytes).to_string()))?,
+                        _ => None,
+                    };
 
                 files_info.push(SearchableFileInfo {
                     id: file.id,
@@ -99,101 +91,78 @@ impl RequestContext<'_, '_> {
             }
         }
 
-        Ok(thread::spawn(move || {
-            if let Err(search_err) = Self::search(&results_tx, search_rx, Arc::new(files_info)) {
-                if let Err(err) = results_tx.send(SearchResult::Error(search_err)) {
-                    warn!("Send failed: {:#?}", err);
-                }
-            }
-        }))
-    }
-
-    fn search(
-        results_tx: &Sender<SearchResult>, search_rx: Receiver<SearchRequest>,
-        files_info: Arc<Vec<SearchableFileInfo>>,
-    ) -> Result<(), UnexpectedError> {
-        let mut last_search = match search_rx.recv() {
-            Ok(last_search) => last_search,
-            Err(_) => return Ok(()),
-        };
-
-        let mut should_continue = Arc::new(AtomicBool::new(true));
-
-        match &last_search {
-            SearchRequest::Search { input } => {
-                RequestContext::spawn_search(
-                    results_tx.clone(),
-                    files_info.clone(),
-                    should_continue.clone(),
-                    input.clone(),
-                );
-            }
-            SearchRequest::EndSearch => return Ok(()),
-            SearchRequest::StopCurrentSearch => {}
-        };
-
-        let mut skip_channel_check = false;
-
-        loop {
-            if !skip_channel_check {
-                last_search = match search_rx.recv() {
-                    Ok(last_search) => last_search,
-                    Err(_) => return Ok(()),
-                };
-
-                should_continue.store(false, atomic::Ordering::Relaxed);
-            } else {
-                skip_channel_check = false;
-            }
-
-            thread::sleep(Duration::from_millis(DEBOUNCE_MILLIS));
-
-            if let Some(search) = search_rx.try_iter().last() {
-                last_search = search;
-                skip_channel_check = true;
-                continue;
-            }
-
-            match &last_search {
-                SearchRequest::Search { input } => {
-                    should_continue = Arc::new(AtomicBool::new(true));
-
-                    RequestContext::spawn_search(
-                        results_tx.clone(),
-                        files_info.clone(),
-                        should_continue.clone(),
-                        input.clone(),
-                    );
-                }
-                SearchRequest::EndSearch => return Ok(()),
-                SearchRequest::StopCurrentSearch => {}
-            };
-        }
-    }
-
-    fn spawn_search(
-        results_tx: Sender<SearchResult>, files_info: Arc<Vec<SearchableFileInfo>>,
-        should_continue: Arc<AtomicBool>, input: String,
-    ) {
-        thread::spawn(move || {
-            if let Err(search_err) =
-                RequestContext::search_loop(results_tx.clone(), files_info, should_continue, input)
-            {
+        let (search_tx, search_rx) = channel::unbounded::<SearchRequest>();
+        let (results_tx, results_rx) = channel::unbounded::<SearchResult>();
+        let join_handle = thread::spawn(move || {
+            if let Err(search_err) = Self::search_loop(&results_tx, search_rx, files_info) {
                 if let Err(err) = results_tx.send(SearchResult::Error(search_err)) {
                     warn!("Send failed: {:#?}", err);
                 }
             }
         });
+
+        Ok(StartSearchInfo { search_tx, results_rx, join_handle })
+    }
+
+    fn recv_with_debounce(
+        search_rx: &Receiver<SearchRequest>, debounce_duration: Duration,
+    ) -> Result<SearchRequest, UnexpectedError> {
+        let mut result = search_rx.recv()?;
+
+        loop {
+            match search_rx.recv_timeout(debounce_duration) {
+                Ok(new_result) => result = new_result,
+                Err(RecvTimeoutError::Timeout) => return Ok(result),
+                Err(err) => return Err(UnexpectedError::from(err)),
+            }
+        }
     }
 
     fn search_loop(
-        results_tx: Sender<SearchResult>, files_info: Arc<Vec<SearchableFileInfo>>,
+        results_tx: &Sender<SearchResult>, search_rx: Receiver<SearchRequest>,
+        files_info: Vec<SearchableFileInfo>,
+    ) -> Result<(), UnexpectedError> {
+        let files_info = Arc::new(files_info);
+        let mut should_continue = Arc::new(AtomicBool::new(true));
+        let debounce_duration = Duration::from_millis(DEBOUNCE_MILLIS);
+
+        loop {
+            let search = RequestContext::recv_with_debounce(&search_rx, debounce_duration)?;
+            should_continue.store(false, atomic::Ordering::Relaxed);
+
+            match search {
+                SearchRequest::Search { input } => {
+                    should_continue = Arc::new(AtomicBool::new(true));
+
+                    let results_tx = results_tx.clone();
+                    let files_info = files_info.clone();
+                    let should_continue = should_continue.clone();
+                    let input = input.clone();
+
+                    thread::spawn(move || {
+                        if let Err(search_err) =
+                            RequestContext::search(&results_tx, files_info, should_continue, input)
+                        {
+                            if let Err(err) = results_tx.send(SearchResult::Error(search_err)) {
+                                warn!("Send failed: {:#?}", err);
+                            }
+                        }
+                    });
+                }
+                SearchRequest::EndSearch => return Ok(()),
+                SearchRequest::StopCurrentSearch => {}
+            }
+        }
+    }
+
+    fn search(
+        results_tx: &Sender<SearchResult>, files_info: Arc<Vec<SearchableFileInfo>>,
         should_continue: Arc<AtomicBool>, search: String,
     ) -> Result<(), UnexpectedError> {
         let mut no_matches = true;
 
         RequestContext::search_file_names(
-            &results_tx,
+            results_tx,
             &should_continue,
             &files_info,
             &search,
@@ -202,7 +171,7 @@ impl RequestContext<'_, '_> {
 
         if should_continue.load(atomic::Ordering::Relaxed) {
             RequestContext::search_file_contents(
-                &results_tx,
+                results_tx,
                 &should_continue,
                 &files_info,
                 &search,
@@ -331,72 +300,84 @@ impl RequestContext<'_, '_> {
         let mut new_paragraph = paragraph.to_string();
         let mut new_indices = matched_indices;
 
-        match (new_indices.first(), new_indices.last()) {
-            (Some(first_match), Some(last_match)) => {
-                if *last_match < IDEAL_CONTENT_MATCH_LENGTH {
-                    new_paragraph = new_paragraph
-                        .chars()
-                        .take(IDEAL_CONTENT_MATCH_LENGTH + CONTENT_MATCH_PADDING)
-                        .collect();
-                    new_paragraph.push_str("...");
+        let first_match = new_indices.first().ok_or_else(|| {
+            warn!("A fuzzy match happened but there are no matched indices.");
+            UnexpectedError("No matched indices.".to_string())
+        })?;
+
+        let last_match = new_indices.last().ok_or_else(|| {
+            warn!("A fuzzy match happened but there are no matched indices.");
+            UnexpectedError("No matched indices.".to_string())
+        })?;
+
+        if *last_match < IDEAL_CONTENT_MATCH_LENGTH {
+            new_paragraph = new_paragraph
+                .chars()
+                .take(IDEAL_CONTENT_MATCH_LENGTH + CONTENT_MATCH_PADDING)
+                .chain("...".chars())
+                .collect();
+        } else {
+            if *first_match > CONTENT_MATCH_PADDING as usize {
+                let at_least_take = new_paragraph.len() - first_match + CONTENT_MATCH_PADDING;
+
+                let deleted_chars_len = if at_least_take > IDEAL_CONTENT_MATCH_LENGTH {
+                    first_match - CONTENT_MATCH_PADDING
                 } else {
-                    if *first_match > CONTENT_MATCH_PADDING as usize {
-                        let at_least_take =
-                            new_paragraph.len() - first_match + CONTENT_MATCH_PADDING;
+                    new_paragraph.len() - IDEAL_CONTENT_MATCH_LENGTH
+                };
 
-                        let deleted_chars_len = if at_least_take > IDEAL_CONTENT_MATCH_LENGTH {
-                            first_match - CONTENT_MATCH_PADDING
-                        } else {
-                            new_paragraph.len() - IDEAL_CONTENT_MATCH_LENGTH
-                        };
+                index_offset = deleted_chars_len - 3;
 
-                        index_offset = deleted_chars_len - 3;
-
-                        new_paragraph = new_paragraph.chars().skip(deleted_chars_len).collect();
-                        new_paragraph.insert_str(0, "...");
-                    }
-
-                    if new_indices.len() - last_match > CONTENT_MATCH_PADDING {
-                        let at_least_take = *last_match - index_offset + CONTENT_MATCH_PADDING;
-
-                        let take_chars_len = if at_least_take > IDEAL_CONTENT_MATCH_LENGTH {
-                            at_least_take
-                        } else {
-                            new_paragraph.len() - (IDEAL_CONTENT_MATCH_LENGTH - last_match - 3)
-                        };
-
-                        new_paragraph = new_paragraph.chars().take(take_chars_len).collect();
-                        new_paragraph.push_str("...");
-                    }
-
-                    if new_paragraph.len() > MAX_CONTENT_MATCH_LENGTH {
-                        new_paragraph = new_paragraph
-                            .chars()
-                            .take(MAX_CONTENT_MATCH_LENGTH)
-                            .collect();
-
-                        new_indices = new_indices
-                            .into_iter()
-                            .filter(|index| *index < MAX_CONTENT_MATCH_LENGTH)
-                            .collect()
-                    }
-                }
-
-                Ok((
-                    new_paragraph,
-                    new_indices
-                        .iter()
-                        .map(|index| *index - index_offset)
-                        .collect(),
-                ))
+                new_paragraph = "..."
+                    .chars()
+                    .chain(new_paragraph.chars().skip(deleted_chars_len))
+                    .collect();
             }
-            _ => {
-                warn!("A fuzzy match happened but there are no matched indices.");
 
-                Err(UnexpectedError("No matched indices.".to_string()))
+            if new_paragraph.len() > IDEAL_CONTENT_MATCH_LENGTH + CONTENT_MATCH_PADDING + 3 {
+                let at_least_take = *last_match - index_offset + CONTENT_MATCH_PADDING;
+
+                let take_chars_len = if at_least_take > IDEAL_CONTENT_MATCH_LENGTH {
+                    at_least_take
+                } else {
+                    IDEAL_CONTENT_MATCH_LENGTH - (last_match - index_offset)
+                };
+
+                new_paragraph = new_paragraph
+                    .chars()
+                    .take(take_chars_len)
+                    .chain("...".chars())
+                    .collect();
+            }
+
+            if new_paragraph.len() > MAX_CONTENT_MATCH_LENGTH {
+                new_paragraph = new_paragraph
+                    .chars()
+                    .take(MAX_CONTENT_MATCH_LENGTH)
+                    .chain("...".chars())
+                    .collect();
+
+                new_indices = new_indices
+                    .into_iter()
+                    .filter(|index| (*index - index_offset) < MAX_CONTENT_MATCH_LENGTH)
+                    .collect()
             }
         }
+
+        Ok((
+            new_paragraph,
+            new_indices
+                .iter()
+                .map(|index| *index - index_offset)
+                .collect(),
+        ))
     }
+}
+
+pub struct StartSearchInfo {
+    pub search_tx: Sender<SearchRequest>,
+    pub results_rx: Receiver<SearchResult>,
+    pub join_handle: JoinHandle<()>,
 }
 
 struct SearchableFileInfo {
@@ -412,6 +393,7 @@ pub enum SearchRequest {
     StopCurrentSearch,
 }
 
+#[derive(Debug)]
 pub enum SearchResult {
     Error(UnexpectedError),
     FileNameMatch { id: Uuid, path: String, matched_indices: Vec<usize>, score: i64 },
@@ -419,9 +401,9 @@ pub enum SearchResult {
     NoMatch,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct ContentMatch {
-    paragraph: String,
-    matched_indices: Vec<usize>,
-    score: i64,
+    pub paragraph: String,
+    pub matched_indices: Vec<usize>,
+    pub score: i64,
 }

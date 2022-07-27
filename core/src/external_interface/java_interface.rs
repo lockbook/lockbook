@@ -2,14 +2,14 @@
 
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
+use crossbeam::channel::Sender;
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jboolean, jbyteArray, jint, jlong, jstring};
 use jni::JNIEnv;
 use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::sync::mpsc::Sender;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 use crate::{
@@ -347,29 +347,6 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocumentBytes(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_core_CoreKt_saveDocumentToDisk(
-    env: JNIEnv, _: JClass, jid: JString, jlocation: JString,
-) -> jstring {
-    let id = match deserialize_id(&env, jid) {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    let location = match jstring_to_string(&env, jlocation, "path") {
-        Ok(ok) => ok,
-        Err(err) => return err,
-    };
-
-    string_to_jstring(
-        &env,
-        match static_state::get() {
-            Ok(core) => translate(core.save_document_to_disk(id, &location)),
-            e => translate(e.map(|_| ())),
-        },
-    )
-}
-
-#[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_exportDrawingToDisk(
     env: JNIEnv, _: JClass, jid: JString, jformat: JString, jlocation: JString,
 ) -> jstring {
@@ -649,18 +626,16 @@ fn send_search_request(env: JNIEnv, request: SearchRequest) -> jstring {
 pub extern "system" fn Java_app_lockbook_core_CoreKt_startSearch(
     env: JNIEnv, _: JClass, jsearchFilesViewModel: JObject<'static>,
 ) -> jstring {
-    let (search_tx, search_rx) = mpsc::channel::<SearchRequest>();
-    let (results_tx, results_rx) = mpsc::channel::<SearchResult>();
+    let (results_rx, search_tx) = match static_state::get().and_then(|core| core.start_search()) {
+        Ok(search_info) => (search_info.results_rx, search_info.search_tx),
+        Err(e) => return string_to_jstring(&env, translate(Err::<(), _>(e))),
+    };
 
     match MAYBE_SEARCH_TX.lock() {
         Ok(mut lock) => *lock = Some(search_tx),
         Err(_) => {
             return string_to_jstring(&env, translate(Err::<(), _>("Cannot get search lock.")))
         }
-    }
-
-    if let Err(e) = static_state::get().and_then(|core| core.start_search(results_tx, search_rx)) {
-        return string_to_jstring(&env, translate(Err::<(), _>(e)));
     }
 
     while let Ok(results) = results_rx.recv() {

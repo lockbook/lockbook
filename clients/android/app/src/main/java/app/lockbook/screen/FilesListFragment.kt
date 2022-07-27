@@ -151,6 +151,11 @@ class FilesListFragment : Fragment(), FilesFragment {
             binding.fabSpeedDial.close()
             true
         }
+        binding.fabSpeedDial.mainFab.setOnLongClickListener { view ->
+            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            model.generateQuickNote(activityModel)
+            true
+        }
 
         binding.listFilesRefresh.setOnRefreshListener {
             model.onSwipeToRefresh()
@@ -229,7 +234,6 @@ class FilesListFragment : Fragment(), FilesFragment {
             binding.drawerLayout.close()
             true
         }
-
         binding.filesToolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.menu_files_list_search -> {

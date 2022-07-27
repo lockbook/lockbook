@@ -40,7 +40,7 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
 
     fun launchDetailsScreen(screen: DetailsScreen?) {
         detailsScreen = screen
-        _launchDetailsScreen.postValue(detailsScreen)
+        _launchDetailsScreen.value = detailsScreen
     }
 
     fun updateMainScreenUI(uiUpdate: UpdateMainScreenUI) {

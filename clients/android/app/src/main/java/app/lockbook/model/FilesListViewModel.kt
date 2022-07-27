@@ -77,6 +77,27 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun generateQuickNote(activityModel: StateViewModel) {
+        viewModelScope.launch(Dispatchers.IO) {
+            var iter = 0
+            var fileName: String
+
+            do {
+                iter++
+                fileName = "${getString(R.string.note)}-$iter.md"
+            } while (fileModel.children.any { it.decryptedName == fileName })
+
+            when (val createFileResult = CoreModel.createFile(fileModel.parent.id, fileName, FileType.Document)) {
+                is Ok -> {
+                    withContext(Dispatchers.Main) {
+                        activityModel.launchDetailsScreen(DetailsScreen.Loading(createFileResult.value))
+                    }
+                }
+                is Err -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(createFileResult.error.toLbError(getRes())))
+            }
+        }
+    }
+
     fun enterFolder(folder: DecryptedFileMetadata) {
         viewModelScope.launch(Dispatchers.IO) {
             fileModel.intoFile(folder)

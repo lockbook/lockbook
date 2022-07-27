@@ -253,4 +253,5 @@
     <string name="search">Search</string>
     <string name="no_search_results">No search results</string>
     <string name="exit_app">Exit App</string>
+    <string name="note">note</string>
 </resources>

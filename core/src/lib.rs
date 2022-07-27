@@ -30,9 +30,7 @@ pub use crate::service::usage_service::{bytes_to_human, UsageItemMetric, UsageMe
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::thread::JoinHandle;
 
 use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
@@ -50,7 +48,7 @@ use crate::model::errors::Error::UiError;
 use crate::model::repo::RepoSource;
 use crate::repo::schema::{transaction, CoreV1, OneKey, Tx};
 use crate::service::log_service;
-use crate::service::search_service::{SearchRequest, SearchResult, SearchResultItem};
+use crate::service::search_service::{SearchResultItem, StartSearchInfo};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
@@ -222,18 +220,6 @@ impl Core {
             self.context(tx)?
                 .read_document(&self.config, RepoSource::Local, id)
         })?;
-        Ok(val?)
-    }
-
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn save_document_to_disk(
-        &self, id: Uuid, location: &str,
-    ) -> Result<(), Error<SaveDocumentToDiskError>> {
-        let val = self.db.transaction(|tx| {
-            self.context(tx)?
-                .save_document_to_disk(&self.config, id, location)
-        })?;
-
         Ok(val?)
     }
 
@@ -439,13 +425,9 @@ impl Core {
         Ok(val?)
     }
 
-    #[instrument(level = "debug", skip(self, results_tx, search_rx), err(Debug))]
-    pub fn start_search(
-        &self, results_tx: Sender<SearchResult>, search_rx: Receiver<SearchRequest>,
-    ) -> Result<JoinHandle<()>, UnexpectedError> {
-        let val = self
-            .db
-            .transaction(|tx| self.context(tx)?.start_search(results_tx, search_rx))?;
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn start_search(&self) -> Result<StartSearchInfo, UnexpectedError> {
+        let val = self.db.transaction(|tx| self.context(tx)?.start_search())?;
         Ok(val?)
     }
 
