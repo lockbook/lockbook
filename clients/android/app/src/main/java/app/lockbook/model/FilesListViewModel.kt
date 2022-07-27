@@ -231,13 +231,6 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun changeFileSort(newSortStyle: SortStyle) {
-        fileModel.setSortStyle(newSortStyle)
-
-        files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
-        PreferenceManager.getDefaultSharedPreferences(getContext()).edit().putString(getString(R.string.sort_files_key), getString(newSortStyle.toStringResource())).apply()
-    }
-
     private fun refreshWorkInfo() {
         var sidebarInfo = UpdateFilesUI.UpdateSideBarInfo()
         maybeLastSidebarInfo = sidebarInfo
