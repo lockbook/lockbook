@@ -1,8 +1,7 @@
-use crate::{Admin, CliError, FeatureFlags, FeaturesSwitchOptions};
-use lockbook_core::{
-    AdminDeleteAccountError, Core, Error, FeatureFlag, GetFeatureFlagsStateError,
-    ToggleFeatureFlagError,
-};
+use crate::{Admin, CliError, FeatureFlags};
+use dialoguer::theme::ColorfulTheme;
+use dialoguer::Confirm;
+use lockbook_core::{AdminDeleteAccountError, Core, Error, FeatureFlag};
 
 pub fn admin(core: &Core, admin: Admin) -> Result<(), CliError> {
     match admin {
@@ -14,25 +13,12 @@ pub fn admin(core: &Core, admin: Admin) -> Result<(), CliError> {
 fn features(core: &Core, features: FeatureFlags) -> Result<(), CliError> {
     match features {
         FeatureFlags::List => {
-            let feature_flags = core.get_feature_flags_state().map_err(|err| match err {
-                Error::UiError(err) => match err {
-                    GetFeatureFlagsStateError::Unauthorized => CliError::unauthorized(),
-                    GetFeatureFlagsStateError::CouldNotReachServer => CliError::network_issue(),
-                    GetFeatureFlagsStateError::ClientUpdateRequired => CliError::update_required(),
-                },
-                Error::Unexpected(msg) => CliError::unexpected(msg),
-            })?;
+            let feature_flags = core.get_feature_flags_state()?;
 
-            for (feature, enabled) in feature_flags {
-                let feature_str = match feature {
-                    FeatureFlag::NewAccounts => "new accounts",
-                };
-
-                println!("{}: {}", feature_str, enabled);
-            }
+            println!("New Accounts: {}", feature_flags.new_accounts);
         }
-        FeatureFlags::NewAccounts(option) => {
-            features_switch_options(core, FeatureFlag::NewAccounts, option)?
+        FeatureFlags::NewAccounts { enable } => {
+            features_switch_options(core, FeatureFlag::NewAccounts, enable)?
         }
     }
 
@@ -40,43 +26,55 @@ fn features(core: &Core, features: FeatureFlags) -> Result<(), CliError> {
 }
 
 fn features_switch_options(
-    core: &Core, feature_flag: FeatureFlag, option: FeaturesSwitchOptions,
+    core: &Core, feature_flag: FeatureFlag, enable: bool,
 ) -> Result<(), CliError> {
-    let enable = match option {
-        FeaturesSwitchOptions::ToggleOn => true,
-        FeaturesSwitchOptions::ToggleOff => false,
+    let feature_flag_str = match feature_flag {
+        FeatureFlag::NewAccounts => "new accounts",
     };
 
-    core.toggle_feature_flag(feature_flag, enable)
-        .map_err(|err| match err {
-            Error::UiError(err) => match err {
-                ToggleFeatureFlagError::Unauthorized => CliError::unauthorized(),
-                ToggleFeatureFlagError::CouldNotReachServer => CliError::network_issue(),
-                ToggleFeatureFlagError::ClientUpdateRequired => CliError::update_required(),
-            },
-            Error::Unexpected(msg) => CliError::unexpected(msg),
-        })?;
+    let maybe_confrim = Confirm::with_theme(&ColorfulTheme::default())
+        .with_prompt(format!(
+            "Are you sure you want to modify the '{}' feature flag to '{}'?",
+            feature_flag_str, enable
+        ))
+        .interact_opt()?;
 
-    println!("Feature flag toggled!");
+    if let Some(confirm) = maybe_confrim {
+        if confirm {
+            core.toggle_feature_flag(feature_flag, enable)?;
+
+            println!("Feature flag toggled!");
+        }
+    }
 
     Ok(())
 }
 
 fn delete_account(core: &Core, username: String) -> Result<(), CliError> {
-    core.admin_delete_account(&username)
-        .map_err(|err| match err {
-            Error::UiError(err) => match err {
-                AdminDeleteAccountError::Unauthorized => CliError::unauthorized(),
-                AdminDeleteAccountError::UsernameNotFound => {
-                    CliError::username_not_found(&username)
-                }
-                AdminDeleteAccountError::CouldNotReachServer => CliError::network_issue(),
-                AdminDeleteAccountError::ClientUpdateRequired => CliError::update_required(),
-            },
-            Error::Unexpected(msg) => CliError::unexpected(msg),
-        })?;
+    let maybe_confirm = Confirm::with_theme(&ColorfulTheme::default())
+        .with_prompt(format!("Are you sure you want to delete '{}'?", username))
+        .interact_opt()?;
 
-    println!("Account deleted!");
+    if let Some(confirm) = maybe_confirm {
+        if confirm {
+            core.admin_delete_account(&username)
+                .map_err(|err| match err {
+                    Error::UiError(err) => match err {
+                        AdminDeleteAccountError::NotPermissioned => CliError::not_permissioned(),
+                        AdminDeleteAccountError::UsernameNotFound => {
+                            CliError::username_not_found(&username)
+                        }
+                        AdminDeleteAccountError::CouldNotReachServer => CliError::network_issue(),
+                        AdminDeleteAccountError::ClientUpdateRequired => {
+                            CliError::update_required()
+                        }
+                    },
+                    Error::Unexpected(msg) => CliError::unexpected(msg),
+                })?;
+
+            println!("Account deleted!");
+        }
+    }
 
     Ok(())
 }

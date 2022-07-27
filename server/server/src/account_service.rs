@@ -128,21 +128,21 @@ pub async fn delete_account(
 ) -> Result<(), ServerError<AdminDeleteAccountError>> {
     let db = &context.server_state.index_db;
 
-    if !is_user_authorized(&context.public_key, &context.server_state.config.admin.admins, db)? {
-        return Err(ClientError(AdminDeleteAccountError::Unauthorized));
+    if !is_admin(&context.public_key, &context.server_state.config.admin.admins, db)? {
+        return Err(ClientError(AdminDeleteAccountError::NotPermissioned));
     }
 
     let owner = db
         .usernames
         .get(&context.request.username)?
-        .ok_or(ClientError(AdminDeleteAccountError::UsernameNotFound))?;
+        .ok_or(ClientError(AdminDeleteAccountError::UserNotFound))?;
 
     let all_files: Result<EncryptedFiles, ServerError<AdminDeleteAccountError>> =
         context.server_state.index_db.transaction(|tx| {
             let files: EncryptedFiles = tx
                 .owned_files
                 .get(&owner)
-                .ok_or(ClientError(AdminDeleteAccountError::UsernameNotFound))?
+                .ok_or(ClientError(AdminDeleteAccountError::UserNotFound))?
                 .iter()
                 .filter_map(|id| tx.metas.get(id))
                 .map(|f| (f.id, f))
@@ -178,21 +178,15 @@ pub async fn delete_account(
     Ok(())
 }
 
-pub fn is_user_authorized<T: Debug>(
+pub fn is_admin<T: Debug>(
     public_key: &PublicKey, admins: &HashSet<Username>, db: &ServerV1,
 ) -> Result<bool, ServerError<T>> {
-    let mut is_authorized = false;
+    let is_admin = match db.accounts.get(&Owner(*public_key))? {
+        None => false,
+        Some(account) => admins
+            .iter()
+            .any(|admin_username| *admin_username == account.username),
+    };
 
-    for admin_username in admins {
-        let admin = db.usernames.get(admin_username)?.ok_or_else(|| {
-            internal!("An admin does not exist in db, username: {}", admin_username)
-        })?;
-
-        if admin.0 == *public_key {
-            is_authorized = true;
-            break;
-        }
-    }
-
-    Ok(is_authorized)
+    Ok(is_admin)
 }

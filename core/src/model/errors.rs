@@ -135,6 +135,7 @@ pub enum CoreError {
     InvalidCardExpMonth,
     InvalidCardCvc,
     InvalidPurchaseToken,
+    NotPermissioned,
     NotPremium,
     PathContainsEmptyFileName,
     PathNonexistent,
@@ -144,7 +145,6 @@ pub enum CoreError {
     RootNonexistent,
     ServerUnreachable,
     ExistingRequestPending,
-    Unauthorized,
     UsageIsOverFreeTierDataCap,
     UsernameInvalid,
     UsernameNotFound,
@@ -857,7 +857,7 @@ impl From<CoreError> for Error<GetSubscriptionInfoError> {
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum AdminDeleteAccountError {
-    Unauthorized,
+    NotPermissioned,
     UsernameNotFound,
     CouldNotReachServer,
     ClientUpdateRequired,
@@ -866,7 +866,7 @@ pub enum AdminDeleteAccountError {
 impl From<CoreError> for Error<AdminDeleteAccountError> {
     fn from(e: CoreError) -> Self {
         match e {
-            CoreError::Unauthorized => UiError(AdminDeleteAccountError::Unauthorized),
+            CoreError::NotPermissioned => UiError(AdminDeleteAccountError::NotPermissioned),
             CoreError::UsernameNotFound => UiError(AdminDeleteAccountError::UsernameNotFound),
             CoreError::ServerUnreachable => UiError(AdminDeleteAccountError::CouldNotReachServer),
             CoreError::ClientUpdateRequired => {
@@ -878,40 +878,18 @@ impl From<CoreError> for Error<AdminDeleteAccountError> {
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum ToggleFeatureFlagError {
-    Unauthorized,
+pub enum FeatureFlagError {
+    NotPermissioned,
     CouldNotReachServer,
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<ToggleFeatureFlagError> {
+impl From<CoreError> for Error<FeatureFlagError> {
     fn from(e: CoreError) -> Self {
         match e {
-            CoreError::Unauthorized => UiError(ToggleFeatureFlagError::Unauthorized),
-            CoreError::ServerUnreachable => UiError(ToggleFeatureFlagError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => {
-                UiError(ToggleFeatureFlagError::ClientUpdateRequired)
-            }
-            _ => unexpected!("{:#?}", e),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum GetFeatureFlagsStateError {
-    Unauthorized,
-    CouldNotReachServer,
-    ClientUpdateRequired,
-}
-
-impl From<CoreError> for Error<GetFeatureFlagsStateError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::Unauthorized => UiError(GetFeatureFlagsStateError::Unauthorized),
-            CoreError::ServerUnreachable => UiError(GetFeatureFlagsStateError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => {
-                UiError(GetFeatureFlagsStateError::ClientUpdateRequired)
-            }
+            CoreError::NotPermissioned => UiError(FeatureFlagError::NotPermissioned),
+            CoreError::ServerUnreachable => UiError(FeatureFlagError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(FeatureFlagError::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
         }
     }

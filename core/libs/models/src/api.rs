@@ -1,12 +1,12 @@
 use http::Method;
 use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::account::Account;
 use crate::account::Username;
 use crate::crypto::*;
+use crate::feature_flag::{FeatureFlag, FeatureFlags};
 use crate::file_metadata::{EncryptedFileMetadata, FileMetadataDiff};
 use crate::tree::FileMetadata;
 
@@ -417,8 +417,8 @@ pub struct AdminDeleteAccountRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum AdminDeleteAccountError {
-    Unauthorized,
-    UsernameNotFound,
+    NotPermissioned,
+    UserNotFound,
 }
 
 impl Request for AdminDeleteAccountRequest {
@@ -428,25 +428,20 @@ impl Request for AdminDeleteAccountRequest {
     const ROUTE: &'static str = "/admin-delete-account";
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
-pub enum FeatureFlag {
-    NewAccounts,
-}
-
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ToggleFeatureFlagRequest {
-    pub feature: FeatureFlag,
+    pub feature_flag: FeatureFlag,
     pub enable: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum ToggleFeatureFlagError {
-    Unauthorized,
+pub enum FeatureFlagError {
+    NotPermissioned,
 }
 
 impl Request for ToggleFeatureFlagRequest {
     type Response = ();
-    type Error = ToggleFeatureFlagError;
+    type Error = FeatureFlagError;
     const METHOD: Method = Method::POST;
     const ROUTE: &'static str = "/toggle-feature-flag";
 }
@@ -456,17 +451,12 @@ pub struct GetFeatureFlagsStateRequest {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetFeatureFlagsStateResponse {
-    pub states: HashMap<FeatureFlag, bool>,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum GetFeatureFlagsStateError {
-    Unauthorized,
+    pub feature_flags: FeatureFlags,
 }
 
 impl Request for GetFeatureFlagsStateRequest {
     type Response = GetFeatureFlagsStateResponse;
-    type Error = GetFeatureFlagsStateError;
+    type Error = FeatureFlagError;
     const METHOD: Method = Method::GET;
     const ROUTE: &'static str = "/get-feature-flags-state";
 }

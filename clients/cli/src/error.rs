@@ -2,7 +2,7 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
-use lockbook_core::{DecryptedFileMetadata, Error as LbError};
+use lockbook_core::{DecryptedFileMetadata, Error as LbError, FeatureFlagError};
 use lockbook_core::{GetAccountError, Uuid};
 use lockbook_core::{GetSubscriptionInfoError, UnexpectedError};
 
@@ -251,8 +251,8 @@ impl CliError {
         Self::new(ErrCode::UsernameNotFound, format!("username '{}' was not found.", uname))
     }
 
-    pub fn unauthorized() -> Self {
-        Self::new(ErrCode::Unauthorized, "your account is unauthorized.".to_string())
+    pub fn not_permissioned() -> Self {
+        Self::new(ErrCode::NotPermissioned, "your account is unauthorized.".to_string())
     }
 }
 
@@ -323,7 +323,7 @@ make_errcode_enum!(
     // Admin errors (58 - 60)
 
     58 => UsernameNotFound,
-    59 => Unauthorized,
+    59 => NotPermissioned,
 );
 
 impl From<UnexpectedError> for CliError {
@@ -350,6 +350,17 @@ impl From<LbError<GetSubscriptionInfoError>> for CliError {
             LbError::UiError(GetSubscriptionInfoError::ClientUpdateRequired) => {
                 CliError::update_required()
             }
+            LbError::Unexpected(msg) => CliError::unexpected(msg),
+        }
+    }
+}
+
+impl From<LbError<FeatureFlagError>> for CliError {
+    fn from(err: LbError<FeatureFlagError>) -> Self {
+        match err {
+            LbError::UiError(FeatureFlagError::CouldNotReachServer) => CliError::network_issue(),
+            LbError::UiError(FeatureFlagError::ClientUpdateRequired) => CliError::update_required(),
+            LbError::UiError(FeatureFlagError::NotPermissioned) => CliError::not_permissioned(),
             LbError::Unexpected(msg) => CliError::unexpected(msg),
         }
     }

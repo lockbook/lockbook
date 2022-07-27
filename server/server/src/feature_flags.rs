@@ -1,57 +1,72 @@
+use crate::schema::OneKey;
 use crate::{account_service, ClientError, RequestContext, ServerError, ServerV1};
 use lockbook_models::api::{
-    FeatureFlag, GetFeatureFlagsStateError, GetFeatureFlagsStateRequest,
-    GetFeatureFlagsStateResponse, ToggleFeatureFlagError, ToggleFeatureFlagRequest,
+    FeatureFlagError, GetFeatureFlagsStateRequest, GetFeatureFlagsStateResponse,
+    ToggleFeatureFlagRequest,
 };
+use lockbook_models::feature_flag::{FeatureFlag, FeatureFlags};
 use std::fmt::Debug;
 
-pub const FEATURE_FLAGS: [FeatureFlag; 1] = [FeatureFlag::NewAccounts];
-
 pub fn initialize_flags(db: &ServerV1) {
-    for flag in FEATURE_FLAGS {
-        if !db.feature_flags.exists(&flag).unwrap() {
-            db.feature_flags.insert(flag, true).unwrap();
-        }
+    if !db.feature_flags.exists(&OneKey {}).unwrap() {
+        db.feature_flags
+            .insert(OneKey {}, FeatureFlags::default())
+            .unwrap();
     }
 }
 
 pub fn is_new_accounts_enabled<T: Debug>(db: &ServerV1) -> Result<bool, ServerError<T>> {
-    db.feature_flags
-        .get(&FeatureFlag::NewAccounts)?
-        .ok_or_else(|| internal!("No new accounts feature flag is defined!"))
+    Ok(db
+        .feature_flags
+        .get(&OneKey {})?
+        .ok_or_else(|| internal!("No feature flags defined."))?
+        .new_accounts)
 }
 
 pub async fn toggle_feature_flag(
     context: RequestContext<'_, ToggleFeatureFlagRequest>,
-) -> Result<(), ServerError<ToggleFeatureFlagError>> {
+) -> Result<(), ServerError<FeatureFlagError>> {
     let (request, db) = (&context.request, &context.server_state.index_db);
 
-    if !account_service::is_user_authorized(
+    if !account_service::is_admin(
         &context.public_key,
         &context.server_state.config.admin.admins,
         db,
     )? {
-        return Err(ClientError(ToggleFeatureFlagError::Unauthorized));
+        return Err(ClientError(FeatureFlagError::NotPermissioned));
     }
 
-    db.feature_flags
-        .insert(request.feature.clone(), request.enable)?;
+    let mut feature_flags = db
+        .feature_flags
+        .get(&OneKey {})?
+        .ok_or_else(|| internal!("No feature flags defined."))?;
+
+    match request.feature_flag {
+        FeatureFlag::NewAccounts => feature_flags.new_accounts = request.enable,
+    };
+
+    db.feature_flags.insert(OneKey {}, feature_flags)?;
 
     Ok(())
 }
 
 pub async fn get_feature_flags_state(
     context: RequestContext<'_, GetFeatureFlagsStateRequest>,
-) -> Result<GetFeatureFlagsStateResponse, ServerError<GetFeatureFlagsStateError>> {
+) -> Result<GetFeatureFlagsStateResponse, ServerError<FeatureFlagError>> {
     let db = &context.server_state.index_db;
 
-    if !account_service::is_user_authorized(
+    if !account_service::is_admin(
         &context.public_key,
         &context.server_state.config.admin.admins,
         db,
     )? {
-        return Err(ClientError(GetFeatureFlagsStateError::Unauthorized));
+        return Err(ClientError(FeatureFlagError::NotPermissioned));
     }
 
-    Ok(GetFeatureFlagsStateResponse { states: db.feature_flags.get_all()? })
+    let feature_flags = db
+        .feature_flags
+        .get(&OneKey {})?
+        .ok_or_else(|| internal!("No feature flags defined."))?;
+
+    Ok(GetFeatureFlagsStateResponse { feature_flags })
 }

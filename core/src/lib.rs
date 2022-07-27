@@ -13,11 +13,11 @@ mod external_interface;
 pub use uuid::Uuid;
 
 pub use lockbook_models::account::Account;
-pub use lockbook_models::api::FeatureFlag;
 pub use lockbook_models::api::{PaymentMethod, PaymentPlatform};
 pub use lockbook_models::api::{StripeAccountTier, SubscriptionInfo};
 pub use lockbook_models::crypto::DecryptedDocument;
 pub use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
+pub use lockbook_models::feature_flag::FeatureFlag;
 pub use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
 pub use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
 pub use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
@@ -44,6 +44,7 @@ use strum::IntoEnumIterator;
 
 use lockbook_crypto::clock_service;
 use lockbook_models::crypto::AESKey;
+use lockbook_models::feature_flag::FeatureFlags;
 
 use crate::model::errors::Error::UiError;
 use crate::model::repo::RepoSource;
@@ -492,7 +493,7 @@ impl Core {
     #[instrument(level = "debug", skip(self, feature, enable), err(Debug))]
     pub fn toggle_feature_flag(
         &self, feature: FeatureFlag, enable: bool,
-    ) -> Result<(), Error<ToggleFeatureFlagError>> {
+    ) -> Result<(), Error<FeatureFlagError>> {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.toggle_feature_flag(feature, enable))?;
@@ -500,9 +501,7 @@ impl Core {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_feature_flags_state(
-        &self,
-    ) -> Result<HashMap<FeatureFlag, bool>, Error<GetFeatureFlagsStateError>> {
+    pub fn get_feature_flags_state(&self) -> Result<FeatureFlags, Error<FeatureFlagError>> {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.get_feature_flags_state())?;

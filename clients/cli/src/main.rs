@@ -236,15 +236,11 @@ pub enum FeatureFlags {
     /// Prints out the current state of all feature flags
     List,
 
-    /// Subcommands of the new account feature flag
-    NewAccounts(FeaturesSwitchOptions),
-}
-
-#[derive(Debug, PartialEq, StructOpt)]
-pub enum FeaturesSwitchOptions {
-    ToggleOn,
-
-    ToggleOff,
+    /// Manage new accounts feature flag
+    NewAccounts {
+        #[structopt(parse(try_from_str))]
+        enable: bool,
+    },
 }
 
 #[derive(Debug, PartialEq, StructOpt)]
