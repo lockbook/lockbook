@@ -1,12 +1,5 @@
 # Android
 
-## Onboarding
-<details>
-
-![onboarding-light](onboarding-light.png)
-![onboarding-dark](onboarding-dark.png)
-</details>
-
 ## New Account
 <details>
 
@@ -27,14 +20,8 @@
 ![main-screen-light](main-screen-light.png)
 ![main-screen-dark](main-screen-dark.png)
 
-![main-screen-large-light](main-screen-large-light.png)
-![main-screen-large-dark](main-screen-large-dark.png)
-
-![main-screen-large-horizontal-light](main-screen-large-horizontal-light.png)
-![main-screen-large-horizontal-dark](main-screen-large-horizontal-dark.png)
-
-![new-files-fab-light](new-files-fab-light.png)
-![new-files-fab-dark](new-files-fab-dark.png)
+![main-screen-tablet-light](main-screen-tablet-light.png)
+![main-screen-tablet-dark](main-screen-tablet-dark.png)
 </details>
 
 ## Editor
@@ -43,8 +30,8 @@
 ![editor-light](editor-light.png)
 ![editor-dark](editor-dark.png)
 
-![editor-large-horizontal-light](editor-large-horizontal-light.png)
-![editor-large-horizontal-dark](editor-large-horizontal-dark.png)
+![editor-tablet-light](editor-tablet-light.png)
+![editor-tablet-dark](editor-tablet-dark.png)
 </details>
 
 ## Drawing
@@ -53,36 +40,25 @@
 ![drawing-light](drawing-light.png)
 ![drawing-dark](drawing-dark.png)
 
-![drawing-horizontal-light](drawing-horizontal-light.png)
-![drawing-horizontal-dark](drawing-horizontal-dark.png)
-
-![drawing-large-light](drawing-large-light.png)
-![drawing-large-dark](drawing-large-dark.png)
-
-![drawing-large-horizontal-light](drawing-large-horizontal-light.png)
-![drawing-large-horizontal-dark](drawing-large-horizontal-dark.png)
+![drawing-tablet-light](drawing-tablet-light.png)
+![drawing-tablet-dark](drawing-tablet-dark.png)
 </details>
 
-## Dialogs
+## Search 
 <details>
 
-![file-info-light](file-info-light.png)
-![file-info-dark](file-info-dark.png)
+![search-light](search-light.png)
+![search-dark](search-dark.png)
 
-![move-file-light](move-file-light.png)
-![move-file-dark](move-file-dark.png)
+![search-tablet-light](search-tablet-light.png)
+![search-tablet-dark](search-tablet-dark.png)
+</details>
 
-![new-document-light](new-document-light.png)
-![new-document-dark](new-document-dark.png)
+## Billing
+<details>
 
-![new-folder-light](new-folder-light.png)
-![new-folder-dark](new-folder-dark.png)
-
-![new-drawing-light](new-drawing-light.png)
-![new-drawing-dark](new-drawing-dark.png)
-
-![rename-file-light](rename-file-light.png)
-![rename-file-dark](rename-file-dark.png)
+![billing-light](billing-light.png)
+![billing-dark](billing-dark.png)
 </details>
 
 ## Settings
