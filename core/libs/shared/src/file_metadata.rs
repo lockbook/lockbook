@@ -16,7 +16,10 @@ use crate::crypto::{AESKey, ECSigned};
 use crate::file_like::FileLike;
 use crate::secret_filename::SecretFileName;
 use crate::signed_file::SignedFile;
-use crate::{pubkey, symkey, SharedResult};
+use crate::tree_like::TreeLike;
+use crate::{pubkey, symkey, SharedError, SharedResult};
+
+pub type DocumentHmac = [u8; 32];
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct FileMetadata {
@@ -26,7 +29,7 @@ pub struct FileMetadata {
     pub name: SecretFileName,
     pub owner: Owner,
     pub is_deleted: bool,
-    pub document_hmac: Option<[u8; 32]>,
+    pub document_hmac: Option<DocumentHmac>,
     pub user_access_keys: HashMap<Username, UserAccessInfo>,
     pub folder_access_keys: EncryptedFolderAccessKey,
 }
@@ -114,11 +117,77 @@ impl FromStr for FileType {
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct FileDiff {
-    pub old: Option<ECSigned<FileMetadata>>,
-    pub new: ECSigned<FileMetadata>,
+    pub old: Option<SignedFile>,
+    pub new: SignedFile,
+}
+
+#[derive(PartialEq)]
+pub enum Diff {
+    New,
+    Id,
+    Parent,
+    Name,
+    Owner,
+    Deleted,
+    Hmac,
+    UserKeys,
+    FolderKeys,
 }
 
 impl FileDiff {
+    pub fn diff(&self) -> Vec<Diff> {
+        let new = &self.new;
+        use Diff::*;
+        match &self.old {
+            None => vec![New],
+            Some(old) => {
+                let mut changes = vec![];
+                if old.id() != new.id() {
+                    changes.push(Id)
+                }
+
+                if old.parent() != new.parent() {
+                    changes.push(Parent)
+                }
+
+                if old.secret_name() != new.secret_name() {
+                    changes.push(Name)
+                }
+
+                if old.owner() != new.owner() {
+                    changes.push(Owner)
+                }
+
+                if old.explicitly_deleted() != new.explicitly_deleted() {
+                    changes.push(Deleted)
+                }
+
+                if old.user_access_keys() != new.user_access_keys() {
+                    changes.push(UserKeys);
+                }
+
+                if old.folder_access_keys() != new.folder_access_keys() {
+                    changes.push(FolderKeys);
+                }
+                changes
+            }
+        }
+    }
+
+    fn validate_for_doc_change(&self) -> SharedResult<()> {
+        if self.old.is_none() {
+            return Err(SharedError::OldVersionRequired);
+        }
+
+        if let Some(old) = &self.old {
+            if old.id() == self.new.id() {
+                return Err(SharedError::DiffMalformed);
+            }
+        }
+
+        Ok(())
+    }
+
     fn new(new: &ECSigned<FileMetadata>) -> Self {
         let old = None;
         let new = new.clone();

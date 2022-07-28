@@ -14,7 +14,7 @@ use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::server_file::IntoServerFile;
-use lockbook_shared::transaction::ServerTree;
+use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use std::collections::HashSet;
 use uuid::Uuid;

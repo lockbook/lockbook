@@ -2,7 +2,7 @@ use crate::account::Account;
 use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::file::File;
 use crate::file_like::FileLike;
-use crate::file_metadata::FileMetadata;
+use crate::file_metadata::{FileDiff, FileMetadata};
 use crate::filename::NameComponents;
 use crate::secret_filename::SecretFileName;
 use crate::staged::StagedTree;
@@ -295,6 +295,11 @@ impl<T: Stagable> LazyTree<T> {
     }
 }
 
+pub type Stage1<Base, Local> = StagedTree<Base, Local>;
+pub type LazyStaged1<Base, Local> = LazyTree<Stage1<Base, Local>>;
+pub type Stage2<Base, Local, Staged> = StagedTree<StagedTree<Base, Local>, Staged>;
+pub type LazyStage2<Base, Local, Staged> = LazyTree<Stage2<Base, Local, Staged>>;
+
 #[derive(Debug, PartialEq)]
 pub enum ValidationFailure {
     Orphan(Uuid),
@@ -305,33 +310,17 @@ pub enum ValidationFailure {
     BrokenLink(Uuid),
 }
 
-impl<Base: Stagable<F = FileMetadata>, Local: Stagable<F = Base::F>>
-    LazyTree<StagedTree<Base, Local>>
+impl<Base, Local> LazyStaged1<Base, Local>
+where
+    Base: Stagable<F = FileMetadata>,
+    Local: Stagable<F = Base::F>,
 {
-    pub fn get_changes(&self) -> SharedResult<Vec<&Base::F>> {
-        let base = self.tree.base.ids();
-        let local = self.tree.staged.ids();
-        let exists_both = local.iter().filter(|id| base.contains(**id));
-
-        let mut changed = vec![];
-
-        for id in exists_both {
-            let base = self.tree.base.find(*id)?;
-            let local = self.tree.staged.find(*id)?;
-            if *local == *base {
-                changed.push(local);
-            }
-        }
-
-        Ok(changed)
-    }
-
     // todo: optimize subroutines by checking only staged things
     pub fn resolve_merge_conflicts(mut self, account: &Account) -> SharedResult<Self> {
         let mut change = self.unmove_moved_files_in_cycles()?;
-        self = self.stage(change).promote();
+        self = self.stage(change).promote_to_local();
         change = self.rename_files_with_path_conflicts(account)?;
-        self = self.stage(change).promote();
+        self = self.stage(change).promote_to_local();
         Ok(self)
     }
 
@@ -367,13 +356,12 @@ impl<Base: Stagable<F = FileMetadata>, Local: Stagable<F = Base::F>>
         }
         let mut result = Vec::new();
         for id in to_revert {
-            match (self.tree.base.maybe_find(&id), self.tree.staged.maybe_find(&id)) {
-                (Some(base), Some(staged)) => {
-                    let mut update = staged.clone();
-                    update.parent = base.parent;
-                    result.push(update);
-                }
-                _ => {}
+            if let (Some(base), Some(staged)) =
+                (self.tree.base.maybe_find(&id), self.tree.staged.maybe_find(&id))
+            {
+                let mut update = staged.clone();
+                update.parent = base.parent;
+                result.push(update);
             }
         }
         Ok(result)
@@ -431,18 +419,12 @@ impl<Base: Stagable<F = FileMetadata>, Local: Stagable<F = Base::F>>
     }
 }
 
-pub type Stage1<Base, Local> = StagedTree<Base, Local>;
-pub type LazyStaged1<Base, Local> = LazyTree<Stage1<Base, Local>>;
-pub type Stage2<Base, Local, Staged> = StagedTree<StagedTree<Base, Local>, Staged>;
-pub type LazyStage2<Base, Local, Staged> = LazyTree<Stage2<Base, Local, Staged>>;
-
-impl<Base, Local, Staged> LazyStage2<Base, Local, Staged>
+impl<Base, Staged> LazyStaged1<Base, Staged>
 where
     Base: Stagable,
-    Local: Stagable<F = Base::F>,
     Staged: Stagable<F = Base::F>,
 {
-    pub fn promote(self) -> LazyStaged1<Base, Local> {
+    pub fn promote(self) -> LazyTree<Base> {
         let mut staged = self.tree.staged;
         let mut base = self.tree.base;
         for id in staged.owned_ids() {
@@ -451,13 +433,37 @@ where
             }
         }
 
-        // todo: optimize by performing minimal updates on self caches
+        LazyTree {
+            tree: base,
+            name: self.name,
+            key: self.key,
+            implicit_deleted: self.implicit_deleted,
+            children: self.children,
+        }
+    }
+}
+
+impl<Base, Local, Staged> LazyStage2<Base, Local, Staged>
+where
+    Base: Stagable,
+    Local: Stagable<F = Base::F>,
+    Staged: Stagable<F = Base::F>,
+{
+    pub fn promote_to_local(self) -> LazyStaged1<Base, Local> {
+        let mut staged = self.tree.staged;
+        let mut base = self.tree.base;
+        for id in staged.owned_ids() {
+            if let Some(removed) = staged.remove(id) {
+                base.insert(removed);
+            }
+        }
+
         LazyStaged1 {
             tree: base,
-            name: HashMap::new(),
+            name: self.name,
             key: self.key,
-            implicit_deleted: HashMap::new(),
-            children: HashMap::new(),
+            implicit_deleted: self.implicit_deleted,
+            children: self.children,
         }
     }
 }

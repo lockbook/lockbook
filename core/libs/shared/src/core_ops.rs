@@ -32,7 +32,7 @@ where
         let id = *new_file.id();
         let mut staged = self.stage(new_file);
         staged.validate()?;
-        Ok((staged.promote(), id))
+        Ok((staged.promote_to_local(), id))
     }
 
     pub fn rename(
@@ -52,7 +52,7 @@ where
         let file = file.sign(account)?;
         let mut staged = self.stage(file);
         staged.validate()?;
-        let tree = staged.promote();
+        let tree = staged.promote_to_local();
         Ok(tree)
     }
 
@@ -82,7 +82,7 @@ where
         let mut tree = self.stage(file);
         tree.validate()?;
 
-        Ok(tree.promote())
+        Ok(tree.promote_to_local())
     }
 
     pub fn delete(self, id: &Uuid, account: &Account) -> SharedResult<LazyStaged1<Base, Local>> {
@@ -92,7 +92,7 @@ where
         let file = file.sign(account)?;
         let mut tree = self.stage(file);
         tree.validate()?;
-        let tree = tree.promote();
+        let tree = tree.promote_to_local();
         Ok(tree)
     }
 
@@ -140,7 +140,7 @@ where
         let not_deleted_either = staged
             .owned_ids()
             .difference(&deleted_either)
-            .map(|&id| id)
+            .copied()
             .collect::<HashSet<_>>();
 
         // exclude files with not deleted descendants i.e. exclude files that are the ancestors of not deleted files
@@ -156,12 +156,4 @@ where
 
         Ok(to_prune)
     }
-}
-
-fn split_path(path: &str) -> Vec<&str> {
-    path.split('/')
-        .collect::<Vec<&str>>()
-        .into_iter()
-        .filter(|s| !s.is_empty()) // Remove the trailing empty element in the case this is a folder
-        .collect::<Vec<&str>>()
 }

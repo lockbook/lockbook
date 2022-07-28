@@ -8,37 +8,6 @@ use std::collections::HashSet;
 use tracing::*;
 use uuid::Uuid;
 
-impl<'a, F, Log> TreeLike for &mut TransactionTable<'a, Uuid, F, Log>
-where
-    F: FileLike + Clone,
-    Log: SchemaEvent<Uuid, F>,
-{
-    type F = F;
-
-    fn ids(&self) -> HashSet<&Uuid> {
-        self.keys()
-    }
-
-    fn maybe_find(&self, id: &Uuid) -> Option<&F> {
-        self.get(id)
-    }
-
-    fn insert(&mut self, f: F) -> Option<F> {
-        TransactionTable::insert(self, *f.id(), f)
-    }
-
-    fn remove(&mut self, id: Uuid) -> Option<F> {
-        self.delete(id)
-    }
-}
-
-impl<'a, F, Log> Stagable for &mut TransactionTable<'a, Uuid, F, Log>
-where
-    F: FileLike + Clone,
-    Log: SchemaEvent<Uuid, F>,
-{
-}
-
 pub struct ServerTree<'a, 'b, Log1, Log2>
 where
     Log1: SchemaEvent<Owner, HashSet<Uuid>>,
@@ -85,10 +54,9 @@ where
         let prior = TransactionTable::insert(self.metas, id, f);
 
         if prior == None {
-            if let Some(owned) = self.owned.get(&self.owner) {
-                let mut new_owned = owned.clone();
-                new_owned.insert(id);
-                self.owned.insert(self.owner, new_owned);
+            if let Some(mut owned) = self.owned.delete(self.owner) {
+                owned.insert(id);
+                self.owned.insert(self.owner, owned);
             } else {
                 error!("Server tree created without known owner")
             }
@@ -98,6 +66,7 @@ where
     }
 
     fn remove(&mut self, id: Uuid) -> Option<Self::F> {
+        error!("remove metadata called in server!");
         if let Some(owned) = self.owned.get(&self.owner) {
             let mut new_owned = owned.clone();
             let removed = new_owned.remove(&id);

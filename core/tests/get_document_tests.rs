@@ -23,7 +23,7 @@ fn get_document() {
     // update document content
     api_service::request(
         &account,
-        ChangeDocumentContentRequest {
+        ChangeDocRequest {
             id,
             old_metadata_version: metadata_version,
             new_content: AESEncrypted { value: vec![69], nonce: vec![69], _t: Default::default() },

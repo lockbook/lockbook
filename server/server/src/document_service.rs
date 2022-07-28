@@ -1,4 +1,5 @@
 use crate::{ServerError, ServerState};
+use base64::Config;
 use lockbook_shared::crypto::EncryptedDocument;
 use std::fmt::Debug;
 use std::path::PathBuf;
@@ -7,18 +8,18 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
 pub(crate) async fn insert<T: Debug>(
-    state: &ServerState, id: Uuid, content_version: u64, content: &EncryptedDocument,
+    state: &ServerState, id: &Uuid, digest: &[u8; 32], content: &EncryptedDocument,
 ) -> Result<(), ServerError<T>> {
     let content = bincode::serialize(content)?;
-    let mut file = File::create(get_path(state, id, content_version)).await?;
+    let mut file = File::create(get_path(state, id, digest)).await?;
     file.write_all(&content).await.unwrap();
     Ok(())
 }
 
 pub(crate) async fn get<T: Debug>(
-    state: &ServerState, id: Uuid, content_version: u64,
+    state: &ServerState, id: &Uuid, digest: &[u8; 32],
 ) -> Result<EncryptedDocument, ServerError<T>> {
-    let mut file = File::open(get_path(state, id, content_version)).await?;
+    let mut file = File::open(get_path(state, id, digest)).await?;
     let mut content = vec![];
     file.read_to_end(&mut content).await?;
     let content = bincode::deserialize(&content)?;
@@ -26,9 +27,9 @@ pub(crate) async fn get<T: Debug>(
 }
 
 pub(crate) async fn delete<T: Debug>(
-    state: &ServerState, id: Uuid, content_version: u64,
+    state: &ServerState, id: &Uuid, digest: &[u8; 32],
 ) -> Result<(), ServerError<T>> {
-    let path = get_path(state, id, content_version);
+    let path = get_path(state, id, digest);
     // I'm not sure this check should exist, the two situations it gets utilized is when we re-delete
     // an already deleted file and when we move a file from version 0 -> N. Maybe it would be more
     // efficient for the caller to look at the metadata and make a more informed decision about
@@ -40,8 +41,10 @@ pub(crate) async fn delete<T: Debug>(
     Ok(())
 }
 
-fn get_path(state: &ServerState, id: Uuid, content_version: u64) -> PathBuf {
+fn get_path(state: &ServerState, id: &Uuid, digest: &[u8; 32]) -> PathBuf {
     let mut path = state.config.files.path.clone();
-    path.push(format!("{}-{}", id, content_version));
+    // we may need to truncate this
+    let digest = base64::encode_config(digest, base64::URL_SAFE);
+    path.push(format!("{}-{}", id, digest));
     path
 }

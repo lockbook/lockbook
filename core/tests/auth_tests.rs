@@ -85,18 +85,13 @@ fn change_document_content() {
 
     let result = api_service::request(
         &core2.get_account().unwrap(),
-        ChangeDocumentContentRequest {
+        ChangeDocRequest {
             id: file.id,
             old_metadata_version: file.metadata_version,
             new_content: AESEncrypted { value: vec![69], nonce: vec![69], _t: Default::default() },
         },
     );
-    assert_matches!(
-        result,
-        Err(ApiError::<ChangeDocumentContentError>::Endpoint(
-            ChangeDocumentContentError::NotPermissioned
-        ))
-    );
+    assert_matches!(result, Err(ApiError::<EditDocError>::Endpoint(EditDocError::NotPermissioned)));
 }
 
 #[test]

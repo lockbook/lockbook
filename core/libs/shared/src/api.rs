@@ -48,37 +48,55 @@ impl Request for FileMetadataUpsertsRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum FileMetadataUpsertsError {
+    /// Arises during a call to upsert, when the caller does not have the correct old version of the
+    /// File they're trying to modify
+    OldVersionIncorrect,
+
+    /// Arises during a call to upsert, when the old file is not known to the server
+    OldFileNotFound,
+
+    /// Arises during a call to upsert, when the caller suggests that a file is new, but the id already
+    /// exists
+    OldVersionRequired,
+
+    /// Arises during a call to upsert, when the person making the request is not an owner of the file
+    /// or has not signed the update
     NotPermissioned,
-    NewFileHasOldParentAndName,
-    NewIdAlreadyExists,
-    UserNotFound,
-    RootImmutable,
-    GetUpdatesRequired,
+
+    /// Arises during a call to upsert, when a diff's new.id != old.id
+    DiffMalformed,
+
+    /// Metas in upsert cannot contain changes to digest
+    HmacModificationInvalid,
+
+    /// Found update to a deleted file
+    DeletedFileUpdated,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct ChangeDocumentContentRequest {
-    pub id: Uuid,
-    pub old_metadata_version: u64,
+pub struct ChangeDocRequest {
+    pub diff: FileDiff,
     pub new_content: EncryptedDocument,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct ChangeDocumentContentResponse {
+pub struct ChangeDocResponse {
     pub new_content_version: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum ChangeDocumentContentError {
+pub enum EditDocError {
+    HmacMissing,
     DocumentNotFound,
     DocumentDeleted,
     NotPermissioned,
-    EditConflict,
+    OldVersionIncorrect,
+    DiffMalformed,
 }
 
-impl Request for ChangeDocumentContentRequest {
-    type Response = ChangeDocumentContentResponse;
-    type Error = ChangeDocumentContentError;
+impl Request for ChangeDocRequest {
+    type Response = ChangeDocResponse;
+    type Error = EditDocError;
     const METHOD: Method = Method::PUT;
     const ROUTE: &'static str = "/change-document-content";
 }

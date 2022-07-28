@@ -5,12 +5,13 @@ use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
 use lockbook_shared::api::{
-    CancelSubscriptionError, DeleteAccountError, GetUsageError, UpgradeAccountGooglePlayError,
-    UpgradeAccountStripeError,
+    CancelSubscriptionError, DeleteAccountError, EditDocError, FileMetadataUpsertsError,
+    GetUsageError, UpgradeAccountGooglePlayError, UpgradeAccountStripeError,
 };
 use lockbook_shared::SharedError;
 use std::fmt::Debug;
 use std::io::Error;
+use tracing_subscriber::filter::combinator::Not;
 
 impl<T: Debug> From<Error> for ServerError<T> {
     fn from(err: Error) -> Self {
@@ -164,5 +165,28 @@ impl From<ServerError<LockBillingWorkflowError>> for ServerError<CancelSubscript
 impl From<SharedError> for ServerError<DeleteAccountError> {
     fn from(err: SharedError) -> Self {
         internal!("{:?}", err)
+    }
+}
+
+impl From<SharedError> for ServerError<FileMetadataUpsertsError> {
+    fn from(err: SharedError) -> Self {
+        use lockbook_shared::api::FileMetadataUpsertsError::*;
+        match err {
+            SharedError::OldVersionIncorrect => ClientError(OldVersionIncorrect),
+            SharedError::OldFileNotFound => ClientError(OldFileNotFound),
+            SharedError::OldVersionRequired => ClientError(OldVersionRequired),
+            SharedError::NotPermissioned => ClientError(NotPermissioned),
+            SharedError::DiffMalformed => ClientError(DiffMalformed),
+            SharedError::HmacModificationInvalid => ClientError(HmacModificationInvalid),
+            SharedError::DeletedFileUpdated => ClientError(DeletedFileUpdated),
+            SharedError::Unexpected(msg) => InternalError(String::from(msg)),
+            _ => internal!("{:?}", err),
+        }
+    }
+}
+
+impl From<SharedError> for ServerError<EditDocError> {
+    fn from(_: SharedError) -> Self {
+        todo!()
     }
 }

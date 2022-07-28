@@ -38,11 +38,7 @@ fn change_document_content() {
     // change document content
     api_service::request(
         &account,
-        ChangeDocumentContentRequest {
-            id: doc.id,
-            old_metadata_version: doc.metadata_version,
-            new_content,
-        },
+        ChangeDocRequest { id: doc.id, old_metadata_version: doc.metadata_version, new_content },
     )
     .unwrap();
 }
@@ -58,12 +54,10 @@ fn change_document_content_not_found() {
     // change content of document we never created
     let result = api_service::request(
         &account,
-        ChangeDocumentContentRequest { id: doc.id, old_metadata_version: 0, new_content },
+        ChangeDocRequest { id: doc.id, old_metadata_version: 0, new_content },
     );
     assert_matches!(
         result,
-        Err(ApiError::<ChangeDocumentContentError>::Endpoint(
-            ChangeDocumentContentError::DocumentNotFound
-        ))
+        Err(ApiError::<EditDocError>::Endpoint(EditDocError::DocumentNotFound))
     );
 }

@@ -1,6 +1,6 @@
 use crate::access_info::{EncryptedFolderAccessKey, UserAccessInfo};
 use crate::account::Username;
-use crate::file_metadata::{FileMetadata, FileType, Owner};
+use crate::file_metadata::{DocumentHmac, FileDiff, FileMetadata, FileType, Owner};
 use crate::secret_filename::SecretFileName;
 use crate::server_file::ServerFile;
 use crate::signed_file::SignedFile;
@@ -15,6 +15,7 @@ pub trait FileLike: PartialEq {
     fn secret_name(&self) -> &SecretFileName;
     fn owner(&self) -> Owner;
     fn explicitly_deleted(&self) -> bool;
+    fn document_hmac(&self) -> &Option<DocumentHmac>;
     fn display(&self) -> String;
     fn user_access_keys(&self) -> &HashMap<Username, UserAccessInfo>;
     fn folder_access_keys(&self) -> &EncryptedFolderAccessKey;
@@ -55,6 +56,10 @@ impl FileLike for FileMetadata {
 
     fn explicitly_deleted(&self) -> bool {
         self.is_deleted
+    }
+
+    fn document_hmac(&self) -> &Option<DocumentHmac> {
+        &self.document_hmac
     }
 
     fn display(&self) -> String {
@@ -98,6 +103,10 @@ impl FileLike for SignedFile {
         self.timestamped_value.value.explicitly_deleted()
     }
 
+    fn document_hmac(&self) -> &Option<DocumentHmac> {
+        self.timestamped_value.value.document_hmac()
+    }
+
     fn display(&self) -> String {
         self.timestamped_value.value.display()
     }
@@ -136,6 +145,10 @@ impl FileLike for ServerFile {
         self.file.explicitly_deleted()
     }
 
+    fn document_hmac(&self) -> &Option<DocumentHmac> {
+        self.file.document_hmac()
+    }
+
     fn display(&self) -> String {
         self.file.display()
     }
@@ -172,6 +185,10 @@ impl<'a, F: FileLike> FileLike for &'a F {
 
     fn explicitly_deleted(&self) -> bool {
         (*self).explicitly_deleted()
+    }
+
+    fn document_hmac(&self) -> &Option<DocumentHmac> {
+        (*self).document_hmac()
     }
 
     fn display(&self) -> String {
@@ -233,6 +250,14 @@ impl<Base: FileLike, Staged: FileLike> FileLike for StagedFile<Base, Staged> {
             StagedFile::Base(file) => file.explicitly_deleted(),
             StagedFile::Staged(file) => file.explicitly_deleted(),
             StagedFile::Both { base: _, staged: file } => file.explicitly_deleted(),
+        }
+    }
+
+    fn document_hmac(&self) -> &Option<DocumentHmac> {
+        match self {
+            StagedFile::Base(file) => file.document_hmac(),
+            StagedFile::Staged(file) => file.document_hmac(),
+            StagedFile::Both { base: _, staged: file } => file.document_hmac(),
         }
     }
 
