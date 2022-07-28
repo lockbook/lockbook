@@ -42,7 +42,7 @@ class MainScreenActivity : AppCompatActivity() {
                 is RenameFileDialogFragment -> filesFragment.refreshFiles()
                 is CreateFileDialogFragment -> filesFragment.onNewFileCreated(f.newFile)
                 is FileInfoDialogFragment -> filesFragment.unselectFiles()
-                is DeleteFilesDialogFragment -> filesFragment.refreshFiles()
+                is DeleteFilesDialogFragment -> onFileDeleted(filesFragment)
             }
         }
     }
@@ -205,6 +205,19 @@ class MainScreenActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         supportFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
+    }
+
+    private fun onFileDeleted(filesFragment: FilesFragment) {
+        val openedFile = model.detailsScreen?.fileMetadata?.id
+        if (openedFile != null) {
+            val isDeletedFileOpen = (model.transientScreen as TransientScreen.Delete).files.any { file -> file.id == openedFile }
+
+            if (isDeletedFileOpen) {
+                launchDetailsScreen(null)
+            }
+        }
+
+        filesFragment.refreshFiles()
     }
 
     private fun launchDetailsScreen(screen: DetailsScreen?) {
