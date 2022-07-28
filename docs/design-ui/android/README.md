@@ -1,93 +1,69 @@
 # Android
 
-## Onboarding
-<details>
-
-![onboarding-light](onboarding-light.png)
-![onboarding-dark](onboarding-dark.png)
-</details>
-
 ## New Account
 <details>
 
-![new-account-light](new-account-light.png)
-![new-account-dark](new-account-dark.png)
+<img src="new-account-light.png"  width="30%" height="30%">
+<img src="new-account-dark.png"  width="30%" height="30%">
 </details>
 
 ## Import Account
 <details>
 
-![import-account-light](import-account-light.png)
-![import-account-dark](import-account-dark.png)
+<img src="import-account-light.png"  width="30%" height="30%">
+<img src="import-account-dark.png"  width="30%" height="30%">
 </details>
 
 ## Main Screen
 <details>
 
-![main-screen-light](main-screen-light.png)
-![main-screen-dark](main-screen-dark.png)
+<img src="main-screen-light.png"  width="30%" height="30%">
+<img src="main-screen-dark.png"  width="30%" height="30%">
 
-![main-screen-large-light](main-screen-large-light.png)
-![main-screen-large-dark](main-screen-large-dark.png)
-
-![main-screen-large-horizontal-light](main-screen-large-horizontal-light.png)
-![main-screen-large-horizontal-dark](main-screen-large-horizontal-dark.png)
-
-![new-files-fab-light](new-files-fab-light.png)
-![new-files-fab-dark](new-files-fab-dark.png)
+<img src="main-screen-tablet-light.png"  width="80%" height="80%">
+<img src="main-screen-tablet-dark.png"  width="80%" height="80%">
 </details>
 
 ## Editor
 <details>
 
-![editor-light](editor-light.png)
-![editor-dark](editor-dark.png)
+<img src="editor-light.png"  width="30%" height="30%">
+<img src="editor-dark.png"  width="30%" height="30%">
 
-![editor-large-horizontal-light](editor-large-horizontal-light.png)
-![editor-large-horizontal-dark](editor-large-horizontal-dark.png)
+<img src="editor-tablet-light.png"  width="80%" height="80%">
+<img src="editor-tablet-dark.png"  width="80%" height="80%">
 </details>
 
 ## Drawing
 <details>
 
-![drawing-light](drawing-light.png)
-![drawing-dark](drawing-dark.png)
+<img src="drawing-light.png"  width="30%" height="30%">
+<img src="drawing-dark.png"  width="30%" height="30%">
 
-![drawing-horizontal-light](drawing-horizontal-light.png)
-![drawing-horizontal-dark](drawing-horizontal-dark.png)
-
-![drawing-large-light](drawing-large-light.png)
-![drawing-large-dark](drawing-large-dark.png)
-
-![drawing-large-horizontal-light](drawing-large-horizontal-light.png)
-![drawing-large-horizontal-dark](drawing-large-horizontal-dark.png)
+<img src="drawing-tablet-light.png"  width="80%" height="80%">
+<img src="drawing-tablet-dark.png"  width="80%" height="80%">
 </details>
 
-## Dialogs
+## Search 
 <details>
 
-![file-info-light](file-info-light.png)
-![file-info-dark](file-info-dark.png)
+<img src="search-light.png"  width="30%" height="30%">
+<img src="search-dark.png"  width="30%" height="30%">
 
-![move-file-light](move-file-light.png)
-![move-file-dark](move-file-dark.png)
+<img src="search-tablet-light.png"  width="80%" height="80%">
+<img src="search-tablet-dark.png"  width="80%" height="80%">
+</details>
 
-![new-document-light](new-document-light.png)
-![new-document-dark](new-document-dark.png)
+## Billing
+<details>
 
-![new-folder-light](new-folder-light.png)
-![new-folder-dark](new-folder-dark.png)
-
-![new-drawing-light](new-drawing-light.png)
-![new-drawing-dark](new-drawing-dark.png)
-
-![rename-file-light](rename-file-light.png)
-![rename-file-dark](rename-file-dark.png)
+<img src="billing-light.png"  width="30%" height="30%">
+<img src="billing-dark.png"  width="30%" height="30%">
 </details>
 
 ## Settings
 <details>
 
-![settings-light](settings-light.png)
-![settings-dark](settings-dark.png)
+<img src="settings-light.png"  width="30%" height="30%">
+<img src="settings-dark.png"  width="30%" height="30%">
 </details>
