@@ -3,67 +3,67 @@
 ## New Account
 <details>
 
-![new-account-light](new-account-light.png)
-![new-account-dark](new-account-dark.png)
+<img src="new-account-light.png"  width="50%" height="50%">
+<img src="new-account-dark.png"  width="50%" height="50%">
 </details>
 
 ## Import Account
 <details>
 
-![import-account-light](import-account-light.png)
-![import-account-dark](import-account-dark.png)
+<img src="import-account-light.png"  width="50%" height="50%">
+<img src="import-account-dark.png"  width="50%" height="50%">
 </details>
 
 ## Main Screen
 <details>
 
-![main-screen-light](main-screen-light.png)
-![main-screen-dark](main-screen-dark.png)
+<img src="main-screen-light.png"  width="50%" height="50%">
+<img src="main-screen-dark.png"  width="50%" height="50%">
 
-![main-screen-tablet-light](main-screen-tablet-light.png)
-![main-screen-tablet-dark](main-screen-tablet-dark.png)
+<img src="main-screen-tablet-light.png"  width="80%" height="80%">
+<img src="main-screen-tablet-dark.png"  width="80%" height="80%">
 </details>
 
 ## Editor
 <details>
 
-![editor-light](editor-light.png)
-![editor-dark](editor-dark.png)
+<img src="editor-light.png"  width="50%" height="50%">
+<img src="editor-dark.png"  width="50%" height="50%">
 
-![editor-tablet-light](editor-tablet-light.png)
-![editor-tablet-dark](editor-tablet-dark.png)
+<img src="editor-tablet-light.png"  width="80%" height="80%">
+<img src="editor-tablet-dark.png"  width="80%" height="80%">
 </details>
 
 ## Drawing
 <details>
 
-![drawing-light](drawing-light.png)
-![drawing-dark](drawing-dark.png)
+<img src="drawing-light.png"  width="50%" height="50%">
+<img src="drawing-dark.png"  width="50%" height="50%">
 
-![drawing-tablet-light](drawing-tablet-light.png)
-![drawing-tablet-dark](drawing-tablet-dark.png)
+<img src="drawing-tablet-light.png"  width="80%" height="80%">
+<img src="drawing-tablet-dark.png"  width="80%" height="80%">
 </details>
 
 ## Search 
 <details>
 
-![search-light](search-light.png)
-![search-dark](search-dark.png)
+<img src="search-light.png"  width="50%" height="50%">
+<img src="search-dark.png"  width="50%" height="50%">
 
-![search-tablet-light](search-tablet-light.png)
-![search-tablet-dark](search-tablet-dark.png)
+<img src="search-tablet-light.png"  width="80%" height="80%">
+<img src="search-tablet-dark.png"  width="80%" height="80%">
 </details>
 
 ## Billing
 <details>
 
-![billing-light](billing-light.png)
-![billing-dark](billing-dark.png)
+<img src="billing-light.png"  width="50%" height="50%">
+<img src="billing-dark.png"  width="50%" height="50%">
 </details>
 
 ## Settings
 <details>
 
-![settings-light](settings-light.png)
-![settings-dark](settings-dark.png)
+<img src="settings-light.png"  width="50%" height="50%">
+<img src="settings-dark.png"  width="50%" height="50%">
 </details>
