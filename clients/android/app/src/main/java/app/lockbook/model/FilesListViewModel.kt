@@ -92,6 +92,8 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                     withContext(Dispatchers.Main) {
                         activityModel.launchDetailsScreen(DetailsScreen.Loading(createFileResult.value))
                     }
+
+                    refreshFiles()
                 }
                 is Err -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(createFileResult.error.toLbError(getRes())))
             }
