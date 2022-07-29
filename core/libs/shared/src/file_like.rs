@@ -15,7 +15,7 @@ pub trait FileLike: PartialEq {
     fn secret_name(&self) -> &SecretFileName;
     fn owner(&self) -> Owner;
     fn explicitly_deleted(&self) -> bool;
-    fn document_hmac(&self) -> &Option<DocumentHmac>;
+    fn document_hmac<'a>(&'a self) -> Option<&'a DocumentHmac>;
     fn display(&self) -> String;
     fn user_access_keys(&self) -> &HashMap<Username, UserAccessInfo>;
     fn folder_access_keys(&self) -> &EncryptedFolderAccessKey;
@@ -58,8 +58,11 @@ impl FileLike for FileMetadata {
         self.is_deleted
     }
 
-    fn document_hmac(&self) -> &Option<DocumentHmac> {
-        &self.document_hmac
+    fn document_hmac<'a>(&'a self) -> Option<&'a DocumentHmac> {
+        match self.document_hmac {
+            Some(ref document_hmac) => Some(&document_hmac),
+            None => None,
+        }
     }
 
     fn display(&self) -> String {
@@ -103,7 +106,7 @@ impl FileLike for SignedFile {
         self.timestamped_value.value.explicitly_deleted()
     }
 
-    fn document_hmac(&self) -> &Option<DocumentHmac> {
+    fn document_hmac(&self) -> Option<&DocumentHmac> {
         self.timestamped_value.value.document_hmac()
     }
 
@@ -145,7 +148,7 @@ impl FileLike for ServerFile {
         self.file.explicitly_deleted()
     }
 
-    fn document_hmac(&self) -> &Option<DocumentHmac> {
+    fn document_hmac(&self) -> Option<&DocumentHmac> {
         self.file.document_hmac()
     }
 
@@ -187,7 +190,7 @@ impl<'a, F: FileLike> FileLike for &'a F {
         (*self).explicitly_deleted()
     }
 
-    fn document_hmac(&self) -> &Option<DocumentHmac> {
+    fn document_hmac(&self) -> Option<&DocumentHmac> {
         (*self).document_hmac()
     }
 
@@ -253,7 +256,7 @@ impl<Base: FileLike, Staged: FileLike> FileLike for StagedFile<Base, Staged> {
         }
     }
 
-    fn document_hmac(&self) -> &Option<DocumentHmac> {
+    fn document_hmac(&self) -> Option<&DocumentHmac> {
         match self {
             StagedFile::Base(file) => file.document_hmac(),
             StagedFile::Staged(file) => file.document_hmac(),
