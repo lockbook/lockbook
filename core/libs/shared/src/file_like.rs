@@ -15,7 +15,7 @@ pub trait FileLike: PartialEq {
     fn secret_name(&self) -> &SecretFileName;
     fn owner(&self) -> Owner;
     fn explicitly_deleted(&self) -> bool;
-    fn document_hmac<'a>(&'a self) -> Option<&'a DocumentHmac>;
+    fn document_hmac(&self) -> Option<&DocumentHmac>;
     fn display(&self) -> String;
     fn user_access_keys(&self) -> &HashMap<Username, UserAccessInfo>;
     fn folder_access_keys(&self) -> &EncryptedFolderAccessKey;
@@ -58,11 +58,8 @@ impl FileLike for FileMetadata {
         self.is_deleted
     }
 
-    fn document_hmac<'a>(&'a self) -> Option<&'a DocumentHmac> {
-        match self.document_hmac {
-            Some(ref document_hmac) => Some(&document_hmac),
-            None => None,
-        }
+    fn document_hmac(&self) -> Option<&DocumentHmac> {
+        self.document_hmac.as_ref()
     }
 
     fn display(&self) -> String {
