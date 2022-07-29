@@ -2,7 +2,7 @@ use crate::account::Account;
 use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::file::File;
 use crate::file_like::FileLike;
-use crate::file_metadata::{FileMetadata};
+use crate::file_metadata::FileMetadata;
 use crate::filename::NameComponents;
 use crate::secret_filename::SecretFileName;
 use crate::staged::StagedTree;
@@ -40,7 +40,7 @@ impl<T: Stagable> LazyTree<T> {
 
             while !file.is_root() {
                 visited_ids.push(*file.id());
-                if let Some(&implicit) = self.implicit_deleted.get(&file.id()) {
+                if let Some(&implicit) = self.implicit_deleted.get(file.id()) {
                     deleted = implicit;
                     break;
                 }
@@ -97,7 +97,7 @@ impl<T: Stagable> LazyTree<T> {
             let decrypted_key = {
                 let file = self.find(id)?;
                 let parent = self.find_parent(&file)?;
-                let parent_key = self.key.get(&parent.id()).ok_or(SharedError::Unexpected(
+                let parent_key = self.key.get(parent.id()).ok_or(SharedError::Unexpected(
                     "parent key should have been populated by prior routine",
                 ))?;
                 let encrypted_key = file.folder_access_keys();
@@ -106,13 +106,13 @@ impl<T: Stagable> LazyTree<T> {
             self.key.insert(*id, decrypted_key);
         }
 
-        Ok(*self.key.get(&id).ok_or(SharedError::Unexpected(
+        Ok(*self.key.get(id).ok_or(SharedError::Unexpected(
             "parent key should have been populated by prior routine (2)",
         ))?)
     }
 
     pub fn name(&mut self, id: &Uuid, account: &Account) -> SharedResult<String> {
-        if let Some(name) = self.name.get(&id) {
+        if let Some(name) = self.name.get(id) {
             return Ok(name.clone());
         }
 
@@ -152,7 +152,7 @@ impl<T: Stagable> LazyTree<T> {
             return Ok(children.clone());
         }
 
-        return Ok(HashSet::new());
+        Ok(HashSet::new())
     }
 
     /// Returns ids of files for which the argument is an ancestor—the files' children, recursively. Does not include the argument.
@@ -392,7 +392,7 @@ where
         for (_, sibling_ids) in children {
             let siblings = sibling_ids
                 .iter()
-                .filter_map(|s| self.maybe_find(&s))
+                .filter_map(|s| self.maybe_find(s))
                 .collect::<Vec<_>>();
             for sibling in siblings {
                 let mut name = names

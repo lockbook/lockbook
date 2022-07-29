@@ -16,8 +16,7 @@ use crate::crypto::{AESKey, ECSigned};
 use crate::file_like::FileLike;
 use crate::secret_filename::SecretFileName;
 use crate::signed_file::SignedFile;
-
-use crate::{pubkey, symkey, SharedError, SharedResult};
+use crate::{pubkey, symkey, SharedResult};
 
 pub type DocumentHmac = [u8; 32];
 
@@ -48,7 +47,7 @@ impl FileMetadata {
             owner: Owner(pub_key),
             is_deleted: false,
             document_hmac: None,
-            user_access_keys: UserAccessInfo::encrypt(&account, &pub_key, &key)?,
+            user_access_keys: UserAccessInfo::encrypt(account, &pub_key, &key)?,
             folder_access_keys: symkey::encrypt(&key, &key)?,
         })
     }
@@ -174,26 +173,13 @@ impl FileDiff {
         }
     }
 
-    fn validate_for_doc_change(&self) -> SharedResult<()> {
-        if self.old.is_none() {
-            return Err(SharedError::OldVersionRequired);
-        }
-
-        if let Some(old) = &self.old {
-            if old.id() == self.new.id() {
-                return Err(SharedError::DiffMalformed);
-            }
-        }
-
-        Ok(())
-    }
-
-    fn new(new: &ECSigned<FileMetadata>) -> Self {
+    pub fn new(new: &ECSigned<FileMetadata>) -> Self {
         let old = None;
         let new = new.clone();
         Self { old, new }
     }
-    fn edit(old: &ECSigned<FileMetadata>, new: &ECSigned<FileMetadata>) -> Self {
+
+    pub fn edit(old: &ECSigned<FileMetadata>, new: &ECSigned<FileMetadata>) -> Self {
         let old = Some(old.clone());
         let new = new.clone();
         Self { old, new }

@@ -91,8 +91,8 @@ where
     }
 }
 
-impl<'a> Into<&'a SignedFile> for &'a ServerFile {
-    fn into(self) -> &'a SignedFile {
-        &self.file
+impl<'a> From<&'a ServerFile> for &'a SignedFile {
+    fn from(f: &'a ServerFile) -> Self {
+        &f.file
     }
 }

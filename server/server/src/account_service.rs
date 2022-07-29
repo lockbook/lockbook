@@ -62,8 +62,8 @@ pub async fn new_account(
         let mut owned_files = HashSet::new();
         owned_files.insert(*root.id());
 
-        tx.accounts.insert(owner.clone(), account);
-        tx.usernames.insert(username, owner.clone());
+        tx.accounts.insert(owner, account);
+        tx.usernames.insert(username, owner);
         tx.owned_files.insert(owner, owned_files);
         tx.metas.insert(*root.id(), root.clone());
 
@@ -116,7 +116,7 @@ pub fn get_usage_helper(
         .owned_files
         .get(&Owner(*public_key))
         .ok_or(GetUsageHelperError::UserNotFound)?
-        .into_iter()
+        .iter()
         .filter_map(|&file_id| {
             tx.sizes
                 .get(&file_id)

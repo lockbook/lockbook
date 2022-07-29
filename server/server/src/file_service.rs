@@ -69,6 +69,12 @@ pub async fn change_doc(
         return Err(ClientError(DiffMalformed));
     }
 
+    if let Some(old) = &request.diff.old {
+        if old.id() != request.diff.new.id() {
+            return Err(ClientError(DiffMalformed));
+        }
+    }
+
     if request.diff.new.document_hmac().is_none() {
         return Err(ClientError(HmacMissing));
     }
@@ -196,8 +202,8 @@ pub async fn get_updates(
             .owned_files
             .get(&Owner(context.public_key))
             .ok_or(ClientError(GetUpdatesError::UserNotFound))?
-            .into_iter()
-            .filter_map(|id| tx.metas.get(&id))
+            .iter()
+            .filter_map(|id| tx.metas.get(id))
             .filter(|meta| meta.version > request.since_metadata_version)
             .map(|meta| meta.file.clone())
             .collect();

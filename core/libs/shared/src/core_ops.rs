@@ -136,7 +136,7 @@ where
             (tree, deleted)
         };
 
-        let deleted_either = deleted_base.union(&deleted_staged).map(|&id| id).collect();
+        let deleted_either = deleted_base.union(&deleted_staged).copied().collect();
         let not_deleted_either = staged
             .owned_ids()
             .difference(&deleted_either)
