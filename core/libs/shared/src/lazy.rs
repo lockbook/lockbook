@@ -50,7 +50,7 @@ impl<T: Stagable> LazyTree<T> {
                     break;
                 }
 
-                file = self.find_parent(&file)?;
+                file = self.find_parent(file)?;
             }
 
             (visited_ids, deleted)
@@ -90,13 +90,13 @@ impl<T: Stagable> LazyTree<T> {
             }
 
             visited_ids.push(file_id);
-            file_id = *self.find_parent(&self.find(&file_id)?)?.id();
+            file_id = *self.find_parent(self.find(&file_id)?)?.id();
         }
 
         for id in visited_ids.iter().rev() {
             let decrypted_key = {
                 let file = self.find(id)?;
-                let parent = self.find_parent(&file)?;
+                let parent = self.find_parent(file)?;
                 let parent_key = self.key.get(parent.id()).ok_or(SharedError::Unexpected(
                     "parent key should have been populated by prior routine",
                 ))?;

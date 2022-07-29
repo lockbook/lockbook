@@ -1,22 +1,7 @@
 use crate::file_like::FileLike;
 use crate::tree_like::{Stagable, TreeLike};
 use std::collections::HashSet;
-use std::fmt;
-use std::fmt::Display;
 use uuid::Uuid;
-
-#[derive(Clone, PartialEq)]
-pub enum StagedFile<Base: FileLike, Staged: FileLike> {
-    Base(Base),
-    Staged(Staged),
-    Both { base: Base, staged: Staged },
-}
-
-impl<Base: FileLike, Staged: FileLike> Display for StagedFile<Base, Staged> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.display())
-    }
-}
 
 pub struct StagedTree<Base, Staged>
 where
