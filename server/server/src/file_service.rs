@@ -56,10 +56,10 @@ pub async fn upsert_file_metadata(
     Ok(())
 }
 
-pub async fn change_document_content(
+pub async fn change_doc(
     context: RequestContext<'_, ChangeDocRequest>,
-) -> Result<(), ServerError<EditDocError>> {
-    use EditDocError::*;
+) -> Result<(), ServerError<ChangeDocError>> {
+    use ChangeDocError::*;
 
     let (request, server_state) = (context.request, context.server_state);
     let request_pk = Owner(context.public_key);

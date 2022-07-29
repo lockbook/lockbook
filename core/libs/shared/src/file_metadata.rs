@@ -16,7 +16,7 @@ use crate::crypto::{AESKey, ECSigned};
 use crate::file_like::FileLike;
 use crate::secret_filename::SecretFileName;
 use crate::signed_file::SignedFile;
-use crate::tree_like::TreeLike;
+
 use crate::{pubkey, symkey, SharedError, SharedResult};
 
 pub type DocumentHmac = [u8; 32];

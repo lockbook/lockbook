@@ -116,7 +116,7 @@ pub fn core_routes(
     server_state: &Arc<ServerState>,
 ) -> impl Filter<Extract = impl warp::Reply, Error = Rejection> + Clone {
     core_req!(NewAccountRequest, new_account, server_state)
-        .or(core_req!(ChangeDocRequest, change_document_content, server_state))
+        .or(core_req!(ChangeDocRequest, change_doc, server_state))
         .or(core_req!(FileMetadataUpsertsRequest, upsert_file_metadata, server_state))
         .or(core_req!(GetDocumentRequest, get_document, server_state))
         .or(core_req!(GetPublicKeyRequest, get_public_key, server_state))

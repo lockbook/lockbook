@@ -4,9 +4,9 @@ use crate::file_metadata::FileType;
 use crate::lazy::LazyStaged1;
 use crate::signed_file::SignedFile;
 use crate::tree_like::{Stagable, TreeLike};
-use crate::{symkey, validate, SharedError, SharedResult};
+use crate::{validate, SharedError, SharedResult};
 use libsecp256k1::PublicKey;
-use std::collections::HashMap;
+
 use uuid::Uuid;
 
 impl<Base, Local> LazyStaged1<Base, Local>

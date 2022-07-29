@@ -5,13 +5,12 @@ use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
 use lockbook_shared::api::{
-    CancelSubscriptionError, DeleteAccountError, EditDocError, FileMetadataUpsertsError,
+    CancelSubscriptionError, ChangeDocError, DeleteAccountError, FileMetadataUpsertsError,
     GetUsageError, UpgradeAccountGooglePlayError, UpgradeAccountStripeError,
 };
 use lockbook_shared::SharedError;
 use std::fmt::Debug;
 use std::io::Error;
-use tracing_subscriber::filter::combinator::Not;
 
 impl<T: Debug> From<Error> for ServerError<T> {
     fn from(err: Error) -> Self {
@@ -185,8 +184,8 @@ impl From<SharedError> for ServerError<FileMetadataUpsertsError> {
     }
 }
 
-impl From<SharedError> for ServerError<EditDocError> {
-    fn from(_: SharedError) -> Self {
-        todo!()
+impl From<SharedError> for ServerError<ChangeDocError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
     }
 }

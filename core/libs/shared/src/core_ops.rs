@@ -30,7 +30,7 @@ where
         let new_file =
             FileMetadata::create(pub_key, *parent, &parent_key, name, file_type)?.sign(account)?;
         let id = *new_file.id();
-        let mut staged = self.stage(new_file);
+        let mut staged = self.stage(Some(new_file));
         staged.validate()?;
         Ok((staged.promote_to_local(), id))
     }
@@ -50,7 +50,7 @@ where
         let parent_key = self.decrypt_key(file.parent(), account)?;
         file.name = SecretFileName::from_str(name, &parent_key)?;
         let file = file.sign(account)?;
-        let mut staged = self.stage(file);
+        let mut staged = self.stage(Some(file));
         staged.validate()?;
         let tree = staged.promote_to_local();
         Ok(tree)
@@ -79,7 +79,7 @@ where
         file.folder_access_keys = symkey::encrypt(&parent_key, &key)?;
         let file = file.sign(account)?;
 
-        let mut tree = self.stage(file);
+        let mut tree = self.stage(Some(file));
         tree.validate()?;
 
         Ok(tree.promote_to_local())
@@ -90,7 +90,7 @@ where
         validate::not_root(&file)?;
         file.is_deleted = true;
         let file = file.sign(account)?;
-        let mut tree = self.stage(file);
+        let mut tree = self.stage(Some(file));
         tree.validate()?;
         let tree = tree.promote_to_local();
         Ok(tree)

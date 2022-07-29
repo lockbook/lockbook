@@ -14,31 +14,44 @@ impl Display for SignedFile {
     }
 }
 
-impl TreeLike for SignedFile {
-    type F = Self;
+impl TreeLike for Option<SignedFile> {
+    type F = SignedFile;
 
     fn ids(&self) -> HashSet<&Uuid> {
         let mut hashset = HashSet::new();
-        hashset.insert(self.id());
+        if let Some(f) = self {
+            hashset.insert(f.id());
+        }
         hashset
     }
 
     fn maybe_find(&self, id: &Uuid) -> Option<&SignedFile> {
-        if id == self.id() {
-            Some(&self)
+        if let Some(f) = self {
+            if id == f.id() {
+                self.as_ref()
+            } else {
+                None
+            }
         } else {
             None
         }
     }
 
     fn insert(&mut self, f: SignedFile) -> Option<SignedFile> {
-        *self = f;
-        None
+        self.replace(f)
     }
 
     fn remove(&mut self, id: Uuid) -> Option<SignedFile> {
-        unimplemented!()
+        if let Some(f) = self {
+            if &id == f.id() {
+                self.take()
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 }
 
-impl Stagable for SignedFile {}
+impl Stagable for Option<SignedFile> {}

@@ -91,7 +91,10 @@ fn change_document_content() {
             new_content: AESEncrypted { value: vec![69], nonce: vec![69], _t: Default::default() },
         },
     );
-    assert_matches!(result, Err(ApiError::<EditDocError>::Endpoint(EditDocError::NotPermissioned)));
+    assert_matches!(
+        result,
+        Err(ApiError::<ChangeDocError>::Endpoint(ChangeDocError::NotPermissioned))
+    );
 }
 
 #[test]

@@ -563,8 +563,8 @@ impl From<ApiError<api::FileMetadataUpsertsError>> for CoreError {
     }
 }
 
-impl From<ApiError<api::EditDocError>> for CoreError {
-    fn from(e: ApiError<api::EditDocError>) -> Self {
+impl From<ApiError<api::ChangeDocError>> for CoreError {
+    fn from(e: ApiError<api::ChangeDocError>) -> Self {
         match e {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,

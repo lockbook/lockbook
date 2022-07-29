@@ -1,5 +1,5 @@
 use crate::{ServerError, ServerState};
-use base64::Config;
+
 use lockbook_shared::crypto::EncryptedDocument;
 use lockbook_shared::file_metadata::DocumentHmac;
 use std::fmt::Debug;

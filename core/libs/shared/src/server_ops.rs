@@ -3,10 +3,10 @@ use crate::file_like::FileLike;
 use crate::file_metadata::{FileDiff, Owner};
 use crate::lazy::{LazyStaged1, LazyTree};
 use crate::server_file::{IntoServerFile, ServerFile};
-use crate::signed_file::SignedFile;
+
 use crate::tree_like::{Stagable, TreeLike};
 use crate::{SharedError, SharedResult};
-use uuid::Uuid;
+
 
 impl<T> LazyTree<T>
 where

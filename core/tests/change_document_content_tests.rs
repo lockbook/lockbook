@@ -58,6 +58,6 @@ fn change_document_content_not_found() {
     );
     assert_matches!(
         result,
-        Err(ApiError::<EditDocError>::Endpoint(EditDocError::DocumentNotFound))
+        Err(ApiError::<ChangeDocError>::Endpoint(ChangeDocError::DocumentNotFound))
     );
 }

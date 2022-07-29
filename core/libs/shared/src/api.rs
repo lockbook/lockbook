@@ -8,7 +8,6 @@ use crate::account::Username;
 use crate::crypto::*;
 use crate::file_like::FileLike;
 use crate::file_metadata::{DocumentHmac, FileDiff, FileMetadata};
-use crate::server_file::ServerFile;
 use crate::signed_file::SignedFile;
 
 pub trait Request {
@@ -80,7 +79,7 @@ pub struct ChangeDocRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum EditDocError {
+pub enum ChangeDocError {
     HmacMissing,
     DocumentNotFound,
     DocumentDeleted,
@@ -91,7 +90,7 @@ pub enum EditDocError {
 
 impl Request for ChangeDocRequest {
     type Response = ();
-    type Error = EditDocError;
+    type Error = ChangeDocError;
     const METHOD: Method = Method::PUT;
     const ROUTE: &'static str = "/change-document-content";
 }

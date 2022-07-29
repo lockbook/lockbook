@@ -1,6 +1,6 @@
 use crate::access_info::{EncryptedFolderAccessKey, UserAccessInfo};
 use crate::account::Username;
-use crate::file_metadata::{DocumentHmac, FileDiff, FileMetadata, FileType, Owner};
+use crate::file_metadata::{DocumentHmac, FileMetadata, FileType, Owner};
 use crate::secret_filename::SecretFileName;
 use crate::server_file::ServerFile;
 use crate::signed_file::SignedFile;
