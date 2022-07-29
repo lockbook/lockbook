@@ -44,7 +44,8 @@ fn lock_subscription_profile(
         let mut account = tx
             .accounts
             .get(&owner)
-            .ok_or(ClientError(UserNotFound))?;
+            .ok_or(ClientError(UserNotFound))?
+            .clone();
         let current_time = get_time().0 as u64;
 
         if current_time - account.billing_info.last_in_payment_flow < state.config.billing.millis_between_user_payment_flows {

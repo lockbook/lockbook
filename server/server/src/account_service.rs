@@ -12,7 +12,7 @@ use lockbook_shared::api::{
 };
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::Owner;
+use lockbook_shared::file_metadata::{DocumentHmac, Owner};
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
@@ -128,7 +128,7 @@ pub fn get_usage_helper(
 pub async fn delete_account(
     context: RequestContext<'_, DeleteAccountRequest>,
 ) -> Result<(), ServerError<DeleteAccountError>> {
-    let all_files: Result<Vec<(Uuid, u64)>, ServerError<DeleteAccountError>> =
+    let all_files: Result<Vec<(Uuid, DocumentHmac)>, ServerError<DeleteAccountError>> =
         context.server_state.index_db.transaction(|tx| {
             let mut tree = ServerTree {
                 owner: Owner(context.public_key),
@@ -143,8 +143,10 @@ pub async fn delete_account(
                 if !tree.calculate_deleted(&id)? {
                     let meta = tree.find(&id)?;
                     if meta.is_document() {
-                        docs_to_delete.push((*meta.id(), meta.version));
-                        tx.sizes.delete(id);
+                        if let Some(digest) = meta.document_hmac() {
+                            docs_to_delete.push((*meta.id(), *digest));
+                            tx.sizes.delete(id);
+                        }
                     }
                 }
             }
@@ -165,7 +167,7 @@ pub async fn delete_account(
         })?;
 
     for (id, version) in all_files? {
-        document_service::delete(context.server_state, id, version).await?;
+        document_service::delete(context.server_state, &id, &version).await?;
     }
 
     Ok(())

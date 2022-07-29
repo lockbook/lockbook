@@ -1,6 +1,7 @@
 use crate::{ServerError, ServerState};
 use base64::Config;
 use lockbook_shared::crypto::EncryptedDocument;
+use lockbook_shared::file_metadata::DocumentHmac;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use tokio::fs::{remove_file, File};
@@ -8,7 +9,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
 pub(crate) async fn insert<T: Debug>(
-    state: &ServerState, id: &Uuid, digest: &[u8; 32], content: &EncryptedDocument,
+    state: &ServerState, id: &Uuid, digest: &DocumentHmac, content: &EncryptedDocument,
 ) -> Result<(), ServerError<T>> {
     let content = bincode::serialize(content)?;
     let mut file = File::create(get_path(state, id, digest)).await?;
@@ -17,7 +18,7 @@ pub(crate) async fn insert<T: Debug>(
 }
 
 pub(crate) async fn get<T: Debug>(
-    state: &ServerState, id: &Uuid, digest: &[u8; 32],
+    state: &ServerState, id: &Uuid, digest: &DocumentHmac,
 ) -> Result<EncryptedDocument, ServerError<T>> {
     let mut file = File::open(get_path(state, id, digest)).await?;
     let mut content = vec![];
@@ -27,7 +28,7 @@ pub(crate) async fn get<T: Debug>(
 }
 
 pub(crate) async fn delete<T: Debug>(
-    state: &ServerState, id: &Uuid, digest: &[u8; 32],
+    state: &ServerState, id: &Uuid, digest: &DocumentHmac,
 ) -> Result<(), ServerError<T>> {
     let path = get_path(state, id, digest);
     // I'm not sure this check should exist, the two situations it gets utilized is when we re-delete
@@ -41,7 +42,7 @@ pub(crate) async fn delete<T: Debug>(
     Ok(())
 }
 
-fn get_path(state: &ServerState, id: &Uuid, digest: &[u8; 32]) -> PathBuf {
+fn get_path(state: &ServerState, id: &Uuid, digest: &DocumentHmac) -> PathBuf {
     let mut path = state.config.files.path.clone();
     // we may need to truncate this
     let digest = base64::encode_config(digest, base64::URL_SAFE);

@@ -58,11 +58,11 @@ pub async fn upsert_file_metadata(
 
 pub async fn change_document_content(
     context: RequestContext<'_, ChangeDocRequest>,
-) -> Result<ChangeDocResponse, ServerError<EditDocError>> {
+) -> Result<(), ServerError<EditDocError>> {
     use EditDocError::*;
 
     let (request, server_state) = (context.request, context.server_state);
-    let owner = Owner(context.public_key);
+    let request_pk = Owner(context.public_key);
 
     // Validate Diff
     if request.diff.diff() != vec![Diff::Hmac] {
@@ -72,11 +72,11 @@ pub async fn change_document_content(
     if request.diff.new.document_hmac().is_none() {
         return Err(ClientError(HmacMissing));
     }
-    let hmac = request.diff.new.document_hmac().unwrap();
 
     context.server_state.index_db.transaction(|tx| {
         let mut tree =
-            ServerTree { owner, owned: &mut tx.owned_files, metas: &mut tx.metas }.to_lazy();
+            ServerTree { owner: request_pk, owned: &mut tx.owned_files, metas: &mut tx.metas }
+                .to_lazy();
 
         let meta = &tree
             .maybe_find(request.diff.new.id())
@@ -89,7 +89,7 @@ pub async fn change_document_content(
             }
         }
 
-        if meta.owner().0 != context.public_key {
+        if meta.owner() != request_pk {
             return Err(ClientError(NotPermissioned));
         }
 
@@ -104,21 +104,23 @@ pub async fn change_document_content(
     })??;
 
     let new_version = get_time().0 as u64;
-    let new = request.diff.new.add_time(new_version);
-    document_service::insert(server_state, request.diff.new.id(), &hmac, &request.new_content)
-        .await?;
+    let new = request.diff.new.clone().add_time(new_version);
+    document_service::insert(
+        server_state,
+        request.diff.new.id(),
+        request.diff.new.document_hmac().unwrap(),
+        &request.new_content,
+    )
+    .await?;
 
     let result = server_state.index_db.transaction(|tx| {
         let mut tree =
-            ServerTree { owner, owned: &mut tx.owned_files, metas: &mut tx.metas }.to_lazy();
+            ServerTree { owner: request_pk, owned: &mut tx.owned_files, metas: &mut tx.metas }
+                .to_lazy();
         let new_size = request.new_content.value.len() as u64;
 
         if tree.calculate_deleted(request.diff.new.id())? {
             return Err(ClientError(DocumentDeleted));
-        }
-
-        if request.old_metadata_version != meta.version {
-            return Err(ClientError(EditDocError::EditConflict));
         }
 
         let meta = &tree
@@ -131,22 +133,39 @@ pub async fn change_document_content(
                 return Err(ClientError(OldVersionIncorrect));
             }
         }
-        tx.sizes.insert(meta.id, new_size);
-        tx.metas.insert(meta.id, meta);
 
-        Ok(ChangeDocResponse { new_content_version: new_version })
+        if let Some(old) = &request.diff.old {
+            if meta != old {
+                return Err(ClientError(OldVersionIncorrect));
+            }
+        }
+
+        tx.sizes.insert(*meta.id(), new_size);
+        tree.stage(vec![new]).promote();
+
+        Ok(())
     })?;
 
     if result.is_err() {
         // Cleanup the NEW file created if, for some reason, the tx failed
-        document_service::delete(server_state, request.id, new_version).await?;
+        document_service::delete(
+            server_state,
+            request.diff.new.id(),
+            request.diff.new.document_hmac().unwrap(),
+        )
+        .await?;
     }
 
-    let result = result?;
+    result?;
 
-    document_service::delete(server_state, request.id, old_content_version).await?;
+    document_service::delete(
+        server_state,
+        request.diff.new.id(),
+        request.diff.old.unwrap().document_hmac().unwrap(),
+    )
+    .await?;
 
-    Ok(result)
+    Ok(())
 }
 
 pub async fn get_document(
@@ -159,11 +178,11 @@ pub async fn get_document(
         .get(&request.id)?
         .ok_or(ClientError(GetDocumentError::DocumentNotFound))?;
 
-    if meta.owner.0 != context.public_key {
+    if meta.owner().0 != context.public_key {
         return Err(ClientError(GetDocumentError::NotPermissioned));
     }
 
-    let content = document_service::get(server_state, request.id, request.content_version).await?;
+    let content = document_service::get(server_state, &request.id, &request.hmac).await?;
 
     Ok(GetDocumentResponse { content })
 }
@@ -180,7 +199,10 @@ pub async fn get_updates(
             .into_iter()
             .filter_map(|id| tx.metas.get(&id))
             .filter(|meta| meta.version > request.since_metadata_version)
+            .map(|meta| meta.file.clone())
             .collect();
-        Ok(GetUpdatesResponse { file_metadata })
+
+        let as_of_metadata_version = get_time().0 as u64;
+        Ok(GetUpdatesResponse { as_of_metadata_version, file_metadata })
     })?
 }

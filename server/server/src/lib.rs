@@ -86,7 +86,7 @@ pub mod document_service;
 pub mod error_handler;
 pub mod file_service;
 pub mod loggers;
-pub mod metrics;
+// pub mod metrics;
 pub mod router_service;
 pub mod schema;
 pub mod utils;

@@ -3,11 +3,10 @@ use lazy_static::lazy_static;
 
 use lockbook_shared::api::FileUsage;
 use lockbook_shared::clock::get_time;
-use lockbook_shared::file_metadata::{EncryptedFiles, Owner};
-use lockbook_shared::tree::{FileLike, FileMetaMapExt};
+use lockbook_shared::file_metadata::Owner;
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use tracing::*;
 
@@ -112,7 +111,7 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
 }
 
 pub async fn get_metadatas_and_user_activity_state(
-    state: &ServerState, public_key: &Owner, ids: &[Uuid],
+    state: &ServerState, public_key: &Owner, ids: &HashSet<Uuid>,
 ) -> Result<(EncryptedFiles, bool), ServerError<MetricsError>> {
     let mut metadatas = HashMap::new();
 
