@@ -3,13 +3,14 @@ use lazy_static::lazy_static;
 
 use lockbook_shared::api::FileUsage;
 use lockbook_shared::clock::get_time;
-use lockbook_shared::file_metadata::Owner;
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use tracing::*;
 
+use lockbook_shared::file_like::FileLike;
+use lockbook_shared::server_file::ServerFile;
 use uuid::Uuid;
 
 make_static_metric! {
@@ -70,19 +71,12 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
         let mut total_bytes = 0;
         let mut active_users = 0;
 
-        for (username, public_key) in public_keys_and_usernames {
-            let ids = state
-                .index_db
-                .owned_files
-                .get(&public_key)?
-                .ok_or_else(|| {
-                    internal!(
-                        "Could not get owned files for public key during metrics {:?}",
-                        public_key
-                    )
-                })?;
+        for (username, owner) in public_keys_and_usernames {
+            let ids = state.index_db.owned_files.get(&owner)?.ok_or_else(|| {
+                internal!("Could not get owned files for public key during metrics {:?}", owner)
+            })?;
             let (metadatas, is_user_active) =
-                get_metadatas_and_user_activity_state(&state, &public_key, &ids).await?;
+                get_metadatas_and_user_activity_state(&state, &ids).await?;
 
             if is_user_active {
                 active_users += 1;
@@ -111,8 +105,8 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
 }
 
 pub async fn get_metadatas_and_user_activity_state(
-    state: &ServerState, public_key: &Owner, ids: &HashSet<Uuid>,
-) -> Result<(EncryptedFiles, bool), ServerError<MetricsError>> {
+    state: &ServerState, ids: &HashSet<Uuid>,
+) -> Result<(Vec<ServerFile>, bool), ServerError<MetricsError>> {
     let mut metadatas = HashMap::new();
 
     for id in ids {
@@ -122,35 +116,36 @@ pub async fn get_metadatas_and_user_activity_state(
             .get(id)?
             .ok_or_else(|| internal!("id missing during metrics lookup: {}", id))?;
 
-        metadatas.push(metadata);
+        metadatas.insert(id, metadata);
 
         tokio::time::sleep(state.config.metrics.time_between_redis_calls).await;
     }
 
     let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
 
-    let is_user_active = metadatas.values().any(|metadata| {
-        metadata.metadata_version > time_two_days_ago
-            || metadata.content_version > time_two_days_ago
-    });
+    let is_user_active = metadatas
+        .values()
+        .any(|metadata| metadata.version > time_two_days_ago);
 
     Ok((
-        metadatas.filter_not_deleted().map_err(|e| {
-            internal!("Cannot filter deleted files for public_key: {:?}, err: {:?}", public_key, e)
-        })?,
+        metadatas
+            .into_iter()
+            .filter(|(_, file)| !file.file.explicitly_deleted())
+            .map(|(_, file)| file)
+            .collect(),
         is_user_active,
     ))
 }
 
 pub async fn calculate_total_document_bytes(
-    state: &ServerState, metadatas: &EncryptedFiles,
+    state: &ServerState, metadatas: &Vec<ServerFile>,
 ) -> Result<i64, ServerError<MetricsError>> {
     let mut total_size: u64 = 0;
 
-    for metadata in metadatas.values() {
-        if metadata.is_document() && metadata.content_version != 0 {
-            let file_usage: FileUsage = match state.index_db.sizes.get(&metadata.id)? {
-                Some(size_bytes) => FileUsage { file_id: metadata.id, size_bytes },
+    for metadata in metadatas {
+        if metadata.is_document() && metadata.version != 0 {
+            let file_usage: FileUsage = match state.index_db.sizes.get(&metadata.id())? {
+                Some(size_bytes) => FileUsage { file_id: *metadata.id(), size_bytes },
                 None => continue,
             };
 
