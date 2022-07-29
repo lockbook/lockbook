@@ -31,51 +31,6 @@ pub trait FileLike: PartialEq {
         self.id() == self.parent()
     }
 }
-//
-// impl FileLike for FileMetadata {
-//     fn id(&self) -> &Uuid {
-//         &self.id
-//     }
-//
-//     fn file_type(&self) -> FileType {
-//         self.file_type
-//     }
-//
-//     fn parent(&self) -> &Uuid {
-//         &self.parent
-//     }
-//
-//     fn secret_name(&self) -> &SecretFileName {
-//         &self.name
-//     }
-//
-//     fn owner(&self) -> Owner {
-//         self.owner
-//     }
-//
-//     fn explicitly_deleted(&self) -> bool {
-//         self.is_deleted
-//     }
-//
-//     fn document_hmac(&self) -> Option<&DocumentHmac> {
-//         self.document_hmac.as_ref()
-//     }
-//
-//     fn display(&self) -> String {
-//         match self.file_type() {
-//             FileType::Folder => format!("id: {}/", self.id),
-//             FileType::Document => format!("id: {}", self.id),
-//         }
-//     }
-//
-//     fn user_access_keys(&self) -> &HashMap<Username, UserAccessInfo> {
-//         &self.user_access_keys
-//     }
-//
-//     fn folder_access_keys(&self) -> &EncryptedFolderAccessKey {
-//         &self.folder_access_keys
-//     }
-// }
 
 impl<F> FileLike for F
 where
