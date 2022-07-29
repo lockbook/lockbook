@@ -9,4 +9,5 @@ members = [
 	"server/admin",
 	"clients/linux",
 	"clients/cli",
+	"utils/dev-tool",
 ]

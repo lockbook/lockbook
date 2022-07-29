@@ -847,6 +847,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "dotenv"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
+
+[[package]]
 name = "either"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2238,6 +2244,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lockbook-dev"
+version = "0.1.0"
+dependencies = [
+ "dotenv",
+ "port_scanner",
+ "structopt",
+]
+
+[[package]]
 name = "lockbook-models"
 version = "0.1.0"
 dependencies = [
@@ -2875,6 +2890,12 @@ dependencies = [
  "opaque-debug 0.3.0",
  "universal-hash",
 ]
+
+[[package]]
+name = "port_scanner"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "325a6d2ac5dee293c3b2612d4993b98aec1dff096b0a2dae70ed7d95784a05da"
 
 [[package]]
 name = "ppv-lite86"
