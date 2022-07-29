@@ -2,6 +2,7 @@ use crate::model::filename::DocumentType;
 use crate::model::repo::RepoSource;
 use crate::model::repo::RepoState;
 use crate::pure_functions::files;
+use crate::repo::schema::helper_log::last_synced;
 use crate::repo::schema::OneKey;
 use crate::service::{api_service, file_encryption_service, file_service};
 use crate::{Config, CoreError, RequestContext};
@@ -11,9 +12,14 @@ use lockbook_shared::api::{
 };
 use lockbook_shared::clock::get_time;
 use lockbook_shared::crypto::DecryptedDocument;
+use lockbook_shared::file_like::FileLike;
+use lockbook_shared::file_metadata::DocumentHmac;
 use lockbook_shared::file_metadata::{CoreFile, DecryptedFiles, EncryptedFiles, FileType};
 use lockbook_shared::filename::NameComponents;
+use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::tree::{FileLike, FileMetaMapExt};
+use lockbook_shared::tree_like::Stagable;
+use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
 use std::collections::HashMap;
@@ -84,38 +90,6 @@ pub fn merge_maybe<T>(
             return Ok(MaybeMergeResult::Conflict { base, local, remote });
         }
     }))
-}
-
-pub fn merge_metadata(base: CoreFile, local: CoreFile, remote: CoreFile) -> CoreFile {
-    let local_renamed = local.decrypted_name != base.decrypted_name;
-    let remote_renamed = remote.decrypted_name != base.decrypted_name;
-    let decrypted_name = match (local_renamed, remote_renamed) {
-        (false, false) => base.decrypted_name,
-        (true, false) => local.decrypted_name,
-        (false, true) => remote.decrypted_name,
-        (true, true) => remote.decrypted_name, // resolve rename conflicts in favor of remote
-    };
-
-    let local_moved = local.parent != base.parent;
-    let remote_moved = remote.parent != base.parent;
-    let parent = match (local_moved, remote_moved) {
-        (false, false) => base.parent,
-        (true, false) => local.parent,
-        (false, true) => remote.parent,
-        (true, true) => remote.parent, // resolve move conflicts in favor of remote
-    };
-
-    CoreFile {
-        id: base.id,               // ids never change
-        file_type: base.file_type, // file types never change
-        parent,
-        decrypted_name,
-        owner: base.owner,                         // owners never change
-        metadata_version: remote.metadata_version, // resolve metadata version conflicts in favor of remote
-        content_version: remote.content_version, // resolve content version conflicts in favor of remote
-        deleted: base.deleted || local.deleted || remote.deleted, // resolve delete conflicts by deleting
-        decrypted_access_key: base.decrypted_access_key,          // access keys never change
-    }
 }
 
 pub fn merge_maybe_metadata(
@@ -342,21 +316,11 @@ fn get_resolved_document(
     Ok(merged_document)
 }
 
-fn should_pull_document(
-    maybe_base: &Option<CoreFile>, maybe_local: &Option<CoreFile>, maybe_remote: &Option<CoreFile>,
-) -> bool {
-    if let Some(remote) = maybe_remote {
-        remote.is_document()
-            && if let Some(local) = maybe_local {
-                remote.content_version > local.content_version
-            } else if let Some(base) = maybe_base {
-                remote.content_version > base.content_version
-            } else {
-                true
-            }
-            && !remote.deleted
-    } else {
-        false
+fn should_pull_document(remote_implicitly_deleted: bool, maybe_local_hmac: Option<&DocumentHmac>, maybe_remote_hmac: Option<&DocumentHmac>) -> bool {
+    !remote_implicitly_deleted && match (maybe_local_hmac, maybe_remote_hmac) {
+        (_, None) => false,
+        (None, _) => true,
+        (Some(local_hmac), Some(remote_hmac)) => local_hmac != remote_hmac,
     }
 }
 
@@ -397,71 +361,92 @@ impl RequestContext<'_, '_> {
         Ok(())
     }
 
-    /// Updates local files to 3-way merge of local, base, and remote; updates base files to remote.
-    #[instrument(level = "debug", skip_all, err(Debug))]
-    fn pull<F>(&mut self, config: &Config, update_sync_progress: &mut F) -> Result<(), CoreError>
+    /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.
+    /// Promotes Base to Stage<Base, Remote> and Local to Stage<Local, Merge>
+    fn pull_2<F>(&mut self, config: &Config, update_sync_progress: &mut F) -> Result<(), CoreError>
     where
         F: FnMut(SyncProgressOperation),
     {
+        // get metadata updates
         let account = &self.get_account()?;
-        let base_metadata = self.get_all_metadata(RepoSource::Base)?;
-        let base_max_metadata_version = base_metadata
-            .values()
-            .map(|f| f.metadata_version)
-            .max()
-            .unwrap_or(0);
-
-        update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PullMetadata));
-
-        let remote_metadata_changes = api_service::request(
+        let last_synced = self
+            .tx
+            .last_synced
+            .get(&OneKey {})
+            .map(|&i| i)
+            .unwrap_or_default() as u64;
+        let remote_changes = api_service::request(
             account,
-            GetUpdatesRequest { since_metadata_version: base_max_metadata_version },
-        )
-        .map_err(CoreError::from)?
-        .file_metadata
-        .iter()
-        .map(|f| (f.id, f.clone()))
-        .collect();
+            GetUpdatesRequest { since_metadata_version: last_synced },
+        )?
+        .file_metadata;
 
-        let local_metadata = self.get_all_metadata(RepoSource::Local)?;
-        let (remote_metadata, remote_orphans) = self
-            .get_all_metadata_with_encrypted_changes(RepoSource::Base, &remote_metadata_changes)?;
-        let all_metadata_state = self.get_all_metadata_state()?;
+        // alias trees
+        let base = self.tx
+            .base_metadata
+            .to_lazy();
+        let local = self.tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+        let remote = self.tx
+            .base_metadata
+            .stage(remote_changes)
+            .to_lazy(); // (todo: orphans?)
 
-        let num_documents_to_pull = remote_metadata_changes
-            .keys()
-            .filter(|&id| {
-                let maybe_remote_metadatum = remote_metadata.maybe_find(*id);
-                let maybe_base_metadatum = base_metadata.maybe_find(*id);
-                let maybe_local_metadatum = local_metadata.maybe_find(*id);
-                should_pull_document(
-                    &maybe_base_metadatum,
-                    &maybe_local_metadatum,
-                    &maybe_remote_metadatum,
-                )
-            })
-            .count();
+        // track work
+        let mut num_documents_to_pull = 0;
+        for id in remote_changes.owned_ids() {
+            let maybe_local_hmac = local.maybe_find(&id).map(|f| f.document_hmac()).flatten();
+            let maybe_remote_hmac = remote.find(&id)?.document_hmac();
+            if should_pull_document(!remote.calculate_deleted(&id)?, maybe_local_hmac, maybe_remote_hmac) {
+                num_documents_to_pull += 1;
+            }
+        }
         update_sync_progress(SyncProgressOperation::IncrementTotalWork(num_documents_to_pull));
 
-        let mut base_metadata_updates = HashMap::new();
-        let mut local_metadata_updates = HashMap::new();
-        let mut base_document_updates = Vec::new();
-        let mut local_document_updates = Vec::new();
+        // merge trees:
+        // 1. merge metadata on individual basis
+        for id in remote_changes.owned_ids() {
+            let maybe_base_metadatum = base.maybe_find(&id);
+            let maybe_local_metadatum = local.maybe_find(&id);
+            let remote_metadatum = remote.find(&id)?;
 
-        // iterate changes
-        for encrypted_remote_metadatum in remote_metadata_changes.values() {
-            // skip filtered changes
-            if remote_metadata
-                .maybe_find(encrypted_remote_metadatum.id)
-                .is_none()
-            {
-                continue;
-            }
-
-            // merge metadata
-            let remote_metadatum = remote_metadata.find(encrypted_remote_metadatum.id)?;
-            let maybe_base_metadatum = base_metadata.maybe_find(encrypted_remote_metadatum.id);
-            let maybe_local_metadatum = local_metadata.maybe_find(encrypted_remote_metadatum.id);
+            let merged_metadatum = match (maybe_base_metadatum, maybe_local_metadatum) {
+                (_, None) => remote_metadatum,
+                (None, Some(_)) => remote_metadatum, // baseless conflict resolution (rare concurrency issue)
+                (Some(base_metadatum), Some(local_metadatum)) => {
+                    let local_renamed = local.name(id, account) != base.decrypted_name;
+                    let remote_renamed = remote.decrypted_name != base.decrypted_name;
+                    let decrypted_name = match (local_renamed, remote_renamed) {
+                        (false, false) => base.decrypted_name,
+                        (true, false) => local.decrypted_name,
+                        (false, true) => remote.decrypted_name,
+                        (true, true) => remote.decrypted_name, // resolve rename conflicts in favor of remote
+                    };
+                
+                    let local_moved = local.parent != base.parent;
+                    let remote_moved = remote.parent != base.parent;
+                    let parent = match (local_moved, remote_moved) {
+                        (false, false) => base.parent,
+                        (true, false) => local.parent,
+                        (false, true) => remote.parent,
+                        (true, true) => remote.parent, // resolve move conflicts in favor of remote
+                    };
+                
+                    CoreFile {
+                        id: base.id,               // ids never change
+                        file_type: base.file_type, // file types never change
+                        parent,
+                        decrypted_name,
+                        owner: base.owner,                         // owners never change
+                        metadata_version: remote.metadata_version, // resolve metadata version conflicts in favor of remote
+                        content_version: remote.content_version, // resolve content version conflicts in favor of remote
+                        deleted: base.deleted || local.deleted || remote.deleted, // resolve delete conflicts by deleting
+                        decrypted_access_key: base.decrypted_access_key,          // access keys never change
+                    }
+                },
+            };
 
             let merged_metadatum = merge_maybe_metadata(
                 maybe_base_metadatum.clone(),
@@ -470,7 +455,33 @@ impl RequestContext<'_, '_> {
             )?;
             base_metadata_updates.push(remote_metadatum.clone()); // update base to remote
             local_metadata_updates.push(merged_metadatum.clone()); // update local to merged
+        }
 
+        // 2. get documents - content conflicts can introduce new metadata
+        for id in remote_changes.owned_ids() {
+            let maybe_local_hmac = local.maybe_find(&id).map(|f| f.document_hmac()).flatten();
+            let maybe_remote_hmac = remote.find(&id)?.document_hmac();
+            if should_pull_document(!remote.calculate_deleted(&id)?, maybe_local_hmac, maybe_remote_hmac) {
+                todo!()
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Updates local files to 3-way merge of local, base, and remote; updates base files to remote.
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    fn pull<F>(&mut self, config: &Config, update_sync_progress: &mut F) -> Result<(), CoreError>
+    where
+        F: FnMut(SyncProgressOperation),
+    {
+        let mut base_metadata_updates = HashMap::new();
+        let mut local_metadata_updates = HashMap::new();
+        let mut base_document_updates = Vec::new();
+        let mut local_document_updates = Vec::new();
+
+        // iterate changes
+        for encrypted_remote_metadatum in remote_metadata_changes.values() {
             // merge document content
             if should_pull_document(
                 &maybe_base_metadatum,
