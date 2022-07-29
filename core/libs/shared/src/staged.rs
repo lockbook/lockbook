@@ -59,13 +59,3 @@ impl<Base: Stagable, Staged: Stagable<F = Base::F>> TreeLike for StagedTree<Base
 impl<Base: Stagable, Staged: Stagable<F = Base::F>> Stagable for StagedTree<Base, Staged> {}
 
 impl<F: FileLike> Stagable for Vec<F> {}
-
-// pub type NestedStage<'a, F, T1, T2, T3> = StagedTree<'a, F, T1, StagedTree<'a, F, T2, T3>>;
-//
-// impl<'a, F: FileLike, Base: TreeLike<F>, StagedBase: TreeLike<F>, StagedStaged: TreeLike<F>>
-//     NestedStage<'a, F, Base, StagedBase, StagedStaged>
-// {
-//     fn promote(&mut self) -> SharedResult<()> {
-//         todo!()
-//     }
-// }
