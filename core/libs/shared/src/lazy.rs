@@ -315,19 +315,10 @@ where
     Base: Stagable<F = FileMetadata>,
     Local: Stagable<F = Base::F>,
 {
-    // todo: optimize subroutines by checking only staged things
-    pub fn resolve_merge_conflicts(mut self, account: &Account) -> SharedResult<Self> {
-        let mut change = self.unmove_moved_files_in_cycles()?;
-        self = self.stage(change).promote_to_local();
-        change = self.rename_files_with_path_conflicts(account)?;
-        self = self.stage(change).promote_to_local();
-        Ok(self)
-    }
-
     // assumptions: no orphans
     // changes: moves files
     // invalidated by: moved files
-    fn unmove_moved_files_in_cycles(&mut self) -> SharedResult<Vec<Base::F>> {
+    pub fn unmove_moved_files_in_cycles(&mut self) -> SharedResult<Vec<Base::F>> {
         let mut root_found = false;
         let mut no_cycles_in_ancestors = HashSet::new();
         let mut to_revert = HashSet::new();
@@ -370,7 +361,7 @@ where
     // assumptions: no orphans
     // changes: renames files
     // invalidated by: moved files, renamed files
-    fn rename_files_with_path_conflicts(
+    pub fn rename_files_with_path_conflicts(
         &mut self, account: &Account,
     ) -> SharedResult<Vec<Base::F>> {
         let mut children = HashMap::<Uuid, HashSet<Uuid>>::new();
@@ -412,6 +403,7 @@ where
                     let mut update = sibling.clone();
                     update.name = SecretFileName::from_str(&name, &keys[sibling.parent()])?;
                     result.push(update);
+                    names.insert(sibling.id, name);
                 }
             }
         }
