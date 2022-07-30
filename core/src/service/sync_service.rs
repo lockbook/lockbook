@@ -470,7 +470,13 @@ where
                             owner: base_file.owner(),
                             is_deleted: remote.calculate_deleted(&id)?
                                 | local_change.explicitly_deleted(),
-                            document_hmac: None,
+                            document_hmac: three_way_merge(
+                                &base_file.document_hmac(),
+                                &remote_change.document_hmac(),
+                                &local_change.document_hmac(),
+                                &None, // overwritten during document merge if local != remote
+                            )
+                            .cloned(),
                             user_access_keys: base_file.user_access_keys().clone(),
                             folder_access_keys: base_file.folder_access_keys().clone(),
                         }
@@ -492,7 +498,7 @@ where
                             owner: remote_change.owner(),
                             is_deleted: remote.calculate_deleted(&id)?
                                 | local_change.explicitly_deleted(),
-                            document_hmac: None,
+                            document_hmac: remote_change.document_hmac().cloned(), // overwritten during document merge if local != remote
                             user_access_keys: remote_change.user_access_keys().clone(),
                             folder_access_keys: remote_change.folder_access_keys().clone(),
                         }
