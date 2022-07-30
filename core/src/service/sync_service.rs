@@ -230,7 +230,7 @@ impl RequestContext<'_, '_> {
             &local_document_changes,
         )?;
 
-        // promote
+        // promote (todo: validate?)
         self.tx
             .base_metadata
             .stage(remote_changes)
@@ -537,17 +537,17 @@ where
                         Ok(without_conflicts) => without_conflicts,
                         Err(with_conflicts) => with_conflicts,
                     };
-                    let (new_merged, encrypted_document) =
+                    let (new_merge, encrypted_document) =
                         merge.update_document(id, &merged_document, account)?;
                     merge_document_changes.insert(id, encrypted_document);
-                    merge = new_merged;
+                    merge = new_merge;
                 }
                 // non-text files always duplicated
                 (Some(local_document_change), DocumentType::Drawing | DocumentType::Other) => {
                     // overwrite existing document (todo: avoid decrypting and re-encrypting document)
                     let decrypted_remote_document =
                         remote.decrypt_document(id, remote_document_change, account)?;
-                    let (new_merged, encrypted_document) =
+                    let (new_merge, encrypted_document) =
                         merge.update_document(id, &decrypted_remote_document, account)?;
                     merge_document_changes.insert(id, encrypted_document);
 
@@ -555,20 +555,21 @@ where
                     let decrypted_local_document =
                         local.decrypt_document(id, remote_document_change, account)?;
                     let existing_document = merge.find(id)?;
-                    let (new_merged, copied_document_id) = new_merged.create(
+                    let (new_merge, copied_document_id) = new_merge.stage_create(
                         existing_document.parent(),
                         &merge.name(id, account)?,
                         existing_document.file_type(),
                         account,
                         &account.public_key(),
                     )?;
-                    let (new_merged, encrypted_document) = new_merged.update_document(
+                    let new_merge = new_merge.promote_to_local();
+                    let (new_merge, encrypted_document) = new_merge.update_document(
                         &copied_document_id,
                         &decrypted_local_document,
                         account,
                     )?;
 
-                    merge = new_merged;
+                    merge = new_merge;
                 }
             }
         }
