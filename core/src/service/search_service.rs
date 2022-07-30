@@ -1,11 +1,12 @@
-use crate::model::filename::DocumentType;
 use crate::model::repo::RepoSource;
-use crate::{CoreError, RequestContext, UnexpectedError};
+use crate::repo::document_repo;
+use crate::{CoreError, OneKey, RequestContext, UnexpectedError};
 use crossbeam::channel::{self, Receiver, RecvTimeoutError, Sender};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use lockbook_models::file_metadata::DecryptedFiles;
-use lockbook_models::tree::FileMetadata;
+use lockbook_shared::file_like::FileLike;
+use lockbook_shared::filename::DocumentType;
+use lockbook_shared::tree_like::{Stagable, TreeLike};
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::sync::atomic::{self, AtomicBool};
@@ -51,43 +52,72 @@ impl RequestContext<'_, '_> {
             return Ok(Vec::new());
         }
 
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
+        let mut results = Vec::new();
         let matcher = SkimMatcherV2::default();
 
-        let mut results = Vec::new();
-        let files = self.get_all_not_deleted_metadata(RepoSource::Local)?;
-        for &id in files.keys() {
-            let path = Self::path_by_id_helper(&files, id)?;
+        for id in tree.owned_ids() {
+            if !tree.calculate_deleted(&id)? {
+                let path = tree.id_to_path(&id, account)?;
 
-            if let Some(score) = matcher.fuzzy_match(&path, input) {
-                results.push(SearchResultItem { id, path, score });
+                if let Some(score) = matcher.fuzzy_match(&path, input) {
+                    results.push(SearchResultItem { id, path, score });
+                }
             }
         }
+
         results.sort();
 
         Ok(results)
     }
 
     pub fn start_search(&mut self) -> Result<StartSearchInfo, CoreError> {
-        let files_not_deleted: DecryptedFiles =
-            self.get_all_not_deleted_metadata(RepoSource::Local)?;
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
 
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
         let mut files_info = Vec::new();
 
-        for file in files_not_deleted.values() {
-            if file.is_document() {
-                let content =
-                    match DocumentType::from_file_name_using_extension(&file.decrypted_name) {
-                        DocumentType::Text => self
-                            .read_document(self.config, RepoSource::Local, file.id)
-                            .map(|bytes| Some(String::from_utf8_lossy(&bytes).to_string()))?,
+        for id in tree.owned_ids() {
+            if !tree.calculate_deleted(&id)? {
+                let file = tree.find(&id)?;
+
+                if file.is_document() {
+                    let content = match DocumentType::from_file_name_using_extension(
+                        &tree.name(&id, account)?,
+                    ) {
+                        DocumentType::Text => {
+                            let doc = document_repo::get(self.config, RepoSource::Local, id)?;
+
+                            tree.decrypt_document(&id, &doc, account)
+                                .map(|bytes| Some(String::from_utf8_lossy(&bytes).to_string()))?
+                        }
                         _ => None,
                     };
 
-                files_info.push(SearchableFileInfo {
-                    id: file.id,
-                    path: RequestContext::path_by_id_helper(&files_not_deleted, file.id)?,
-                    content,
-                })
+                    files_info.push(SearchableFileInfo {
+                        id,
+                        path: tree.id_to_path(&id, account)?,
+                        content,
+                    })
+                }
             }
         }
 
