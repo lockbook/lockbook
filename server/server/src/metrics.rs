@@ -114,7 +114,7 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
                 .with_label_values(&[&username])
                 .set(user_total_bytes);
 
-            tokio::time::sleep(state.config.metrics.time_between_redis_calls).await;
+            tokio::time::sleep(state.config.metrics.time_between_user_metrics_calculations).await;
         }
 
         METRICS_STATISTICS.total_documents.set(total_documents);
@@ -171,9 +171,7 @@ pub async fn get_user_info(
             Ok((total_documents, total_bytes as i64, is_user_active))
         })?;
 
-    let (total_documents, total_bytes, is_user_active) = metadata_result?;
-
-    Ok((total_documents, total_bytes, is_user_active))
+    Ok(metadata_result?)
 }
 
 fn get_bytes_and_documents_count(

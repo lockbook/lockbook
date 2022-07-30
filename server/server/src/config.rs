@@ -143,7 +143,7 @@ impl ServerConfig {
 #[derive(Clone)]
 pub struct MetricsConfig {
     pub time_between_metrics_refresh: Duration,
-    pub time_between_redis_calls: Duration,
+    pub time_between_user_metrics_calculations: Duration,
 }
 
 impl MetricsConfig {
@@ -155,8 +155,8 @@ impl MetricsConfig {
                     .unwrap()
                     * 60,
             ),
-            time_between_redis_calls: Duration::from_millis(
-                env_or_panic("MILLIS_BETWEEN_REDIS_CALLS")
+            time_between_user_metrics_calculations: Duration::from_millis(
+                env_or_panic("MILLIS_BETWEEN_USER_METRICS_CALCULATIONS")
                     .parse::<u64>()
                     .unwrap(),
             ),
