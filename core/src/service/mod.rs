@@ -8,5 +8,5 @@ pub mod log_service;
 pub mod path_service;
 pub mod search_service;
 pub mod sync_service;
-// pub mod usage_service;
 pub mod document_service;
+pub mod usage_service;
