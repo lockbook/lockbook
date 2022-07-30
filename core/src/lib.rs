@@ -414,14 +414,14 @@ impl Core {
     //     Ok(val?)
     // }
     //
-    // #[instrument(level = "debug", skip(self), err(Debug))]
-    // pub fn validate(&self) -> Result<Vec<Warning>, TestRepoError> {
-    //         self.db
-    //             .transaction(|tx| self.context(tx)?.test_repo_integrity(&self.config))
-    //             .map_err(CoreError::from)
-    //             .map_err(TestRepoError::Core)?
-    //     }
-    //
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn validate(&self) -> Result<Vec<Warning>, TestRepoError> {
+        self.db
+            .transaction(|tx| self.context(tx)?.test_repo_integrity(&self.config))
+            .map_err(CoreError::from)
+            .map_err(TestRepoError::Core)?
+    }
+
     #[instrument(level = "debug", err(Debug))]
     pub fn upgrade_account_stripe(
         &self, account_tier: StripeAccountTier,

@@ -66,7 +66,8 @@ where
         }
 
         let parent_key = self.decrypt_key(file.parent(), account)?;
-        file.name = SecretFileName::from_str(name, &parent_key)?;
+        let key = self.decrypt_key(id, account)?;
+        file.name = SecretFileName::from_str(name, &key, &parent_key)?;
         let file = file.sign(account)?;
         Ok(self.stage(Some(file)))
     }

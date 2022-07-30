@@ -77,7 +77,7 @@ fn validate(core: &Core) -> Result<(), CliError> {
             TestRepoError::FileNameContainsSlash(id) => {
                 CliError::file_name_has_slash(core.get_path_by_id(id)?)
             }
-            TestRepoError::NameConflictDetected(id) => {
+            TestRepoError::PathConflict(id) => {
                 CliError::name_conflict_detected(core.get_path_by_id(id)?)
             }
             TestRepoError::DocumentReadError(id, err) => {

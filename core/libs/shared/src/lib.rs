@@ -35,7 +35,7 @@ pub mod compression_service;
 
 type SharedResult<T> = Result<T, SharedError>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum SharedError {
     PathContainsEmptyFileName,
     PathTaken,

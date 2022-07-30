@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::io::ErrorKind;
 
@@ -863,13 +864,13 @@ pub enum TestRepoError {
     NoRootFolder,
     DocumentTreatedAsFolder(Uuid),
     FileOrphaned(Uuid),
-    CycleDetected(Uuid),
+    CycleDetected(HashSet<Uuid>),
     FileNameEmpty(Uuid),
     FileNameContainsSlash(Uuid),
-    NameConflictDetected(Uuid),
+    PathConflict(HashSet<Uuid>),
     DocumentReadError(Uuid, CoreError),
-    // Tree(TreeError),
     Core(CoreError),
+    Shared(SharedError),
 }
 
 impl From<CoreError> for TestRepoError {

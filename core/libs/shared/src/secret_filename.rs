@@ -18,12 +18,12 @@ pub struct SecretFileName {
 }
 
 impl SecretFileName {
-    pub fn from_str(to_encrypt: &str, key: &AESKey) -> SharedResult<Self> {
+    pub fn from_str(to_encrypt: &str, key: &AESKey, parent_key: &AESKey) -> SharedResult<Self> {
         let serialized = bincode::serialize(to_encrypt)?;
 
         let hmac = {
             let mut mac =
-                HmacSha256::new_from_slice(key).map_err(SharedError::HmacCreationError)?;
+                HmacSha256::new_from_slice(parent_key).map_err(SharedError::HmacCreationError)?;
             mac.update(serialized.as_ref());
             mac.finalize().into_bytes()
         }

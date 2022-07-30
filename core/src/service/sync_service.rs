@@ -445,16 +445,18 @@ where
                 let remote_change = remote_changes.find(&id)?;
                 // 3-way merge
                 if let Some(base_file) = base.maybe_find(&id) {
+                    let parent = *three_way_merge(
+                        base_file.parent(),
+                        remote_change.parent(),
+                        local_change.parent(),
+                        remote_change.parent(),
+                    );
+
                     merge.insert(
                         FileMetadata {
                             id,
                             file_type: base_file.file_type(),
-                            parent: *three_way_merge(
-                                base_file.parent(),
-                                remote_change.parent(),
-                                local_change.parent(),
-                                remote_change.parent(),
-                            ),
+                            parent,
                             name: SecretFileName::from_str(
                                 three_way_merge(
                                     &base.name(&id, account)?,
@@ -463,6 +465,7 @@ where
                                     &remote.name(&id, account)?,
                                 ),
                                 &merge.decrypt_key(&id, account)?,
+                                &merge.decrypt_key(&parent, account)?,
                             )?,
                             owner: base_file.owner(),
                             is_deleted: remote.calculate_deleted(&id)?
@@ -484,6 +487,7 @@ where
                             name: SecretFileName::from_str(
                                 &remote.name(&id, account)?,
                                 &merge.decrypt_key(&id, account)?,
+                                &merge.decrypt_key(remote_change.parent(), account)?,
                             )?,
                             owner: remote_change.owner(),
                             is_deleted: remote.calculate_deleted(&id)?
