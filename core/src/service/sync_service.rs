@@ -16,6 +16,7 @@ use lockbook_shared::file_metadata::FileMetadata;
 use lockbook_shared::filename::DocumentType;
 use lockbook_shared::filename::NameComponents;
 use lockbook_shared::lazy::LazyTree;
+use lockbook_shared::secret_filename::SecretFileName;
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::tree_like::Stagable;
 use lockbook_shared::tree_like::TreeLike;
@@ -92,36 +93,25 @@ fn should_pull_document(
     }
 }
 
-pub fn merge_metadata(base: &SignedFile, local: &SignedFile, remote: &SignedFile) -> FileMetadata {
-    // todo: use of secret name assumes name hmac'd using self key
-    let local_renamed = local.secret_name() != base.secret_name();
-    let remote_renamed = remote.secret_name() != base.secret_name();
-    let decrypted_name = match (local_renamed, remote_renamed) {
-        (false, false) => base.secret_name(),
-        (true, false) => local.secret_name(),
-        (false, true) => remote.secret_name(),
-        (true, true) => remote.secret_name(), // resolve rename conflicts in favor of remote
-    };
-
-    let local_moved = local.parent() != base.parent();
-    let remote_moved = remote.parent() != base.parent();
-    let parent = match (local_moved, remote_moved) {
-        (false, false) => base.parent(),
-        (true, false) => local.parent(),
-        (false, true) => remote.parent(),
-        (true, true) => remote.parent(), // resolve move conflicts in favor of remote
-    };
-
-    FileMetadata {
-        id: base.id,               // ids never change
-        file_type: base.file_type, // file types never change
-        parent,
-        decrypted_name,
-        owner: base.owner,                         // owners never change
-        metadata_version: remote.metadata_version, // resolve metadata version conflicts in favor of remote
-        content_version: remote.content_version, // resolve content version conflicts in favor of remote
-        deleted: base.deleted || local.deleted || remote.deleted, // resolve delete conflicts by deleting
-        decrypted_access_key: base.decrypted_access_key,          // access keys never change
+/// Returns the 3-way merge of any comparable value; returns `resolution` in the event of a conflict.
+///
+/// # Examples
+///
+/// ```
+/// let (base, local, remote) = ("hello", "hello local", "hello remote");
+/// let result = merge(base, local, remote, remote);
+/// assert_eq!(result, "hello remote");
+/// ```
+pub fn three_way_merge<'a, T: Eq + ?Sized>(
+    base: &'a T, remote: &'a T, local: &'a T, resolution: &'a T,
+) -> &'a T {
+    let remote_changed = remote != base;
+    let local_changed = local != base;
+    match (remote_changed, local_changed) {
+        (false, false) => base,
+        (false, true) => local,
+        (true, false) => remote,
+        (true, true) => resolution,
     }
 }
 
@@ -446,16 +436,75 @@ where
     let base = base.to_lazy();
     let remote = base.stage(remote_changes);
     let local = remote.stage(local_changes);
-    let mut merged = local.stage(Vec::new());
+    let mut merge = local.stage(Vec::new());
 
-    // merge files on an individual basis (merged tree type)?
+    // merge files on an individual basis
+    {
+        for id in remote_changes.owned_ids() {
+            if let Some(local_change) = local_changes.maybe_find(&id) {
+                let remote_change = remote_changes.find(&id)?;
+                // 3-way merge
+                if let Some(base_file) = base.maybe_find(&id) {
+                    merge.insert(
+                        FileMetadata {
+                            id,
+                            file_type: base_file.file_type(),
+                            parent: *three_way_merge(
+                                base_file.parent(),
+                                remote_change.parent(),
+                                local_change.parent(),
+                                remote_change.parent(),
+                            ),
+                            name: SecretFileName::from_str(
+                                three_way_merge(
+                                    &base.name(&id, account)?,
+                                    &remote.name(&id, account)?,
+                                    &local.name(&id, account)?,
+                                    &remote.name(&id, account)?,
+                                ),
+                                &merge.decrypt_key(&id, account)?,
+                            )?,
+                            owner: base_file.owner(),
+                            is_deleted: remote.calculate_deleted(&id)?
+                                | local_change.explicitly_deleted(),
+                            document_hmac: None,
+                            user_access_keys: base_file.user_access_keys().clone(),
+                            folder_access_keys: base_file.folder_access_keys().clone(),
+                        }
+                        .sign(account)?,
+                    );
+                }
+                // 2-way merge
+                else {
+                    merge.insert(
+                        FileMetadata {
+                            id,
+                            file_type: remote_change.file_type(),
+                            parent: *remote_change.parent(),
+                            name: SecretFileName::from_str(
+                                &remote.name(&id, account)?,
+                                &merge.decrypt_key(&id, account)?,
+                            )?,
+                            owner: remote_change.owner(),
+                            is_deleted: remote.calculate_deleted(&id)?
+                                | local_change.explicitly_deleted(),
+                            document_hmac: None,
+                            user_access_keys: remote_change.user_access_keys().clone(),
+                            folder_access_keys: remote_change.folder_access_keys().clone(),
+                        }
+                        .sign(account)?,
+                    );
+                }
+            }
+        }
+    }
 
     // merge documents
     {
         for (id, remote_document_change) in remote_document_changes {
             // todo: use merged document type
             let local_document_type =
-                DocumentType::from_file_name_using_extension(&merged.name(id, account)?);
+                DocumentType::from_file_name_using_extension(&merge.name(id, account)?);
             match (local_document_changes.get(id), local_document_type) {
                 // no local changes -> no merge
                 (None, _) => {}
@@ -479,9 +528,9 @@ where
                         Err(with_conflicts) => with_conflicts,
                     };
                     let (new_merged, encrypted_document) =
-                        merged.update_document(id, &merged_document, account)?;
+                        merge.update_document(id, &merged_document, account)?;
                     merge_document_changes.insert(id, encrypted_document);
-                    merged = new_merged;
+                    merge = new_merged;
                 }
                 // non-text files always duplicated
                 (Some(local_document_change), DocumentType::Drawing | DocumentType::Other) => {
@@ -489,16 +538,16 @@ where
                     let decrypted_remote_document =
                         remote.decrypt_document(id, remote_document_change, account)?;
                     let (new_merged, encrypted_document) =
-                        merged.update_document(id, &decrypted_remote_document, account)?;
+                        merge.update_document(id, &decrypted_remote_document, account)?;
                     merge_document_changes.insert(id, encrypted_document);
 
                     // create copied document (todo: avoid decrypting and re-encrypting document)
                     let decrypted_local_document =
                         local.decrypt_document(id, remote_document_change, account)?;
-                    let existing_document = merged.find(id)?;
+                    let existing_document = merge.find(id)?;
                     let (new_merged, copied_document_id) = new_merged.create(
                         existing_document.parent(),
-                        &merged.name(id, account)?,
+                        &merge.name(id, account)?,
                         existing_document.file_type(),
                         account,
                         &account.public_key(),
@@ -509,7 +558,7 @@ where
                         account,
                     )?;
 
-                    merged = new_merged;
+                    merge = new_merged;
                 }
             }
         }
