@@ -49,13 +49,17 @@ impl SecretFileName {
             .decrypt(nonce, aead::Payload { msg: &self.encrypted_value.value, aad: &[] })
             .map_err(SharedError::Decryption)?;
         let deserialized = bincode::deserialize(&decrypted)?;
+        Ok(deserialized)
+    }
 
-        let mut mac = HmacSha256::new_from_slice(key).map_err(SharedError::HmacCreationError)?;
+    pub fn verify_hmac(&self, key: &AESKey, parent_key: &AESKey) -> SharedResult<()> {
+        let decrypted = self.to_string(key)?;
+        let mut mac =
+            HmacSha256::new_from_slice(parent_key).map_err(SharedError::HmacCreationError)?;
         mac.update(decrypted.as_ref());
         mac.verify(&self.hmac)
             .map_err(SharedError::HmacValidationError)?;
-
-        Ok(deserialized)
+        Ok(())
     }
 }
 
@@ -75,9 +79,8 @@ impl Hash for SecretFileName {
 
 #[cfg(test)]
 mod unit_tests {
-    use uuid::Uuid;
-
     use crate::{secret_filename::SecretFileName, symkey::generate_key};
+    use uuid::Uuid;
 
     #[test]
     fn test_to_string_from_string() {
@@ -101,7 +104,7 @@ mod unit_tests {
         secret.hmac[12] = !secret.hmac[12];
         secret.hmac[13] = !secret.hmac[13];
         secret.hmac[14] = !secret.hmac[14];
-        secret.to_string(&key).unwrap_err();
+        secret.verify_hmac(&key, &parent_key).unwrap_err();
     }
 
     #[test]
@@ -116,6 +119,6 @@ mod unit_tests {
 
         secret2.encrypted_value = secret1.encrypted_value;
 
-        secret2.to_string(&key).unwrap_err();
+        secret2.verify_hmac(&key, &parent_key).unwrap_err();
     }
 }

@@ -1,6 +1,5 @@
 use crate::account::Account;
 use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
-use crate::file::File;
 use crate::file_like::FileLike;
 use crate::file_metadata::FileMetadata;
 use crate::filename::NameComponents;

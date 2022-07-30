@@ -2279,6 +2279,7 @@ dependencies = [
  "serde",
  "serde_bytes",
  "sha2 0.9.9",
+ "test_utils",
  "tracing",
  "uuid",
 ]

@@ -11,7 +11,6 @@ use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::lazy::LazyTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
-use lockbook_shared::utils;
 use sha2::Digest;
 use sha2::Sha256;
 use std::collections::{HashMap, HashSet};

@@ -55,3 +55,37 @@ impl TreeLike for Option<SignedFile> {
 }
 
 impl Stagable for Option<SignedFile> {}
+
+#[cfg(test)]
+mod unit_tests {
+    use crate::account::Account;
+    use crate::file_metadata::FileMetadata;
+    use crate::tree_like::TreeLike;
+    use crate::SharedResult;
+    use test_utils::*;
+    use uuid::Uuid;
+
+    #[test]
+    fn tree_test() -> SharedResult<()> {
+        let account = &Account::new(random_name(), url());
+        let file1 = FileMetadata::create_root(account)?;
+        let file2 = FileMetadata::create_root(account)?;
+        let file3 = FileMetadata::create_root(account)?;
+
+        let mut files = vec![file1.clone(), file2.clone(), file3.clone()];
+
+        files.find(&file1.id)?;
+        files.find(&file2.id)?;
+        files.find(&file3.id)?;
+
+        assert!(files.maybe_find(&Uuid::new_v4()).is_none());
+
+        assert_eq!(files.ids().len(), 3);
+
+        TreeLike::remove(&mut files, file2.id).unwrap();
+
+        assert_eq!(files.ids().len(), 2);
+
+        Ok(())
+    }
+}
