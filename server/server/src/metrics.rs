@@ -53,7 +53,7 @@ lazy_static! {
 }
 
 const STRIPE_LABEL_NAME: &str = "stripe";
-const GOOGLE_PLAY_LABEL_NAME: &str = "stripe";
+const GOOGLE_PLAY_LABEL_NAME: &str = "google-play";
 
 #[derive(Debug)]
 pub enum MetricsError {}
@@ -114,7 +114,7 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
                 .with_label_values(&[&username])
                 .set(user_total_bytes);
 
-            tokio::time::sleep(state.config.metrics.time_between_user_metrics_calculations).await;
+            tokio::time::sleep(state.config.metrics.time_between_metrics).await;
         }
 
         METRICS_STATISTICS.total_documents.set(total_documents);
