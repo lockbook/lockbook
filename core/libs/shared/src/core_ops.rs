@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::account::Account;
-use crate::crypto::{DecryptedDocument, EncryptedDocument};
+use crate::crypto::EncryptedDocument;
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileMetadata, FileType};
 use crate::lazy::{LazyStaged1, LazyTree, Stage1};
@@ -124,6 +124,7 @@ where
         Ok(self.stage(Some(file)))
     }
 
+    // todo: validate, split out non-validating version (stage_update_document)
     pub fn update_document(
         mut self, id: &Uuid, document: &[u8], account: &Account,
     ) -> SharedResult<(Self, EncryptedDocument)> {
