@@ -22,7 +22,7 @@ pub use crate::model::errors::*;
 // pub use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
 // pub use crate::service::path_service::Filter;
 // pub use crate::service::sync_service::{SyncProgress, WorkCalculated};
-// pub use crate::service::usage_service::{bytes_to_human, UsageItemMetric, UsageMetrics};
+pub use crate::service::usage_service::{bytes_to_human, UsageItemMetric, UsageMetrics};
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -317,21 +317,21 @@ impl Core {
     //             "never".to_string()
     //         })
     //     }
-    //
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn get_usage(&self) -> Result<UsageMetrics, Error<GetUsageError>> {
-    //         let val = self.db.transaction(|tx| self.context(tx)?.get_usage())?;
-    //         Ok(val?)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn get_uncompressed_usage(&self) -> Result<UsageItemMetric, Error<GetUsageError>> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.get_uncompressed_usage(&self.config))?;
-    //         Ok(val?)
-    //     }
-    //
+
+        #[instrument(level = "debug", skip(self), err(Debug))]
+        pub fn get_usage(&self) -> Result<UsageMetrics, Error<GetUsageError>> {
+            let val = self.db.transaction(|tx| self.context(tx)?.get_usage())?;
+            Ok(val?)
+        }
+
+        #[instrument(level = "debug", skip(self), err(Debug))]
+        pub fn get_uncompressed_usage(&self) -> Result<UsageItemMetric, Error<GetUsageError>> {
+            let val = self
+                .db
+                .transaction(|tx| self.context(tx)?.get_uncompressed_usage())?;
+            Ok(val?)
+        }
+
     //     #[instrument(level = "debug", skip(self), err(Debug))]
     //     pub fn get_drawing(&self, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
     //         let val = self
