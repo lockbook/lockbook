@@ -1,13 +1,15 @@
 use std::collections::HashSet;
 
 use crate::account::Account;
+use crate::crypto::{DecryptedDocument, EncryptedDocument};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileMetadata, FileType};
 use crate::lazy::{LazyStaged1, LazyTree};
-use crate::secret_filename::SecretFileName;
+use crate::secret_filename::{HmacSha256, SecretFileName};
 use crate::signed_file::SignedFile;
 use crate::tree_like::{Stagable, TreeLike};
 use crate::{symkey, validate, SharedError, SharedResult};
+use hmac::{Mac, NewMac};
 use libsecp256k1::PublicKey;
 use uuid::Uuid;
 
@@ -94,6 +96,30 @@ where
         tree.validate()?;
         let tree = tree.promote_to_local();
         Ok(tree)
+    }
+
+    pub fn update_document(
+        mut self, id: &Uuid, document: &DecryptedDocument, account: &Account,
+    ) -> SharedResult<(Self, EncryptedDocument)> {
+        let mut file: FileMetadata = self.find(id)?.timestamped_value.value.clone();
+        validate::not_root(&file)?;
+        validate::is_document(&file)?;
+
+        let key = self.decrypt_key(id, account)?;
+        let hmac = {
+            let mut mac =
+                HmacSha256::new_from_slice(&key).map_err(SharedError::HmacCreationError)?;
+            mac.update(document);
+            mac.finalize().into_bytes()
+        }
+        .into();
+
+        file.document_hmac = Some(hmac);
+        let file = file.sign(account)?;
+
+        let encrypted_doc = self.encrypt_document(id, document, account)?;
+
+        Ok((self.stage(Some(file)).promote(), encrypted_doc))
     }
 
     /// Removes deleted files which are safe to delete. Call this function after a set of operations rather than in-between

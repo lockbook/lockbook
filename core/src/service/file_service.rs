@@ -1,9 +1,9 @@
 use crate::model::repo::RepoSource;
 use crate::repo::document_repo;
-use crate::service::compression_service;
 use crate::CoreError::RootNonexistent;
 use crate::{Config, CoreError, OneKey, RequestContext};
 use itertools::Itertools;
+use lockbook_shared::compression_service;
 use lockbook_shared::crypto::DecryptedDocument;
 use lockbook_shared::crypto::EncryptedDocument;
 use lockbook_shared::file::File;

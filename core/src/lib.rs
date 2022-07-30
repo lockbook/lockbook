@@ -144,19 +144,18 @@ impl Core {
         Ok(val?)
     }
 
-    //     #[instrument(level = "debug", skip(self, content), err(Debug))]
-    //     pub fn write_document(
-    //         &self, id: Uuid, content: &[u8],
-    //     ) -> Result<(), Error<WriteToDocumentError>> {
-    //         let val: Result<_, CoreError> = self.db.transaction(|tx| {
-    //             let mut ctx = self.context(tx)?;
-    //             let mut all = ctx.get_tree();
-    //             ctx.insert_document(&mut all, RepoSource::Local, id, content)?;
-    //             Ok(())
-    //         })?;
-    //         Ok(val?)
-    //     }
-    //
+    #[instrument(level = "debug", skip(self, content), err(Debug))]
+    pub fn write_document(
+        &self, id: Uuid, content: &[u8],
+    ) -> Result<(), Error<WriteToDocumentError>> {
+        let val: Result<_, CoreError> = self.db.transaction(|tx| {
+            let mut ctx = self.context(tx)?;
+            ctx.write_document(id, content)?;
+            Ok(())
+        })?;
+        Ok(val?)
+    }
+
     //     #[instrument(level = "debug", skip_all, err(Debug))]
     //     pub fn get_root(&self) -> Result<CoreFile, Error<GetRootError>> {
     //         let val = self.db.transaction(|tx| self.context(tx)?.root())?;
@@ -466,8 +465,6 @@ impl Core {
 pub fn get_code_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
-
-pub type CoreResult<T> = Result<T, CoreError>;
 
 // This basically generates a function called `get_all_error_variants`,
 // which will produce a big json dict of { "Error": ["Values"] }.

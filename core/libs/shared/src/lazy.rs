@@ -7,7 +7,7 @@ use crate::filename::NameComponents;
 use crate::secret_filename::SecretFileName;
 use crate::staged::StagedTree;
 use crate::tree_like::{Stagable, TreeLike};
-use crate::{pubkey, symkey, SharedError, SharedResult};
+use crate::{compression_service, pubkey, symkey, SharedError, SharedResult};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
@@ -192,15 +192,17 @@ impl<T: Stagable> LazyTree<T> {
     pub fn encrypt_document(
         &mut self, id: &Uuid, document: &DecryptedDocument, account: &Account,
     ) -> SharedResult<EncryptedDocument> {
+        let document = compression_service::compress(document)?;
         let key = self.decrypt_key(id, account)?;
-        symkey::encrypt(&key, document)
+        symkey::encrypt(&key, &document)
     }
 
     pub fn decrypt_document(
         &mut self, id: &Uuid, encrypted: &EncryptedDocument, account: &Account,
     ) -> SharedResult<DecryptedDocument> {
         let key = self.decrypt_key(id, account)?;
-        symkey::decrypt(&key, encrypted)
+        let compressed = symkey::decrypt(&key, encrypted)?;
+        compression_service::decompress(&compressed)
     }
 
     pub fn finalize(&mut self, id: &Uuid, account: &Account) -> SharedResult<File> {

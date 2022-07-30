@@ -1,4 +1,4 @@
-use lockbook_core::service::compression_service;
+use lockbook_shared::compression_service;
 
 #[test]
 fn compress_decompress() {

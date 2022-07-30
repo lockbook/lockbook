@@ -30,6 +30,8 @@ pub mod tree_like;
 pub mod utils;
 pub mod validate;
 pub mod work_unit;
+// pub mod drawing_service;
+pub mod compression_service;
 
 type SharedResult<T> = Result<T, SharedError>;
 
