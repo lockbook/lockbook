@@ -1,40 +1,28 @@
-use crate::model::filename::DocumentType;
 use crate::model::repo::RepoSource;
-use crate::model::repo::RepoState;
-use crate::pure_functions::files;
 use crate::repo::document_repo;
-use crate::repo::schema::helper_log::last_synced;
 use crate::repo::schema::OneKey;
-use crate::service::{api_service, file_encryption_service, file_service};
+use crate::service::{api_service, file_service};
 use crate::CoreResult;
 use crate::{Config, CoreError, RequestContext};
 use lockbook_shared::account::Account;
-use lockbook_shared::api::{
-    ChangeDocumentContentRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,
-};
+use lockbook_shared::api::{FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest};
 use lockbook_shared::clock::get_time;
+use lockbook_shared::compression_service;
 use lockbook_shared::crypto::DecryptedDocument;
 use lockbook_shared::crypto::EncryptedDocument;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::DocumentHmac;
 use lockbook_shared::file_metadata::FileMetadata;
-use lockbook_shared::file_metadata::{CoreFile, DecryptedFiles, EncryptedFiles, FileType};
 use lockbook_shared::filename::DocumentType;
 use lockbook_shared::filename::NameComponents;
+use lockbook_shared::lazy::LazyTree;
 use lockbook_shared::signed_file::SignedFile;
-use lockbook_shared::tree::{FileLike, FileMetaMapExt};
 use lockbook_shared::tree_like::Stagable;
 use lockbook_shared::tree_like::TreeLike;
-use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
-use lockbook_shared::SharedError;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fmt;
 use uuid::Uuid;
-
-use super::compression_service;
-use super::document_service;
-use super::file_compression_service;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct WorkCalculated {
@@ -210,7 +198,7 @@ impl RequestContext<'_, '_> {
 
         // track work
         {
-            let base = base.to_lazy();
+            let base = self.tx.base_metadata.to_lazy();
             let mut num_documents_to_pull = 0;
             for id in remote_changes.owned_ids() {
                 let maybe_base_hmac = base.maybe_find(&id).map(|f| f.document_hmac()).flatten();
@@ -231,11 +219,12 @@ impl RequestContext<'_, '_> {
                 if let Some(remote_document_change) =
                     get_document(account, &mut self.tx.base_metadata, remote_changes, id)?
                 {
-                    base_documents
-                        .insert(id, document_repo::maybe_get(config, RepoSource::Base, &id)?);
+                    // todo: update progress
+                    document_repo::maybe_get(config, RepoSource::Base, &id)?
+                        .map(|d| base_documents.insert(id, d));
                     remote_document_changes.insert(id, remote_document_change);
-                    local_document_changes
-                        .insert(id, document_repo::maybe_get(config, RepoSource::Local, &id)?);
+                    document_repo::maybe_get(config, RepoSource::Local, &id)?
+                        .map(|d| local_document_changes.insert(id, d));
                 }
             }
         };
@@ -249,7 +238,6 @@ impl RequestContext<'_, '_> {
             &base_documents,
             &remote_document_changes,
             &local_document_changes,
-            update_sync_progress,
         )?;
 
         // promote
@@ -442,25 +430,25 @@ pub fn suggest_non_conflicting_filename(
     }
 }
 
-// todo: tree is invalid while building merged changes, but tree functions call validate
-fn get_merge_changes<Base, Remote, Local, F>(
+/// Returns changeset `Merge` such that `Stage<Stage<Stage<Base, Remote>, Local>, Merge>` is a valid tree
+fn get_merge_changes<Base, Remote, Local>(
     account: &Account, base: Base, remote_changes: Remote, local_changes: Local,
-    base_documents: &HashMap<Uuid, DecryptedDocument>,
-    local_document_changes: &HashMap<Uuid, DecryptedDocument>,
-    remote_document_changes: &HashMap<Uuid, DecryptedDocument>, update_sync_progress: &mut F,
-) -> Result<(HashMap<Uuid, SignedFile>, HashMap<Uuid, EncryptedDocument>), CoreError>
+    base_documents: &HashMap<Uuid, EncryptedDocument>,
+    local_document_changes: &HashMap<Uuid, EncryptedDocument>,
+    remote_document_changes: &HashMap<Uuid, EncryptedDocument>,
+) -> Result<(Vec<SignedFile>, HashMap<Uuid, EncryptedDocument>), CoreError>
 where
     Base: Stagable<F = SignedFile>,
     Remote: Stagable<F = SignedFile>,
     Local: Stagable<F = SignedFile>,
-    F: FnMut(SyncProgressOperation),
 {
     let mut merge_document_changes = HashMap::new();
-    let mut merged = base
-        .stage(remote_changes)
-        .stage(local_changes)
-        .stage(Vec::new())
-        .to_lazy();
+    let base = base.to_lazy();
+    let remote = base.stage(remote_changes);
+    let local = remote.stage(local_changes);
+    let mut merged = local.stage(Vec::new());
+
+    // merge files on an individual basis (merged tree type)?
 
     // merge documents
     {
@@ -473,11 +461,19 @@ where
                 (None, _) => {}
                 // text files always merged
                 (Some(local_document_change), DocumentType::Text) => {
-                    let base_document_change = base_documents.get(id).unwrap_or(&Vec::new());
+                    let decrypted_base_document = base_documents
+                        .get(id)
+                        .map(|document| base.decrypt_document(id, document, account))
+                        .map_or(Ok(None), |v| v.map(Some))?
+                        .unwrap_or_default();
+                    let decrypted_remote_document =
+                        remote.decrypt_document(id, remote_document_change, account)?;
+                    let decrypted_local_document =
+                        local.decrypt_document(id, remote_document_change, account)?;
                     let merged_document = match diffy::merge_bytes(
-                        base_document_change,
-                        remote_document_change,
-                        local_document_change,
+                        &decrypted_base_document,
+                        &decrypted_remote_document,
+                        &decrypted_local_document,
                     ) {
                         Ok(without_conflicts) => without_conflicts,
                         Err(with_conflicts) => with_conflicts,
@@ -489,23 +485,27 @@ where
                 }
                 // non-text files always duplicated
                 (Some(local_document_change), DocumentType::Drawing | DocumentType::Other) => {
-                    // overwrite existing document
+                    // overwrite existing document (todo: avoid decrypting and re-encrypting document)
+                    let decrypted_remote_document =
+                        remote.decrypt_document(id, remote_document_change, account)?;
                     let (new_merged, encrypted_document) =
-                        merged.update_document(id, remote_document_change, account)?;
+                        merged.update_document(id, &decrypted_remote_document, account)?;
                     merge_document_changes.insert(id, encrypted_document);
 
-                    // create copied document
+                    // create copied document (todo: avoid decrypting and re-encrypting document)
+                    let decrypted_local_document =
+                        local.decrypt_document(id, remote_document_change, account)?;
                     let existing_document = merged.find(id)?;
-                    let (new_merged, copied_document_id) = merged.create(
+                    let (new_merged, copied_document_id) = new_merged.create(
                         existing_document.parent(),
                         &merged.name(id, account)?,
                         existing_document.file_type(),
                         account,
                         &account.public_key(),
                     )?;
-                    let (new_merged, encrypted_document) = merged.update_document(
+                    let (new_merged, encrypted_document) = new_merged.update_document(
                         &copied_document_id,
-                        local_document_change,
+                        &decrypted_local_document,
                         account,
                     )?;
 
@@ -514,9 +514,6 @@ where
             }
         }
     }
-
-    // merge files on an individual basis (merged tree type)?
-    
 
     // merge file trees
     let x = {
@@ -534,7 +531,7 @@ where
 
 fn get_document<Base, Remote>(
     account: &Account, base: Base, remote_changes: Remote, id: Uuid,
-) -> CoreResult<Option<DecryptedDocument>>
+) -> CoreResult<Option<EncryptedDocument>>
 where
     Base: Stagable<F = SignedFile>,
     Remote: Stagable<F = SignedFile>,
@@ -542,10 +539,7 @@ where
     let remote = base.stage(remote_changes).to_lazy();
     let maybe_hmac = remote.find(&id)?.document_hmac();
     Ok(if let Some(hmac) = maybe_hmac {
-        let request = GetDocumentRequest { id, hmac: hmac.clone() };
-        let encrypted_document = api_service::request(account, request)?.content;
-        let compressed_document = remote.decrypt_document(&id, &encrypted_document, account)?;
-        Some(compression_service::decompress(&compressed_document)?)
+        Some(api_service::request(account, GetDocumentRequest { id, hmac: hmac.clone() })?.content)
     } else {
         None
     })
