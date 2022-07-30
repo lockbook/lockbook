@@ -1,5 +1,6 @@
 use crate::billing::billing_service::LockBillingWorkflowError;
 use crate::billing::google_play_client::SimpleGCPError;
+use crate::metrics::MetricsError;
 use crate::ServerError::InternalError;
 use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
@@ -185,6 +186,12 @@ impl From<SharedError> for ServerError<FileMetadataUpsertsError> {
 }
 
 impl From<SharedError> for ServerError<ChangeDocError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+
+impl From<SharedError> for ServerError<MetricsError> {
     fn from(err: SharedError) -> Self {
         internal!("{:?}", err)
     }
