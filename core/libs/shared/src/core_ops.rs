@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::account::Account;
-use crate::crypto::{DecryptedDocument, EncryptedDocument};
+use crate::crypto::EncryptedDocument;
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileMetadata, FileType};
 use crate::lazy::{LazyStaged1, LazyTree, Stage1};
@@ -25,8 +25,10 @@ where
         self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
         pub_key: &PublicKey,
     ) -> SharedResult<(Self, Uuid)> {
-        let (tree, id) = self.stage_create(parent, name, file_type, account, pub_key)?;
-        Ok((tree.promote_to_local(), id))
+        let (mut tree, id) = self.stage_create(parent, name, file_type, account, pub_key)?;
+        tree.validate()?;
+        let tree = tree.promote_to_local();
+        Ok((tree, id))
     }
 
     pub fn stage_create(
@@ -122,6 +124,7 @@ where
         Ok(self.stage(Some(file)))
     }
 
+    // todo: validate, split out non-validating version (stage_update_document)
     pub fn update_document(
         mut self, id: &Uuid, document: &[u8], account: &Account,
     ) -> SharedResult<(Self, EncryptedDocument)> {
