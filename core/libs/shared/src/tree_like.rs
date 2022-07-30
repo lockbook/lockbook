@@ -132,7 +132,7 @@ mod unit_tests {
     }
 
     #[test]
-    fn test_stage() -> SharedResult<()> {
+    fn test_stage_insert_reset() -> SharedResult<()> {
         let account = &Account::new(random_name(), url());
         let file1 = FileMetadata::create_root(account)?;
         let mut file2 = FileMetadata::create_root(account)?;
@@ -142,9 +142,39 @@ mod unit_tests {
 
         let id = Uuid::new_v4();
         file2.parent = id;
-        let files = files.stage(Some(file2.clone()));
+        let mut files = files.stage(Some(file2.clone()));
 
         assert_eq!(files.find(file2.id())?.parent(), &id);
+        assert_eq!(files.base.find(file2.id())?.parent(), file2.id());
+        assert_eq!(files.ids().len(), 3);
+
+        // Now reset the file
+
+        file2.parent = file2.id;
+        files.insert(file2.clone());
+        assert_eq!(files.find(file2.id())?.parent(), file2.id());
+        assert_eq!(files.base.find(file2.id())?.parent(), file2.id());
+        assert!(files.staged.maybe_find(file2.id()).is_none());
+        assert_eq!(files.ids().len(), 3);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_stage_reset() -> SharedResult<()> {
+        let account = &Account::new(random_name(), url());
+        let file1 = FileMetadata::create_root(account)?;
+        let file2 = FileMetadata::create_root(account)?;
+        let file3 = FileMetadata::create_root(account)?;
+
+        let mut files = vec![file1.clone(), file2.clone(), file3.clone()];
+
+        let mut files = files.stage(Some(file2.clone()));
+
+        assert_eq!(files.find(file2.id())?.parent(), file2.id());
+        assert_eq!(files.base.find(file2.id())?.parent(), file2.id());
+        assert!(files.staged.maybe_find(file2.id()).is_none());
+
         assert_eq!(files.ids().len(), 3);
 
         Ok(())

@@ -208,7 +208,7 @@ impl<T: Stagable> LazyTree<T> {
             name: HashMap::new(),
             key: self.key,
             implicit_deleted: HashMap::new(),
-            tree: StagedTree::<T, T2> { base: self.tree, staged },
+            tree: StagedTree::new(self.tree, staged),
             children: HashMap::new(),
         }
     }

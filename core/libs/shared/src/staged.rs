@@ -13,7 +13,21 @@ where
 }
 
 impl<Base: Stagable, Staged: Stagable<F = Base::F>> StagedTree<Base, Staged> {
-    pub fn new(base: Base, staged: Staged) -> Self {
+    pub fn new(base: Base, mut staged: Staged) -> Self {
+        let mut prunable = vec![];
+        for id in staged.ids() {
+            if let Some(staged) = staged.maybe_find(id) {
+                if let Some(base) = base.maybe_find(id) {
+                    if staged == base {
+                        prunable.push(*id);
+                    }
+                }
+            }
+        }
+
+        for id in prunable {
+            staged.remove(id);
+        }
         Self { base, staged }
     }
 }
