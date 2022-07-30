@@ -1,7 +1,5 @@
 use crate::file_like::FileLike;
 use crate::lazy::LazyTree;
-use crate::server_file::ServerFile;
-use crate::signed_file::SignedFile;
 use crate::staged::StagedTree;
 use crate::{SharedError, SharedResult};
 use std::collections::HashSet;
