@@ -97,17 +97,12 @@ where
     }
 }
 
-impl<'a> From<&'a ServerFile> for &'a SignedFile {
-    fn from(f: &'a ServerFile) -> Self {
-        &f.file
-    }
-}
-
 #[cfg(test)]
 mod unit_tests {
     use crate::account::Account;
+    use crate::file_like::FileLike;
     use crate::file_metadata::FileMetadata;
-    use crate::tree_like::TreeLike;
+    use crate::tree_like::{Stagable, TreeLike};
     use crate::SharedResult;
     use test_utils::*;
     use uuid::Uuid;
@@ -140,6 +135,20 @@ mod unit_tests {
 
     #[test]
     fn test_stage() -> SharedResult<()> {
-        todo!()
+        let account = &Account::new(random_name(), url());
+        let file1 = FileMetadata::create_root(account)?;
+        let mut file2 = FileMetadata::create_root(account)?;
+        let file3 = FileMetadata::create_root(account)?;
+
+        let mut files = vec![file1.clone(), file2.clone(), file3.clone()];
+
+        let id = Uuid::new_v4();
+        file2.parent = id;
+        let files = files.stage(Some(file2.clone()));
+
+        assert_eq!(files.find(file2.id())?.parent(), &id);
+        assert_eq!(files.ids().len(), 3);
+
+        Ok(())
     }
 }
