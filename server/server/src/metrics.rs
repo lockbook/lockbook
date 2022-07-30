@@ -1,22 +1,26 @@
-use crate::{ServerError, ServerState};
+use crate::{ServerError, ServerState, ServerV1};
 use lazy_static::lazy_static;
 
-use lockbook_shared::api::FileUsage;
+use hmdb::transaction::Transaction;
 use lockbook_shared::clock::get_time;
 use prometheus::{register_int_gauge_vec, IntGaugeVec};
 use prometheus_static_metric::make_static_metric;
-use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use tracing::*;
-
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::server_file::ServerFile;
 use uuid::Uuid;
+
+use crate::billing::billing_model::BillingPlatform;
+use crate::transaction::ServerV1 as TransactionalServerV1;
+use lockbook_shared::file_like::FileLike;
+use lockbook_shared::file_metadata::Owner;
+use lockbook_shared::server_tree::ServerTree;
+use lockbook_shared::tree_like::{Stagable, TreeLike};
 
 make_static_metric! {
     pub struct MetricsStatistics: IntGauge {
         "type" => {
             total_users,
+            premium_users,
             active_users,
             total_documents,
             total_document_bytes,
@@ -39,7 +43,17 @@ lazy_static! {
         &["username"]
     )
     .unwrap();
+    pub static ref METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC: IntGaugeVec =
+        register_int_gauge_vec!(
+            "lockbook_premium_users_by_payment_platform",
+            "Lockbook's total number of premium users by payment platform.",
+            &["platform"]
+        )
+        .unwrap();
 }
+
+const STRIPE_LABEL_NAME: &str = "stripe";
+const GOOGLE_PLAY_LABEL_NAME: &str = "stripe";
 
 #[derive(Debug)]
 pub enum MetricsError {}
@@ -71,88 +85,117 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
         let mut total_bytes = 0;
         let mut active_users = 0;
 
+        let mut premium_users = 0;
+        let mut premium_stripe_users = 0;
+        let mut premium_google_play_users = 0;
+
         for (username, owner) in public_keys_and_usernames {
-            let ids = state.index_db.owned_files.get(&owner)?.ok_or_else(|| {
-                internal!("Could not get owned files for public key during metrics {:?}", owner)
-            })?;
-            let (metadatas, is_user_active) =
-                get_metadatas_and_user_activity_state(&state, &ids).await?;
+            let maybe_billing_platform = get_user_billing_platform(&state.index_db, &owner).await?;
+
+            if let Some(billing_platform) = maybe_billing_platform {
+                premium_users += 1;
+
+                match billing_platform {
+                    BillingPlatform::GooglePlay { .. } => premium_google_play_users += 1,
+                    BillingPlatform::Stripe { .. } => premium_stripe_users += 1,
+                }
+            }
+
+            let (user_total_documents, user_total_bytes, is_user_active) =
+                get_user_info(&state, owner).await?;
 
             if is_user_active {
                 active_users += 1;
             }
-
-            let bytes = calculate_total_document_bytes(&state, &metadatas).await?;
-
-            total_bytes += bytes;
-            total_documents += metadatas.len();
+            total_documents += user_total_documents;
+            total_bytes += user_total_bytes;
 
             METRICS_USAGE_BY_USER_VEC
                 .with_label_values(&[&username])
-                .set(bytes);
+                .set(user_total_bytes);
 
             tokio::time::sleep(state.config.metrics.time_between_redis_calls).await;
         }
 
-        METRICS_STATISTICS
-            .total_documents
-            .set(total_documents as i64);
+        METRICS_STATISTICS.total_documents.set(total_documents);
         METRICS_STATISTICS.active_users.set(active_users);
         METRICS_STATISTICS.total_document_bytes.set(total_bytes);
+        METRICS_STATISTICS.premium_users.set(premium_users);
+
+        METRICS_USAGE_BY_USER_VEC
+            .with_label_values(&[STRIPE_LABEL_NAME])
+            .set(premium_stripe_users);
+        METRICS_USAGE_BY_USER_VEC
+            .with_label_values(&[GOOGLE_PLAY_LABEL_NAME])
+            .set(premium_google_play_users);
 
         tokio::time::sleep(state.config.metrics.time_between_metrics_refresh).await;
     }
 }
 
-pub async fn get_metadatas_and_user_activity_state(
-    state: &ServerState, ids: &HashSet<Uuid>,
-) -> Result<(Vec<ServerFile>, bool), ServerError<MetricsError>> {
-    let mut metadatas = HashMap::new();
+pub async fn get_user_billing_platform(
+    db: &ServerV1, owner: &Owner,
+) -> Result<Option<BillingPlatform>, ServerError<MetricsError>> {
+    let account = db
+        .accounts
+        .get(owner)?
+        .ok_or_else(|| internal!("Could not get user's account during metrics {:?}", owner))?;
 
-    for id in ids {
-        let metadata = state
-            .index_db
-            .metas
-            .get(id)?
-            .ok_or_else(|| internal!("id missing during metrics lookup: {}", id))?;
-
-        metadatas.insert(id, metadata);
-
-        tokio::time::sleep(state.config.metrics.time_between_redis_calls).await;
-    }
-
-    let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
-
-    let is_user_active = metadatas
-        .values()
-        .any(|metadata| metadata.version > time_two_days_ago);
-
-    Ok((
-        metadatas
-            .into_iter()
-            .filter(|(_, file)| !file.file.explicitly_deleted())
-            .map(|(_, file)| file)
-            .collect(),
-        is_user_active,
-    ))
+    Ok(account.billing_info.billing_platform)
 }
 
-pub async fn calculate_total_document_bytes(
-    state: &ServerState, metadatas: &Vec<ServerFile>,
-) -> Result<i64, ServerError<MetricsError>> {
-    let mut total_size: u64 = 0;
+pub async fn get_user_info(
+    state: &ServerState, owner: Owner,
+) -> Result<(i64, i64, bool), ServerError<MetricsError>> {
+    let metadata_result: Result<(i64, i64, bool), ServerError<MetricsError>> =
+        state.index_db.transaction(|tx| {
+            let mut tree =
+                ServerTree { owner, owned: &mut tx.owned_files, metas: &mut tx.metas }.to_lazy();
 
-    for metadata in metadatas {
-        if metadata.is_document() && metadata.version != 0 {
-            let file_usage: FileUsage = match state.index_db.sizes.get(&metadata.id())? {
-                Some(size_bytes) => FileUsage { file_id: *metadata.id(), size_bytes },
-                None => continue,
-            };
+            let metadatas = tree.all_files()?;
+            let mut ids = Vec::new();
 
-            total_size += file_usage.size_bytes;
-            tokio::time::sleep(state.config.metrics.time_between_redis_calls).await;
+            let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
+            let is_user_active = metadatas
+                .iter()
+                .any(|metadata| metadata.version > time_two_days_ago);
+
+            for id in tree.owned_ids() {
+                if !tree.calculate_deleted(&id)? {
+                    ids.push(id);
+                }
+            }
+
+            let (total_documents, total_bytes) = get_bytes_and_documents_count(tx, owner, ids)?;
+
+            Ok((total_documents, total_bytes as i64, is_user_active))
+        })?;
+
+    let (total_documents, total_bytes, is_user_active) = metadata_result?;
+
+    Ok((total_documents, total_bytes, is_user_active))
+}
+
+fn get_bytes_and_documents_count(
+    db: &mut TransactionalServerV1, owner: Owner, ids: Vec<Uuid>,
+) -> Result<(i64, u64), ServerError<MetricsError>> {
+    let mut total_documents = 0;
+    let mut total_bytes = 0;
+
+    for id in ids {
+        let metadata = db.metas.get(&id).ok_or_else(|| {
+            internal!("Could not get file metadata during metrics for {:?}", owner)
+        })?;
+
+        if metadata.is_document() {
+            let usage = db.sizes.get(&id).ok_or_else(|| {
+                internal!("Could not get file usage during metrics for {:?}", owner)
+            })?;
+
+            total_bytes += usage;
+            total_documents += 1;
         }
     }
 
-    Ok(total_size as i64)
+    Ok((total_documents, total_bytes))
 }
