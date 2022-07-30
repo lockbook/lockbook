@@ -4,14 +4,17 @@ use crate::account::Account;
 use crate::crypto::{DecryptedDocument, EncryptedDocument};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileMetadata, FileType};
-use crate::lazy::{LazyStaged1, LazyTree};
+use crate::lazy::{LazyStaged1, LazyTree, Stage1};
 use crate::secret_filename::{HmacSha256, SecretFileName};
 use crate::signed_file::SignedFile;
+use crate::staged::StagedTree;
 use crate::tree_like::{Stagable, TreeLike};
-use crate::{symkey, validate, SharedError, SharedResult};
+use crate::{compression_service, symkey, validate, SharedError, SharedResult};
 use hmac::{Mac, NewMac};
 use libsecp256k1::PublicKey;
 use uuid::Uuid;
+
+pub type TreeWithOp<Base, Local> = LazyTree<StagedTree<Stage1<Base, Local>, Option<SignedFile>>>;
 
 impl<Base, Local> LazyStaged1<Base, Local>
 where
@@ -19,9 +22,17 @@ where
     Local: Stagable<F = Base::F>,
 {
     pub fn create(
+        self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
+        pub_key: &PublicKey,
+    ) -> SharedResult<(Self, Uuid)> {
+        let (tree, id) = self.stage_create(parent, name, file_type, account, pub_key)?;
+        Ok((tree.promote_to_local(), id))
+    }
+
+    pub fn stage_create(
         mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
         pub_key: &PublicKey,
-    ) -> SharedResult<(LazyStaged1<Base, Local>, Uuid)> {
+    ) -> SharedResult<(TreeWithOp<Base, Local>, Uuid)> {
         validate::file_name(name)?;
 
         if self.calculate_deleted(parent)? {
@@ -32,14 +43,19 @@ where
         let new_file =
             FileMetadata::create(pub_key, *parent, &parent_key, name, file_type)?.sign(account)?;
         let id = *new_file.id();
-        let mut staged = self.stage(Some(new_file));
-        staged.validate()?;
-        Ok((staged.promote_to_local(), id))
+        Ok((self.stage(Some(new_file)), id))
     }
 
-    pub fn rename(
+    pub fn rename(self, id: &Uuid, name: &str, account: &Account) -> SharedResult<Self> {
+        let mut tree = self.stage_rename(id, name, account)?;
+        tree.validate()?;
+        let tree = tree.promote_to_local();
+        Ok(tree)
+    }
+
+    pub fn stage_rename(
         mut self, id: &Uuid, name: &str, account: &Account,
-    ) -> SharedResult<LazyStaged1<Base, Local>> {
+    ) -> SharedResult<TreeWithOp<Base, Local>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
 
         validate::file_name(name)?;
@@ -52,15 +68,19 @@ where
         let parent_key = self.decrypt_key(file.parent(), account)?;
         file.name = SecretFileName::from_str(name, &parent_key)?;
         let file = file.sign(account)?;
-        let mut staged = self.stage(Some(file));
-        staged.validate()?;
-        let tree = staged.promote_to_local();
-        Ok(tree)
+        Ok(self.stage(Some(file)))
     }
 
-    pub fn move_file(
+    pub fn move_file(self, id: &Uuid, new_parent: &Uuid, account: &Account) -> SharedResult<Self> {
+        let mut tree = self.stage_move(id, new_parent, account)?;
+        tree.validate()?;
+
+        Ok(tree.promote_to_local())
+    }
+
+    pub fn stage_move(
         mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
-    ) -> SharedResult<LazyStaged1<Base, Local>> {
+    ) -> SharedResult<TreeWithOp<Base, Local>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
         let parent = self.find(new_parent)?;
 
@@ -81,25 +101,28 @@ where
         file.folder_access_keys = symkey::encrypt(&parent_key, &key)?;
         let file = file.sign(account)?;
 
-        let mut tree = self.stage(Some(file));
-        tree.validate()?;
-
-        Ok(tree.promote_to_local())
+        Ok(self.stage(Some(file)))
     }
 
     pub fn delete(self, id: &Uuid, account: &Account) -> SharedResult<LazyStaged1<Base, Local>> {
-        let mut file = self.find(id)?.timestamped_value.value.clone();
-        validate::not_root(&file)?;
-        file.is_deleted = true;
-        let file = file.sign(account)?;
-        let mut tree = self.stage(Some(file));
+        let mut tree = self.stage_delete(id, account)?;
         tree.validate()?;
         let tree = tree.promote_to_local();
         Ok(tree)
     }
 
+    pub fn stage_delete(
+        self, id: &Uuid, account: &Account,
+    ) -> SharedResult<TreeWithOp<Base, Local>> {
+        let mut file = self.find(id)?.timestamped_value.value.clone();
+        validate::not_root(&file)?;
+        file.is_deleted = true;
+        let file = file.sign(account)?;
+        Ok(self.stage(Some(file)))
+    }
+
     pub fn update_document(
-        mut self, id: &Uuid, document: &DecryptedDocument, account: &Account,
+        mut self, id: &Uuid, document: &[u8], account: &Account,
     ) -> SharedResult<(Self, EncryptedDocument)> {
         let mut file: FileMetadata = self.find(id)?.timestamped_value.value.clone();
         validate::not_root(&file)?;
@@ -117,9 +140,10 @@ where
         file.document_hmac = Some(hmac);
         let file = file.sign(account)?;
 
-        let encrypted_doc = self.encrypt_document(id, document, account)?;
+        let document = compression_service::compress(document)?;
+        let document = symkey::encrypt(&key, &document)?;
 
-        Ok((self.stage(Some(file)).promote(), encrypted_doc))
+        Ok((self.stage(Some(file)).promote(), document))
     }
 
     /// Removes deleted files which are safe to delete. Call this function after a set of operations rather than in-between
@@ -161,7 +185,10 @@ where
             (tree, deleted)
         };
 
-        let deleted_both = deleted_base.intersection(&deleted_staged).copied().collect();
+        let deleted_both = deleted_base
+            .intersection(&deleted_staged)
+            .copied()
+            .collect();
         let not_deleted_either = staged
             .owned_ids()
             .difference(&deleted_both)

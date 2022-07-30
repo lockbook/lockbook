@@ -64,10 +64,8 @@ impl RequestContext<'_, '_> {
             return Err(CoreError::FileNonexistent);
         }
 
-        let meta = tree.find(&id)?;
-        validate::is_document(&meta)?;
-
-        let content = tree.encrypt_document(&id, &content, account)?;
+        let (_, doc) = tree.update_document(&id, content, account)?;
+        document_repo::insert(self.config, RepoSource::Local, id, &doc)?;
         Ok(())
     }
 }

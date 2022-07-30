@@ -189,14 +189,6 @@ impl<T: Stagable> LazyTree<T> {
         Ok(result)
     }
 
-    pub fn encrypt_document(
-        &mut self, id: &Uuid, document: &DecryptedDocument, account: &Account,
-    ) -> SharedResult<EncryptedDocument> {
-        let document = compression_service::compress(document)?;
-        let key = self.decrypt_key(id, account)?;
-        symkey::encrypt(&key, &document)
-    }
-
     pub fn decrypt_document(
         &mut self, id: &Uuid, encrypted: &EncryptedDocument, account: &Account,
     ) -> SharedResult<DecryptedDocument> {
