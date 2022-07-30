@@ -132,7 +132,7 @@ fn test_name_conflict() {
                 .unwrap();
         })
         .unwrap();
-    assert_matches!(core.validate(), Err(NameConflictDetected(_)));
+    assert_matches!(core.validate(), Err(PathConflict(_)));
 }
 
 #[test]

@@ -189,14 +189,6 @@ impl<T: Stagable> LazyTree<T> {
         Ok(result)
     }
 
-    pub fn encrypt_document(
-        &mut self, id: &Uuid, document: &DecryptedDocument, account: &Account,
-    ) -> SharedResult<EncryptedDocument> {
-        let document = compression_service::compress(document)?;
-        let key = self.decrypt_key(id, account)?;
-        symkey::encrypt(&key, &document)
-    }
-
     pub fn decrypt_document(
         &mut self, id: &Uuid, encrypted: &EncryptedDocument, account: &Account,
     ) -> SharedResult<DecryptedDocument> {
@@ -226,6 +218,7 @@ impl<T: Stagable> LazyTree<T> {
     }
 
     pub fn validate(&mut self) -> SharedResult<()> {
+        // TODO document treated as folder?
         self.assert_no_orphans()?;
         self.assert_no_cycles()?;
         self.assert_no_path_conflicts()?;
@@ -302,14 +295,11 @@ pub type LazyStaged1<Base, Local> = LazyTree<Stage1<Base, Local>>;
 pub type Stage2<Base, Local, Staged> = StagedTree<StagedTree<Base, Local>, Staged>;
 pub type LazyStage2<Base, Local, Staged> = LazyTree<Stage2<Base, Local, Staged>>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ValidationFailure {
     Orphan(Uuid),
     Cycle(HashSet<Uuid>),
     PathConflict(HashSet<Uuid>),
-    SharedLink(Uuid),
-    DuplicateLink(HashSet<Uuid>),
-    BrokenLink(Uuid),
 }
 
 impl<Base, Local> LazyStaged1<Base, Local>
@@ -403,7 +393,11 @@ where
                 }
                 if changed {
                     let mut update = sibling.clone();
-                    update.name = SecretFileName::from_str(&name, &keys[sibling.parent()])?;
+                    update.name = SecretFileName::from_str(
+                        &name,
+                        &keys[update.id()],
+                        &keys[update.parent()],
+                    )?;
                     result.push(update);
                     names.insert(sibling.id, name);
                 }

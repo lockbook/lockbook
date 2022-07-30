@@ -7,7 +7,6 @@ use crate::server_file::{IntoServerFile, ServerFile};
 use crate::tree_like::{Stagable, TreeLike};
 use crate::{SharedError, SharedResult};
 
-
 impl<T> LazyTree<T>
 where
     T: Stagable<F = ServerFile>,

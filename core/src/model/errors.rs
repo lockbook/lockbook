@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::io::ErrorKind;
 
@@ -8,7 +9,7 @@ use uuid::Uuid;
 
 use crate::CoreError::Unexpected;
 use lockbook_shared::api::{GetPublicKeyError, GetUpdatesError, NewAccountError};
-use lockbook_shared::{api, SharedError};
+use lockbook_shared::{api, SharedError, ValidationFailure};
 
 use crate::service::api_service::ApiError;
 use crate::UiError;
@@ -604,16 +605,16 @@ impl From<CoreError> for Error<GetUsageError> {
         }
     }
 }
-//
-// impl From<ApiError<api::GetUsageError>> for CoreError {
-//     fn from(e: ApiError<api::GetUsageError>) -> Self {
-//         match e {
-//             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-//             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-//             e => core_err_unexpected(e),
-//         }
-//     }
-// }
+
+impl From<ApiError<api::GetUsageError>> for CoreError {
+    fn from(e: ApiError<api::GetUsageError>) -> Self {
+        match e {
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            e => core_err_unexpected(e),
+        }
+    }
+}
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum GetDrawingError {
@@ -863,13 +864,26 @@ pub enum TestRepoError {
     NoRootFolder,
     DocumentTreatedAsFolder(Uuid),
     FileOrphaned(Uuid),
-    CycleDetected(Uuid),
+    CycleDetected(HashSet<Uuid>),
     FileNameEmpty(Uuid),
     FileNameContainsSlash(Uuid),
-    NameConflictDetected(Uuid),
+    PathConflict(HashSet<Uuid>),
     DocumentReadError(Uuid, CoreError),
-    // Tree(TreeError),
     Core(CoreError),
+    Shared(SharedError),
+}
+
+impl From<SharedError> for TestRepoError {
+    fn from(err: SharedError) -> Self {
+        match err {
+            SharedError::ValidationFailure(validation) => match validation {
+                ValidationFailure::Orphan(id) => TestRepoError::FileOrphaned(id),
+                ValidationFailure::Cycle(ids) => TestRepoError::CycleDetected(ids),
+                ValidationFailure::PathConflict(ids) => TestRepoError::PathConflict(ids),
+            },
+            _ => TestRepoError::Shared(err),
+        }
+    }
 }
 
 impl From<CoreError> for TestRepoError {
