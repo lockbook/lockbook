@@ -422,31 +422,6 @@ where
     }
 }
 
-impl<Base, Local, Staged> LazyStage2<Base, Local, Staged>
-where
-    Base: Stagable,
-    Local: Stagable<F = Base::F>,
-    Staged: Stagable<F = Base::F>,
-{
-    pub fn promote_to_local(self) -> LazyStaged1<Base, Local> {
-        let mut staged = self.tree.staged;
-        let mut base = self.tree.base;
-        for id in staged.owned_ids() {
-            if let Some(removed) = staged.remove(id) {
-                base.insert(removed);
-            }
-        }
-
-        LazyStaged1 {
-            tree: base,
-            name: self.name,
-            key: self.key,
-            implicit_deleted: self.implicit_deleted,
-            children: self.children,
-        }
-    }
-}
-
 impl<T: Stagable> TreeLike for LazyTree<T> {
     type F = T::F;
 

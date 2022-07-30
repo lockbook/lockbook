@@ -23,3 +23,8 @@ pub fn decompress(content: &[u8]) -> SharedResult<Vec<u8>> {
         .map_err(|_| SharedError::Unexpected("unexpected decompression error"))?;
     Ok(result)
 }
+
+#[test]
+fn compress_decompress() {
+    assert_eq!(decompress(&compress(b"hello").unwrap(),).unwrap(), b"hello");
+}

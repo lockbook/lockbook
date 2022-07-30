@@ -40,7 +40,7 @@ where
     ) -> SharedResult<(Self, Uuid)> {
         let (mut tree, id) = self.stage_create(parent, name, file_type, account, pub_key)?;
         tree.validate()?;
-        let tree = tree.promote_to_local();
+        let tree = tree.promote();
         Ok((tree, id))
     }
 
@@ -64,7 +64,7 @@ where
     pub fn rename(self, id: &Uuid, name: &str, account: &Account) -> SharedResult<Self> {
         let mut tree = self.stage_rename(id, name, account)?;
         tree.validate()?;
-        let tree = tree.promote_to_local();
+        let tree = tree.promote();
         Ok(tree)
     }
 
@@ -91,7 +91,7 @@ where
         let mut tree = self.stage_move(id, new_parent, account)?;
         tree.validate()?;
 
-        Ok(tree.promote_to_local())
+        Ok(tree.promote())
     }
 
     pub fn stage_move(
@@ -123,7 +123,7 @@ where
     pub fn delete(self, id: &Uuid, account: &Account) -> SharedResult<LazyStaged1<Base, Local>> {
         let mut tree = self.stage_delete(id, account)?;
         tree.validate()?;
-        let tree = tree.promote_to_local();
+        let tree = tree.promote();
         Ok(tree)
     }
 

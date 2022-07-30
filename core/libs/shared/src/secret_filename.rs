@@ -82,8 +82,9 @@ mod unit_tests {
     #[test]
     fn test_to_string_from_string() {
         let key = generate_key();
+        let parent_key = generate_key();
         let test_value = Uuid::new_v4().to_string();
-        let secret = SecretFileName::from_str(&test_value, &key).unwrap();
+        let secret = SecretFileName::from_str(&test_value, &key, &parent_key).unwrap();
         let decrypted = secret.to_string(&key).unwrap();
 
         assert_eq!(test_value, decrypted);
@@ -92,8 +93,9 @@ mod unit_tests {
     #[test]
     fn test_hmac_encryption_failure() {
         let key = generate_key();
+        let parent_key = generate_key();
         let test_value = Uuid::new_v4().to_string();
-        let mut secret = SecretFileName::from_str(&test_value, &key).unwrap();
+        let mut secret = SecretFileName::from_str(&test_value, &key, &parent_key).unwrap();
         secret.hmac[10] = !secret.hmac[10];
         secret.hmac[11] = !secret.hmac[11];
         secret.hmac[12] = !secret.hmac[12];
@@ -105,10 +107,12 @@ mod unit_tests {
     #[test]
     fn attempt_value_forge() {
         let key = generate_key();
+        let parent_key = generate_key();
+
         let test_value1 = Uuid::new_v4().to_string();
         let test_value2 = Uuid::new_v4().to_string();
-        let secret1 = SecretFileName::from_str(&test_value1, &key).unwrap();
-        let mut secret2 = SecretFileName::from_str(&test_value2, &key).unwrap();
+        let secret1 = SecretFileName::from_str(&test_value1, &key, &parent_key).unwrap();
+        let mut secret2 = SecretFileName::from_str(&test_value2, &key, &parent_key).unwrap();
 
         secret2.encrypted_value = secret1.encrypted_value;
 

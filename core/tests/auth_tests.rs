@@ -2,7 +2,7 @@ use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_shared::api::*;
 use lockbook_shared::crypto::AESEncrypted;
-use lockbook_shared::file_metadata::FileMetadataDiff;
+use lockbook_shared::file_metadata::FileDiff;
 use test_utils::*;
 
 #[test]
@@ -30,7 +30,7 @@ fn upsert_id_takeover() {
     // If this succeeded account2 would be able to control file1
     let result = api_service::request(
         &core2.get_account().unwrap(),
-        FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&file1)] },
+        FileMetadataUpsertsRequest { updates: vec![FileDiff::new(&file1)] },
     );
     assert_matches!(
         result,
