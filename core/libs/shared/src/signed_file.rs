@@ -85,6 +85,8 @@ mod unit_tests {
         TreeLike::remove(&mut files, file2.id).unwrap();
 
         assert_eq!(files.ids().len(), 2);
+        files.find(&file2.id).unwrap_err();
+        assert!(files.maybe_find(&file2.id).is_none());
 
         Ok(())
     }
