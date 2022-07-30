@@ -25,8 +25,10 @@ where
         self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
         pub_key: &PublicKey,
     ) -> SharedResult<(Self, Uuid)> {
-        let (tree, id) = self.stage_create(parent, name, file_type, account, pub_key)?;
-        Ok((tree.promote_to_local(), id))
+        let (mut tree, id) = self.stage_create(parent, name, file_type, account, pub_key)?;
+        tree.validate()?;
+        let tree = tree.promote_to_local();
+        Ok((tree, id))
     }
 
     pub fn stage_create(
