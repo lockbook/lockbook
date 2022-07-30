@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::CoreError::Unexpected;
 use lockbook_shared::api::{GetPublicKeyError, GetUpdatesError, NewAccountError};
-use lockbook_shared::{api, SharedError};
+use lockbook_shared::{api, SharedError, ValidationFailure};
 
 use crate::service::api_service::ApiError;
 use crate::UiError;
@@ -871,6 +871,19 @@ pub enum TestRepoError {
     DocumentReadError(Uuid, CoreError),
     Core(CoreError),
     Shared(SharedError),
+}
+
+impl From<SharedError> for TestRepoError {
+    fn from(err: SharedError) -> Self {
+        match err {
+            SharedError::ValidationFailure(validation) => match validation {
+                ValidationFailure::Orphan(id) => TestRepoError::FileOrphaned(id),
+                ValidationFailure::Cycle(ids) => TestRepoError::CycleDetected(ids),
+                ValidationFailure::PathConflict(ids) => TestRepoError::PathConflict(ids),
+            },
+            _ => TestRepoError::Shared(err),
+        }
+    }
 }
 
 impl From<CoreError> for TestRepoError {

@@ -1,9 +1,11 @@
 use crate::model::drawing;
 use crate::model::errors::{TestRepoError, Warning};
-use crate::{Config, OneKey, RequestContext};
+use crate::repo::document_repo;
+use crate::{Config, CoreError, OneKey, RepoSource, RequestContext};
+use lockbook_shared::file_like::FileLike;
 use lockbook_shared::tree_like::Stagable;
 use lockbook_shared::tree_like::TreeLike;
-use lockbook_shared::{SharedError, ValidationFailure};
+use lockbook_shared::{validate, SharedError, ValidationFailure};
 use std::path::Path;
 
 const UTF8_SUFFIXES: [&str; 12] =
@@ -29,53 +31,54 @@ impl RequestContext<'_, '_> {
             return Err(TestRepoError::NoRootFolder);
         }
 
-        tree.validate().map_err(|err: SharedError| match err {
-            SharedError::ValidationFailure(validation) => match validation {
-                ValidationFailure::Orphan(id) => TestRepoError::FileOrphaned(id),
-                ValidationFailure::Cycle(ids) => TestRepoError::CycleDetected(ids),
-                ValidationFailure::PathConflict(ids) => TestRepoError::PathConflict(ids),
-            },
-            _ => TestRepoError::Shared(err),
-        })?;
+        tree.validate()?;
 
-        for id in tree.ids() {
-            // Find empty file names here
-            // Find names with a slash here
+        for id in tree.owned_ids() {
+            let name = tree.name(&id, account)?;
+            if name.is_empty() {
+                return Err(TestRepoError::FileNameEmpty(id));
+            }
+            if name.contains('/') {
+                return Err(TestRepoError::FileNameContainsSlash(id));
+            }
         }
 
         let mut warnings = Vec::new();
-        // for (id, file) in files.filter_not_deleted().map_err(TestRepoError::Tree)? {
-        //     if file.is_document() {
-        //         let file_content = file_service::get_document(config, RepoSource::Local, &file)
-        //             .map_err(|err| DocumentReadError(id, err))?;
-        //
-        //         if file_content.len() as u64 == 0 {
-        //             warnings.push(Warning::EmptyFile(id));
-        //             continue;
-        //         }
-        //
-        //         let file_path = self.get_path_by_id(id).map_err(TestRepoError::Core)?;
-        //         let extension = Path::new(&file_path)
-        //             .extension()
-        //             .and_then(|ext| ext.to_str())
-        //             .unwrap_or("");
-        //
-        //         if UTF8_SUFFIXES.contains(&extension) && String::from_utf8(file_content).is_err() {
-        //             warnings.push(Warning::InvalidUTF8(id));
-        //             continue;
-        //         }
-        //
-        //         if extension == "draw"
-        //             && drawing::parse_drawing(
-        //                 &file_service::get_document(config, RepoSource::Local, &file)
-        //                     .map_err(TestRepoError::Core)?,
-        //             )
-        //             .is_err()
-        //         {
-        //             warnings.push(Warning::UnreadableDrawing(id));
-        //         }
-        //     }
-        // }
+        for id in tree.owned_ids() {
+            let file = tree.find(&id)?;
+            let doc = file.is_document();
+            let cont = file.document_hmac().is_some();
+            let not_deleted = tree.calculate_deleted(&id)?;
+            if not_deleted && doc && cont {
+                let doc = match document_repo::maybe_get(self.config, RepoSource::Local, &id)? {
+                    Some(local) => Some(local),
+                    None => document_repo::maybe_get(self.config, RepoSource::Base, &id)?,
+                }
+                .ok_or(CoreError::FileNonexistent)?;
+
+                let doc = tree.decrypt_document(&id, &doc, account)?;
+
+                if doc.len() as u64 == 0 {
+                    warnings.push(Warning::EmptyFile(id));
+                    continue;
+                }
+
+                let file_path = tree.id_to_path(&id, account)?;
+                let extension = Path::new(&file_path)
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .unwrap_or("");
+
+                if UTF8_SUFFIXES.contains(&extension) && String::from_utf8(doc.clone()).is_err() {
+                    warnings.push(Warning::InvalidUTF8(id));
+                    continue;
+                }
+
+                if extension == "draw" && drawing::parse_drawing(&doc).is_err() {
+                    warnings.push(Warning::UnreadableDrawing(id));
+                }
+            }
+        }
 
         Ok(warnings)
     }
