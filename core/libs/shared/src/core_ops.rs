@@ -161,15 +161,15 @@ where
             (tree, deleted)
         };
 
-        let deleted_either = deleted_base.union(&deleted_staged).copied().collect();
+        let deleted_both = deleted_base.intersection(&deleted_staged).copied().collect();
         let not_deleted_either = staged
             .owned_ids()
-            .difference(&deleted_either)
+            .difference(&deleted_both)
             .copied()
             .collect::<HashSet<_>>();
 
         // exclude files with not deleted descendants i.e. exclude files that are the ancestors of not deleted files
-        let mut to_prune = deleted_either;
+        let mut to_prune = deleted_both;
         for id in not_deleted_either {
             for ancestor in base.ancestors(&id)? {
                 to_prune.remove(&ancestor);

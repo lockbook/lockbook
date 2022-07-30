@@ -67,7 +67,6 @@ impl RequestContext<'_, '_> {
         let meta = tree.find(&id)?;
         validate::is_document(&meta)?;
 
-        let content = compression_service::compress(content)?;
         let content = tree.encrypt_document(&id, &content, account)?;
         Ok(())
     }
