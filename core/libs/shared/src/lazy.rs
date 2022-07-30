@@ -197,15 +197,6 @@ impl<T: Stagable> LazyTree<T> {
         compression_service::decompress(&compressed)
     }
 
-    pub fn finalize(&mut self, id: &Uuid, account: &Account) -> SharedResult<File> {
-        let meta = self.find(id)?;
-        let file_type = meta.file_type();
-        let parent = *meta.parent();
-        let name = self.name(id, account)?;
-        let id = *id;
-        Ok(File { id, parent, name, file_type })
-    }
-
     pub fn stage<T2: Stagable<F = T::F>>(self, staged: T2) -> LazyTree<StagedTree<T, T2>> {
         // todo: optimize by performing minimal updates on self caches
         LazyTree::<StagedTree<T, T2>> {

@@ -34,7 +34,13 @@ pub trait TreeLike: Sized {
     }
 
     fn all_files(&self) -> SharedResult<Vec<&Self::F>> {
-        todo!()
+        let mut all = vec![];
+        for id in self.ids() {
+            let meta = self.find(id)?;
+            all.push(meta);
+        }
+
+        Ok(all)
     }
 }
 

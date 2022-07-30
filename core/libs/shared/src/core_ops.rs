@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use crate::account::Account;
 use crate::crypto::EncryptedDocument;
+use crate::file::File;
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileMetadata, FileType};
 use crate::lazy::{LazyStaged1, LazyTree, Stage1};
@@ -21,6 +22,18 @@ where
     Base: Stagable<F = SignedFile>,
     Local: Stagable<F = Base::F>,
 {
+    pub fn finalize(&mut self, id: &Uuid, account: &Account) -> SharedResult<File> {
+        let meta = self.find(id)?;
+        let file_type = meta.file_type();
+        let parent = *meta.parent();
+        let last_modified = meta.timestamped_value.timestamp as u64;
+        let name = self.name(id, account)?;
+        let id = *id;
+        let last_modified_by = account.username.clone();
+
+        Ok(File { id, parent, name, file_type, last_modified, last_modified_by })
+    }
+
     pub fn create(
         self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
         pub_key: &PublicKey,
