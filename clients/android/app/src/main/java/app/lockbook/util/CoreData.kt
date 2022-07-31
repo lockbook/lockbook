@@ -6,22 +6,24 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonClassDiscriminator
 
+//    pub id: Uuid,
+//    pub parent: Uuid,
+//    pub name: String,
+//    pub file_type: FileType,
+//    pub last_modified: u64,
+//    pub last_modified_by: Username,
+
 @Serializable
-data class DecryptedFileMetadata(
+data class File(
     val id: String = "",
+    val parent: String = "",
+    val name: String = "",
     @SerialName("file_type")
     val fileType: FileType = FileType.Document,
-    val parent: String = "",
-    @SerialName("decrypted_name")
-    val decryptedName: String = "",
-    val owner: String = "",
-    @SerialName("metadata_version")
-    val metadataVersion: Long = 0,
-    @SerialName("content_version")
-    val contentVersion: Long = 0,
-    val deleted: Boolean = false,
-    @SerialName("decrypted_access_key")
-    val decryptedAccessKey: List<Int> = listOf()
+    @SerialName("last_modified")
+    val lastModified: Int = 0,
+    @SerialName("last_modified_by")
+    val lastModifiedBy: String = "",
 ) {
     fun isRoot() = parent == id
 }
@@ -44,7 +46,7 @@ data class WorkCalculated(
     @SerialName("work_units")
     val workUnits: List<WorkUnit>,
     @SerialName("most_recent_update_from_server")
-    val mostRecentUpdateFromServer: Long,
+    val mostRecentUpdateFromServer: Int,
 )
 
 @Serializable
@@ -56,7 +58,7 @@ enum class WorkUnitTag {
 }
 
 @Serializable
-data class WorkUnitMetadata(val metadata: DecryptedFileMetadata)
+data class WorkUnitMetadata(val metadata: File)
 
 @Serializable
 data class Config(

@@ -248,12 +248,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_convertToHumanDuration(
-    env: JNIEnv, _: JClass, metadata_version: jlong,
+    env: JNIEnv, _: JClass, time_stamp: jint,
 ) -> jstring {
     string_to_jstring(
         &env,
-        if metadata_version != 0 {
-            Duration::milliseconds(clock::get_time().0 - metadata_version)
+        if time_stamp != 0 {
+            Duration::milliseconds(clock::get_time().0 - time_stamp)
                 .format_human()
                 .to_string()
         } else {

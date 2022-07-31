@@ -256,7 +256,7 @@ class FilesListFragment : Fragment(), FilesFragment {
 
             withItem<FileViewHolderInfo.FolderViewHolderInfo, FolderViewHolder>(R.layout.folder_file_item) {
                 onBind(::FolderViewHolder) { _, item ->
-                    name.text = item.fileMetadata.decryptedName
+                    name.text = item.fileMetadata.name
 
                     when {
                         isSelected() -> {
@@ -298,15 +298,15 @@ class FilesListFragment : Fragment(), FilesFragment {
 
             withItem<FileViewHolderInfo.DocumentViewHolderInfo, DocumentViewHolder>(R.layout.document_file_item) {
                 onBind(::DocumentViewHolder) { _, item ->
-                    name.text = item.fileMetadata.decryptedName
-                    if (item.fileMetadata.metadataVersion != 0L) {
+                    name.text = item.fileMetadata.name
+                    if (item.fileMetadata.lastModified != 0) {
                         description.visibility = View.VISIBLE
-                        description.text = CoreModel.convertToHumanDuration(item.fileMetadata.metadataVersion)
+                        description.text = CoreModel.convertToHumanDuration(item.fileMetadata.lastModified)
                     } else {
                         description.visibility = View.GONE
                     }
 
-                    val extensionHelper = ExtensionHelper(item.fileMetadata.decryptedName)
+                    val extensionHelper = ExtensionHelper(item.fileMetadata.name)
 
                     val iconResource = when {
                         extensionHelper.isDrawing -> R.drawable.ic_outline_draw_24
@@ -362,11 +362,11 @@ class FilesListFragment : Fragment(), FilesFragment {
 
             withItem<RecentFileViewHolderInfo, RecentFileItemViewHolder>(R.layout.recent_file_item) {
                 onBind(::RecentFileItemViewHolder) { _, item ->
-                    name.text = item.fileMetadata.decryptedName
+                    name.text = item.fileMetadata.name
                     folderName.text = getString(R.string.recent_files_folder, item.folderName)
-                    lastEdited.text = CoreModel.convertToHumanDuration(item.fileMetadata.metadataVersion)
+                    lastEdited.text = CoreModel.convertToHumanDuration(item.fileMetadata.lastModified)
 
-                    val extensionHelper = ExtensionHelper(item.fileMetadata.decryptedName)
+                    val extensionHelper = ExtensionHelper(item.fileMetadata.name)
 
                     val iconResource = when {
                         extensionHelper.isDrawing -> R.drawable.ic_outline_draw_24
@@ -385,7 +385,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
     }
 
-    private fun enterFile(item: DecryptedFileMetadata) {
+    private fun enterFile(item: File) {
         when (item.fileType) {
             FileType.Document -> {
                 activityModel.launchDetailsScreen(DetailsScreen.Loading(item))
@@ -562,7 +562,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         toggleMenuBar()
     }
 
-    override fun onNewFileCreated(newDocument: DecryptedFileMetadata?) {
+    override fun onNewFileCreated(newDocument: File?) {
         when {
             newDocument != null && PreferenceManager.getDefaultSharedPreferences(requireContext())
                 .getBoolean(getString(R.string.open_new_doc_automatically_key), true) -> {

@@ -15,8 +15,7 @@
     <string name="popup_info_name">"Name: "</string>
     <string name="popup_info_id">"Id: "</string>
     <string name="popup_info_file_type">"File Type: "</string>
-    <string name="popup_info_metadata_version">"Metadata Version: "</string>
-    <string name="popup_info_content_version">"Content Version: "</string>
+    <string name="popup_info_metadata_version">"Last modified: "</string>
 
     <string name="settings_export_account_raw">Copy your account key to clipboard</string>
     <string name="settings_export_account_qr">Export your account key (QR Code)</string>

@@ -48,7 +48,7 @@ class DetailsScreenLoaderFragment : Fragment() {
     }
 
     fun deleteDownloadedFileIfExists() {
-        File(requireContext().cacheDir, OPENED_FILE_FOLDER + model.loadingInfo.fileMetadata.decryptedName).delete()
+        File(requireContext().cacheDir, OPENED_FILE_FOLDER + model.loadingInfo.fileMetadata.name).delete()
     }
 
     override fun onCreateView(

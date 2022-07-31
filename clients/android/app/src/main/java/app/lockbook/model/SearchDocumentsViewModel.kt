@@ -223,6 +223,6 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
 sealed class UpdateSearchUI {
     object ToggleNoSearchResults : UpdateSearchUI()
     object ToggleProgressSpinner : UpdateSearchUI()
-    data class OpenFile(val fileMetadata: DecryptedFileMetadata) : UpdateSearchUI()
+    data class OpenFile(val fileMetadata: app.lockbook.util.File) : UpdateSearchUI()
     data class Error(val error: LbError) : UpdateSearchUI()
 }
