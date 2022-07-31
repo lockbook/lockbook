@@ -278,7 +278,7 @@ impl Core {
     pub fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.calculate_work(&self.config))?;
+            .transaction(|tx| self.context(tx)?.calculate_work())?;
         Ok(val?)
     }
 
