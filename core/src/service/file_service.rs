@@ -1,18 +1,7 @@
-use crate::model::repo::RepoSource;
-use crate::repo::document_repo;
-use crate::{Config, CoreError, OneKey, RequestContext};
-use itertools::Itertools;
-use lockbook_shared::compression_service;
-use lockbook_shared::crypto::DecryptedDocument;
-use lockbook_shared::crypto::EncryptedDocument;
+use crate::{CoreError, OneKey, RequestContext};
 use lockbook_shared::file::File;
-use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType;
-use lockbook_shared::lazy::LazyTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
-use sha2::Digest;
-use sha2::Sha256;
-use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
@@ -114,7 +103,27 @@ impl RequestContext<'_, '_> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+
         let mut files = Vec::new();
+
+        for id in tree.owned_ids() {
+            files.push(tree.finalize(&id, account)?);
+        }
+
+        Ok(files)
+    }
+
+    pub fn get_children(&mut self, id: &Uuid) -> Result<Vec<File>, CoreError> {
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
 
         let mut tree = self
             .tx
@@ -122,10 +131,51 @@ impl RequestContext<'_, '_> {
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
 
-        for id in tree.owned_ids() {
+        let mut children = Vec::new();
+
+        for id in tree.children(id)? {
+            children.push(tree.finalize(&id, account)?);
+        }
+
+        Ok(children)
+    }
+
+    pub fn get_and_get_children(&mut self, id: &Uuid) -> Result<Vec<File>, CoreError> {
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
+
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+
+        let mut files = Vec::new();
+        files.push(tree.finalize(&id, account)?);
+
+        for id in tree.children(id)? {
             files.push(tree.finalize(&id, account)?);
         }
 
         Ok(files)
+    }
+
+    pub fn get_file_by_id(&mut self, id: &Uuid) -> Result<File, CoreError> {
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
+
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+
+        Ok(tree.finalize(id, account)?)
     }
 }
