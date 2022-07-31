@@ -31,10 +31,17 @@ impl<T: Stagable> LazyTree<T> {
 
 impl<T: Stagable> LazyTree<T> {
     pub fn all_children(&mut self) -> SharedResult<&HashMap<Uuid, HashSet<Uuid>>> {
-        self.owned_ids()
-            .into_iter()
-            .next()
-            .map(|id| self.children(&id)); // force update cache
+        // Populate cache (todo: deduplicate code)
+        if self.children.is_empty() {
+            let mut all_children: HashMap<Uuid, HashSet<Uuid>> = HashMap::new();
+            for file in self.all_files()? {
+                let mut children = all_children.remove(file.parent()).unwrap_or_default();
+                children.insert(*file.id());
+                all_children.insert(*file.parent(), children);
+            }
+            self.children = all_children;
+        }
+
         Ok(&self.children)
     }
 
@@ -237,11 +244,12 @@ impl<T: Stagable> LazyTree<T> {
             let mut ancestors = HashSet::new();
             let mut current_file = self.find(&id)?;
             loop {
-                if no_cycles_in_ancestors.contains(&id) {
+                if no_cycles_in_ancestors.contains(current_file.id()) {
                     break;
                 } else if current_file.is_root() {
                     if !root_found {
                         root_found = true;
+                        ancestors.insert(*current_file.id());
                         break;
                     } else {
                         return Err(SharedError::ValidationFailure(ValidationFailure::Cycle(
