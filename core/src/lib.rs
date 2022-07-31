@@ -38,6 +38,7 @@ use serde::Deserialize;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 
+use crate::model::drawing::SupportedImageFormats;
 use lockbook_shared::clock;
 use lockbook_shared::crypto::AESKey;
 use lockbook_shared::file::File;
@@ -333,50 +334,44 @@ impl Core {
         Ok(val?)
     }
 
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn get_drawing(&self, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.get_drawing(&self.config, id))?;
-    //         Ok(val?)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip(self, d), err(Debug))]
-    //     pub fn save_drawing(&self, id: Uuid, d: &Drawing) -> Result<(), Error<SaveDrawingError>> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.save_drawing(&self.config, id, d))?;
-    //         Ok(val?)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn export_drawing(
-    //         &self, id: Uuid, format: SupportedImageFormats,
-    //         render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-    //     ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
-    //         let val = self.db.transaction(|tx| {
-    //             self.context(tx)?
-    //                 .export_drawing(&self.config, id, format, render_theme)
-    //         })?;
-    //         Ok(val?)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn export_drawing_to_disk(
-    //         &self, id: Uuid, format: SupportedImageFormats,
-    //         render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
-    //     ) -> Result<(), Error<ExportDrawingToDiskError>> {
-    //         let val = self.db.transaction(|tx| {
-    //             self.context(tx)?.export_drawing_to_disk(
-    //                 &self.config,
-    //                 id,
-    //                 format,
-    //                 render_theme,
-    //                 location,
-    //             )
-    //         })?;
-    //         Ok(val?)
-    //     }
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_drawing(&self, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.get_drawing(id))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self, d), err(Debug))]
+    pub fn save_drawing(&self, id: Uuid, d: &Drawing) -> Result<(), Error<SaveDrawingError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.save_drawing(id, d))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn export_drawing(
+        &self, id: Uuid, format: SupportedImageFormats,
+        render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
+    ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.export_drawing(id, format, render_theme))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn export_drawing_to_disk(
+        &self, id: Uuid, format: SupportedImageFormats,
+        render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
+    ) -> Result<(), Error<ExportDrawingToDiskError>> {
+        let val = self.db.transaction(|tx| {
+            self.context(tx)?
+                .export_drawing_to_disk(id, format, render_theme, location)
+        })?;
+        Ok(val?)
+    }
 
     #[instrument(level = "debug", skip(self, update_status), err(Debug))]
     pub fn import_files<F: Fn(ImportStatus)>(

@@ -6,50 +6,111 @@ use std::path::Path;
 use uuid::Uuid;
 
 use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing};
+use lockbook_shared::tree_like::Stagable;
 
 use crate::model::drawing;
 use crate::model::drawing::SupportedImageFormats;
 use crate::model::errors::CoreError;
 use crate::model::repo::RepoSource;
-use crate::pure_functions::files;
-use crate::service::file_service;
-use crate::{Config, RequestContext};
+use crate::repo::document_repo;
+use crate::OneKey;
+use crate::RequestContext;
 
 impl RequestContext<'_, '_> {
-    pub fn get_drawing(&mut self, config: &Config, id: Uuid) -> Result<Drawing, CoreError> {
-        let all_metadata = self.get_all_metadata(RepoSource::Local)?;
-        let drawing_bytes =
-            file_service::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
-        drawing::parse_drawing(&drawing_bytes)
+    pub fn get_drawing(&mut self, id: Uuid) -> Result<Drawing, CoreError> {
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
+
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+
+        let doc = document_repo::get(self.config, RepoSource::Local, id)?;
+
+        drawing::parse_drawing(&tree.decrypt_document(&id, &doc, account)?)
     }
 
-    pub fn save_drawing(
-        &mut self, config: &Config, id: Uuid, d: &Drawing,
-    ) -> Result<(), CoreError> {
-        let metadata = self.get_not_deleted_metadata(RepoSource::Local, id)?;
+    pub fn save_drawing(&mut self, id: Uuid, d: &Drawing) -> Result<(), CoreError> {
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
+
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+
+        if tree.calculate_deleted(&id)? {
+            return Err(CoreError::FileNonexistent);
+        }
+
         let drawing_bytes = serde_json::to_vec(d)?;
-        self.insert_document(config, RepoSource::Local, &metadata, &drawing_bytes)
+        let (_, doc) = tree.update_document(&id, &drawing_bytes, account)?;
+
+        document_repo::insert(self.config, RepoSource::Local, id, &doc)
     }
 
     pub fn export_drawing(
-        &mut self, config: &Config, id: Uuid, format: SupportedImageFormats,
+        &mut self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
     ) -> Result<Vec<u8>, CoreError> {
-        let all_metadata = self.get_all_metadata(RepoSource::Local)?;
-        let drawing_bytes =
-            file_service::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
-        drawing::export_drawing(&drawing_bytes, format, render_theme)
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
+
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+
+        if tree.calculate_deleted(&id)? {
+            return Err(CoreError::FileNonexistent);
+        }
+
+        let doc = document_repo::get(self.config, RepoSource::Local, id)?;
+
+        drawing::export_drawing(&tree.decrypt_document(&id, &doc, account)?, format, render_theme)
     }
 
     pub fn export_drawing_to_disk(
-        &mut self, config: &Config, id: Uuid, format: SupportedImageFormats,
+        &mut self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
     ) -> Result<(), CoreError> {
-        let all_metadata = self.get_all_metadata(RepoSource::Local)?;
-        let drawing_bytes =
-            file_service::get_not_deleted_document(config, RepoSource::Local, &all_metadata, id)?;
-        let exported_drawing_bytes = drawing::export_drawing(&drawing_bytes, format, render_theme)?;
-        save_document_to_disk(&exported_drawing_bytes, location.to_string())
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
+
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+
+        if tree.calculate_deleted(&id)? {
+            return Err(CoreError::FileNonexistent);
+        }
+
+        let doc = document_repo::get(self.config, RepoSource::Local, id)?;
+        let exported_drawing_bytes = drawing::export_drawing(
+            &tree.decrypt_document(&id, &doc, account)?,
+            format,
+            render_theme,
+        )?;
+
+        Self::save_document_to_disk(&exported_drawing_bytes, location.to_string())
     }
 
     fn save_document_to_disk(document: &[u8], location: String) -> Result<(), CoreError> {
