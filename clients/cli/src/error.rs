@@ -232,10 +232,10 @@ impl CliError {
         Self::new(ErrCode::FileOrphaned, format!("file '{}' has no path to root", lb_path))
     }
 
-    pub fn name_conflict_detected<T: fmt::Display>(lb_path: T) -> Self {
+    pub fn name_conflict_detected<T: fmt::Display>(ids: T) -> Self {
         Self::new(
             ErrCode::NameConflictDetected,
-            format!("A name conflict was detected for file at path `{}`", lb_path),
+            format!("A name conflict was detected for these files: `{}`", ids),
         )
     }
 
