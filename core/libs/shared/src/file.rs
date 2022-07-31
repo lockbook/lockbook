@@ -1,7 +1,9 @@
 use crate::account::Username;
 use crate::file_metadata::FileType;
+use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct File {
     pub id: Uuid,
     pub parent: Uuid,

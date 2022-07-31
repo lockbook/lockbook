@@ -5,24 +5,19 @@ use crate::service::{api_service, file_service};
 use crate::CoreResult;
 use crate::{Config, CoreError, RequestContext};
 use lockbook_shared::account::Account;
-use lockbook_shared::api::{FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest};
-use lockbook_shared::clock::get_time;
-use lockbook_shared::compression_service;
-use lockbook_shared::crypto::DecryptedDocument;
+use lockbook_shared::api::{
+    FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest, GetUpdatesResponse,
+};
+use lockbook_shared::clock;
 use lockbook_shared::crypto::EncryptedDocument;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::DocumentHmac;
-use lockbook_shared::file_metadata::FileMetadata;
-use lockbook_shared::filename::DocumentType;
-use lockbook_shared::filename::NameComponents;
-use lockbook_shared::lazy::LazyTree;
-use lockbook_shared::secret_filename::SecretFileName;
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::tree_like::Stagable;
 use lockbook_shared::tree_like::TreeLike;
+use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
 use std::collections::HashMap;
-use std::fmt;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Clone)]
@@ -35,52 +30,6 @@ pub struct SyncProgress {
     pub total: usize,
     pub progress: usize,
     pub current_work_unit: ClientWorkUnit,
-}
-
-enum ResolvedDocument {
-    Merged {
-        remote_metadata: CoreFile,
-        remote_document: DecryptedDocument,
-        merged_metadata: CoreFile,
-        merged_document: DecryptedDocument,
-    },
-    Copied {
-        remote_metadata: CoreFile,
-        remote_document: DecryptedDocument,
-        copied_local_metadata: CoreFile,
-        copied_local_document: DecryptedDocument,
-    },
-}
-
-impl fmt::Debug for ResolvedDocument {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ResolvedDocument::Merged {
-                remote_metadata,
-                remote_document,
-                merged_metadata,
-                merged_document,
-            } => f
-                .debug_struct("ResolvedDocument::Merged")
-                .field("remote_metadata", remote_metadata)
-                .field("remote_document", &String::from_utf8_lossy(remote_document))
-                .field("merged_metadata", merged_metadata)
-                .field("merged_document", &String::from_utf8_lossy(merged_document))
-                .finish(),
-            ResolvedDocument::Copied {
-                remote_metadata,
-                remote_document,
-                copied_local_metadata,
-                copied_local_document,
-            } => f
-                .debug_struct("ResolvedDocument::Copied")
-                .field("remote_metadata", remote_metadata)
-                .field("remote_document", &String::from_utf8_lossy(remote_document))
-                .field("copied_local_metadata", copied_local_metadata)
-                .field("copied_local_document", &String::from_utf8_lossy(copied_local_document))
-                .finish(),
-        }
-    }
 }
 
 fn should_pull_document(
@@ -103,7 +52,21 @@ impl RequestContext<'_, '_> {
     pub fn sync<F: Fn(SyncProgress)>(
         &mut self, config: &Config, maybe_update_sync_progress: Option<F>,
     ) -> Result<(), CoreError> {
-        let mut sync_progress_total = 4 + self.get_all_with_document_changes(config)?.len(); // 3 metadata pulls + 1 metadata push + doc pushes
+        // initialize sync progress: 3 metadata pulls + 1 metadata push + num local doc changes
+        // note: num doc changes can change as a result of pull (can make new/changes docs deleted or add new docs from merge conflicts)
+        let mut num_doc_changes = 0;
+        for (id, local_change) in self.tx.local_metadata.get_all() {
+            if let Some(base_file) = self.tx.base_metadata.get(&id) {
+                if local_change.document_hmac() != base_file.document_hmac() {
+                    num_doc_changes += 1;
+                }
+            } else {
+                if local_change.document_hmac().is_some() {
+                    num_doc_changes += 1;
+                }
+            }
+        }
+        let mut sync_progress_total = 4 + num_doc_changes; // 3 metadata pulls + 1 metadata push
         let mut sync_progress = 0;
         let mut update_sync_progress = |op: SyncProgressOperation| match op {
             SyncProgressOperation::IncrementTotalWork(inc) => sync_progress_total += inc,
@@ -120,13 +83,11 @@ impl RequestContext<'_, '_> {
         };
 
         self.pull(config, &mut update_sync_progress)?;
-        self.prune_deleted(config)?;
         self.push_metadata(config, &mut update_sync_progress)?;
         self.pull(config, &mut update_sync_progress)?;
         self.push_documents(config, &mut update_sync_progress)?;
         self.pull(config, &mut update_sync_progress)?;
-        self.prune_deleted(config)?;
-        self.tx.last_synced.insert(OneKey {}, get_time().0);
+        self.tx.last_synced.insert(OneKey {}, clock::get_time().0);
         Ok(())
     }
 
@@ -138,18 +99,9 @@ impl RequestContext<'_, '_> {
     {
         // fetch metadata updates
         let account = self.get_account()?;
-        let last_synced = self
-            .tx
-            .last_synced
-            .get(&OneKey {})
-            .map(|&i| i)
-            .unwrap_or_default() as u64;
-        let remote_changes = api_service::request(
-            // todo: if this doesn't need to be mut, prune is broken
-            &account,
-            GetUpdatesRequest { since_metadata_version: last_synced },
-        )?
-        .file_metadata;
+        update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PullMetadata));
+        // todo: if this doesn't need to be mut, prune is broken
+        let remote_changes = self.get_updates(account)?.file_metadata;
 
         // prune prunable files
         {
@@ -183,11 +135,14 @@ impl RequestContext<'_, '_> {
         let mut remote_document_changes = HashMap::new();
         let mut local_document_changes = HashMap::new();
         {
+            let mut remote = self.tx.base_metadata.stage(remote_changes).to_lazy();
             for id in remote_changes.owned_ids() {
                 if let Some(remote_document_change) =
                     get_document(account, &mut self.tx.base_metadata, remote_changes, id)?
                 {
-                    // todo: update progress
+                    update_sync_progress(SyncProgressOperation::StartWorkUnit(
+                        ClientWorkUnit::PullDocument(remote.name(&id, account)?),
+                    ));
                     document_repo::maybe_get(config, RepoSource::Base, &id)?
                         .map(|d| base_documents.insert(id, d));
                     remote_document_changes.insert(id, remote_document_change);
@@ -206,7 +161,7 @@ impl RequestContext<'_, '_> {
                 .stage(&mut self.tx.local_metadata)
                 .to_lazy();
             local.merge(
-                account, 
+                account,
                 &base_documents,
                 &remote_document_changes,
                 &local_document_changes,
@@ -225,6 +180,20 @@ impl RequestContext<'_, '_> {
         }
 
         Ok(())
+    }
+
+    fn get_updates(&mut self, account: &Account) -> CoreResult<GetUpdatesResponse> {
+        let last_synced = self
+            .tx
+            .last_synced
+            .get(&OneKey {})
+            .map(|&i| i)
+            .unwrap_or_default() as u64;
+        let remote_changes = api_service::request(
+            &account,
+            GetUpdatesRequest { since_metadata_version: last_synced },
+        )?;
+        Ok(remote_changes)
     }
 
     /// Updates remote and base metadata to local.
@@ -299,100 +268,50 @@ impl RequestContext<'_, '_> {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn calculate_work(&mut self, config: &Config) -> Result<WorkCalculated, CoreError> {
-        let account = &self.get_account()?;
-        let base_metadata = self.get_all_metadata(RepoSource::Base)?;
-        let base_max_metadata_version = base_metadata
-            .values()
-            .map(|f| f.metadata_version)
-            .max()
-            .unwrap_or(0);
+    pub fn calculate_work(&mut self, config: &Config) -> CoreResult<WorkCalculated> {
+        // fetch metadata updates
+        let account = self.get_account()?;
+        // todo: if this doesn't need to be mut, prune is broken
+        let updates = self.get_updates(account)?;
+        let remote_changes = updates.file_metadata;
 
-        let server_updates = api_service::request(
-            account,
-            GetUpdatesRequest { since_metadata_version: base_max_metadata_version },
-        )
-        .map_err(CoreError::from)?
-        .file_metadata
-        .iter()
-        .map(|f| (f.id, f.clone()))
-        .collect();
-
-        self.calculate_work_from_updates(config, &server_updates, base_max_metadata_version)
-    }
-
-    fn calculate_work_from_updates(
-        &mut self, config: &Config, server_updates: &EncryptedFiles, mut last_sync: u64,
-    ) -> Result<WorkCalculated, CoreError> {
-        let mut work_units: Vec<WorkUnit> = vec![];
-        let (all_metadata, _) =
-            self.get_all_metadata_with_encrypted_changes(RepoSource::Local, server_updates)?;
-        for (&id, metadata) in server_updates {
-            // skip filtered changes
-            if all_metadata.maybe_find(id).is_none() {
-                continue;
-            }
-
-            if metadata.metadata_version > last_sync {
-                last_sync = metadata.metadata_version;
-            }
-
-            match self.maybe_get_metadata(RepoSource::Local, id)? {
-                None => {
-                    if !metadata.is_deleted {
-                        // no work for files we don't have that have been deleted
-                        work_units.push(WorkUnit::ServerChange { metadata: all_metadata.find(id)? })
-                    }
-                }
-                Some(local_metadata) => {
-                    if metadata.metadata_version != local_metadata.metadata_version {
-                        work_units.push(WorkUnit::ServerChange { metadata: all_metadata.find(id)? })
-                    }
-                }
-            };
-        }
-
-        work_units.sort_by(|f1, f2| {
-            f1.get_metadata()
-                .metadata_version
-                .cmp(&f2.get_metadata().metadata_version)
-        });
-
-        for file_diff in self.get_all_metadata_changes()? {
-            let metadata = self.get_metadata(RepoSource::Local, file_diff.id)?;
-            work_units.push(WorkUnit::LocalChange { metadata });
-        }
-        for doc_id in self.get_all_with_document_changes(config)? {
-            let metadata = self.get_metadata(RepoSource::Local, doc_id)?;
-            work_units.push(WorkUnit::LocalChange { metadata });
-        }
-
-        Ok(WorkCalculated { work_units, most_recent_update_from_server: last_sync })
-    }
-}
-
-pub fn suggest_non_conflicting_filename(
-    id: Uuid, files: &DecryptedFiles, staged_changes: &DecryptedFiles,
-) -> Result<String, CoreError> {
-    let files: DecryptedFiles = files
-        .stage_with_source(staged_changes)
-        .into_iter()
-        .map(|(id, (f, _))| (id, f))
-        .collect::<DecryptedFiles>();
-
-    let file = files.find(id)?;
-    let sibblings = files.find_children(file.parent);
-
-    let mut new_name = NameComponents::from(&file.decrypted_name).generate_next();
-    loop {
-        if !sibblings
-            .values()
-            .any(|f| f.decrypted_name == new_name.to_name())
+        // prune prunable files
         {
-            return Ok(new_name.to_name());
-        } else {
-            new_name = new_name.generate_next();
+            let mut local = self
+                .tx
+                .base_metadata
+                .stage(remote_changes)
+                .stage(&mut self.tx.local_metadata)
+                .to_lazy();
+            for id in local.prunable_ids()? {
+                local.remove(id);
+            }
         }
+
+        // calculate work
+        let mut work_units: Vec<WorkUnit> = vec![];
+        {
+            let remote = self.tx.base_metadata.stage(remote_changes).to_lazy();
+            for id in remote.tree.staged.owned_ids() {
+                work_units
+                    .push(WorkUnit::ServerChange { metadata: remote.finalize(&id, account)? });
+            }
+        }
+        {
+            let local = self
+                .tx
+                .base_metadata
+                .stage(&mut self.tx.local_metadata)
+                .to_lazy();
+            for id in local.tree.staged.owned_ids() {
+                work_units.push(WorkUnit::LocalChange { metadata: local.finalize(&id, account)? });
+            }
+        }
+
+        Ok(WorkCalculated {
+            work_units,
+            most_recent_update_from_server: updates.as_of_metadata_version,
+        })
     }
 }
 

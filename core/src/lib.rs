@@ -10,6 +10,7 @@ pub mod service;
 
 mod external_interface;
 
+use service::sync_service::{SyncProgress, WorkCalculated};
 pub use uuid::Uuid;
 
 pub use lockbook_shared::account::Account;
@@ -276,47 +277,47 @@ impl Core {
         Ok(val?)
     }
 
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn get_local_changes(&self) -> Result<Vec<Uuid>, UnexpectedError> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.get_local_changes(&self.config))?;
-    //         Ok(val?)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.calculate_work(&self.config))?;
-    //         Ok(val?)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip_all, err(Debug))]
-    //     pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.sync(&self.config, f))?;
-    //         Ok(val?)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn get_last_synced(&self) -> Result<i64, UnexpectedError> {
-    //         Ok(self.db.last_synced.get(&OneKey {})?.unwrap_or(0))
-    //     }
-    //
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn get_last_synced_human_string(&self) -> Result<String, UnexpectedError> {
-    //         let last_synced = self.db.last_synced.get(&OneKey {})?.unwrap_or(0);
-    //
-    //         Ok(if last_synced != 0 {
-    //             Duration::milliseconds(clock::get_time().0 - last_synced)
-    //                 .format_human()
-    //                 .to_string()
-    //         } else {
-    //             "never".to_string()
-    //         })
-    //     }
+    // #[instrument(level = "debug", skip(self), err(Debug))]
+    // pub fn get_local_changes(&self) -> Result<Vec<Uuid>, UnexpectedError> {
+    //     let val = self
+    //         .db
+    //         .transaction(|tx| self.context(tx)?.get_local_changes(&self.config))?;
+    //     Ok(val?)
+    // }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.calculate_work(&self.config))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.sync(&self.config, f))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_last_synced(&self) -> Result<i64, UnexpectedError> {
+        Ok(self.db.last_synced.get(&OneKey {})?.unwrap_or(0))
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_last_synced_human_string(&self) -> Result<String, UnexpectedError> {
+        let last_synced = self.db.last_synced.get(&OneKey {})?.unwrap_or(0);
+
+        Ok(if last_synced != 0 {
+            Duration::milliseconds(clock::get_time().0 - last_synced)
+                .format_human()
+                .to_string()
+        } else {
+            "never".to_string()
+        })
+    }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn get_usage(&self) -> Result<UsageMetrics, Error<GetUsageError>> {
