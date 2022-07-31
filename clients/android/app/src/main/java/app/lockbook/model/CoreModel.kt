@@ -161,7 +161,7 @@ object CoreModel {
         )
 
     fun convertToHumanDuration(
-        timeStamp: Int
+        timeStamp: Long
     ): String = app.lockbook.core.convertToHumanDuration(timeStamp)
 
     private val getUsageParser = Json {

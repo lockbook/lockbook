@@ -248,7 +248,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_convertToHumanDuration(
-    env: JNIEnv, _: JClass, time_stamp: jint,
+    env: JNIEnv, _: JClass, time_stamp: jlong,
 ) -> jstring {
     string_to_jstring(
         &env,

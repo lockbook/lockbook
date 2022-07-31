@@ -21,7 +21,7 @@ data class File(
     @SerialName("file_type")
     val fileType: FileType = FileType.Document,
     @SerialName("last_modified")
-    val lastModified: Int = 0,
+    val lastModified: Long = 0,
     @SerialName("last_modified_by")
     val lastModifiedBy: String = "",
 ) {
@@ -46,7 +46,7 @@ data class WorkCalculated(
     @SerialName("work_units")
     val workUnits: List<WorkUnit>,
     @SerialName("most_recent_update_from_server")
-    val mostRecentUpdateFromServer: Int,
+    val mostRecentUpdateFromServer: Long,
 )
 
 @Serializable

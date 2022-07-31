@@ -299,7 +299,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             withItem<FileViewHolderInfo.DocumentViewHolderInfo, DocumentViewHolder>(R.layout.document_file_item) {
                 onBind(::DocumentViewHolder) { _, item ->
                     name.text = item.fileMetadata.name
-                    if (item.fileMetadata.lastModified != 0) {
+                    if (item.fileMetadata.lastModified != 0L) {
                         description.visibility = View.VISIBLE
                         description.text = CoreModel.convertToHumanDuration(item.fileMetadata.lastModified)
                     } else {

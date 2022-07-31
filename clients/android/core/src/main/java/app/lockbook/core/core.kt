@@ -5,7 +5,7 @@ external fun createAccount(username: String, apiUrl: String): String
 external fun importAccount(account: String): String
 external fun exportAccount(): String
 external fun getAccount(): String
-external fun convertToHumanDuration(metadataVersion: Int): String
+external fun convertToHumanDuration(timeStamp: Long): String
 external fun getUsage(): String
 external fun getUncompressedUsage(): String
 external fun getRoot(): String
