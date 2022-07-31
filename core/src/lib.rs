@@ -266,13 +266,14 @@ impl Core {
         Ok(val?)
     }
 
-    // #[instrument(level = "debug", skip(self), err(Debug))]
-    // pub fn get_local_changes(&self) -> Result<Vec<Uuid>, UnexpectedError> {
-    //     let val = self
-    //         .db
-    //         .transaction(|tx| self.context(tx)?.get_local_changes(&self.config))?;
-    //     Ok(val?)
-    // }
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_local_changes(&self) -> Result<Vec<Uuid>, UnexpectedError> {
+        todo!()
+        // let val = self
+        //     .db
+        //     .transaction(|tx| self.context(tx)?.get_local_changes(&self.config))?;
+        // Ok(val?)
+    }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>> {
