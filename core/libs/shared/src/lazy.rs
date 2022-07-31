@@ -121,10 +121,8 @@ impl<T: Stagable> LazyTree<T> {
             return Ok(name.clone());
         }
 
-        let parent_id = *self.find(id)?.parent();
-        let parent_key = self.decrypt_key(&parent_id, account)?;
-
-        let name = self.find(id)?.secret_name().to_string(&parent_key)?;
+        let key = self.decrypt_key(id, account)?;
+        let name = self.find(id)?.secret_name().to_string(&key)?;
         self.name.insert(*id, name.clone());
         Ok(name)
     }
