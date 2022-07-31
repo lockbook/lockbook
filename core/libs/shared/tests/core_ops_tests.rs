@@ -39,7 +39,7 @@ fn test_rename() {
 }
 
 #[test]
-fn test_move() {
+fn test_children_and_move() {
     let account = &Account::new(random_name(), url());
     let root = FileMetadata::create_root(account)
         .unwrap()
@@ -52,9 +52,28 @@ fn test_move() {
     let (tree, doc) = tree
         .create(root.id(), "test-doc", FileType::Document, account, &account.public_key())
         .unwrap();
-    let (tree, dir) = tree
+    let (mut tree, dir) = tree
         .create(root.id(), "dir", FileType::Folder, account, &account.public_key())
         .unwrap();
 
-    // Verify the starting state (dir is empty)
+    // Root should have 2 children and dir should have 0 child right now
+    let children = tree.children(&dir).unwrap();
+    assert_eq!(children.len(), 0);
+    let children = tree.children(root.id()).unwrap();
+    assert_eq!(children.len(), 2);
+
+    let mut tree = tree.move_file(&doc, &dir, account).unwrap();
+
+    // Dir should have 1 child after the move
+    let children = tree.children(&dir).unwrap();
+    assert_eq!(children.len(), 1);
+    assert!(children.get(&doc).is_some());
+
+    // Doc should have no children (obviously)
+    let children = tree.children(&doc).unwrap();
+    assert_eq!(children.len(), 0);
+
+    // Root should have 1 child now
+    let children = tree.children(root.id()).unwrap();
+    assert_eq!(children.len(), 1);
 }

@@ -31,13 +31,14 @@ impl<T: Stagable> LazyTree<T> {
 
 impl<T: Stagable> LazyTree<T> {
     pub fn all_children(&mut self) -> SharedResult<&HashMap<Uuid, HashSet<Uuid>>> {
-        // Populate cache (todo: deduplicate code)
         if self.children.is_empty() {
             let mut all_children: HashMap<Uuid, HashSet<Uuid>> = HashMap::new();
             for file in self.all_files()? {
-                let mut children = all_children.remove(file.parent()).unwrap_or_default();
-                children.insert(*file.id());
-                all_children.insert(*file.parent(), children);
+                if !file.is_root() {
+                    let mut children = all_children.remove(file.parent()).unwrap_or_default();
+                    children.insert(*file.id());
+                    all_children.insert(*file.parent(), children);
+                }
             }
             self.children = all_children;
         }
@@ -150,13 +151,7 @@ impl<T: Stagable> LazyTree<T> {
         }
 
         // Populate cache
-        let mut all_children: HashMap<Uuid, HashSet<Uuid>> = HashMap::new();
-        for file in self.all_files()? {
-            let mut children = all_children.remove(file.parent()).unwrap_or_default();
-            children.insert(*file.id());
-            all_children.insert(*file.parent(), children);
-        }
-        self.children = all_children;
+        self.all_children()?;
 
         // Return value from cache
         if let Some(children) = self.children.get(id) {
