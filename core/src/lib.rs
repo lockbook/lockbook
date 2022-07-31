@@ -19,7 +19,7 @@ pub use lockbook_shared::crypto::DecryptedDocument;
 pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 
 pub use crate::model::errors::*;
-// pub use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
+pub use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
 // pub use crate::service::path_service::Filter;
 // pub use crate::service::sync_service::{SyncProgress, WorkCalculated};
 pub use crate::service::usage_service::{bytes_to_human, UsageItemMetric, UsageMetrics};
@@ -376,29 +376,28 @@ impl Core {
     //         })?;
     //         Ok(val?)
     //     }
-    //
-    //     #[instrument(level = "debug", skip(self, update_status), err(Debug))]
-    //     pub fn import_files<F: Fn(ImportStatus)>(
-    //         &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
-    //     ) -> Result<(), Error<ImportFileError>> {
-    //         let val = self.db.transaction(|tx| {
-    //             self.context(tx)?
-    //                 .import_files(&self.config, sources, dest, update_status)
-    //         })?;
-    //         Ok(val?)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip(self, export_progress), err(Debug))]
-    //     pub fn export_file(
-    //         &self, id: Uuid, destination: PathBuf, edit: bool,
-    //         export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
-    //     ) -> Result<(), Error<ExportFileError>> {
-    //         let val = self.db.transaction(|tx| {
-    //             self.context(tx)?
-    //                 .export_file(&self.config, id, destination, edit, export_progress)
-    //         })?;
-    //         Ok(val?)
-    //     }
+
+    #[instrument(level = "debug", skip(self, update_status), err(Debug))]
+    pub fn import_files<F: Fn(ImportStatus)>(
+        &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
+    ) -> Result<(), Error<ImportFileError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.import_files(sources, dest, update_status))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self, export_progress), err(Debug))]
+    pub fn export_file(
+        &self, id: Uuid, destination: PathBuf, edit: bool,
+        export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
+    ) -> Result<(), Error<ExportFileError>> {
+        let val = self.db.transaction(|tx| {
+            self.context(tx)?
+                .export_file(id, destination, edit, export_progress)
+        })?;
+        Ok(val?)
+    }
 
     #[instrument(level = "debug", skip(self, input), err(Debug))]
     pub fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError> {
