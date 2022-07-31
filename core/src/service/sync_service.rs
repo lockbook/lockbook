@@ -83,9 +83,7 @@ impl RequestContext<'_, '_> {
 
         self.pull(config, &mut update_sync_progress)?;
         self.push_metadata(&mut update_sync_progress)?;
-        self.pull(config, &mut update_sync_progress)?;
         self.push_documents(&mut update_sync_progress)?;
-        self.pull(config, &mut update_sync_progress)?;
         self.tx.last_synced.insert(OneKey {}, clock::get_time().0);
         Ok(())
     }
