@@ -3,6 +3,7 @@ use crate::tree_like::{Stagable, TreeLike};
 use std::collections::HashSet;
 use uuid::Uuid;
 
+#[derive(Debug)]
 pub struct StagedTree<Base, Staged>
 where
     Base: Stagable,

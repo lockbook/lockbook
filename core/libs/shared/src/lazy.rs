@@ -8,6 +8,7 @@ use crate::{compression_service, pubkey, symkey, SharedError, SharedResult};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
+#[derive(Debug)]
 pub struct LazyTree<T: Stagable> {
     pub tree: T,
     pub name: HashMap<Uuid, String>,

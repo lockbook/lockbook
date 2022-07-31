@@ -17,5 +17,7 @@ fn test_create() {
         .create(root.id(), "test-doc", FileType::Document, account, &account.public_key())
         .unwrap();
 
+    println!("{:#?}", files);
+
     assert_eq!(files.name(&id, account).unwrap(), "test-doc");
 }

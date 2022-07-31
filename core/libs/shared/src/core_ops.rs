@@ -40,7 +40,7 @@ where
         pub_key: &PublicKey,
     ) -> SharedResult<(Self, Uuid)> {
         let (mut tree, id) = self.stage_create(parent, name, file_type, account, pub_key)?;
-        tree.validate()?;
+        // tree.validate()?;
         let tree = tree.promote();
         Ok((tree, id))
     }
