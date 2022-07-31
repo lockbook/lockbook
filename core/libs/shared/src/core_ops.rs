@@ -244,11 +244,12 @@ where
             let mut ancestors = HashSet::new();
             let mut current_file = result.find(&id)?;
             loop {
-                if no_cycles_in_ancestors.contains(&id) {
+                if no_cycles_in_ancestors.contains(current_file.id()) {
                     break;
                 } else if current_file.is_root() {
                     if !root_found {
                         root_found = true;
+                        ancestors.insert(*current_file.id());
                         break;
                     } else {
                         to_revert.insert(id);
