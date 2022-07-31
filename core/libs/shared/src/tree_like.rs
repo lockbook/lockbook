@@ -73,8 +73,7 @@ where
     fn insert(&mut self, f: F) -> Option<F> {
         for (i, value) in self.iter().enumerate() {
             if value.id() == f.id() {
-                let old = self.remove(i);
-                self[i] = f;
+                let old = std::mem::replace(&mut self[i], f);
                 return Some(old);
             }
         }
