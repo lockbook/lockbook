@@ -1,9 +1,6 @@
 use crate::account::Account;
 use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
-use crate::file::File;
 use crate::file_like::FileLike;
-use crate::file_metadata::FileMetadata;
-use crate::filename::NameComponents;
 use crate::secret_filename::SecretFileName;
 use crate::staged::StagedTree;
 use crate::tree_like::{Stagable, TreeLike};
@@ -32,6 +29,14 @@ impl<T: Stagable> LazyTree<T> {
 }
 
 impl<T: Stagable> LazyTree<T> {
+    pub fn all_children(&mut self) -> SharedResult<&HashMap<Uuid, HashSet<Uuid>>> {
+        self.owned_ids()
+            .into_iter()
+            .next()
+            .map(|id| self.children(&id)); // force update cache
+        Ok(&self.children)
+    }
+
     pub fn calculate_deleted(&mut self, id: &Uuid) -> SharedResult<bool> {
         let (visited_ids, deleted) = {
             let mut file = self.find(id)?;
@@ -203,7 +208,7 @@ impl<T: Stagable> LazyTree<T> {
             name: HashMap::new(),
             key: self.key,
             implicit_deleted: HashMap::new(),
-            tree: StagedTree::<T, T2> { base: self.tree, staged },
+            tree: StagedTree::new(self.tree, staged),
             children: HashMap::new(),
         }
     }
@@ -293,111 +298,6 @@ pub enum ValidationFailure {
     PathConflict(HashSet<Uuid>),
 }
 
-impl<Base, Local> LazyStaged1<Base, Local>
-where
-    Base: Stagable<F = FileMetadata>,
-    Local: Stagable<F = Base::F>,
-{
-    // assumptions: no orphans
-    // changes: moves files
-    // invalidated by: moved files
-    pub fn unmove_moved_files_in_cycles(&mut self) -> SharedResult<Vec<Base::F>> {
-        let mut root_found = false;
-        let mut no_cycles_in_ancestors = HashSet::new();
-        let mut to_revert = HashSet::new();
-        for id in self.owned_ids() {
-            let mut ancestors = HashSet::new();
-            let mut current_file = self.find(&id)?;
-            loop {
-                if no_cycles_in_ancestors.contains(&id) {
-                    break;
-                } else if current_file.is_root() {
-                    if !root_found {
-                        root_found = true;
-                        break;
-                    } else {
-                        to_revert.insert(id);
-                        break;
-                    }
-                } else if ancestors.contains(current_file.parent()) {
-                    to_revert.extend(self.ancestors(current_file.id())?);
-                    break;
-                }
-                ancestors.insert(*current_file.id());
-                current_file = self.find_parent(current_file)?;
-            }
-            no_cycles_in_ancestors.extend(ancestors);
-        }
-        let mut result = Vec::new();
-        for id in to_revert {
-            if let (Some(base), Some(staged)) =
-                (self.tree.base.maybe_find(&id), self.tree.staged.maybe_find(&id))
-            {
-                let mut update = staged.clone();
-                update.parent = base.parent;
-                result.push(update);
-            }
-        }
-        Ok(result)
-    }
-
-    // assumptions: no orphans
-    // changes: renames files
-    // invalidated by: moved files, renamed files
-    pub fn rename_files_with_path_conflicts(
-        &mut self, account: &Account,
-    ) -> SharedResult<Vec<Base::F>> {
-        let mut children = HashMap::<Uuid, HashSet<Uuid>>::new();
-        let mut names = HashMap::<Uuid, String>::new();
-        let mut keys = HashMap::<Uuid, AESKey>::new();
-        for id in self.owned_ids() {
-            if !self.calculate_deleted(&id)? {
-                let file = self.find(&id)?;
-                children
-                    .entry(*file.parent())
-                    .or_insert_with(HashSet::new)
-                    .insert(id);
-                names.insert(id, self.name(&id, account)?);
-                keys.insert(id, self.decrypt_key(&id, account)?);
-            }
-        }
-
-        let mut result = Vec::new();
-        for (_, sibling_ids) in children {
-            let siblings = sibling_ids
-                .iter()
-                .filter_map(|s| self.maybe_find(s))
-                .collect::<Vec<_>>();
-            for sibling in siblings {
-                let mut name = names
-                    .get(sibling.id())
-                    .ok_or(SharedError::FileNonexistent)?
-                    .clone();
-                let mut changed = false;
-                while sibling_ids
-                    .iter()
-                    .filter_map(|id| names.get(id))
-                    .any(|sibling_name| sibling_name == &name)
-                {
-                    name = NameComponents::from(&name).generate_next().to_name();
-                    changed = true;
-                }
-                if changed {
-                    let mut update = sibling.clone();
-                    update.name = SecretFileName::from_str(
-                        &name,
-                        &keys[update.id()],
-                        &keys[update.parent()],
-                    )?;
-                    result.push(update);
-                    names.insert(sibling.id, name);
-                }
-            }
-        }
-        Ok(result)
-    }
-}
-
 impl<Base, Staged> LazyStaged1<Base, Staged>
 where
     Base: Stagable,
@@ -420,15 +320,9 @@ where
             children: self.children,
         }
     }
-}
 
-impl<Base, Local, Staged> LazyStage2<Base, Local, Staged>
-where
-    Base: Stagable,
-    Local: Stagable<F = Base::F>,
-    Staged: Stagable<F = Base::F>,
-{
-    pub fn promote_to_local(self) -> LazyStaged1<Base, Local> {
+    // todo: incrementalism
+    pub fn unstage(self) -> (LazyTree<Base>, Staged) {
         let mut staged = self.tree.staged;
         let mut base = self.tree.base;
         for id in staged.owned_ids() {
@@ -437,13 +331,16 @@ where
             }
         }
 
-        LazyStaged1 {
-            tree: base,
-            name: self.name,
-            key: self.key,
-            implicit_deleted: self.implicit_deleted,
-            children: self.children,
-        }
+        (
+            LazyTree {
+                tree: base,
+                name: HashMap::new(),
+                key: HashMap::new(),
+                implicit_deleted: HashMap::new(),
+                children: HashMap::new(),
+            },
+            staged,
+        )
     }
 }
 

@@ -14,8 +14,11 @@ impl Display for SignedFile {
     }
 }
 
-impl TreeLike for Option<SignedFile> {
-    type F = SignedFile;
+impl<F> TreeLike for Option<F>
+where
+    F: FileLike,
+{
+    type F = F;
 
     fn ids(&self) -> HashSet<&Uuid> {
         let mut hashset = HashSet::new();
@@ -25,7 +28,7 @@ impl TreeLike for Option<SignedFile> {
         hashset
     }
 
-    fn maybe_find(&self, id: &Uuid) -> Option<&SignedFile> {
+    fn maybe_find(&self, id: &Uuid) -> Option<&F> {
         if let Some(f) = self {
             if id == f.id() {
                 self.as_ref()
@@ -37,11 +40,11 @@ impl TreeLike for Option<SignedFile> {
         }
     }
 
-    fn insert(&mut self, f: SignedFile) -> Option<SignedFile> {
+    fn insert(&mut self, f: F) -> Option<F> {
         self.replace(f)
     }
 
-    fn remove(&mut self, id: Uuid) -> Option<SignedFile> {
+    fn remove(&mut self, id: Uuid) -> Option<F> {
         if let Some(f) = self {
             if &id == f.id() {
                 self.take()
@@ -54,4 +57,4 @@ impl TreeLike for Option<SignedFile> {
     }
 }
 
-impl Stagable for Option<SignedFile> {}
+impl<F> Stagable for Option<F> where F: FileLike {}

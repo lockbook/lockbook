@@ -19,9 +19,7 @@ impl RequestContext<'_, '_> {
             return Err(CoreError::AccountExists);
         }
 
-        let private_key = pubkey::generate_key();
-
-        let account = Account { username, api_url: api_url.to_string(), private_key };
+        let account = Account::new(username, api_url.to_string());
         let public_key = account.public_key();
         self.data_cache.public_key = Some(public_key);
 

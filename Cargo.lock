@@ -2270,6 +2270,7 @@ dependencies = [
  "base64 0.13.0",
  "base64-serde",
  "bincode",
+ "diffy",
  "flate2",
  "hmac 0.11.0",
  "hmdb 0.1.12",
@@ -2279,6 +2280,7 @@ dependencies = [
  "serde",
  "serde_bytes",
  "sha2 0.9.9",
+ "test_utils",
  "tracing",
  "uuid",
 ]

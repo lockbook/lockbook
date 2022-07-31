@@ -1,3 +1,4 @@
+use crate::pubkey;
 use libsecp256k1::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
 
@@ -13,6 +14,10 @@ pub struct Account {
 }
 
 impl Account {
+    pub fn new(username: String, api_url: String) -> Self {
+        let private_key = pubkey::generate_key();
+        Self { username, api_url, private_key }
+    }
     pub fn public_key(&self) -> PublicKey {
         PublicKey::from_secret_key(&self.private_key)
     }
