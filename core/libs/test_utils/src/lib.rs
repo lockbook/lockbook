@@ -2,12 +2,14 @@ use chrono::Datelike;
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use lockbook_core::model::repo::RepoSource;
+use lockbook_core::repo::schema::OneKey;
 use lockbook_core::repo::{document_repo, local_storage};
-use lockbook_core::service::api_service::ApiError;
-use lockbook_core::{Config, Core, RequestContext};
-use lockbook_shared::api::{FileMetadataUpsertsError, PaymentMethod, StripeAccountTier};
+use lockbook_core::{Config, Core};
+use lockbook_shared::api::{PaymentMethod, StripeAccountTier};
 use lockbook_shared::crypto::EncryptedDocument;
 use lockbook_shared::path_ops::Filter::DocumentsOnly;
+use lockbook_shared::tree_like::Stagable;
+use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::work_unit::WorkUnit;
 use std::collections::HashMap;
 use std::env;
@@ -194,73 +196,61 @@ pub fn get_dirty_ids(db: &Core, server: bool) -> Vec<Uuid> {
         .unique()
         .collect()
 }
-//
-// pub fn assert_local_work_ids(db: &Core, ids: &[Uuid]) {
-//     assert!(slices_equal_ignore_order(&get_dirty_ids(db, false), ids));
-// }
+
+pub fn assert_local_work_ids(db: &Core, ids: &[Uuid]) {
+    assert!(slices_equal_ignore_order(&get_dirty_ids(db, false), ids));
+}
 
 pub fn assert_local_work_paths(db: &Core, expected_paths: &[&'static str]) {
-    todo!()
-    // let all_local_files = db
-    //     .db
-    //     .transaction(|tx| db.context(tx).unwrap().get_all_metadata(RepoSource::Local))
-    //     .unwrap()
-    //     .unwrap();
-    //
-    // let mut expected_paths = expected_paths.to_vec();
-    // let mut actual_paths: Vec<String> = get_dirty_ids(db, false)
-    //     .iter()
-    //     .map(|&id| RequestContext::path_by_id_helper(&all_local_files, id).unwrap())
-    //     .collect();
-    // actual_paths.sort_unstable();
-    // expected_paths.sort_unstable();
-    // if actual_paths != expected_paths {
-    //     panic!(
-    //         "paths did not match expectation. expected={:?}; actual={:?}",
-    //         expected_paths, actual_paths
-    //     );
-    // }
+    let mut expected_paths = expected_paths.to_vec();
+    let mut actual_paths = db
+        .db
+        .transaction(|tx| {
+            let account = tx.account.get(&OneKey {}).unwrap();
+            let mut local = tx.base_metadata.stage(&mut tx.local_metadata).to_lazy();
+            local
+                .owned_ids()
+                .iter()
+                .map(|id| local.id_to_path(id, account))
+                .collect::<Result<Vec<String>, _>>()
+                .unwrap()
+        })
+        .unwrap();
+    actual_paths.sort_unstable();
+    expected_paths.sort_unstable();
+    if actual_paths != expected_paths {
+        panic!(
+            "paths did not match expectation. expected={:?}; actual={:?}",
+            expected_paths, actual_paths
+        );
+    }
 }
 
 pub fn assert_server_work_paths(db: &Core, expected_paths: &[&'static str]) {
-    return todo!();
-    // let staged = db
-    //     .db
-    //     .transaction(|tx| {
-    //         let mut tx = db.context(tx).unwrap();
-    //         let all_local_files = tx.get_all_metadata(RepoSource::Local).unwrap();
-    //         let new_server_files = tx
-    //             .calculate_work(&db.config)
-    //             .unwrap()
-    //             .work_units
-    //             .into_iter()
-    //             .filter_map(|wu| match wu {
-    //                 WorkUnit::ServerChange { metadata } => Some((metadata.id, metadata)),
-    //                 _ => None,
-    //             })
-    //             .filter(|(id, _)| all_local_files.maybe_find(*id).is_none())
-    //             .collect::<DecryptedFiles>();
-    //         all_local_files
-    //             .stage_with_source(&new_server_files)
-    //             .into_iter()
-    //             .map(|(_, (meta, _))| (meta.id, meta))
-    //             .collect::<DecryptedFiles>()
-    //     })
-    //     .unwrap();
-    // 
-    // let mut expected_paths = expected_paths.to_vec();
-    // let mut actual_paths: Vec<String> = get_dirty_ids(db, true)
-    //     .iter()
-    //     .map(|&id| RequestContext::path_by_id_helper(&staged, id).unwrap())
-    //     .collect();
-    // actual_paths.sort_unstable();
-    // expected_paths.sort_unstable();
-    // if actual_paths != expected_paths {
-    //     panic!(
-    //         "paths did not match expectation. expected={:?}; actual={:?}",
-    //         expected_paths, actual_paths
-    //     );
-    // }
+    let mut expected_paths = expected_paths.to_vec();
+    let mut actual_paths = db
+        .db
+        .transaction(|tx| {
+            let context = db.context(tx).unwrap();
+            let account = context.tx.account.get(&OneKey {}).unwrap();
+            let remote_changes = context.get_updates(account).unwrap().file_metadata;
+            let mut remote = context.tx.base_metadata.stage(remote_changes).to_lazy();
+            remote
+                .owned_ids()
+                .iter()
+                .map(|id| remote.id_to_path(id, account))
+                .collect::<Result<Vec<String>, _>>()
+                .unwrap()
+        })
+        .unwrap();
+    actual_paths.sort_unstable();
+    expected_paths.sort_unstable();
+    if actual_paths != expected_paths {
+        panic!(
+            "paths did not match expectation. expected={:?}; actual={:?}",
+            expected_paths, actual_paths
+        );
+    }
 }
 
 pub fn assert_server_work_ids(db: &Core, ids: &[Uuid]) {
@@ -294,20 +284,29 @@ pub fn assert_all_document_contents(db: &Core, expected_contents_by_path: &[(&st
 }
 
 pub fn assert_deleted_files_pruned(core: &Core) {
-    todo!()
-    // core.db.transaction(|tx| {
-    //     let mut tx = core.context(tx).unwrap();
-    //     for source in [RepoSource::Local, RepoSource::Base] {
-    //         let all_metadata = tx.get_all_metadata(source).unwrap();
-    //         let not_deleted_metadata = tx.get_all_not_deleted_metadata(source).unwrap();
-    //         if !slices_equal_ignore_order(&all_metadata.values().cloned().collect::<Vec<CoreFile>>(), &not_deleted_metadata.values().cloned().collect::<Vec<CoreFile>>()) {
-    //             panic!(
-    //                 "some deleted files are not pruned. not_deleted_metadata={:?}; all_metadata={:?}",
-    //                 not_deleted_metadata, all_metadata
-    //             );
-    //         }
-    //     }
-    // }).unwrap();
+    core.db
+        .transaction(|tx| {
+            let context = core.context(tx).unwrap();
+            let mut base = context.tx.base_metadata.to_lazy();
+            let deleted_base_ids = base
+                .owned_ids()
+                .into_iter()
+                .filter(|id| base.calculate_deleted(id).unwrap())
+                .collect::<Vec<Uuid>>();
+            if !deleted_base_ids.is_empty() {
+                panic!("some deleted files are not pruned:{:?}", deleted_base_ids);
+            }
+            let mut local = base.stage(&mut context.tx.local_metadata);
+            let deleted_local_ids = local
+                .owned_ids()
+                .into_iter()
+                .filter(|id| local.calculate_deleted(id).unwrap())
+                .collect::<Vec<Uuid>>();
+            if !deleted_local_ids.is_empty() {
+                panic!("some deleted files are not pruned:{:?}", deleted_local_ids);
+            }
+        })
+        .unwrap();
 }
 
 /// Compare dbs for key equality don't compare last synced.

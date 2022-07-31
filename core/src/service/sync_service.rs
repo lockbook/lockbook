@@ -198,7 +198,7 @@ impl RequestContext<'_, '_> {
         Ok(remote_changes)
     }
 
-    fn get_updates(&self, account: &Account) -> CoreResult<GetUpdatesResponse> {
+    pub fn get_updates(&self, account: &Account) -> CoreResult<GetUpdatesResponse> {
         let last_synced = self
             .tx
             .last_synced
@@ -326,7 +326,6 @@ impl RequestContext<'_, '_> {
             .ok_or(CoreError::AccountNonexistent)?;
 
         // fetch metadata updates
-        // todo: if this doesn't need to be mut, prune is broken
         let updates = self.get_updates(account)?;
         let mut remote_changes = updates.file_metadata;
 
