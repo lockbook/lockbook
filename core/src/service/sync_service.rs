@@ -6,12 +6,13 @@ use crate::CoreResult;
 use crate::{Config, CoreError, RequestContext};
 use lockbook_shared::account::Account;
 use lockbook_shared::api::{
-    FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest, GetUpdatesResponse,
+    ChangeDocRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,
+    GetUpdatesResponse,
 };
 use lockbook_shared::clock;
 use lockbook_shared::crypto::EncryptedDocument;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::DocumentHmac;
+use lockbook_shared::file_metadata::{DocumentHmac, FileDiff};
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::tree_like::Stagable;
 use lockbook_shared::tree_like::TreeLike;
@@ -122,7 +123,44 @@ impl RequestContext<'_, '_> {
     where
         F: FnMut(SyncProgressOperation),
     {
-        todo!()
+        let account = &self.get_account()?;
+        update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PushMetadata));
+
+        // update remote to local
+        let mut local_changes_no_digests = Vec::new();
+        let mut updates = Vec::new();
+        for id in (&mut self.tx.local_metadata).owned_ids() {
+            let mut local_change = self
+                .tx
+                .local_metadata
+                .get(&id)
+                .ok_or(CoreError::FileNonexistent)?
+                .timestamped_value
+                .value;
+            let maybe_base_file = self.tx.base_metadata.get(&id);
+
+            // reset document hmac and re-sign; documents and their hmacs are pushed separately
+            local_change.document_hmac = maybe_base_file
+                .map(|f| f.timestamped_value.value.document_hmac)
+                .flatten();
+            let local_change = local_change.sign(account)?;
+
+            local_changes_no_digests.push(local_change);
+            updates.push(FileDiff { old: maybe_base_file.cloned(), new: local_change });
+        }
+        if !updates.is_empty() {
+            api_service::request(account, FileMetadataUpsertsRequest { updates })
+                .map_err(CoreError::from)?;
+        }
+
+        // update base to local
+        self.tx
+            .base_metadata
+            .stage(local_changes_no_digests)
+            .to_lazy()
+            .promote();
+
+        Ok(())
     }
 
     /// Updates remote and base files to local.
@@ -133,7 +171,56 @@ impl RequestContext<'_, '_> {
     where
         F: FnMut(SyncProgressOperation),
     {
-        todo!()
+        let account = &self.get_account()?;
+
+        let mut local_changes_digests_only = Vec::new();
+        let local = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+        for id in local.tree.staged.owned_ids() {
+            let base_file = self
+                .tx
+                .local_metadata
+                .get(&id)
+                .ok_or(CoreError::FileNonexistent)?;
+
+            // change only document hmac and re-sign; other fields pushed separately
+            let mut local_change = base_file.timestamped_value.value.clone();
+            local_change.document_hmac = self
+                .tx
+                .base_metadata
+                .get(&id)
+                .map(|f| f.timestamped_value.value.document_hmac)
+                .flatten();
+
+            let local_change = local_change.sign(account)?;
+            let local_document_change = document_repo::get(config, RepoSource::Local, id)?;
+
+            update_sync_progress(SyncProgressOperation::StartWorkUnit(
+                ClientWorkUnit::PushDocument(local.name(&id, account)?),
+            ));
+            api_service::request(
+                account,
+                ChangeDocRequest {
+                    diff: FileDiff { old: Some(base_file.clone()), new: local_change },
+                    new_content: local_document_change,
+                },
+            )
+            .map_err(CoreError::from)?;
+
+            local_changes_digests_only.push(local_change);
+        }
+
+        // update base to local
+        self.tx
+            .base_metadata
+            .stage(local_changes_digests_only)
+            .to_lazy()
+            .promote();
+
+        Ok(())
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
