@@ -79,12 +79,11 @@ impl super::App {
         });
 
         let buf = buf.clone();
-        rx.attach(None, move |maybe_res: Option<Result<lb::CoreFile, String>>| {
+        rx.attach(None, move |maybe_res: Option<Result<lb::File, String>>| {
             match maybe_res {
                 Some(res) => match res {
                     Ok(new_file) => {
-                        let md_link =
-                            format!("[{}](lb://{})", new_file.decrypted_name, new_file.id);
+                        let md_link = format!("[{}](lb://{})", new_file.name, new_file.id);
                         buf.insert_at_cursor(&md_link);
                     }
                     Err(err) => errors.borrow_mut().push(err),

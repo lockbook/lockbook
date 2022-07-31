@@ -13,7 +13,7 @@ impl super::App {
         };
 
         let entry = gtk::Entry::new();
-        entry.buffer().set_text(&meta.decrypted_name);
+        entry.buffer().set_text(&meta.name);
         entry.set_width_request(250);
         entry.select_region(0, -1);
 
@@ -83,7 +83,7 @@ impl super::App {
         popover.popup();
     }
 
-    fn get_selected_metadata(&self) -> Result<lb::CoreFile, String> {
+    fn get_selected_metadata(&self) -> Result<lb::File, String> {
         let id = self
             .account
             .tree

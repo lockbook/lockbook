@@ -20,6 +20,7 @@ pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 pub use lockbook_shared::file::File;
 pub use lockbook_shared::file_like::FileLike;
 pub use lockbook_shared::file_metadata::FileType;
+pub use lockbook_shared::filename::NameComponents;
 pub use lockbook_shared::path_ops::Filter;
 pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 
