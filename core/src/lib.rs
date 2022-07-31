@@ -163,39 +163,32 @@ impl Core {
         let val = self.db.transaction(|tx| self.context(tx)?.root())?;
         Ok(val?)
     }
-    //
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn get_children(&self, id: Uuid) -> Result<Vec<CoreFile>, UnexpectedError> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.get_children(id))??
-    //             .into_values()
-    //             .collect();
-    //         Ok(val)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn get_and_get_children_recursively(
-    //         &self, id: Uuid,
-    //     ) -> Result<Vec<CoreFile>, Error<GetAndGetChildrenError>> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| self.context(tx)?.get_and_get_children_recursively(id))??
-    //             .into_values()
-    //             .collect();
-    //
-    //         Ok(val)
-    //     }
-    //
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn get_file_by_id(&self, id: Uuid) -> Result<CoreFile, Error<GetFileByIdError>> {
-    //         let val = self.db.transaction(|tx| {
-    //             self.context(tx)?
-    //                 .get_not_deleted_metadata(RepoSource::Local, id)
-    //         })?;
-    //
-    //         Ok(val?)
-    //     }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_children(&self, id: Uuid) -> Result<Vec<File>, UnexpectedError> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.get_children(&id))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_and_get_children_recursively(
+        &self, id: Uuid,
+    ) -> Result<Vec<File>, Error<GetAndGetChildrenError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.get_and_get_children(&id))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_file_by_id(&self, id: Uuid) -> Result<File, Error<GetFileByIdError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.get_file_by_id(&id))?;
+        Ok(val?)
+    }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn delete_file(&self, id: Uuid) -> Result<(), Error<FileDeleteError>> {
