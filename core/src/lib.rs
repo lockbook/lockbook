@@ -158,11 +158,11 @@ impl Core {
         Ok(val?)
     }
 
-    //     #[instrument(level = "debug", skip_all, err(Debug))]
-    //     pub fn get_root(&self) -> Result<CoreFile, Error<GetRootError>> {
-    //         let val = self.db.transaction(|tx| self.context(tx)?.root())?;
-    //         Ok(val?)
-    //     }
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn get_root(&self) -> Result<File, Error<GetRootError>> {
+        let val = self.db.transaction(|tx| self.context(tx)?.root())?;
+        Ok(val?)
+    }
     //
     //     #[instrument(level = "debug", skip(self), err(Debug))]
     //     pub fn get_children(&self, id: Uuid) -> Result<Vec<CoreFile>, UnexpectedError> {
@@ -211,18 +211,13 @@ impl Core {
         Ok(val?)
     }
 
-    //     #[instrument(level = "debug", skip(self), err(Debug))]
-    //     pub fn list_metadatas(&self) -> Result<Vec<CoreFile>, UnexpectedError> {
-    //         let val = self
-    //             .db
-    //             .transaction(|tx| {
-    //                 self.context(tx)?
-    //                     .get_all_not_deleted_metadata(RepoSource::Local)
-    //             })??
-    //             .into_values()
-    //             .collect();
-    //         Ok(val)
-    //     }
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn list_metadatas(&self) -> Result<Vec<File>, UnexpectedError> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.list_metadatas())?;
+        Ok(val?)
+    }
 
     #[instrument(level = "debug", skip(self, new_name), err(Debug))]
     pub fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), Error<RenameFileError>> {

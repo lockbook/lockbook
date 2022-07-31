@@ -1,6 +1,5 @@
 use crate::model::repo::RepoSource;
 use crate::repo::document_repo;
-use crate::CoreError::RootNonexistent;
 use crate::{Config, CoreError, OneKey, RequestContext};
 use itertools::Itertools;
 use lockbook_shared::compression_service;
@@ -83,5 +82,50 @@ impl RequestContext<'_, '_> {
             .to_lazy()
             .delete(id, account)?;
         Ok(())
+    }
+
+    pub fn root(&mut self) -> Result<File, CoreError> {
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
+
+        let root_id = self
+            .tx
+            .root
+            .get(&OneKey {})
+            .ok_or(CoreError::RootNonexistent)?;
+
+        let root = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy()
+            .finalize(root_id, account)?;
+
+        Ok(root)
+    }
+
+    pub fn list_metadatas(&mut self) -> Result<Vec<File>, CoreError> {
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
+
+        let mut files = Vec::new();
+
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+
+        for id in tree.owned_ids() {
+            files.push(tree.finalize(&id, account)?);
+        }
+
+        Ok(files)
     }
 }
