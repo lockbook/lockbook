@@ -8,6 +8,7 @@ use lockbook_core::{Config, Core, RequestContext};
 use lockbook_shared::api::{FileMetadataUpsertsError, PaymentMethod, StripeAccountTier};
 use lockbook_shared::crypto::EncryptedDocument;
 use lockbook_shared::path_ops::Filter::DocumentsOnly;
+use lockbook_shared::work_unit::WorkUnit;
 use std::collections::HashMap;
 use std::env;
 use std::fmt::Debug;
@@ -49,116 +50,115 @@ pub fn random_name() -> String {
         .filter(|c| c.is_alphanumeric())
         .collect()
 }
-
+//
 // pub const UPDATES_REQ: Result<(), ApiError<FileMetadataUpsertsError>> =
 //     Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
 //         FileMetadataUpsertsError::GetUpdatesRequired,
 //     ));
-//
-// pub enum Operation<'a> {
-//     Client { client_num: usize },
-//     Sync { client_num: usize },
-//     Create { client_num: usize, path: &'a str },
-//     Rename { client_num: usize, path: &'a str, new_name: &'a str },
-//     Move { client_num: usize, path: &'a str, new_parent_path: &'a str },
-//     Delete { client_num: usize, path: &'a str },
-//     Edit { client_num: usize, path: &'a str, content: &'a [u8] },
-//     Custom { f: &'a dyn Fn(&[Core]) },
-// }
-//
-// pub fn run(ops: &[Operation]) {
-//     let mut cores = vec![test_core()];
-//     cores[0].create_account(&random_name(), &url()).unwrap();
-//     let root = cores[0].get_root().unwrap();
-//
-//     let ensure_client_exists = |clients: &mut Vec<Core>, client_num: &usize| {
-//         if *client_num > clients.len() - 1 {
-//             let account_string = clients[0].export_account().unwrap();
-//             let core = test_core();
-//             core.import_account(&account_string).unwrap();
-//             clients.push(core)
-//         }
-//     };
-//
-//     for op in ops {
-//         match op {
-//             Operation::Client { client_num } => {
-//                 ensure_client_exists(&mut cores, client_num);
-//             }
-//             Operation::Sync { client_num } => {
-//                 || -> Result<_, String> {
-//                     ensure_client_exists(&mut cores, client_num);
-//                     cores[*client_num].sync(None).map_err(err_to_string)
-//                 }()
-//                 .unwrap_or_else(|_| panic!("Operation::Sync error. client_num={:?}", client_num));
-//             }
-//             Operation::Create { client_num, path } => {
-//                 || -> Result<_, String> {
-//                     let core = &cores[*client_num];
-//                     core.create_at_path(path).map_err(err_to_string)
-//                 }()
-//                 .unwrap_or_else(|_| {
-//                     panic!("Operation::Create error. client_num={:?}, path={:?}", client_num, path)
-//                 });
-//             }
-//             Operation::Rename { client_num, path, new_name } => {
-//                 || -> Result<_, String> {
-//                     let core = &cores[*client_num];
-//                     let target = core.get_by_path(path).map_err(err_to_string)?;
-//                     core.rename_file(target.id, new_name).map_err(err_to_string)
-//                 }()
-//                 .unwrap_or_else(|_| {
-//                     panic!(
-//                         "Operation::Rename error. client_num={:?}, path={:?}, new_name={:?}",
-//                         client_num, path, new_name
-//                     )
-//                 });
-//             }
-//             Operation::Move { client_num, path, new_parent_path } => {
-//                 || -> Result<_, String> {
-//                     let core = &cores[*client_num];
-//                     let target = core.get_by_path(path).map_err(err_to_string)?;
-//                     let new_parent = core.get_by_path(new_parent_path).map_err(err_to_string)?;
-//                     core.move_file(target.id, new_parent.id)
-//                         .map_err(err_to_string)
-//                 }()
-//                 .unwrap_or_else(|_| {
-//                     panic!(
-//                         "Operation::Move error. client_num={:?}, path={:?}, new_parent_path={:?}",
-//                         client_num, path, new_parent_path
-//                     )
-//                 });
-//             }
-//             Operation::Delete { client_num, path } => {
-//                 || -> Result<_, String> {
-//                     let core = &cores[*client_num];
-//                     let target = core.get_by_path(path).map_err(err_to_string)?;
-//                     core.delete_file(target.id).map_err(err_to_string)
-//                 }()
-//                 .unwrap_or_else(|_| {
-//                     panic!("Operation::Delete error. client_num={:?}, path={:?}", client_num, path)
-//                 });
-//             }
-//             Operation::Edit { client_num, path, content } => {
-//                 || -> Result<_, String> {
-//                     let core = &cores[*client_num];
-//                     let target = core.get_by_path(path).map_err(err_to_string)?;
-//                     core.write_document(target.id, content)
-//                         .map_err(err_to_string)
-//                 }()
-//                 .unwrap_or_else(|_| {
-//                     panic!(
-//                         "Operation::Edit error. client_num={:?}, path={:?}, content={:?}",
-//                         client_num, path, content
-//                     )
-//                 });
-//             }
-//             Operation::Custom { f } => {
-//                 f(&cores);
-//             }
-//         }
-//     }
-// }
+
+pub enum Operation<'a> {
+    Client { client_num: usize },
+    Sync { client_num: usize },
+    Create { client_num: usize, path: &'a str },
+    Rename { client_num: usize, path: &'a str, new_name: &'a str },
+    Move { client_num: usize, path: &'a str, new_parent_path: &'a str },
+    Delete { client_num: usize, path: &'a str },
+    Edit { client_num: usize, path: &'a str, content: &'a [u8] },
+    Custom { f: &'a dyn Fn(&[Core]) },
+}
+
+pub fn run(ops: &[Operation]) {
+    let mut cores = vec![test_core()];
+    cores[0].create_account(&random_name(), &url()).unwrap();
+
+    let ensure_client_exists = |clients: &mut Vec<Core>, client_num: &usize| {
+        if *client_num > clients.len() - 1 {
+            let account_string = clients[0].export_account().unwrap();
+            let core = test_core();
+            core.import_account(&account_string).unwrap();
+            clients.push(core)
+        }
+    };
+
+    for op in ops {
+        match op {
+            Operation::Client { client_num } => {
+                ensure_client_exists(&mut cores, client_num);
+            }
+            Operation::Sync { client_num } => {
+                || -> Result<_, String> {
+                    ensure_client_exists(&mut cores, client_num);
+                    cores[*client_num].sync(None).map_err(err_to_string)
+                }()
+                .unwrap_or_else(|_| panic!("Operation::Sync error. client_num={:?}", client_num));
+            }
+            Operation::Create { client_num, path } => {
+                || -> Result<_, String> {
+                    let core = &cores[*client_num];
+                    core.create_at_path(path).map_err(err_to_string)
+                }()
+                .unwrap_or_else(|_| {
+                    panic!("Operation::Create error. client_num={:?}, path={:?}", client_num, path)
+                });
+            }
+            Operation::Rename { client_num, path, new_name } => {
+                || -> Result<_, String> {
+                    let core = &cores[*client_num];
+                    let target = core.get_by_path(path).map_err(err_to_string)?;
+                    core.rename_file(target.id, new_name).map_err(err_to_string)
+                }()
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Operation::Rename error. client_num={:?}, path={:?}, new_name={:?}",
+                        client_num, path, new_name
+                    )
+                });
+            }
+            Operation::Move { client_num, path, new_parent_path } => {
+                || -> Result<_, String> {
+                    let core = &cores[*client_num];
+                    let target = core.get_by_path(path).map_err(err_to_string)?;
+                    let new_parent = core.get_by_path(new_parent_path).map_err(err_to_string)?;
+                    core.move_file(target.id, new_parent.id)
+                        .map_err(err_to_string)
+                }()
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Operation::Move error. client_num={:?}, path={:?}, new_parent_path={:?}",
+                        client_num, path, new_parent_path
+                    )
+                });
+            }
+            Operation::Delete { client_num, path } => {
+                || -> Result<_, String> {
+                    let core = &cores[*client_num];
+                    let target = core.get_by_path(path).map_err(err_to_string)?;
+                    core.delete_file(target.id).map_err(err_to_string)
+                }()
+                .unwrap_or_else(|_| {
+                    panic!("Operation::Delete error. client_num={:?}, path={:?}", client_num, path)
+                });
+            }
+            Operation::Edit { client_num, path, content } => {
+                || -> Result<_, String> {
+                    let core = &cores[*client_num];
+                    let target = core.get_by_path(path).map_err(err_to_string)?;
+                    core.write_document(target.id, content)
+                        .map_err(err_to_string)
+                }()
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Operation::Edit error. client_num={:?}, path={:?}, content={:?}",
+                        client_num, path, content
+                    )
+                });
+            }
+            Operation::Custom { f } => {
+                f(&cores);
+            }
+        }
+    }
+}
 
 pub fn assert_all_paths(core: &Core, expected_paths: &[&str]) {
     let mut expected_paths: Vec<String> = expected_paths
@@ -181,89 +181,91 @@ fn err_to_string<E: Debug>(e: E) -> String {
     format!("{}: {:?}", std::any::type_name::<E>(), e)
 }
 
-// pub fn get_dirty_ids(db: &Core, server: bool) -> Vec<Uuid> {
-//     db.calculate_work()
-//         .unwrap()
-//         .work_units
-//         .into_iter()
-//         .filter_map(|wu| match wu {
-//             WorkUnit::LocalChange { metadata } if !server => Some(metadata.id),
-//             WorkUnit::ServerChange { metadata } if server => Some(metadata.id),
-//             _ => None,
-//         })
-//         .unique()
-//         .collect()
-// }
+pub fn get_dirty_ids(db: &Core, server: bool) -> Vec<Uuid> {
+    db.calculate_work()
+        .unwrap()
+        .work_units
+        .into_iter()
+        .filter_map(|wu| match wu {
+            WorkUnit::LocalChange { metadata } if !server => Some(metadata.id),
+            WorkUnit::ServerChange { metadata } if server => Some(metadata.id),
+            _ => None,
+        })
+        .unique()
+        .collect()
+}
 //
 // pub fn assert_local_work_ids(db: &Core, ids: &[Uuid]) {
 //     assert!(slices_equal_ignore_order(&get_dirty_ids(db, false), ids));
 // }
 
-// pub fn assert_local_work_paths(db: &Core, expected_paths: &[&'static str]) {
-//     let all_local_files = db
-//         .db
-//         .transaction(|tx| db.context(tx).unwrap().get_all_metadata(RepoSource::Local))
-//         .unwrap()
-//         .unwrap();
-//
-//     let mut expected_paths = expected_paths.to_vec();
-//     let mut actual_paths: Vec<String> = get_dirty_ids(db, false)
-//         .iter()
-//         .map(|&id| RequestContext::path_by_id_helper(&all_local_files, id).unwrap())
-//         .collect();
-//     actual_paths.sort_unstable();
-//     expected_paths.sort_unstable();
-//     if actual_paths != expected_paths {
-//         panic!(
-//             "paths did not match expectation. expected={:?}; actual={:?}",
-//             expected_paths, actual_paths
-//         );
-//     }
-// }
-//
-// pub fn assert_server_work_paths(db: &Core, expected_paths: &[&'static str]) {
-//     let staged = db
-//         .db
-//         .transaction(|tx| {
-//             let mut tx = db.context(tx).unwrap();
-//             let all_local_files = tx.get_all_metadata(RepoSource::Local).unwrap();
-//             let new_server_files = tx
-//                 .calculate_work(&db.config)
-//                 .unwrap()
-//                 .work_units
-//                 .into_iter()
-//                 .filter_map(|wu| match wu {
-//                     WorkUnit::ServerChange { metadata } => Some((metadata.id, metadata)),
-//                     _ => None,
-//                 })
-//                 .filter(|(id, _)| all_local_files.maybe_find(*id).is_none())
-//                 .collect::<DecryptedFiles>();
-//             all_local_files
-//                 .stage_with_source(&new_server_files)
-//                 .into_iter()
-//                 .map(|(_, (meta, _))| (meta.id, meta))
-//                 .collect::<DecryptedFiles>()
-//         })
-//         .unwrap();
-//
-//     let mut expected_paths = expected_paths.to_vec();
-//     let mut actual_paths: Vec<String> = get_dirty_ids(db, true)
-//         .iter()
-//         .map(|&id| RequestContext::path_by_id_helper(&staged, id).unwrap())
-//         .collect();
-//     actual_paths.sort_unstable();
-//     expected_paths.sort_unstable();
-//     if actual_paths != expected_paths {
-//         panic!(
-//             "paths did not match expectation. expected={:?}; actual={:?}",
-//             expected_paths, actual_paths
-//         );
-//     }
-// }
-//
-// pub fn assert_server_work_ids(db: &Core, ids: &[Uuid]) {
-//     assert!(slices_equal_ignore_order(&get_dirty_ids(db, true), ids));
-// }
+pub fn assert_local_work_paths(db: &Core, expected_paths: &[&'static str]) {
+    todo!()
+    // let all_local_files = db
+    //     .db
+    //     .transaction(|tx| db.context(tx).unwrap().get_all_metadata(RepoSource::Local))
+    //     .unwrap()
+    //     .unwrap();
+    //
+    // let mut expected_paths = expected_paths.to_vec();
+    // let mut actual_paths: Vec<String> = get_dirty_ids(db, false)
+    //     .iter()
+    //     .map(|&id| RequestContext::path_by_id_helper(&all_local_files, id).unwrap())
+    //     .collect();
+    // actual_paths.sort_unstable();
+    // expected_paths.sort_unstable();
+    // if actual_paths != expected_paths {
+    //     panic!(
+    //         "paths did not match expectation. expected={:?}; actual={:?}",
+    //         expected_paths, actual_paths
+    //     );
+    // }
+}
+
+pub fn assert_server_work_paths(db: &Core, expected_paths: &[&'static str]) {
+    return todo!();
+    // let staged = db
+    //     .db
+    //     .transaction(|tx| {
+    //         let mut tx = db.context(tx).unwrap();
+    //         let all_local_files = tx.get_all_metadata(RepoSource::Local).unwrap();
+    //         let new_server_files = tx
+    //             .calculate_work(&db.config)
+    //             .unwrap()
+    //             .work_units
+    //             .into_iter()
+    //             .filter_map(|wu| match wu {
+    //                 WorkUnit::ServerChange { metadata } => Some((metadata.id, metadata)),
+    //                 _ => None,
+    //             })
+    //             .filter(|(id, _)| all_local_files.maybe_find(*id).is_none())
+    //             .collect::<DecryptedFiles>();
+    //         all_local_files
+    //             .stage_with_source(&new_server_files)
+    //             .into_iter()
+    //             .map(|(_, (meta, _))| (meta.id, meta))
+    //             .collect::<DecryptedFiles>()
+    //     })
+    //     .unwrap();
+    // 
+    // let mut expected_paths = expected_paths.to_vec();
+    // let mut actual_paths: Vec<String> = get_dirty_ids(db, true)
+    //     .iter()
+    //     .map(|&id| RequestContext::path_by_id_helper(&staged, id).unwrap())
+    //     .collect();
+    // actual_paths.sort_unstable();
+    // expected_paths.sort_unstable();
+    // if actual_paths != expected_paths {
+    //     panic!(
+    //         "paths did not match expectation. expected={:?}; actual={:?}",
+    //         expected_paths, actual_paths
+    //     );
+    // }
+}
+
+pub fn assert_server_work_ids(db: &Core, ids: &[Uuid]) {
+    assert!(slices_equal_ignore_order(&get_dirty_ids(db, true), ids));
+}
 
 pub fn assert_all_document_contents(db: &Core, expected_contents_by_path: &[(&str, &[u8])]) {
     let expected_contents_by_path = expected_contents_by_path
@@ -290,21 +292,23 @@ pub fn assert_all_document_contents(db: &Core, expected_contents_by_path: &[(&st
         );
     }
 }
-// pub fn assert_deleted_files_pruned(core: &Core) {
-//     core.db.transaction(|tx| {
-//         let mut tx = core.context(tx).unwrap();
-//         for source in [RepoSource::Local, RepoSource::Base] {
-//             let all_metadata = tx.get_all_metadata(source).unwrap();
-//             let not_deleted_metadata = tx.get_all_not_deleted_metadata(source).unwrap();
-//             if !slices_equal_ignore_order(&all_metadata.values().cloned().collect::<Vec<CoreFile>>(), &not_deleted_metadata.values().cloned().collect::<Vec<CoreFile>>()) {
-//                 panic!(
-//                     "some deleted files are not pruned. not_deleted_metadata={:?}; all_metadata={:?}",
-//                     not_deleted_metadata, all_metadata
-//                 );
-//             }
-//         }
-//     }).unwrap();
-// }
+
+pub fn assert_deleted_files_pruned(core: &Core) {
+    todo!()
+    // core.db.transaction(|tx| {
+    //     let mut tx = core.context(tx).unwrap();
+    //     for source in [RepoSource::Local, RepoSource::Base] {
+    //         let all_metadata = tx.get_all_metadata(source).unwrap();
+    //         let not_deleted_metadata = tx.get_all_not_deleted_metadata(source).unwrap();
+    //         if !slices_equal_ignore_order(&all_metadata.values().cloned().collect::<Vec<CoreFile>>(), &not_deleted_metadata.values().cloned().collect::<Vec<CoreFile>>()) {
+    //             panic!(
+    //                 "some deleted files are not pruned. not_deleted_metadata={:?}; all_metadata={:?}",
+    //                 not_deleted_metadata, all_metadata
+    //             );
+    //         }
+    //     }
+    // }).unwrap();
+}
 
 /// Compare dbs for key equality don't compare last synced.
 pub fn assert_dbs_eq(left: &Core, right: &Core) {

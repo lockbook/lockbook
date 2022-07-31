@@ -1,7 +1,6 @@
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use lockbook_core::model::repo::RepoSource;
-use lockbook_core::pure_functions::files;
 use test_utils::Operation::*;
 use test_utils::*;
 
@@ -14,7 +13,7 @@ fn unsynced_device() {
     for mut ops in [
         // unmodified
         vec![Custom {
-            f: &|dbs, _root| {
+            f: &|dbs| {
                 let db = &dbs[0];
                 assert_all_paths(db, &["/"]);
                 assert_all_document_contents(db, &[]);
@@ -26,7 +25,7 @@ fn unsynced_device() {
         vec![
             Create { client_num: 0, path: "/document" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/", "/document"]);
                     assert_all_document_contents(db, &[("/document", b"")]);
@@ -39,7 +38,7 @@ fn unsynced_device() {
         vec![
             Create { client_num: 0, path: "/a/b/c/d" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
                     assert_all_document_contents(db, &[("/a/b/c/d", b"")]);
@@ -53,7 +52,7 @@ fn unsynced_device() {
             Create { client_num: 0, path: "/document" },
             Edit { client_num: 0, path: "/document", content: b"document content" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/", "/document"]);
                     assert_all_document_contents(db, &[("/document", b"document content")]);
@@ -68,7 +67,7 @@ fn unsynced_device() {
             Create { client_num: 0, path: "/document" },
             Move { client_num: 0, path: "/document", new_parent_path: "/folder/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/", "/folder/", "/folder/document"]);
                     assert_all_document_contents(db, &[("/folder/document", b"")]);
@@ -82,7 +81,7 @@ fn unsynced_device() {
             Create { client_num: 0, path: "/document" },
             Rename { client_num: 0, path: "/document", new_name: "document2" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/", "/document2"]);
                     assert_all_document_contents(db, &[("/document2", b"")]);
@@ -96,7 +95,7 @@ fn unsynced_device() {
             Create { client_num: 0, path: "/document" },
             Delete { client_num: 0, path: "/document" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -110,7 +109,7 @@ fn unsynced_device() {
             Create { client_num: 0, path: "/parent/document" },
             Delete { client_num: 0, path: "/parent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -124,7 +123,7 @@ fn unsynced_device() {
             Create { client_num: 0, path: "grandparent/parent/document" },
             Delete { client_num: 0, path: "grandparent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -135,7 +134,7 @@ fn unsynced_device() {
         ],
     ] {
         ops.push(Custom {
-            f: &|dbs, _| {
+            f: &|dbs| {
                 let db = &dbs[0];
                 db.validate().unwrap();
             },
@@ -156,7 +155,7 @@ fn synced_device() {
         vec![
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -168,7 +167,7 @@ fn synced_device() {
             Create { client_num: 0, path: "/document" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/", "/document"]);
                     assert_all_document_contents(db, &[("/document", b"")]);
@@ -178,7 +177,7 @@ fn synced_device() {
         // new_file_name_same_as_username
         vec![
             Custom {
-                f: &|dbs, _| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     let account = db.get_account().unwrap();
                     db.create_at_path(&format!("/{}", &account.username))
@@ -187,7 +186,7 @@ fn synced_device() {
             },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     let account = db.get_account().unwrap();
                     let document_path = format!("/{}", account.username);
@@ -201,7 +200,7 @@ fn synced_device() {
             Create { client_num: 0, path: "/a/b/c/d" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
                     assert_all_document_contents(db, &[("/a/b/c/d", b"")]);
@@ -214,7 +213,7 @@ fn synced_device() {
             Edit { client_num: 0, path: "/document", content: b"document content" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/", "/document"]);
                     assert_all_document_contents(db, &[("/document", b"document content")]);
@@ -228,7 +227,7 @@ fn synced_device() {
             Move { client_num: 0, path: "/document", new_parent_path: "/folder/" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/", "/folder/", "/folder/document"]);
                     assert_all_document_contents(db, &[("/folder/document", b"")]);
@@ -241,7 +240,7 @@ fn synced_device() {
             Rename { client_num: 0, path: "/document", new_name: "document2" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/", "/document2"]);
                     assert_all_document_contents(db, &[("/document2", b"")]);
@@ -254,7 +253,7 @@ fn synced_device() {
             Delete { client_num: 0, path: "/document" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -267,7 +266,7 @@ fn synced_device() {
             Delete { client_num: 0, path: "/folder/" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -280,7 +279,7 @@ fn synced_device() {
             Delete { client_num: 0, path: "grandparent/" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -289,7 +288,7 @@ fn synced_device() {
         ],
     ] {
         ops.push(Custom {
-            f: &|dbs, _root| {
+            f: &|dbs| {
                 let db = &dbs[0];
                 db.validate().unwrap();
                 assert_local_work_paths(db, &[]);
@@ -314,7 +313,7 @@ fn unsynced_change_synced_device() {
             Sync { client_num: 0 },
             Create { client_num: 0, path: "/document" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/", "/document"]);
                     assert_all_document_contents(db, &[("/document", b"")]);
@@ -327,7 +326,7 @@ fn unsynced_change_synced_device() {
             Sync { client_num: 0 },
             Create { client_num: 0, path: "/a/b/c/d" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
                     assert_all_document_contents(db, &[("/a/b/c/d", b"")]);
@@ -341,7 +340,7 @@ fn unsynced_change_synced_device() {
             Sync { client_num: 0 },
             Edit { client_num: 0, path: "/document", content: b"document content" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/", "/document"]);
                     assert_all_document_contents(db, &[("/document", b"document content")]);
@@ -356,7 +355,7 @@ fn unsynced_change_synced_device() {
             Edit { client_num: 0, path: "/document", content: b"document content" },
             Edit { client_num: 0, path: "/document", content: b"" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/", "/document"]);
                     assert_all_document_contents(db, &[("/document", b"")]);
@@ -371,7 +370,7 @@ fn unsynced_change_synced_device() {
             Sync { client_num: 0 },
             Move { client_num: 0, path: "/document", new_parent_path: "/folder/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/", "/folder/", "/folder/document"]);
                     assert_all_document_contents(db, &[("/folder/document", b"")]);
@@ -387,7 +386,7 @@ fn unsynced_change_synced_device() {
             Move { client_num: 0, path: "/document", new_parent_path: "/folder/" },
             Move { client_num: 0, path: "/folder/document", new_parent_path: "" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/", "/folder/", "/document"]);
                     assert_all_document_contents(db, &[("/document", b"")]);
@@ -401,7 +400,7 @@ fn unsynced_change_synced_device() {
             Sync { client_num: 0 },
             Rename { client_num: 0, path: "/document", new_name: "document2" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/", "/document2"]);
                     assert_all_document_contents(db, &[("/document2", b"")]);
@@ -416,7 +415,7 @@ fn unsynced_change_synced_device() {
             Rename { client_num: 0, path: "/document", new_name: "document2" },
             Rename { client_num: 0, path: "/document2", new_name: "document" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/", "/document"]);
                     assert_all_document_contents(db, &[("/document", b"")]);
@@ -430,7 +429,7 @@ fn unsynced_change_synced_device() {
             Sync { client_num: 0 },
             Delete { client_num: 0, path: "/document" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -444,7 +443,7 @@ fn unsynced_change_synced_device() {
             Sync { client_num: 0 },
             Delete { client_num: 0, path: "/parent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -458,7 +457,7 @@ fn unsynced_change_synced_device() {
             Sync { client_num: 0 },
             Delete { client_num: 0, path: "/grandparent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -468,7 +467,7 @@ fn unsynced_change_synced_device() {
         ],
     ] {
         ops.push(Custom {
-            f: &|dbs, _root| {
+            f: &|dbs| {
                 let db = &dbs[0];
                 db.validate().unwrap();
                 assert_server_work_paths(db, &[]);
@@ -491,7 +490,7 @@ fn new_unsynced_device() {
             Sync { client_num: 0 },
             Client { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_server_work_paths(db, &["/"]);
                 },
@@ -503,7 +502,7 @@ fn new_unsynced_device() {
             Sync { client_num: 0 },
             Client { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_server_work_paths(db, &["/", "/document"]);
                 },
@@ -515,7 +514,7 @@ fn new_unsynced_device() {
             Sync { client_num: 0 },
             Client { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_server_work_paths(db, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
                 },
@@ -528,7 +527,7 @@ fn new_unsynced_device() {
             Sync { client_num: 0 },
             Client { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_server_work_paths(db, &["/", "/document"]);
                 },
@@ -542,7 +541,7 @@ fn new_unsynced_device() {
             Sync { client_num: 0 },
             Client { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_server_work_paths(db, &["/", "/folder/", "/folder/document"]);
                 },
@@ -555,7 +554,7 @@ fn new_unsynced_device() {
             Sync { client_num: 0 },
             Client { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_server_work_paths(db, &["/", "/document2"]);
                 },
@@ -568,7 +567,7 @@ fn new_unsynced_device() {
             Sync { client_num: 0 },
             Client { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_server_work_paths(db, &["/"]);
                 },
@@ -581,7 +580,7 @@ fn new_unsynced_device() {
             Sync { client_num: 0 },
             Client { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_server_work_paths(db, &["/"]);
                 },
@@ -594,7 +593,7 @@ fn new_unsynced_device() {
             Sync { client_num: 0 },
             Client { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_server_work_paths(db, &["/"]);
                 },
@@ -602,7 +601,7 @@ fn new_unsynced_device() {
         ],
     ] {
         ops.push(Custom {
-            f: &|dbs, _root| {
+            f: &|dbs| {
                 let db = &dbs[1];
                 db.validate().unwrap();
                 assert_all_paths(db, &[]);
@@ -627,7 +626,7 @@ fn new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -640,7 +639,7 @@ fn new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/document"]);
                     assert_all_document_contents(db, &[("/document", b"")]);
@@ -653,7 +652,7 @@ fn new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
                     assert_all_document_contents(db, &[("/a/b/c/d", b"")]);
@@ -667,7 +666,7 @@ fn new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/document"]);
                     assert_all_document_contents(db, &[("/document", b"document content")]);
@@ -682,7 +681,7 @@ fn new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/folder/", "/folder/document"]);
                     assert_all_document_contents(db, &[("/folder/document", b"")]);
@@ -696,7 +695,7 @@ fn new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/document2"]);
                     assert_all_document_contents(db, &[("/document2", b"")]);
@@ -710,7 +709,7 @@ fn new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -724,7 +723,7 @@ fn new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -738,7 +737,7 @@ fn new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -747,7 +746,7 @@ fn new_synced_device() {
         ],
     ] {
         ops.push(Custom {
-            f: &|dbs, _root| {
+            f: &|dbs| {
                 let db = &dbs[0];
                 let db2 = &dbs[1];
                 db.validate().unwrap();
@@ -774,7 +773,7 @@ fn unsynced_change_new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -788,7 +787,7 @@ fn unsynced_change_new_synced_device() {
             Create { client_num: 0, path: "/document" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -802,7 +801,7 @@ fn unsynced_change_new_synced_device() {
             Create { client_num: 0, path: "/a/b/c/d" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -818,7 +817,7 @@ fn unsynced_change_new_synced_device() {
             Edit { client_num: 0, path: "/document", content: b"document content" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/document"]);
                     assert_all_document_contents(db, &[("/document", b"")]);
@@ -835,7 +834,7 @@ fn unsynced_change_new_synced_device() {
             Move { client_num: 0, path: "/document", new_parent_path: "/folder/" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/folder/", "/document"]);
                     assert_all_document_contents(db, &[("/document", b"")]);
@@ -851,7 +850,7 @@ fn unsynced_change_new_synced_device() {
             Rename { client_num: 0, path: "/document", new_name: "document2" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/document"]);
                     assert_all_document_contents(db, &[("/document", b"")]);
@@ -867,7 +866,7 @@ fn unsynced_change_new_synced_device() {
             Delete { client_num: 0, path: "/document" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/document"]);
                     assert_all_document_contents(db, &[("/document", b"")]);
@@ -883,7 +882,7 @@ fn unsynced_change_new_synced_device() {
             Delete { client_num: 0, path: "/parent/" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/parent/", "/parent/document"]);
                     assert_all_document_contents(db, &[("/parent/document", b"")]);
@@ -899,7 +898,7 @@ fn unsynced_change_new_synced_device() {
             Delete { client_num: 0, path: "grandparent/" },
             Sync { client_num: 0 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(
                         db,
@@ -920,7 +919,7 @@ fn unsynced_change_new_synced_device() {
         ],
     ] {
         ops.push(Custom {
-            f: &|dbs, _root| {
+            f: &|dbs| {
                 let db = &dbs[1];
                 db.validate().unwrap();
                 assert_local_work_paths(db, &[]);
@@ -944,7 +943,7 @@ fn synced_change_new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -958,7 +957,7 @@ fn synced_change_new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/document"]);
                     assert_all_document_contents(db, &[("/document", b"")]);
@@ -972,7 +971,7 @@ fn synced_change_new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
                     assert_all_document_contents(db, &[("/a/b/c/d", b"")]);
@@ -988,7 +987,7 @@ fn synced_change_new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/document"]);
                     assert_all_document_contents(db, &[("/document", b"document content")]);
@@ -1005,7 +1004,7 @@ fn synced_change_new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/folder/", "/folder/document"]);
                     assert_all_document_contents(db, &[("/folder/document", b"")]);
@@ -1021,7 +1020,7 @@ fn synced_change_new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/document2"]);
                     assert_all_document_contents(db, &[("/document2", b"")]);
@@ -1037,7 +1036,7 @@ fn synced_change_new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1053,7 +1052,7 @@ fn synced_change_new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1069,7 +1068,7 @@ fn synced_change_new_synced_device() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1078,7 +1077,7 @@ fn synced_change_new_synced_device() {
         ],
     ] {
         ops.push(Custom {
-            f: &|dbs, _root| {
+            f: &|dbs| {
                 let db = &dbs[0];
                 let db2 = &dbs[1];
                 db.validate().unwrap();
@@ -1109,7 +1108,7 @@ fn concurrent_change() {
             Move { client_num: 0, path: "/document", new_parent_path: "/parent/" },
             Move { client_num: 1, path: "/document", new_parent_path: "/parent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/parent/", "/parent/document"]);
                     assert_all_document_contents(db, &[("/parent/document", b"")]);
@@ -1126,7 +1125,7 @@ fn concurrent_change() {
             Move { client_num: 0, path: "/document", new_parent_path: "/parent/" },
             Move { client_num: 1, path: "/document", new_parent_path: "/parent2/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/parent/", "/parent2/", "/parent/document"]);
                     assert_all_document_contents(db, &[("/parent/document", b"")]);
@@ -1141,7 +1140,7 @@ fn concurrent_change() {
             Rename { client_num: 0, path: "/document", new_name: "document2" },
             Rename { client_num: 1, path: "/document", new_name: "document2" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/document2"]);
                     assert_all_document_contents(db, &[("/document2", b"")]);
@@ -1156,7 +1155,7 @@ fn concurrent_change() {
             Rename { client_num: 0, path: "/document", new_name: "document2" },
             Rename { client_num: 1, path: "/document", new_name: "document3" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/document2"]);
                     assert_all_document_contents(db, &[("/document2", b"")]);
@@ -1172,7 +1171,7 @@ fn concurrent_change() {
             Move { client_num: 0, path: "/document", new_parent_path: "/parent/" },
             Rename { client_num: 1, path: "/document", new_name: "document2" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/parent/", "/parent/document2"]);
                     assert_all_document_contents(db, &[("/parent/document2", b"")]);
@@ -1188,7 +1187,7 @@ fn concurrent_change() {
             Rename { client_num: 0, path: "/document", new_name: "document2" },
             Move { client_num: 1, path: "/document", new_parent_path: "/parent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/parent/", "/parent/document2"]);
                     assert_all_document_contents(db, &[("/parent/document2", b"")]);
@@ -1203,7 +1202,7 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "/document" },
             Delete { client_num: 1, path: "/document" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1218,7 +1217,7 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "/parent/" },
             Delete { client_num: 1, path: "/parent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1233,7 +1232,7 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "/parent/" },
             Delete { client_num: 1, path: "/parent/document" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1248,7 +1247,7 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "/parent/document" },
             Delete { client_num: 1, path: "/parent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1263,7 +1262,7 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "grandparent/" },
             Delete { client_num: 1, path: "grandparent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1278,7 +1277,7 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "grandparent/" },
             Delete { client_num: 1, path: "grandparent/parent/document" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1293,7 +1292,7 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "grandparent/parent/document" },
             Delete { client_num: 1, path: "grandparent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1308,7 +1307,7 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "grandparent/" },
             Delete { client_num: 1, path: "grandparent/parent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1323,7 +1322,7 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "grandparent/parent/" },
             Delete { client_num: 1, path: "grandparent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1339,7 +1338,7 @@ fn concurrent_change() {
             Move { client_num: 0, path: "/document", new_parent_path: "/parent/" },
             Delete { client_num: 1, path: "/document" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/parent/"]);
                     assert_all_document_contents(db, &[]);
@@ -1355,7 +1354,7 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "/document" },
             Move { client_num: 1, path: "/document", new_parent_path: "/parent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/parent/"]);
                     assert_all_document_contents(db, &[]);
@@ -1371,7 +1370,7 @@ fn concurrent_change() {
             Move { client_num: 0, path: "/document", new_parent_path: "/parent/" },
             Delete { client_num: 1, path: "/parent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1387,7 +1386,7 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "/parent/" },
             Move { client_num: 1, path: "/document", new_parent_path: "/parent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1402,7 +1401,7 @@ fn concurrent_change() {
             Move { client_num: 0, path: "/parent/document", new_parent_path: "" },
             Delete { client_num: 1, path: "/parent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/document"]);
                     assert_all_document_contents(db, &[("/document", b"")]);
@@ -1417,7 +1416,7 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "/parent/" },
             Move { client_num: 1, path: "/parent/document", new_parent_path: "" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1432,7 +1431,7 @@ fn concurrent_change() {
             Rename { client_num: 0, path: "/document", new_name: "document2" },
             Delete { client_num: 1, path: "/document" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1447,7 +1446,7 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "/document" },
             Rename { client_num: 1, path: "/document", new_name: "document2" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1463,7 +1462,7 @@ fn concurrent_change() {
             Create { client_num: 0, path: "/parent/document" },
             Move { client_num: 1, path: "/parent/", new_parent_path: "/parent2/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(
                         db,
@@ -1482,7 +1481,7 @@ fn concurrent_change() {
             Move { client_num: 0, path: "/parent/", new_parent_path: "/parent2/" },
             Create { client_num: 1, path: "/parent/document" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(
                         db,
@@ -1500,7 +1499,7 @@ fn concurrent_change() {
             Create { client_num: 0, path: "/parent/document" },
             Rename { client_num: 1, path: "/parent/", new_name: "parent2" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/parent2/", "/parent2/document"]);
                     assert_all_document_contents(db, &[("/parent2/document", b"")]);
@@ -1515,7 +1514,7 @@ fn concurrent_change() {
             Rename { client_num: 0, path: "/parent/", new_name: "parent2" },
             Create { client_num: 1, path: "/parent/document" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/parent2/", "/parent2/document"]);
                     assert_all_document_contents(db, &[("/parent2/document", b"")]);
@@ -1530,7 +1529,7 @@ fn concurrent_change() {
             Create { client_num: 0, path: "/parent/document" },
             Delete { client_num: 1, path: "/parent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1545,7 +1544,7 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "/parent/" },
             Create { client_num: 1, path: "/parent/document" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1560,7 +1559,7 @@ fn concurrent_change() {
             Create { client_num: 0, path: "grandparent/parent/document" },
             Delete { client_num: 1, path: "grandparent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1575,7 +1574,7 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "grandparent/" },
             Create { client_num: 1, path: "grandparent/parent/document" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1591,7 +1590,7 @@ fn concurrent_change() {
             Edit { client_num: 0, path: "/document.draw", content: b"document content 2" },
             Edit { client_num: 1, path: "/document.draw", content: b"document content 2" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/document.draw", "/document-1.draw"]);
                     assert_all_document_contents(
@@ -1613,7 +1612,7 @@ fn concurrent_change() {
             Edit { client_num: 0, path: "/document.md", content: b"document content 2" },
             Edit { client_num: 1, path: "/document.md", content: b"document content 2" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/document.md"]);
                     assert_all_document_contents(db, &[("/document.md", b"document content 2")]);
@@ -1629,7 +1628,7 @@ fn concurrent_change() {
             Edit { client_num: 0, path: "/document.draw", content: b"document 2\n\ncontent\n" },
             Edit { client_num: 1, path: "/document.draw", content: b"document\n\ncontent 2\n" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/document.draw", "/document-1.draw"]);
                     assert_all_document_contents(
@@ -1651,7 +1650,7 @@ fn concurrent_change() {
             Edit { client_num: 0, path: "/document.md", content: b"document 2\n\ncontent\n" },
             Edit { client_num: 1, path: "/document.md", content: b"document\n\ncontent 2\n" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/document.md"]);
                     assert_all_document_contents(
@@ -1672,7 +1671,7 @@ fn concurrent_change() {
             Move { client_num: 0, path: "/document.md", new_parent_path: "/parent/" },
             Edit { client_num: 1, path: "/document.md", content: b"document\n\ncontent 2\n" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/parent/", "/parent/document.md"]);
                     assert_all_document_contents(
@@ -1693,7 +1692,7 @@ fn concurrent_change() {
             Edit { client_num: 1, path: "/document.md", content: b"document\n\ncontent 2\n" },
             Move { client_num: 1, path: "/document.md", new_parent_path: "/parent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/parent/", "/parent/document.md"]);
                     assert_all_document_contents(
@@ -1713,7 +1712,7 @@ fn concurrent_change() {
             Move { client_num: 0, path: "/document.md", new_parent_path: "/parent/" },
             Edit { client_num: 1, path: "/document.md", content: b"document content 2" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/parent/", "/parent/document.md"]);
                     assert_all_document_contents(
@@ -1733,7 +1732,7 @@ fn concurrent_change() {
             Edit { client_num: 0, path: "/document.md", content: b"document content 2" },
             Move { client_num: 1, path: "/document.md", new_parent_path: "/parent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/parent/", "/parent/document.md"]);
                     assert_all_document_contents(
@@ -1752,7 +1751,7 @@ fn concurrent_change() {
             Rename { client_num: 0, path: "/document.md", new_name: "document2.md" },
             Edit { client_num: 1, path: "/document.md", content: b"document content 2" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/document2.md"]);
                     assert_all_document_contents(db, &[("/document2.md", b"document content 2")]);
@@ -1768,7 +1767,7 @@ fn concurrent_change() {
             Edit { client_num: 0, path: "/document.md", content: b"document content 2" },
             Rename { client_num: 1, path: "/document.md", new_name: "document2.md" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/document2.md"]);
                     assert_all_document_contents(db, &[("/document2.md", b"document content 2")]);
@@ -1784,7 +1783,7 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "/document.md" },
             Edit { client_num: 1, path: "/document.md", content: b"document content 2" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1800,7 +1799,7 @@ fn concurrent_change() {
             Edit { client_num: 0, path: "/document.md", content: b"document content 2" },
             Delete { client_num: 1, path: "/document.md" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1816,7 +1815,7 @@ fn concurrent_change() {
             Delete { client_num: 0, path: "/parent/" },
             Edit { client_num: 1, path: "/parent/document.md", content: b"document content 2" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1832,7 +1831,7 @@ fn concurrent_change() {
             Edit { client_num: 0, path: "/parent/document.md", content: b"document content 2" },
             Delete { client_num: 1, path: "/parent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1856,7 +1855,7 @@ fn concurrent_change() {
                 content: b"document content 2",
             },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1880,7 +1879,7 @@ fn concurrent_change() {
             },
             Delete { client_num: 1, path: "/grandparent/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -1895,7 +1894,7 @@ fn concurrent_change() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     let db2 = &dbs[1];
                     db.validate().unwrap();
@@ -1929,7 +1928,7 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
             Move { client_num: 1, path: "/b/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/b/", "/b/a/"]);
                     assert_all_document_contents(db, &[]);
@@ -1947,7 +1946,7 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
             Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/c/", "/c/b/", "/c/b/a/"]);
                     assert_all_document_contents(db, &[]);
@@ -1965,7 +1964,7 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
             Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/b/", "/b/a/", "/c/"]);
                     assert_all_document_contents(db, &[]);
@@ -1985,7 +1984,7 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
             Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/d/", "/d/c/", "/d/c/b/", "/d/c/b/a/"]);
                     assert_all_document_contents(db, &[]);
@@ -2005,7 +2004,7 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
             Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/c/", "/c/b/", "/c/b/a/", "/d/"]);
                     assert_all_document_contents(db, &[]);
@@ -2025,7 +2024,7 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
             Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/b/", "/b/a/", "/d/", "/d/c/"]);
                     assert_all_document_contents(db, &[]);
@@ -2045,7 +2044,7 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
             Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/b/", "/b/a/", "/c/", "/d/"]);
                     assert_all_document_contents(db, &[]);
@@ -2063,7 +2062,7 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "/a2/", new_parent_path: "/b2/" },
             Move { client_num: 1, path: "/b/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/b2/", "/b2/a2/"]);
                     assert_all_document_contents(db, &[]);
@@ -2084,7 +2083,7 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "/b2/", new_parent_path: "/c2/" },
             Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/"]);
                     assert_all_document_contents(db, &[]);
@@ -2105,7 +2104,7 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
             Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/b2/", "/b2/a2/", "/c2/"]);
                     assert_all_document_contents(db, &[]);
@@ -2129,7 +2128,7 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "/c2/", new_parent_path: "/d2/" },
             Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/d2/", "/d2/c2/", "/d2/c2/b2/", "/d2/c2/b2/a2/"]);
                     assert_all_document_contents(db, &[]);
@@ -2153,7 +2152,7 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
             Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/", "/d2/"]);
                     assert_all_document_contents(db, &[]);
@@ -2177,7 +2176,7 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "/c2/", new_parent_path: "/d2/" },
             Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/b2/", "/b2/a2/", "/d2/", "/d2/c2/"]);
                     assert_all_document_contents(db, &[]);
@@ -2201,7 +2200,7 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
             Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/b2/", "/b2/a2/", "/c2/", "/d2/"]);
                     assert_all_document_contents(db, &[]);
@@ -2219,7 +2218,7 @@ fn cycle_resolution() {
             Rename { client_num: 1, path: "/b/", new_name: "b2" },
             Move { client_num: 1, path: "/b2/", new_parent_path: "/a2/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/b2/", "/b2/a2/"]);
                     assert_all_document_contents(db, &[]);
@@ -2240,7 +2239,7 @@ fn cycle_resolution() {
             Rename { client_num: 1, path: "/c/", new_name: "c2" },
             Move { client_num: 1, path: "/c2/", new_parent_path: "/a2/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/"]);
                     assert_all_document_contents(db, &[]);
@@ -2261,7 +2260,7 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "/b2/", new_parent_path: "/c2/" },
             Move { client_num: 1, path: "/c2/", new_parent_path: "/a2/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/b2/", "/b2/a2/", "/c2/"]);
                     assert_all_document_contents(db, &[]);
@@ -2285,7 +2284,7 @@ fn cycle_resolution() {
             Rename { client_num: 1, path: "/d/", new_name: "d2" },
             Move { client_num: 1, path: "/d2/", new_parent_path: "/a2/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/d2/", "/d2/c2/", "/d2/c2/b2/", "/d2/c2/b2/a2/"]);
                     assert_all_document_contents(db, &[]);
@@ -2309,7 +2308,7 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "/c2/", new_parent_path: "/d2/" },
             Move { client_num: 1, path: "/d2/", new_parent_path: "/a2/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/", "/d2/"]);
                     assert_all_document_contents(db, &[]);
@@ -2333,7 +2332,7 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
             Move { client_num: 1, path: "/d2/", new_parent_path: "/a2/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/b2/", "/b2/a2/", "/d2/", "/d2/c2/"]);
                     assert_all_document_contents(db, &[]);
@@ -2357,7 +2356,7 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "/c2/", new_parent_path: "/d2/" },
             Move { client_num: 1, path: "/d2/", new_parent_path: "/a2/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/b2/", "/b2/a2/", "/c2/", "/d2/"]);
                     assert_all_document_contents(db, &[]);
@@ -2374,7 +2373,7 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "/b/", new_parent_path: "/a/" },
             Delete { client_num: 0, path: "/b/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -2393,7 +2392,7 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
             Delete { client_num: 0, path: "/c/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -2413,7 +2412,7 @@ fn cycle_resolution() {
             Delete { client_num: 0, path: "/b/" },
             Delete { client_num: 0, path: "/c/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -2434,7 +2433,7 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
             Delete { client_num: 0, path: "/d/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -2456,7 +2455,7 @@ fn cycle_resolution() {
             Delete { client_num: 0, path: "/c/" },
             Delete { client_num: 0, path: "/d/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -2478,7 +2477,7 @@ fn cycle_resolution() {
             Delete { client_num: 0, path: "/b/" },
             Delete { client_num: 0, path: "/d/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -2501,7 +2500,7 @@ fn cycle_resolution() {
             Delete { client_num: 0, path: "/c/" },
             Delete { client_num: 0, path: "/d/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/"]);
                     assert_all_document_contents(db, &[]);
@@ -2518,7 +2517,7 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "/b/", new_parent_path: "/a/" },
             Delete { client_num: 1, path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/b/"]);
                     assert_all_document_contents(db, &[]);
@@ -2538,7 +2537,7 @@ fn cycle_resolution() {
             Delete { client_num: 1, path: "/a/" },
             Delete { client_num: 1, path: "/b/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/c/"]);
                     assert_all_document_contents(db, &[]);
@@ -2557,7 +2556,7 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
             Delete { client_num: 1, path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/b/", "/c/"]);
                     assert_all_document_contents(db, &[]);
@@ -2580,7 +2579,7 @@ fn cycle_resolution() {
             Delete { client_num: 1, path: "/b/" },
             Delete { client_num: 1, path: "/c/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/d/"]);
                     assert_all_document_contents(db, &[]);
@@ -2602,7 +2601,7 @@ fn cycle_resolution() {
             Delete { client_num: 1, path: "/a/" },
             Delete { client_num: 1, path: "/b/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/c/", "/d/"]);
                     assert_all_document_contents(db, &[]);
@@ -2624,7 +2623,7 @@ fn cycle_resolution() {
             Delete { client_num: 1, path: "/a/" },
             Delete { client_num: 1, path: "/c/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/b/", "/d/"]);
                     assert_all_document_contents(db, &[]);
@@ -2645,7 +2644,7 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
             Delete { client_num: 1, path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/b/", "/c/", "/d/"]);
                     assert_all_document_contents(db, &[]);
@@ -2661,7 +2660,7 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
             Move { client_num: 1, path: "/b/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/b/", "/b/a/", "/b/child/", "/b/a/child/"]);
                     assert_all_document_contents(db, &[]);
@@ -2679,7 +2678,7 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
             Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(
                         db,
@@ -2708,7 +2707,7 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
             Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(
                         db,
@@ -2731,7 +2730,7 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
             Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(
                         db,
@@ -2764,7 +2763,7 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
             Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(
                         db,
@@ -2797,7 +2796,7 @@ fn cycle_resolution() {
             Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
             Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(
                         db,
@@ -2830,7 +2829,7 @@ fn cycle_resolution() {
             Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
             Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(
                         db,
@@ -2858,7 +2857,7 @@ fn cycle_resolution() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     let db2 = &dbs[1];
                     db.validate().unwrap();
@@ -2889,7 +2888,7 @@ fn path_conflict_resolution() {
             Create { client_num: 0, path: "/a.md" },
             Create { client_num: 1, path: "/a.md" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/a.md", "/a-1.md"]);
                     assert_all_document_contents(db, &[("/a.md", b""), ("/a-1.md", b"")]);
@@ -2902,7 +2901,7 @@ fn path_conflict_resolution() {
             Create { client_num: 0, path: "/a/" },
             Create { client_num: 1, path: "/a/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/a/", "/a-1/"]);
                     assert_all_document_contents(db, &[]);
@@ -2915,7 +2914,7 @@ fn path_conflict_resolution() {
             Create { client_num: 0, path: "/a/child/" },
             Create { client_num: 1, path: "/a/child/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/a/", "/a-1/", "/a/child/", "/a-1/child/"]);
                     assert_all_document_contents(db, &[]);
@@ -2928,7 +2927,7 @@ fn path_conflict_resolution() {
             Create { client_num: 0, path: "/a.md" },
             Create { client_num: 1, path: "/a.md/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/a.md", "/a-1.md/"]);
                     assert_all_document_contents(db, &[("/a.md", b"")]);
@@ -2941,7 +2940,7 @@ fn path_conflict_resolution() {
             Create { client_num: 0, path: "/a.md/" },
             Create { client_num: 1, path: "/a.md" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/a.md/", "/a-1.md"]);
                     assert_all_document_contents(db, &[("/a-1.md", b"")]);
@@ -2954,7 +2953,7 @@ fn path_conflict_resolution() {
             Create { client_num: 0, path: "/a.md" },
             Create { client_num: 1, path: "/a.md/child/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/a.md", "/a-1.md/", "/a-1.md/child/"]);
                     assert_all_document_contents(db, &[("/a.md", b"")]);
@@ -2967,7 +2966,7 @@ fn path_conflict_resolution() {
             Create { client_num: 0, path: "/a.md/child/" },
             Create { client_num: 1, path: "/a.md" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/a.md/", "/a.md/child/", "/a-1.md"]);
                     assert_all_document_contents(db, &[("/a-1.md", b"")]);
@@ -2982,7 +2981,7 @@ fn path_conflict_resolution() {
             Move { client_num: 0, path: "/folder/a.md", new_parent_path: "" },
             Create { client_num: 1, path: "/a.md" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/folder/", "/a.md", "/a-1.md"]);
                     assert_all_document_contents(db, &[("/a.md", b""), ("/a-1.md", b"")]);
@@ -2997,7 +2996,7 @@ fn path_conflict_resolution() {
             Create { client_num: 0, path: "/a.md" },
             Move { client_num: 1, path: "/folder/a.md", new_parent_path: "" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/folder/", "/a.md", "/a-1.md"]);
                     assert_all_document_contents(db, &[("/a.md", b""), ("/a-1.md", b"")]);
@@ -3012,7 +3011,7 @@ fn path_conflict_resolution() {
             Move { client_num: 0, path: "/folder/a.md/", new_parent_path: "" },
             Create { client_num: 1, path: "/a.md/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/folder/", "/a.md/", "/a-1.md/"]);
                     assert_all_document_contents(db, &[]);
@@ -3027,7 +3026,7 @@ fn path_conflict_resolution() {
             Create { client_num: 0, path: "/a.md/" },
             Move { client_num: 1, path: "/folder/a.md/", new_parent_path: "" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(db, &["/", "/folder/", "/a.md/", "/a-1.md/"]);
                     assert_all_document_contents(db, &[]);
@@ -3042,7 +3041,7 @@ fn path_conflict_resolution() {
             Move { client_num: 0, path: "/folder/a.md/", new_parent_path: "" },
             Create { client_num: 1, path: "/a.md/child/" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(
                         db,
@@ -3060,7 +3059,7 @@ fn path_conflict_resolution() {
             Create { client_num: 0, path: "/a.md/child/" },
             Move { client_num: 1, path: "/folder/a.md/", new_parent_path: "" },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[1];
                     assert_all_paths(
                         db,
@@ -3078,7 +3077,7 @@ fn path_conflict_resolution() {
             Sync { client_num: 0 },
             Sync { client_num: 1 },
             Custom {
-                f: &|dbs, _root| {
+                f: &|dbs| {
                     let db = &dbs[0];
                     let db2 = &dbs[1];
                     db.validate().unwrap();
@@ -3113,7 +3112,7 @@ fn test_path_conflict() {
             .unwrap()
             .iter()
             .filter(|file| file.id != file.parent)
-            .map(|file| file.decrypted_name.clone())
+            .map(|file| file.name.clone())
             .sorted()
             .collect::<Vec<String>>(),
         ["new-1.md", "new.md"]
@@ -3135,7 +3134,7 @@ fn test_path_conflict2() {
             .unwrap()
             .iter()
             .filter(|file| file.id != file.parent)
-            .map(|file| file.decrypted_name.clone())
+            .map(|file| file.name.clone())
             .sorted()
             .collect::<Vec<String>>(),
         ["new-1.md", "new-2.md"]
@@ -3151,12 +3150,8 @@ fn deleted_path_is_released() {
     db1.db
         .transaction(|tx| {
             let mut ctx = db1.context(tx).unwrap();
-            let metadata =
-                &files::apply_delete(&(ctx.get_all_metadata(RepoSource::Local).unwrap()), file1.id)
-                    .unwrap();
-            ctx.insert_metadatum(&db1.config, RepoSource::Local, metadata)
+            ctx.delete(&file1.id).unwrap();
         })
-        .unwrap()
         .unwrap();
 
     db1.sync(None).unwrap();

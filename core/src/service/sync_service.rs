@@ -97,89 +97,7 @@ impl RequestContext<'_, '_> {
     where
         F: FnMut(SyncProgressOperation),
     {
-        // fetch metadata updates
-        let account = self.get_account()?;
-        update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PullMetadata));
-        // todo: if this doesn't need to be mut, prune is broken
-        let remote_changes = self.get_updates(account)?.file_metadata;
-
-        // prune prunable files
-        {
-            let mut local = self
-                .tx
-                .base_metadata
-                .stage(remote_changes)
-                .stage(&mut self.tx.local_metadata)
-                .to_lazy();
-            for id in local.prunable_ids()? {
-                local.remove(id);
-            }
-        }
-
-        // track work
-        {
-            let base = self.tx.base_metadata.to_lazy();
-            let mut num_documents_to_pull = 0;
-            for id in remote_changes.owned_ids() {
-                let maybe_base_hmac = base.maybe_find(&id).map(|f| f.document_hmac()).flatten();
-                let maybe_remote_hmac = remote_changes.find(&id)?.document_hmac();
-                if should_pull_document(maybe_base_hmac, maybe_remote_hmac) {
-                    num_documents_to_pull += 1;
-                }
-            }
-            update_sync_progress(SyncProgressOperation::IncrementTotalWork(num_documents_to_pull));
-        }
-
-        // fetch document updates and local documents for merge
-        let mut base_documents = HashMap::new();
-        let mut remote_document_changes = HashMap::new();
-        let mut local_document_changes = HashMap::new();
-        {
-            let mut remote = self.tx.base_metadata.stage(remote_changes).to_lazy();
-            for id in remote_changes.owned_ids() {
-                if let Some(remote_document_change) =
-                    get_document(account, &mut self.tx.base_metadata, remote_changes, id)?
-                {
-                    update_sync_progress(SyncProgressOperation::StartWorkUnit(
-                        ClientWorkUnit::PullDocument(remote.name(&id, account)?),
-                    ));
-                    document_repo::maybe_get(config, RepoSource::Base, &id)?
-                        .map(|d| base_documents.insert(id, d));
-                    remote_document_changes.insert(id, remote_document_change);
-                    document_repo::maybe_get(config, RepoSource::Local, &id)?
-                        .map(|d| local_document_changes.insert(id, d));
-                }
-            }
-        };
-
-        // merge and promote
-        let (local, merge_document_changes) = {
-            let mut local = self
-                .tx
-                .base_metadata
-                .stage(remote_changes)
-                .stage(&mut self.tx.local_metadata)
-                .to_lazy();
-            local.merge(
-                account,
-                &base_documents,
-                &remote_document_changes,
-                &local_document_changes,
-            )?
-        };
-        self.tx
-            .base_metadata
-            .stage(remote_changes)
-            .to_lazy()
-            .promote();
-        for (id, document) in remote_document_changes {
-            document_repo::insert(self.config, RepoSource::Base, id, &document);
-        }
-        for (id, document) in merge_document_changes {
-            document_repo::insert(self.config, RepoSource::Local, id, &document);
-        }
-
-        Ok(())
+        todo!()
     }
 
     fn get_updates(&mut self, account: &Account) -> CoreResult<GetUpdatesResponse> {
@@ -204,20 +122,7 @@ impl RequestContext<'_, '_> {
     where
         F: FnMut(SyncProgressOperation),
     {
-        let account = &self.get_account()?;
-        update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PushMetadata));
-
-        // update remote to local (metadata)
-        let metadata_changes = self.get_all_metadata_changes()?;
-        if !metadata_changes.is_empty() {
-            api_service::request(account, FileMetadataUpsertsRequest { updates: metadata_changes })
-                .map_err(CoreError::from)?;
-        }
-
-        // update base to local
-        self.promote_metadata()?;
-
-        Ok(())
+        todo!()
     }
 
     /// Updates remote and base files to local.
@@ -228,90 +133,12 @@ impl RequestContext<'_, '_> {
     where
         F: FnMut(SyncProgressOperation),
     {
-        let account = &self.get_account()?;
-        for id in self.get_all_with_document_changes(config)? {
-            let mut local_metadata = self.get_metadata(RepoSource::Local, id)?;
-            let local_content =
-                file_service::get_document(config, RepoSource::Local, &local_metadata)?;
-            let encrypted_content = file_encryption_service::encrypt_document(
-                &file_compression_service::compress(&local_content)?,
-                &local_metadata,
-            )?;
-
-            update_sync_progress(SyncProgressOperation::StartWorkUnit(
-                ClientWorkUnit::PushDocument(local_metadata.decrypted_name.clone()),
-            ));
-
-            // update remote to local (document)
-            local_metadata.content_version = api_service::request(
-                account,
-                ChangeDocumentContentRequest {
-                    id,
-                    old_metadata_version: local_metadata.metadata_version,
-                    new_content: encrypted_content,
-                },
-            )
-            .map_err(CoreError::from)?
-            .new_content_version;
-
-            // save content version change
-            let mut base_metadata = self.get_metadata(RepoSource::Base, id)?;
-            base_metadata.content_version = local_metadata.content_version;
-            self.insert_metadatum(config, RepoSource::Local, &local_metadata)?;
-            self.insert_metadatum(config, RepoSource::Base, &base_metadata)?;
-        }
-
-        // update base to local
-        self.promote_documents(config)?;
-
-        Ok(())
+        todo!()
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn calculate_work(&mut self, config: &Config) -> CoreResult<WorkCalculated> {
-        // fetch metadata updates
-        let account = self.get_account()?;
-        // todo: if this doesn't need to be mut, prune is broken
-        let updates = self.get_updates(account)?;
-        let remote_changes = updates.file_metadata;
-
-        // prune prunable files
-        {
-            let mut local = self
-                .tx
-                .base_metadata
-                .stage(remote_changes)
-                .stage(&mut self.tx.local_metadata)
-                .to_lazy();
-            for id in local.prunable_ids()? {
-                local.remove(id);
-            }
-        }
-
-        // calculate work
-        let mut work_units: Vec<WorkUnit> = vec![];
-        {
-            let remote = self.tx.base_metadata.stage(remote_changes).to_lazy();
-            for id in remote.tree.staged.owned_ids() {
-                work_units
-                    .push(WorkUnit::ServerChange { metadata: remote.finalize(&id, account)? });
-            }
-        }
-        {
-            let local = self
-                .tx
-                .base_metadata
-                .stage(&mut self.tx.local_metadata)
-                .to_lazy();
-            for id in local.tree.staged.owned_ids() {
-                work_units.push(WorkUnit::LocalChange { metadata: local.finalize(&id, account)? });
-            }
-        }
-
-        Ok(WorkCalculated {
-            work_units,
-            most_recent_update_from_server: updates.as_of_metadata_version,
-        })
+        todo!()
     }
 }
 

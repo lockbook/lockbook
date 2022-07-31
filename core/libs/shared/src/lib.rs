@@ -31,7 +31,7 @@ pub mod tree_like;
 pub mod validate;
 pub mod work_unit;
 
-type SharedResult<T> = Result<T, SharedError>;
+pub type SharedResult<T> = Result<T, SharedError>;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum SharedError {
