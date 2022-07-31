@@ -31,7 +31,7 @@ fn cancel_stripe_subscription() {
 fn downgrade_denied() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
-    let root = core.yeah get_root().unwrap();
+    let root = core.get_root().unwrap();
 
     // create files until the account is over the 1mb data cap
     loop {

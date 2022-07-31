@@ -318,19 +318,19 @@ impl Core {
     //         })
     //     }
 
-        #[instrument(level = "debug", skip(self), err(Debug))]
-        pub fn get_usage(&self) -> Result<UsageMetrics, Error<GetUsageError>> {
-            let val = self.db.transaction(|tx| self.context(tx)?.get_usage())?;
-            Ok(val?)
-        }
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_usage(&self) -> Result<UsageMetrics, Error<GetUsageError>> {
+        let val = self.db.transaction(|tx| self.context(tx)?.get_usage())?;
+        Ok(val?)
+    }
 
-        #[instrument(level = "debug", skip(self), err(Debug))]
-        pub fn get_uncompressed_usage(&self) -> Result<UsageItemMetric, Error<GetUsageError>> {
-            let val = self
-                .db
-                .transaction(|tx| self.context(tx)?.get_uncompressed_usage())?;
-            Ok(val?)
-        }
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_uncompressed_usage(&self) -> Result<UsageItemMetric, Error<GetUsageError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.get_uncompressed_usage())?;
+        Ok(val?)
+    }
 
     //     #[instrument(level = "debug", skip(self), err(Debug))]
     //     pub fn get_drawing(&self, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
@@ -402,11 +402,11 @@ impl Core {
 
     #[instrument(level = "debug", skip(self, input), err(Debug))]
     pub fn search_file_paths(&self, input: &str) -> Result<Vec<SearchResultItem>, UnexpectedError> {
-            let val = self
-                .db
-                .transaction(|tx| self.context(tx)?.search_file_paths(input))?;
-            Ok(val?)
-        }
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.search_file_paths(input))?;
+        Ok(val?)
+    }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn start_search(&self) -> Result<StartSearchInfo, UnexpectedError> {
