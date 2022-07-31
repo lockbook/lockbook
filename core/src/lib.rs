@@ -10,7 +10,6 @@ pub mod service;
 
 mod external_interface;
 
-use service::sync_service::{SyncProgress, WorkCalculated};
 pub use uuid::Uuid;
 
 pub use lockbook_shared::account::Account;
@@ -18,11 +17,16 @@ pub use lockbook_shared::api::{PaymentMethod, PaymentPlatform};
 pub use lockbook_shared::api::{StripeAccountTier, SubscriptionInfo};
 pub use lockbook_shared::crypto::DecryptedDocument;
 pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
+pub use lockbook_shared::file::File;
+pub use lockbook_shared::file_like::FileLike;
+pub use lockbook_shared::file_metadata::FileType;
+pub use lockbook_shared::path_ops::Filter;
+pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 
+pub use crate::model::drawing::SupportedImageFormats;
 pub use crate::model::errors::*;
 pub use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
-// pub use crate::service::path_service::Filter;
-// pub use crate::service::sync_service::{SyncProgress, WorkCalculated};
+pub use crate::service::sync_service::{SyncProgress, WorkCalculated};
 pub use crate::service::usage_service::{bytes_to_human, UsageItemMetric, UsageMetrics};
 
 use std::collections::HashMap;
@@ -38,12 +42,8 @@ use serde::Deserialize;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 
-use crate::model::drawing::SupportedImageFormats;
 use lockbook_shared::clock;
 use lockbook_shared::crypto::AESKey;
-use lockbook_shared::file::File;
-use lockbook_shared::file_metadata::FileType;
-use lockbook_shared::path_ops::Filter;
 
 use crate::model::errors::Error::UiError;
 use crate::model::repo::RepoSource;

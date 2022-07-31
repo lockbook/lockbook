@@ -2,7 +2,6 @@ use std::fs;
 
 use lockbook_core::Error as LbError;
 use lockbook_core::FileDeleteError;
-use lockbook_core::FileLike;
 use lockbook_core::{Core, Uuid};
 
 use crate::error::CliError;
@@ -20,7 +19,7 @@ pub fn new(
     let file_metadata = create_meta(core, lb_path, parent, name)?;
 
     let mut temp_file_path = get_directory_location()?;
-    temp_file_path.push(&file_metadata.decrypted_name);
+    temp_file_path.push(&file_metadata.name);
     let _ = fs::File::create(&temp_file_path).map_err(|err| {
         CliError::unexpected(format!("couldn't open temporary file for writing: {:#?}", err))
     })?;

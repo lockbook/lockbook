@@ -36,7 +36,7 @@ pub fn mv(
                 MoveFileError::DocumentTreatedAsFolder => CliError::doc_treated_as_dir(dest_path)
                     .with_extra(format!(
                         "{} cannot be moved to {}",
-                        src_meta.decrypted_name, dest_meta.decrypted_name
+                        src_meta.name, dest_meta.name
                     )),
             },
             LbError::Unexpected(msg) => CliError::unexpected(msg),

@@ -12,8 +12,8 @@ use crate::selector::select_meta;
 pub fn drawing(
     core: &Core, lb_path: Option<String>, id: Option<Uuid>, format: &str,
 ) -> Result<(), CliError> {
-    let file_metadata = select_meta(core, lb_path, id, None, None)?;
-    let lb_path = core.get_path_by_id(file_metadata.id)?;
+    let file = select_meta(core, lb_path, id, None, None)?;
+    let lb_path = core.get_path_by_id(file.id)?;
 
     let lockbook_format = format.parse().unwrap_or_else(|_| {
         eprintln!(
@@ -24,14 +24,14 @@ pub fn drawing(
     });
 
     let drawing_bytes = core
-        .export_drawing(file_metadata.id, lockbook_format, None)
+        .export_drawing(file.id, lockbook_format, None)
         .map_err(|err| match err {
             LbError::UiError(err) => match err {
                 ExportDrawingError::FolderTreatedAsDrawing => {
-                    CliError::dir_treated_as_doc(&file_metadata)
+                    CliError::dir_treated_as_doc(&file)
                 }
                 ExportDrawingError::InvalidDrawing => {
-                    CliError::invalid_drawing(file_metadata.decrypted_name)
+                    CliError::invalid_drawing(file.name)
                 }
                 ExportDrawingError::FileDoesNotExist => CliError::file_not_found(lb_path),
             },

@@ -1,5 +1,5 @@
 use lockbook_core::Core;
-use lockbook_core::{FileMetaMapExt, FileMetaVecExt};
+//use lockbook_core::{FileMetaMapExt, FileMetaVecExt};
 use lockbook_core::{TestRepoError, Warning};
 
 use crate::error::CliError;
@@ -86,7 +86,7 @@ fn validate(core: &Core) -> Result<(), CliError> {
             TestRepoError::Core(err) => {
                 CliError::unexpected(format!("unexpected error: {:#?}", err))
             }
-            TestRepoError::Tree(err) => {
+            TestRepoError::Shared(err) => {
                 CliError::unexpected(format!("unexpected error: {:#?}", err))
             }
         },

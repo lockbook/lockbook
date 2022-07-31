@@ -12,3 +12,13 @@ pub struct File {
     pub last_modified: u64,
     pub last_modified_by: Username,
 }
+
+impl File {
+    pub fn is_document(&self) -> bool {
+        self.file_type == FileType::Document
+    }
+
+    pub fn is_folder(&self) -> bool {
+        self.file_type == FileType::Folder
+    }
+}

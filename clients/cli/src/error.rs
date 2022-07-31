@@ -2,7 +2,7 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
-use lockbook_core::{CoreFile, Error as LbError};
+use lockbook_core::{File, Error as LbError};
 use lockbook_core::{GetAccountError, Uuid};
 use lockbook_core::{GetSubscriptionInfoError, UnexpectedError};
 
@@ -160,12 +160,12 @@ impl CliError {
         )
     }
 
-    pub fn dir_treated_as_doc(meta: &CoreFile) -> Self {
+    pub fn dir_treated_as_doc(f: &File) -> Self {
         Self::new(
             ErrCode::FolderTreatedAsDoc,
             format!(
                 "a file named '{}' is a folder being treated as a document",
-                meta.decrypted_name
+                f.name
             ),
         )
     }
