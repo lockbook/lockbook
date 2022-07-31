@@ -135,26 +135,6 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
         })
 
-        when (
-            PreferenceManager.getDefaultSharedPreferences(requireContext()).getString(
-                getString(R.string.sort_files_key),
-                getString(R.string.sort_files_a_z_value)
-            )
-        ) {
-            getString(R.string.sort_files_a_z_value) -> menu.menu!!.findItem(R.id.menu_list_files_sort_a_z)?.isChecked = true
-            getString(R.string.sort_files_z_a_value) -> menu.menu!!.findItem(R.id.menu_list_files_sort_z_a)?.isChecked = true
-            getString(R.string.sort_files_last_changed_value) ->
-                menu.menu!!.findItem(R.id.menu_list_files_sort_last_changed)?.isChecked =
-                    true
-            getString(R.string.sort_files_first_changed_value) ->
-                menu.menu!!.findItem(R.id.menu_list_files_sort_first_changed)?.isChecked =
-                    true
-            getString(R.string.sort_files_type_value) -> menu.menu!!.findItem(R.id.menu_list_files_sort_type)?.isChecked = true
-            else -> {
-                alertModel.notifyBasicError()
-            }
-        }.exhaustive
-
         binding.fabSpeedDial.inflate(R.menu.menu_files_list_speed_dial)
         binding.fabSpeedDial.setOnActionSelectedListener {
             val extendedFileType = when (it.id) {
@@ -256,26 +236,8 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
         binding.filesToolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-
-                R.id.menu_list_files_sort_last_changed -> {
-                    model.changeFileSort(SortStyle.LastChanged)
-                    menu.menu!!.findItem(R.id.menu_list_files_sort_last_changed)?.isChecked = true
-                }
-                R.id.menu_list_files_sort_a_z -> {
-                    model.changeFileSort(SortStyle.AToZ)
-                    menu.menu!!.findItem(R.id.menu_list_files_sort_a_z)?.isChecked = true
-                }
-                R.id.menu_list_files_sort_z_a -> {
-                    model.changeFileSort(SortStyle.ZToA)
-                    menu.menu!!.findItem(R.id.menu_list_files_sort_z_a)?.isChecked = true
-                }
-                R.id.menu_list_files_sort_first_changed -> {
-                    model.changeFileSort(SortStyle.FirstChanged)
-                    menu.menu!!.findItem(R.id.menu_list_files_sort_first_changed)?.isChecked = true
-                }
-                R.id.menu_list_files_sort_type -> {
-                    model.changeFileSort(SortStyle.FileType)
-                    menu.menu!!.findItem(R.id.menu_list_files_sort_type)?.isChecked = true
+                R.id.menu_files_list_search -> {
+                    activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSearch)
                 }
             }
 
@@ -294,7 +256,7 @@ class FilesListFragment : Fragment(), FilesFragment {
 
             withItem<FileViewHolderInfo.FolderViewHolderInfo, FolderViewHolder>(R.layout.folder_file_item) {
                 onBind(::FolderViewHolder) { _, item ->
-                    name.text = item.fileMetadata.decryptedName
+                    name.text = item.fileMetadata.name
 
                     when {
                         isSelected() -> {
@@ -336,15 +298,15 @@ class FilesListFragment : Fragment(), FilesFragment {
 
             withItem<FileViewHolderInfo.DocumentViewHolderInfo, DocumentViewHolder>(R.layout.document_file_item) {
                 onBind(::DocumentViewHolder) { _, item ->
-                    name.text = item.fileMetadata.decryptedName
-                    if (item.fileMetadata.metadataVersion != 0L) {
+                    name.text = item.fileMetadata.name
+                    if (item.fileMetadata.lastModified != 0L) {
                         description.visibility = View.VISIBLE
-                        description.text = CoreModel.convertToHumanDuration(item.fileMetadata.metadataVersion)
+                        description.text = CoreModel.convertToHumanDuration(item.fileMetadata.lastModified)
                     } else {
                         description.visibility = View.GONE
                     }
 
-                    val extensionHelper = ExtensionHelper(item.fileMetadata.decryptedName)
+                    val extensionHelper = ExtensionHelper(item.fileMetadata.name)
 
                     val iconResource = when {
                         extensionHelper.isDrawing -> R.drawable.ic_outline_draw_24
@@ -400,11 +362,11 @@ class FilesListFragment : Fragment(), FilesFragment {
 
             withItem<RecentFileViewHolderInfo, RecentFileItemViewHolder>(R.layout.recent_file_item) {
                 onBind(::RecentFileItemViewHolder) { _, item ->
-                    name.text = item.fileMetadata.decryptedName
+                    name.text = item.fileMetadata.name
                     folderName.text = getString(R.string.recent_files_folder, item.folderName)
-                    lastEdited.text = CoreModel.convertToHumanDuration(item.fileMetadata.metadataVersion)
+                    lastEdited.text = CoreModel.convertToHumanDuration(item.fileMetadata.lastModified)
 
-                    val extensionHelper = ExtensionHelper(item.fileMetadata.decryptedName)
+                    val extensionHelper = ExtensionHelper(item.fileMetadata.name)
 
                     val iconResource = when {
                         extensionHelper.isDrawing -> R.drawable.ic_outline_draw_24
@@ -423,7 +385,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
     }
 
-    private fun enterFile(item: DecryptedFileMetadata) {
+    private fun enterFile(item: File) {
         when (item.fileType) {
             FileType.Document -> {
                 activityModel.launchDetailsScreen(DetailsScreen.Loading(item))
@@ -460,6 +422,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
             is UpdateFilesUI.ShowSyncSnackBar -> {
                 binding.syncProgressIndicator.max = uiUpdates.totalSyncItems
+                binding.syncProgressIndicator.visibility = View.VISIBLE
                 binding.syncText.text = resources.getString(R.string.list_files_sync_snackbar, uiUpdates.totalSyncItems.toString())
                 binding.syncHolder.visibility = View.VISIBLE
             }
@@ -599,7 +562,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         toggleMenuBar()
     }
 
-    override fun onNewFileCreated(newDocument: DecryptedFileMetadata?) {
+    override fun onNewFileCreated(newDocument: File?) {
         when {
             newDocument != null && PreferenceManager.getDefaultSharedPreferences(requireContext())
                 .getBoolean(getString(R.string.open_new_doc_automatically_key), true) -> {

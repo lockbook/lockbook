@@ -79,27 +79,7 @@
             android:text="@string/popup_info_metadata_version" />
 
         <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/popup_info_metadata_version"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/default_value" />
-
-    </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingVertical="6dp"
-        android:orientation="horizontal">
-
-        <com.google.android.material.textview.MaterialTextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            style="@style/TextAppearance.Material3.LabelLarge"
-            android:text="@string/popup_info_content_version" />
-
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/popup_info_content_version"
+            android:id="@+id/popup_info_last_modified"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/default_value" />

@@ -43,7 +43,11 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
         _launchDetailsScreen.value = detailsScreen
     }
 
-    fun shareSelectedFiles(selectedFiles: List<DecryptedFileMetadata>, appDataDir: File) {
+    fun updateMainScreenUI(uiUpdate: UpdateMainScreenUI) {
+        _updateMainScreenUI.postValue(uiUpdate)
+    }
+
+    fun shareSelectedFiles(selectedFiles: List<app.lockbook.util.File>, appDataDir: File) {
         viewModelScope.launch(Dispatchers.IO) {
             val shareResult = shareModel.shareDocuments(selectedFiles, appDataDir)
             if (shareResult is Err) {
@@ -120,34 +124,34 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
     }
 }
 
-sealed class DetailsScreen(open val fileMetadata: DecryptedFileMetadata) {
-    data class Loading(override val fileMetadata: DecryptedFileMetadata) : DetailsScreen(fileMetadata)
-    data class TextEditor(override val fileMetadata: DecryptedFileMetadata, val text: String) :
+sealed class DetailsScreen(open val fileMetadata: app.lockbook.util.File) {
+    data class Loading(override val fileMetadata: app.lockbook.util.File) : DetailsScreen(fileMetadata)
+    data class TextEditor(override val fileMetadata: app.lockbook.util.File, val text: String) :
         DetailsScreen(fileMetadata)
 
     data class Drawing(
-        override val fileMetadata: DecryptedFileMetadata,
+        override val fileMetadata: app.lockbook.util.File,
         val drawing: app.lockbook.util.Drawing
     ) : DetailsScreen(fileMetadata)
 
     data class ImageViewer(
-        override val fileMetadata: DecryptedFileMetadata,
+        override val fileMetadata: app.lockbook.util.File,
         val bitmap: Bitmap
     ) : DetailsScreen(fileMetadata)
 
     data class PdfViewer(
-        override val fileMetadata: DecryptedFileMetadata,
+        override val fileMetadata: app.lockbook.util.File,
         val location: File
     ) : DetailsScreen(fileMetadata)
 }
 
 sealed class TransientScreen {
-    data class Move(val files: List<DecryptedFileMetadata>) : TransientScreen()
-    data class Rename(val file: DecryptedFileMetadata) : TransientScreen()
+    data class Move(val files: List<app.lockbook.util.File>) : TransientScreen()
+    data class Rename(val file: app.lockbook.util.File) : TransientScreen()
     data class Create(val parentId: String, val extendedFileType: ExtendedFileType) : TransientScreen()
-    data class Info(val file: DecryptedFileMetadata) : TransientScreen()
+    data class Info(val file: app.lockbook.util.File) : TransientScreen()
     data class Share(val files: List<File>) : TransientScreen()
-    data class Delete(val files: List<DecryptedFileMetadata>) : TransientScreen()
+    data class Delete(val files: List<app.lockbook.util.File>) : TransientScreen()
 }
 
 sealed class UpdateMainScreenUI {
@@ -155,6 +159,8 @@ sealed class UpdateMainScreenUI {
     data class ShareDocuments(val files: ArrayList<File>) : UpdateMainScreenUI()
     data class NotifyError(val error: LbError) : UpdateMainScreenUI()
     object ShowSubscriptionConfirmed : UpdateMainScreenUI()
+    object ShowSearch : UpdateMainScreenUI()
+    object ShowFiles : UpdateMainScreenUI()
 }
 
 sealed class ExtendedFileType {
