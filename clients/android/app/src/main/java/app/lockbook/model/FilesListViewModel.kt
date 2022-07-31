@@ -9,6 +9,7 @@ import app.lockbook.R
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
+import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.afollestad.recyclical.datasource.emptySelectableDataSourceTyped
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -27,7 +28,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     lateinit var fileModel: FileModel
 
     val files = emptySelectableDataSourceTyped<FileViewHolderInfo>()
-    val recentFiles = emptySelectableDataSourceTyped<RecentFileViewHolderInfo>()
+    val recentFiles = emptyDataSourceTyped<RecentFileViewHolderInfo>()
 
     var breadcrumbItems = listOf<BreadCrumbItem>()
 
@@ -91,6 +92,8 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                     withContext(Dispatchers.Main) {
                         activityModel.launchDetailsScreen(DetailsScreen.Loading(createFileResult.value))
                     }
+
+                    refreshFiles()
                 }
                 is Err -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(createFileResult.error.toLbError(getRes())))
             }
@@ -228,13 +231,6 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
             _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
         }
-    }
-
-    fun changeFileSort(newSortStyle: SortStyle) {
-        fileModel.setSortStyle(newSortStyle)
-
-        files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
-        PreferenceManager.getDefaultSharedPreferences(getContext()).edit().putString(getString(R.string.sort_files_key), getString(newSortStyle.toStringResource())).apply()
     }
 
     private fun refreshWorkInfo() {

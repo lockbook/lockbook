@@ -27,15 +27,10 @@
     <string name="biometric_recommended">Protect key export with biometrics (recommended)</string>
     <string name="biometric_strict">Use biometrics every time you open the app (strict mode)</string>
 
-    <string name="menu_sort">Sort</string>
     <string name="menu_text_editor_view_md">View Markdown</string>
     <string name="menu_text_editor_redo">Redo</string>
     <string name="menu_text_editor_undo">Undo</string>
 
-    <string name="menu_list_files_sort_a_z">Sort from a-z</string>
-    <string name="menu_list_files_last_changed">Sort by last changed</string>
-    <string name="menu_list_files_sort_z_a">Sort from z-a</string>
-    <string name="menu_list_files_sort_first_changed">Sort by first changed</string>
     <string name="dialog_file_name">Name</string>
 
     <string name="settings_sync_edit">Sync automatically in app</string>
@@ -46,7 +41,6 @@
     <string name="settings_preference_title_account">Export Account</string>
     <string name="settings_preference_title_background_sync">Background Sync</string>
     <string name="settings_preference_title_incremental_sync">Incremental Sync</string>
-    <string name="menu_list_files_sort_type">Sort by type</string>
     <string name="qr_code_content_description">QR code</string>
 
     <string name="list_files_sync_snackbar">Syncing %s items…</string>
@@ -209,13 +203,6 @@
     <string name="export_account_raw_key" translatable="false">export_account_raw</string>
     <string name="export_account_qr_key" translatable="false">export_account_qr</string>
 
-    <string name="sort_files_key" translatable="false">sort_files</string>
-    <string name="sort_files_a_z_value" translatable="false">sort_files_a_z</string>
-    <string name="sort_files_z_a_value" translatable="false">sort_files_z_a</string>
-    <string name="sort_files_type_value" translatable="false">sort_files_type</string>
-    <string name="sort_files_first_changed_value" translatable="false">sort_files_first_changed</string>
-    <string name="sort_files_last_changed_value" translatable="false">sort_files_last_changed</string>
-
     <string name="background_sync_period_key" translatable="false">background_sync_period</string>
     <string name="background_sync_enabled_key" translatable="false">background_sync_enabled</string>
     <string name="sync_automatically_key" translatable="false">sync_automatically_in_app</string>
@@ -263,7 +250,8 @@
     <string name="recent_documents">Recent Documents</string>
     <string name="recent_file_icon">Recent file icon</string>
     <string name="recent_files_folder">%s/</string>
+    <string name="search">Search</string>
+    <string name="no_search_results">No search results</string>
     <string name="exit_app">Exit App</string>
-
     <string name="note">note</string>
 </resources>

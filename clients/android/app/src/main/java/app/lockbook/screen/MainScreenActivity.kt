@@ -42,7 +42,7 @@ class MainScreenActivity : AppCompatActivity() {
                 is RenameFileDialogFragment -> filesFragment.refreshFiles()
                 is CreateFileDialogFragment -> filesFragment.onNewFileCreated(f.newFile)
                 is FileInfoDialogFragment -> filesFragment.unselectFiles()
-                is DeleteFilesDialogFragment -> filesFragment.refreshFiles()
+                is DeleteFilesDialogFragment -> onFileDeleted(filesFragment)
             }
         }
     }
@@ -61,6 +61,8 @@ class MainScreenActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        toggleTransparentLockbookLogo(model.detailsScreen)
 
         supportFragmentManager.registerFragmentLifecycleCallbacks(
             fragmentFinishedCallback,
@@ -166,7 +168,9 @@ class MainScreenActivity : AppCompatActivity() {
             UpdateMainScreenUI.ShowSubscriptionConfirmed -> {
                 alertModel.notifySuccessfulPurchaseConfirm()
             }
-        }.exhaustive
+            UpdateMainScreenUI.ShowSearch -> navHost().navController.navigate(R.id.action_files_to_search)
+            UpdateMainScreenUI.ShowFiles -> navHost().navController.popBackStack()
+        }
     }
 
     private fun finalizeShare(files: List<File>) {
@@ -203,10 +207,24 @@ class MainScreenActivity : AppCompatActivity() {
         supportFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
     }
 
+    private fun onFileDeleted(filesFragment: FilesFragment) {
+        val openedFile = model.detailsScreen?.fileMetadata?.id
+        if (openedFile != null) {
+            val isDeletedFileOpen = (model.transientScreen as TransientScreen.Delete).files.any { file -> file.id == openedFile }
+
+            if (isDeletedFileOpen) {
+                launchDetailsScreen(null)
+            }
+        }
+
+        filesFragment.refreshFiles()
+    }
+
     private fun launchDetailsScreen(screen: DetailsScreen?) {
         supportFragmentManager.commit {
             setReorderingAllowed(true)
             doOnDetailsExit(screen)
+            toggleTransparentLockbookLogo(screen)
 
             when (screen) {
                 is DetailsScreen.Loading -> replace<DetailsScreenLoaderFragment>(R.id.detail_container)
@@ -215,7 +233,7 @@ class MainScreenActivity : AppCompatActivity() {
                 is DetailsScreen.ImageViewer -> replace<ImageViewerFragment>(R.id.detail_container)
                 is DetailsScreen.PdfViewer -> replace<PdfViewerFragment>(R.id.detail_container)
                 null -> {
-                    getFilesFragment().syncBasedOnPreferences()
+                    maybeGetFilesFragment()?.syncBasedOnPreferences()
                     supportFragmentManager.findFragmentById(R.id.detail_container)?.let {
                         remove(it)
                     }
@@ -232,6 +250,14 @@ class MainScreenActivity : AppCompatActivity() {
         } else {
             slidingPaneLayout.openPane()
             binding.detailContainer.requestFocus()
+        }
+    }
+
+    private fun toggleTransparentLockbookLogo(screen: DetailsScreen?) {
+        if (screen != null && binding.lockbookBackdrop.visibility == View.VISIBLE) {
+            binding.lockbookBackdrop.visibility = View.GONE
+        } else if (screen == null && binding.lockbookBackdrop.visibility == View.GONE) {
+            binding.lockbookBackdrop.visibility = View.VISIBLE
         }
     }
 
@@ -252,7 +278,9 @@ class MainScreenActivity : AppCompatActivity() {
     override fun onBackPressed() {
         if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
             launchDetailsScreen(null)
-        } else if (getFilesFragment().onBackPressed()) {
+        } else if (maybeGetSearchFilesFragment() != null) {
+            updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
+        } else if (maybeGetFilesFragment()?.onBackPressed() == true) {
             super.onBackPressed()
         }
     }
