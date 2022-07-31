@@ -3163,7 +3163,7 @@ fn deleted_path_is_released() {
 
 // this case did not actually get the fuzzer stuck and was written while reproducing the issue
 #[test]
-fn fuzzer_stuck_test() {
+fn fuzzer_stuck_test_1() {
     let db1 = test_core_with_account();
     let b = db1.create_at_path("/b").unwrap();
     let c = db1.create_at_path("/c/").unwrap();

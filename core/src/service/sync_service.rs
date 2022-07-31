@@ -104,6 +104,17 @@ impl RequestContext<'_, '_> {
         update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PullMetadata));
         let mut remote_changes = self.get_updates(account)?.file_metadata;
 
+        // initialize root if this is the first pull on this device
+        if self.tx.root.get(&OneKey {}).is_none() {
+            let root = remote_changes
+                .all_files()?
+                .into_iter()
+                .filter(|f| f.is_root())
+                .next()
+                .ok_or(CoreError::RootNonexistent)?;
+            self.tx.root.insert(OneKey {}, *root.id());
+        }
+
         // prune prunable files
         remote_changes =
             Self::prune(&mut self.tx.base_metadata, remote_changes, &mut self.tx.local_metadata)?;
