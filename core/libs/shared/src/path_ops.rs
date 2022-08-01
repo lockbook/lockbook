@@ -56,10 +56,10 @@ where
         Ok((self, current))
     }
 
-    pub fn path_to_id(&mut self, path: &str, root: Uuid, account: &Account) -> SharedResult<Uuid> {
+    pub fn path_to_id(&mut self, path: &str, root: &Uuid, account: &Account) -> SharedResult<Uuid> {
         let paths = split_path(path);
 
-        let mut current = root;
+        let mut current = *root;
         'path: for path in paths {
             'child: for child in self.children(&current)? {
                 if self.calculate_deleted(&child)? {
@@ -81,8 +81,16 @@ where
     pub fn id_to_path(&mut self, id: &Uuid, account: &Account) -> SharedResult<String> {
         let meta = self.find(id)?;
         let mut current = *meta.parent();
-        let mut path =
-            if meta.is_root() { "/".to_string() } else { format!("/{}", self.name(id, account)?) };
+
+        if meta.is_root() {
+            return Ok("/".to_string());
+        }
+
+        let mut path = match meta.file_type() {
+            FileType::Document => format!("/{}", self.name(id, account)?),
+            FileType::Folder => format!("/{}/", self.name(id, account)?),
+        };
+
         loop {
             let current_meta = self.find(&current)?;
             if current_meta.is_root() {
@@ -90,7 +98,7 @@ where
             }
             let next = *current_meta.parent();
             let current_name = self.name(&current, account)?;
-            path = format!("/{}/{}", current_name, path);
+            path = format!("/{}{}", current_name, path);
             current = next;
         }
     }

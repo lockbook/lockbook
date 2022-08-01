@@ -51,7 +51,7 @@ impl RequestContext<'_, '_> {
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
 
-        let id = tree.path_to_id(path, *root, account)?;
+        let id = tree.path_to_id(path, root, account)?;
 
         let ui_file = tree.finalize(&id, account)?;
 

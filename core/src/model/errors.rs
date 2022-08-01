@@ -166,6 +166,12 @@ impl From<SharedError> for CoreError {
             FileNonexistent => CoreError::FileNonexistent,
             FileParentNonexistent => CoreError::FileParentNonexistent,
             Unexpected(err) => CoreError::Unexpected(err.to_string()),
+            PathContainsEmptyFileName => CoreError::PathContainsEmptyFileName,
+            PathTaken => CoreError::PathTaken,
+            FileNameContainsSlash => CoreError::FileNameContainsSlash,
+            RootModificationInvalid => CoreError::RootModificationInvalid,
+            FileNameEmpty => CoreError::FileNameEmpty,
+            FileNotFolder => CoreError::FileNotFolder,
             _ => CoreError::Unexpected(format!("unexpected shared error {:?}", err)),
         }
     }
