@@ -38,13 +38,6 @@ where
             }
         }
 
-        // Check for updates to deleted files
-        for change in &changes {
-            if self.calculate_deleted(change.new.id())? {
-                return Err(SharedError::DeletedFileUpdated);
-            }
-        }
-
         // Check for race conditions
         for change in &changes {
             match &change.old {
@@ -62,6 +55,15 @@ where
                         return Err(SharedError::OldVersionRequired);
                     }
                 }
+            }
+        }
+
+        // Check for updates to deleted files
+        for change in &changes {
+            if self.maybe_find(change.new.id()).is_some()
+                && self.calculate_deleted(change.new.id())?
+            {
+                return Err(SharedError::DeletedFileUpdated);
             }
         }
 

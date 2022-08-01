@@ -298,6 +298,11 @@ impl RequestContext<'_, '_> {
 
             // change only document hmac and re-sign
             let mut local_change = base_file.timestamped_value.value.clone();
+
+            if base_file.document_hmac() == local_change.document_hmac() {
+                continue;
+            }
+
             local_change.document_hmac = local.find(&id)?.timestamped_value.value.document_hmac;
 
             let local_change = local_change.sign(account)?;
