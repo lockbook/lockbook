@@ -32,7 +32,7 @@ impl FromStr for FileType {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct EncryptedFileMetadata {
     pub id: Uuid,
     pub file_type: FileType,
@@ -44,6 +44,19 @@ pub struct EncryptedFileMetadata {
     pub deleted: bool,
     pub user_access_keys: HashMap<Username, UserAccessInfo>,
     pub folder_access_keys: EncryptedFolderAccessKey,
+}
+
+impl PartialEq for EncryptedFileMetadata {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.file_type == other.file_type
+            && self.parent == other.parent
+            && self.name == other.name
+            && self.owner == other.owner
+            && self.metadata_version == other.metadata_version
+            && self.content_version == other.content_version
+            && self.deleted == other.deleted
+    }
 }
 
 impl FileMetadata for EncryptedFileMetadata {
