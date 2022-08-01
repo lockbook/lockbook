@@ -81,16 +81,16 @@ impl RequestContext<'_, '_> {
             }
         };
 
-        self.pull(config, &mut update_sync_progress)?;
+        let update_as_of = self.pull(config, &mut update_sync_progress)?;
         self.push_metadata(&mut update_sync_progress)?;
         self.push_documents(&mut update_sync_progress)?;
-        self.tx.last_synced.insert(OneKey {}, clock::get_time().0);
+        self.tx.last_synced.insert(OneKey {}, update_as_of as i64);
         Ok(())
     }
 
     /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.
     /// Promotes Base to Stage<Base, Remote> and Local to Stage<Local, Merge>
-    fn pull<F>(&mut self, config: &Config, update_sync_progress: &mut F) -> Result<(), CoreError>
+    fn pull<F>(&mut self, config: &Config, update_sync_progress: &mut F) -> Result<u64, CoreError>
     where
         F: FnMut(SyncProgressOperation),
     {
@@ -102,7 +102,9 @@ impl RequestContext<'_, '_> {
 
         // fetch metadata updates
         update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PullMetadata));
-        let mut remote_changes = self.get_updates(account)?.file_metadata;
+        let updates = self.get_updates(account)?;
+        let mut remote_changes = updates.file_metadata;
+        let update_as_of = updates.as_of_metadata_version;
 
         // initialize root if this is the first pull on this device
         if self.tx.root.get(&OneKey {}).is_none() {
@@ -190,7 +192,7 @@ impl RequestContext<'_, '_> {
             document_repo::insert(self.config, RepoSource::Local, id, &document)?;
         }
 
-        Ok(())
+        Ok(update_as_of)
     }
 
     fn prune<Base, Local>(

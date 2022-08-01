@@ -31,7 +31,7 @@ pub fn test_core_from(core: &Core) -> Core {
     let account_string = core.export_account().unwrap();
     let core = test_core();
     core.import_account(&account_string).unwrap();
-    // core.sync(None).unwrap();
+    core.sync(None).unwrap();
     core
 }
 

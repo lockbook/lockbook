@@ -303,7 +303,7 @@ where
                     changed = true;
                 }
                 if changed {
-                    result = result.stage_rename(&id, &name, account)?.promote();
+                    result = result.stage_rename(&sibling_id, &name, account)?.promote();
                 }
             }
         }
