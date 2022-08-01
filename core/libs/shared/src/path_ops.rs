@@ -15,13 +15,13 @@ where
     Local: Stagable<F = Base::F>,
 {
     pub fn create_at_path(
-        mut self, path: &str, root: Uuid, account: &Account, pub_key: &PublicKey,
+        mut self, path: &str, root: &Uuid, account: &Account, pub_key: &PublicKey,
     ) -> SharedResult<(LazyStaged1<Base, Local>, Uuid)> {
         validate::path(path)?;
         let is_folder = path.ends_with('/');
 
         let path_components = split_path(path);
-        let mut current = root;
+        let mut current = *root;
         'path: for index in 0..path_components.len() {
             'child: for child in self.children(&current)? {
                 if self.calculate_deleted(&child)? {
@@ -79,8 +79,10 @@ where
     }
 
     pub fn id_to_path(&mut self, id: &Uuid, account: &Account) -> SharedResult<String> {
-        let mut path = format!("/{}", self.name(id, account)?);
-        let mut current = *self.find(id)?.parent();
+        let meta = self.find(id)?;
+        let mut current = *meta.parent();
+        let mut path =
+            if meta.is_root() { "/".to_string() } else { format!("/{}", self.name(id, account)?) };
         loop {
             let current_meta = self.find(&current)?;
             if current_meta.is_root() {
