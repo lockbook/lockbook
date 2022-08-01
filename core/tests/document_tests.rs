@@ -21,7 +21,7 @@ fn maybe_get() {
     let config = &test_config();
 
     let id = Uuid::new_v4();
-    let result = document_repo::maybe_get(config, RepoSource::Local, id).unwrap();
+    let result = document_repo::maybe_get(config, RepoSource::Local, &id).unwrap();
 
     assert_eq!(result, None);
 }
@@ -47,7 +47,7 @@ fn insert_get_different_source() {
     let (id, document) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
     document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
-    let result = document_repo::maybe_get(config, RepoSource::Base, id).unwrap();
+    let result = document_repo::maybe_get(config, RepoSource::Base, &id).unwrap();
 
     assert_eq!(result, None);
 }
@@ -127,7 +127,7 @@ fn insert_delete() {
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
     document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
     document_repo::delete(config, RepoSource::Local, id).unwrap();
-    let result = document_repo::maybe_get(config, RepoSource::Local, id).unwrap();
+    let result = document_repo::maybe_get(config, RepoSource::Local, &id).unwrap();
 
     assert_eq!(result, None);
 }

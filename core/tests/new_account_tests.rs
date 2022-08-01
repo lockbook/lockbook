@@ -1,6 +1,5 @@
-use lockbook_core::pure_functions::files;
+use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
-use lockbook_core::service::{api_service, file_encryption_service};
 use lockbook_shared::account::Account;
 use lockbook_shared::api::*;
 use lockbook_shared::pubkey;

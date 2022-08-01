@@ -8,7 +8,6 @@ use lockbook_core::Core;
 use lockbook_core::Error::UiError;
 use lockbook_shared::api::DeleteAccountRequest;
 use lockbook_shared::file_metadata::FileType::{Document, Folder};
-use lockbook_shared::tree::FileLike;
 use std::time::Instant;
 use std::{fs, thread};
 use test_utils::*;
@@ -222,20 +221,19 @@ impl Trial {
                 if file.id != file.parent {
                     mutants.push(self.create_mutation(RenameFile {
                         client: client_index,
-                        name: file.decrypted_name.clone(),
+                        name: file.name.clone(),
                         new_name: random_filename(),
                     }));
 
-                    mutants.push(self.create_mutation(DeleteFile {
-                        client: client_index,
-                        name: file.decrypted_name,
-                    }));
+                    mutants.push(
+                        self.create_mutation(DeleteFile { client: client_index, name: file.name }),
+                    );
                 }
             }
 
             for folder in folders.clone() {
                 let parent_name =
-                    if folder.is_root() { "root".to_string() } else { folder.decrypted_name };
+                    if folder.id == folder.parent { "root".to_string() } else { folder.name };
 
                 mutants.push(self.create_mutation(NewDocument {
                     parent: parent_name.clone(),
@@ -258,17 +256,17 @@ impl Trial {
                 for doc in docs.clone() {
                     mutants.push(self.create_mutation(MoveDocument {
                         client: client_index,
-                        doc_name: doc.decrypted_name.clone(),
+                        doc_name: doc.name.clone(),
                         destination_name: parent_name.clone(),
                     }))
                 }
 
                 for folder2 in folders.clone() {
                     if folder.id != folder.parent {
-                        let folder2_name = if folder2.is_root() {
+                        let folder2_name = if folder2.id == folder2.parent {
                             "root".to_string()
                         } else {
-                            folder2.decrypted_name
+                            folder2.name
                         };
                         mutants.push(self.create_mutation(AttemptFolderMove {
                             client: client_index,
@@ -282,7 +280,7 @@ impl Trial {
             for doc in docs.clone() {
                 mutants.push(self.create_mutation(UpdateDocument {
                     client: client_index,
-                    name: doc.decrypted_name.clone(),
+                    name: doc.name.clone(),
                     new_content: random_utf8(),
                 }));
             }

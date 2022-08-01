@@ -86,13 +86,13 @@ fn export_file_successfully() {
         assert!(info.disk_path.exists());
     }
 
-    assert!(tmp_path.join(file.decrypted_name).exists());
+    assert!(tmp_path.join(file.name).exists());
 
     // generating folder with a document in lockbook
     let parent_name = Uuid::new_v4().to_string();
     let child_name = Uuid::new_v4().to_string();
     let child = core
-        .create_at_path(&format!("/{}/{}/{}", root.decrypted_name, parent_name, child_name))
+        .create_at_path(&format!("/{}/{}/{}", root.name, parent_name, child_name))
         .unwrap();
 
     core.write_document(child.id, &rand::thread_rng().gen::<[u8; 32]>())
