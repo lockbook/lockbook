@@ -2,7 +2,7 @@ use lockbook_core::repo::schema::OneKey;
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_shared::api::*;
-use lockbook_shared::file_metadata::FileMetadataDiff;
+use lockbook_shared::file_metadata::FileDiff;
 use test_utils::*;
 
 #[test]
@@ -16,7 +16,7 @@ fn rename_document() {
 
     api_service::request(
         &account,
-        FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
+        FileMetadataUpsertsRequest { updates: vec![FileDiff::new(&doc)] },
     )
     .unwrap();
 
@@ -26,9 +26,7 @@ fn rename_document() {
 
     api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new_diff(root.id, &old_name, &doc)],
-        },
+        FileMetadataUpsertsRequest { updates: vec![FileDiff::new_diff(root.id, &old_name, &doc)] },
     )
     .unwrap();
 }
@@ -46,7 +44,7 @@ fn rename_document_not_found() {
         &account,
         FileMetadataUpsertsRequest {
             // create document as if renaming an existing document
-            updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
+            updates: vec![FileDiff::new_diff(root.id, &doc.name, &doc)],
         },
     );
     assert_matches!(
@@ -68,7 +66,7 @@ fn rename_document_deleted() {
 
     api_service::request(
         &account,
-        FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
+        FileMetadataUpsertsRequest { updates: vec![FileDiff::new(&doc)] },
     )
     .unwrap();
 
@@ -79,9 +77,7 @@ fn rename_document_deleted() {
 
     api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new_diff(root.id, &old_name, &doc)],
-        },
+        FileMetadataUpsertsRequest { updates: vec![FileDiff::new_diff(root.id, &old_name, &doc)] },
     )
     .unwrap();
 }
@@ -97,7 +93,7 @@ fn rename_document_conflict() {
 
     api_service::request(
         &account,
-        FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
+        FileMetadataUpsertsRequest { updates: vec![FileDiff::new(&doc)] },
     )
     .unwrap();
 
@@ -108,7 +104,7 @@ fn rename_document_conflict() {
         &account,
         FileMetadataUpsertsRequest {
             // use incorrect previous name
-            updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
+            updates: vec![FileDiff::new_diff(root.id, &doc.name, &doc)],
         },
     );
     assert_matches!(result, UPDATES_REQ);
@@ -129,9 +125,7 @@ fn rename_document_path_taken() {
 
     api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new(&doc1), FileMetadataDiff::new(&doc2)],
-        },
+        FileMetadataUpsertsRequest { updates: vec![FileDiff::new(&doc1), FileDiff::new(&doc2)] },
     )
     .unwrap();
 
@@ -141,9 +135,7 @@ fn rename_document_path_taken() {
 
     let result = api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new_diff(root.id, &old_name, &doc1)],
-        },
+        FileMetadataUpsertsRequest { updates: vec![FileDiff::new_diff(root.id, &old_name, &doc1)] },
     );
     assert_matches!(result, UPDATES_REQ);
 }
@@ -162,7 +154,7 @@ fn rename_folder_cannot_rename_root() {
     let result = api_service::request(
         &account,
         FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)],
+            updates: vec![FileDiff::new_diff(root.id, &root.name, &root)],
         },
     );
     assert_matches!(

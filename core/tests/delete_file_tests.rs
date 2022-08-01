@@ -1,7 +1,6 @@
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_shared::api::*;
-use lockbook_shared::file_metadata::FileMetadataDiff;
 use test_utils::*;
 
 #[test]
