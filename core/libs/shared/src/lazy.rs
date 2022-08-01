@@ -320,23 +320,15 @@ where
 
     // todo: incrementalism
     pub fn unstage(self) -> (LazyTree<Base>, Staged) {
-        let mut staged = self.tree.staged;
-        let mut base = self.tree.base;
-        for id in staged.owned_ids() {
-            if let Some(removed) = staged.remove(id) {
-                base.insert(removed);
-            }
-        }
-
         (
             LazyTree {
-                tree: base,
+                tree: self.tree.base,
                 name: HashMap::new(),
                 key: HashMap::new(),
                 implicit_deleted: HashMap::new(),
                 children: HashMap::new(),
             },
-            staged,
+            self.tree.staged,
         )
     }
 }
