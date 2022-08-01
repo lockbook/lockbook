@@ -25,7 +25,7 @@ impl RequestContext<'_, '_> {
             .base_metadata
             .stage(&mut self.tx.local_metadata)
             .to_lazy()
-            .create_at_path(path, *root, account, &pub_key)?;
+            .create_at_path(path, root, account, &pub_key)?;
 
         let ui_file = tree.finalize(&id, account)?;
 

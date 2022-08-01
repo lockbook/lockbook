@@ -1,7 +1,6 @@
 use crate::repo::document_repo;
 use crate::{CoreError, RepoSource, RequestContext};
 use crate::{CoreResult, OneKey};
-use lockbook_shared::compression_service;
 use lockbook_shared::crypto::DecryptedDocument;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::tree_like::Stagable;
