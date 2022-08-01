@@ -217,11 +217,15 @@ where
         // exclude files with not deleted descendants i.e. exclude files that are the ancestors of not deleted files
         let mut to_prune = deleted_both;
         for id in not_deleted_either {
-            for ancestor in base.ancestors(&id)? {
-                to_prune.remove(&ancestor);
+            if base.maybe_find(&id).is_some() {
+                for ancestor in base.ancestors(&id)? {
+                    to_prune.remove(&ancestor);
+                }
             }
-            for ancestor in staged.ancestors(&id)? {
-                to_prune.remove(&ancestor);
+            if staged.maybe_find(&id).is_some() {
+                for ancestor in staged.ancestors(&id)? {
+                    to_prune.remove(&ancestor);
+                }
             }
         }
 
@@ -290,6 +294,7 @@ where
                 let mut changed = false;
                 while sibling_ids
                     .iter()
+                    .filter(|&id| id != sibling_id)
                     .map(|id| result.name(id, account))
                     .propagate_err()?
                     .any(|sibling_name| sibling_name == name)
@@ -537,8 +542,6 @@ where
         // resolve tree merge conflicts
         result = result.unmove_moved_files_in_cycles(account)?.promote();
         result = result.rename_files_with_path_conflicts(account)?.promote();
-
-        // todo: validate?
 
         Ok((result.promote(), merge_document_changes))
     }

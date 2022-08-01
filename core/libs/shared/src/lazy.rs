@@ -266,22 +266,16 @@ impl<T: Stagable> LazyTree<T> {
 
     // todo: optimize
     fn assert_no_path_conflicts(&mut self) -> SharedResult<()> {
-        let mut children_by_parent_and_name =
-            HashMap::<(Uuid, SecretFileName), HashSet<Uuid>>::new();
+        let mut id_by_name = HashMap::new();
         for id in self.owned_ids() {
             if !self.calculate_deleted(&id)? {
                 let file = self.find(&id)?;
-                children_by_parent_and_name
-                    .entry((*file.parent(), file.secret_name().clone()))
-                    .or_insert_with(HashSet::new)
-                    .insert(*file.id());
-            }
-        }
-        for (_, siblings_with_same_name) in children_by_parent_and_name {
-            if siblings_with_same_name.len() > 1 {
-                return Err(SharedError::ValidationFailure(ValidationFailure::PathConflict(
-                    siblings_with_same_name,
-                )));
+                if let Some(conflicting) = id_by_name.remove(file.secret_name()) {
+                    return Err(SharedError::ValidationFailure(ValidationFailure::PathConflict(
+                        HashSet::from([conflicting, *file.id()]),
+                    )));
+                }
+                id_by_name.insert(file.secret_name().clone(), *file.id());
             }
         }
         Ok(())
@@ -305,6 +299,7 @@ where
     Base: Stagable,
     Staged: Stagable<F = Base::F>,
 {
+    // todo: incrementalism
     pub fn promote(self) -> LazyTree<Base> {
         let mut staged = self.tree.staged;
         let mut base = self.tree.base;
@@ -316,10 +311,10 @@ where
 
         LazyTree {
             tree: base,
-            name: self.name,
-            key: self.key,
-            implicit_deleted: self.implicit_deleted,
-            children: self.children,
+            name: HashMap::new(),
+            key: HashMap::new(),
+            implicit_deleted: HashMap::new(),
+            children: HashMap::new(),
         }
     }
 

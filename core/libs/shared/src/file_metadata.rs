@@ -41,7 +41,7 @@ impl FileMetadata {
 
         Ok(FileMetadata {
             id,
-            file_type: FileType::Document,
+            file_type: FileType::Folder,
             parent: id,
             name: SecretFileName::from_str(&account.username, &key, &key)?,
             owner: Owner(pub_key),

@@ -309,36 +309,24 @@ pub fn assert_deleted_files_pruned(core: &Core) {
         .unwrap();
 }
 
-/// Compare dbs for key equality don't compare last synced.
 pub fn assert_dbs_eq(left: &Core, right: &Core) {
-    assert!(keys_match(&left.db.account.get_all().unwrap(), &right.db.account.get_all().unwrap()));
-    assert!(keys_match(&left.db.root.get_all().unwrap(), &right.db.root.get_all().unwrap()));
-    assert!(keys_match(
+    assert_eq!(&left.db.account.get_all().unwrap(), &right.db.account.get_all().unwrap());
+    assert_eq!(&left.db.root.get_all().unwrap(), &right.db.root.get_all().unwrap());
+    assert_eq!(
         &left.db.local_metadata.get_all().unwrap(),
-        &right.db.local_metadata.get_all().unwrap(),
-    ));
-    assert!(keys_match(
+        &right.db.local_metadata.get_all().unwrap()
+    );
+    assert_eq!(
         &left.db.base_metadata.get_all().unwrap(),
-        &right.db.base_metadata.get_all().unwrap(),
-    ));
-}
-
-/// https://stackoverflow.com/questions/58615910/checking-two-hashmaps-for-identical-keyset-in-rust
-fn keys_match<T: Eq + Hash, U, V>(map1: &HashMap<T, U>, map2: &HashMap<T, V>) -> bool {
-    map1.len() == map2.len() && map1.keys().all(|k| map2.contains_key(k))
+        &right.db.base_metadata.get_all().unwrap()
+    );
 }
 
 pub fn dbs_equal(left: &Core, right: &Core) -> bool {
-    keys_match(&left.db.account.get_all().unwrap(), &right.db.account.get_all().unwrap())
-        && keys_match(&left.db.root.get_all().unwrap(), &right.db.root.get_all().unwrap())
-        && keys_match(
-            &left.db.local_metadata.get_all().unwrap(),
-            &right.db.local_metadata.get_all().unwrap(),
-        )
-        && keys_match(
-            &left.db.base_metadata.get_all().unwrap(),
-            &right.db.base_metadata.get_all().unwrap(),
-        )
+    &left.db.account.get_all().unwrap() == &right.db.account.get_all().unwrap()
+        && &left.db.root.get_all().unwrap() == &right.db.root.get_all().unwrap()
+        && &left.db.local_metadata.get_all().unwrap() == &right.db.local_metadata.get_all().unwrap()
+        && &left.db.base_metadata.get_all().unwrap() == &right.db.base_metadata.get_all().unwrap()
 }
 
 pub fn assert_new_synced_client_dbs_eq(core: &Core) {
