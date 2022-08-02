@@ -1867,958 +1867,1042 @@ fn concurrent_change() {
 
 #[test]
 fn cycle_resolution() {
-    for mut ops in [
-        // two_cycle
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/b/", "/b/a/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // three_cycle_one_move_reverted
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/c/", "/c/b/", "/c/b/a/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // three_cycle_two_moves_reverted
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/b/", "/b/a/", "/c/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_one_move_reverted
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/d/", "/d/c/", "/d/c/b/", "/d/c/b/a/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_two_moves_reverted_adjacent
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/c/", "/c/b/", "/c/b/a/", "/d/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_two_moves_reverted_alternating
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/b/", "/b/a/", "/d/", "/d/c/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_three_moves_reverted
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/b/", "/b/a/", "/c/", "/d/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // two_cycle_with_renames_first_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Rename { client_num: 0, path: "/a/", new_name: "a2" },
-            Rename { client_num: 0, path: "/b/", new_name: "b2" },
-            Move { client_num: 0, path: "/a2/", new_parent_path: "/b2/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/b2/", "/b2/a2/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // three_cycle_one_move_reverted_with_renames_first_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Rename { client_num: 0, path: "/a/", new_name: "a2" },
-            Rename { client_num: 0, path: "/b/", new_name: "b2" },
-            Rename { client_num: 0, path: "/c/", new_name: "c2" },
-            Move { client_num: 0, path: "/a2/", new_parent_path: "/b2/" },
-            Move { client_num: 0, path: "/b2/", new_parent_path: "/c2/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // three_cycle_two_moves_reverted_with_renames_first_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Rename { client_num: 0, path: "/a/", new_name: "a2" },
-            Rename { client_num: 0, path: "/b/", new_name: "b2" },
-            Rename { client_num: 0, path: "/c/", new_name: "c2" },
-            Move { client_num: 0, path: "/a2/", new_parent_path: "/b2/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/b2/", "/b2/a2/", "/c2/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_one_move_reverted_with_renames_first_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Rename { client_num: 0, path: "/a/", new_name: "a2" },
-            Rename { client_num: 0, path: "/b/", new_name: "b2" },
-            Rename { client_num: 0, path: "/c/", new_name: "c2" },
-            Rename { client_num: 0, path: "/d/", new_name: "d2" },
-            Move { client_num: 0, path: "/a2/", new_parent_path: "/b2/" },
-            Move { client_num: 0, path: "/b2/", new_parent_path: "/c2/" },
-            Move { client_num: 0, path: "/c2/", new_parent_path: "/d2/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/d2/", "/d2/c2/", "/d2/c2/b2/", "/d2/c2/b2/a2/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_two_moves_reverted_adjacent_with_renames_first_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Rename { client_num: 0, path: "/a/", new_name: "a2" },
-            Rename { client_num: 0, path: "/b/", new_name: "b2" },
-            Rename { client_num: 0, path: "/c/", new_name: "c2" },
-            Rename { client_num: 0, path: "/d/", new_name: "d2" },
-            Move { client_num: 0, path: "/a2/", new_parent_path: "/b2/" },
-            Move { client_num: 0, path: "/b2/", new_parent_path: "/c2/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/", "/d2/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_two_moves_reverted_alternating_with_renames_first_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Rename { client_num: 0, path: "/a/", new_name: "a2" },
-            Rename { client_num: 0, path: "/b/", new_name: "b2" },
-            Rename { client_num: 0, path: "/c/", new_name: "c2" },
-            Rename { client_num: 0, path: "/d/", new_name: "d2" },
-            Move { client_num: 0, path: "/a2/", new_parent_path: "/b2/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 0, path: "/c2/", new_parent_path: "/d2/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/b2/", "/b2/a2/", "/d2/", "/d2/c2/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_three_moves_reverted_with_renames_first_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Rename { client_num: 0, path: "/a/", new_name: "a2" },
-            Rename { client_num: 0, path: "/b/", new_name: "b2" },
-            Rename { client_num: 0, path: "/c/", new_name: "c2" },
-            Rename { client_num: 0, path: "/d/", new_name: "d2" },
-            Move { client_num: 0, path: "/a2/", new_parent_path: "/b2/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/b2/", "/b2/a2/", "/c2/", "/d2/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // two_cycle_with_renames_second_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Rename { client_num: 1, path: "/a/", new_name: "a2" },
-            Rename { client_num: 1, path: "/b/", new_name: "b2" },
-            Move { client_num: 1, path: "/b2/", new_parent_path: "/a2/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/b2/", "/b2/a2/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // three_cycle_one_move_reverted_with_renames_second_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-            Rename { client_num: 1, path: "/a/", new_name: "a2" },
-            Rename { client_num: 1, path: "/b/", new_name: "b2" },
-            Rename { client_num: 1, path: "/c/", new_name: "c2" },
-            Move { client_num: 1, path: "/c2/", new_parent_path: "/a2/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // three_cycle_two_moves_reverted_with_renames_second_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Rename { client_num: 1, path: "/a/", new_name: "a2" },
-            Rename { client_num: 1, path: "/b/", new_name: "b2" },
-            Rename { client_num: 1, path: "/c/", new_name: "c2" },
-            Move { client_num: 1, path: "/b2/", new_parent_path: "/c2/" },
-            Move { client_num: 1, path: "/c2/", new_parent_path: "/a2/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/b2/", "/b2/a2/", "/c2/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_one_move_reverted_with_renames_second_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-            Rename { client_num: 1, path: "/a/", new_name: "a2" },
-            Rename { client_num: 1, path: "/b/", new_name: "b2" },
-            Rename { client_num: 1, path: "/c/", new_name: "c2" },
-            Rename { client_num: 1, path: "/d/", new_name: "d2" },
-            Move { client_num: 1, path: "/d2/", new_parent_path: "/a2/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/d2/", "/d2/c2/", "/d2/c2/b2/", "/d2/c2/b2/a2/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_two_moves_reverted_adjacent_with_renames_second_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-            Rename { client_num: 1, path: "/a/", new_name: "a2" },
-            Rename { client_num: 1, path: "/b/", new_name: "b2" },
-            Rename { client_num: 1, path: "/c/", new_name: "c2" },
-            Rename { client_num: 1, path: "/d/", new_name: "d2" },
-            Move { client_num: 1, path: "/c2/", new_parent_path: "/d2/" },
-            Move { client_num: 1, path: "/d2/", new_parent_path: "/a2/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/", "/d2/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_two_moves_reverted_alternating_with_renames_second_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Rename { client_num: 1, path: "/a/", new_name: "a2" },
-            Rename { client_num: 1, path: "/b/", new_name: "b2" },
-            Rename { client_num: 1, path: "/c/", new_name: "c2" },
-            Rename { client_num: 1, path: "/d/", new_name: "d2" },
-            Move { client_num: 1, path: "/b2/", new_parent_path: "/c2/" },
-            Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d2/", new_parent_path: "/a2/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/b2/", "/b2/a2/", "/d2/", "/d2/c2/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_three_moves_reverted_with_renames_second_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Rename { client_num: 1, path: "/a/", new_name: "a2" },
-            Rename { client_num: 1, path: "/b/", new_name: "b2" },
-            Rename { client_num: 1, path: "/c/", new_name: "c2" },
-            Rename { client_num: 1, path: "/d/", new_name: "d2" },
-            Move { client_num: 1, path: "/b2/", new_parent_path: "/c2/" },
-            Move { client_num: 1, path: "/c2/", new_parent_path: "/d2/" },
-            Move { client_num: 1, path: "/d2/", new_parent_path: "/a2/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/b2/", "/b2/a2/", "/c2/", "/d2/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // two_cycle_with_deletes_first_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/a/" },
-            Delete { client_num: 0, path: "/b/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // three_cycle_one_move_reverted_with_deletes_first_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
-            Delete { client_num: 0, path: "/c/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // three_cycle_two_moves_reverted_with_deletes_first_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
-            Delete { client_num: 0, path: "/b/" },
-            Delete { client_num: 0, path: "/c/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_one_move_reverted_with_deletes_first_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Delete { client_num: 0, path: "/d/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_two_moves_reverted_adjacent_with_deletes_first_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Delete { client_num: 0, path: "/c/" },
-            Delete { client_num: 0, path: "/d/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_two_moves_reverted_alternating_with_deletes_first_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Delete { client_num: 0, path: "/b/" },
-            Delete { client_num: 0, path: "/d/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_three_moves_reverted_with_deletes_first_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Delete { client_num: 0, path: "/b/" },
-            Delete { client_num: 0, path: "/c/" },
-            Delete { client_num: 0, path: "/d/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // two_cycle_with_deletes_second_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/a/" },
-            Delete { client_num: 1, path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/b/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // three_cycle_one_move_reverted_with_deletes_second_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
-            Delete { client_num: 1, path: "/a/" },
-            Delete { client_num: 1, path: "/b/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/c/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // three_cycle_two_moves_reverted_with_deletes_second_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
-            Delete { client_num: 1, path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/b/", "/c/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_one_move_reverted_with_deletes_second_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Delete { client_num: 1, path: "/a/" },
-            Delete { client_num: 1, path: "/b/" },
-            Delete { client_num: 1, path: "/c/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/d/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_two_moves_reverted_adjacent_with_deletes_second_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Delete { client_num: 1, path: "/a/" },
-            Delete { client_num: 1, path: "/b/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/c/", "/d/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_two_moves_reverted_alternating_with_deletes_second_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Delete { client_num: 1, path: "/a/" },
-            Delete { client_num: 1, path: "/c/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/b/", "/d/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_three_moves_reverted_with_deletes_second_device
-        vec![
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 0, path: "/b/" },
-            Create { client_num: 0, path: "/c/" },
-            Create { client_num: 0, path: "/d/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Delete { client_num: 1, path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/b/", "/c/", "/d/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // move_two_cycle_with_children
-        vec![
-            Create { client_num: 0, path: "/a/child/" },
-            Create { client_num: 0, path: "/b/child/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/b/", "/b/a/", "/b/child/", "/b/a/child/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // three_cycle_one_move_reverted_with_children
-        vec![
-            Create { client_num: 0, path: "/a/child/" },
-            Create { client_num: 0, path: "/b/child/" },
-            Create { client_num: 0, path: "/c/child/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(
-                        db,
-                        &[
-                            "/",
-                            "/c/",
-                            "/c/b/",
-                            "/c/b/a/",
-                            "/c/child/",
-                            "/c/b/child/",
-                            "/c/b/a/child/",
-                        ],
-                    );
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // three_cycle_two_moves_reverted_with_children
-        vec![
-            Create { client_num: 0, path: "/a/child/" },
-            Create { client_num: 0, path: "/b/child/" },
-            Create { client_num: 0, path: "/c/child/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(
-                        db,
-                        &["/", "/b/", "/b/a/", "/c/", "/b/child/", "/b/a/child/", "/c/child/"],
-                    );
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_one_move_reverted_with_children
-        vec![
-            Create { client_num: 0, path: "/a/child/" },
-            Create { client_num: 0, path: "/b/child/" },
-            Create { client_num: 0, path: "/c/child/" },
-            Create { client_num: 0, path: "/d/child/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(
-                        db,
-                        &[
-                            "/",
-                            "/d/",
-                            "/d/c/",
-                            "/d/c/b/",
-                            "/d/c/b/a/",
-                            "/d/child/",
-                            "/d/c/child/",
-                            "/d/c/b/child/",
-                            "/d/c/b/a/child/",
-                        ],
-                    );
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_two_moves_reverted_adjacent_with_children
-        vec![
-            Create { client_num: 0, path: "/a/child/" },
-            Create { client_num: 0, path: "/b/child/" },
-            Create { client_num: 0, path: "/c/child/" },
-            Create { client_num: 0, path: "/d/child/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 0, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(
-                        db,
-                        &[
-                            "/",
-                            "/c/",
-                            "/c/b/",
-                            "/c/b/a/",
-                            "/d/",
-                            "/c/child/",
-                            "/c/b/child/",
-                            "/c/b/a/child/",
-                            "/d/child/",
-                        ],
-                    );
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_two_moves_reverted_alternating_with_children
-        vec![
-            Create { client_num: 0, path: "/a/child/" },
-            Create { client_num: 0, path: "/b/child/" },
-            Create { client_num: 0, path: "/c/child/" },
-            Create { client_num: 0, path: "/d/child/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 0, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(
-                        db,
-                        &[
-                            "/",
-                            "/b/",
-                            "/b/a/",
-                            "/d/",
-                            "/d/c/",
-                            "/b/child/",
-                            "/b/a/child/",
-                            "/d/child/",
-                            "/d/c/child/",
-                        ],
-                    );
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // four_cycle_three_moves_reverted_with_children
-        vec![
-            Create { client_num: 0, path: "/a/child/" },
-            Create { client_num: 0, path: "/b/child/" },
-            Create { client_num: 0, path: "/c/child/" },
-            Create { client_num: 0, path: "/d/child/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/a/", new_parent_path: "/b/" },
-            Move { client_num: 1, path: "/b/", new_parent_path: "/c/" },
-            Move { client_num: 1, path: "/c/", new_parent_path: "/d/" },
-            Move { client_num: 1, path: "/d/", new_parent_path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(
-                        db,
-                        &[
-                            "/",
-                            "/b/",
-                            "/b/a/",
-                            "/c/",
-                            "/d/",
-                            "/b/child/",
-                            "/b/a/child/",
-                            "/c/child/",
-                            "/d/child/",
-                        ],
-                    );
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-    ] {
-        let checks = ops.pop().unwrap();
-        ops.extend(vec![
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[0];
-                    let db2 = &dbs[1];
-                    db.validate().unwrap();
-                    assert_dbs_eq(db, db2);
-                    assert_local_work_paths(db, &[]);
-                    assert_server_work_paths(db, &[]);
-                    assert_deleted_files_pruned(db);
-                },
-            },
-            checks,
-        ]);
-        run(&ops);
+    let sync_and_assert_stuff = |c1: &Core, c2: &Core| {
+        c1.sync(None).unwrap();
+        c2.sync(None).unwrap();
+        c1.sync(None).unwrap();
+        c2.sync(None).unwrap();
+
+        c1.validate().unwrap();
+        assert_dbs_eq(&c1, &c2);
+        assert_local_work_paths(&c1, &[]);
+        assert_server_work_paths(&c1, &[]);
+        assert_deleted_files_pruned(&c1);
+    };
+
+    // two_cycle
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c2, "/b/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/b/", "/b/a/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // three_cycle_one_move_reverted
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c1, "/b/", "/c/").unwrap();
+        move_by_path(&c2, "/c/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/c/", "/c/b/", "/c/b/a/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // three_cycle_two_moves_reverted
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c2, "/b/", "/c/").unwrap();
+        move_by_path(&c2, "/c/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/b/", "/b/a/", "/c/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_one_move_reverted
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c1, "/b/", "/c/").unwrap();
+        move_by_path(&c1, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/d/", "/d/c/", "/d/c/b/", "/d/c/b/a/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_two_moves_reverted_adjacent
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c1, "/b/", "/c/").unwrap();
+        move_by_path(&c2, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/c/", "/c/b/", "/c/b/a/", "/d/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_two_moves_reverted_alternating
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c2, "/b/", "/c/").unwrap();
+        move_by_path(&c1, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/b/", "/b/a/", "/d/", "/d/c/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_three_moves_reverted
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c2, "/b/", "/c/").unwrap();
+        move_by_path(&c2, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/b/", "/b/a/", "/c/", "/d/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // two_cycle_with_renames_first_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        rename_path(&c1, "/a/", "a2").unwrap();
+        rename_path(&c1, "/b/", "b2").unwrap();
+
+        move_by_path(&c1, "/a2/", "/b2/").unwrap();
+        move_by_path(&c2, "/b/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/b2/", "/b2/a2/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // three_cycle_one_move_reverted_with_renames_first_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        rename_path(&c1, "/a/", "a2").unwrap();
+        rename_path(&c1, "/b/", "b2").unwrap();
+        rename_path(&c1, "/c/", "c2").unwrap();
+
+        move_by_path(&c1, "/a2/", "/b2/").unwrap();
+        move_by_path(&c1, "/b2/", "/c2/").unwrap();
+        move_by_path(&c2, "/c/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // three_cycle_two_moves_reverted_with_renames_first_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        rename_path(&c1, "/a/", "a2").unwrap();
+        rename_path(&c1, "/b/", "b2").unwrap();
+        rename_path(&c1, "/c/", "c2").unwrap();
+
+        move_by_path(&c1, "/a2/", "/b2/").unwrap();
+        move_by_path(&c2, "/b/", "/c/").unwrap();
+        move_by_path(&c2, "/c/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/b2/", "/b2/a2/", "/c2/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_one_move_reverted_with_renames_first_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        rename_path(&c1, "/a/", "a2").unwrap();
+        rename_path(&c1, "/b/", "b2").unwrap();
+        rename_path(&c1, "/c/", "c2").unwrap();
+        rename_path(&c1, "/d/", "d2").unwrap();
+
+        move_by_path(&c1, "/a2/", "/b2/").unwrap();
+        move_by_path(&c1, "/b2/", "/c2/").unwrap();
+        move_by_path(&c1, "/c2/", "/d2/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/d2/", "/d2/c2/", "/d2/c2/b2/", "/d2/c2/b2/a2/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_two_moves_reverted_adjacent_with_renames_first_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        rename_path(&c1, "/a/", "a2").unwrap();
+        rename_path(&c1, "/b/", "b2").unwrap();
+        rename_path(&c1, "/c/", "c2").unwrap();
+        rename_path(&c1, "/d/", "d2").unwrap();
+
+        move_by_path(&c1, "/a2/", "/b2/").unwrap();
+        move_by_path(&c1, "/b2/", "/c2/").unwrap();
+        move_by_path(&c2, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/", "/d2/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_two_moves_reverted_alternating_with_renames_first_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        rename_path(&c1, "/a/", "a2").unwrap();
+        rename_path(&c1, "/b/", "b2").unwrap();
+        rename_path(&c1, "/c/", "c2").unwrap();
+        rename_path(&c1, "/d/", "d2").unwrap();
+
+        move_by_path(&c1, "/a2/", "/b2/").unwrap();
+        move_by_path(&c2, "/b/", "/c/").unwrap();
+        move_by_path(&c1, "/c2/", "/d2/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/b2/", "/b2/a2/", "/d2/", "/d2/c2/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_three_moves_reverted_with_renames_first_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        rename_path(&c1, "/a/", "a2").unwrap();
+        rename_path(&c1, "/b/", "b2").unwrap();
+        rename_path(&c1, "/c/", "c2").unwrap();
+        rename_path(&c1, "/d/", "d2").unwrap();
+
+        move_by_path(&c1, "/a2/", "/b2/").unwrap();
+        move_by_path(&c2, "/b/", "/c/").unwrap();
+        move_by_path(&c2, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/b2/", "/b2/a2/", "/c2/", "/d2/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // two_cycle_with_renames_second_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        rename_path(&c2, "/a/", "a2").unwrap();
+        rename_path(&c2, "/b/", "b2").unwrap();
+        move_by_path(&c2, "/b2/", "/a2/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/b2/", "/b2/a2/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // three_cycle_one_move_reverted_with_renames_second_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c1, "/b/", "/c/").unwrap();
+        rename_path(&c2, "/a/", "a2").unwrap();
+        rename_path(&c2, "/b/", "b2").unwrap();
+        rename_path(&c2, "/c/", "c2").unwrap();
+        move_by_path(&c2, "/c2/", "/a2/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // three_cycle_two_moves_reverted_with_renames_second_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        rename_path(&c2, "/a/", "a2").unwrap();
+        rename_path(&c2, "/b/", "b2").unwrap();
+        rename_path(&c2, "/c/", "c2").unwrap();
+        move_by_path(&c2, "/b2/", "/c2/").unwrap();
+        move_by_path(&c2, "/c2/", "/a2/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/b2/", "/b2/a2/", "/c2/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_one_move_reverted_with_renames_second_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c1, "/b/", "/c/").unwrap();
+        move_by_path(&c1, "/c/", "/d/").unwrap();
+
+        rename_path(&c2, "/a/", "a2").unwrap();
+        rename_path(&c2, "/b/", "b2").unwrap();
+        rename_path(&c2, "/c/", "c2").unwrap();
+        rename_path(&c2, "/d/", "d2").unwrap();
+
+        move_by_path(&c2, "/d2/", "/a2/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/d2/", "/d2/c2/", "/d2/c2/b2/", "/d2/c2/b2/a2/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_two_moves_reverted_adjacent_with_renames_second_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c1, "/b/", "/c/").unwrap();
+
+        rename_path(&c2, "/a/", "a2").unwrap();
+        rename_path(&c2, "/b/", "b2").unwrap();
+        rename_path(&c2, "/c/", "c2").unwrap();
+        rename_path(&c2, "/d/", "d2").unwrap();
+
+        move_by_path(&c2, "/c2/", "/d2/").unwrap();
+        move_by_path(&c2, "/d2/", "/a2/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/c2/", "/c2/b2/", "/c2/b2/a2/", "/d2/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_two_moves_reverted_alternating_with_renames_second_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+
+        rename_path(&c2, "/a/", "a2").unwrap();
+        rename_path(&c2, "/b/", "b2").unwrap();
+        rename_path(&c2, "/c/", "c2").unwrap();
+        rename_path(&c2, "/d/", "d2").unwrap();
+
+        move_by_path(&c2, "/b2/", "/c2/").unwrap();
+        move_by_path(&c1, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d2/", "/a2/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/b2/", "/b2/a2/", "/d2/", "/d2/c2/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_three_moves_reverted_with_renames_second_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+
+        rename_path(&c2, "/a/", "a2").unwrap();
+        rename_path(&c2, "/b/", "b2").unwrap();
+        rename_path(&c2, "/c/", "c2").unwrap();
+        rename_path(&c2, "/d/", "d2").unwrap();
+
+        move_by_path(&c2, "/b2/", "/c2/").unwrap();
+        move_by_path(&c2, "/c2/", "/d2/").unwrap();
+        move_by_path(&c2, "/d2/", "/a2/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/b2/", "/b2/a2/", "/c2/", "/d2/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // two_cycle_with_deletes_first_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c2, "/b/", "/a/").unwrap();
+        delete_path(&c1, "/b/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // three_cycle_one_move_reverted_with_deletes_first_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c1, "/b/", "/c/").unwrap();
+        move_by_path(&c2, "/c/", "/a/").unwrap();
+        delete_path(&c1, "/c/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // three_cycle_two_moves_reverted_with_deletes_first_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c2, "/b/", "/c/").unwrap();
+        move_by_path(&c2, "/c/", "/a/").unwrap();
+        delete_path(&c1, "/b/").unwrap();
+        delete_path(&c1, "/c/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_one_move_reverted_with_deletes_first_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c1, "/b/", "/c/").unwrap();
+        move_by_path(&c1, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+        delete_path(&c1, "/d/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_two_moves_reverted_adjacent_with_deletes_first_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c1, "/b/", "/c/").unwrap();
+        move_by_path(&c2, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+        delete_path(&c1, "/c/").unwrap();
+        delete_path(&c1, "/d/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_two_moves_reverted_alternating_with_deletes_first_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c2, "/b/", "/c/").unwrap();
+        move_by_path(&c1, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+        delete_path(&c1, "/b/").unwrap();
+        delete_path(&c1, "/d/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_three_moves_reverted_with_deletes_first_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c2, "/b/", "/c/").unwrap();
+        move_by_path(&c2, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+
+        delete_path(&c1, "/b/").unwrap();
+        delete_path(&c1, "/c/").unwrap();
+        delete_path(&c1, "/d/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // two_cycle_with_deletes_second_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c2, "/b/", "/a/").unwrap();
+        delete_path(&c2, "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/b/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // three_cycle_one_move_reverted_with_deletes_second_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c1, "/b/", "/c/").unwrap();
+        move_by_path(&c2, "/c/", "/a/").unwrap();
+        delete_path(&c2, "/a/").unwrap();
+        delete_path(&c2, "/b/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/c/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // three_cycle_two_moves_reverted_with_deletes_second_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c2, "/b/", "/c/").unwrap();
+        move_by_path(&c2, "/c/", "/a/").unwrap();
+        delete_path(&c2, "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/b/", "/c/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_one_move_reverted_with_deletes_second_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c1, "/b/", "/c/").unwrap();
+        move_by_path(&c1, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+
+        delete_path(&c2, "/a/").unwrap();
+        delete_path(&c2, "/b/").unwrap();
+        delete_path(&c2, "/c/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/d/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_two_moves_reverted_adjacent_with_deletes_second_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c1, "/b/", "/c/").unwrap();
+        move_by_path(&c2, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+
+        delete_path(&c2, "/a/").unwrap();
+        delete_path(&c2, "/b/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/c/", "/d/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_two_moves_reverted_alternating_with_deletes_second_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c2, "/b/", "/c/").unwrap();
+        move_by_path(&c1, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+
+        delete_path(&c2, "/a/").unwrap();
+        delete_path(&c2, "/c/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/b/", "/d/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_three_moves_reverted_with_deletes_second_device
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/").unwrap();
+        c1.create_at_path("/b/").unwrap();
+        c1.create_at_path("/c/").unwrap();
+        c1.create_at_path("/d/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c2, "/b/", "/c/").unwrap();
+        move_by_path(&c2, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+        delete_path(&c2, "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/b/", "/c/", "/d/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // move_two_cycle_with_children
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/child/").unwrap();
+        c1.create_at_path("/b/child/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c2, "/b/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/b/", "/b/a/", "/b/child/", "/b/a/child/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // three_cycle_one_move_reverted_with_children
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/child/").unwrap();
+        c1.create_at_path("/b/child/").unwrap();
+        c1.create_at_path("/c/child/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c1, "/b/", "/c/").unwrap();
+        move_by_path(&c2, "/c/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(
+            &c2,
+            &["/", "/c/", "/c/b/", "/c/b/a/", "/c/child/", "/c/b/child/", "/c/b/a/child/"],
+        );
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // three_cycle_two_moves_reverted_with_children
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/child/").unwrap();
+        c1.create_at_path("/b/child/").unwrap();
+        c1.create_at_path("/c/child/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c2, "/b/", "/c/").unwrap();
+        move_by_path(&c2, "/c/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(
+            &c2,
+            &["/", "/b/", "/b/a/", "/c/", "/b/child/", "/b/a/child/", "/c/child/"],
+        );
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_one_move_reverted_with_children
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/child/").unwrap();
+        c1.create_at_path("/b/child/").unwrap();
+        c1.create_at_path("/c/child/").unwrap();
+        c1.create_at_path("/d/child/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c1, "/b/", "/c/").unwrap();
+        move_by_path(&c1, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(
+            &c2,
+            &[
+                "/",
+                "/d/",
+                "/d/c/",
+                "/d/c/b/",
+                "/d/c/b/a/",
+                "/d/child/",
+                "/d/c/child/",
+                "/d/c/b/child/",
+                "/d/c/b/a/child/",
+            ],
+        );
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_two_moves_reverted_adjacent_with_children
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/child/").unwrap();
+        c1.create_at_path("/b/child/").unwrap();
+        c1.create_at_path("/c/child/").unwrap();
+        c1.create_at_path("/d/child/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c1, "/b/", "/c/").unwrap();
+        move_by_path(&c2, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(
+            &c2,
+            &[
+                "/",
+                "/c/",
+                "/c/b/",
+                "/c/b/a/",
+                "/d/",
+                "/c/child/",
+                "/c/b/child/",
+                "/c/b/a/child/",
+                "/d/child/",
+            ],
+        );
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_two_moves_reverted_alternating_with_children
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/child/").unwrap();
+        c1.create_at_path("/b/child/").unwrap();
+        c1.create_at_path("/c/child/").unwrap();
+        c1.create_at_path("/d/child/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c2, "/b/", "/c/").unwrap();
+        move_by_path(&c1, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(
+            &c2,
+            &[
+                "/",
+                "/b/",
+                "/b/a/",
+                "/d/",
+                "/d/c/",
+                "/b/child/",
+                "/b/a/child/",
+                "/d/child/",
+                "/d/c/child/",
+            ],
+        );
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // four_cycle_three_moves_reverted_with_children
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/a/child/").unwrap();
+        c1.create_at_path("/b/child/").unwrap();
+        c1.create_at_path("/c/child/").unwrap();
+        c1.create_at_path("/d/child/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/a/", "/b/").unwrap();
+        move_by_path(&c2, "/b/", "/c/").unwrap();
+        move_by_path(&c2, "/c/", "/d/").unwrap();
+        move_by_path(&c2, "/d/", "/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(
+            &c2,
+            &[
+                "/",
+                "/b/",
+                "/b/a/",
+                "/c/",
+                "/d/",
+                "/b/child/",
+                "/b/a/child/",
+                "/c/child/",
+                "/d/child/",
+            ],
+        );
+        assert_all_document_contents(&c2, &[]);
     }
 }
 
