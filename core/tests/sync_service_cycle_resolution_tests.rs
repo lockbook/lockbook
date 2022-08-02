@@ -1,9 +1,9 @@
 use lockbook_core::Core;
 use test_utils::*;
 
-/// Tests which are constructed to test cycle resolution Like those above, these are tests that
-/// setup two synced devices, operate on both devices, then sync both twice (work should be none,
-/// devices dbs should be equal, deleted files should be pruned)
+/// Tests which are constructed to test cycle resolution. These are tests that setup two synced
+/// devices, operate on both devices, then sync both twice (work should be none, devices dbs should
+/// be equal, deleted files should be pruned)
 
 fn sync_and_assert_stuff(c1: &Core, c2: &Core) {
     c1.sync(None).unwrap();
