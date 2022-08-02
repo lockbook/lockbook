@@ -1,7 +1,6 @@
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use lockbook_core::Core;
-use test_utils::Operation::*;
 use test_utils::*;
 
 /*  ---------------------------------------------------------------------------------------------------------------
@@ -2914,215 +2913,216 @@ fn cycle_resolution() {
 
 #[test]
 fn path_conflict_resolution() {
-    for mut ops in [
-        // concurrent_create_documents
-        vec![
-            Sync { client_num: 1 },
-            Create { client_num: 0, path: "/a.md" },
-            Create { client_num: 1, path: "/a.md" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/a.md", "/a-1.md"]);
-                    assert_all_document_contents(db, &[("/a.md", b""), ("/a-1.md", b"")]);
-                },
-            },
-        ],
-        // concurrent_create_folders
-        vec![
-            Sync { client_num: 1 },
-            Create { client_num: 0, path: "/a/" },
-            Create { client_num: 1, path: "/a/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/a/", "/a-1/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // concurrent_create_folders_with_children
-        vec![
-            Sync { client_num: 1 },
-            Create { client_num: 0, path: "/a/child/" },
-            Create { client_num: 1, path: "/a/child/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/a/", "/a-1/", "/a/child/", "/a-1/child/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // concurrent_create_document_then_folder
-        vec![
-            Sync { client_num: 1 },
-            Create { client_num: 0, path: "/a.md" },
-            Create { client_num: 1, path: "/a.md/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/a.md", "/a-1.md/"]);
-                    assert_all_document_contents(db, &[("/a.md", b"")]);
-                },
-            },
-        ],
-        // concurrent_create_folder_then_document
-        vec![
-            Sync { client_num: 1 },
-            Create { client_num: 0, path: "/a.md/" },
-            Create { client_num: 1, path: "/a.md" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/a.md/", "/a-1.md"]);
-                    assert_all_document_contents(db, &[("/a-1.md", b"")]);
-                },
-            },
-        ],
-        // concurrent_create_document_then_folder_with_child
-        vec![
-            Sync { client_num: 1 },
-            Create { client_num: 0, path: "/a.md" },
-            Create { client_num: 1, path: "/a.md/child/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/a.md", "/a-1.md/", "/a-1.md/child/"]);
-                    assert_all_document_contents(db, &[("/a.md", b"")]);
-                },
-            },
-        ],
-        // concurrent_create_folder_with_child_then_document
-        vec![
-            Sync { client_num: 1 },
-            Create { client_num: 0, path: "/a.md/child/" },
-            Create { client_num: 1, path: "/a.md" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/a.md/", "/a.md/child/", "/a-1.md"]);
-                    assert_all_document_contents(db, &[("/a-1.md", b"")]);
-                },
-            },
-        ],
-        // concurrent_move_then_create_documents
-        vec![
-            Create { client_num: 0, path: "/folder/a.md" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/folder/a.md", new_parent_path: "" },
-            Create { client_num: 1, path: "/a.md" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/folder/", "/a.md", "/a-1.md"]);
-                    assert_all_document_contents(db, &[("/a.md", b""), ("/a-1.md", b"")]);
-                },
-            },
-        ],
-        // concurrent_create_then_move_documents
-        vec![
-            Create { client_num: 0, path: "/folder/a.md" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Create { client_num: 0, path: "/a.md" },
-            Move { client_num: 1, path: "/folder/a.md", new_parent_path: "" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/folder/", "/a.md", "/a-1.md"]);
-                    assert_all_document_contents(db, &[("/a.md", b""), ("/a-1.md", b"")]);
-                },
-            },
-        ],
-        // concurrent_move_then_create_folders
-        vec![
-            Create { client_num: 0, path: "/folder/a.md/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/folder/a.md/", new_parent_path: "" },
-            Create { client_num: 1, path: "/a.md/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/folder/", "/a.md/", "/a-1.md/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // concurrent_create_then_move_folders
-        vec![
-            Create { client_num: 0, path: "/folder/a.md/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Create { client_num: 0, path: "/a.md/" },
-            Move { client_num: 1, path: "/folder/a.md/", new_parent_path: "" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(db, &["/", "/folder/", "/a.md/", "/a-1.md/"]);
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // concurrent_move_then_create_folders_with_children
-        vec![
-            Create { client_num: 0, path: "/folder/a.md/child/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Move { client_num: 0, path: "/folder/a.md/", new_parent_path: "" },
-            Create { client_num: 1, path: "/a.md/child/" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(
-                        db,
-                        &["/", "/folder/", "/a.md/", "/a-1.md/", "/a.md/child/", "/a-1.md/child/"],
-                    );
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-        // concurrent_create_then_move_folders_with_children
-        vec![
-            Create { client_num: 0, path: "/folder/a.md/child/" },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Create { client_num: 0, path: "/a.md/child/" },
-            Move { client_num: 1, path: "/folder/a.md/", new_parent_path: "" },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[1];
-                    assert_all_paths(
-                        db,
-                        &["/", "/folder/", "/a.md/", "/a-1.md/", "/a.md/child/", "/a-1.md/child/"],
-                    );
-                    assert_all_document_contents(db, &[]);
-                },
-            },
-        ],
-    ] {
-        let checks = ops.pop().unwrap();
-        ops.extend(vec![
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Sync { client_num: 0 },
-            Sync { client_num: 1 },
-            Custom {
-                f: &|dbs| {
-                    let db = &dbs[0];
-                    let db2 = &dbs[1];
-                    db.validate().unwrap();
-                    assert_dbs_eq(db, db2);
-                    assert_local_work_paths(db, &[]);
-                    assert_server_work_paths(db, &[]);
-                    assert_deleted_files_pruned(db);
-                },
-            },
-            checks,
-        ]);
-        run(&ops);
+    let sync_and_assert_stuff = |c1: &Core, c2: &Core| {
+        c1.sync(None).unwrap();
+        c2.sync(None).unwrap();
+        c1.sync(None).unwrap();
+        c2.sync(None).unwrap();
+
+        c1.validate().unwrap();
+        assert_dbs_eq(&c1, c2);
+        assert_local_work_paths(&c1, &[]);
+        assert_server_work_paths(&c1, &[]);
+        assert_deleted_files_pruned(&c1);
+    };
+
+    // concurrent_create_documents
+    {
+        let c1 = test_core_with_account();
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+        c1.create_at_path("/a.md").unwrap();
+        c2.create_at_path("/a.md").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/a.md", "/a-1.md"]);
+        assert_all_document_contents(&c2, &[("/a.md", b""), ("/a-1.md", b"")]);
+    }
+
+    // concurrent_create_folders
+    {
+        let c1 = test_core_with_account();
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+        c1.create_at_path("/a/").unwrap();
+        c2.create_at_path("/a/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/a/", "/a-1/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // concurrent_create_folders_with_children
+    {
+        let c1 = test_core_with_account();
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+        c1.create_at_path("/a/child/").unwrap();
+        c2.create_at_path("/a/child/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/a/", "/a-1/", "/a/child/", "/a-1/child/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // concurrent_create_document_then_folder
+    {
+        let c1 = test_core_with_account();
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+        c1.create_at_path("/a.md").unwrap();
+        c2.create_at_path("/a.md/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/a.md", "/a-1.md/"]);
+        assert_all_document_contents(&c2, &[("/a.md", b"")]);
+    }
+
+    // concurrent_create_folder_then_document
+    {
+        let c1 = test_core_with_account();
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+        c1.create_at_path("/a.md/").unwrap();
+        c2.create_at_path("/a.md").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/a.md/", "/a-1.md"]);
+        assert_all_document_contents(&c2, &[("/a-1.md", b"")]);
+    }
+
+    // concurrent_create_document_then_folder_with_child
+    {
+        let c1 = test_core_with_account();
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+        c1.create_at_path("/a.md").unwrap();
+        c2.create_at_path("/a.md/child/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/a.md", "/a-1.md/", "/a-1.md/child/"]);
+        assert_all_document_contents(&c2, &[("/a.md", b"")]);
+    }
+
+    // concurrent_create_folder_with_child_then_document
+    {
+        let c1 = test_core_with_account();
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+        c1.create_at_path("/a.md/child/").unwrap();
+        c2.create_at_path("/a.md").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/a.md/", "/a.md/child/", "/a-1.md"]);
+        assert_all_document_contents(&c2, &[("/a-1.md", b"")]);
+    }
+
+    // concurrent_move_then_create_documents
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/folder/a.md").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/folder/a.md", "").unwrap();
+        c2.create_at_path("/a.md").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/folder/", "/a.md", "/a-1.md"]);
+        assert_all_document_contents(&c2, &[("/a.md", b""), ("/a-1.md", b"")]);
+    }
+
+    // concurrent_create_then_move_documents
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/folder/a.md").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        c1.create_at_path("/a.md").unwrap();
+        move_by_path(&c2, "/folder/a.md", "").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/folder/", "/a.md", "/a-1.md"]);
+        assert_all_document_contents(&c2, &[("/a.md", b""), ("/a-1.md", b"")]);
+    }
+
+    // concurrent_move_then_create_folders
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/folder/a.md/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/folder/a.md/", "").unwrap();
+        c2.create_at_path("/a.md/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/folder/", "/a.md/", "/a-1.md/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // concurrent_create_then_move_folders
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/folder/a.md/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        c1.create_at_path("/a.md/").unwrap();
+        move_by_path(&c2, "/folder/a.md/", "").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(&c2, &["/", "/folder/", "/a.md/", "/a-1.md/"]);
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // concurrent_move_then_create_folders_with_children
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/folder/a.md/child/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        move_by_path(&c1, "/folder/a.md/", "").unwrap();
+        c2.create_at_path("/a.md/child/").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(
+            &c2,
+            &["/", "/folder/", "/a.md/", "/a-1.md/", "/a.md/child/", "/a-1.md/child/"],
+        );
+        assert_all_document_contents(&c2, &[]);
+    }
+
+    // concurrent_create_then_move_folders_with_children
+    {
+        let c1 = test_core_with_account();
+        c1.create_at_path("/folder/a.md/child/").unwrap();
+        c1.sync(None).unwrap();
+
+        let c2 = another_client(&c1);
+        c2.sync(None).unwrap();
+
+        c1.create_at_path("/a.md/child/").unwrap();
+        move_by_path(&c2, "/folder/a.md/", "").unwrap();
+
+        sync_and_assert_stuff(&c1, &c2);
+        assert_all_paths(
+            &c2,
+            &["/", "/folder/", "/a.md/", "/a-1.md/", "/a.md/child/", "/a-1.md/child/"],
+        );
+        assert_all_document_contents(&c2, &[]);
     }
 }
 
