@@ -195,7 +195,7 @@ impl RequestContext<'_, '_> {
         Ok(update_as_of)
     }
 
-    fn prune<Base, Local>(
+    pub fn prune<Base, Local>(
         base: Base, remote_changes: Vec<SignedFile>, local_changes: Local,
     ) -> CoreResult<Vec<SignedFile>>
     where

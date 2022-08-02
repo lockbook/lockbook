@@ -176,7 +176,7 @@ where
         // where this is important, see the test prune_deleted_document_moved_from_deleted_folder_local_only.
 
         // find files deleted on base and local; new deleted local files are also eligible
-        let (base, deleted_base) = {
+        let (base, mut deleted_base) = {
             let mut tree = LazyTree::new(
                 self.tree
                     .base
@@ -198,6 +198,9 @@ where
             let mut deleted = HashSet::new();
             for id in tree.owned_ids() {
                 if tree.calculate_deleted(&id)? {
+                    if tree.tree.base.maybe_find(&id).is_none() {
+                        deleted_base.insert(id);
+                    }
                     deleted.insert(id);
                 }
             }
