@@ -58,6 +58,35 @@ pub fn random_name() -> String {
 //         FileMetadataUpsertsError::GetUpdatesRequired,
 //     ));
 
+pub fn write_path(c: &Core, path: &str, content: &[u8]) -> Result<(), String> {
+    let target = c.get_by_path(path).map_err(err_to_string)?;
+    c.write_document(target.id, content)
+        .map_err(err_to_string)
+}
+
+pub fn delete_path(c: &Core, path: &str) -> Result<(), String> {
+    let target = c.get_by_path(path).map_err(err_to_string)?;
+    c.delete_file(target.id).map_err(err_to_string)
+}
+
+pub fn move_by_path(c: &Core, src: &str, dest: &str) -> Result<(), String> {
+    let src = c.get_by_path(src).map_err(err_to_string)?;
+    let dest = c.get_by_path(dest).map_err(err_to_string)?;
+    c.move_file(src.id, dest.id).map_err(err_to_string)
+}
+
+pub fn rename_path(c: &Core, path: &str, new_name: &str) -> Result<(), String> {
+    let target = c.get_by_path(path).map_err(err_to_string)?;
+    c.rename_file(target.id, new_name).map_err(err_to_string)
+}
+
+pub fn another_client(c: &Core) -> Core {
+    let account_string = c.export_account().unwrap();
+    let new_core = test_core();
+    new_core.import_account(&account_string).unwrap();
+    new_core
+}
+
 pub enum Operation<'a> {
     Client { client_num: usize },
     Sync { client_num: usize },
