@@ -60,8 +60,7 @@ pub fn random_name() -> String {
 
 pub fn write_path(c: &Core, path: &str, content: &[u8]) -> Result<(), String> {
     let target = c.get_by_path(path).map_err(err_to_string)?;
-    c.write_document(target.id, content)
-        .map_err(err_to_string)
+    c.write_document(target.id, content).map_err(err_to_string)
 }
 
 pub fn delete_path(c: &Core, path: &str) -> Result<(), String> {
@@ -231,14 +230,15 @@ pub fn assert_local_work_ids(db: &Core, ids: &[Uuid]) {
 }
 
 pub fn assert_local_work_paths(db: &Core, expected_paths: &[&'static str]) {
+    let dirty = get_dirty_ids(db, false);
+
     let mut expected_paths = expected_paths.to_vec();
     let mut actual_paths = db
         .db
         .transaction(|tx| {
             let account = tx.account.get(&OneKey {}).unwrap();
             let mut local = tx.base_metadata.stage(&mut tx.local_metadata).to_lazy();
-            local
-                .owned_ids()
+            dirty
                 .iter()
                 .map(|id| local.id_to_path(id, account))
                 .collect::<Result<Vec<String>, _>>()
@@ -265,6 +265,8 @@ pub fn assert_server_work_paths(db: &Core, expected_paths: &[&'static str]) {
             let remote_changes = context.get_updates(account).unwrap().file_metadata;
             let mut remote = context.tx.base_metadata.stage(remote_changes).to_lazy();
             remote
+                .tree
+                .staged
                 .owned_ids()
                 .iter()
                 .map(|id| remote.id_to_path(id, account))

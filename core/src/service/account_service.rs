@@ -5,11 +5,8 @@ use crate::{CoreError, CoreResult, RequestContext};
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Account;
 use lockbook_shared::api::{GetPublicKeyRequest, NewAccountRequest};
-use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileMetadata;
-use lockbook_shared::pubkey;
-use lockbook_shared::server_file::IntoServerFile;
 
 impl RequestContext<'_, '_> {
     pub fn create_account(&mut self, username: &str, api_url: &str) -> CoreResult<Account> {

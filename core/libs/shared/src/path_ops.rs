@@ -6,6 +6,7 @@ use crate::signed_file::SignedFile;
 use crate::tree_like::{Stagable, TreeLike};
 use crate::{validate, SharedError, SharedResult};
 use libsecp256k1::PublicKey;
+use std::collections::HashSet;
 
 use uuid::Uuid;
 
@@ -106,28 +107,42 @@ where
     pub fn list_paths(
         &mut self, filter: Option<Filter>, account: &Account,
     ) -> SharedResult<Vec<String>> {
-        let mut files = self.all_files()?;
-
-        if let Some(filter) = &filter {
-            match filter {
-                Filter::DocumentsOnly => files.retain(|f| f.is_document()),
-                Filter::FoldersOnly => files.retain(|f| f.is_folder()),
-                Filter::LeafNodesOnly => {
-                    let mut retained = self.owned_ids();
-                    for file in &files {
-                        retained.remove(file.parent());
+        // Deal with filter
+        let filtered = match filter {
+            Some(Filter::DocumentsOnly) => {
+                let mut ids = HashSet::new();
+                for id in self.ids() {
+                    if self.find(&id)?.is_document() {
+                        ids.insert(*id);
                     }
-                    files.retain(|f| retained.contains(f.id()))
                 }
+                ids
             }
-        }
+            Some(Filter::FoldersOnly) => {
+                let mut ids = HashSet::new();
+                for id in self.ids() {
+                    if self.find(&id)?.is_folder() {
+                        ids.insert(*id);
+                    }
+                }
+                ids
+            }
+            Some(Filter::LeafNodesOnly) => {
+                let mut retained = self.owned_ids();
+                for id in self.ids() {
+                    retained.remove(self.find(id)?.parent());
+                }
+                retained
+            }
+            None => self.owned_ids(),
+        };
 
+        // remove deleted
         let mut paths = vec![];
-
-        let ids: Vec<Uuid> = files.into_iter().map(|f| *f.id()).collect();
-
-        for id in ids {
-            paths.push(self.id_to_path(&id, account)?);
+        for id in filtered {
+            if !self.calculate_deleted(&id)? {
+                paths.push(self.id_to_path(&id, account)?);
+            }
         }
 
         Ok(paths)
