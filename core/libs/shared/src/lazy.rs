@@ -270,14 +270,15 @@ impl<T: Stagable> LazyTree<T> {
         for id in self.owned_ids() {
             if !self.calculate_deleted(&id)? {
                 let file = self.find(&id)?;
+                if file.is_root() {
+                    continue;
+                }
                 if let Some(conflicting) = id_by_name.remove(file.secret_name()) {
                     return Err(SharedError::ValidationFailure(ValidationFailure::PathConflict(
                         HashSet::from([conflicting, *file.id()]),
                     )));
                 }
-                if !file.is_root() {
-                    id_by_name.insert(file.secret_name().clone(), *file.id());
-                }
+                id_by_name.insert(file.secret_name().clone(), *file.id());
             }
         }
         Ok(())
