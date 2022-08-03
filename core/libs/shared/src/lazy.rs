@@ -275,7 +275,9 @@ impl<T: Stagable> LazyTree<T> {
                         HashSet::from([conflicting, *file.id()]),
                     )));
                 }
-                id_by_name.insert(file.secret_name().clone(), *file.id());
+                if !file.is_root() {
+                    id_by_name.insert(file.secret_name().clone(), *file.id());
+                }
             }
         }
         Ok(())
