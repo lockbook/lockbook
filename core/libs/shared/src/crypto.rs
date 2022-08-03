@@ -32,7 +32,7 @@ pub struct Timestamped<T> {
     pub timestamp: i64,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ECSigned<T> {
     pub timestamped_value: Timestamped<T>,
     #[serde(with = "serde_bytes")]

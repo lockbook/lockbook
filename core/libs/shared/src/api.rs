@@ -16,7 +16,7 @@ pub trait Request {
     const ROUTE: &'static str;
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RequestWrapper<T: Request> {
     pub signed_request: ECSigned<T>,
     pub client_version: String,

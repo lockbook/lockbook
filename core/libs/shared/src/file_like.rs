@@ -5,9 +5,10 @@ use crate::secret_filename::SecretFileName;
 use crate::server_file::ServerFile;
 use crate::signed_file::SignedFile;
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
 use uuid::Uuid;
 
-pub trait FileLike: PartialEq {
+pub trait FileLike: PartialEq + Debug {
     fn id(&self) -> &Uuid;
     fn file_type(&self) -> FileType;
     fn parent(&self) -> &Uuid;
@@ -34,7 +35,7 @@ pub trait FileLike: PartialEq {
 
 impl<F> FileLike for F
 where
-    F: AsRef<FileMetadata> + PartialEq,
+    F: AsRef<FileMetadata> + PartialEq + Debug,
 {
     fn id(&self) -> &Uuid {
         let fm: &FileMetadata = self.as_ref();

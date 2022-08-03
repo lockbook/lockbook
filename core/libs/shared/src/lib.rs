@@ -1,5 +1,3 @@
-extern crate core;
-
 use bincode::Error;
 use hmac::crypto_mac::{InvalidKeyLength, MacError};
 pub use lazy::ValidationFailure;

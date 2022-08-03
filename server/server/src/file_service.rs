@@ -10,6 +10,7 @@ use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use std::collections::HashSet;
+use tracing::info;
 use uuid::Uuid;
 
 pub async fn upsert_file_metadata(
@@ -164,12 +165,10 @@ pub async fn change_doc(
 
     result?;
 
-    document_service::delete(
-        server_state,
-        request.diff.new.id(),
-        request.diff.old.unwrap().document_hmac().unwrap(),
-    )
-    .await?;
+    // New
+    if let Some(hmac) = request.diff.old.unwrap().document_hmac() {
+        document_service::delete(server_state, request.diff.new.id(), hmac).await?;
+    }
 
     Ok(())
 }

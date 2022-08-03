@@ -120,7 +120,7 @@ pub struct FileDiff {
     pub new: SignedFile,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum Diff {
     New,
     Id,
@@ -159,6 +159,10 @@ impl FileDiff {
 
                 if old.explicitly_deleted() != new.explicitly_deleted() {
                     changes.push(Deleted)
+                }
+
+                if old.document_hmac() != new.document_hmac() {
+                    changes.push(Hmac);
                 }
 
                 if old.user_access_keys() != new.user_access_keys() {

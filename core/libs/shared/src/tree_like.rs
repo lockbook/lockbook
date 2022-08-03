@@ -3,10 +3,11 @@ use crate::lazy::LazyTree;
 use crate::staged::StagedTree;
 use crate::{SharedError, SharedResult};
 use std::collections::HashSet;
+use std::fmt::Debug;
 use uuid::Uuid;
 
 pub trait TreeLike: Sized {
-    type F: FileLike;
+    type F: FileLike + Debug;
 
     // TODO perf, it would be nice to make this a reference type, some point in the future
     fn ids(&self) -> HashSet<&Uuid>;

@@ -8,6 +8,13 @@ use uuid::Uuid;
 
 pub type SignedFile = ECSigned<FileMetadata>;
 
+impl PartialEq for SignedFile {
+    fn eq(&self, other: &Self) -> bool {
+        self.timestamped_value.value == other.timestamped_value.value
+            && self.public_key == other.public_key
+    }
+}
+
 impl Display for SignedFile {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.display())

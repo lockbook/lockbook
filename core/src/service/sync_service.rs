@@ -300,12 +300,13 @@ impl RequestContext<'_, '_> {
 
             // change only document hmac and re-sign
             let mut local_change = base_file.timestamped_value.value.clone();
+            local_change.document_hmac = local.find(&id)?.timestamped_value.value.document_hmac;
 
-            if base_file.document_hmac() == local_change.document_hmac() {
+            if base_file.document_hmac() == local_change.document_hmac()
+                || local_change.document_hmac.is_none()
+            {
                 continue;
             }
-
-            local_change.document_hmac = local.find(&id)?.timestamped_value.value.document_hmac;
 
             let local_change = local_change.sign(account)?;
             let local_document_change = document_repo::get(self.config, RepoSource::Local, id)?;
