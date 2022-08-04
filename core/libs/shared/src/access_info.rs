@@ -8,11 +8,17 @@ use std::collections::HashMap;
 pub type EncryptedUserAccessKey = AESEncrypted<AESKey>;
 pub type EncryptedFolderAccessKey = AESEncrypted<AESKey>;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserAccessInfo {
     pub username: String,
     pub encrypted_by: PublicKey,
     pub access_key: EncryptedUserAccessKey,
+}
+
+impl PartialEq for UserAccessInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.username == other.username && self.encrypted_by == other.encrypted_by
+    }
 }
 
 impl UserAccessInfo {

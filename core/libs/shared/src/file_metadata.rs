@@ -20,7 +20,7 @@ use crate::{pubkey, symkey, SharedResult};
 
 pub type DocumentHmac = [u8; 32];
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct FileMetadata {
     pub id: Uuid,
     pub file_type: FileType,
@@ -73,6 +73,19 @@ impl FileMetadata {
 
     pub fn sign(self, account: &Account) -> SharedResult<SignedFile> {
         pubkey::sign(&account.private_key, self, get_time)
+    }
+}
+
+impl PartialEq for FileMetadata {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.file_type == other.file_type
+            && self.parent == other.parent
+            && self.name == other.name
+            && self.owner == other.owner
+            && self.is_deleted == other.is_deleted
+            && self.document_hmac == other.document_hmac
+            && self.user_access_keys == other.user_access_keys
     }
 }
 
