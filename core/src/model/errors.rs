@@ -882,6 +882,7 @@ pub enum TestRepoError {
     FileNameEmpty(Uuid),
     FileNameContainsSlash(Uuid),
     PathConflict(HashSet<Uuid>),
+    NonDecryptableFileName(Uuid),
     DocumentReadError(Uuid, CoreError),
     Core(CoreError),
     Shared(SharedError),
@@ -894,6 +895,9 @@ impl From<SharedError> for TestRepoError {
                 ValidationFailure::Orphan(id) => TestRepoError::FileOrphaned(id),
                 ValidationFailure::Cycle(ids) => TestRepoError::CycleDetected(ids),
                 ValidationFailure::PathConflict(ids) => TestRepoError::PathConflict(ids),
+                ValidationFailure::NonDecryptableFileName(id) => {
+                    TestRepoError::NonDecryptableFileName(id)
+                }
             },
             _ => TestRepoError::Shared(err),
         }

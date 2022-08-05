@@ -289,7 +289,11 @@ impl<T: Stagable> LazyTree<T> {
     // todo: optimize
     pub fn assert_names_decryptable(&mut self, account: &Account) -> SharedResult<()> {
         for id in self.owned_ids() {
-            self.name(&id, account)?;
+            if self.name(&id, account).is_err() {
+                return Err(SharedError::ValidationFailure(
+                    ValidationFailure::NonDecryptableFileName(id),
+                ));
+            }
         }
         Ok(())
     }
@@ -305,6 +309,7 @@ pub enum ValidationFailure {
     Orphan(Uuid),
     Cycle(HashSet<Uuid>),
     PathConflict(HashSet<Uuid>),
+    NonDecryptableFileName(Uuid),
 }
 
 impl<Base, Staged> LazyStaged1<Base, Staged>
