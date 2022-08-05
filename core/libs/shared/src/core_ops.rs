@@ -304,6 +304,10 @@ where
                 }
             }
             for sibling_id in not_deleted_sibling_ids.iter() {
+                // todo: check for renames specifically
+                if result.tree.base.staged.maybe_find(sibling_id).is_none() {
+                    continue;
+                }
                 let mut name = result.name(&sibling_id, account)?;
                 let mut changed = false;
                 while not_deleted_sibling_ids
