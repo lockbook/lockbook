@@ -187,6 +187,14 @@ pub async fn get_document(
         return Err(ClientError(GetDocumentError::NotPermissioned));
     }
 
+    let hmac = meta
+        .document_hmac()
+        .ok_or(ClientError(GetDocumentError::DocumentNotFound))?;
+
+    if request.hmac != *hmac {
+        return Err(ClientError(GetDocumentError::DocumentNotFound));
+    }
+
     let content = document_service::get(server_state, &request.id, &request.hmac).await?;
 
     Ok(GetDocumentResponse { content })
