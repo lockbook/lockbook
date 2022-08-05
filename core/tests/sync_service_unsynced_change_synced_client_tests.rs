@@ -43,6 +43,7 @@ fn edited_document() {
 fn edit_unedit() {
     let core = test_core_with_account();
     core.create_at_path("/document").unwrap();
+    write_path(&core, "/document", b"").unwrap();
     core.sync(None).unwrap();
     write_path(&core, "/document", b"document content").unwrap();
     write_path(&core, "/document", b"").unwrap();

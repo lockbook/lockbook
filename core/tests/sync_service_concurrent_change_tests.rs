@@ -63,8 +63,8 @@ fn identical_rename() {
     let c2 = another_client(&c1);
     c2.sync(None).unwrap();
 
-    rename_path(&c1, "/document", "/document2").unwrap();
-    rename_path(&c2, "/document", "/document2").unwrap();
+    rename_path(&c1, "/document", "document2").unwrap();
+    rename_path(&c2, "/document", "document2").unwrap();
 
     sync_and_assert(&c1, &c2);
     assert_all_paths(&c2, &["/", "/document2"]);
@@ -80,8 +80,8 @@ fn different_rename() {
     let c2 = another_client(&c1);
     c2.sync(None).unwrap();
 
-    rename_path(&c1, "/document", "/document2").unwrap();
-    rename_path(&c2, "/document", "/document3").unwrap();
+    rename_path(&c1, "/document", "document2").unwrap();
+    rename_path(&c2, "/document", "document3").unwrap();
 
     sync_and_assert(&c1, &c2);
     assert_all_paths(&c2, &["/", "/document2"]);
@@ -99,7 +99,7 @@ fn move_then_rename() {
     c2.sync(None).unwrap();
 
     move_by_path(&c1, "/document", "/parent/").unwrap();
-    rename_path(&c2, "/document", "/document2").unwrap();
+    rename_path(&c2, "/document", "document2").unwrap();
 
     sync_and_assert(&c1, &c2);
     assert_all_paths(&c2, &["/", "/parent/", "/parent/document2"]);
@@ -116,7 +116,7 @@ fn rename_then_move() {
     let c2 = another_client(&c1);
     c2.sync(None).unwrap();
 
-    rename_path(&c1, "/document", "/document2").unwrap();
+    rename_path(&c1, "/document", "document2").unwrap();
     move_by_path(&c2, "/document", "/parent/").unwrap();
 
     sync_and_assert(&c1, &c2);
@@ -392,7 +392,7 @@ fn rename_then_delete() {
     let c2 = another_client(&c1);
     c2.sync(None).unwrap();
 
-    rename_path(&c1, "/document", "/document2").unwrap();
+    rename_path(&c1, "/document", "document2").unwrap();
     delete_path(&c2, "/document").unwrap();
 
     sync_and_assert(&c1, &c2);
@@ -410,7 +410,7 @@ fn delete_then_rename() {
     c2.sync(None).unwrap();
 
     delete_path(&c1, "/document").unwrap();
-    rename_path(&c2, "/document", "/document2").unwrap();
+    rename_path(&c2, "/document", "document2").unwrap();
 
     sync_and_assert(&c1, &c2);
     assert_all_paths(&c2, &["/"]);
@@ -463,7 +463,7 @@ fn create_then_rename_parent() {
     c2.sync(None).unwrap();
 
     c1.create_at_path("/parent/document").unwrap();
-    rename_path(&c2, "/parent/", "/parent2/").unwrap();
+    rename_path(&c2, "/parent/", "parent2").unwrap();
 
     sync_and_assert(&c1, &c2);
     assert_all_paths(&c2, &["/", "/parent2/", "/parent2/document"]);
@@ -479,7 +479,7 @@ fn rename_parent_then_create() {
     let c2 = another_client(&c1);
     c2.sync(None).unwrap();
 
-    rename_path(&c1, "/parent/", "/parent2/").unwrap();
+    rename_path(&c1, "/parent/", "parent2").unwrap();
     c2.create_at_path("/parent/document").unwrap();
 
     sync_and_assert(&c1, &c2);

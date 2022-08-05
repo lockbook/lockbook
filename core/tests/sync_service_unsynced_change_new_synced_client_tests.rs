@@ -88,7 +88,7 @@ fn mv() {
 
     assert_all_paths(&c2, &["/", "/folder/", "/document"]);
     assert_all_document_contents(&c2, &[("/document", b"")]);
-    assert_server_work_paths(&c2, &["/document"]);
+    assert_server_work_paths(&c2, &["/folder/document"]);
     assert_stuff(&c2);
 }
 
@@ -106,7 +106,7 @@ fn rename() {
 
     assert_all_paths(&c2, &["/", "/document"]);
     assert_all_document_contents(&c2, &[("/document", b"")]);
-    assert_server_work_paths(&c2, &["/document"]);
+    assert_server_work_paths(&c2, &["/document2"]);
     assert_stuff(&c2);
 }
 
@@ -141,7 +141,7 @@ fn delete_parent() {
     c1.sync(None).unwrap();
     assert_all_paths(&c2, &["/", "/parent/", "/parent/document"]);
     assert_all_document_contents(&c2, &[("/parent/document", b"")]);
-    assert_server_work_paths(&c2, &["/parent/", "/parent/document"]);
+    assert_server_work_paths(&c2, &["/parent/"]);
     assert_stuff(&c2);
 }
 
@@ -162,9 +162,6 @@ fn delete_grandparent() {
         &["/", "/grandparent/", "/grandparent/parent/", "/grandparent/parent/document"],
     );
     assert_all_document_contents(&c2, &[("/grandparent/parent/document", b"")]);
-    assert_server_work_paths(
-        &c2,
-        &["/grandparent/", "/grandparent/parent/", "/grandparent/parent/document"],
-    );
+    assert_server_work_paths(&c2, &["/grandparent/"]);
     assert_stuff(&c2);
 }

@@ -85,6 +85,18 @@ impl RequestContext<'_, '_> {
         self.push_metadata(&mut update_sync_progress)?;
         self.push_documents(&mut update_sync_progress)?;
         self.tx.last_synced.insert(OneKey {}, update_as_of as i64);
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+
+        for id in tree.prunable_ids()? {
+            tree.remove(id);
+        }
+
+        let update_as_of = self.pull(config, &mut update_sync_progress)?;
+        self.tx.last_synced.insert(OneKey {}, update_as_of as i64);
         Ok(())
     }
 
