@@ -40,7 +40,6 @@ fn change_document_content() {
 fn change_document_content_not_found() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
-    let root = core.get_root().unwrap();
     let doc = core.create_at_path("test.md").unwrap().id;
     let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 

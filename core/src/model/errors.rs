@@ -894,6 +894,7 @@ impl From<SharedError> for TestRepoError {
                 ValidationFailure::Orphan(id) => TestRepoError::FileOrphaned(id),
                 ValidationFailure::Cycle(ids) => TestRepoError::CycleDetected(ids),
                 ValidationFailure::PathConflict(ids) => TestRepoError::PathConflict(ids),
+                ValidationFailure::DocumentFolder(id) => TestRepoError::DocumentTreatedAsFolder(id),
             },
             _ => TestRepoError::Shared(err),
         }

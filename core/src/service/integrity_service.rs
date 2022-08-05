@@ -48,7 +48,8 @@ impl RequestContext<'_, '_> {
             let file = tree.find(&id)?;
             let doc = file.is_document();
             let cont = file.document_hmac().is_some();
-            let not_deleted = tree.calculate_deleted(&id)?;
+            let not_deleted = !tree.calculate_deleted(&id)?;
+            println!("{doc}, {cont}, {not_deleted}");
             if not_deleted && doc && cont {
                 let doc = match document_repo::maybe_get(self.config, RepoSource::Local, &id)? {
                     Some(local) => Some(local),
@@ -57,6 +58,7 @@ impl RequestContext<'_, '_> {
                 .ok_or(CoreError::FileNonexistent)?;
 
                 let doc = tree.decrypt_document(&id, &doc, account)?;
+                println!("doc: {:?}", doc);
 
                 if doc.len() as u64 == 0 {
                     warnings.push(Warning::EmptyFile(id));

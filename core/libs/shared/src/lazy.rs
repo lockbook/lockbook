@@ -1,7 +1,6 @@
 use crate::account::Account;
 use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::file_like::FileLike;
-use crate::secret_filename::SecretFileName;
 use crate::staged::StagedTree;
 use crate::tree_like::{Stagable, TreeLike};
 use crate::{compression_service, pubkey, symkey, SharedError, SharedResult};
@@ -215,12 +214,24 @@ impl<T: Stagable> LazyTree<T> {
     }
 
     pub fn validate(&mut self) -> SharedResult<()> {
-        // TODO document treated as folder?
         self.assert_no_orphans()?;
+        self.assert_no_docfolders()?;
         self.assert_no_cycles()?;
         self.assert_no_path_conflicts()?;
         // todo
         // self.assert_names_decryptable(account)?;
+        Ok(())
+    }
+
+    pub fn assert_no_docfolders(&self) -> SharedResult<()> {
+        for file in self.all_files()? {
+            let parent = self.find_parent(file)?;
+            if parent.is_document() {
+                return Err(SharedError::ValidationFailure(ValidationFailure::DocumentFolder(
+                    *parent.id(),
+                )));
+            }
+        }
         Ok(())
     }
 
@@ -305,6 +316,7 @@ pub enum ValidationFailure {
     Orphan(Uuid),
     Cycle(HashSet<Uuid>),
     PathConflict(HashSet<Uuid>),
+    DocumentFolder(Uuid),
 }
 
 impl<Base, Staged> LazyStaged1<Base, Staged>
