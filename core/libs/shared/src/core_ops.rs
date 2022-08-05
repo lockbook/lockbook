@@ -297,10 +297,16 @@ where
         result.assert_names_decryptable(account)?;
 
         for (_, sibling_ids) in result.all_children()?.clone() {
-            for sibling_id in sibling_ids.iter() {
+            let mut not_deleted_sibling_ids = HashSet::new();
+            for id in sibling_ids {
+                if !result.calculate_deleted(&id)? {
+                    not_deleted_sibling_ids.insert(id);
+                }
+            }
+            for sibling_id in not_deleted_sibling_ids.iter() {
                 let mut name = result.name(&sibling_id, account)?;
                 let mut changed = false;
-                while sibling_ids
+                while not_deleted_sibling_ids
                     .iter()
                     .filter(|&id| id != sibling_id)
                     .map(|id| result.name(id, account))
@@ -562,7 +568,7 @@ where
                             &decrypted_local_document,
                             account,
                         )?;
-                        merge_document_changes.insert(*id, encrypted_document);
+                        merge_document_changes.insert(copied_document_id, encrypted_document);
 
                         result
                     }
