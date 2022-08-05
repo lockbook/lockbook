@@ -142,12 +142,6 @@ pub async fn change_doc(
             }
         }
 
-        if let Some(old) = &request.diff.old {
-            if meta != old {
-                return Err(ClientError(OldVersionIncorrect));
-            }
-        }
-
         tx.sizes.insert(*meta.id(), new_size);
         tree.stage(vec![new]).promote();
 

@@ -9,6 +9,7 @@ use crate::crypto::*;
 use crate::file_like::FileLike;
 use crate::file_metadata::{DocumentHmac, FileDiff, FileMetadata};
 use crate::signed_file::SignedFile;
+use crate::ValidationFailure;
 
 pub trait Request {
     type Response;
@@ -72,6 +73,9 @@ pub enum UpsertError {
 
     /// Found update to a deleted file
     DeletedFileUpdated,
+
+    /// Other misc validation failures
+    Validation(ValidationFailure),
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

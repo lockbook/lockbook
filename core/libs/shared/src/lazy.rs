@@ -4,6 +4,7 @@ use crate::file_like::FileLike;
 use crate::staged::StagedTree;
 use crate::tree_like::{Stagable, TreeLike};
 use crate::{compression_service, pubkey, symkey, SharedError, SharedResult};
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
@@ -315,7 +316,7 @@ pub type LazyStaged1<Base, Local> = LazyTree<Stage1<Base, Local>>;
 pub type Stage2<Base, Local, Staged> = StagedTree<StagedTree<Base, Local>, Staged>;
 pub type LazyStage2<Base, Local, Staged> = LazyTree<Stage2<Base, Local, Staged>>;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Eq)]
 pub enum ValidationFailure {
     Orphan(Uuid),
     Cycle(HashSet<Uuid>),

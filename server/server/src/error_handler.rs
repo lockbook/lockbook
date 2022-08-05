@@ -180,6 +180,7 @@ impl From<SharedError> for ServerError<UpsertError> {
             SharedError::HmacModificationInvalid => ClientError(HmacModificationInvalid),
             SharedError::DeletedFileUpdated => ClientError(DeletedFileUpdated),
             SharedError::RootModificationInvalid => ClientError(RootModificationInvalid),
+            SharedError::ValidationFailure(fail) => ClientError(Validation(fail)),
             SharedError::Unexpected(msg) => InternalError(String::from(msg)),
             _ => internal!("{:?}", err),
         }
