@@ -85,6 +85,15 @@ where
             }
         }
 
+        // Check for updates to root
+        for change in &changes {
+            if let Some(file) = self.maybe_find(change.new.id()) {
+                if file.is_root() {
+                    return Err(SharedError::RootModificationInvalid);
+                }
+            }
+        }
+
         let now = get_time().0 as u64;
         let changes = changes
             .into_iter()

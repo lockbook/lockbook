@@ -31,14 +31,9 @@ fn upsert_id_takeover() {
     // If this succeeded account2 would be able to control file1
     let result = api_service::request(
         &core2.get_account().unwrap(),
-        FileMetadataUpsertsRequest { updates: vec![FileDiff::new(&file1)] },
+        UpsertRequest { updates: vec![FileDiff::new(&file1)] },
     );
-    assert_matches!(
-        result,
-        Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-            FileMetadataUpsertsError::NotPermissioned
-        ))
-    );
+    assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::NotPermissioned)));
 }
 
 #[test]
@@ -61,16 +56,9 @@ fn upsert_id_takeover_change_parent() {
     };
 
     // If this succeeded account2 would be able to control file1
-    let result = api_service::request(
-        &account2,
-        FileMetadataUpsertsRequest { updates: vec![FileDiff::new(&file1)] },
-    );
-    assert_matches!(
-        result,
-        Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-            FileMetadataUpsertsError::NotPermissioned
-        ))
-    );
+    let result =
+        api_service::request(&account2, UpsertRequest { updates: vec![FileDiff::new(&file1)] });
+    assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::NotPermissioned)));
 }
 
 #[test]

@@ -526,6 +526,7 @@ impl From<CoreError> for Error<MoveFileError> {
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum SyncAllError {
+    Retry,
     ClientUpdateRequired,
     CouldNotReachServer,
 }
@@ -533,6 +534,7 @@ pub enum SyncAllError {
 impl From<CoreError> for Error<SyncAllError> {
     fn from(e: CoreError) -> Self {
         match e {
+            // TODO figure out under what circumstances a user should retry a sync
             CoreError::ServerUnreachable => UiError(SyncAllError::CouldNotReachServer),
             CoreError::ClientUpdateRequired => UiError(SyncAllError::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
@@ -560,8 +562,8 @@ impl From<ApiError<api::GetDocumentError>> for CoreError {
     }
 }
 
-impl From<ApiError<api::FileMetadataUpsertsError>> for CoreError {
-    fn from(e: ApiError<api::FileMetadataUpsertsError>) -> Self {
+impl From<ApiError<api::UpsertError>> for CoreError {
+    fn from(e: ApiError<api::UpsertError>) -> Self {
         match e {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,

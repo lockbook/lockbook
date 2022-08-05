@@ -1,7 +1,9 @@
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_shared::api::*;
+use lockbook_shared::file_metadata::FileDiff;
 use test_utils::*;
+use uuid::Uuid;
 
 #[test]
 fn delete_document() {
@@ -9,17 +11,12 @@ fn delete_document() {
     let account = core.get_account().unwrap();
     let doc = core.create_at_path("test.md").unwrap().id;
     core.sync(None).unwrap();
-    let mut doc = core.db.base_metadata.get(&doc).unwrap().unwrap();
-    let root = core.get_root().unwrap().id;
+    let doc1 = core.db.base_metadata.get(&doc).unwrap().unwrap();
     // delete document
-    doc.is_deleted = true;
-    api_service::request(
-        &account,
-        FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new_diff(root, &doc.name, &doc)],
-        },
-    )
-    .unwrap();
+    let mut doc2 = doc1.clone();
+    doc2.timestamped_value.value.is_deleted = true;
+    api_service::request(&account, UpsertRequest { updates: vec![FileDiff::edit(&doc1, &doc2)] })
+        .unwrap();
 }
 
 #[test]
@@ -27,23 +24,20 @@ fn delete_document_not_found() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
     let doc = core.create_at_path("test.md").unwrap().id;
-    let root = core.get_root().unwrap().id;
-    let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
-    let mut diff = FileMetadataDiff::new_diff(root, &doc.name, &doc);
-    diff.new_deleted = true;
+    core.sync(None).unwrap();
+    let mut doc1 = core.db.base_metadata.get(&doc).unwrap().unwrap();
+    doc1.timestamped_value.value.id = Uuid::new_v4();
+    // delete document
+    let mut doc2 = doc1.clone();
+    doc2.timestamped_value.value.is_deleted = true;
     let result = api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
+        UpsertRequest {
             // create document as if deleting an existing document
-            updates: vec![diff],
+            updates: vec![FileDiff::edit(&doc1, &doc2)],
         },
     );
-    assert_matches!(
-        result,
-        Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-            FileMetadataUpsertsError::NewFileHasOldParentAndName
-        ))
-    );
+    assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::OldFileNotFound)));
 }
 
 #[test]
@@ -53,12 +47,10 @@ fn delete_document_new_document() {
 
     let doc = core.create_at_path("test.md").unwrap().id;
     let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
-    doc.is_deleted = true;
+    doc.timestamped_value.value.is_deleted = true;
 
-    let result = api_service::request(
-        &account,
-        FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
-    );
+    let result =
+        api_service::request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] });
     assert_matches!(result, Ok(_));
 }
 
@@ -69,27 +61,14 @@ fn delete_document_deleted() {
     let root = core.get_root().unwrap().id;
 
     let doc = core.create_at_path("test.md").unwrap().id;
-    let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
+    let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
     core.sync(None).unwrap();
 
     // delete document
-    doc.is_deleted = true;
-    api_service::request(
-        &account,
-        FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new_diff(root, &doc.name, &doc)],
-        },
-    )
-    .unwrap();
-
-    // delete document again
-    api_service::request(
-        &account,
-        FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new_diff(root, &doc.name, &doc)],
-        },
-    )
-    .unwrap();
+    let mut doc2 = doc.clone();
+    doc2.timestamped_value.value.is_deleted = true;
+    api_service::request(&account, UpsertRequest { updates: vec![FileDiff::edit(&doc, &doc2)] })
+        .unwrap();
 }
 
 #[test]
@@ -97,19 +76,16 @@ fn delete_cannot_delete_root() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
     let root = core.get_root().unwrap().id;
-    let mut root = core.db.base_metadata.get(&root).unwrap().unwrap();
+    let root1 = core.db.base_metadata.get(&root).unwrap().unwrap();
 
-    root.is_deleted = true;
+    let mut root2 = root1.clone();
+    root2.timestamped_value.value.is_deleted = true;
     let result = api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)],
-        },
+        UpsertRequest { updates: vec![FileDiff::edit(&root1, &root2)] },
     );
     assert_matches!(
         result,
-        Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-            FileMetadataUpsertsError::RootImmutable
-        ))
+        Err(ApiError::<UpsertError>::Endpoint(UpsertError::RootModificationInvalid))
     );
 }

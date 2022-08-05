@@ -34,19 +34,19 @@ pub enum ErrorWrapper<E> {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct FileMetadataUpsertsRequest {
+pub struct UpsertRequest {
     pub updates: Vec<FileDiff>,
 }
 
-impl Request for FileMetadataUpsertsRequest {
+impl Request for UpsertRequest {
     type Response = ();
-    type Error = FileMetadataUpsertsError;
+    type Error = UpsertError;
     const METHOD: Method = Method::POST;
     const ROUTE: &'static str = "/upsert-file-metadata";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum FileMetadataUpsertsError {
+pub enum UpsertError {
     /// Arises during a call to upsert, when the caller does not have the correct old version of the
     /// File they're trying to modify
     OldVersionIncorrect,
@@ -67,6 +67,8 @@ pub enum FileMetadataUpsertsError {
 
     /// Metas in upsert cannot contain changes to digest
     HmacModificationInvalid,
+
+    RootModificationInvalid,
 
     /// Found update to a deleted file
     DeletedFileUpdated,

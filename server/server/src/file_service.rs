@@ -13,11 +13,11 @@ use std::collections::HashSet;
 use uuid::Uuid;
 
 pub async fn upsert_file_metadata(
-    context: RequestContext<'_, FileMetadataUpsertsRequest>,
-) -> Result<(), ServerError<FileMetadataUpsertsError>> {
+    context: RequestContext<'_, UpsertRequest>,
+) -> Result<(), ServerError<UpsertError>> {
     let (request, server_state) = (context.request, context.server_state);
     let owner = Owner(context.public_key);
-    let docs_to_delete: Result<Vec<(Uuid, [u8; 32])>, ServerError<FileMetadataUpsertsError>> =
+    let docs_to_delete: Result<Vec<(Uuid, [u8; 32])>, ServerError<UpsertError>> =
         context.server_state.index_db.transaction(|tx| {
             let mut tree =
                 ServerTree { owner, owned: &mut tx.owned_files, metas: &mut tx.metas }.to_lazy();

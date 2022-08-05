@@ -18,11 +18,7 @@ fn change_document_content() {
     let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     // create document
-    api_service::request(
-        &account,
-        FileMetadataUpsertsRequest { updates: vec![FileDiff::new(&doc)] },
-    )
-    .unwrap();
+    api_service::request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] }).unwrap();
 
     let doc1 = doc;
     let mut doc2 = doc1.clone();
@@ -49,11 +45,7 @@ fn change_document_content_not_found() {
     let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     // create document
-    api_service::request(
-        &account,
-        FileMetadataUpsertsRequest { updates: vec![FileDiff::new(&doc)] },
-    )
-    .unwrap();
+    api_service::request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] }).unwrap();
 
     doc.timestamped_value.value.id = Uuid::new_v4();
     let doc1 = doc;

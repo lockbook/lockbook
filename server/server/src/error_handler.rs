@@ -6,8 +6,8 @@ use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
 use lockbook_shared::api::{
-    CancelSubscriptionError, ChangeDocError, DeleteAccountError, FileMetadataUpsertsError,
-    GetUsageError, UpgradeAccountGooglePlayError, UpgradeAccountStripeError,
+    CancelSubscriptionError, ChangeDocError, DeleteAccountError, GetUsageError,
+    UpgradeAccountGooglePlayError, UpgradeAccountStripeError, UpsertError,
 };
 use lockbook_shared::SharedError;
 use std::fmt::Debug;
@@ -168,9 +168,9 @@ impl From<SharedError> for ServerError<DeleteAccountError> {
     }
 }
 
-impl From<SharedError> for ServerError<FileMetadataUpsertsError> {
+impl From<SharedError> for ServerError<UpsertError> {
     fn from(err: SharedError) -> Self {
-        use lockbook_shared::api::FileMetadataUpsertsError::*;
+        use lockbook_shared::api::UpsertError::*;
         match err {
             SharedError::OldVersionIncorrect => ClientError(OldVersionIncorrect),
             SharedError::OldFileNotFound => ClientError(OldFileNotFound),
@@ -179,6 +179,7 @@ impl From<SharedError> for ServerError<FileMetadataUpsertsError> {
             SharedError::DiffMalformed => ClientError(DiffMalformed),
             SharedError::HmacModificationInvalid => ClientError(HmacModificationInvalid),
             SharedError::DeletedFileUpdated => ClientError(DeletedFileUpdated),
+            SharedError::RootModificationInvalid => ClientError(RootModificationInvalid),
             SharedError::Unexpected(msg) => InternalError(String::from(msg)),
             _ => internal!("{:?}", err),
         }

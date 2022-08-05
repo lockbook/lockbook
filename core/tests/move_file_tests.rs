@@ -20,9 +20,7 @@ fn move_document() {
     doc.parent = folder;
     api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
-        },
+        UpsertRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)] },
     )
     .unwrap();
 }
@@ -41,7 +39,7 @@ fn move_document_not_found() {
 
     let result = api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
+        UpsertRequest {
             // create document as if moving an existing document
             updates: vec![
                 FileMetadataDiff::new_diff(root.id, &doc.name, &doc),
@@ -51,9 +49,7 @@ fn move_document_not_found() {
     );
     assert_matches!(
         result,
-        Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-            FileMetadataUpsertsError::NewFileHasOldParentAndName
-        ))
+        Err(ApiError::<UpsertError>::Endpoint(UpsertError::NewFileHasOldParentAndName))
     );
 }
 
@@ -68,7 +64,7 @@ fn move_document_parent_not_found() {
 
     let result = api_service::request(
         &account,
-        FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc)] },
+        UpsertRequest { updates: vec![FileMetadataDiff::new(&doc)] },
     );
     assert_matches!(result, UPDATES_REQ);
 }
@@ -87,7 +83,7 @@ fn move_document_deleted() {
 
     api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
+        UpsertRequest {
             updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&folder)],
         },
     )
@@ -98,9 +94,7 @@ fn move_document_deleted() {
     doc.parent = folder.id;
     api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
-        },
+        UpsertRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)] },
     )
     .unwrap();
 }
@@ -118,7 +112,7 @@ fn move_document_conflict() {
 
     api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
+        UpsertRequest {
             updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&folder)],
         },
     )
@@ -128,7 +122,7 @@ fn move_document_conflict() {
     doc.parent = folder.id;
     let result = api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
+        UpsertRequest {
             // use incorrect previous parent
             updates: vec![FileMetadataDiff::new_diff(folder.id, &doc.name, &doc)],
         },
@@ -154,7 +148,7 @@ fn move_document_path_taken() {
 
     api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
+        UpsertRequest {
             updates: vec![
                 FileMetadataDiff::new(&doc),
                 FileMetadataDiff::new(&doc2),
@@ -168,9 +162,7 @@ fn move_document_path_taken() {
     doc.parent = folder.id;
     let result = api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
-        },
+        UpsertRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)] },
     );
     assert_matches!(result, UPDATES_REQ);
 }
@@ -185,26 +177,16 @@ fn move_folder_cannot_move_root() {
     let folder = core.create_at_path("folder/").unwrap().id;
     let folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
 
-    api_service::request(
-        &account,
-        FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&folder)] },
-    )
-    .unwrap();
+    api_service::request(&account, UpsertRequest { updates: vec![FileMetadataDiff::new(&folder)] })
+        .unwrap();
 
     // move root
     root.parent = folder.id;
     let result = api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)],
-        },
+        UpsertRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &root.name, &root)] },
     );
-    assert_matches!(
-        result,
-        Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-            FileMetadataUpsertsError::RootImmutable
-        ))
-    );
+    assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::RootImmutable)));
 }
 
 #[test]
@@ -216,18 +198,13 @@ fn move_folder_into_itself() {
     let folder = core.create_at_path("folder/").unwrap().id;
     let mut folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
 
-    api_service::request(
-        &account,
-        FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&folder)] },
-    )
-    .unwrap();
+    api_service::request(&account, UpsertRequest { updates: vec![FileMetadataDiff::new(&folder)] })
+        .unwrap();
 
     folder.parent = folder.id;
     let result = api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new_diff(root.id, &folder.name, &folder)],
-        },
+        UpsertRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &folder.name, &folder)] },
     );
     assert_matches!(result, UPDATES_REQ);
 }
@@ -246,7 +223,7 @@ fn move_folder_into_descendants() {
 
     api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
+        UpsertRequest {
             updates: vec![FileMetadataDiff::new(&folder), FileMetadataDiff::new(&folder2)],
         },
     )
@@ -256,9 +233,7 @@ fn move_folder_into_descendants() {
     folder.parent = folder2.id;
     let result = api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new_diff(root.id, &folder.name, &folder)],
-        },
+        UpsertRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &folder.name, &folder)] },
     );
     assert_matches!(result, UPDATES_REQ);
 }
@@ -278,9 +253,7 @@ fn move_document_into_document() {
 
     api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&doc2)],
-        },
+        UpsertRequest { updates: vec![FileMetadataDiff::new(&doc), FileMetadataDiff::new(&doc2)] },
     )
     .unwrap();
 
@@ -288,9 +261,7 @@ fn move_document_into_document() {
     doc.parent = doc2.id;
     let result = api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
-            updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)],
-        },
+        UpsertRequest { updates: vec![FileMetadataDiff::new_diff(root.id, &doc.name, &doc)] },
     );
     assert_matches!(result, UPDATES_REQ);
 }

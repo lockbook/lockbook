@@ -6,8 +6,7 @@ use crate::CoreResult;
 use crate::{Config, CoreError, RequestContext};
 use lockbook_shared::account::Account;
 use lockbook_shared::api::{
-    ChangeDocRequest, FileMetadataUpsertsRequest, GetDocRequest, GetUpdatesRequest,
-    GetUpdatesResponse,
+    ChangeDocRequest, GetDocRequest, GetUpdatesRequest, GetUpdatesResponse, UpsertRequest,
 };
 use lockbook_shared::clock;
 use lockbook_shared::file_like::FileLike;
@@ -272,8 +271,7 @@ impl RequestContext<'_, '_> {
             updates.push(FileDiff { old: maybe_base_file.cloned(), new: local_change });
         }
         if !updates.is_empty() {
-            api_service::request(account, FileMetadataUpsertsRequest { updates })
-                .map_err(CoreError::from)?;
+            api_service::request(account, UpsertRequest { updates })?;
         }
 
         // base = local

@@ -14,11 +14,7 @@ fn rename_document() {
     let doc = core.create_at_path("test.md").unwrap().id;
     let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
-    api_service::request(
-        &account,
-        FileMetadataUpsertsRequest { updates: vec![FileDiff::new(&doc)] },
-    )
-    .unwrap();
+    api_service::request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] }).unwrap();
 
     let old_name = doc.name.clone();
     core.rename_file(doc.id, &random_name()).unwrap();
@@ -26,7 +22,7 @@ fn rename_document() {
 
     api_service::request(
         &account,
-        FileMetadataUpsertsRequest { updates: vec![FileDiff::new_diff(root.id, &old_name, &doc)] },
+        UpsertRequest { updates: vec![FileDiff::new_diff(root.id, &old_name, &doc)] },
     )
     .unwrap();
 }
@@ -42,16 +38,14 @@ fn rename_document_not_found() {
 
     let result = api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
+        UpsertRequest {
             // create document as if renaming an existing document
             updates: vec![FileDiff::new_diff(root.id, &doc.name, &doc)],
         },
     );
     assert_matches!(
         result,
-        Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-            FileMetadataUpsertsError::NewFileHasOldParentAndName
-        ))
+        Err(ApiError::<UpsertError>::Endpoint(UpsertError::NewFileHasOldParentAndName))
     );
 }
 
@@ -64,11 +58,7 @@ fn rename_document_deleted() {
     let doc = core.create_at_path("test.md").unwrap().id;
     let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
-    api_service::request(
-        &account,
-        FileMetadataUpsertsRequest { updates: vec![FileDiff::new(&doc)] },
-    )
-    .unwrap();
+    api_service::request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] }).unwrap();
 
     let old_name = doc.name.clone();
     core.rename_file(doc.id, &random_name()).unwrap();
@@ -77,7 +67,7 @@ fn rename_document_deleted() {
 
     api_service::request(
         &account,
-        FileMetadataUpsertsRequest { updates: vec![FileDiff::new_diff(root.id, &old_name, &doc)] },
+        UpsertRequest { updates: vec![FileDiff::new_diff(root.id, &old_name, &doc)] },
     )
     .unwrap();
 }
@@ -91,18 +81,14 @@ fn rename_document_conflict() {
     let doc = core.create_at_path("test.md").unwrap().id;
     let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
-    api_service::request(
-        &account,
-        FileMetadataUpsertsRequest { updates: vec![FileDiff::new(&doc)] },
-    )
-    .unwrap();
+    api_service::request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] }).unwrap();
 
     core.rename_file(doc.id, &random_name()).unwrap();
     let doc = core.db.local_metadata.get(&doc.id).unwrap().unwrap();
 
     let result = api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
+        UpsertRequest {
             // use incorrect previous name
             updates: vec![FileDiff::new_diff(root.id, &doc.name, &doc)],
         },
@@ -125,7 +111,7 @@ fn rename_document_path_taken() {
 
     api_service::request(
         &account,
-        FileMetadataUpsertsRequest { updates: vec![FileDiff::new(&doc1), FileDiff::new(&doc2)] },
+        UpsertRequest { updates: vec![FileDiff::new(&doc1), FileDiff::new(&doc2)] },
     )
     .unwrap();
 
@@ -135,7 +121,7 @@ fn rename_document_path_taken() {
 
     let result = api_service::request(
         &account,
-        FileMetadataUpsertsRequest { updates: vec![FileDiff::new_diff(root.id, &old_name, &doc1)] },
+        UpsertRequest { updates: vec![FileDiff::new_diff(root.id, &old_name, &doc1)] },
     );
     assert_matches!(result, UPDATES_REQ);
 }
@@ -153,14 +139,7 @@ fn rename_folder_cannot_rename_root() {
 
     let result = api_service::request(
         &account,
-        FileMetadataUpsertsRequest {
-            updates: vec![FileDiff::new_diff(root.id, &root.name, &root)],
-        },
+        UpsertRequest { updates: vec![FileDiff::new_diff(root.id, &root.name, &root)] },
     );
-    assert_matches!(
-        result,
-        Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-            FileMetadataUpsertsError::RootImmutable
-        ))
-    );
+    assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::RootImmutable)));
 }
