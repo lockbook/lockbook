@@ -15,7 +15,7 @@ struct MoveSheet: View {
             
             ScrollView {
                 VStack {
-                    Text("Moving \(meta.decryptedName)").font(.headline)
+                    Text("Moving \(meta.name)").font(.headline)
                     NestedList(
                         node: wc,
                         row: { dest in

@@ -1,31 +1,30 @@
 import Foundation
 
-public struct DecryptedFileMetadata: Codable, Identifiable, Equatable, Hashable, Comparable {
+public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
     public var fileType: FileType
-
     public var id: UUID
     public var parent: UUID
-    public var decryptedName: String
-    public var owner: String
+    public var name: String
+    public var lastModifiedBy: String
     public var contentVersion: UInt64
-    public var metadataVersion: UInt64
+    public var lastModified: UInt64
     public var isRoot: Bool { parent == id }
-    public static func == (lhs: DecryptedFileMetadata, rhs: DecryptedFileMetadata) -> Bool {
+    public static func == (lhs: File, rhs: File) -> Bool {
         return lhs.fileType == rhs.fileType &&
             lhs.id == rhs.id &&
 //            lhs.metadataVersion == rhs.metadataVersion && // TODO don't do this here, do this at the view instead
 //            lhs.contentVersion == rhs.contentVersion &&
             lhs.parent == rhs.parent &&
-            lhs.owner == rhs.owner &&
-            lhs.decryptedName == rhs.decryptedName
+            lhs.lastModifiedBy == rhs.lastModifiedBy &&
+            lhs.name == rhs.name
     }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
-        hasher.combine(decryptedName)
+        hasher.combine(name)
     }
 
-    public static func <(lhs: DecryptedFileMetadata, rhs: DecryptedFileMetadata) -> Bool {
+    public static func <(lhs: File, rhs: File) -> Bool {
         // If the types are different, group folders higher
         if lhs.fileType == .Folder && rhs.fileType == .Document {
             return true
@@ -36,7 +35,7 @@ public struct DecryptedFileMetadata: Codable, Identifiable, Equatable, Hashable,
         }
 
         // Otherwise sort alphabetically
-        return lhs.decryptedName < rhs.decryptedName
+        return lhs.name < rhs.name
     }
 }
 
