@@ -1,46 +1,38 @@
-use std::process::Command;
 use crate::error::CliError;
-use crate::utils;
+use crate::{utils, ToolEnvironment};
+use execute_command_macro::command;
 
-pub fn clippy_workspace() -> Result<(), CliError>{
-    let clippy_result = Command::new("cargo")
-        .args(&["clippy", "--", "-D", "warnings"])
+pub fn clippy_workspace(tool_env: ToolEnvironment) -> Result<(), CliError> {
+    let clippy_result = command!("cargo clippy -- -D warnings")
+        .current_dir(&tool_env.root_dir)
         .spawn()?
         .wait()?;
 
     if !clippy_result.success() {
-        return Err(CliError::basic_error())
+        return Err(CliError::basic_error());
     }
 
-    let clippy_result = Command::new("cargo")
-        .args(&["clippy", "--tests", "--", "-D", "warnings"])
+    let clippy_result = command!("cargo clippy --tests -- -D warnings")
+        .current_dir(&tool_env.root_dir)
         .spawn()?
         .wait()?;
 
     if !clippy_result.success() {
-        return Err(CliError::basic_error())
+        return Err(CliError::basic_error());
     }
 
     Ok(())
 }
 
-pub fn lint_android() -> Result<(), CliError> {
-    let mut command = Command::new("./gradlew");
-
-    utils::in_android_dir(&mut command)?;
-
-    let lint_result = command
-        .arg("lint")
+pub fn lint_android(tool_env: ToolEnvironment) -> Result<(), CliError> {
+    let lint_result = command!("./gradlew lint")
+        .current_dir(utils::android_dir(tool_env.root_dir))
         .spawn()?
         .wait()?;
 
     if !lint_result.success() {
-        return Err(CliError::basic_error())
+        return Err(CliError::basic_error());
     }
 
     Ok(())
-}
-
-pub fn lint_apple() -> Result<(), CliError> {
-
 }

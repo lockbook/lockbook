@@ -1,32 +1,28 @@
-use std::process::Command;
-use crate::error::{CliError};
-use crate::utils;
+use crate::error::CliError;
+use crate::{utils, ToolEnvironment};
+use execute_command_macro::command;
 
-pub fn fmt_workspace() -> Result<(), CliError>{
-    let fmt_result = Command::new("cargo")
-        .args(&["fmt", "--", "--check", "-l"])
+pub fn fmt_workspace(tool_env: ToolEnvironment) -> Result<(), CliError> {
+    let fmt_result = command!("cargo fmt -- --check -l")
+        .current_dir(&tool_env.root_dir)
         .spawn()?
         .wait()?;
 
     if !fmt_result.success() {
-        return Err(CliError::basic_error())
+        return Err(CliError::basic_error());
     }
 
     Ok(())
 }
 
-pub fn fmt_android() -> Result<(), CliError> {
-    let mut command = Command::new("./gradlew");
-
-    utils::in_android_dir(&mut command)?;
-
-    let fmt_result = command
-        .arg("lintKotlin")
+pub fn fmt_android(tool_env: ToolEnvironment) -> Result<(), CliError> {
+    let fmt_result = command!("./gradlew lintKotlin")
+        .current_dir(utils::android_dir(tool_env.root_dir))
         .spawn()?
         .wait()?;
 
     if !fmt_result.success() {
-        return Err(CliError::basic_error())
+        return Err(CliError::basic_error());
     }
 
     Ok(())

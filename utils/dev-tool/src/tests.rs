@@ -1,27 +1,146 @@
-use std::env;
-use std::process::Command;
-use crate::{CliError, utils};
+use crate::utils::HashInfo;
+use crate::{utils, CliError, ToolEnvironment};
+use execute_command_macro::{command, command_args};
+use std::fs;
+use std::process::{Command, Stdio};
 
-pub fn launch_server_detached() -> Result<(), CliError> {
-    let port = port_scanner::request_open_port().ok_or(CliError(Some("Cannot find an open local port.".to_string())))?;
+pub fn build_server(tool_env: ToolEnvironment) -> Result<(), CliError> {
+    let build_results = command!("cargo build -p lockbook-server").spawn()?.wait()?;
 
-    dotenv::from_path(utils::local_env_path(env::current_dir()?))?;
+    if !build_results.success() {
+        return Err(CliError::basic_error());
+    }
 
-    env::set_var("SERVER_PORT", port);
+    let server_path = tool_env.target_dir.join("debug/lockbook-server");
+    let new_server_path =
+        server_path.with_file_name(format!("lockbook-server-{}", tool_env.commit_hash));
 
-    let mut command = Command::new("./gradlew");
+    fs::rename(server_path, &new_server_path)?;
 
-    utils::in_android_dir(&mut command)?;
+    let hash_info = HashInfo { maybe_port: None, server_binary_path: new_server_path };
+    hash_info.save(&tool_env.commit_hash)?;
 
-    let fmt_result = command
-        .arg("lintKotlin")
+    Ok(())
+}
+
+pub fn launch_server_detached(tool_env: ToolEnvironment) -> Result<(), CliError> {
+    let port = port_scanner::request_open_port()
+        .ok_or_else(|| CliError(Some("Cannot find an open local port.".to_string())))?;
+
+    dotenv::from_path(utils::local_env_path(&tool_env.root_dir))?;
+
+    let mut hash_info = HashInfo::get_from_disk(&tool_env.commit_hash)?;
+    let server_path = hash_info
+        .server_binary_path
+        .to_str()
+        .ok_or(CliError(Some("Cannot get server binary path!".to_string())))?;
+
+    Command::new(server_path)
+        .env("SERVER_PORT", port.to_string())
+        .stderr(Stdio::null())
+        .stdout(Stdio::null())
+        .spawn()?;
+
+    hash_info.maybe_port = Some(port);
+    hash_info.save(&tool_env.commit_hash)?;
+
+    Ok(())
+}
+
+pub fn run_rust_tests(tool_env: ToolEnvironment) -> Result<(), CliError> {
+    let hash_info = HashInfo::get_from_disk(&tool_env.commit_hash)?;
+    dotenv::from_path(utils::test_env_path(&tool_env.root_dir))?;
+
+    let test_results = command!("cargo test --release --no-fail-fast --all -- --nocapture")
+        .env("API_URL", utils::get_api_url(hash_info.get_port()?))
+        .current_dir(tool_env.root_dir)
         .spawn()?
         .wait()?;
 
-    if !fmt_result.success() {
-        return Err(CliError::basic_error())
+    if !test_results.success() {
+        return Err(CliError::basic_error());
     }
 
     Ok(())
 }
 
+pub fn run_kotlin_tests(tool_env: ToolEnvironment) -> Result<(), CliError> {
+    let hash_info = HashInfo::get_from_disk(&tool_env.commit_hash)?;
+    dotenv::from_path(utils::test_env_path(&tool_env.root_dir))?;
+
+    let build_results = command!("make android")
+        .current_dir(utils::core_dir(&tool_env.root_dir))
+        .spawn()?
+        .wait()?;
+
+    if !build_results.success() {
+        return Err(CliError::basic_error());
+    }
+
+    let test_results = command!("./gradlew testDebugUnitTest")
+        .current_dir(utils::android_dir(&tool_env.root_dir))
+        .env("API_URL", utils::get_api_url(hash_info.get_port()?))
+        .spawn()?
+        .wait()?;
+
+    if !test_results.success() {
+        return Err(CliError::basic_error());
+    }
+
+    Ok(())
+}
+
+pub fn run_swift_tests(tool_env: ToolEnvironment) -> Result<(), CliError> {
+    let hash_info = HashInfo::get_from_disk(&tool_env.commit_hash)?;
+    dotenv::from_path(utils::test_env_path(&tool_env.root_dir))?;
+
+    let build_results = command!("make lib_c_for_swift_native")
+        .current_dir(utils::core_dir(&tool_env.root_dir))
+        .spawn()?
+        .wait()?;
+
+    if !build_results.success() {
+        return Err(CliError::basic_error());
+    }
+
+    let build_results = command!("swift build")
+        .current_dir(utils::swift_dir(&tool_env.root_dir))
+        .spawn()?
+        .wait()?;
+
+    if !build_results.success() {
+        return Err(CliError::basic_error());
+    }
+
+    let test_results = command!("swift test")
+        .current_dir(utils::swift_dir(&tool_env.root_dir))
+        .env("API_URL", utils::get_api_url(hash_info.get_port()?))
+        .spawn()?
+        .wait()?;
+
+    if !test_results.success() {
+        return Err(CliError::basic_error());
+    }
+
+    Ok(())
+}
+
+pub fn kill_server(tool_env: ToolEnvironment) -> Result<(), CliError> {
+    let mut hash_info = HashInfo::get_from_disk(&tool_env.commit_hash)?;
+    dotenv::from_path(utils::test_env_path(&tool_env.root_dir))?;
+
+    let kill_result =
+        command_args!("fuser", "-k", format!("{}/tcp", hash_info.get_port()?.to_string()))
+            .current_dir(utils::swift_dir(&tool_env.root_dir))
+            .spawn()?
+            .wait()?;
+
+    if !kill_result.success() {
+        return Err(CliError::basic_error());
+    }
+
+    hash_info.maybe_port = None;
+    hash_info.save(&tool_env.commit_hash)?;
+
+    Ok(())
+}
