@@ -190,7 +190,7 @@ impl FileDiff {
         }
     }
 
-    pub fn new(new: &ECSigned<FileMetadata>) -> Self {
+    pub fn new(new: &SignedFile) -> Self {
         let old = None;
         let new = new.clone();
         Self { old, new }

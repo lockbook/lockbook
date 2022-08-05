@@ -3,42 +3,39 @@ use lockbook_core::repo::document_repo;
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_shared::api::*;
-use lockbook_shared::file_metadata::FileMetadataDiff;
+use lockbook_shared::crypto::AESEncrypted;
+use lockbook_shared::file_metadata::FileDiff;
 use test_utils::assert_matches;
 use test_utils::*;
+use uuid::Uuid;
 
 #[test]
 fn change_document_content() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
     let root = core.get_root().unwrap();
-    let mut doc = core.create_at_path("test.md").unwrap();
-    let doc_enc = core.db.local_metadata.get(&doc.id).unwrap().unwrap();
+    let doc = core.create_at_path("test.md").unwrap().id;
+    let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     // create document
     api_service::request(
         &account,
-        FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&doc_enc)] },
+        FileMetadataUpsertsRequest { updates: vec![FileDiff::new(&doc)] },
     )
     .unwrap();
 
-    // get document metadata version
-    doc.metadata_version = api_service::request(
-        &account,
-        GetUpdatesRequest { since_metadata_version: root.metadata_version },
-    )
-    .unwrap()
-    .file_metadata[0]
-        .metadata_version;
+    let doc1 = doc;
+    let mut doc2 = doc1.clone();
+    doc2.timestamped_value.value.document_hmac = Some([0; 32]);
 
-    core.write_document(doc.id, "new doc content".as_bytes())
-        .unwrap();
-    let new_content = document_repo::get(&core.config, RepoSource::Local, doc.id).unwrap();
-
+    let diff = FileDiff::edit(&doc1, &doc2);
     // change document content
     api_service::request(
         &account,
-        ChangeDocRequest { id: doc.id, old_metadata_version: doc.metadata_version, new_content },
+        ChangeDocRequest {
+            diff,
+            new_content: AESEncrypted { value: vec![], nonce: vec![], _t: Default::default() },
+        },
     )
     .unwrap();
 }
@@ -47,17 +44,33 @@ fn change_document_content() {
 fn change_document_content_not_found() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
-    let doc = core.create_at_path("test.md").unwrap();
-    core.write_document(doc.id, "content".as_bytes()).unwrap();
-    let new_content = document_repo::get(&core.config, RepoSource::Local, doc.id).unwrap();
+    let root = core.get_root().unwrap();
+    let doc = core.create_at_path("test.md").unwrap().id;
+    let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
-    // change content of document we never created
-    let result = api_service::request(
+    // create document
+    api_service::request(
         &account,
-        ChangeDocRequest { id: doc.id, old_metadata_version: 0, new_content },
+        FileMetadataUpsertsRequest { updates: vec![FileDiff::new(&doc)] },
+    )
+    .unwrap();
+
+    doc.timestamped_value.value.id = Uuid::new_v4();
+    let doc1 = doc;
+    let mut doc2 = doc1.clone();
+    doc2.timestamped_value.value.document_hmac = Some([0; 32]);
+
+    let diff = FileDiff::edit(&doc1, &doc2);
+    // change document content
+    let res = api_service::request(
+        &account,
+        ChangeDocRequest {
+            diff,
+            new_content: AESEncrypted { value: vec![], nonce: vec![], _t: Default::default() },
+        },
     );
     assert_matches!(
-        result,
+        res,
         Err(ApiError::<ChangeDocError>::Endpoint(ChangeDocError::DocumentNotFound))
     );
 }
