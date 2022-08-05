@@ -43,7 +43,7 @@ fn usage_go_back_down_after_delete() {
     core.delete_file(file.id).unwrap();
     core.sync(None).unwrap();
 
-    assert!(core.get_usage().unwrap().usages.is_empty());
+    assert_eq!(core.get_usage().unwrap().usages, vec![]);
 }
 
 #[test]
@@ -104,5 +104,5 @@ fn usage_new_files_have_no_size() {
         .map(|usage| usage.size_bytes)
         .sum::<u64>();
 
-    assert_eq!(total_usage, 32, "Returned a file size that is not the default 32 bytes!");
+    assert_eq!(total_usage, 0);
 }

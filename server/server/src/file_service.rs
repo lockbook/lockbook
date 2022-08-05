@@ -41,6 +41,7 @@ pub async fn upsert_file_metadata(
                 {
                     let meta = tree.find(&id)?;
                     if let Some(digest) = meta.file.timestamped_value.value.document_hmac {
+                        tx.sizes.delete(*meta.id());
                         new_deleted.push((*meta.id(), digest));
                     }
                 }
