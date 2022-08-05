@@ -172,6 +172,12 @@ impl From<SharedError> for CoreError {
             RootModificationInvalid => CoreError::RootModificationInvalid,
             FileNameEmpty => CoreError::FileNameEmpty,
             FileNotFolder => CoreError::FileNotFolder,
+            ValidationFailure(lockbook_shared::ValidationFailure::Cycle(_)) => {
+                CoreError::FolderMovedIntoSelf
+            }
+            ValidationFailure(lockbook_shared::ValidationFailure::PathConflict(_)) => {
+                CoreError::PathTaken
+            }
             _ => CoreError::Unexpected(format!("unexpected shared error {:?}", err)),
         }
     }
