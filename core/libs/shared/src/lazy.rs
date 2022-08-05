@@ -52,7 +52,7 @@ impl<T: Stagable> LazyTree<T> {
             let mut visited_ids = vec![];
             let mut deleted = false;
 
-            while !file.is_root() {
+            while !file.is_root() && !visited_ids.contains(file.parent()) {
                 visited_ids.push(*file.id());
                 if let Some(&implicit) = self.implicit_deleted.get(file.id()) {
                     deleted = implicit;
@@ -219,10 +219,12 @@ impl<T: Stagable> LazyTree<T> {
         self.assert_no_orphans()?;
         self.assert_no_cycles()?;
         self.assert_no_path_conflicts()?;
+        // todo
+        // self.assert_names_decryptable(account)?;
         Ok(())
     }
 
-    fn assert_no_orphans(&mut self) -> SharedResult<()> {
+    pub fn assert_no_orphans(&mut self) -> SharedResult<()> {
         for file in self.ids().into_iter().filter_map(|id| self.maybe_find(id)) {
             if self.maybe_find_parent(file).is_none() {
                 return Err(SharedError::ValidationFailure(ValidationFailure::Orphan(*file.id())));
@@ -232,7 +234,7 @@ impl<T: Stagable> LazyTree<T> {
     }
 
     // assumption: no orphans
-    fn assert_no_cycles(&mut self) -> SharedResult<()> {
+    pub fn assert_no_cycles(&mut self) -> SharedResult<()> {
         let mut root_found = false;
         let mut no_cycles_in_ancestors = HashSet::new();
         for id in self.owned_ids() {
@@ -265,7 +267,7 @@ impl<T: Stagable> LazyTree<T> {
     }
 
     // todo: optimize
-    fn assert_no_path_conflicts(&mut self) -> SharedResult<()> {
+    pub fn assert_no_path_conflicts(&mut self) -> SharedResult<()> {
         let mut id_by_name = HashMap::new();
         for id in self.owned_ids() {
             if !self.calculate_deleted(&id)? {
@@ -280,6 +282,14 @@ impl<T: Stagable> LazyTree<T> {
                 }
                 id_by_name.insert(file.secret_name().clone(), *file.id());
             }
+        }
+        Ok(())
+    }
+
+    // todo: optimize
+    pub fn assert_names_decryptable(&mut self, account: &Account) -> SharedResult<()> {
+        for id in self.owned_ids() {
+            self.name(&id, account)?;
         }
         Ok(())
     }

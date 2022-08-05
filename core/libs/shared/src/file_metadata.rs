@@ -127,10 +127,33 @@ impl FromStr for FileType {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Clone)]
 pub struct FileDiff {
     pub old: Option<SignedFile>,
     pub new: SignedFile,
+}
+
+impl fmt::Debug for FileDiff {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut result = &mut f.debug_struct("FileDiff");
+        result = result.field("id", self.id());
+        for diff in self.diff() {
+            match diff {
+                Diff::New => result = result.field("is_new", &true),
+                Diff::Id => result = result.field("new_id", &self.new.id()),
+                Diff::Parent => result = result.field("new_parent", &self.new.parent()),
+                Diff::Name => result = result.field("new_name", &self.new.secret_name()),
+                Diff::Owner => result = result.field("new_owner", &self.new.owner()),
+                Diff::Deleted => {
+                    result = result.field("new_deleted", &self.new.explicitly_deleted())
+                }
+                Diff::Hmac => result = result.field("new_hmac", &self.new.document_hmac()),
+                Diff::UserKeys => result = result.field("new_user_keys", &true),
+                Diff::FolderKeys => result = result.field("new_folder_keys", &true),
+            }
+        }
+        result.finish()
+    }
 }
 
 #[derive(PartialEq, Debug)]
@@ -147,6 +170,13 @@ pub enum Diff {
 }
 
 impl FileDiff {
+    pub fn id(&self) -> &Uuid {
+        match &self.old {
+            Some(old) => old.id(),
+            None => self.new.id(),
+        }
+    }
+
     pub fn diff(&self) -> Vec<Diff> {
         let new = &self.new;
         use Diff::*;

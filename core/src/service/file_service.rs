@@ -65,14 +65,15 @@ impl RequestContext<'_, '_> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let mut tree = self
+        let tree = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)
             .to_lazy()
             .delete(id, account)?;
 
-        for id in tree.prunable_ids()? {
+        let (mut tree, prunable_ids) = tree.prunable_ids()?;
+        for id in prunable_ids {
             tree.remove(id);
         }
 

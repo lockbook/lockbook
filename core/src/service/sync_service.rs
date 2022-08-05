@@ -81,16 +81,29 @@ impl RequestContext<'_, '_> {
         };
 
         let update_as_of = self.pull(config, &mut update_sync_progress)?;
-        self.push_metadata(&mut update_sync_progress)?;
-        self.push_documents(&mut update_sync_progress)?;
-        self.tx.last_synced.insert(OneKey {}, update_as_of as i64);
-        let mut tree = self
+
+        let tree = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
 
-        for id in tree.prunable_ids()? {
+        let (mut tree, prunable_ids) = tree.prunable_ids()?;
+        for id in prunable_ids {
+            tree.remove(id);
+        }
+
+        self.push_metadata(&mut update_sync_progress)?;
+        self.push_documents(&mut update_sync_progress)?;
+        self.tx.last_synced.insert(OneKey {}, update_as_of as i64);
+
+        let tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+        let (mut tree, prunable_ids) = tree.prunable_ids()?;
+        for id in prunable_ids {
             tree.remove(id);
         }
 
@@ -211,8 +224,9 @@ impl RequestContext<'_, '_> {
         Base: Stagable<F = SignedFile>,
         Local: Stagable<F = Base::F>,
     {
-        let mut local = base.stage(remote_changes).stage(local_changes).to_lazy();
-        for id in local.prunable_ids()? {
+        let local = base.stage(remote_changes).stage(local_changes).to_lazy();
+        let (mut local, prunable_ids) = local.prunable_ids()?;
+        for id in prunable_ids {
             local.remove(id);
         }
         let (remote, _) = local.unstage();
@@ -268,7 +282,8 @@ impl RequestContext<'_, '_> {
             let local_change = local_change.sign(account)?;
 
             local_changes_no_digests.push(local_change.clone());
-            updates.push(FileDiff { old: maybe_base_file.cloned(), new: local_change });
+            let file_diff = FileDiff { old: maybe_base_file.cloned(), new: local_change };
+            updates.push(file_diff);
         }
         if !updates.is_empty() {
             api_service::request(account, UpsertRequest { updates })?;
