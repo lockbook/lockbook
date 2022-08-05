@@ -99,7 +99,9 @@ where
         mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
     ) -> SharedResult<TreeWithOp<Base, Local>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
-        let parent = self.find(new_parent)?;
+        let parent = self
+            .maybe_find(new_parent)
+            .ok_or(SharedError::FileParentNonexistent)?;
 
         validate::not_root(&file)?;
         validate::is_folder(parent)?;
