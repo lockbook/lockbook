@@ -44,8 +44,7 @@ fn get_document() {
     .content_version;
 
     // get document
-    let result =
-        &api_service::request(&account, GetDocumentRequest { id, content_version }).unwrap();
+    let result = &api_service::request(&account, GetDocRequest { id, content_version }).unwrap();
     assert_eq!(
         result.content,
         AESEncrypted { value: vec!(69), nonce: vec!(69), _t: Default::default() }
@@ -58,10 +57,8 @@ fn get_document_not_found() {
     let account = core.get_account().unwrap();
 
     // get document we never created
-    let result = api_service::request(
-        &account,
-        GetDocumentRequest { id: Uuid::new_v4(), content_version: 0 },
-    );
+    let result =
+        api_service::request(&account, GetDocRequest { id: Uuid::new_v4(), content_version: 0 });
     assert_matches!(
         result,
         Err(ApiError::<GetDocumentError>::Endpoint(GetDocumentError::DocumentNotFound))

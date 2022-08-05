@@ -10,7 +10,6 @@ use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use std::collections::HashSet;
-use tracing::info;
 use uuid::Uuid;
 
 pub async fn upsert_file_metadata(
@@ -96,6 +95,7 @@ pub async fn change_doc(
             }
         }
 
+        // Maybe a moot check now that the tree is constructed based on ownership
         if meta.owner() != request_pk {
             return Err(ClientError(NotPermissioned));
         }
@@ -174,7 +174,7 @@ pub async fn change_doc(
 }
 
 pub async fn get_document(
-    context: RequestContext<'_, GetDocumentRequest>,
+    context: RequestContext<'_, GetDocRequest>,
 ) -> Result<GetDocumentResponse, ServerError<GetDocumentError>> {
     let (request, server_state) = (&context.request, context.server_state);
     let meta = server_state

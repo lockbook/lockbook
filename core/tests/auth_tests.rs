@@ -2,6 +2,7 @@ use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_shared::api::*;
 use lockbook_shared::crypto::AESEncrypted;
+use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileDiff;
 use test_utils::*;
 
@@ -20,12 +21,12 @@ fn upsert_id_takeover() {
         .unwrap()
         .file_metadata
         .iter()
-        .find(|&f| f.id == id)
+        .find(|&f| f.id() == &id)
         .unwrap()
         .clone()
     };
 
-    file1.parent = core2.get_root().unwrap().id;
+    file1.timestamped_value.value.parent = core2.get_root().unwrap().id;
 
     // If this succeeded account2 would be able to control file1
     let result = api_service::request(
@@ -54,7 +55,7 @@ fn upsert_id_takeover_change_parent() {
             .unwrap()
             .file_metadata
             .iter()
-            .find(|&f| f.id == id)
+            .find(|&f| f.id() == &id)
             .unwrap()
             .clone()
     };
@@ -62,7 +63,7 @@ fn upsert_id_takeover_change_parent() {
     // If this succeeded account2 would be able to control file1
     let result = api_service::request(
         &account2,
-        FileMetadataUpsertsRequest { updates: vec![FileMetadataDiff::new(&file1)] },
+        FileMetadataUpsertsRequest { updates: vec![FileDiff::new(&file1)] },
     );
     assert_matches!(
         result,
@@ -77,23 +78,25 @@ fn change_document_content() {
     let core1 = test_core_with_account();
     let core2 = test_core_with_account();
 
-    let file = {
-        core1.create_at_path("/test.md").unwrap();
+    let file1 = {
+        let id = core1.create_at_path("/test.md").unwrap().id;
         core1.sync(None).unwrap();
-        core1.get_by_path("/test.md").unwrap()
+        core1.db.base_metadata.get(&id).unwrap().unwrap()
     };
+
+    let mut file2 = file1.clone();
+    file2.timestamped_value.value.document_hmac = Some([0; 32]);
 
     let result = api_service::request(
         &core2.get_account().unwrap(),
         ChangeDocRequest {
-            id: file.id,
-            old_metadata_version: file.metadata_version,
+            diff: FileDiff::edit(&file1, &file2),
             new_content: AESEncrypted { value: vec![69], nonce: vec![69], _t: Default::default() },
         },
     );
     assert_matches!(
         result,
-        Err(ApiError::<ChangeDocError>::Endpoint(ChangeDocError::NotPermissioned))
+        Err(ApiError::<ChangeDocError>::Endpoint(ChangeDocError::DocumentNotFound))
     );
 }
 
@@ -103,13 +106,15 @@ fn get_someone_else_document() {
     let core2 = test_core_with_account();
 
     let file = {
-        core1.create_at_path("/test.md").unwrap();
+        let id = core1.create_at_path("/test.md").unwrap().id;
+        core1.write_document(id, &[1, 2, 3]).unwrap();
         core1.sync(None).unwrap();
-        core1.get_by_path("/test.md").unwrap()
+        core1.db.base_metadata.get(&id).unwrap().unwrap()
     };
 
-    let result =
-        api_service::request(&core2.get_account().unwrap(), GetDocumentRequest::from(&file));
+    let req = GetDocRequest { id: *file.id(), hmac: *file.document_hmac().unwrap() };
+
+    let result = api_service::request(&core2.get_account().unwrap(), req);
     assert_matches!(
         result,
         Err(ApiError::<GetDocumentError>::Endpoint(GetDocumentError::NotPermissioned))

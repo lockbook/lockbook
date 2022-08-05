@@ -6,6 +6,7 @@ use uuid::Uuid;
 use crate::account::Account;
 use crate::account::Username;
 use crate::crypto::*;
+use crate::file_like::FileLike;
 use crate::file_metadata::{DocumentHmac, FileDiff, FileMetadata};
 use crate::signed_file::SignedFile;
 
@@ -95,7 +96,7 @@ impl Request for ChangeDocRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct GetDocumentRequest {
+pub struct GetDocRequest {
     pub id: Uuid,
     pub hmac: DocumentHmac,
 }
@@ -111,7 +112,7 @@ pub enum GetDocumentError {
     NotPermissioned,
 }
 
-impl Request for GetDocumentRequest {
+impl Request for GetDocRequest {
     type Response = GetDocumentResponse;
     type Error = GetDocumentError;
     const METHOD: Method = Method::GET;

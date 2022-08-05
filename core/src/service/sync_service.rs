@@ -6,7 +6,7 @@ use crate::CoreResult;
 use crate::{Config, CoreError, RequestContext};
 use lockbook_shared::account::Account;
 use lockbook_shared::api::{
-    ChangeDocRequest, FileMetadataUpsertsRequest, GetDocumentRequest, GetUpdatesRequest,
+    ChangeDocRequest, FileMetadataUpsertsRequest, GetDocRequest, GetUpdatesRequest,
     GetUpdatesResponse,
 };
 use lockbook_shared::clock;
@@ -158,11 +158,9 @@ impl RequestContext<'_, '_> {
                     update_sync_progress(SyncProgressOperation::StartWorkUnit(
                         ClientWorkUnit::PullDocument(remote.name(&id, account)?),
                     ));
-                    let remote_document_change = api_service::request(
-                        account,
-                        GetDocumentRequest { id, hmac: hmac.clone() },
-                    )?
-                    .content;
+                    let remote_document_change =
+                        api_service::request(account, GetDocRequest { id, hmac: hmac.clone() })?
+                            .content;
                     document_repo::maybe_get(config, RepoSource::Base, &id)?
                         .map(|d| base_documents.insert(id, d));
                     remote_document_changes.insert(id, remote_document_change);
