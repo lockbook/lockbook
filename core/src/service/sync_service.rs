@@ -81,22 +81,22 @@ impl RequestContext<'_, '_> {
         };
 
         let update_as_of = self.pull(config, &mut update_sync_progress)?;
+        self.tx.last_synced.insert(OneKey {}, update_as_of as i64);
 
+        // prune so we don't push metadata updates to deleted files
         let tree = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
-
         let (mut tree, prunable_ids) = tree.prunable_ids()?;
         for id in prunable_ids {
             tree.remove(id);
         }
 
         self.push_metadata(&mut update_sync_progress)?;
-        self.push_documents(&mut update_sync_progress)?;
-        self.tx.last_synced.insert(OneKey {}, update_as_of as i64);
 
+        // prune so we don't push content updates to files that the server just found out were deleted
         let tree = self
             .tx
             .base_metadata
@@ -107,6 +107,20 @@ impl RequestContext<'_, '_> {
             tree.remove(id);
         }
 
+        self.push_documents(&mut update_sync_progress)?;
+
+        // prune one more time just for fun (todo: remove?)
+        let tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+        let (mut tree, prunable_ids) = tree.prunable_ids()?;
+        for id in prunable_ids {
+            tree.remove(id);
+        }
+
+        // pull so that calculate work doesn't include changes we just pushed as remote changes
         let update_as_of = self.pull(config, &mut update_sync_progress)?;
         self.tx.last_synced.insert(OneKey {}, update_as_of as i64);
         Ok(())
@@ -311,7 +325,6 @@ impl RequestContext<'_, '_> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        // remote = local
         let mut local_changes_digests_only = Vec::new();
         let mut local = self
             .tx
@@ -337,6 +350,11 @@ impl RequestContext<'_, '_> {
             update_sync_progress(SyncProgressOperation::StartWorkUnit(
                 ClientWorkUnit::PushDocument(local.name(&id, account)?),
             ));
+
+            // base = local (document)
+            document_repo::insert(self.config, RepoSource::Base, id, &local_document_change)?;
+
+            // remote = local
             api_service::request(
                 account,
                 ChangeDocRequest {
@@ -349,7 +367,7 @@ impl RequestContext<'_, '_> {
             local_changes_digests_only.push(local_change);
         }
 
-        // base = local
+        // base = local (metadata)
         self.tx
             .base_metadata
             .stage(local_changes_digests_only)
