@@ -209,8 +209,8 @@ impl RequestContext<'_, '_> {
             let (local, merge_document_changes) = local.merge(
                 account,
                 &base_documents,
-                &remote_document_changes,
                 &local_document_changes,
+                &remote_document_changes,
             )?;
             let (remote, _) = local.unstage();
             let (_, remote_changes) = remote.unstage();
