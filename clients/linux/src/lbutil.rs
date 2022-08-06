@@ -140,6 +140,7 @@ impl From<lb::Error<lb::SyncAllError>> for SyncError {
         match err {
             lb::Error::UiError(err) => Self::Minor(
                 match err {
+                    lb::SyncAllError::Retry => "Please retry syncing.",
                     lb::SyncAllError::CouldNotReachServer => "Offline.",
                     lb::SyncAllError::ClientUpdateRequired => "Client upgrade required.",
                 }
