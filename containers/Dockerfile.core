@@ -11,8 +11,8 @@ COPY containers/dummy.rs src/lib.rs
 COPY rustfmt.toml .
 COPY core/Cargo.toml .
 COPY containers/dummy.rs libs/test_utils/src/lib.rs
-COPY core/libs/shared/Cargo.toml libs/shared/.
 COPY containers/dummy.rs libs/shared/src/lib.rs
+COPY core/libs/shared/Cargo.toml libs/shared/.
 COPY core/libs/test_utils/Cargo.toml libs/test_utils/.
 RUN mkdir benches/
 RUN touch benches/bench_main.rs
