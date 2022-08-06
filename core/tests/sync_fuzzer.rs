@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use crate::Actions::*;
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use lockbook_core::model::errors::MoveFileError;
 use lockbook_core::Core;
 use lockbook_core::Error::UiError;
@@ -277,7 +277,7 @@ fn setup_progress_bar() -> ProgressBar {
         ProgressStyle::default_bar()
             .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {msg}")
             .unwrap()
-            .with_key("eta", |state| format!("{:.1}s", state.eta().as_secs_f64()))
+            .with_key("eta", |state: &ProgressState| format!("{:.1}s", state.eta().as_secs_f64()))
             .progress_chars("#>-"),
     );
     pb
