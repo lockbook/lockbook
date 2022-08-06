@@ -183,11 +183,14 @@ fn get_bytes_and_documents_count(
         })?;
 
         if metadata.is_document() {
-            let usage = db.sizes.get(&id).ok_or_else(|| {
-                internal!("Could not get file usage during metrics for {:?}", owner)
-            })?;
+            if metadata.document_hmac().is_some() {
+                let usage = db.sizes.get(&id).ok_or_else(|| {
+                    internal!("Could not get file usage during metrics for {:?}", owner)
+                })?;
 
-            total_bytes += usage;
+                total_bytes += usage;
+            }
+
             total_documents += 1;
         }
     }
