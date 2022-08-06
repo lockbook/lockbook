@@ -6,7 +6,6 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
     public var parent: UUID
     public var name: String
     public var lastModifiedBy: String
-    public var contentVersion: UInt64
     public var lastModified: UInt64
     public var isRoot: Bool { parent == id }
     public static func == (lhs: File, rhs: File) -> Bool {

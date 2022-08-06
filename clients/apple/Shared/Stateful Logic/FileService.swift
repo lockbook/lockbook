@@ -175,7 +175,7 @@ class FileService: ObservableObject {
     }
 
     private func notifyDocumentChanged(_ meta: File) {
-        if let openDocument = DI.documentLoader.meta, meta.id == openDocument.id, meta.contentVersion != openDocument.contentVersion {
+        if let openDocument = DI.documentLoader.meta, meta.id == openDocument.id, meta.lastModified != openDocument.lastModified {
             DI.documentLoader.updatesFromCoreAvailable(meta)
         }
     }
