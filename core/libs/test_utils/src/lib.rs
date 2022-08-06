@@ -86,110 +86,6 @@ pub fn another_client(c: &Core) -> Core {
     new_core
 }
 
-pub enum Operation<'a> {
-    Client { client_num: usize },
-    Sync { client_num: usize },
-    Create { client_num: usize, path: &'a str },
-    Rename { client_num: usize, path: &'a str, new_name: &'a str },
-    Move { client_num: usize, path: &'a str, new_parent_path: &'a str },
-    Delete { client_num: usize, path: &'a str },
-    Edit { client_num: usize, path: &'a str, content: &'a [u8] },
-    Custom { f: &'a dyn Fn(&[Core]) },
-}
-
-pub fn run(ops: &[Operation]) {
-    let mut cores = vec![test_core()];
-    cores[0].create_account(&random_name(), &url()).unwrap();
-
-    let ensure_client_exists = |clients: &mut Vec<Core>, client_num: &usize| {
-        if *client_num > clients.len() - 1 {
-            let account_string = clients[0].export_account().unwrap();
-            let core = test_core();
-            core.import_account(&account_string).unwrap();
-            clients.push(core)
-        }
-    };
-
-    for op in ops {
-        match op {
-            Operation::Client { client_num } => {
-                ensure_client_exists(&mut cores, client_num);
-            }
-            Operation::Sync { client_num } => {
-                || -> Result<_, String> {
-                    ensure_client_exists(&mut cores, client_num);
-                    cores[*client_num].sync(None).map_err(err_to_string)
-                }()
-                .unwrap_or_else(|_| panic!("Operation::Sync error. client_num={:?}", client_num));
-            }
-            Operation::Create { client_num, path } => {
-                || -> Result<_, String> {
-                    let core = &cores[*client_num];
-                    core.create_at_path(path).map_err(err_to_string)
-                }()
-                .unwrap_or_else(|_| {
-                    panic!("Operation::Create error. client_num={:?}, path={:?}", client_num, path)
-                });
-            }
-            Operation::Rename { client_num, path, new_name } => {
-                || -> Result<_, String> {
-                    let core = &cores[*client_num];
-                    let target = core.get_by_path(path).map_err(err_to_string)?;
-                    core.rename_file(target.id, new_name).map_err(err_to_string)
-                }()
-                .unwrap_or_else(|_| {
-                    panic!(
-                        "Operation::Rename error. client_num={:?}, path={:?}, new_name={:?}",
-                        client_num, path, new_name
-                    )
-                });
-            }
-            Operation::Move { client_num, path, new_parent_path } => {
-                || -> Result<_, String> {
-                    let core = &cores[*client_num];
-                    let target = core.get_by_path(path).map_err(err_to_string)?;
-                    let new_parent = core.get_by_path(new_parent_path).map_err(err_to_string)?;
-                    core.move_file(target.id, new_parent.id)
-                        .map_err(err_to_string)
-                }()
-                .unwrap_or_else(|_| {
-                    panic!(
-                        "Operation::Move error. client_num={:?}, path={:?}, new_parent_path={:?}",
-                        client_num, path, new_parent_path
-                    )
-                });
-            }
-            Operation::Delete { client_num, path } => {
-                || -> Result<_, String> {
-                    let core = &cores[*client_num];
-                    let target = core.get_by_path(path).map_err(err_to_string)?;
-                    core.delete_file(target.id).map_err(err_to_string)
-                }()
-                .unwrap_or_else(|_| {
-                    panic!("Operation::Delete error. client_num={:?}, path={:?}", client_num, path)
-                });
-            }
-            Operation::Edit { client_num, path, content } => {
-                || -> Result<_, String> {
-                    let core = &cores[*client_num];
-                    let target = core.get_by_path(path).map_err(err_to_string)?;
-                    core.write_document(target.id, content)
-                        .map_err(err_to_string)
-                }()
-                .unwrap_or_else(|_| {
-                    panic!(
-                        "Operation::Edit error. client_num={:?}, path={:?}, content={:?}",
-                        client_num, path, content
-                    )
-                });
-            }
-            Operation::Custom { f } => {
-                f(&cores);
-            }
-        }
-    }
-}
-
 pub fn assert_all_paths(core: &Core, expected_paths: &[&str]) {
     let mut expected_paths: Vec<String> = expected_paths
         .iter()
@@ -354,10 +250,10 @@ pub fn assert_dbs_eq(left: &Core, right: &Core) {
 }
 
 pub fn dbs_equal(left: &Core, right: &Core) -> bool {
-    &left.db.account.get_all().unwrap() == &right.db.account.get_all().unwrap()
-        && &left.db.root.get_all().unwrap() == &right.db.root.get_all().unwrap()
-        && &left.db.local_metadata.get_all().unwrap() == &right.db.local_metadata.get_all().unwrap()
-        && &left.db.base_metadata.get_all().unwrap() == &right.db.base_metadata.get_all().unwrap()
+    left.db.account.get_all().unwrap() == right.db.account.get_all().unwrap()
+        && left.db.root.get_all().unwrap() == right.db.root.get_all().unwrap()
+        && left.db.local_metadata.get_all().unwrap() == right.db.local_metadata.get_all().unwrap()
+        && left.db.base_metadata.get_all().unwrap() == right.db.base_metadata.get_all().unwrap()
 }
 
 pub fn assert_new_synced_client_dbs_eq(core: &Core) {
