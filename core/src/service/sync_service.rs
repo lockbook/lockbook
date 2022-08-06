@@ -274,16 +274,16 @@ impl RequestContext<'_, '_> {
         // remote = local
         let mut local_changes_no_digests = Vec::new();
         let mut updates = Vec::new();
-        for id in (&mut self.tx.local_metadata).owned_ids() {
+        for id in self.tx.local_metadata.keys() {
             let mut local_change = self
                 .tx
                 .local_metadata
-                .get(&id)
+                .get(id)
                 .ok_or(CoreError::FileNonexistent)?
                 .timestamped_value
                 .value
                 .clone();
-            let maybe_base_file = self.tx.base_metadata.get(&id);
+            let maybe_base_file = self.tx.base_metadata.get(id);
 
             // change everything but document hmac and re-sign
             local_change.document_hmac =
