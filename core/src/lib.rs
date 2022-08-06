@@ -38,6 +38,7 @@ use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
+use itertools::Itertools;
 use libsecp256k1::PublicKey;
 use serde::Deserialize;
 use serde_json::{json, value::Value};
@@ -269,11 +270,10 @@ impl Core {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn get_local_changes(&self) -> Result<Vec<Uuid>, UnexpectedError> {
-        todo!()
-        // let val = self
-        //     .db
-        //     .transaction(|tx| self.context(tx)?.get_local_changes(&self.config))?;
-        // Ok(val?)
+        let val = self
+            .db
+            .transaction(|tx| tx.local_metadata.keys().into_iter().copied().collect_vec())?;
+        Ok(val)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
