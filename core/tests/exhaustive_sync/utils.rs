@@ -1,10 +1,10 @@
+use lockbook_core::Core;
+use lockbook_shared::file::File;
 use rand::distributions::Alphanumeric;
 use rand::rngs::OsRng;
 use rand::Rng;
 
-use lockbook_core::Core;
-
-pub fn find_by_name(core: &Core, name: &str) -> CoreFile {
+pub fn find_by_name(core: &Core, name: &str) -> File {
     let mut possible_matches = core.list_metadatas().unwrap();
     if name == "root" {
         possible_matches.retain(|meta| meta.parent == meta.id);
