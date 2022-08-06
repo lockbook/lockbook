@@ -30,12 +30,11 @@ lazy_static! {
 #[macro_export]
 macro_rules! core_req {
     ($Req: ty, $handler: path, $state: ident) => {{
-        use crate::router_service;
-        use crate::router_service::{deserialize_and_check, method};
-        use crate::{RequestContext, ServerError};
         use lockbook_shared::api::{ErrorWrapper, Request};
         use lockbook_shared::file_metadata::Owner;
         use tracing::*;
+        use $crate::router_service::{self, deserialize_and_check, method};
+        use $crate::{RequestContext, ServerError};
 
         let cloned_state = $state.clone();
 

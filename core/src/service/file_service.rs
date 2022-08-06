@@ -160,8 +160,7 @@ impl RequestContext<'_, '_> {
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
 
-        let mut files = Vec::new();
-        files.push(tree.finalize(&id, account)?);
+        let mut files = vec![tree.finalize(id, account)?];
 
         for id in tree.children(id)? {
             files.push(tree.finalize(&id, account)?);

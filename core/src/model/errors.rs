@@ -7,9 +7,8 @@ use serde::{Serialize, Serializer};
 use strum_macros::EnumIter;
 use uuid::Uuid;
 
-use crate::CoreError::Unexpected;
-use lockbook_shared::api::{GetPublicKeyError, GetUpdatesError, NewAccountError};
-use lockbook_shared::{api, SharedError, ValidationFailure};
+use lockbook_shared::api::{self, GetPublicKeyError, GetUpdatesError, NewAccountError};
+use lockbook_shared::{SharedError, ValidationFailure};
 
 use crate::service::api_service::ApiError;
 use crate::UiError;

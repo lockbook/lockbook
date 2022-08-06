@@ -1,22 +1,22 @@
-use crate::model::repo::RepoSource;
-use crate::repo::document_repo;
-use crate::repo::schema::OneKey;
-use crate::service::api_service;
-use crate::CoreResult;
-use crate::{Config, CoreError, RequestContext};
+use std::collections::HashMap;
+
+use serde::Serialize;
+
 use lockbook_shared::account::Account;
 use lockbook_shared::api::{
     ChangeDocRequest, GetDocRequest, GetUpdatesRequest, GetUpdatesResponse, UpsertRequest,
 };
-use lockbook_shared::clock;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{DocumentHmac, FileDiff};
 use lockbook_shared::signed_file::SignedFile;
-use lockbook_shared::tree_like::Stagable;
-use lockbook_shared::tree_like::TreeLike;
+use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
-use serde::Serialize;
-use std::collections::HashMap;
+
+use crate::model::repo::RepoSource;
+use crate::repo::document_repo;
+use crate::repo::schema::OneKey;
+use crate::service::api_service;
+use crate::{Config, CoreError, CoreResult, RequestContext};
 
 #[derive(Debug, Serialize, Clone)]
 pub struct WorkCalculated {
@@ -54,14 +54,12 @@ impl RequestContext<'_, '_> {
         // note: num doc changes can change as a result of pull (can make new/changes docs deleted or add new docs from merge conflicts)
         let mut num_doc_changes = 0;
         for (id, local_change) in self.tx.local_metadata.get_all() {
-            if let Some(base_file) = self.tx.base_metadata.get(&id) {
+            if let Some(base_file) = self.tx.base_metadata.get(id) {
                 if local_change.document_hmac() != base_file.document_hmac() {
                     num_doc_changes += 1;
                 }
-            } else {
-                if local_change.document_hmac().is_some() {
-                    num_doc_changes += 1;
-                }
+            } else if local_change.document_hmac().is_some() {
+                num_doc_changes += 1;
             }
         }
         let mut sync_progress_total = 4 + num_doc_changes; // 3 metadata pulls + 1 metadata push
@@ -149,8 +147,7 @@ impl RequestContext<'_, '_> {
             let root = remote_changes
                 .all_files()?
                 .into_iter()
-                .filter(|f| f.is_root())
-                .next()
+                .find(|f| f.is_root())
                 .ok_or(CoreError::RootNonexistent)?;
             self.tx.root.insert(OneKey {}, *root.id());
         }
@@ -164,7 +161,7 @@ impl RequestContext<'_, '_> {
             let base = self.tx.base_metadata.to_lazy();
             let mut num_documents_to_pull = 0;
             for id in remote_changes.owned_ids() {
-                let maybe_base_hmac = base.maybe_find(&id).map(|f| f.document_hmac()).flatten();
+                let maybe_base_hmac = base.maybe_find(&id).and_then(|f| f.document_hmac());
                 let maybe_remote_hmac = remote_changes.find(&id)?.document_hmac();
                 if should_pull_document(maybe_base_hmac, maybe_remote_hmac) {
                     num_documents_to_pull += 1;
@@ -185,8 +182,7 @@ impl RequestContext<'_, '_> {
                         ClientWorkUnit::PullDocument(remote.name(&id, account)?),
                     ));
                     let remote_document_change =
-                        api_service::request(account, GetDocRequest { id, hmac: hmac.clone() })?
-                            .content;
+                        api_service::request(account, GetDocRequest { id, hmac })?.content;
                     document_repo::maybe_get(config, RepoSource::Base, &id)?
                         .map(|d| base_documents.insert(id, d));
                     remote_document_changes.insert(id, remote_document_change);
@@ -253,10 +249,10 @@ impl RequestContext<'_, '_> {
             .tx
             .last_synced
             .get(&OneKey {})
-            .map(|&i| i)
+            .copied()
             .unwrap_or_default() as u64;
         let remote_changes = api_service::request(
-            &account,
+            account,
             GetUpdatesRequest { since_metadata_version: last_synced },
         )?;
         Ok(remote_changes)
@@ -290,9 +286,8 @@ impl RequestContext<'_, '_> {
             let maybe_base_file = self.tx.base_metadata.get(&id);
 
             // change everything but document hmac and re-sign
-            local_change.document_hmac = maybe_base_file
-                .map(|f| f.timestamped_value.value.document_hmac)
-                .flatten();
+            local_change.document_hmac =
+                maybe_base_file.and_then(|f| f.timestamped_value.value.document_hmac);
             let local_change = local_change.sign(account)?;
 
             local_changes_no_digests.push(local_change.clone());

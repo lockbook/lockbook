@@ -1,18 +1,18 @@
+use std::path::Path;
+
+use lockbook_shared::file_like::FileLike;
+use lockbook_shared::tree_like::{Stagable, TreeLike};
+
 use crate::model::drawing;
 use crate::model::errors::{TestRepoError, Warning};
 use crate::repo::document_repo;
-use crate::{Config, CoreError, OneKey, RepoSource, RequestContext};
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::tree_like::Stagable;
-use lockbook_shared::tree_like::TreeLike;
-use lockbook_shared::{validate, SharedError, ValidationFailure};
-use std::path::Path;
+use crate::{CoreError, OneKey, RepoSource, RequestContext};
 
 const UTF8_SUFFIXES: [&str; 12] =
     ["md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs"];
 
 impl RequestContext<'_, '_> {
-    pub fn test_repo_integrity(&mut self, config: &Config) -> Result<Vec<Warning>, TestRepoError> {
+    pub fn test_repo_integrity(&mut self) -> Result<Vec<Warning>, TestRepoError> {
         let account = self
             .tx
             .account

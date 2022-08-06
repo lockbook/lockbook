@@ -155,7 +155,7 @@ impl RequestContext<'_, '_> {
                     document_repo::get(config, RepoSource::Local, *parent_file_metadata.id())?;
 
                 file.write_all(
-                    tree.decrypt_document(&parent_file_metadata.id(), &doc, account)?
+                    tree.decrypt_document(parent_file_metadata.id(), &doc, account)?
                         .as_slice(),
                 )
                 .map_err(CoreError::from)?;

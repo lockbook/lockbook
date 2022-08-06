@@ -147,31 +147,28 @@ pub async fn get_user_billing_platform(
 pub async fn get_user_info(
     state: &ServerState, owner: Owner,
 ) -> Result<(i64, i64, bool), ServerError<MetricsError>> {
-    let metadata_result: Result<(i64, i64, bool), ServerError<MetricsError>> =
-        state.index_db.transaction(|tx| {
-            let mut tree =
-                ServerTree { owner, owned: &mut tx.owned_files, metas: &mut tx.metas }.to_lazy();
+    state.index_db.transaction(|tx| {
+        let mut tree =
+            ServerTree { owner, owned: &mut tx.owned_files, metas: &mut tx.metas }.to_lazy();
 
-            let metadatas = tree.all_files()?;
-            let mut ids = Vec::new();
+        let metadatas = tree.all_files()?;
+        let mut ids = Vec::new();
 
-            let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
-            let is_user_active = metadatas
-                .iter()
-                .any(|metadata| metadata.version > time_two_days_ago);
+        let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
+        let is_user_active = metadatas
+            .iter()
+            .any(|metadata| metadata.version > time_two_days_ago);
 
-            for id in tree.owned_ids() {
-                if !tree.calculate_deleted(&id)? {
-                    ids.push(id);
-                }
+        for id in tree.owned_ids() {
+            if !tree.calculate_deleted(&id)? {
+                ids.push(id);
             }
+        }
 
-            let (total_documents, total_bytes) = get_bytes_and_documents_count(tx, owner, ids)?;
+        let (total_documents, total_bytes) = get_bytes_and_documents_count(tx, owner, ids)?;
 
-            Ok((total_documents, total_bytes as i64, is_user_active))
-        })?;
-
-    Ok(metadata_result?)
+        Ok((total_documents, total_bytes as i64, is_user_active))
+    })?
 }
 
 fn get_bytes_and_documents_count(

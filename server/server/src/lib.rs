@@ -51,7 +51,7 @@ macro_rules! internal {
     ($($arg:tt)*) => {{
         let msg = format!($($arg)*);
         tracing::error!("{}", msg);
-        crate::ServerError::InternalError(msg)
+        $crate::ServerError::InternalError(msg)
     }};
 }
 

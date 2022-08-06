@@ -402,7 +402,7 @@ impl Core {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn validate(&self) -> Result<Vec<Warning>, TestRepoError> {
         self.db
-            .transaction(|tx| self.context(tx)?.test_repo_integrity(&self.config))
+            .transaction(|tx| self.context(tx)?.test_repo_integrity())
             .map_err(CoreError::from)
             .map_err(TestRepoError::Core)?
     }
