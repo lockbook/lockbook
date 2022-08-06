@@ -55,19 +55,6 @@ services:
         swift test
       '
 
-  csharp_interface_tests:
-    container_name: csharp_interface_tests-csharp-$HASH
-    image: csharp_interface_tests:$HASH
-    env_file:
-      - ../containers/test.env
-    depends_on:
-      - lockbook_server
-    entrypoint: >
-      /bin/sh -c '\
-        sleep 5 && \
-        dotnet test
-      '
-
   kotlin_interface_tests:
     container_name: kotlin_interface_tests-kotlin-$HASH
     image: kotlin_interface_tests:$HASH
