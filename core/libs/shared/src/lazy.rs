@@ -86,18 +86,15 @@ impl<T: Stagable> LazyTree<T> {
                 break;
             }
 
-            let maybe_file_key = if let Some(user_access) = self
-                .find(&file_id)?
-                .user_access_keys()
-                .get(&account.username)
-            {
-                let user_access_key =
-                    pubkey::get_aes_key(&account.private_key, &user_access.encrypted_by)?;
-                let file_key = symkey::decrypt(&user_access_key, &user_access.access_key)?;
-                Some(file_key)
-            } else {
-                None
-            };
+            let maybe_file_key =
+                if let Some(user_access) = self.find(&file_id)?.user_access_keys().iter().next() {
+                    let user_access_key =
+                        pubkey::get_aes_key(&account.private_key, &user_access.encrypted_by)?;
+                    let file_key = symkey::decrypt(&user_access_key, &user_access.access_key)?;
+                    Some(file_key)
+                } else {
+                    None
+                };
             if let Some(file_key) = maybe_file_key {
                 self.key.insert(file_id, file_key);
                 break;
@@ -114,7 +111,7 @@ impl<T: Stagable> LazyTree<T> {
                 let parent_key = self.key.get(parent.id()).ok_or(SharedError::Unexpected(
                     "parent key should have been populated by prior routine",
                 ))?;
-                let encrypted_key = file.folder_access_keys();
+                let encrypted_key = file.folder_access_key();
                 symkey::decrypt(parent_key, encrypted_key)?
             };
             self.key.insert(*id, decrypted_key);

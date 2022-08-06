@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
@@ -8,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::access_info::{EncryptedFolderAccessKey, UserAccessInfo};
-use crate::account::{Account, Username};
+use crate::account::Account;
 use crate::clock::get_time;
 use crate::crypto::AESKey;
 use crate::file_like::FileLike;
@@ -27,8 +26,8 @@ pub struct FileMetadata {
     pub owner: Owner,
     pub is_deleted: bool,
     pub document_hmac: Option<DocumentHmac>,
-    pub user_access_keys: HashMap<Username, UserAccessInfo>,
-    pub folder_access_keys: EncryptedFolderAccessKey,
+    pub user_access_keys: Vec<UserAccessInfo>,
+    pub folder_access_key: EncryptedFolderAccessKey,
 }
 
 impl FileMetadata {
@@ -45,8 +44,8 @@ impl FileMetadata {
             owner: Owner(pub_key),
             is_deleted: false,
             document_hmac: None,
-            user_access_keys: UserAccessInfo::encrypt(account, &pub_key, &key)?,
-            folder_access_keys: symkey::encrypt(&key, &key)?,
+            user_access_keys: UserAccessInfo::encrypt(account, &pub_key, &pub_key, &key)?,
+            folder_access_key: symkey::encrypt(&key, &key)?,
         })
     }
 
@@ -65,7 +64,7 @@ impl FileMetadata {
             is_deleted: false,
             document_hmac: None,
             user_access_keys: Default::default(),
-            folder_access_keys: symkey::encrypt(parent_key, &key)?,
+            folder_access_key: symkey::encrypt(parent_key, &key)?,
         })
     }
 
@@ -210,7 +209,7 @@ impl FileDiff {
                     changes.push(UserKeys);
                 }
 
-                if old.folder_access_keys() != new.folder_access_keys() {
+                if old.folder_access_key() != new.folder_access_key() {
                     changes.push(FolderKeys);
                 }
                 changes

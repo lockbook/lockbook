@@ -1,10 +1,8 @@
-use std::collections::HashMap;
 use std::fmt::Debug;
 
 use uuid::Uuid;
 
 use crate::access_info::{EncryptedFolderAccessKey, UserAccessInfo};
-use crate::account::Username;
 use crate::file_metadata::{DocumentHmac, FileMetadata, FileType, Owner};
 use crate::secret_filename::SecretFileName;
 use crate::server_file::ServerFile;
@@ -19,8 +17,8 @@ pub trait FileLike: PartialEq + Debug {
     fn explicitly_deleted(&self) -> bool;
     fn document_hmac(&self) -> Option<&DocumentHmac>;
     fn display(&self) -> String;
-    fn user_access_keys(&self) -> &HashMap<Username, UserAccessInfo>;
-    fn folder_access_keys(&self) -> &EncryptedFolderAccessKey;
+    fn user_access_keys(&self) -> &Vec<UserAccessInfo>;
+    fn folder_access_key(&self) -> &EncryptedFolderAccessKey;
 
     fn is_folder(&self) -> bool {
         self.file_type() == FileType::Folder
@@ -82,14 +80,14 @@ where
         }
     }
 
-    fn user_access_keys(&self) -> &HashMap<Username, UserAccessInfo> {
+    fn user_access_keys(&self) -> &Vec<UserAccessInfo> {
         let fm: &FileMetadata = self.as_ref();
         &fm.user_access_keys
     }
 
-    fn folder_access_keys(&self) -> &EncryptedFolderAccessKey {
+    fn folder_access_key(&self) -> &EncryptedFolderAccessKey {
         let fm: &FileMetadata = self.as_ref();
-        &fm.folder_access_keys
+        &fm.folder_access_key
     }
 }
 

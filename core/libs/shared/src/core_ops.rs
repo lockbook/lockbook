@@ -119,7 +119,7 @@ where
         let key = self.decrypt_key(id, account)?;
         let parent_key = self.decrypt_key(new_parent, account)?;
         file.parent = *new_parent;
-        file.folder_access_keys = symkey::encrypt(&parent_key, &key)?;
+        file.folder_access_key = symkey::encrypt(&parent_key, &key)?;
         file.name = SecretFileName::from_str(&self.name(id, account)?, &key, &parent_key)?;
         let file = file.sign(account)?;
 
@@ -241,7 +241,7 @@ where
                         (key, parent_key)
                     };
                     file.parent = parent_id;
-                    file.folder_access_keys = symkey::encrypt(&parent_key, &key)?;
+                    file.folder_access_key = symkey::encrypt(&parent_key, &key)?;
                     file.name =
                         SecretFileName::from_str(&file.name.to_string(&key)?, &key, &parent_key)?;
                     let file = file.sign(account)?;
@@ -355,7 +355,7 @@ where
                             parent,
                             name,
                             document_hmac,
-                            folder_access_keys,
+                            folder_access_key,
                         ) = {
                             let (local, merge_changes) = result.unstage();
                             let (remote, local_changes) = local.unstage();
@@ -395,7 +395,7 @@ where
                                 &key,
                                 &parent_key,
                             )?;
-                            let folder_access_keys = symkey::encrypt(&parent_key, &key)?;
+                            let folder_access_key = symkey::encrypt(&parent_key, &key)?;
                             (
                                 base_file,
                                 remote_deleted,
@@ -403,7 +403,7 @@ where
                                 parent,
                                 name,
                                 document_hmac,
-                                folder_access_keys,
+                                folder_access_key,
                             )
                         };
 
@@ -421,7 +421,7 @@ where
                                     is_deleted: local_change.explicitly_deleted(),
                                     document_hmac,
                                     user_access_keys: base_file.user_access_keys().clone(),
-                                    folder_access_keys,
+                                    folder_access_key,
                                 }
                                 .sign(account)?,
                             );
@@ -464,7 +464,7 @@ where
                                     is_deleted: remote_deleted | local_change.explicitly_deleted(),
                                     document_hmac: remote_change.document_hmac().cloned(), // overwritten during document merge if local != remote
                                     user_access_keys: remote_change.user_access_keys().clone(),
-                                    folder_access_keys: remote_change.folder_access_keys().clone(),
+                                    folder_access_key: remote_change.folder_access_key().clone(),
                                 }
                                 .sign(account)?,
                             );
