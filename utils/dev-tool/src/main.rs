@@ -7,12 +7,16 @@ pub mod android;
 pub mod apple;
 pub mod error;
 pub mod server;
+pub mod setup;
 pub mod utils;
 pub mod workspace;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "Lockbook's development and ci tool.")]
 enum Commands {
+    /// Install all dependencies (only supports debian based machines)
+    InstallDependencies,
+
     /// Check the formatting
     FmtCheck,
 
@@ -87,6 +91,7 @@ fn parse_and_run() -> Result<(), CliError> {
 
     use Commands::*;
     match Commands::from_args() {
+        InstallDependencies => setup::install_dependencies(tool_env),
         FmtCheck => workspace::fmt_workspace(tool_env),
         ClippyCheck => workspace::clippy_workspace(tool_env),
         AndroidFmtCheck => android::fmt_android(tool_env),

@@ -8,6 +8,10 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::{env, fs};
 
+pub fn tmp_dir() -> PathBuf {
+    PathBuf::from("/tmp")
+}
+
 pub fn android_dir<P: AsRef<Path>>(root: P) -> PathBuf {
     root.as_ref().join("clients/android")
 }
@@ -87,7 +91,7 @@ pub fn is_ci_env() -> Result<bool, CliError> {
 }
 
 pub fn get_hash_port_dir(commit_hash: &str) -> PathBuf {
-    PathBuf::from(format!("/tmp/{}.ec", commit_hash))
+    tmp_dir().join(format!("{}.ec", commit_hash))
 }
 
 #[derive(Serialize, Deserialize)]
