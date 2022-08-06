@@ -1,6 +1,6 @@
-use lockbook_core::service::api_service;
-use lockbook_shared::api::*;
+use lockbook_core::service::api_service::{self, ApiError};
 use lockbook_shared::file_metadata::FileDiff;
+use lockbook_shared::{api::*, ValidationFailure};
 use test_utils::*;
 use uuid::Uuid;
 
@@ -26,7 +26,11 @@ fn create_document_duplicate_id() {
     // create document with same id and key
     let result =
         api_service::request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] });
-    assert_matches!(result, UPDATES_REQ);
+
+    assert_matches!(
+        result,
+        Err(ApiError::<UpsertError>::Endpoint(UpsertError::OldVersionRequired))
+    );
 }
 
 #[test]
@@ -45,7 +49,12 @@ fn create_document_duplicate_path() {
     let result =
         api_service::request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] });
 
-    assert_matches!(result, UPDATES_REQ);
+    assert_matches!(
+        result,
+        Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(
+            ValidationFailure::PathConflict(_)
+        )))
+    );
 }
 
 #[test]
@@ -60,5 +69,10 @@ fn create_document_parent_not_found() {
     let result =
         api_service::request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] });
 
-    assert_matches!(result, UPDATES_REQ);
+    assert_matches!(
+        result,
+        Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(ValidationFailure::Orphan(
+            _
+        ))))
+    );
 }

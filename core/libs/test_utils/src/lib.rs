@@ -210,31 +210,31 @@ pub fn assert_all_document_contents(db: &Core, expected_contents_by_path: &[(&st
     }
 }
 
-pub fn assert_deleted_files_pruned(core: &Core) {
-    return; // todo: unskip
-    core.db
-        .transaction(|tx| {
-            let context = core.context(tx).unwrap();
-            let mut base = context.tx.base_metadata.to_lazy();
-            let deleted_base_ids = base
-                .owned_ids()
-                .into_iter()
-                .filter(|id| base.calculate_deleted(id).unwrap())
-                .collect::<Vec<Uuid>>();
-            if !deleted_base_ids.is_empty() {
-                panic!("some deleted files are not pruned:{:?}", deleted_base_ids);
-            }
-            let mut local = base.stage(&mut context.tx.local_metadata);
-            let deleted_local_ids = local
-                .owned_ids()
-                .into_iter()
-                .filter(|id| local.calculate_deleted(id).unwrap())
-                .collect::<Vec<Uuid>>();
-            if !deleted_local_ids.is_empty() {
-                panic!("some deleted files are not pruned:{:?}", deleted_local_ids);
-            }
-        })
-        .unwrap();
+pub fn assert_deleted_files_pruned(_: &Core) {
+    // todo: unskip
+    // core.db
+    //     .transaction(|tx| {
+    //         let context = core.context(tx).unwrap();
+    //         let mut base = context.tx.base_metadata.to_lazy();
+    //         let deleted_base_ids = base
+    //             .owned_ids()
+    //             .into_iter()
+    //             .filter(|id| base.calculate_deleted(id).unwrap())
+    //             .collect::<Vec<Uuid>>();
+    //         if !deleted_base_ids.is_empty() {
+    //             panic!("some deleted files are not pruned:{:?}", deleted_base_ids);
+    //         }
+    //         let mut local = base.stage(&mut context.tx.local_metadata);
+    //         let deleted_local_ids = local
+    //             .owned_ids()
+    //             .into_iter()
+    //             .filter(|id| local.calculate_deleted(id).unwrap())
+    //             .collect::<Vec<Uuid>>();
+    //         if !deleted_local_ids.is_empty() {
+    //             panic!("some deleted files are not pruned:{:?}", deleted_local_ids);
+    //         }
+    //     })
+    //     .unwrap();
 }
 
 pub fn assert_dbs_eq(left: &Core, right: &Core) {
