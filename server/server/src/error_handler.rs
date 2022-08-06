@@ -6,7 +6,7 @@ use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
 use lockbook_shared::api::{
-    CancelSubscriptionError, ChangeDocError, DeleteAccountError, GetUsageError,
+    CancelSubscriptionError, ChangeDocError, DeleteAccountError, GetDocumentError, GetUsageError,
     UpgradeAccountGooglePlayError, UpgradeAccountStripeError, UpsertError,
 };
 use lockbook_shared::SharedError;
@@ -194,6 +194,12 @@ impl From<SharedError> for ServerError<ChangeDocError> {
 }
 
 impl From<SharedError> for ServerError<MetricsError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+
+impl From<SharedError> for ServerError<GetDocumentError> {
     fn from(err: SharedError) -> Self {
         internal!("{:?}", err)
     }

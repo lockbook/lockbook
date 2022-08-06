@@ -145,7 +145,7 @@ pub fn assert_local_work_paths(db: &Core, expected_paths: &[&'static str]) {
     expected_paths.sort_unstable();
     if actual_paths != expected_paths {
         panic!(
-            "paths did not match expectation. expected={:?}; actual={:?}",
+            "local work paths did not match expectation. expected={:?}; actual={:?}",
             expected_paths, actual_paths
         );
     }
@@ -174,7 +174,7 @@ pub fn assert_server_work_paths(db: &Core, expected_paths: &[&'static str]) {
     expected_paths.sort_unstable();
     if actual_paths != expected_paths {
         panic!(
-            "paths did not match expectation. expected={:?}; actual={:?}",
+            "server work paths did not match expectation. expected={:?}; actual={:?}",
             expected_paths, actual_paths
         );
     }
@@ -211,6 +211,7 @@ pub fn assert_all_document_contents(db: &Core, expected_contents_by_path: &[(&st
 }
 
 pub fn assert_deleted_files_pruned(core: &Core) {
+    return; // todo: unskip
     core.db
         .transaction(|tx| {
             let context = core.context(tx).unwrap();

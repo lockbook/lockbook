@@ -173,72 +173,9 @@ where
     /// deleted), new local deleted files, and local files which would be orphaned. If you prune any of these files,
     /// you must prune all of them, and you must prune them from base and from local.
     // todo: incrementalism
-    pub fn prunable_ids(mut self) -> SharedResult<(Self, HashSet<Uuid>)> {
-        let orphaned = {
-            let mut orphaned = HashSet::new();
-            let base = self.tree.base.to_lazy();
-            for id in base.owned_ids() {
-                if base.maybe_find(base.find(&id)?.parent()).is_none() {
-                    orphaned.insert(id);
-                }
-            }
-            self.tree.base = base.tree;
-            for id in self.owned_ids() {
-                if self.maybe_find(self.find(&id)?.parent()).is_none() {
-                    orphaned.insert(id);
-                }
-            }
-            orphaned
-        };
-        let (deleted_base, not_deleted_base) = {
-            let mut base = self.tree.base.to_lazy();
-            let mut deleted_base = HashSet::new();
-            let mut not_deleted_base = HashSet::new();
-            for id in base.owned_ids() {
-                if orphaned.contains(&id) || base.calculate_deleted(&id)? {
-                    deleted_base.insert(id);
-                } else {
-                    not_deleted_base.insert(id);
-                }
-            }
-            self.tree.base = base.tree;
-            (deleted_base, not_deleted_base)
-        };
-        let (deleted_local, not_deleted_local) = {
-            let mut deleted_local = HashSet::new();
-            let mut not_deleted_local = HashSet::new();
-            for id in self.owned_ids() {
-                if orphaned.contains(&id) || self.calculate_deleted(&id)? {
-                    deleted_local.insert(id);
-                } else {
-                    not_deleted_local.insert(id);
-                }
-            }
-            (deleted_local, not_deleted_local)
-        };
-        let ancestors_of_not_deleted = {
-            let mut ancestors_of_not_deleted = HashSet::new();
-            let base = self.tree.base.to_lazy();
-            for id in not_deleted_base.union(&not_deleted_local) {
-                if base.maybe_find(id).is_some() {
-                    ancestors_of_not_deleted.extend(base.ancestors(id)?);
-                }
-            }
-            self.tree.base = base.tree;
-            for id in not_deleted_base.union(&not_deleted_local) {
-                if self.maybe_find(id).is_some() {
-                    ancestors_of_not_deleted.extend(self.ancestors(id)?);
-                }
-            }
-            ancestors_of_not_deleted
-        };
-        let prunable_ids: HashSet<Uuid> = orphaned
-            .into_iter()
-            .chain(deleted_base.into_iter())
-            .chain(deleted_local.into_iter())
-            .filter(|id| !ancestors_of_not_deleted.contains(id))
-            .collect();
-        Ok((self, prunable_ids))
+    pub fn prunable_ids(self) -> SharedResult<(Self, HashSet<Uuid>)> {
+        // todo: prune things
+        Ok((self, HashSet::new()))
     }
 
     // assumptions: no orphans
@@ -386,6 +323,24 @@ where
     {
         let mut result = self.stage(Vec::new());
         let mut merge_document_changes = HashMap::new();
+
+        // forget about local changes to remotely deleted files (including implicit deletes)
+        {
+            for local_change_id in result.tree.base.staged.owned_ids() {
+                let (local, merge_changes) = result.unstage();
+                let (mut remote, local_changes) = local.unstage();
+                let mut local_change_resets = Vec::new();
+                if remote.maybe_find(&local_change_id).is_some()
+                    && remote.calculate_deleted(&local_change_id)?
+                {
+                    // todo: avoid clone
+                    local_change_resets.push(remote.find(&local_change_id)?.clone());
+                }
+                let local = remote.stage(local_changes);
+                let local = local.stage(local_change_resets).promote();
+                result = local.stage(merge_changes);
+            }
+        }
 
         // merge files on an individual basis
         {

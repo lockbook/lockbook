@@ -119,7 +119,9 @@ impl RequestContext<'_, '_> {
         let mut files = Vec::new();
 
         for id in tree.owned_ids() {
-            files.push(tree.finalize(&id, account)?);
+            if !tree.calculate_deleted(&id)? {
+                files.push(tree.finalize(&id, account)?);
+            }
         }
 
         Ok(files)

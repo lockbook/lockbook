@@ -81,6 +81,8 @@ impl RequestContext<'_, '_> {
         self.push_metadata(&mut update_sync_progress)?;
         self.push_documents(&mut update_sync_progress)?;
         self.pull(config, &mut update_sync_progress)?;
+        self.prune()?;
+        self.validate()?;
         Ok(())
     }
 
@@ -107,7 +109,7 @@ impl RequestContext<'_, '_> {
         }
 
         // prune prunable files
-        remote_changes = self.prune(remote_changes)?;
+        remote_changes = self.prune_remote_orphans(remote_changes)?;
         self.validate()?;
 
         // track work
@@ -136,12 +138,26 @@ impl RequestContext<'_, '_> {
         remote_changes = {
             let mut remote = self.tx.base_metadata.stage(remote_changes).to_lazy();
             for id in remote.tree.staged.owned_ids() {
-                if let Some(&hmac) = remote.find(&id)?.document_hmac() {
+                if remote.calculate_deleted(&id)? {
+                    continue;
+                }
+                if let Some(&remote_hmac) = remote.find(&id)?.document_hmac() {
+                    let base_hmac = {
+                        if let Some(base_file) = remote.tree.base.maybe_find(&id) {
+                            base_file.document_hmac()
+                        } else {
+                            None
+                        }
+                    };
+                    if base_hmac == Some(&remote_hmac) {
+                        continue;
+                    }
                     update_sync_progress(SyncProgressOperation::StartWorkUnit(
                         ClientWorkUnit::PullDocument(remote.name(&id, account)?),
                     ));
                     let remote_document_change =
-                        api_service::request(account, GetDocRequest { id, hmac })?.content;
+                        api_service::request(account, GetDocRequest { id, hmac: remote_hmac })?
+                            .content;
                     document_repo::maybe_get(config, RepoSource::Base, &id)?
                         .map(|d| base_documents.insert(id, d));
                     remote_document_changes.insert(id, remote_document_change);
@@ -184,7 +200,6 @@ impl RequestContext<'_, '_> {
         }
 
         self.tx.last_synced.insert(OneKey {}, update_as_of as i64);
-        self.prune(Vec::new())?;
         self.validate()?;
         Ok(())
     }
@@ -199,17 +214,29 @@ impl RequestContext<'_, '_> {
         Ok(())
     }
 
-    pub fn prune(&mut self, remote_changes: Vec<SignedFile>) -> CoreResult<Vec<SignedFile>> {
+    pub fn prune(&mut self) -> CoreResult<()> {
         let base = &mut self.tx.base_metadata;
         let local_changes = &mut self.tx.local_metadata;
-        let local = base.stage(remote_changes).stage(local_changes).to_lazy();
+        let local = base.stage(local_changes).to_lazy();
         let (mut local, prunable_ids) = local.prunable_ids()?;
         for id in prunable_ids {
             local.remove(id);
         }
-        let (remote, _) = local.unstage();
-        let (_, remote_changes) = remote.unstage();
-        Ok(remote_changes)
+        Ok(())
+    }
+
+    pub fn prune_remote_orphans(
+        &mut self, remote_changes: Vec<SignedFile>,
+    ) -> CoreResult<Vec<SignedFile>> {
+        let base = &mut self.tx.base_metadata;
+        let remote = base.stage(remote_changes).to_lazy();
+        let mut result = Vec::new();
+        for id in remote.tree.staged.owned_ids() {
+            if remote.maybe_find_parent(remote.find(&id)?).is_some() {
+                result.push(remote.find(&id)?.clone()); // todo: don't clone
+            }
+        }
+        Ok(result)
     }
 
     pub fn get_updates(&self) -> CoreResult<GetUpdatesResponse> {
@@ -247,16 +274,14 @@ impl RequestContext<'_, '_> {
         // remote = local
         let mut local_changes_no_digests = Vec::new();
         let mut updates = Vec::new();
-        for id in self.tx.local_metadata.keys() {
-            let mut local_change = self
-                .tx
-                .local_metadata
-                .get(id)
-                .ok_or(CoreError::FileNonexistent)?
-                .timestamped_value
-                .value
-                .clone();
-            let maybe_base_file = self.tx.base_metadata.get(id);
+        let local = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+        for id in local.tree.staged.owned_ids() {
+            let mut local_change = local.tree.staged.find(&id)?.timestamped_value.value.clone();
+            let maybe_base_file = local.tree.base.maybe_find(&id);
 
             // change everything but document hmac and re-sign
             local_change.document_hmac =
@@ -278,7 +303,6 @@ impl RequestContext<'_, '_> {
             .to_lazy()
             .promote();
 
-        self.prune(Vec::new())?;
         self.validate()?;
         Ok(())
     }
@@ -344,7 +368,6 @@ impl RequestContext<'_, '_> {
             .to_lazy()
             .promote();
 
-        self.prune(Vec::new())?;
         self.validate()?;
         Ok(())
     }
@@ -356,7 +379,7 @@ impl RequestContext<'_, '_> {
         let mut remote_changes = updates.file_metadata;
 
         // prune prunable files
-        remote_changes = self.prune(remote_changes)?;
+        remote_changes = self.prune_remote_orphans(remote_changes)?;
 
         // calculate work
         let account = self

@@ -172,23 +172,36 @@ pub async fn get_document(
     context: RequestContext<'_, GetDocRequest>,
 ) -> Result<GetDocumentResponse, ServerError<GetDocumentError>> {
     let (request, server_state) = (&context.request, context.server_state);
-    let meta = server_state
-        .index_db
-        .metas
-        .get(&request.id)?
-        .ok_or(ClientError(GetDocumentError::DocumentNotFound))?;
 
-    if meta.owner().0 != context.public_key {
-        return Err(ClientError(GetDocumentError::NotPermissioned));
-    }
+    server_state.index_db.transaction(|tx| {
+        let request_pk = Owner(context.public_key);
 
-    let hmac = meta
-        .document_hmac()
-        .ok_or(ClientError(GetDocumentError::DocumentNotFound))?;
+        let mut tree =
+            ServerTree { owner: request_pk, owned: &mut tx.owned_files, metas: &mut tx.metas }
+                .to_lazy();
 
-    if request.hmac != *hmac {
-        return Err(ClientError(GetDocumentError::DocumentNotFound));
-    }
+        let meta = tree
+            .maybe_find(&request.id)
+            .ok_or(ClientError(GetDocumentError::DocumentNotFound))?;
+
+        if meta.owner().0 != context.public_key {
+            return Err(ClientError(GetDocumentError::NotPermissioned));
+        }
+
+        let hmac = meta
+            .document_hmac()
+            .ok_or(ClientError(GetDocumentError::DocumentNotFound))?;
+
+        if request.hmac != *hmac {
+            return Err(ClientError(GetDocumentError::DocumentNotFound));
+        }
+
+        if tree.calculate_deleted(&request.id)? {
+            return Err(ClientError(GetDocumentError::DocumentNotFound));
+        }
+
+        Ok(())
+    })??;
 
     let content = document_service::get(server_state, &request.id, &request.hmac).await?;
 

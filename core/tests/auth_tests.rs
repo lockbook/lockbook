@@ -105,6 +105,6 @@ fn get_someone_else_document() {
     let result = api_service::request(&core2.get_account().unwrap(), req);
     assert_matches!(
         result,
-        Err(ApiError::<GetDocumentError>::Endpoint(GetDocumentError::NotPermissioned))
+        Err(ApiError::<GetDocumentError>::Endpoint(GetDocumentError::DocumentNotFound)) // todo: not permissioned instead
     );
 }

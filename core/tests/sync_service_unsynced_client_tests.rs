@@ -78,7 +78,7 @@ fn delete() {
     core.delete_file(doc.id).unwrap();
     assert_all_paths(&core, &["/"]);
     assert_all_document_contents(&core, &[]);
-    assert_local_work_paths(&core, &[]);
+    assert_local_work_paths(&core, &["/document"]);
     assert_server_work_paths(&core, &[]);
     core.validate().unwrap();
 }
@@ -90,7 +90,7 @@ fn delete_parent() {
     delete_path(&core, "/parent/").unwrap();
     assert_all_paths(&core, &["/"]);
     assert_all_document_contents(&core, &[]);
-    assert_local_work_paths(&core, &[]);
+    assert_local_work_paths(&core, &["/parent/", "/parent/document"]);
     assert_server_work_paths(&core, &[]);
     core.validate().unwrap();
 }
@@ -102,7 +102,10 @@ fn delete_grandparent() {
     delete_path(&core, "/grandparent/").unwrap();
     assert_all_paths(&core, &["/"]);
     assert_all_document_contents(&core, &[]);
-    assert_local_work_paths(&core, &[]);
+    assert_local_work_paths(
+        &core,
+        &["/grandparent/", "/grandparent/parent/", "/grandparent/parent/document"],
+    );
     assert_server_work_paths(&core, &[]);
     core.validate().unwrap();
 }
