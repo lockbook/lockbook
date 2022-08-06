@@ -53,11 +53,6 @@ pub fn random_name() -> String {
         .collect()
 }
 
-pub const UPDATES_REQ: Result<(), ApiError<FileMetadataUpsertsError>> =
-    Err(ApiError::<FileMetadataUpsertsError>::Endpoint(
-        FileMetadataUpsertsError::GetUpdatesRequired,
-    ));
-
 pub fn write_path(c: &Core, path: &str, content: &[u8]) -> Result<(), String> {
     let target = c.get_by_path(path).map_err(err_to_string)?;
     c.write_document(target.id, content).map_err(err_to_string)
