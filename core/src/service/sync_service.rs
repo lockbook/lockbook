@@ -1,8 +1,9 @@
-use std::collections::HashMap;
-
-use serde::Serialize;
-
-use lockbook_shared::account::Account;
+use crate::model::repo::RepoSource;
+use crate::repo::document_repo;
+use crate::repo::schema::OneKey;
+use crate::service::api_service;
+use crate::CoreResult;
+use crate::{Config, CoreError, RequestContext};
 use lockbook_shared::api::{
     ChangeDocRequest, GetDocRequest, GetUpdatesRequest, GetUpdatesResponse, UpsertRequest,
 };
@@ -78,67 +79,23 @@ impl RequestContext<'_, '_> {
             }
         };
 
-        let update_as_of = self.pull(config, &mut update_sync_progress)?;
-        self.tx.last_synced.insert(OneKey {}, update_as_of as i64);
-
-        // prune so we don't push metadata updates to deleted files
-        let tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
-        let (mut tree, prunable_ids) = tree.prunable_ids()?;
-        for id in prunable_ids {
-            tree.remove(id);
-        }
-
+        self.validate()?;
+        self.pull(config, &mut update_sync_progress)?;
         self.push_metadata(&mut update_sync_progress)?;
-
-        // prune so we don't push content updates to files that the server just found out were deleted
-        let tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
-        let (mut tree, prunable_ids) = tree.prunable_ids()?;
-        for id in prunable_ids {
-            tree.remove(id);
-        }
-
         self.push_documents(&mut update_sync_progress)?;
-
-        // prune one more time just for fun (todo: remove?)
-        let tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
-        let (mut tree, prunable_ids) = tree.prunable_ids()?;
-        for id in prunable_ids {
-            tree.remove(id);
-        }
-
-        // pull so that calculate work doesn't include changes we just pushed as remote changes
-        let update_as_of = self.pull(config, &mut update_sync_progress)?;
-        self.tx.last_synced.insert(OneKey {}, update_as_of as i64);
+        self.pull(config, &mut update_sync_progress)?;
         Ok(())
     }
 
     /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.
     /// Promotes Base to Stage<Base, Remote> and Local to Stage<Local, Merge>
-    fn pull<F>(&mut self, config: &Config, update_sync_progress: &mut F) -> Result<u64, CoreError>
+    fn pull<F>(&mut self, config: &Config, update_sync_progress: &mut F) -> CoreResult<()>
     where
         F: FnMut(SyncProgressOperation),
     {
-        let account = self
-            .tx
-            .account
-            .get(&OneKey {})
-            .ok_or(CoreError::AccountNonexistent)?;
-
         // fetch metadata updates
         update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PullMetadata));
-        let updates = self.get_updates(account)?;
+        let updates = self.get_updates()?;
         let mut remote_changes = updates.file_metadata;
         let update_as_of = updates.as_of_metadata_version;
 
@@ -153,8 +110,8 @@ impl RequestContext<'_, '_> {
         }
 
         // prune prunable files
-        remote_changes =
-            Self::prune(&mut self.tx.base_metadata, remote_changes, &mut self.tx.local_metadata)?;
+        remote_changes = self.prune(remote_changes)?;
+        self.validate()?;
 
         // track work
         {
@@ -171,6 +128,11 @@ impl RequestContext<'_, '_> {
         }
 
         // fetch document updates and local documents for merge (todo: don't hold these all in memory at the same time)
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
         let mut base_documents = HashMap::new();
         let mut remote_document_changes = HashMap::new();
         let mut local_document_changes = HashMap::new();
@@ -224,16 +186,25 @@ impl RequestContext<'_, '_> {
             document_repo::insert(self.config, RepoSource::Local, id, &document)?;
         }
 
-        Ok(update_as_of)
+        self.tx.last_synced.insert(OneKey {}, update_as_of as i64);
+        self.prune(Vec::new())?;
+        self.validate()?;
+        Ok(())
     }
 
-    pub fn prune<Base, Local>(
-        base: Base, remote_changes: Vec<SignedFile>, local_changes: Local,
-    ) -> CoreResult<Vec<SignedFile>>
-    where
-        Base: Stagable<F = SignedFile>,
-        Local: Stagable<F = Base::F>,
-    {
+    pub fn validate(&mut self) -> CoreResult<()> {
+        let base = &mut self.tx.base_metadata;
+        let local_changes = &mut self.tx.local_metadata;
+        let mut base = base.to_lazy();
+        base.validate()?;
+        let mut local = base.stage(local_changes);
+        local.validate()?;
+        Ok(())
+    }
+
+    pub fn prune(&mut self, remote_changes: Vec<SignedFile>) -> CoreResult<Vec<SignedFile>> {
+        let base = &mut self.tx.base_metadata;
+        let local_changes = &mut self.tx.local_metadata;
         let local = base.stage(remote_changes).stage(local_changes).to_lazy();
         let (mut local, prunable_ids) = local.prunable_ids()?;
         for id in prunable_ids {
@@ -244,7 +215,12 @@ impl RequestContext<'_, '_> {
         Ok(remote_changes)
     }
 
-    pub fn get_updates(&self, account: &Account) -> CoreResult<GetUpdatesResponse> {
+    pub fn get_updates(&self) -> CoreResult<GetUpdatesResponse> {
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
         let last_synced = self
             .tx
             .last_synced
@@ -305,6 +281,8 @@ impl RequestContext<'_, '_> {
             .to_lazy()
             .promote();
 
+        self.prune(Vec::new())?;
+        self.validate()?;
         Ok(())
     }
 
@@ -369,26 +347,26 @@ impl RequestContext<'_, '_> {
             .to_lazy()
             .promote();
 
+        self.prune(Vec::new())?;
+        self.validate()?;
         Ok(())
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn calculate_work(&mut self) -> CoreResult<WorkCalculated> {
+        // fetch metadata updates
+        let updates = self.get_updates()?;
+        let mut remote_changes = updates.file_metadata;
+
+        // prune prunable files
+        remote_changes = self.prune(remote_changes)?;
+
+        // calculate work
         let account = self
             .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
-
-        // fetch metadata updates
-        let updates = self.get_updates(account)?;
-        let mut remote_changes = updates.file_metadata;
-
-        // prune prunable files
-        remote_changes =
-            Self::prune(&mut self.tx.base_metadata, remote_changes, &mut self.tx.local_metadata)?;
-
-        // calculate work
         let mut work_units: Vec<WorkUnit> = vec![];
         {
             let mut remote = self.tx.base_metadata.stage(remote_changes).to_lazy();

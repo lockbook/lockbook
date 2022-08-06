@@ -174,37 +174,71 @@ where
     /// you must prune all of them, and you must prune them from base and from local.
     // todo: incrementalism
     pub fn prunable_ids(mut self) -> SharedResult<(Self, HashSet<Uuid>)> {
-        let mut result = {
-            let mut base = self.tree.base.to_lazy();
-            let mut deleted_base = HashSet::new();
+        let orphaned = {
+            let mut orphaned = HashSet::new();
+            let base = self.tree.base.to_lazy();
             for id in base.owned_ids() {
-                if base.calculate_deleted(&id)? {
-                    deleted_base.insert(id);
+                if base.maybe_find(base.find(&id)?.parent()).is_none() {
+                    orphaned.insert(id);
                 }
             }
             self.tree.base = base.tree;
-            deleted_base
+            for id in self.owned_ids() {
+                if self.maybe_find(self.find(&id)?.parent()).is_none() {
+                    orphaned.insert(id);
+                }
+            }
+            orphaned
         };
-        result.extend({
-            let mut new_deleted_local = HashSet::new();
-            for id in self.tree.staged.owned_ids() {
-                if self.tree.base.maybe_find(&id).is_none() && self.calculate_deleted(&id)? {
-                    new_deleted_local.insert(id);
+        let (deleted_base, not_deleted_base) = {
+            let mut base = self.tree.base.to_lazy();
+            let mut deleted_base = HashSet::new();
+            let mut not_deleted_base = HashSet::new();
+            for id in base.owned_ids() {
+                if orphaned.contains(&id) || base.calculate_deleted(&id)? {
+                    deleted_base.insert(id);
+                } else {
+                    not_deleted_base.insert(id);
                 }
             }
-            new_deleted_local
-        });
-        result.extend({
-            let mut would_be_orphaned = HashSet::new();
-            for id in self.tree.owned_ids() {
-                if self.ancestors(&id)?.intersection(&result).next().is_some() {
-                    would_be_orphaned.insert(id);
+            self.tree.base = base.tree;
+            (deleted_base, not_deleted_base)
+        };
+        let (deleted_local, not_deleted_local) = {
+            let mut deleted_local = HashSet::new();
+            let mut not_deleted_local = HashSet::new();
+            for id in self.owned_ids() {
+                if orphaned.contains(&id) || self.calculate_deleted(&id)? {
+                    deleted_local.insert(id);
+                } else {
+                    not_deleted_local.insert(id);
                 }
             }
-            // todo(test failure): what about locally moved files? server never finds out they are now deleted
-            would_be_orphaned
-        });
-        Ok((self, result))
+            (deleted_local, not_deleted_local)
+        };
+        let ancestors_of_not_deleted = {
+            let mut ancestors_of_not_deleted = HashSet::new();
+            let base = self.tree.base.to_lazy();
+            for id in not_deleted_base.union(&not_deleted_local) {
+                if base.maybe_find(id).is_some() {
+                    ancestors_of_not_deleted.extend(base.ancestors(id)?);
+                }
+            }
+            self.tree.base = base.tree;
+            for id in not_deleted_base.union(&not_deleted_local) {
+                if self.maybe_find(id).is_some() {
+                    ancestors_of_not_deleted.extend(self.ancestors(id)?);
+                }
+            }
+            ancestors_of_not_deleted
+        };
+        let prunable_ids: HashSet<Uuid> = orphaned
+            .into_iter()
+            .chain(deleted_base.into_iter())
+            .chain(deleted_local.into_iter())
+            .filter(|id| !ancestors_of_not_deleted.contains(id))
+            .collect();
+        Ok((self, prunable_ids))
     }
 
     // assumptions: no orphans
