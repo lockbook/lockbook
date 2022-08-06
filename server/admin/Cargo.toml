@@ -10,4 +10,4 @@ tokio = { version = "1.5.0", features = ["full"] }
 lockbook-shared = { path = "../../core/libs/shared" }
 async-stripe = { version = "0.15.0", default-features = true, features = ["runtime-tokio-hyper-rustls"] }
 google-androidpublisher3 = "3.1.0"
-hmdb = "0.1.12"
+hmdb = "0.1.13"

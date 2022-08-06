@@ -1631,17 +1631,9 @@ dependencies = [
 
 [[package]]
 name = "hmdb"
-version = "0.1.12"
-dependencies = [
- "bincode",
- "serde",
-]
-
-[[package]]
-name = "hmdb"
-version = "0.1.12"
+version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efeb8ccf7eaa871e4d3a64e31cd2f92d450be3de21e7a91148d75ee68676395d"
+checksum = "d88a9a9912a9b68f4ed8009da84449237269a807818d43aa56f3d0805b45a5c2"
 dependencies = [
  "bincode",
  "serde",
@@ -2048,7 +2040,7 @@ version = "0.1.0"
 dependencies = [
  "async-stripe",
  "google-androidpublisher3",
- "hmdb 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hmdb",
  "lockbook-server",
  "lockbook-shared",
  "structopt",
@@ -2183,7 +2175,7 @@ dependencies = [
  "crossbeam",
  "diffy",
  "fuzzy-matcher",
- "hmdb 0.1.12",
+ "hmdb",
  "image 0.23.14",
  "indicatif 0.17.0-rc.11",
  "itertools",
@@ -2238,7 +2230,7 @@ dependencies = [
  "constant_time_eq",
  "futures",
  "google-androidpublisher3",
- "hmdb 0.1.12",
+ "hmdb",
  "indicatif 0.16.2",
  "lazy_static",
  "libsecp256k1",
@@ -2273,7 +2265,7 @@ dependencies = [
  "diffy",
  "flate2",
  "hmac 0.11.0",
- "hmdb 0.1.12",
+ "hmdb",
  "http",
  "libsecp256k1",
  "rand 0.8.5",
@@ -3851,7 +3843,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "chrono",
- "hmdb 0.1.12",
+ "hmdb",
  "itertools",
  "lockbook-core",
  "lockbook-shared",

@@ -17,7 +17,7 @@ aes-gcm = "0.9.3"
 bincode = "1.2.1"
 sha2 = "0.9.0"
 hmac = "0.11.0"
-hmdb = { path = "../../../../../hmdb" }
+hmdb = "0.1.13"
 tracing = "0.1.5"
 flate2 = "1.0"
 diffy = "0.2.0"
