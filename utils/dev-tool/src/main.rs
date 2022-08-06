@@ -6,8 +6,7 @@ use structopt::StructOpt;
 pub mod android;
 pub mod apple;
 pub mod error;
-mod server;
-pub mod tests;
+pub mod server;
 pub mod utils;
 pub mod workspace;
 
@@ -26,15 +25,20 @@ enum Commands {
     /// Check the lint of the android client
     AndroidLintCheck,
 
-    MakeAndroidLibs,
+    /// Make kotlin jni libs
+    MakeKotlinLibs,
 
-    MakeAndroidTestLib,
+    /// Make kotlin jni libs for tests
+    MakeKotlinTestLib,
+
+    /// Make swift jni libs for tests
+    MakeSwiftTestLib,
 
     /// Build server
     BuildServer,
 
     /// Run server detached
-    LaunchServer,
+    RunServer,
 
     /// Run all rust tests
     RunRustTests,
@@ -87,13 +91,14 @@ fn parse_and_run() -> Result<(), CliError> {
         ClippyCheck => workspace::clippy_workspace(tool_env),
         AndroidFmtCheck => android::fmt_android(tool_env),
         AndroidLintCheck => android::lint_android(tool_env),
-        MakeAndroidLibs => android::make_android_libs(tool_env),
-        MakeAndroidTestLib => android::make_android_test_lib(tool_env),
-        BuildServer => tests::build_server(tool_env),
-        LaunchServer => tests::launch_server_detached(tool_env),
-        RunRustTests => tests::run_rust_tests(tool_env),
+        MakeKotlinLibs => android::make_android_libs(tool_env),
+        MakeKotlinTestLib => android::make_android_test_lib(tool_env),
+        MakeSwiftTestLib => apple::make_swift_test_lib(tool_env),
+        BuildServer => server::build_server(tool_env),
+        RunServer => server::run_server_detached(tool_env),
+        RunRustTests => server::run_rust_tests(tool_env),
         RunKotlinTests => android::run_kotlin_tests(tool_env),
-        RunSwiftTests => tests::run_swift_tests(tool_env),
-        KillServer => tests::kill_server(tool_env),
+        RunSwiftTests => apple::run_swift_tests(tool_env),
+        KillServer => server::kill_server(tool_env),
     }
 }

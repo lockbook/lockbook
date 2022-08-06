@@ -67,29 +67,33 @@ pub fn make_android_libs(tool_env: ToolEnvironment) -> Result<(), CliError> {
     fs::create_dir_all(jni_lib_dir.join("x86"))?;
     fs::create_dir_all(jni_lib_dir.join("x86_64"))?;
 
-    fs::rename(
+    fs::copy(
         tool_env
             .target_dir
-            .join(format!("aarch64-linux-android/release/{}", NDK_LIB_NAME)),
-        jni_lib_dir.join(format!("arm64-v8a/{}", NDK_LIB_NAME)),
+            .join("aarch64-linux-android/release")
+            .join(NDK_LIB_NAME),
+        jni_lib_dir.join("arm64-v8a").join(NDK_LIB_NAME),
     )?;
-    fs::rename(
+    fs::copy(
         tool_env
             .target_dir
-            .join(format!("armv7-linux-androideabi/release/{}", NDK_LIB_NAME)),
-        jni_lib_dir.join(format!("armeabi-v7a/{}", NDK_LIB_NAME)),
+            .join("armv7-linux-androideabi/release")
+            .join(NDK_LIB_NAME),
+        jni_lib_dir.join("armeabi-v7a").join(NDK_LIB_NAME),
     )?;
-    fs::rename(
+    fs::copy(
         tool_env
             .target_dir
-            .join(format!("i686-linux-android/release/{}", NDK_LIB_NAME)),
-        jni_lib_dir.join(format!("x86/{}", NDK_LIB_NAME)),
+            .join("i686-linux-android/release")
+            .join(NDK_LIB_NAME),
+        jni_lib_dir.join("x86").join(NDK_LIB_NAME),
     )?;
-    fs::rename(
+    fs::copy(
         tool_env
             .target_dir
-            .join(format!("x86_64-linux-android/release/{}", NDK_LIB_NAME)),
-        jni_lib_dir.join(format!("x86_64/{}", NDK_LIB_NAME)),
+            .join("x86_64-linux-android/release")
+            .join(NDK_LIB_NAME),
+        jni_lib_dir.join("x86_64").join(NDK_LIB_NAME),
     )?;
 
     Ok(())
@@ -103,15 +107,17 @@ pub fn make_android_test_lib(tool_env: ToolEnvironment) -> Result<(), CliError> 
         .spawn()?
         .wait()?;
 
+    if !test_results.success() {
+        return Err(CliError::basic_error());
+    }
+
     let jni_lib_dir = utils::jni_lib_dir(&tool_env.root_dir);
 
     fs::create_dir_all(jni_lib_dir.join("desktop"))?;
 
-    fs::rename(
-        tool_env
-            .target_dir
-            .join(format!("release/{}", NDK_LIB_NAME)),
-        jni_lib_dir.join(format!("desktop/{}", NDK_LIB_NAME)),
+    fs::copy(
+        tool_env.target_dir.join("release").join(NDK_LIB_NAME),
+        jni_lib_dir.join("desktop").join(NDK_LIB_NAME),
     )?;
 
     Ok(())

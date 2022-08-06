@@ -20,6 +20,14 @@ pub fn swift_dir<P: AsRef<Path>>(root: P) -> PathBuf {
     root.as_ref().join("clients/apple/SwiftLockbookCore")
 }
 
+pub fn swift_inc<P: AsRef<Path>>(root: P) -> PathBuf {
+    swift_dir(root).join("Sources/CLockbookCore/include")
+}
+
+pub fn swift_lib<P: AsRef<Path>>(root: P) -> PathBuf {
+    swift_dir(root).join("Sources/CLockbookCore/lib")
+}
+
 pub fn core_dir<P: AsRef<Path>>(root: P) -> PathBuf {
     root.as_ref().join("core")
 }
@@ -56,7 +64,7 @@ pub fn get_root_and_target_dir() -> Result<(PathBuf, PathBuf), CliError> {
     };
 
     let target_dir = if is_ci_env()? {
-        format!("{}/.cargo/lockbook-dev-target", env::var("HOME")?)
+        format!("{}/.lockbook-dev/rust-target", env::var("HOME")?)
     } else {
         format!("{}/target", root_dir)
     };
@@ -72,14 +80,14 @@ pub fn is_ci_env() -> Result<bool, CliError> {
             _ => Err(CliError(Some(format!("Unknown ci state: {}", is_ci)))),
         },
         Err(e) => match e {
-            VarError::NotPresent => Ok(true),
+            VarError::NotPresent => Ok(false),
             _ => Err(CliError::from(e)),
         },
     }
 }
 
 pub fn get_hash_port_dir(commit_hash: &str) -> PathBuf {
-    PathBuf::from(format!("/tmp/lbdev/{}.ec", commit_hash))
+    PathBuf::from(format!("/tmp/{}.ec", commit_hash))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -111,5 +119,5 @@ impl HashInfo {
 }
 
 pub fn get_api_url(port: u16) -> String {
-    format!("http://lockbook_server:{}", port)
+    format!("http://localhost:{}", port)
 }
