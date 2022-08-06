@@ -398,7 +398,7 @@ impl Core {
         let val = self.db.transaction(|tx| self.context(tx)?.start_search())?;
         Ok(val?)
     }
-    //
+
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn validate(&self) -> Result<Vec<Warning>, TestRepoError> {
         self.db

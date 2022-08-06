@@ -98,16 +98,29 @@ impl RequestContext<'_, '_> {
         for id in tree.owned_ids() {
             if !tree.calculate_deleted(&id)? {
                 let file = tree.find(&id)?;
+                let has_content = file.document_hmac().is_some();
 
                 if file.is_document() {
                     let content = match DocumentType::from_file_name_using_extension(
                         &tree.name(&id, account)?,
                     ) {
                         DocumentType::Text => {
-                            let doc = document_repo::get(self.config, RepoSource::Local, id)?;
+                            if has_content {
+                                let doc = match document_repo::maybe_get(
+                                    self.config,
+                                    RepoSource::Local,
+                                    &id,
+                                )? {
+                                    Some(local) => local,
+                                    None => document_repo::get(self.config, RepoSource::Base, id)?,
+                                };
 
-                            tree.decrypt_document(&id, &doc, account)
-                                .map(|bytes| Some(String::from_utf8_lossy(&bytes).to_string()))?
+                                tree.decrypt_document(&id, &doc, account).map(|bytes| {
+                                    Some(String::from_utf8_lossy(&bytes).to_string())
+                                })?
+                            } else {
+                                None
+                            }
                         }
                         _ => None,
                     };
