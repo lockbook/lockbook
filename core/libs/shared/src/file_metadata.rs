@@ -141,9 +141,7 @@ impl fmt::Debug for FileDiff {
                 Diff::Parent => result.field("new_parent", &self.new.parent()),
                 Diff::Name => result.field("new_name", &self.new.secret_name()),
                 Diff::Owner => result.field("new_owner", &self.new.owner()),
-                Diff::Deleted => {
-                    result.field("new_deleted", &self.new.explicitly_deleted())
-                }
+                Diff::Deleted => result.field("new_deleted", &self.new.explicitly_deleted()),
                 Diff::Hmac => result.field("new_hmac", &self.new.document_hmac()),
                 Diff::UserKeys => result.field("new_user_keys", &true),
                 Diff::FolderKeys => result.field("new_folder_keys", &true),

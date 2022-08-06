@@ -36,14 +36,12 @@ impl UserAccessInfo {
         let private_key = account.private_key;
         let user_key = pubkey::get_aes_key(&private_key, encrypted_by)?;
         let encrypted_file_key = symkey::encrypt(&user_key, key)?;
-        let mut result = Vec::new();
-        result.push(UserAccessInfo {
+        Ok(vec![UserAccessInfo {
             mode: UserAccessMode::Owner,
             encrypted_by: *encrypted_by,
             encrypted_for: *encrypted_for,
             access_key: encrypted_file_key,
             deleted: false,
-        });
-        Ok(result)
+        }])
     }
 }
