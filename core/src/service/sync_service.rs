@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::model::repo::RepoSource;
 use crate::repo::document_repo;
 use crate::repo::schema::OneKey;
@@ -12,12 +14,7 @@ use lockbook_shared::file_metadata::{DocumentHmac, FileDiff};
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
-
-use crate::model::repo::RepoSource;
-use crate::repo::document_repo;
-use crate::repo::schema::OneKey;
-use crate::service::api_service;
-use crate::{Config, CoreError, CoreResult, RequestContext};
+use serde::Serialize;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct WorkCalculated {
