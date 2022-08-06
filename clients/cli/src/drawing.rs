@@ -27,12 +27,8 @@ pub fn drawing(
         .export_drawing(file.id, lockbook_format, None)
         .map_err(|err| match err {
             LbError::UiError(err) => match err {
-                ExportDrawingError::FolderTreatedAsDrawing => {
-                    CliError::dir_treated_as_doc(&file)
-                }
-                ExportDrawingError::InvalidDrawing => {
-                    CliError::invalid_drawing(file.name)
-                }
+                ExportDrawingError::FolderTreatedAsDrawing => CliError::dir_treated_as_doc(&file),
+                ExportDrawingError::InvalidDrawing => CliError::invalid_drawing(file.name),
                 ExportDrawingError::FileDoesNotExist => CliError::file_not_found(lb_path),
             },
             LbError::Unexpected(msg) => CliError::unexpected(msg),

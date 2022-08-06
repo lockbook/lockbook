@@ -2,9 +2,9 @@ use dialoguer::theme::ColorfulTheme;
 use dialoguer::{FuzzySelect, Input};
 
 use lockbook_core::Core;
-use lockbook_core::File;
 use lockbook_core::CreateFileAtPathError;
 use lockbook_core::CreateFileError;
+use lockbook_core::File;
 use lockbook_core::FileType;
 use lockbook_core::Filter;
 use lockbook_core::GetFileByPathError;

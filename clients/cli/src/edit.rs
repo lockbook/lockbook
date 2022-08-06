@@ -19,16 +19,14 @@ pub fn edit(core: &Core, lb_path: Option<String>, id: Option<Uuid>) -> Result<()
 
     let file = select_meta(core, lb_path, id, Some(FileType::Document), None)?;
 
-    let file_content = core
-        .read_document(file.id)
-        .map_err(|err| match err {
-            LbError::UiError(ReadDocumentError::TreatedFolderAsDocument) => {
-                CliError::dir_treated_as_doc(&file)
-            }
-            LbError::UiError(ReadDocumentError::FileDoesNotExist) | LbError::Unexpected(_) => {
-                CliError::unexpected(format!("reading encrypted doc: {:#?}", err))
-            }
-        })?;
+    let file_content = core.read_document(file.id).map_err(|err| match err {
+        LbError::UiError(ReadDocumentError::TreatedFolderAsDocument) => {
+            CliError::dir_treated_as_doc(&file)
+        }
+        LbError::UiError(ReadDocumentError::FileDoesNotExist) | LbError::Unexpected(_) => {
+            CliError::unexpected(format!("reading encrypted doc: {:#?}", err))
+        }
+    })?;
 
     let mut temp_file_path = get_directory_location()?;
     temp_file_path.push(file.name);
