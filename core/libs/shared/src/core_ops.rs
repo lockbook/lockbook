@@ -535,7 +535,6 @@ where
                         result
                     }
                     // non-text files always duplicated
-                    // todo(test failure): something about how this is done creates more and more files during alternating syncs
                     (Some(local_document_change), DocumentType::Drawing | DocumentType::Other) => {
                         let (decrypted_remote_document, decrypted_local_document) = {
                             let (local, merge_changes) = result.unstage();
