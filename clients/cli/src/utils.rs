@@ -3,10 +3,8 @@ use std::{env, fs};
 
 use hotwatch::{Event, Hotwatch};
 
-use lockbook_core::Uuid;
-use lockbook_core::WriteToDocumentError;
-use lockbook_core::{Core, File};
-use lockbook_core::{Error as LbError, GetFileByPathError};
+use lockbook_core::{Core, File, Uuid};
+use lockbook_core::{Error as LbError, GetFileByPathError, WriteToDocumentError};
 
 use crate::error::CliError;
 

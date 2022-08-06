@@ -18,6 +18,7 @@ impl Account {
         let private_key = pubkey::generate_key();
         Self { username, api_url, private_key }
     }
+
     pub fn public_key(&self) -> PublicKey {
         PublicKey::from_secret_key(&self.private_key)
     }

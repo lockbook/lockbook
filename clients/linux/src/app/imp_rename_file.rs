@@ -4,7 +4,7 @@ use crate::ui;
 
 impl super::App {
     pub fn rename_file(&self) {
-        let meta = match self.get_selected_metadata() {
+        let file = match self.get_selected_metadata() {
             Ok(v) => v,
             Err(err) => {
                 self.show_err_dialog(&err);
@@ -13,7 +13,7 @@ impl super::App {
         };
 
         let entry = gtk::Entry::new();
-        entry.buffer().set_text(&meta.name);
+        entry.buffer().set_text(&file.name);
         entry.set_width_request(250);
         entry.select_region(0, -1);
 
@@ -47,7 +47,7 @@ impl super::App {
         let app = self.clone();
         let p = popover.clone();
         entry.connect_activate(move |entry| {
-            let id = meta.id;
+            let id = file.id;
             let new_name = entry.buffer().text();
             if let Err(err) = app.core.rename_file(id, &new_name) {
                 err_lbl.set_text(&format!("{:?}", err)); // todo
@@ -65,7 +65,7 @@ impl super::App {
             let iter = tree
                 .search(id)
                 .unwrap_or_else(|| panic!("renaming file tree entry: none found for id '{}'", id));
-            if meta.file_type == lb::FileType::Document {
+            if file.file_type == lb::FileType::Document {
                 tree.model
                     .set_value(&iter, 0, &ui::document_icon_from_name(&new_name).to_value());
             }
@@ -89,10 +89,10 @@ impl super::App {
             .tree
             .get_selected_uuid()
             .ok_or("no file selected!")?;
-        let meta = self
+        let file = self
             .core
             .get_file_by_id(id)
             .map_err(|err| format!("getting current file name: {:?}", err))?;
-        Ok(meta)
+        Ok(file)
     }
 }
