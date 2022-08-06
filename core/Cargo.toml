@@ -52,7 +52,7 @@ debug = true
 [dev-dependencies]
 cpuprofiler = "0.0.4"
 criterion = "0.3.5"
-indicatif = "=0.16.2"
+indicatif = "=0.17.0-rc.11"
 libsecp256k1 = "0.7.1"
 variant_count = "1.1.0"
 num_cpus = "1.13.0"

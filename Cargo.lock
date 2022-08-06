@@ -1866,6 +1866,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "indicatif"
+version = "0.17.0-rc.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4017d0ce94b8e91e29d2c78ed891e57e5ec3dc4371820a9d96abab4af09eb8ad"
+dependencies = [
+ "console",
+ "number_prefix",
+ "unicode-width",
+]
+
+[[package]]
 name = "infer"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2144,7 +2155,7 @@ dependencies = [
  "chrono",
  "dialoguer",
  "hotwatch",
- "indicatif",
+ "indicatif 0.16.2",
  "lockbook-core",
  "qr2term",
  "structopt",
@@ -2166,7 +2177,7 @@ dependencies = [
  "fuzzy-matcher",
  "hmdb",
  "image 0.23.14",
- "indicatif",
+ "indicatif 0.17.0-rc.11",
  "itertools",
  "jni",
  "lazy_static",
@@ -2220,7 +2231,7 @@ dependencies = [
  "futures",
  "google-androidpublisher3",
  "hmdb",
- "indicatif",
+ "indicatif 0.16.2",
  "lazy_static",
  "libsecp256k1",
  "lockbook-core",
