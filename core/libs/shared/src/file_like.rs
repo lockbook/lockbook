@@ -1,12 +1,14 @@
+use std::collections::HashMap;
+use std::fmt::Debug;
+
+use uuid::Uuid;
+
 use crate::access_info::{EncryptedFolderAccessKey, UserAccessInfo};
 use crate::account::Username;
 use crate::file_metadata::{DocumentHmac, FileMetadata, FileType, Owner};
 use crate::secret_filename::SecretFileName;
 use crate::server_file::ServerFile;
 use crate::signed_file::SignedFile;
-use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
-use uuid::Uuid;
 
 pub trait FileLike: PartialEq + Debug {
     fn id(&self) -> &Uuid;

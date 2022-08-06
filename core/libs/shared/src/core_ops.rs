@@ -1,3 +1,9 @@
+use std::collections::{HashMap, HashSet};
+
+use hmac::{Mac, NewMac};
+use libsecp256k1::PublicKey;
+use uuid::Uuid;
+
 use crate::account::Account;
 use crate::crypto::EncryptedDocument;
 use crate::file::File;
@@ -10,10 +16,6 @@ use crate::signed_file::SignedFile;
 use crate::staged::StagedTree;
 use crate::tree_like::{Stagable, TreeLike};
 use crate::{compression_service, symkey, validate, SharedError, SharedResult};
-use hmac::{Mac, NewMac};
-use libsecp256k1::PublicKey;
-use std::collections::{HashMap, HashSet};
-use uuid::Uuid;
 
 pub type TreeWithOp<Base, Local> = LazyTree<StagedTree<Stage1<Base, Local>, Option<SignedFile>>>;
 pub type TreeWithOps<Base, Local> = LazyTree<StagedTree<Stage1<Base, Local>, Vec<SignedFile>>>;
@@ -309,7 +311,7 @@ where
                 if result.tree.base.staged.maybe_find(sibling_id).is_none() {
                     continue;
                 }
-                let mut name = result.name(&sibling_id, account)?;
+                let mut name = result.name(sibling_id, account)?;
                 let mut changed = false;
                 while not_deleted_sibling_ids
                     .iter()
@@ -322,7 +324,7 @@ where
                     changed = true;
                 }
                 if changed {
-                    result = result.stage_rename(&sibling_id, &name, account)?.promote();
+                    result = result.stage_rename(sibling_id, &name, account)?.promote();
                 }
             }
         }

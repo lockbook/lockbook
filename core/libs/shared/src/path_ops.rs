@@ -1,3 +1,8 @@
+use std::collections::HashSet;
+
+use libsecp256k1::PublicKey;
+use uuid::Uuid;
+
 use crate::account::Account;
 use crate::file_like::FileLike;
 use crate::file_metadata::FileType;
@@ -5,10 +10,6 @@ use crate::lazy::LazyStaged1;
 use crate::signed_file::SignedFile;
 use crate::tree_like::{Stagable, TreeLike};
 use crate::{validate, SharedError, SharedResult};
-use libsecp256k1::PublicKey;
-use std::collections::HashSet;
-
-use uuid::Uuid;
 
 impl<Base, Local> LazyStaged1<Base, Local>
 where
@@ -112,7 +113,7 @@ where
             Some(Filter::DocumentsOnly) => {
                 let mut ids = HashSet::new();
                 for id in self.ids() {
-                    if self.find(&id)?.is_document() {
+                    if self.find(id)?.is_document() {
                         ids.insert(*id);
                     }
                 }
@@ -121,7 +122,7 @@ where
             Some(Filter::FoldersOnly) => {
                 let mut ids = HashSet::new();
                 for id in self.ids() {
-                    if self.find(&id)?.is_folder() {
+                    if self.find(id)?.is_folder() {
                         ids.insert(*id);
                     }
                 }

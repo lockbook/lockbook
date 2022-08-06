@@ -1,18 +1,16 @@
-use libsecp256k1::PublicKey;
-use std::clone::Clone;
 use std::collections::HashMap;
 use std::fmt;
-use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
+use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::access_info::{EncryptedFolderAccessKey, UserAccessInfo};
 use crate::account::{Account, Username};
 use crate::clock::get_time;
-use crate::crypto::{AESKey, ECSigned};
+use crate::crypto::AESKey;
 use crate::file_like::FileLike;
 use crate::secret_filename::SecretFileName;
 use crate::signed_file::SignedFile;
@@ -89,7 +87,7 @@ impl PartialEq for FileMetadata {
     }
 }
 
-impl Display for FileMetadata {
+impl fmt::Display for FileMetadata {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.display())
     }
