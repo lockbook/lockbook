@@ -2,6 +2,7 @@ use crate::utils::HashInfo;
 use crate::{utils, CliError, ToolEnvironment};
 use execute_command_macro::{command, command_args};
 use std::fs;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 pub fn build_server(tool_env: ToolEnvironment) -> Result<(), CliError> {
@@ -54,32 +55,6 @@ pub fn run_rust_tests(tool_env: ToolEnvironment) -> Result<(), CliError> {
     let test_results = command!("cargo test --release --no-fail-fast --all -- --nocapture")
         .env("API_URL", utils::get_api_url(hash_info.get_port()?))
         .current_dir(tool_env.root_dir)
-        .spawn()?
-        .wait()?;
-
-    if !test_results.success() {
-        return Err(CliError::basic_error());
-    }
-
-    Ok(())
-}
-
-pub fn run_kotlin_tests(tool_env: ToolEnvironment) -> Result<(), CliError> {
-    let hash_info = HashInfo::get_from_disk(&tool_env.commit_hash)?;
-    dotenv::from_path(utils::test_env_path(&tool_env.root_dir))?;
-
-    let build_results = command!("make android")
-        .current_dir(utils::core_dir(&tool_env.root_dir))
-        .spawn()?
-        .wait()?;
-
-    if !build_results.success() {
-        return Err(CliError::basic_error());
-    }
-
-    let test_results = command!("./gradlew testDebugUnitTest")
-        .current_dir(utils::android_dir(&tool_env.root_dir))
-        .env("API_URL", utils::get_api_url(hash_info.get_port()?))
         .spawn()?
         .wait()?;
 

@@ -130,3 +130,4 @@ swift_lib_ios := ../clients/apple/CLockbookCore/Sources/CLockbookCore/lib_ios/
 
 # Windows Library Location
 windows_lib := ../clients/windows/core/
+

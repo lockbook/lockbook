@@ -1,6 +1,7 @@
 use crate::error::CliError;
 use execute_command_macro::command;
 use serde::{Deserialize, Serialize};
+use std::env::VarError;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -9,6 +10,10 @@ use std::{env, fs};
 
 pub fn android_dir<P: AsRef<Path>>(root: P) -> PathBuf {
     root.as_ref().join("clients/android")
+}
+
+pub fn jni_lib_dir<P: AsRef<Path>>(root: P) -> PathBuf {
+    android_dir(root).join("core/src/main/jniLibs")
 }
 
 pub fn swift_dir<P: AsRef<Path>>(root: P) -> PathBuf {
@@ -27,19 +32,6 @@ pub fn test_env_path<P: AsRef<Path>>(root: P) -> PathBuf {
     root.as_ref().join("containers/test.env")
 }
 
-pub fn get_root_env_dir() -> Result<PathBuf, CliError> {
-    let proj_root = command!("git rev-parse --show-toplevel")
-        .stdout(Stdio::piped())
-        .output()?
-        .stdout;
-
-    Ok(PathBuf::from(
-        String::from_utf8_lossy(proj_root.as_slice())
-            .to_string()
-            .trim(),
-    ))
-}
-
 pub fn get_commit_hash() -> Result<String, CliError> {
     let commit_hash = command!("git rev-parse HEAD")
         .stdout(Stdio::piped())
@@ -51,8 +43,39 @@ pub fn get_commit_hash() -> Result<String, CliError> {
         .to_string())
 }
 
-pub fn get_target_dir() -> Result<String, CliError> {
-    Ok(format!("{}/.cargo/lockbook-dev-target", env::var("HOME")?))
+pub fn get_root_and_target_dir() -> Result<(PathBuf, PathBuf), CliError> {
+    let root_dir = {
+        let root_bytes = command!("git rev-parse --show-toplevel")
+            .stdout(Stdio::piped())
+            .output()?
+            .stdout;
+
+        String::from_utf8_lossy(root_bytes.as_slice())
+            .trim()
+            .to_string()
+    };
+
+    let target_dir = if is_ci_env()? {
+        format!("{}/.cargo/lockbook-dev-target", env::var("HOME")?)
+    } else {
+        format!("{}/target", root_dir)
+    };
+
+    Ok((PathBuf::from(root_dir), PathBuf::from(target_dir)))
+}
+
+pub fn is_ci_env() -> Result<bool, CliError> {
+    match env::var("LOCKBOOK_CI") {
+        Ok(is_ci) => match is_ci.as_str() {
+            "1" => Ok(true),
+            "0" => Ok(false),
+            _ => Err(CliError(Some(format!("Unknown ci state: {}", is_ci)))),
+        },
+        Err(e) => match e {
+            VarError::NotPresent => Ok(true),
+            _ => Err(CliError::from(e)),
+        },
+    }
 }
 
 pub fn get_hash_port_dir(commit_hash: &str) -> PathBuf {

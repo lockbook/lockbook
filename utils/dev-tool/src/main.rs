@@ -3,14 +3,16 @@ use std::env;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
+pub mod android;
+pub mod apple;
 pub mod error;
-pub mod fmt;
-pub mod lint;
+mod server;
 pub mod tests;
 pub mod utils;
+pub mod workspace;
 
 #[derive(Debug, PartialEq, StructOpt)]
-#[structopt(about = "The best place to store and share thoughts.")]
+#[structopt(about = "Lockbook's development and ci tool.")]
 enum Commands {
     /// Check the formatting
     FmtCheck,
@@ -23,6 +25,10 @@ enum Commands {
 
     /// Check the lint of the android client
     AndroidLintCheck,
+
+    MakeAndroidLibs,
+
+    MakeAndroidTestLib,
 
     /// Build server
     BuildServer,
@@ -43,6 +49,7 @@ enum Commands {
     KillServer,
 }
 
+#[derive(Clone)]
 pub struct ToolEnvironment {
     root_dir: PathBuf,
     target_dir: PathBuf,
@@ -51,15 +58,9 @@ pub struct ToolEnvironment {
 
 impl ToolEnvironment {
     pub fn new() -> Result<ToolEnvironment, CliError> {
-        let target_dir = utils::get_target_dir()?;
+        let (root_dir, target_dir) = utils::get_root_and_target_dir()?;
 
-        env::set_var("CARGO_TARGET_DIR", &target_dir);
-
-        Ok(ToolEnvironment {
-            root_dir: utils::get_root_env_dir()?,
-            target_dir: PathBuf::from(target_dir),
-            commit_hash: utils::get_commit_hash()?,
-        })
+        Ok(ToolEnvironment { root_dir, target_dir, commit_hash: utils::get_commit_hash()? })
     }
 }
 
@@ -82,14 +83,16 @@ fn parse_and_run() -> Result<(), CliError> {
 
     use Commands::*;
     match Commands::from_args() {
-        FmtCheck => fmt::fmt_workspace(tool_env),
-        ClippyCheck => lint::clippy_workspace(tool_env),
-        AndroidFmtCheck => fmt::fmt_android(tool_env),
-        AndroidLintCheck => lint::lint_android(tool_env),
+        FmtCheck => workspace::fmt_workspace(tool_env),
+        ClippyCheck => workspace::clippy_workspace(tool_env),
+        AndroidFmtCheck => android::fmt_android(tool_env),
+        AndroidLintCheck => android::lint_android(tool_env),
+        MakeAndroidLibs => android::make_android_libs(tool_env),
+        MakeAndroidTestLib => android::make_android_test_lib(tool_env),
         BuildServer => tests::build_server(tool_env),
         LaunchServer => tests::launch_server_detached(tool_env),
         RunRustTests => tests::run_rust_tests(tool_env),
-        RunKotlinTests => tests::run_kotlin_tests(tool_env),
+        RunKotlinTests => android::run_kotlin_tests(tool_env),
         RunSwiftTests => tests::run_swift_tests(tool_env),
         KillServer => tests::kill_server(tool_env),
     }
