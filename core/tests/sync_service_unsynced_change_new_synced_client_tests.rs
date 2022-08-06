@@ -6,7 +6,7 @@ use test_utils::*;
 
 fn assert_stuff(c: &Core) {
     c.validate().unwrap();
-    assert_local_work_paths(&c, &[]);
+    assert_local_work_paths(c, &[]);
 }
 
 #[test]

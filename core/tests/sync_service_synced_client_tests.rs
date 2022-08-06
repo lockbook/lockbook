@@ -5,10 +5,10 @@ use test_utils::*;
 
 fn assert_stuff(core: &Core) {
     core.validate().unwrap();
-    assert_local_work_paths(&core, &[]);
-    assert_server_work_paths(&core, &[]);
-    assert_deleted_files_pruned(&core);
-    assert_new_synced_client_dbs_eq(&core);
+    assert_local_work_paths(core, &[]);
+    assert_server_work_paths(core, &[]);
+    assert_deleted_files_pruned(core);
+    assert_new_synced_client_dbs_eq(core);
 }
 
 #[test]

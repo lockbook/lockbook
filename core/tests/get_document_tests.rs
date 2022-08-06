@@ -46,7 +46,7 @@ fn get_document_not_found() {
     core.sync(None).unwrap();
     let mut old = core.db.base_metadata.get(&id).unwrap().unwrap();
     old.timestamped_value.value.id = Uuid::new_v4();
-    let mut new = old.clone();
+    let mut new = old;
     new.timestamped_value.value.document_hmac = Some([0; 32]);
 
     // get document we never created

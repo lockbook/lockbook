@@ -45,14 +45,13 @@ pub fn new(
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
         let path = core.get_path_by_id(file.id)?;
-        core.delete_file(file.id)
-            .map_err(|err| match err {
-                LbError::UiError(err) => match err {
-                    FileDeleteError::FileDoesNotExist => CliError::file_not_found(path),
-                    FileDeleteError::CannotDeleteRoot => CliError::no_root_ops("delete"),
-                },
-                LbError::Unexpected(msg) => CliError::unexpected(msg),
-            })?;
+        core.delete_file(file.id).map_err(|err| match err {
+            LbError::UiError(err) => match err {
+                FileDeleteError::FileDoesNotExist => CliError::file_not_found(path),
+                FileDeleteError::CannotDeleteRoot => CliError::no_root_ops("delete"),
+            },
+            LbError::Unexpected(msg) => CliError::unexpected(msg),
+        })?;
     }
 
     fs::remove_file(&temp_file_path).map_err(|err| {

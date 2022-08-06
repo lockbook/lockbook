@@ -58,7 +58,6 @@ fn delete_document_new_document() {
 fn delete_document_deleted() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
-    let root = core.get_root().unwrap().id;
 
     let doc = core.create_at_path("test.md").unwrap().id;
     let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();

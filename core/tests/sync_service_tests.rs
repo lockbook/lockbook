@@ -1,6 +1,5 @@
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
-use lockbook_core::Core;
 use test_utils::*;
 
 /// Uncategorized tests.

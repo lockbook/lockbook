@@ -1,7 +1,5 @@
 use lockbook_core::Error::UiError;
-use lockbook_core::{CoreError, FileDeleteError, MoveFileError, RenameFileError};
-use lockbook_shared::file_metadata::FileType;
-use std::collections::HashMap;
+use lockbook_core::{FileDeleteError, MoveFileError, RenameFileError};
 use test_utils::{assert_matches, test_core_with_account};
 use uuid::Uuid;
 
@@ -41,7 +39,7 @@ fn apply_rename_invalid_name() {
 #[test]
 fn name_taken() {
     let core = test_core_with_account();
-    core.create_at_path("doc1.md").unwrap().id;
+    core.create_at_path("doc1.md").unwrap();
     let id = core.create_at_path("doc2.md").unwrap().id;
     assert_matches!(
         core.rename_file(id, "doc1.md"),

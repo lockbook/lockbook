@@ -12,10 +12,10 @@ fn sync_and_assert_stuff(c1: &Core, c2: &Core) {
     c2.sync(None).unwrap();
 
     c1.validate().unwrap();
-    assert_dbs_eq(&c1, c2);
-    assert_local_work_paths(&c1, &[]);
-    assert_server_work_paths(&c1, &[]);
-    assert_deleted_files_pruned(&c1);
+    assert_dbs_eq(c1, c2);
+    assert_local_work_paths(c1, &[]);
+    assert_server_work_paths(c1, &[]);
+    assert_deleted_files_pruned(c1);
 }
 
 #[test]

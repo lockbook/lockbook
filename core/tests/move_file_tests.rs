@@ -49,7 +49,6 @@ fn move_document_parent_not_found() {
 fn move_document_deleted() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
-    let root = core.get_root().unwrap();
 
     let doc = core.create_at_path("doc.md").unwrap().id;
     let doc1 = core.db.local_metadata.get(&doc).unwrap().unwrap();
@@ -96,7 +95,7 @@ fn move_document_path_taken() {
 
     let mut new = doc2.clone();
     new.timestamped_value.value.parent = root.id;
-    new.timestamped_value.value.name = doc.timestamped_value.value.name.clone();
+    new.timestamped_value.value.name = doc.timestamped_value.value.name;
 
     let result = api_service::request(
         &account,
@@ -110,7 +109,6 @@ fn move_document_path_taken() {
 fn move_folder_into_itself() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
-    let root = core.get_root().unwrap();
 
     let folder = core.create_at_path("folder/").unwrap().id;
     let folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
@@ -132,7 +130,6 @@ fn move_folder_into_itself() {
 fn move_folder_into_descendants() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
-    let root = core.get_root().unwrap();
 
     let folder = core.create_at_path("folder1/").unwrap().id;
     let folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
@@ -159,7 +156,6 @@ fn move_folder_into_descendants() {
 fn move_document_into_document() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
-    let root = core.get_root().unwrap();
 
     // create documents
     let doc = core.create_at_path("doc1.md").unwrap().id;

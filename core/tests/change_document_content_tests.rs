@@ -1,5 +1,3 @@
-use lockbook_core::model::repo::RepoSource;
-use lockbook_core::repo::document_repo;
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
 use lockbook_shared::api::*;
@@ -13,9 +11,8 @@ use uuid::Uuid;
 fn change_document_content() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
-    let root = core.get_root().unwrap();
     let doc = core.create_at_path("test.md").unwrap().id;
-    let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
+    let doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
 
     // create document
     api_service::request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] }).unwrap();
