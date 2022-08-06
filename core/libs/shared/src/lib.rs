@@ -1,7 +1,3 @@
-use bincode::Error;
-use hmac::crypto_mac::{InvalidKeyLength, MacError};
-pub use lazy::ValidationFailure;
-
 pub mod access_info;
 pub mod account;
 pub mod api;
@@ -28,6 +24,11 @@ pub mod symkey;
 pub mod tree_like;
 pub mod validate;
 pub mod work_unit;
+
+pub use lazy::ValidationFailure;
+
+use bincode::Error;
+use hmac::crypto_mac::{InvalidKeyLength, MacError};
 
 pub type SharedResult<T> = Result<T, SharedError>;
 
