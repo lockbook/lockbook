@@ -47,6 +47,7 @@ use strum::IntoEnumIterator;
 
 use lockbook_shared::clock;
 use lockbook_shared::crypto::AESKey;
+use lockbook_shared::file_metadata::Owner;
 
 use crate::model::errors::Error::UiError;
 use crate::model::repo::RepoSource;
@@ -324,20 +325,25 @@ impl Core {
 
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>> {
-        let val = self
-            .db
-            .transaction(|tx| self.context(tx)?.sync(&self.config, f))?;
+        let val = self.db.transaction(|tx| self.context(tx)?.sync(f))?;
         Ok(val?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn get_last_synced(&self) -> Result<i64, UnexpectedError> {
-        Ok(self.db.last_synced.get(&OneKey {})?.unwrap_or(0))
+        let account = self
+            .get_account()
+            .map_err(|err| unexpected_only!("{:?}", err))?;
+        Ok(self
+            .db
+            .last_synced
+            .get(&Owner(account.public_key()))?
+            .unwrap_or(0))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn get_last_synced_human_string(&self) -> Result<String, UnexpectedError> {
-        let last_synced = self.db.last_synced.get(&OneKey {})?.unwrap_or(0);
+        let last_synced = self.get_last_synced()?;
 
         Ok(if last_synced != 0 {
             Duration::milliseconds(clock::get_time().0 - last_synced)

@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::collections::HashMap;
 
 use crate::model::repo::RepoSource;
@@ -9,8 +10,10 @@ use crate::{Config, CoreError, RequestContext};
 use lockbook_shared::api::{
     ChangeDocRequest, GetDocRequest, GetUpdatesRequest, GetUpdatesResponse, UpsertRequest,
 };
+use lockbook_shared::core_tree::CoreTree;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{DocumentHmac, FileDiff};
+use lockbook_shared::file_metadata::{DocumentHmac, FileDiff, Owner};
+use lockbook_shared::lazy::{LazyStage2, LazyStaged1, LazyTree};
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
@@ -46,7 +49,7 @@ enum SyncProgressOperation {
 impl RequestContext<'_, '_> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync<F: Fn(SyncProgress)>(
-        &mut self, config: &Config, maybe_update_sync_progress: Option<F>,
+        &mut self, maybe_update_sync_progress: Option<F>,
     ) -> Result<(), CoreError> {
         // initialize sync progress: 3 metadata pulls + 1 metadata push + num local doc changes
         // note: num doc changes can change as a result of pull (can make new/changes docs deleted or add new docs from merge conflicts)
@@ -76,25 +79,34 @@ impl RequestContext<'_, '_> {
             }
         };
 
+        for owner in [&Owner(self.get_public_key()?)] {
+            self.sync_owner(owner, &mut update_sync_progress)?;
+        }
+        Ok(())
+    }
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn sync_owner<F: FnMut(SyncProgressOperation)>(
+        &mut self, owner: &Owner, update_sync_progress: &mut F,
+    ) -> Result<(), CoreError> {
         self.validate()?;
-        self.pull(config, &mut update_sync_progress)?;
-        self.push_metadata(&mut update_sync_progress)?;
-        self.push_documents(&mut update_sync_progress)?;
-        self.pull(config, &mut update_sync_progress)?;
-        self.prune()?;
+        self.pull(owner, update_sync_progress)?;
+        self.push_metadata(owner, update_sync_progress)?;
+        self.push_documents(owner, update_sync_progress)?;
+        self.pull(owner, update_sync_progress)?;
+        self.prune(owner)?;
         self.validate()?;
         Ok(())
     }
 
     /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.
     /// Promotes Base to Stage<Base, Remote> and Local to Stage<Local, Merge>
-    fn pull<F>(&mut self, config: &Config, update_sync_progress: &mut F) -> CoreResult<()>
+    fn pull<F>(&mut self, owner: &Owner, update_sync_progress: &mut F) -> CoreResult<()>
     where
         F: FnMut(SyncProgressOperation),
     {
         // fetch metadata updates
         update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PullMetadata));
-        let updates = self.get_updates()?;
+        let updates = self.get_updates(owner)?;
         let mut remote_changes = updates.file_metadata;
         let update_as_of = updates.as_of_metadata_version;
 
@@ -109,12 +121,12 @@ impl RequestContext<'_, '_> {
         }
 
         // prune prunable files
-        remote_changes = self.prune_remote_orphans(remote_changes)?;
+        remote_changes = self.prune_remote_orphans(owner, remote_changes)?;
         self.validate()?;
 
         // track work
         {
-            let base = self.tx.base_metadata.to_lazy();
+            let base = CoreTree { owner: *owner, metas: &mut self.tx.base_metadata };
             let mut num_documents_to_pull = 0;
             for id in remote_changes.owned_ids() {
                 let maybe_base_hmac = base.maybe_find(&id).and_then(|f| f.document_hmac());
@@ -136,7 +148,8 @@ impl RequestContext<'_, '_> {
         let mut remote_document_changes = HashMap::new();
         let mut local_document_changes = HashMap::new();
         remote_changes = {
-            let mut remote = self.tx.base_metadata.stage(remote_changes).to_lazy();
+            let mut remote =
+                LazyTree::base_tree(*owner, &mut self.tx.base_metadata).stage(remote_changes);
             for id in remote.tree.staged.owned_ids() {
                 if remote.calculate_deleted(&id)? {
                     continue;
@@ -158,10 +171,10 @@ impl RequestContext<'_, '_> {
                     let remote_document_change =
                         api_service::request(account, GetDocRequest { id, hmac: remote_hmac })?
                             .content;
-                    document_repo::maybe_get(config, RepoSource::Base, &id)?
+                    document_repo::maybe_get(self.config, RepoSource::Base, &id)?
                         .map(|d| base_documents.insert(id, d));
                     remote_document_changes.insert(id, remote_document_change);
-                    document_repo::maybe_get(config, RepoSource::Local, &id)?
+                    document_repo::maybe_get(self.config, RepoSource::Local, &id)?
                         .map(|d| local_document_changes.insert(id, d));
                 }
             }
@@ -171,12 +184,12 @@ impl RequestContext<'_, '_> {
 
         // base = remote; local = merge
         let (remote_changes, merge_document_changes) = {
-            let local = self
-                .tx
-                .base_metadata
-                .stage(remote_changes)
-                .stage(&mut self.tx.local_metadata)
-                .to_lazy();
+            let local = LazyStage2::core_tree_with_remote(
+                *owner,
+                &mut self.tx.base_metadata,
+                remote_changes,
+                &mut self.tx.local_metadata,
+            );
             let (local, merge_document_changes) = local.merge(
                 account,
                 &base_documents,
@@ -187,10 +200,8 @@ impl RequestContext<'_, '_> {
             let (_, remote_changes) = remote.unstage();
             (remote_changes, merge_document_changes)
         };
-        self.tx
-            .base_metadata
+        LazyTree::base_tree(*owner, &mut self.tx.base_metadata)
             .stage(remote_changes)
-            .to_lazy()
             .promote();
         for (id, document) in remote_document_changes {
             document_repo::insert(self.config, RepoSource::Base, id, &document)?;
@@ -199,25 +210,27 @@ impl RequestContext<'_, '_> {
             document_repo::insert(self.config, RepoSource::Local, id, &document)?;
         }
 
-        self.tx.last_synced.insert(OneKey {}, update_as_of as i64);
+        self.tx.last_synced.insert(*owner, update_as_of as i64);
         self.validate()?;
         Ok(())
     }
 
+    // todo: remove
     pub fn validate(&mut self) -> CoreResult<()> {
-        let base = &mut self.tx.base_metadata;
-        let local_changes = &mut self.tx.local_metadata;
-        let mut base = base.to_lazy();
-        base.validate()?;
-        let mut local = base.stage(local_changes);
-        local.validate()?;
+        // todo: all owners
+        for owner in [&Owner(self.get_public_key()?)] {
+            let mut base = LazyTree::base_tree(*owner, &mut self.tx.base_metadata);
+            let mut local_changes = LazyTree::base_tree(*owner, &mut self.tx.local_metadata).tree;
+            base.validate()?;
+            let mut local = base.stage(local_changes);
+            local.validate()?;
+        }
         Ok(())
     }
 
-    pub fn prune(&mut self) -> CoreResult<()> {
-        let base = &mut self.tx.base_metadata;
-        let local_changes = &mut self.tx.local_metadata;
-        let local = base.stage(local_changes).to_lazy();
+    pub fn prune(&mut self, owner: &Owner) -> CoreResult<()> {
+        let local =
+            LazyStaged1::core_tree(*owner, &mut self.tx.base_metadata, &mut self.tx.local_metadata);
         let (mut local, prunable_ids) = local.prunable_ids()?;
         for id in prunable_ids {
             local.remove(id);
@@ -226,10 +239,9 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn prune_remote_orphans(
-        &mut self, remote_changes: Vec<SignedFile>,
+        &mut self, owner: &Owner, remote_changes: Vec<SignedFile>,
     ) -> CoreResult<Vec<SignedFile>> {
-        let base = &mut self.tx.base_metadata;
-        let remote = base.stage(remote_changes).to_lazy();
+        let remote = LazyTree::base_tree(*owner, &mut self.tx.base_metadata).stage(remote_changes);
         let mut result = Vec::new();
         for id in remote.tree.staged.owned_ids() {
             if remote.maybe_find_parent(remote.find(&id)?).is_some() {
@@ -239,46 +251,43 @@ impl RequestContext<'_, '_> {
         Ok(result)
     }
 
-    pub fn get_updates(&self) -> CoreResult<GetUpdatesResponse> {
+    pub fn get_updates(&self, owner: &Owner) -> CoreResult<GetUpdatesResponse> {
         let account = self
             .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
-        let last_synced = self
-            .tx
-            .last_synced
-            .get(&OneKey {})
-            .copied()
-            .unwrap_or_default() as u64;
+        let last_synced = self.tx.last_synced.get(owner).copied().unwrap_or_default() as u64;
         let remote_changes = api_service::request(
             account,
-            GetUpdatesRequest { since_metadata_version: last_synced },
+            GetUpdatesRequest { since_metadata_version: last_synced, owner: *owner },
         )?;
         Ok(remote_changes)
     }
 
     /// Updates remote and base metadata to local.
     #[instrument(level = "debug", skip_all, err(Debug))]
-    fn push_metadata<F>(&mut self, update_sync_progress: &mut F) -> Result<(), CoreError>
+    fn push_metadata<F>(
+        &mut self, owner: &Owner, update_sync_progress: &mut F,
+    ) -> Result<(), CoreError>
     where
         F: FnMut(SyncProgressOperation),
     {
+        // remote = local
+        let mut local_changes_no_digests = Vec::new();
+        let mut updates = Vec::new();
+        let mut local = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
         let account = self
             .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
-        update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PushMetadata));
 
-        // remote = local
-        let mut local_changes_no_digests = Vec::new();
-        let mut updates = Vec::new();
-        let local = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
+        update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PushMetadata));
         for id in local.tree.staged.owned_ids() {
             let mut local_change = local.tree.staged.find(&id)?.timestamped_value.value.clone();
             let maybe_base_file = local.tree.base.maybe_find(&id);
@@ -297,10 +306,8 @@ impl RequestContext<'_, '_> {
         }
 
         // base = local
-        self.tx
-            .base_metadata
+        LazyTree::base_tree(*owner, &mut self.tx.base_metadata)
             .stage(local_changes_no_digests)
-            .to_lazy()
             .promote();
 
         self.validate()?;
@@ -309,10 +316,17 @@ impl RequestContext<'_, '_> {
 
     /// Updates remote and base files to local. Assumes metadata is already pushed for all new files.
     #[instrument(level = "debug", skip_all, err(Debug))]
-    fn push_documents<F>(&mut self, update_sync_progress: &mut F) -> Result<(), CoreError>
+    fn push_documents<F>(
+        &mut self, owner: &Owner, update_sync_progress: &mut F,
+    ) -> Result<(), CoreError>
     where
         F: FnMut(SyncProgressOperation),
     {
+        let mut local = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
         let account = self
             .tx
             .account
@@ -320,11 +334,6 @@ impl RequestContext<'_, '_> {
             .ok_or(CoreError::AccountNonexistent)?;
 
         let mut local_changes_digests_only = Vec::new();
-        let mut local = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
         for id in local.tree.staged.owned_ids() {
             let base_file = local.tree.base.find(&id)?.clone();
 
@@ -362,10 +371,8 @@ impl RequestContext<'_, '_> {
         }
 
         // base = local (metadata)
-        self.tx
-            .base_metadata
+        LazyTree::base_tree(*owner, &mut self.tx.base_metadata)
             .stage(local_changes_digests_only)
-            .to_lazy()
             .promote();
 
         self.validate()?;
@@ -374,12 +381,25 @@ impl RequestContext<'_, '_> {
 
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn calculate_work(&mut self) -> CoreResult<WorkCalculated> {
+        let mut result =
+            WorkCalculated { work_units: Vec::new(), most_recent_update_from_server: 0 };
+        for owner in [&Owner(self.get_public_key()?)] {
+            let work = self.calculate_work_owner(owner)?;
+            result.work_units.extend(work.work_units);
+            result.most_recent_update_from_server =
+                max(result.most_recent_update_from_server, work.most_recent_update_from_server);
+        }
+        Ok(result)
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    fn calculate_work_owner(&mut self, owner: &Owner) -> CoreResult<WorkCalculated> {
         // fetch metadata updates
-        let updates = self.get_updates()?;
+        let updates = self.get_updates(owner)?;
         let mut remote_changes = updates.file_metadata;
 
         // prune prunable files
-        remote_changes = self.prune_remote_orphans(remote_changes)?;
+        remote_changes = self.prune_remote_orphans(owner, remote_changes)?;
 
         // calculate work
         let account = self
@@ -389,18 +409,19 @@ impl RequestContext<'_, '_> {
             .ok_or(CoreError::AccountNonexistent)?;
         let mut work_units: Vec<WorkUnit> = vec![];
         {
-            let mut remote = self.tx.base_metadata.stage(remote_changes).to_lazy();
+            let mut remote =
+                LazyTree::base_tree(*owner, &mut self.tx.base_metadata).stage(remote_changes);
             for id in remote.tree.staged.owned_ids() {
                 work_units
                     .push(WorkUnit::ServerChange { metadata: remote.finalize(&id, account)? });
             }
         }
         {
-            let mut local = self
-                .tx
-                .base_metadata
-                .stage(&mut self.tx.local_metadata)
-                .to_lazy();
+            let mut local = LazyStaged1::core_tree(
+                *owner,
+                &mut self.tx.base_metadata,
+                &mut self.tx.local_metadata,
+            );
             for id in local.tree.staged.owned_ids() {
                 work_units.push(WorkUnit::LocalChange { metadata: local.finalize(&id, account)? });
             }

@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::account::Account;
 use crate::account::Username;
 use crate::crypto::*;
-use crate::file_metadata::{DocumentHmac, FileDiff, FileMetadata};
+use crate::file_metadata::{DocumentHmac, FileDiff, FileMetadata, Owner};
 use crate::signed_file::SignedFile;
 use crate::ValidationFailure;
 
@@ -183,6 +183,7 @@ impl Request for GetUsageRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUpdatesRequest {
     pub since_metadata_version: u64,
+    pub owner: Owner,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

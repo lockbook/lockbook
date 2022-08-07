@@ -6,7 +6,7 @@ use libsecp256k1::PublicKey;
 use lockbook_shared::account::Account;
 use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileType;
+use lockbook_shared::file_metadata::{FileType, Owner};
 use lockbook_shared::filename::NameComponents;
 use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::signed_file::SignedFile;
@@ -34,12 +34,11 @@ impl RequestContext<'_, '_> {
         update_status(ImportStatus::CalculatedTotal(n_files));
 
         let public_key = self.get_public_key()?;
-
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
+        let mut tree = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
 
         let parent = tree.find(&dest)?;
         if !parent.is_folder() {
@@ -75,11 +74,11 @@ impl RequestContext<'_, '_> {
             return Err(CoreError::DiskPathInvalid);
         }
 
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
+        let mut tree = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
 
         let file = tree.find(&id)?.clone();
 

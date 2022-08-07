@@ -1009,8 +1009,11 @@ impl From<SharedError> for TestRepoError {
 }
 
 impl From<CoreError> for TestRepoError {
-    fn from(e: CoreError) -> Self {
-        Self::Core(e)
+    fn from(err: CoreError) -> Self {
+        match err {
+            CoreError::AccountNonexistent => Self::NoAccount,
+            _ => Self::Core(err),
+        }
     }
 }
 

@@ -4,6 +4,8 @@ use lockbook_core::repo::schema::OneKey;
 use lockbook_core::Warning::*;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType::Document;
+use lockbook_shared::file_metadata::Owner;
+use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::secret_filename::SecretFileName;
 use lockbook_shared::tree_like::Stagable;
 use lockbook_shared::tree_like::TreeLike;
@@ -55,7 +57,11 @@ fn test_invalid_file_name_slash() {
     let doc = core.create_at_path("document1.md").unwrap();
     core.db
         .transaction(|tx| {
-            let mut tree = tx.base_metadata.stage(&mut tx.local_metadata).to_lazy();
+            let mut tree = LazyStaged1::core_tree(
+                Owner(tx.account.get(&OneKey {}).unwrap().public_key()),
+                &mut tx.base_metadata,
+                &mut tx.local_metadata,
+            );
             let key = tree
                 .decrypt_key(&doc.id, tx.account.get(&OneKey {}).unwrap())
                 .unwrap();
@@ -78,7 +84,11 @@ fn empty_filename() {
     let doc = core.create_at_path("document1.md").unwrap();
     core.db
         .transaction(|tx| {
-            let mut tree = tx.base_metadata.stage(&mut tx.local_metadata).to_lazy();
+            let mut tree = LazyStaged1::core_tree(
+                Owner(tx.account.get(&OneKey {}).unwrap().public_key()),
+                &mut tx.base_metadata,
+                &mut tx.local_metadata,
+            );
             let key = tree
                 .decrypt_key(&doc.id, tx.account.get(&OneKey {}).unwrap())
                 .unwrap();
@@ -125,7 +135,11 @@ fn test_name_conflict() {
     core.create_at_path("document2.md").unwrap();
     core.db
         .transaction(|tx| {
-            let mut tree = tx.base_metadata.stage(&mut tx.local_metadata).to_lazy();
+            let mut tree = LazyStaged1::core_tree(
+                Owner(tx.account.get(&OneKey {}).unwrap().public_key()),
+                &mut tx.base_metadata,
+                &mut tx.local_metadata,
+            );
             let key = tree
                 .decrypt_key(&doc.id, tx.account.get(&OneKey {}).unwrap())
                 .unwrap();

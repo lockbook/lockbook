@@ -6,6 +6,8 @@ use std::path::Path;
 use uuid::Uuid;
 
 use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing};
+use lockbook_shared::file_metadata::Owner;
+use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::validate;
 
@@ -19,17 +21,16 @@ use crate::RequestContext;
 
 impl RequestContext<'_, '_> {
     pub fn get_drawing(&mut self, id: Uuid) -> Result<Drawing, CoreError> {
+        let mut tree = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
         let account = self
             .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
-
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
 
         let doc = document_repo::get(self.config, RepoSource::Local, id)?;
 
@@ -37,17 +38,16 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn save_drawing(&mut self, id: Uuid, d: &Drawing) -> Result<(), CoreError> {
+        let mut tree = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
         let account = self
             .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
-
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
 
         if tree.calculate_deleted(&id)? {
             return Err(CoreError::FileNonexistent);
@@ -63,17 +63,16 @@ impl RequestContext<'_, '_> {
         &mut self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
     ) -> Result<Vec<u8>, CoreError> {
+        let mut tree = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
         let account = self
             .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
-
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
 
         if tree.calculate_deleted(&id)? {
             return Err(CoreError::FileNonexistent);
@@ -88,17 +87,16 @@ impl RequestContext<'_, '_> {
         &mut self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
     ) -> Result<(), CoreError> {
+        let mut tree = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
         let account = self
             .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
-
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
 
         if tree.calculate_deleted(&id)? {
             return Err(CoreError::FileNonexistent);

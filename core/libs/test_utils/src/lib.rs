@@ -7,6 +7,8 @@ use lockbook_core::repo::{document_repo, local_storage};
 use lockbook_core::{Config, Core};
 use lockbook_shared::api::{PaymentMethod, StripeAccountTier};
 use lockbook_shared::crypto::EncryptedDocument;
+use lockbook_shared::file_metadata::Owner;
+use lockbook_shared::lazy::{LazyStaged1, LazyTree};
 use lockbook_shared::path_ops::Filter::DocumentsOnly;
 use lockbook_shared::tree_like::Stagable;
 use lockbook_shared::tree_like::TreeLike;
@@ -128,7 +130,11 @@ pub fn assert_local_work_paths(db: &Core, expected_paths: &[&'static str]) {
         .db
         .transaction(|tx| {
             let account = tx.account.get(&OneKey {}).unwrap();
-            let mut local = tx.base_metadata.stage(&mut tx.local_metadata).to_lazy();
+            let mut local = LazyStaged1::core_tree(
+                Owner(account.public_key()),
+                &mut tx.base_metadata,
+                &mut tx.local_metadata,
+            );
             dirty
                 .iter()
                 .map(|id| local.id_to_path(id, account))
@@ -153,8 +159,13 @@ pub fn assert_server_work_paths(db: &Core, expected_paths: &[&'static str]) {
         .transaction(|tx| {
             let context = db.context(tx).unwrap();
             let account = context.tx.account.get(&OneKey {}).unwrap();
-            let remote_changes = context.get_updates().unwrap().file_metadata;
-            let mut remote = context.tx.base_metadata.stage(remote_changes).to_lazy();
+            let remote_changes = context
+                .get_updates(&Owner(account.public_key()))
+                .unwrap()
+                .file_metadata;
+            let mut remote =
+                LazyTree::base_tree(Owner(account.public_key()), &mut context.tx.base_metadata)
+                    .stage(remote_changes);
             remote
                 .tree
                 .staged

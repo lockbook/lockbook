@@ -1,6 +1,7 @@
 use crate::{CoreError, OneKey, RequestContext};
 use lockbook_shared::file::File;
-use lockbook_shared::file_metadata::FileType;
+use lockbook_shared::file_metadata::{FileType, Owner};
+use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use uuid::Uuid;
 
@@ -9,18 +10,18 @@ impl RequestContext<'_, '_> {
         &mut self, name: &str, parent: &Uuid, file_type: FileType,
     ) -> Result<File, CoreError> {
         let pub_key = self.get_public_key()?;
+        let mut tree = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
         let account = self
             .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let (mut tree, id) = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy()
-            .create(parent, name, file_type, account, &pub_key)?;
+        let (mut tree, id) = tree.create(parent, name, file_type, account, &pub_key)?;
 
         let ui_file = tree.finalize(&id, account)?;
 
@@ -28,49 +29,51 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn rename_file(&mut self, id: &Uuid, new_name: &str) -> Result<(), CoreError> {
+        let mut tree = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
         let account = self
             .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        self.tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy()
-            .rename(id, new_name, account)?;
+        tree.rename(id, new_name, account)?;
 
         Ok(())
     }
 
     pub fn move_file(&mut self, id: &Uuid, new_parent: &Uuid) -> Result<(), CoreError> {
+        let mut tree = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
         let account = self
             .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        self.tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy()
-            .move_file(id, new_parent, account)?;
+        tree.move_file(id, new_parent, account)?;
         Ok(())
     }
 
     pub fn delete(&mut self, id: &Uuid) -> Result<(), CoreError> {
+        let mut tree = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
         let account = self
             .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy()
-            .delete(id, account)?;
+        let tree = tree.delete(id, account)?;
 
         let (mut tree, prunable_ids) = tree.prunable_ids()?;
         for id in prunable_ids {
@@ -81,6 +84,11 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn root(&mut self) -> Result<File, CoreError> {
+        let mut tree = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
         let account = self
             .tx
             .account
@@ -93,28 +101,22 @@ impl RequestContext<'_, '_> {
             .get(&OneKey {})
             .ok_or(CoreError::RootNonexistent)?;
 
-        let root = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy()
-            .finalize(root_id, account)?;
+        let root = tree.finalize(root_id, account)?;
 
         Ok(root)
     }
 
     pub fn list_metadatas(&mut self) -> Result<Vec<File>, CoreError> {
+        let mut tree = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
         let account = self
             .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
-
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
 
         let mut files = Vec::new();
 
@@ -128,17 +130,16 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn get_children(&mut self, id: &Uuid) -> Result<Vec<File>, CoreError> {
+        let mut tree = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
         let account = self
             .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
-
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
 
         let mut children = Vec::new();
 
@@ -150,17 +151,16 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn get_and_get_children(&mut self, id: &Uuid) -> Result<Vec<File>, CoreError> {
+        let mut tree = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
         let account = self
             .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
-
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
 
         let mut files = vec![tree.finalize(id, account)?];
 
@@ -172,17 +172,16 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn get_file_by_id(&mut self, id: &Uuid) -> Result<File, CoreError> {
+        let mut tree = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
         let account = self
             .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
-
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
 
         Ok(tree.finalize(id, account)?)
     }
