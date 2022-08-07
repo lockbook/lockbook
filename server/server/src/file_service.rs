@@ -213,13 +213,30 @@ pub async fn get_updates(
 ) -> Result<GetUpdatesResponse, ServerError<GetUpdatesError>> {
     let (request, server_state) = (&context.request, context.server_state);
     server_state.index_db.transaction(|tx| {
-        let file_metadata = tx
-            .owned_files
-            .get(&Owner(context.public_key))
-            .ok_or(ClientError(GetUpdatesError::UserNotFound))?
+        let mut tree = ServerTree {
+            owner: context.request.owner,
+            owned: &mut tx.owned_files,
+            metas: &mut tx.metas,
+        }
+        .to_lazy();
+        let mut shared_files = HashSet::new();
+        for id in tree.owned_ids() {
+            if tree
+                .find(&id)?
+                .user_access_keys()
+                .iter()
+                .any(|k| k.encrypted_for == context.public_key)
+            {
+                shared_files.extend(tree.descendents(&id)?);
+                shared_files.insert(id);
+            }
+        }
+        let file_metadata = tree
+            .all_files()?
             .iter()
-            .filter_map(|id| tx.metas.get(id))
-            .filter(|meta| meta.version > request.since_metadata_version)
+            .filter(|meta| {
+                meta.version > request.since_metadata_version && shared_files.contains(meta.id())
+            })
             .map(|meta| meta.file.clone())
             .collect();
 
