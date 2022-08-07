@@ -4,17 +4,16 @@ use lockbook_shared::file::File;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::path_ops::Filter;
-use lockbook_shared::tree_like::Stagable;
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
-    pub fn create_link_at_path(&mut self, path: &str, target_id: Uuid) -> CoreResult<File> {
+    pub fn create_link_at_path(&mut self, _path: &str, _target_id: Uuid) -> CoreResult<File> {
         todo!()
     }
 
     pub fn create_at_path(&mut self, path: &str) -> CoreResult<File> {
         let pub_key = self.get_public_key()?;
-        let mut tree = LazyStaged1::core_tree(
+        let tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
             &mut self.tx.local_metadata,

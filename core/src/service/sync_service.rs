@@ -6,7 +6,7 @@ use crate::repo::document_repo;
 use crate::repo::schema::OneKey;
 use crate::service::api_service;
 use crate::CoreResult;
-use crate::{Config, CoreError, RequestContext};
+use crate::{CoreError, RequestContext};
 use lockbook_shared::api::{
     ChangeDocRequest, GetDocRequest, GetUpdatesRequest, GetUpdatesResponse, UpsertRequest,
 };
@@ -15,7 +15,7 @@ use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{DocumentHmac, FileDiff, Owner};
 use lockbook_shared::lazy::{LazyStage2, LazyStaged1, LazyTree};
 use lockbook_shared::signed_file::SignedFile;
-use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
 
@@ -85,7 +85,7 @@ impl RequestContext<'_, '_> {
         Ok(())
     }
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn sync_owner<F: FnMut(SyncProgressOperation)>(
+    fn sync_owner<F: FnMut(SyncProgressOperation)>(
         &mut self, owner: &Owner, update_sync_progress: &mut F,
     ) -> Result<(), CoreError> {
         self.validate()?;
@@ -220,7 +220,7 @@ impl RequestContext<'_, '_> {
         // todo: all owners
         for owner in [&Owner(self.get_public_key()?)] {
             let mut base = LazyTree::base_tree(*owner, &mut self.tx.base_metadata);
-            let mut local_changes = LazyTree::base_tree(*owner, &mut self.tx.local_metadata).tree;
+            let local_changes = LazyTree::base_tree(*owner, &mut self.tx.local_metadata).tree;
             base.validate()?;
             let mut local = base.stage(local_changes);
             local.validate()?;
@@ -276,7 +276,7 @@ impl RequestContext<'_, '_> {
         // remote = local
         let mut local_changes_no_digests = Vec::new();
         let mut updates = Vec::new();
-        let mut local = LazyStaged1::core_tree(
+        let local = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
             &mut self.tx.local_metadata,

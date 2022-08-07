@@ -2,7 +2,7 @@ use crate::{CoreError, OneKey, RequestContext};
 use lockbook_shared::file::File;
 use lockbook_shared::file_metadata::{FileType, Owner};
 use lockbook_shared::lazy::LazyStaged1;
-use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::tree_like::TreeLike;
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
@@ -10,7 +10,7 @@ impl RequestContext<'_, '_> {
         &mut self, name: &str, parent: &Uuid, file_type: FileType,
     ) -> Result<File, CoreError> {
         let pub_key = self.get_public_key()?;
-        let mut tree = LazyStaged1::core_tree(
+        let tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
             &mut self.tx.local_metadata,
@@ -29,7 +29,7 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn rename_file(&mut self, id: &Uuid, new_name: &str) -> Result<(), CoreError> {
-        let mut tree = LazyStaged1::core_tree(
+        let tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
             &mut self.tx.local_metadata,
@@ -46,7 +46,7 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn move_file(&mut self, id: &Uuid, new_parent: &Uuid) -> Result<(), CoreError> {
-        let mut tree = LazyStaged1::core_tree(
+        let tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
             &mut self.tx.local_metadata,
@@ -62,7 +62,7 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn delete(&mut self, id: &Uuid) -> Result<(), CoreError> {
-        let mut tree = LazyStaged1::core_tree(
+        let tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
             &mut self.tx.local_metadata,

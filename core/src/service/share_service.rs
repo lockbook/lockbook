@@ -5,7 +5,7 @@ use crate::{CoreResult, RequestContext};
 
 impl RequestContext<'_, '_> {
     pub fn share_file(
-        &mut self, id: Uuid, sharee_username: &str, mode: ShareMode,
+        &mut self, _id: Uuid, _sharee_username: &str, _mode: ShareMode,
     ) -> CoreResult<()> {
         todo!()
     }
@@ -14,7 +14,7 @@ impl RequestContext<'_, '_> {
         todo!()
     }
 
-    pub fn delete_pending_share(&mut self, id: Uuid) -> CoreResult<()> {
+    pub fn delete_pending_share(&mut self, _id: Uuid) -> CoreResult<()> {
         todo!()
     }
 }

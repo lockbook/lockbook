@@ -1,12 +1,10 @@
 use crate::repo::document_repo;
 use crate::{CoreError, RepoSource, RequestContext};
 use crate::{CoreResult, OneKey};
-use lockbook_shared::core_tree::CoreTree;
 use lockbook_shared::crypto::DecryptedDocument;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::lazy::LazyStaged1;
-use lockbook_shared::tree_like::Stagable;
 use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::validate;
 use uuid::Uuid;

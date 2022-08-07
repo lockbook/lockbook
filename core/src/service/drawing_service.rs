@@ -8,7 +8,7 @@ use uuid::Uuid;
 use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::lazy::LazyStaged1;
-use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::validate;
 
 use crate::model::drawing;

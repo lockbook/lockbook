@@ -4,7 +4,7 @@ use lockbook_shared::api::{FileUsage, GetUsageRequest, GetUsageResponse};
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::lazy::LazyStaged1;
-use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::tree_like::TreeLike;
 
 use crate::model::repo::RepoSource;
 use crate::repo::document_repo;
