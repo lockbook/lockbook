@@ -1,15 +1,10 @@
-use lockbook_core::service::api_service;
-use lockbook_core::service::api_service::ApiError;
 use lockbook_core::Error::UiError;
 use lockbook_core::{
     CreateFileAtPathError, CreateLinkAtPathError, DeletePendingShareError, Error, ShareFileError,
     WriteToDocumentError,
 };
-use lockbook_shared::api::*;
-use lockbook_shared::crypto::AESEncrypted;
 use lockbook_shared::file::ShareMode;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{FileDiff, FileType};
+use lockbook_shared::file_metadata::FileType;
 use test_utils::*;
 use uuid::Uuid;
 
