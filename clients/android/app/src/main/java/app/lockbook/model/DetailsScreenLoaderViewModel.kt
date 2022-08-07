@@ -29,7 +29,7 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
     }
 
     private fun loadContent(loadingInfo: DetailsScreen.Loading) {
-        val extensionHelper = ExtensionHelper(loadingInfo.fileMetadata.decryptedName)
+        val extensionHelper = ExtensionHelper(loadingInfo.fileMetadata.name)
 
         val updateUI = when {
             extensionHelper.isDrawing -> {

@@ -1,9 +1,9 @@
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
-use lockbook_models::api::{
+use lockbook_shared::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, UpgradeAccountStripeRequest,
 };
-use lockbook_models::file_metadata::FileType;
+use lockbook_shared::file_metadata::FileType;
 use rand::RngCore;
 use test_utils::{
     assert_matches, generate_premium_account_tier, test_core_with_account, test_credit_cards,

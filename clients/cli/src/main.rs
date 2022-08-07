@@ -239,9 +239,6 @@ pub enum Debug {
 
     /// Helps find invalid states within lockbook
     Validate,
-
-    /// Visualizes the filetree as a graphical tree
-    Tree,
 }
 
 #[derive(Debug, PartialEq, StructOpt)]
