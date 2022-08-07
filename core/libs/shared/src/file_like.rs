@@ -77,6 +77,7 @@ where
         match fm.file_type() {
             FileType::Folder => format!("id: {}/", fm.id),
             FileType::Document => format!("id: {}", fm.id),
+            FileType::Link { target } => format!("id: {}, target: {}", fm.id, target),
         }
     }
 

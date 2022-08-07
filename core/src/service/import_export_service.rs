@@ -42,7 +42,7 @@ impl RequestContext<'_, '_> {
             .to_lazy();
 
         let parent = tree.find(&dest)?;
-        if parent.is_document() {
+        if !parent.is_folder() {
             return Err(CoreError::FileNotFolder);
         }
 
@@ -81,7 +81,7 @@ impl RequestContext<'_, '_> {
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
 
-        let parent_file_metadata = tree.find(&id)?.clone();
+        let file = tree.find(&id)?.clone();
 
         let account = self
             .tx
@@ -93,7 +93,7 @@ impl RequestContext<'_, '_> {
             self.config,
             account,
             &mut tree,
-            &parent_file_metadata,
+            &file,
             &destination,
             edit,
             &export_progress,
@@ -102,25 +102,25 @@ impl RequestContext<'_, '_> {
 
     fn export_file_recursively<Base, Local>(
         config: &Config, account: &Account, tree: &mut LazyStaged1<Base, Local>,
-        parent_file_metadata: &Base::F, disk_path: &Path, edit: bool,
+        this_file: &Base::F, disk_path: &Path, edit: bool,
         export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> Result<(), CoreError>
     where
         Base: Stagable<F = SignedFile>,
         Local: Stagable<F = Base::F>,
     {
-        let dest_with_new = disk_path.join(&tree.name(parent_file_metadata.id(), account)?);
+        let dest_with_new = disk_path.join(&tree.name(this_file.id(), account)?);
 
         if let Some(ref func) = export_progress {
             func(ImportExportFileInfo {
                 disk_path: disk_path.to_path_buf(),
-                lockbook_path: tree.id_to_path(parent_file_metadata.id(), account)?,
+                lockbook_path: tree.id_to_path(this_file.id(), account)?,
             })
         }
 
-        match parent_file_metadata.file_type() {
+        match this_file.file_type() {
             FileType::Folder => {
-                let children = tree.children(parent_file_metadata.id())?;
+                let children = tree.children(this_file.id())?;
                 fs::create_dir(dest_with_new.clone()).map_err(CoreError::from)?;
 
                 for id in children {
@@ -151,14 +151,26 @@ impl RequestContext<'_, '_> {
                 }
                 .map_err(CoreError::from)?;
 
-                let doc =
-                    document_repo::get(config, RepoSource::Local, *parent_file_metadata.id())?;
+                let doc = document_repo::get(config, RepoSource::Local, *this_file.id())?;
 
                 file.write_all(
-                    tree.decrypt_document(parent_file_metadata.id(), &doc, account)?
+                    tree.decrypt_document(this_file.id(), &doc, account)?
                         .as_slice(),
                 )
                 .map_err(CoreError::from)?;
+            }
+            FileType::Link { target } => {
+                if !tree.calculate_deleted(&target)? {
+                    RequestContext::export_file_recursively(
+                        config,
+                        account,
+                        tree,
+                        &tree.find(&target)?.clone(),
+                        &disk_path,
+                        edit,
+                        export_progress,
+                    )?;
+                }
             }
         }
 

@@ -114,17 +114,18 @@ pub enum CoreError {
     AlreadyPremium,
     CardDecline,
     CardHasInsufficientFunds,
-    TryAgain,
     CardNotSupported,
-    ExpiredCard,
     ClientUpdateRequired,
     ClientWipeRequired,
     CurrentUsageIsMoreThanNewTier,
     DiskPathInvalid,
     DiskPathTaken,
-    ServerDisabled,
     DrawingInvalid,
+    ExistingRequestPending,
+    ExpiredCard,
     FileExists,
+    FileIsLink,
+    FileNotShared,
     FileNameContainsSlash,
     FileNameEmpty,
     FileNonexistent,
@@ -132,20 +133,28 @@ pub enum CoreError {
     FileNotFolder,
     FileParentNonexistent,
     FolderMovedIntoSelf,
-    InvalidCardNumber,
-    InvalidCardExpYear,
-    InvalidCardExpMonth,
+    InsufficientPermission,
     InvalidCardCvc,
+    InvalidCardExpMonth,
+    InvalidCardExpYear,
+    InvalidCardNumber,
     InvalidPurchaseToken,
+    LinkInSharedFolder,
+    LinkTargetIsOwned,
+    LinkTargetNonexistent,
+    MultipleLinksToSameFile,
     NotPremium,
+    OldCardDoesNotExist,
     PathContainsEmptyFileName,
     PathNonexistent,
+    PathStartsWithNonRoot,
     PathTaken,
-    OldCardDoesNotExist,
     RootModificationInvalid,
     RootNonexistent,
+    ServerDisabled,
     ServerUnreachable,
-    ExistingRequestPending,
+    ShareAlreadyExists,
+    TryAgain,
     UsageIsOverFreeTierDataCap,
     UsernameInvalid,
     UsernamePublicKeyMismatch,
@@ -319,6 +328,7 @@ pub enum CreateFileAtPathError {
     NoRoot,
     PathContainsEmptyFile,
     DocumentTreatedAsFolder,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<CreateFileAtPathError> {
@@ -330,6 +340,9 @@ impl From<CoreError> for Error<CreateFileAtPathError> {
             CoreError::RootNonexistent => UiError(CreateFileAtPathError::NoRoot),
             CoreError::PathTaken => UiError(CreateFileAtPathError::FileAlreadyExists),
             CoreError::FileNotFolder => UiError(CreateFileAtPathError::DocumentTreatedAsFolder),
+            CoreError::InsufficientPermission => {
+                UiError(CreateFileAtPathError::InsufficientPermission)
+            }
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -356,6 +369,10 @@ pub enum CreateFileError {
     FileNameNotAvailable,
     FileNameEmpty,
     FileNameContainsSlash,
+    LinkInSharedFolder,
+    LinkTargetIsOwned,
+    LinkTargetNonexistent,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<CreateFileError> {
@@ -367,6 +384,10 @@ impl From<CoreError> for Error<CreateFileError> {
             CoreError::FileParentNonexistent => UiError(CreateFileError::CouldNotFindAParent),
             CoreError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
             CoreError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
+            CoreError::LinkInSharedFolder => UiError(CreateFileError::LinkInSharedFolder),
+            CoreError::LinkTargetIsOwned => UiError(CreateFileError::LinkTargetIsOwned),
+            CoreError::LinkTargetNonexistent => UiError(CreateFileError::LinkTargetNonexistent),
+            CoreError::InsufficientPermission => UiError(CreateFileError::InsufficientPermission),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -376,6 +397,7 @@ impl From<CoreError> for Error<CreateFileError> {
 pub enum WriteToDocumentError {
     FileDoesNotExist,
     FolderTreatedAsDocument,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<WriteToDocumentError> {
@@ -383,6 +405,9 @@ impl From<CoreError> for Error<WriteToDocumentError> {
         match e {
             CoreError::FileNonexistent => UiError(WriteToDocumentError::FileDoesNotExist),
             CoreError::FileNotDocument => UiError(WriteToDocumentError::FolderTreatedAsDocument),
+            CoreError::InsufficientPermission => {
+                UiError(WriteToDocumentError::InsufficientPermission)
+            }
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -436,6 +461,7 @@ impl From<CoreError> for Error<GetFileByIdError> {
 pub enum FileDeleteError {
     CannotDeleteRoot,
     FileDoesNotExist,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<FileDeleteError> {
@@ -443,6 +469,7 @@ impl From<CoreError> for Error<FileDeleteError> {
         match e {
             CoreError::RootModificationInvalid => UiError(FileDeleteError::CannotDeleteRoot),
             CoreError::FileNonexistent => UiError(FileDeleteError::FileDoesNotExist),
+            CoreError::InsufficientPermission => UiError(FileDeleteError::InsufficientPermission),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -491,6 +518,7 @@ pub enum RenameFileError {
     NewNameContainsSlash,
     FileNameNotAvailable,
     CannotRenameRoot,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<RenameFileError> {
@@ -501,6 +529,7 @@ impl From<CoreError> for Error<RenameFileError> {
             CoreError::FileNameContainsSlash => UiError(RenameFileError::NewNameContainsSlash),
             CoreError::PathTaken => UiError(RenameFileError::FileNameNotAvailable),
             CoreError::RootModificationInvalid => UiError(RenameFileError::CannotRenameRoot),
+            CoreError::InsufficientPermission => UiError(RenameFileError::InsufficientPermission),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -514,6 +543,8 @@ pub enum MoveFileError {
     FolderMovedIntoItself,
     TargetParentDoesNotExist,
     TargetParentHasChildNamedThat,
+    LinkInSharedFolder,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<MoveFileError> {
@@ -525,6 +556,76 @@ impl From<CoreError> for Error<MoveFileError> {
             CoreError::FolderMovedIntoSelf => UiError(MoveFileError::FolderMovedIntoItself),
             CoreError::FileParentNonexistent => UiError(MoveFileError::TargetParentDoesNotExist),
             CoreError::PathTaken => UiError(MoveFileError::TargetParentHasChildNamedThat),
+            CoreError::LinkInSharedFolder => UiError(MoveFileError::LinkInSharedFolder),
+            CoreError::InsufficientPermission => UiError(MoveFileError::InsufficientPermission),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum ShareFileError {
+    CannotShareRoot,
+    FileNonexistent,
+    ShareAlreadyExists,
+    LinkInSharedFolder,
+    InsufficientPermission,
+}
+
+impl From<CoreError> for Error<ShareFileError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::RootModificationInvalid => UiError(ShareFileError::CannotShareRoot),
+            CoreError::FileNonexistent => UiError(ShareFileError::FileNonexistent),
+            CoreError::ShareAlreadyExists => UiError(ShareFileError::ShareAlreadyExists),
+            CoreError::LinkInSharedFolder => UiError(ShareFileError::LinkInSharedFolder),
+            CoreError::InsufficientPermission => UiError(ShareFileError::InsufficientPermission),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum DeletePendingShareError {
+    FileNonexistent,
+}
+
+impl From<CoreError> for Error<DeletePendingShareError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::FileNonexistent => UiError(DeletePendingShareError::FileNonexistent),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum CreateLinkAtPathError {
+    FileAlreadyExists,
+    PathContainsEmptyFile,
+    DocumentTreatedAsFolder,
+    LinkInSharedFolder,
+    LinkTargetIsOwned,
+    LinkTargetNonexistent,
+    MultipleLinksToSameFile,
+}
+
+impl From<CoreError> for Error<CreateLinkAtPathError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::PathContainsEmptyFileName => {
+                UiError(CreateLinkAtPathError::PathContainsEmptyFile)
+            }
+            CoreError::PathTaken => UiError(CreateLinkAtPathError::FileAlreadyExists),
+            CoreError::FileNotFolder => UiError(CreateLinkAtPathError::DocumentTreatedAsFolder),
+            CoreError::LinkInSharedFolder => UiError(CreateLinkAtPathError::LinkInSharedFolder),
+            CoreError::LinkTargetIsOwned => UiError(CreateLinkAtPathError::LinkTargetIsOwned),
+            CoreError::MultipleLinksToSameFile => {
+                UiError(CreateLinkAtPathError::MultipleLinksToSameFile)
+            }
+            CoreError::LinkTargetNonexistent => {
+                UiError(CreateLinkAtPathError::LinkTargetNonexistent)
+            }
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -895,7 +996,9 @@ impl From<SharedError> for TestRepoError {
                 ValidationFailure::Orphan(id) => TestRepoError::FileOrphaned(id),
                 ValidationFailure::Cycle(ids) => TestRepoError::CycleDetected(ids),
                 ValidationFailure::PathConflict(ids) => TestRepoError::PathConflict(ids),
-                ValidationFailure::DocumentFolder(id) => TestRepoError::DocumentTreatedAsFolder(id),
+                ValidationFailure::NonFolderWithChildren(id) => {
+                    TestRepoError::DocumentTreatedAsFolder(id)
+                }
                 ValidationFailure::NonDecryptableFileName(id) => {
                     TestRepoError::NonDecryptableFileName(id)
                 }

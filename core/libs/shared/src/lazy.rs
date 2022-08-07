@@ -143,7 +143,7 @@ impl<T: Stagable> LazyTree<T> {
 
         // Confirm file exists
         let file = self.find(id)?;
-        if file.is_document() {
+        if !file.is_folder() {
             return Ok(HashSet::default());
         }
 
@@ -213,7 +213,7 @@ impl<T: Stagable> LazyTree<T> {
 
     pub fn validate(&mut self) -> SharedResult<()> {
         self.assert_no_orphans()?;
-        self.assert_no_docfolders()?;
+        self.assert_only_folders_have_children()?;
         self.assert_no_cycles()?;
         self.assert_no_path_conflicts()?;
         // todo
@@ -221,13 +221,13 @@ impl<T: Stagable> LazyTree<T> {
         Ok(())
     }
 
-    pub fn assert_no_docfolders(&self) -> SharedResult<()> {
+    pub fn assert_only_folders_have_children(&self) -> SharedResult<()> {
         for file in self.all_files()? {
             let parent = self.find_parent(file)?;
-            if parent.is_document() {
-                return Err(SharedError::ValidationFailure(ValidationFailure::DocumentFolder(
-                    *parent.id(),
-                )));
+            if !parent.is_folder() {
+                return Err(SharedError::ValidationFailure(
+                    ValidationFailure::NonFolderWithChildren(*parent.id()),
+                ));
             }
         }
         Ok(())
@@ -318,7 +318,7 @@ pub enum ValidationFailure {
     Orphan(Uuid),
     Cycle(HashSet<Uuid>),
     PathConflict(HashSet<Uuid>),
-    DocumentFolder(Uuid),
+    NonFolderWithChildren(Uuid),
     NonDecryptableFileName(Uuid),
 }
 

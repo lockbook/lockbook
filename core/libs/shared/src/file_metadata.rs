@@ -111,6 +111,7 @@ impl PartialEq for Owner {
 pub enum FileType {
     Document,
     Folder,
+    Link { target: Uuid },
 }
 
 impl FromStr for FileType {

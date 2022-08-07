@@ -6,6 +6,10 @@ use lockbook_shared::tree_like::Stagable;
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
+    pub fn create_link_at_path(&mut self, path: &str, target_id: Uuid) -> CoreResult<File> {
+        todo!()
+    }
+
     pub fn create_at_path(&mut self, path: &str) -> CoreResult<File> {
         let pub_key = self.get_public_key()?;
         let account = self

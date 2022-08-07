@@ -10,6 +10,7 @@ pub mod service;
 
 mod external_interface;
 
+use lockbook_shared::file::ShareMode;
 pub use uuid::Uuid;
 
 pub use lockbook_shared::account::Account;
@@ -231,24 +232,61 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
+    pub fn share_file(
+        &self, id: Uuid, username: &str, mode: ShareMode,
+    ) -> Result<(), Error<ShareFileError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.share_file(id, username, mode))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_pending_shares(&self) -> Result<Vec<File>, UnexpectedError> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.get_pending_shares())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn delete_pending_share(&self, id: Uuid) -> Result<(), Error<DeletePendingShareError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.delete_pending_share(id))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn create_link_at_path(
+        &self, path_and_name: &str, target_id: Uuid,
+    ) -> Result<File, Error<CreateLinkAtPathError>> {
+        let val = self.db.transaction(|tx| {
+            self.context(tx)?
+                .create_link_at_path(path_and_name, target_id)
+        })?;
+        Ok(val?)
+    }
+
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn create_at_path(
         &self, path_and_name: &str,
     ) -> Result<File, Error<CreateFileAtPathError>> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.create_at_path(path_and_name))??;
+            .transaction(|tx| self.context(tx)?.create_at_path(path_and_name))?;
 
-        Ok(val)
+        Ok(val?)
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn get_by_path(&self, path: &str) -> Result<File, Error<GetFileByPathError>> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.get_by_path(path))??;
+            .transaction(|tx| self.context(tx)?.get_by_path(path))?;
 
-        Ok(val)
+        Ok(val?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]

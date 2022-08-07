@@ -34,7 +34,15 @@ where
         let id = *id;
         let last_modified_by = account.username.clone();
 
-        Ok(File { id, parent, name, file_type, last_modified, last_modified_by })
+        Ok(File {
+            id,
+            parent,
+            name,
+            file_type,
+            last_modified,
+            last_modified_by,
+            shares: Vec::new(),
+        })
     }
 
     pub fn create(
