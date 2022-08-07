@@ -155,9 +155,6 @@ class FFITests: XCTestCase {
         
         (0..<numberOfFiles).forEach { _ in assertSuccess(core.createFile(name: randomName(), dirId: root.id, isFolder: false)) }
         
-        /// Verify all non-root files are unsynced
-        assertSuccess(core.listFiles()) { $0.allSatisfy { $0.name == root.name || $0.lastModified == 0 } && $0.count == numberOfFiles+1 }
-        
         let resultSync = core.syncAll()
         
         assertSuccess(resultSync)
@@ -192,9 +189,6 @@ class FFITests: XCTestCase {
         let numberOfFiles = 5
         
         (0..<numberOfFiles).forEach { _ in assertSuccess(core.createFile(name: randomName(), dirId: root.id, isFolder: false)) }
-        
-        /// Verify all non-root files are unsynced
-        assertSuccess(core.listFiles()) { $0.allSatisfy { $0.name == root.name || $0.lastModified == 0 } && $0.count == numberOfFiles+1 }
         
         var resultCalculate = core.getLocalChanges()
 
