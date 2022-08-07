@@ -31,7 +31,7 @@ pub fn is_document<F: FileLike>(file: &F) -> SharedResult<()> {
     if file.is_document() {
         Ok(())
     } else {
-        Err(SharedError::FileNotFolder)
+        Err(SharedError::FileNotDocument)
     }
 }
 

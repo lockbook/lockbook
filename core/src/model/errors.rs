@@ -171,6 +171,7 @@ impl From<SharedError> for CoreError {
             RootModificationInvalid => CoreError::RootModificationInvalid,
             FileNameEmpty => CoreError::FileNameEmpty,
             FileNotFolder => CoreError::FileNotFolder,
+            FileNotDocument => CoreError::FileNotDocument,
             ValidationFailure(lockbook_shared::ValidationFailure::Cycle(_)) => {
                 CoreError::FolderMovedIntoSelf
             }

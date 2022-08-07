@@ -72,7 +72,10 @@ impl RequestContext<'_, '_> {
 
         let mut local_usage: u64 = 0;
         for id in tree.owned_ids() {
-            if !tree.calculate_deleted(&id)? && tree.find(&id)?.is_document() {
+            let is_file_deleted = tree.calculate_deleted(&id)?;
+            let file = tree.find(&id)?;
+
+            if !is_file_deleted && file.is_document() && file.document_hmac().is_some() {
                 let doc = document_repo::get(self.config, RepoSource::Local, id)?;
 
                 local_usage += tree.decrypt_document(&id, &doc, account)?.len() as u64

@@ -293,10 +293,12 @@ enum class MoveFileError : UiCoreError {
 
 @Serializable
 enum class SyncAllError : UiCoreError {
+    Retry,
     CouldNotReachServer,
     ClientUpdateRequired;
 
     override fun toLbError(res: Resources): LbError = when (this) {
+        Retry -> LbError.newUserError(getString(res, R.string.retry_sync))
         CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
         ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
     }

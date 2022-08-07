@@ -42,6 +42,7 @@ pub enum SharedError {
     FileNameEmpty,
     FileParentNonexistent,
     FileNotFolder,
+    FileNotDocument,
     SignatureInvalid,
     WrongPublicKey,
     SignatureInTheFuture(u64),

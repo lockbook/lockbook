@@ -6,13 +6,6 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonClassDiscriminator
 
-//    pub id: Uuid,
-//    pub parent: Uuid,
-//    pub name: String,
-//    pub file_type: FileType,
-//    pub last_modified: u64,
-//    pub last_modified_by: Username,
-
 @Serializable
 data class File(
     val id: String = "",

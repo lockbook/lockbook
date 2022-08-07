@@ -6,7 +6,8 @@ use std::path::Path;
 use uuid::Uuid;
 
 use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing};
-use lockbook_shared::tree_like::Stagable;
+use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::validate;
 
 use crate::model::drawing;
 use crate::model::drawing::SupportedImageFormats;
@@ -102,6 +103,9 @@ impl RequestContext<'_, '_> {
         if tree.calculate_deleted(&id)? {
             return Err(CoreError::FileNonexistent);
         }
+
+        let meta = tree.find(&id)?;
+        validate::is_document(&meta)?;
 
         let doc = document_repo::get(self.config, RepoSource::Local, id)?;
         let exported_drawing_bytes = drawing::export_drawing(
