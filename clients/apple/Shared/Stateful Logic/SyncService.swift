@@ -61,6 +61,9 @@ class SyncService: ObservableObject {
                             self.offline = true
                         case .ClientUpdateRequired:
                             self.upgrade = true
+                        case .Retry:
+                            // TODO
+                            DI.errors.handleError(ErrorWithTitle(title: "Retry", message: "SyncService wants retry"))
                         }
                     default:
                         DI.errors.handleError(error)

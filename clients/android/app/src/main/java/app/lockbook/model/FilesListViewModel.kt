@@ -54,7 +54,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
                     recentFiles.set(fileModel.recentFiles.intoRecentViewHolderInfo(fileModel.files))
                     files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
-                    breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
+                    breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
 
                     _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
 
@@ -85,7 +85,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
             do {
                 iter++
                 fileName = "${getString(R.string.note)}-$iter.md"
-            } while (fileModel.children.any { it.decryptedName == fileName })
+            } while (fileModel.children.any { it.name == fileName })
 
             when (val createFileResult = CoreModel.createFile(fileModel.parent.id, fileName, FileType.Document)) {
                 is Ok -> {
@@ -100,7 +100,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun enterFolder(folder: DecryptedFileMetadata) {
+    fun enterFolder(folder: File) {
         viewModelScope.launch(Dispatchers.IO) {
             fileModel.intoFile(folder)
 
@@ -115,7 +115,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                 files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
             }
 
-            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
+            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
             _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
         }
     }
@@ -129,7 +129,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                 files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
             }
 
-            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
+            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
             _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
         }
     }
@@ -138,7 +138,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch(Dispatchers.IO) {
             fileModel.refreshChildrenAtAncestor(position)
             maybeToggleRecentFiles()
-            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
+            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
             viewModelScope.launch(Dispatchers.Main) {
                 files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
             }

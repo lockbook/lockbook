@@ -2,8 +2,8 @@ import AppKit
 import SwiftLockbookCore
 
 class FileItemView: NSTableCellView {
-    init(file: DecryptedFileMetadata) {
-        let field = NSTextField(string: file.decryptedName)
+    init(file: File) {
+        let field = NSTextField(string: file.name)
         field.isEditable = false
         field.isSelectable = false
         field.isBezeled = false

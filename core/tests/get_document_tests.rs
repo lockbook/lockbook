@@ -1,8 +1,10 @@
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
-use lockbook_models::api::*;
-use lockbook_models::crypto::AESEncrypted;
+use lockbook_shared::api::*;
+use lockbook_shared::crypto::AESEncrypted;
 
+use lockbook_shared::file_like::FileLike;
+use lockbook_shared::file_metadata::FileDiff;
 use test_utils::*;
 use uuid::Uuid;
 
@@ -12,40 +14,24 @@ fn get_document() {
     let account = core.get_account().unwrap();
     let id = core.create_at_path("test.md").unwrap().id;
     core.sync(None).unwrap();
-    let metadata_version = core
-        .db
-        .base_metadata
-        .get(&id)
-        .unwrap()
-        .unwrap()
-        .metadata_version;
+    let old = core.db.base_metadata.get(&id).unwrap().unwrap();
+    let mut new = old.clone();
+    new.timestamped_value.value.document_hmac = Some([0; 32]);
 
     // update document content
     api_service::request(
         &account,
-        ChangeDocumentContentRequest {
-            id,
-            old_metadata_version: metadata_version,
+        ChangeDocRequest {
+            diff: FileDiff::edit(&old, &new),
             new_content: AESEncrypted { value: vec![69], nonce: vec![69], _t: Default::default() },
         },
     )
     .unwrap();
 
-    // get content version
-    let content_version = api_service::request(
-        &account,
-        GetUpdatesRequest { since_metadata_version: metadata_version },
-    )
-    .unwrap()
-    .file_metadata
-    .iter()
-    .find(|&f| f.id == id)
-    .unwrap()
-    .content_version;
-
     // get document
     let result =
-        &api_service::request(&account, GetDocumentRequest { id, content_version }).unwrap();
+        &api_service::request(&account, GetDocRequest { id, hmac: *new.document_hmac().unwrap() })
+            .unwrap();
     assert_eq!(
         result.content,
         AESEncrypted { value: vec!(69), nonce: vec!(69), _t: Default::default() }
@@ -56,11 +42,17 @@ fn get_document() {
 fn get_document_not_found() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
+    let id = core.create_at_path("test.md").unwrap().id;
+    core.sync(None).unwrap();
+    let mut old = core.db.base_metadata.get(&id).unwrap().unwrap();
+    old.timestamped_value.value.id = Uuid::new_v4();
+    let mut new = old;
+    new.timestamped_value.value.document_hmac = Some([0; 32]);
 
     // get document we never created
     let result = api_service::request(
         &account,
-        GetDocumentRequest { id: Uuid::new_v4(), content_version: 0 },
+        GetDocRequest { id: *new.id(), hmac: *new.document_hmac().unwrap() },
     );
     assert_matches!(
         result,

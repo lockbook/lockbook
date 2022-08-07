@@ -4,7 +4,6 @@ use std::io::Write;
 use lockbook_core::Core;
 use lockbook_core::Error as LbError;
 use lockbook_core::FileDeleteError;
-use lockbook_core::FileMetadata;
 use lockbook_core::GetAndGetChildrenError;
 use lockbook_core::Uuid;
 

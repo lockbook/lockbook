@@ -14,7 +14,7 @@ import app.lockbook.model.CoreModel
 import app.lockbook.model.ExtendedFileType
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TransientScreen
-import app.lockbook.util.DecryptedFileMetadata
+import app.lockbook.util.File
 import app.lockbook.util.FileType
 import app.lockbook.util.exhaustive
 import app.lockbook.util.requestKeyboardFocus
@@ -32,7 +32,7 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
         activityModel.transientScreen as TransientScreen.Create
     }
 
-    var newFile: DecryptedFileMetadata? = null
+    var newFile: File? = null
 
     companion object {
         const val CREATE_FILE_DIALOG_TAG = "CreateFileDialogFragment"

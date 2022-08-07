@@ -16,7 +16,7 @@ public enum ViewType {
 class DocumentLoader: ObservableObject {
     let core: LockbookApi
 
-    @Published var meta: DecryptedFileMetadata?
+    @Published var meta: File?
     @Published var type: ViewType?
     @Published var deleted: Bool = false
     @Published var loading: Bool = true
@@ -34,8 +34,8 @@ class DocumentLoader: ObservableObject {
         setupAutoSavers()
     }
 
-    func startLoading(_ meta: DecryptedFileMetadata) {
-        let type = DocumentLoader.getType(name: meta.decryptedName)
+    func startLoading(_ meta: File) {
+        let type = DocumentLoader.getType(name: meta.name)
 
         self.meta = meta
         self.type = type
@@ -66,7 +66,7 @@ class DocumentLoader: ObservableObject {
         }
     }
 
-    func updatesFromCoreAvailable(_ newMeta: DecryptedFileMetadata) {
+    func updatesFromCoreAvailable(_ newMeta: File) {
         self.meta = newMeta
         if
                 let type = self.type,
@@ -148,7 +148,7 @@ class DocumentLoader: ObservableObject {
 
     private func writeDocument(content: String) {
         if let meta = self.meta {
-            print("write called: \(meta.decryptedName)")
+            print("write called: \(meta.name)")
             let operation = self.core.updateFile(id: meta.id, content: content)
             DispatchQueue.main.async {
                 switch operation {

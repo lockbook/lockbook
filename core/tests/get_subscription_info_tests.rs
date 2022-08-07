@@ -1,5 +1,5 @@
 use lockbook_core::service::api_service;
-use lockbook_models::api::{GetSubscriptionInfoRequest, UpgradeAccountStripeRequest};
+use lockbook_shared::api::{GetSubscriptionInfoRequest, UpgradeAccountStripeRequest};
 use test_utils::{generate_premium_account_tier, test_core_with_account, test_credit_cards};
 
 #[test]

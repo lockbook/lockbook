@@ -5,11 +5,11 @@ import app.lockbook.util.*
 import com.github.michaelbull.result.*
 
 class FileModel(
-    var parent: DecryptedFileMetadata,
-    var files: List<DecryptedFileMetadata>,
-    var children: List<DecryptedFileMetadata>,
-    var recentFiles: List<DecryptedFileMetadata>,
-    val fileDir: MutableList<DecryptedFileMetadata>,
+    var parent: File,
+    var files: List<File>,
+    var children: List<File>,
+    var recentFiles: List<File>,
+    val fileDir: MutableList<File>,
 ) {
 
     companion object {
@@ -47,10 +47,10 @@ class FileModel(
             }
         }
 
-        private fun getTenMostRecentFiles(files: List<DecryptedFileMetadata>): List<DecryptedFileMetadata> {
+        private fun getTenMostRecentFiles(files: List<File>): List<File> {
             val intermediateRecentFiles =
                 files.asSequence().filter { it.fileType == FileType.Document }
-                    .sortedBy { it.contentVersion }.toList()
+                    .sortedBy { it.lastModified }.toList()
 
             val recentFiles = try {
                 intermediateRecentFiles.takeLast(10)
@@ -82,7 +82,7 @@ class FileModel(
         }
     }
 
-    fun intoFile(newParent: DecryptedFileMetadata) {
+    fun intoFile(newParent: File) {
         parent = newParent
         refreshChildren()
         fileDir.add(newParent)
@@ -108,6 +108,6 @@ class FileModel(
             fileMetadata.fileType == FileType.Document
         }
 
-        children = folders.sortedBy { it.decryptedName } + documents.sortedBy { it.decryptedName }
+        children = folders.sortedBy { it.name } + documents.sortedBy { it.name }
     }
 }

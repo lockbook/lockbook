@@ -164,7 +164,7 @@ fn load_doc_info(core: &lb::Core, id: lb::Uuid) -> Result<DocInfo, String> {
     use lb::GetFileByIdError::*;
     let name = core
         .get_file_by_id(id)
-        .map(|fm| fm.decrypted_name)
+        .map(|f| f.name)
         .map_err(|err| match err {
             lb::Error::UiError(NoFileWithThatId) => format!("no file with id '{}'", id),
             lb::Error::Unexpected(msg) => msg,

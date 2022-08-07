@@ -2,9 +2,9 @@
 
 #[macro_use]
 extern crate tracing;
+extern crate core; // TODO This can prob go
 
 pub mod model;
-pub mod pure_functions;
 pub mod repo;
 pub mod service;
 
@@ -12,19 +12,21 @@ mod external_interface;
 
 pub use uuid::Uuid;
 
-pub use lockbook_models::account::Account;
-pub use lockbook_models::api::{PaymentMethod, PaymentPlatform};
-pub use lockbook_models::api::{StripeAccountTier, SubscriptionInfo};
-pub use lockbook_models::crypto::DecryptedDocument;
-pub use lockbook_models::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
-pub use lockbook_models::file_metadata::{DecryptedFileMetadata, FileType};
-pub use lockbook_models::tree::{FileMetaMapExt, FileMetaVecExt, FileMetadata};
-pub use lockbook_models::work_unit::{ClientWorkUnit, WorkUnit};
+pub use lockbook_shared::account::Account;
+pub use lockbook_shared::api::{PaymentMethod, PaymentPlatform};
+pub use lockbook_shared::api::{StripeAccountTier, SubscriptionInfo};
+pub use lockbook_shared::crypto::DecryptedDocument;
+pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
+pub use lockbook_shared::file::File;
+pub use lockbook_shared::file_like::FileLike;
+pub use lockbook_shared::file_metadata::FileType;
+pub use lockbook_shared::filename::NameComponents;
+pub use lockbook_shared::path_ops::Filter;
+pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 
+pub use crate::model::drawing::SupportedImageFormats;
 pub use crate::model::errors::*;
-pub use crate::pure_functions::drawing::SupportedImageFormats;
 pub use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
-pub use crate::service::path_service::Filter;
 pub use crate::service::sync_service::{SyncProgress, WorkCalculated};
 pub use crate::service::usage_service::{bytes_to_human, UsageItemMetric, UsageMetrics};
 
@@ -36,13 +38,14 @@ use basic_human_duration::ChronoHumanDuration;
 use chrono::Duration;
 use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
+use itertools::Itertools;
 use libsecp256k1::PublicKey;
 use serde::Deserialize;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 
-use lockbook_crypto::clock_service;
-use lockbook_models::crypto::AESKey;
+use lockbook_shared::clock;
+use lockbook_shared::crypto::AESKey;
 
 use crate::model::errors::Error::UiError;
 use crate::model::repo::RepoSource;
@@ -131,18 +134,17 @@ impl Core {
     pub fn get_account(&self) -> Result<Account, Error<GetAccountError>> {
         let account = self
             .db
-            .transaction(|tx| self.context(tx)?.get_account())??;
+            .transaction(|tx| self.context(tx)?.get_account().map(|f| f.clone()))??;
         Ok(account)
     }
 
     #[instrument(level = "debug", skip(self, name), err(Debug))]
     pub fn create_file(
         &self, name: &str, parent: Uuid, file_type: FileType,
-    ) -> Result<DecryptedFileMetadata, Error<CreateFileError>> {
-        let val = self.db.transaction(|tx| {
-            self.context(tx)?
-                .create_file(&self.config, name, parent, file_type)
-        })?;
+    ) -> Result<File, Error<CreateFileError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.create_file(name, &parent, file_type))?;
         Ok(val?)
     }
 
@@ -151,96 +153,72 @@ impl Core {
         &self, id: Uuid, content: &[u8],
     ) -> Result<(), Error<WriteToDocumentError>> {
         let val: Result<_, CoreError> = self.db.transaction(|tx| {
-            let metadata = self
-                .context(tx)?
-                .get_not_deleted_metadata(RepoSource::Local, id)?;
-            self.context(tx)?.insert_document(
-                &self.config,
-                RepoSource::Local,
-                &metadata,
-                content,
-            )?;
+            let mut ctx = self.context(tx)?;
+            ctx.write_document(id, content)?;
             Ok(())
         })?;
         Ok(val?)
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn get_root(&self) -> Result<DecryptedFileMetadata, Error<GetRootError>> {
+    pub fn get_root(&self) -> Result<File, Error<GetRootError>> {
         let val = self.db.transaction(|tx| self.context(tx)?.root())?;
         Ok(val?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_children(&self, id: Uuid) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
+    pub fn get_children(&self, id: Uuid) -> Result<Vec<File>, UnexpectedError> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.get_children(id))??
-            .into_values()
-            .collect();
-        Ok(val)
+            .transaction(|tx| self.context(tx)?.get_children(&id))?;
+        Ok(val?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn get_and_get_children_recursively(
         &self, id: Uuid,
-    ) -> Result<Vec<DecryptedFileMetadata>, Error<GetAndGetChildrenError>> {
+    ) -> Result<Vec<File>, Error<GetAndGetChildrenError>> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.get_and_get_children_recursively(id))??
-            .into_values()
-            .collect();
-
-        Ok(val)
+            .transaction(|tx| self.context(tx)?.get_and_get_children(&id))?;
+        Ok(val?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_file_by_id(
-        &self, id: Uuid,
-    ) -> Result<DecryptedFileMetadata, Error<GetFileByIdError>> {
-        let val = self.db.transaction(|tx| {
-            self.context(tx)?
-                .get_not_deleted_metadata(RepoSource::Local, id)
-        })?;
-
+    pub fn get_file_by_id(&self, id: Uuid) -> Result<File, Error<GetFileByIdError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.get_file_by_id(&id))?;
         Ok(val?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn delete_file(&self, id: Uuid) -> Result<(), Error<FileDeleteError>> {
-        let val = self
-            .db
-            .transaction(|tx| self.context(tx)?.delete_file(&self.config, id))?;
+        let val = self.db.transaction(|tx| self.context(tx)?.delete(&id))?;
         Ok(val?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn read_document(&self, id: Uuid) -> Result<DecryptedDocument, Error<ReadDocumentError>> {
-        let val = self.db.transaction(|tx| {
-            self.context(tx)?
-                .read_document(&self.config, RepoSource::Local, id)
-        })?;
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.read_document(id))?;
         Ok(val?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn list_metadatas(&self) -> Result<Vec<DecryptedFileMetadata>, UnexpectedError> {
+    pub fn list_metadatas(&self) -> Result<Vec<File>, UnexpectedError> {
         let val = self
             .db
-            .transaction(|tx| {
-                self.context(tx)?
-                    .get_all_not_deleted_metadata(RepoSource::Local)
-            })??
-            .into_values()
-            .collect();
-        Ok(val)
+            .transaction(|tx| self.context(tx)?.list_metadatas())?;
+        Ok(val?)
     }
 
     #[instrument(level = "debug", skip(self, new_name), err(Debug))]
     pub fn rename_file(&self, id: Uuid, new_name: &str) -> Result<(), Error<RenameFileError>> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.rename_file(&self.config, id, new_name))?;
+            .transaction(|tx| self.context(tx)?.rename_file(&id, new_name))?;
 
         Ok(val?)
     }
@@ -249,26 +227,23 @@ impl Core {
     pub fn move_file(&self, id: Uuid, new_parent: Uuid) -> Result<(), Error<MoveFileError>> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.move_file(&self.config, id, new_parent))?;
+            .transaction(|tx| self.context(tx)?.move_file(&id, &new_parent))?;
         Ok(val?)
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn create_at_path(
         &self, path_and_name: &str,
-    ) -> Result<DecryptedFileMetadata, Error<CreateFileAtPathError>> {
-        let val = self.db.transaction(|tx| {
-            self.context(tx)?
-                .create_at_path(&self.config, path_and_name)
-        })??;
+    ) -> Result<File, Error<CreateFileAtPathError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.create_at_path(path_and_name))??;
 
         Ok(val)
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn get_by_path(
-        &self, path: &str,
-    ) -> Result<DecryptedFileMetadata, Error<GetFileByPathError>> {
+    pub fn get_by_path(&self, path: &str) -> Result<File, Error<GetFileByPathError>> {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.get_by_path(path))??;
@@ -297,15 +272,15 @@ impl Core {
     pub fn get_local_changes(&self) -> Result<Vec<Uuid>, UnexpectedError> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.get_local_changes(&self.config))?;
-        Ok(val?)
+            .transaction(|tx| tx.local_metadata.keys().into_iter().copied().collect_vec())?;
+        Ok(val)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn calculate_work(&self) -> Result<WorkCalculated, Error<CalculateWorkError>> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.calculate_work(&self.config))?;
+            .transaction(|tx| self.context(tx)?.calculate_work())?;
         Ok(val?)
     }
 
@@ -327,7 +302,7 @@ impl Core {
         let last_synced = self.db.last_synced.get(&OneKey {})?.unwrap_or(0);
 
         Ok(if last_synced != 0 {
-            Duration::milliseconds(clock_service::get_time().0 - last_synced)
+            Duration::milliseconds(clock::get_time().0 - last_synced)
                 .format_human()
                 .to_string()
         } else {
@@ -345,7 +320,7 @@ impl Core {
     pub fn get_uncompressed_usage(&self) -> Result<UsageItemMetric, Error<GetUsageError>> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.get_uncompressed_usage(&self.config))?;
+            .transaction(|tx| self.context(tx)?.get_uncompressed_usage())?;
         Ok(val?)
     }
 
@@ -353,7 +328,7 @@ impl Core {
     pub fn get_drawing(&self, id: Uuid) -> Result<Drawing, Error<GetDrawingError>> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.get_drawing(&self.config, id))?;
+            .transaction(|tx| self.context(tx)?.get_drawing(id))?;
         Ok(val?)
     }
 
@@ -361,7 +336,7 @@ impl Core {
     pub fn save_drawing(&self, id: Uuid, d: &Drawing) -> Result<(), Error<SaveDrawingError>> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.save_drawing(&self.config, id, d))?;
+            .transaction(|tx| self.context(tx)?.save_drawing(id, d))?;
         Ok(val?)
     }
 
@@ -370,10 +345,9 @@ impl Core {
         &self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
     ) -> Result<Vec<u8>, Error<ExportDrawingError>> {
-        let val = self.db.transaction(|tx| {
-            self.context(tx)?
-                .export_drawing(&self.config, id, format, render_theme)
-        })?;
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.export_drawing(id, format, render_theme))?;
         Ok(val?)
     }
 
@@ -383,13 +357,8 @@ impl Core {
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
     ) -> Result<(), Error<ExportDrawingToDiskError>> {
         let val = self.db.transaction(|tx| {
-            self.context(tx)?.export_drawing_to_disk(
-                &self.config,
-                id,
-                format,
-                render_theme,
-                location,
-            )
+            self.context(tx)?
+                .export_drawing_to_disk(id, format, render_theme, location)
         })?;
         Ok(val?)
     }
@@ -398,10 +367,9 @@ impl Core {
     pub fn import_files<F: Fn(ImportStatus)>(
         &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
     ) -> Result<(), Error<ImportFileError>> {
-        let val = self.db.transaction(|tx| {
-            self.context(tx)?
-                .import_files(&self.config, sources, dest, update_status)
-        })?;
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.import_files(sources, dest, update_status))?;
         Ok(val?)
     }
 
@@ -412,7 +380,7 @@ impl Core {
     ) -> Result<(), Error<ExportFileError>> {
         let val = self.db.transaction(|tx| {
             self.context(tx)?
-                .export_file(&self.config, id, destination, edit, export_progress)
+                .export_file(id, destination, edit, export_progress)
         })?;
         Ok(val?)
     }
@@ -434,7 +402,7 @@ impl Core {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn validate(&self) -> Result<Vec<Warning>, TestRepoError> {
         self.db
-            .transaction(|tx| self.context(tx)?.test_repo_integrity(&self.config))
+            .transaction(|tx| self.context(tx)?.test_repo_integrity())
             .map_err(CoreError::from)
             .map_err(TestRepoError::Core)?
     }

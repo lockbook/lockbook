@@ -137,15 +137,6 @@ swift_interface_tests_run: server swift_interface_tests
 	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up swift_interface_tests
 	exit $$(docker wait swift_interface_tests-swift-$(hash))
 
-.PHONY: csharp_interface_tests
-csharp_interface_tests: is_docker_running
-	docker build --target csharp-interface-tests -f containers/Dockerfile.csharp_interface_tests . --tag csharp_interface_tests:$(hash) --build-arg HASH=$(hash)
-
-.PHONY: csharp_interface_tests_run
-csharp_interface_tests_run: server csharp_interface_tests
-	HASH=$(hash) docker-compose -f containers/docker-compose-integration-tests.yml --project-name=lockbook-$(hash) up csharp_interface_tests
-	exit $$(docker wait csharp_interface_tests-csharp-$(hash))
-
 .PHONY: performance
 performance: is_docker_running
 	docker build -f containers/Dockerfile.performance . --tag performance:$(hash)

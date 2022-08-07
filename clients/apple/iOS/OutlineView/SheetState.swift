@@ -8,7 +8,7 @@ enum ClientFileTypes {
 }
 
 struct CreatingInfo {
-    let parent: DecryptedFileMetadata
+    let parent: File
     let child_type: FileType // TODO maybe pop out?
 }
 
@@ -31,7 +31,7 @@ class SheetState: ObservableObject {
             }
         }
     }
-    @Published var created: DecryptedFileMetadata?
+    @Published var created: File?
     
     @Published var moving: Bool = false {
         didSet {
@@ -40,7 +40,7 @@ class SheetState: ObservableObject {
             }
         }
     }
-    @Published var movingInfo: DecryptedFileMetadata? {
+    @Published var movingInfo: File? {
         didSet {
             if movingInfo == nil {
                 moving = false
@@ -57,7 +57,7 @@ class SheetState: ObservableObject {
             }
         }
     }
-    @Published var renamingInfo: DecryptedFileMetadata? {
+    @Published var renamingInfo: File? {
         didSet {
             if renamingInfo == nil {
                 renaming = false

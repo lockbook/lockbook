@@ -1,9 +1,9 @@
-use lockbook_core::pure_functions::files;
+use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
-use lockbook_core::service::{api_service, file_encryption_service};
-use lockbook_crypto::pubkey;
-use lockbook_models::account::Account;
-use lockbook_models::api::*;
+use lockbook_shared::account::Account;
+use lockbook_shared::api::*;
+use lockbook_shared::file_metadata::FileMetadata;
+use lockbook_shared::pubkey;
 use test_utils::*;
 
 fn random_account() -> Account {
@@ -11,14 +11,10 @@ fn random_account() -> Account {
 }
 
 fn test_account(account: &Account) -> Result<NewAccountResponse, ApiError<NewAccountError>> {
-    let root = files::create_root(account);
-    let root = file_encryption_service::encrypt_metadatum(
-        account,
-        &account.public_key(),
-        &root.decrypted_access_key,
-        &root,
-    )
-    .unwrap();
+    let root = FileMetadata::create_root(account)
+        .unwrap()
+        .sign(account)
+        .unwrap();
     api_service::request(account, NewAccountRequest::new(account, &root))
 }
 #[test]

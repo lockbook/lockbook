@@ -34,7 +34,7 @@ class DeleteFilesDialogFragment : AppCompatDialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog = MaterialAlertDialogBuilder(requireContext())
         .apply {
             val msg = if (files.size == 1) {
-                getString(R.string.delete_1_file_message, files[0].decryptedName)
+                getString(R.string.delete_1_file_message, files[0].name)
             } else {
                 getString(R.string.delete_file_message, files.size)
             }

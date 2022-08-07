@@ -6,7 +6,7 @@ use crate::{ClientError, ServerError, ServerState};
 use google_androidpublisher3::api::SubscriptionPurchase;
 use google_androidpublisher3::hyper::body::Bytes;
 use libsecp256k1::PublicKey;
-use lockbook_models::api::UnixTimeMillis;
+use lockbook_shared::api::UnixTimeMillis;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::*;

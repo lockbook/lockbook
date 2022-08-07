@@ -4,11 +4,11 @@ import SwiftLockbookCore
 class FileService: ObservableObject {
     let core: LockbookApi
 
-    @Published var root: DecryptedFileMetadata? = nil
-    @Published var files: [DecryptedFileMetadata] = []
+    @Published var root: File? = nil
+    @Published var files: [File] = []
 
-    func childrenOf(_ meta: DecryptedFileMetadata?) -> [DecryptedFileMetadata] {
-        var file: DecryptedFileMetadata
+    func childrenOf(_ meta: File?) -> [File] {
+        var file: File
         if meta == nil {
             file = root!
         } else {
@@ -24,7 +24,7 @@ class FileService: ObservableObject {
         return toBeSorted
     }
 
-    func childrenOfRoot() -> [DecryptedFileMetadata] {
+    func childrenOfRoot() -> [File] {
         let root = root!
         return childrenOf(root)
     }
@@ -174,8 +174,8 @@ class FileService: ObservableObject {
         }
     }
 
-    private func notifyDocumentChanged(_ meta: DecryptedFileMetadata) {
-        if let openDocument = DI.documentLoader.meta, meta.id == openDocument.id, meta.contentVersion != openDocument.contentVersion {
+    private func notifyDocumentChanged(_ meta: File) {
+        if let openDocument = DI.documentLoader.meta, meta.id == openDocument.id, meta.lastModified != openDocument.lastModified {
             DI.documentLoader.updatesFromCoreAvailable(meta)
         }
     }

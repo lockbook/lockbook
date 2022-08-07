@@ -2,8 +2,8 @@ import AppKit
 import SwiftLockbookCore
 
 class Rename: NSMenuItem {
-    let file: DecryptedFileMetadata
-    init(file: DecryptedFileMetadata) {
+    let file: File
+    init(file: File) {
         self.file = file
         super.init(title: "Rename", action: #selector(rename(_:)), keyEquivalent: "")
         target = self
@@ -19,8 +19,8 @@ class Rename: NSMenuItem {
 }
 
 class Create: NSMenuItem {
-    let file: DecryptedFileMetadata
-    init(file: DecryptedFileMetadata) {
+    let file: File
+    init(file: File) {
         self.file = file
         super.init(title: "Create", action: #selector(create(_:)), keyEquivalent: "")
         target = self
@@ -36,8 +36,8 @@ class Create: NSMenuItem {
 }
 
 class Delete: NSMenuItem {
-    let file: DecryptedFileMetadata
-    init(file: DecryptedFileMetadata) {
+    let file: File
+    init(file: File) {
         self.file = file
         super.init(title: "Delete", action: #selector(delete(_:)), keyEquivalent: "")
         target = self

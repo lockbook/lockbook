@@ -131,19 +131,9 @@ jobs:
       - name: Prep-Swift-Core
         run: make swift_interface_tests
 
-  Prep-CSharp-Core:
-    runs-on: [self-hosted, dockerized]
-    needs: [Core, Server]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Prep-CSharp-Core
-        run: make csharp_interface_tests
-
   Run-Dev-Stack:
     runs-on: [self-hosted, dockerized]
-    needs: [Prep-Core-Server-Db, Prep-Server-DB, Prep-Kotlin-Core, Prep-Swift-Core, Prep-CSharp-Core]
+    needs: [Prep-Core-Server-Db, Prep-Server-DB, Prep-Kotlin-Core, Prep-Swift-Core]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -181,19 +171,9 @@ jobs:
       - name: Swift-Core
         run: make swift_interface_tests_run
 
-  CSharp-Core:
-    runs-on: [self-hosted, dockerized]
-    needs: Run-Dev-Stack
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: CSharp-Core
-        run: make csharp_interface_tests_run
-
   Server-Logs:
     runs-on: [self-hosted, dockerized]
-    needs: [Core-Server-Db, Kotlin-Core, Swift-Core, CSharp-Core]
+    needs: [Core-Server-Db, Kotlin-Core, Swift-Core]
     if: always()
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

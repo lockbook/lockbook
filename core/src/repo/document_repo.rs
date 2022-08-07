@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use lockbook_models::crypto::*;
+use lockbook_shared::crypto::*;
 
 use crate::model::errors::core_err_unexpected;
 use crate::model::repo::RepoSource;
@@ -41,7 +41,7 @@ pub fn get(config: &Config, source: RepoSource, id: Uuid) -> Result<EncryptedDoc
 
 #[instrument(level = "debug", skip(config), err(Debug))]
 pub fn maybe_get(
-    config: &Config, source: RepoSource, id: Uuid,
+    config: &Config, source: RepoSource, id: &Uuid,
 ) -> Result<Option<EncryptedDocument>, CoreError> {
     let maybe_data: Option<Vec<u8>> =
         local_storage::read(config, namespace(source), id.to_string().as_str())?;

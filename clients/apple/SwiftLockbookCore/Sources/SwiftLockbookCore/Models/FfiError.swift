@@ -166,6 +166,7 @@ public enum MoveFileError: String, UiError {
 public enum SyncAllError: String, UiError {
     case ClientUpdateRequired
     case CouldNotReachServer
+    case Retry
 }
 public enum CalculateWorkError: String, UiError {
     case CouldNotReachServer

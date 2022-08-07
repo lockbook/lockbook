@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::io::ErrorKind;
 
@@ -6,9 +7,8 @@ use serde::{Serialize, Serializer};
 use strum_macros::EnumIter;
 use uuid::Uuid;
 
-use lockbook_models::api;
-use lockbook_models::api::{GetPublicKeyError, GetUpdatesError, NewAccountError};
-use lockbook_models::tree::TreeError;
+use lockbook_shared::api::{self, GetPublicKeyError, GetUpdatesError, NewAccountError};
+use lockbook_shared::{SharedError, ValidationFailure};
 
 use crate::service::api_service::ApiError;
 use crate::UiError;
@@ -103,6 +103,8 @@ macro_rules! unexpected_only {
     }};
 }
 
+pub type CoreResult<T> = Result<T, CoreError>;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum CoreError {
     AccountExists,
@@ -155,6 +157,32 @@ pub fn core_err_unexpected<T: std::fmt::Debug>(err: T) -> CoreError {
     CoreError::Unexpected(format!("{:#?}", err))
 }
 
+impl From<SharedError> for CoreError {
+    fn from(err: SharedError) -> Self {
+        use SharedError::*;
+        match err {
+            RootNonexistent => CoreError::RootNonexistent,
+            FileNonexistent => CoreError::FileNonexistent,
+            FileParentNonexistent => CoreError::FileParentNonexistent,
+            Unexpected(err) => CoreError::Unexpected(err.to_string()),
+            PathContainsEmptyFileName => CoreError::PathContainsEmptyFileName,
+            PathTaken => CoreError::PathTaken,
+            FileNameContainsSlash => CoreError::FileNameContainsSlash,
+            RootModificationInvalid => CoreError::RootModificationInvalid,
+            FileNameEmpty => CoreError::FileNameEmpty,
+            FileNotFolder => CoreError::FileNotFolder,
+            FileNotDocument => CoreError::FileNotDocument,
+            ValidationFailure(lockbook_shared::ValidationFailure::Cycle(_)) => {
+                CoreError::FolderMovedIntoSelf
+            }
+            ValidationFailure(lockbook_shared::ValidationFailure::PathConflict(_)) => {
+                CoreError::PathTaken
+            }
+            _ => CoreError::Unexpected(format!("unexpected shared error {:?}", err)),
+        }
+    }
+}
+
 impl From<hmdb::errors::Error> for CoreError {
     fn from(err: hmdb::errors::Error) -> Self {
         core_err_unexpected(err)
@@ -164,17 +192,6 @@ impl From<hmdb::errors::Error> for CoreError {
 impl<E: Serialize> From<hmdb::errors::Error> for Error<E> {
     fn from(err: hmdb::errors::Error) -> Self {
         Self::Unexpected(format!("{:#?}", err))
-    }
-}
-
-impl From<TreeError> for CoreError {
-    fn from(tree: TreeError) -> Self {
-        match tree {
-            TreeError::FileNonexistent => CoreError::FileNonexistent,
-            TreeError::FileParentNonexistent => CoreError::FileParentNonexistent,
-            TreeError::RootNonexistent => CoreError::RootNonexistent,
-            TreeError::Unexpected(err) => CoreError::Unexpected(err),
-        }
     }
 }
 
@@ -515,6 +532,7 @@ impl From<CoreError> for Error<MoveFileError> {
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum SyncAllError {
+    Retry,
     ClientUpdateRequired,
     CouldNotReachServer,
 }
@@ -522,6 +540,7 @@ pub enum SyncAllError {
 impl From<CoreError> for Error<SyncAllError> {
     fn from(e: CoreError) -> Self {
         match e {
+            // TODO figure out under what circumstances a user should retry a sync
             CoreError::ServerUnreachable => UiError(SyncAllError::CouldNotReachServer),
             CoreError::ClientUpdateRequired => UiError(SyncAllError::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
@@ -549,8 +568,8 @@ impl From<ApiError<api::GetDocumentError>> for CoreError {
     }
 }
 
-impl From<ApiError<api::FileMetadataUpsertsError>> for CoreError {
-    fn from(e: ApiError<api::FileMetadataUpsertsError>) -> Self {
+impl From<ApiError<api::UpsertError>> for CoreError {
+    fn from(e: ApiError<api::UpsertError>) -> Self {
         match e {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
@@ -559,8 +578,8 @@ impl From<ApiError<api::FileMetadataUpsertsError>> for CoreError {
     }
 }
 
-impl From<ApiError<api::ChangeDocumentContentError>> for CoreError {
-    fn from(e: ApiError<api::ChangeDocumentContentError>) -> Self {
+impl From<ApiError<api::ChangeDocError>> for CoreError {
+    fn from(e: ApiError<api::ChangeDocError>) -> Self {
         match e {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
@@ -859,13 +878,31 @@ pub enum TestRepoError {
     NoRootFolder,
     DocumentTreatedAsFolder(Uuid),
     FileOrphaned(Uuid),
-    CycleDetected(Uuid),
+    CycleDetected(HashSet<Uuid>),
     FileNameEmpty(Uuid),
     FileNameContainsSlash(Uuid),
-    NameConflictDetected(Uuid),
+    PathConflict(HashSet<Uuid>),
+    NonDecryptableFileName(Uuid),
     DocumentReadError(Uuid, CoreError),
-    Tree(TreeError),
     Core(CoreError),
+    Shared(SharedError),
+}
+
+impl From<SharedError> for TestRepoError {
+    fn from(err: SharedError) -> Self {
+        match err {
+            SharedError::ValidationFailure(validation) => match validation {
+                ValidationFailure::Orphan(id) => TestRepoError::FileOrphaned(id),
+                ValidationFailure::Cycle(ids) => TestRepoError::CycleDetected(ids),
+                ValidationFailure::PathConflict(ids) => TestRepoError::PathConflict(ids),
+                ValidationFailure::DocumentFolder(id) => TestRepoError::DocumentTreatedAsFolder(id),
+                ValidationFailure::NonDecryptableFileName(id) => {
+                    TestRepoError::NonDecryptableFileName(id)
+                }
+            },
+            _ => TestRepoError::Shared(err),
+        }
+    }
 }
 
 impl From<CoreError> for TestRepoError {

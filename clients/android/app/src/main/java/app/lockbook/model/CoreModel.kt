@@ -140,11 +140,11 @@ object CoreModel {
 
     private val getRootParser = Json {
         serializersModule = SerializersModule {
-            createPolyRelation(DecryptedFileMetadata.serializer(), GetRootError.serializer())
+            createPolyRelation(File.serializer(), GetRootError.serializer())
         }
     }
 
-    fun getRoot(): Result<DecryptedFileMetadata, CoreError<GetRootError>> =
+    fun getRoot(): Result<File, CoreError<GetRootError>> =
         getRootParser.tryParse(
             app.lockbook.core.getRoot()
         )
@@ -161,8 +161,8 @@ object CoreModel {
         )
 
     fun convertToHumanDuration(
-        metadataVersion: Long
-    ): String = app.lockbook.core.convertToHumanDuration(metadataVersion)
+        timeStamp: Long
+    ): String = app.lockbook.core.convertToHumanDuration(timeStamp)
 
     private val getUsageParser = Json {
         serializersModule = SerializersModule {
@@ -189,24 +189,24 @@ object CoreModel {
     private val getChildrenParser = Json {
         serializersModule = SerializersModule {
             createPolyRelation(
-                ListSerializer(DecryptedFileMetadata.serializer()),
+                ListSerializer(File.serializer()),
                 GetChildrenError.serializer()
             )
         }
     }
 
-    fun getChildren(parentId: String): Result<List<DecryptedFileMetadata>, CoreError<GetChildrenError>> =
+    fun getChildren(parentId: String): Result<List<File>, CoreError<GetChildrenError>> =
         getChildrenParser.tryParse(
             app.lockbook.core.getChildren(parentId)
         )
 
     private val getFileByIdParser = Json {
         serializersModule = SerializersModule {
-            createPolyRelation(DecryptedFileMetadata.serializer(), GetFileByIdError.serializer())
+            createPolyRelation(File.serializer(), GetFileByIdError.serializer())
         }
     }
 
-    fun getFileById(id: String): Result<DecryptedFileMetadata, CoreError<GetFileByIdError>> =
+    fun getFileById(id: String): Result<File, CoreError<GetFileByIdError>> =
         getFileByIdParser.tryParse(
             app.lockbook.core.getFileById(id)
         )
@@ -247,7 +247,7 @@ object CoreModel {
 
     private val createFileParser = Json {
         serializersModule = SerializersModule {
-            createPolyRelation(DecryptedFileMetadata.serializer(), CreateFileError.serializer())
+            createPolyRelation(File.serializer(), CreateFileError.serializer())
         }
     }
 
@@ -255,7 +255,7 @@ object CoreModel {
         parentId: String,
         name: String,
         fileType: FileType
-    ): Result<DecryptedFileMetadata, CoreError<CreateFileError>> =
+    ): Result<File, CoreError<CreateFileError>> =
         createFileParser.tryParse(
             app.lockbook.core.createFile(
                 name,
@@ -375,11 +375,11 @@ object CoreModel {
 
     private val listMetadatasParser = Json {
         serializersModule = SerializersModule {
-            createPolyRelation(ListSerializer(DecryptedFileMetadata.serializer()), Empty.serializer())
+            createPolyRelation(ListSerializer(File.serializer()), Empty.serializer())
         }
     }
 
-    fun listMetadatas(): Result<List<DecryptedFileMetadata>, CoreError<Empty>> =
+    fun listMetadatas(): Result<List<File>, CoreError<Empty>> =
         listMetadatasParser.tryParse(
             app.lockbook.core.listMetadatas()
         )

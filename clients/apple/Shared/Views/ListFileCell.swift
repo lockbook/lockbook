@@ -3,7 +3,7 @@ import SwiftLockbookCore
 import Introspect
 
 struct FileCell: View {
-    let meta: DecryptedFileMetadata
+    let meta: File
 
     @EnvironmentObject var current: CurrentDocument
     @EnvironmentObject var sheets: SheetState
@@ -51,16 +51,16 @@ struct FileCell: View {
 }
 
 struct RealFileCell: View {
-    let meta: DecryptedFileMetadata
+    let meta: File
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(meta.decryptedName)
+            Text(meta.name)
                     .font(.title3)
             HStack {
                 Image(systemName: meta.fileType == .Folder ? "folder" : "doc")
                         .foregroundColor(meta.fileType == .Folder ? .blue : .secondary)
-                Text(intEpochToString(epoch: max(meta.metadataVersion, meta.contentVersion)))
+                Text(intEpochToString(epoch: max(meta.lastModified, meta.lastModified)))
                         .foregroundColor(.secondary)
 
             }

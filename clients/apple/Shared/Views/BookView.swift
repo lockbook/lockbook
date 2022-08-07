@@ -6,7 +6,7 @@ struct BookView: View {
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var onboarding: OnboardingService
 
-    let currentFolder: DecryptedFileMetadata
+    let currentFolder: File
     let account: Account
 
     #if os(iOS)

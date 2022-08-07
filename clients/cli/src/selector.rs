@@ -4,7 +4,7 @@ use dialoguer::{FuzzySelect, Input};
 use lockbook_core::Core;
 use lockbook_core::CreateFileAtPathError;
 use lockbook_core::CreateFileError;
-use lockbook_core::DecryptedFileMetadata;
+use lockbook_core::File;
 use lockbook_core::FileType;
 use lockbook_core::Filter;
 use lockbook_core::GetFileByPathError;
@@ -21,7 +21,7 @@ use crate::CliError;
 pub fn select_meta(
     core: &Core, path: Option<String>, id: Option<Uuid>, target_file_type: Option<FileType>,
     prompt: Option<&str>,
-) -> Result<DecryptedFileMetadata, CliError> {
+) -> Result<File, CliError> {
     let prompt = prompt.unwrap_or(match target_file_type {
         Some(FileType::Document) => "Select a document",
         Some(FileType::Folder) => "Select a folder",
@@ -75,7 +75,7 @@ pub fn select_meta(
 /// If the name ends with a `/` it is assumed to be a folder. Otherwise it is a document.
 pub fn create_meta(
     core: &Core, lb_path: Option<String>, parent: Option<Uuid>, name: Option<String>,
-) -> Result<DecryptedFileMetadata, CliError> {
+) -> Result<File, CliError> {
     match (lb_path, parent, name) {
         // Create a new file at the given path
         (Some(path), None, None) => core.create_at_path(&path).map_err(|err| match err {
@@ -120,7 +120,7 @@ pub fn create_meta(
     }
 }
 
-fn create_file(core: &Core, name: &str, parent: Uuid) -> Result<DecryptedFileMetadata, CliError> {
+fn create_file(core: &Core, name: &str, parent: Uuid) -> Result<File, CliError> {
     let file_type = if name.ends_with('/') { FileType::Folder } else { FileType::Document };
     let name =
         if name.ends_with('/') { name[0..name.len() - 1].to_string() } else { name.to_string() };

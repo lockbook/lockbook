@@ -128,14 +128,14 @@ class FFITests: XCTestCase {
         let filename1 = randomName()
         let resultCreateFile = core.createFile(name: filename1, dirId: root.id, isFolder: false)
         
-        assertSuccess(resultCreateFile) { $0.decryptedName == filename1 }
-        assertSuccess(core.listFiles()) { $0.allSatisfy { $0.decryptedName == filename1 || $0.id == root.id } }
+        assertSuccess(resultCreateFile) { $0.name == filename1 }
+        assertSuccess(core.listFiles()) { $0.allSatisfy { $0.name == filename1 || $0.id == root.id } }
         
         let createdFile = try resultCreateFile.get()
         let filename2 = randomName()
         
         assertSuccess(core.renameFile(id: createdFile.id, name: filename2))
-        assertSuccess(core.listFiles()) { $0.allSatisfy { $0.decryptedName == filename2 || $0.id == root.id } }
+        assertSuccess(core.listFiles()) { $0.allSatisfy { $0.name == filename2 || $0.id == root.id } }
     }
     
     func testBruteNoFiles() throws {
@@ -155,15 +155,12 @@ class FFITests: XCTestCase {
         
         (0..<numberOfFiles).forEach { _ in assertSuccess(core.createFile(name: randomName(), dirId: root.id, isFolder: false)) }
         
-        /// Verify all non-root files are unsynced
-        assertSuccess(core.listFiles()) { $0.allSatisfy { $0.decryptedName == root.decryptedName || $0.metadataVersion == 0 } && $0.count == numberOfFiles+1 }
-        
         let resultSync = core.syncAll()
         
         assertSuccess(resultSync)
         
         /// Verify all files are syncedsmail/android/fix-work-unit
-        assertSuccess(core.listFiles()) { $0.allSatisfy { $0.metadataVersion > 0 } }
+        assertSuccess(core.listFiles()) { $0.allSatisfy { $0.lastModified > 0 } }
     }
     
     func testIterativeNoFiles() throws {
@@ -193,9 +190,6 @@ class FFITests: XCTestCase {
         
         (0..<numberOfFiles).forEach { _ in assertSuccess(core.createFile(name: randomName(), dirId: root.id, isFolder: false)) }
         
-        /// Verify all non-root files are unsynced
-        assertSuccess(core.listFiles()) { $0.allSatisfy { $0.decryptedName == root.decryptedName || $0.metadataVersion == 0 } && $0.count == numberOfFiles+1 }
-        
         var resultCalculate = core.getLocalChanges()
 
         assertSuccess(resultCalculate) { $0.count == 5 }
@@ -205,7 +199,7 @@ class FFITests: XCTestCase {
         assertSuccess(resultSync)
         
         /// Verify all files are synced
-        assertSuccess(core.listFiles()) { $0.allSatisfy { $0.metadataVersion > 0 } }
+        assertSuccess(core.listFiles()) { $0.allSatisfy { $0.lastModified > 0 } }
         
         resultCalculate = core.getLocalChanges()
 

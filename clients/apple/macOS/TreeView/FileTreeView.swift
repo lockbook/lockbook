@@ -52,7 +52,7 @@ struct FileTreeView: NSViewRepresentable {
         treeView.reloadData()
         // Should this happen in the delegate?
         for row in 0...treeView.numberOfRows {
-            if let item = treeView.item(atRow: row) as? DecryptedFileMetadata {
+            if let item = treeView.item(atRow: row) as? File {
                 if let selection = DI.currentDoc.selectedItem {
                     if item.id == selection.id {
                         treeView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)

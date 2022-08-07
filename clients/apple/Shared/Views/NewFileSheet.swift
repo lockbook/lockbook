@@ -36,7 +36,7 @@ struct NewFileSheet: View {
                 }
                 HStack {
                     Text("Inside:")
-                    Text(parent.decryptedName + "/")
+                    Text(parent.name + "/")
                         .font(.system(.body, design: .monospaced))
                 }
                 Picker(selection: $selected, label: Text(""), content: {

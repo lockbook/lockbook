@@ -33,7 +33,7 @@ class ShareModel(
         }
     }
 
-    fun shareDocuments(selectedFiles: List<DecryptedFileMetadata>, appDataDir: File): Result<Unit, CoreError<out UiCoreError>> {
+    fun shareDocuments(selectedFiles: List<app.lockbook.util.File>, appDataDir: File): Result<Unit, CoreError<out UiCoreError>> {
         val cacheDir = getMainShareFolder(appDataDir)
 
         isLoadingOverlayVisible = true
@@ -41,7 +41,7 @@ class ShareModel(
 
         clearShareStorage(cacheDir)
 
-        val documents = mutableListOf<DecryptedFileMetadata>()
+        val documents = mutableListOf<app.lockbook.util.File>()
         val selectedDocumentsResult = retrieveSelectedDocuments(selectedFiles, documents)
         if (selectedDocumentsResult is Err) {
             return selectedDocumentsResult
@@ -59,10 +59,10 @@ class ShareModel(
 
             shareItemFolder.mkdir()
 
-            if (file.decryptedName.endsWith(".draw")) {
+            if (file.name.endsWith(".draw")) {
                 val image = File(
                     shareItemFolder,
-                    file.decryptedName.removeSuffix(".draw") + ".${IMAGE_EXPORT_TYPE.name.lowercase()}"
+                    file.name.removeSuffix(".draw") + ".${IMAGE_EXPORT_TYPE.name.lowercase()}"
                 ).absoluteFile
 
                 when (
@@ -81,7 +81,7 @@ class ShareModel(
                     is Ok -> filesToShare.add(
                         File(
                             shareItemFolder,
-                            file.decryptedName
+                            file.name
                         ).absoluteFile
                     )
                     is Err -> {
@@ -98,8 +98,8 @@ class ShareModel(
     }
 
     private fun retrieveSelectedDocuments(
-        selectedFiles: List<DecryptedFileMetadata>,
-        documents: MutableList<DecryptedFileMetadata>
+        selectedFiles: List<app.lockbook.util.File>,
+        documents: MutableList<app.lockbook.util.File>
     ): Result<Unit, CoreError<out UiCoreError>> {
         for (file in selectedFiles) {
             when (file.fileType) {
