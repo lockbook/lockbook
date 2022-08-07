@@ -31,7 +31,7 @@ struct EditorView: NSViewRepresentable {
         textView.textContainerInset = NSSize(width: horizontalInset(), height: 20)
         textView.string = model.textDocument!
         textView.allowsUndo = true
-        storage.name = model.meta!.decryptedName
+        storage.name = model.meta!.name
         storage.syntaxHighlight()
 
         scrollView.documentView = textView
@@ -57,7 +57,7 @@ struct EditorView: NSViewRepresentable {
                 let storage = (nsView.textStorage as! Storage)
 
                 // Seems like that let doesn't store the same ref
-                storage.name = model.meta!.decryptedName
+                storage.name = model.meta!.name
                 storage.syntaxHighlight()
             }
         }

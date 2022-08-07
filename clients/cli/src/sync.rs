@@ -17,6 +17,7 @@ pub fn sync(core: &Core) -> Result<(), CliError> {
     core.sync(progress_closure(pb.clone()))
         .map_err(|err| match err {
             LbError::UiError(err) => match err {
+                SyncAllError::Retry => CliError::unexpected("Please retry syncing."),
                 SyncAllError::ClientUpdateRequired => CliError::update_required(),
                 SyncAllError::CouldNotReachServer => CliError::network_issue(),
             },

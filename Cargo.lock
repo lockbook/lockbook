@@ -599,9 +599,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam"
-version = "0.8.1"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ae5588f6b3c3cb05239e90bd110f257254aecd01e4635400391aeae07497845"
+checksum = "2801af0d36612ae591caa9568261fddce32ce6e08a7275ea334a06a4ad021a2c"
 dependencies = [
  "cfg-if 1.0.0",
  "crossbeam-channel",
@@ -648,9 +648,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-queue"
-version = "0.3.5"
+version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f25d8400f4a7a5778f0e4e52384a48cbd9b5c495d110786187fc750075277a2"
+checksum = "1cd42583b04998a5363558e5f9291ee5a5ff6b49944332103f251e7479a82aa7"
 dependencies = [
  "cfg-if 1.0.0",
  "crossbeam-utils",
@@ -1631,9 +1631,9 @@ dependencies = [
 
 [[package]]
 name = "hmdb"
-version = "0.1.12"
+version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efeb8ccf7eaa871e4d3a64e31cd2f92d450be3de21e7a91148d75ee68676395d"
+checksum = "d88a9a9912a9b68f4ed8009da84449237269a807818d43aa56f3d0805b45a5c2"
 dependencies = [
  "bincode",
  "serde",
@@ -2041,8 +2041,8 @@ dependencies = [
  "async-stripe",
  "google-androidpublisher3",
  "hmdb",
- "lockbook-models",
  "lockbook-server",
+ "lockbook-shared",
  "structopt",
  "tokio",
 ]
@@ -2163,7 +2163,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-core"
-version = "0.4.3"
+version = "0.5.0"
 dependencies = [
  "backtrace",
  "base64 0.11.0",
@@ -2174,7 +2174,6 @@ dependencies = [
  "criterion",
  "crossbeam",
  "diffy",
- "flate2",
  "fuzzy-matcher",
  "hmdb",
  "image 0.23.14",
@@ -2183,8 +2182,7 @@ dependencies = [
  "jni",
  "lazy_static",
  "libsecp256k1",
- "lockbook-crypto",
- "lockbook-models",
+ "lockbook-shared",
  "num_cpus",
  "rand 0.8.5",
  "raqote",
@@ -2205,23 +2203,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lockbook-crypto"
-version = "0.1.0"
-dependencies = [
- "aead",
- "aes-gcm",
- "bincode",
- "hmac 0.11.0",
- "libsecp256k1",
- "lockbook-models",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "sha2 0.9.9",
- "uuid",
-]
-
-[[package]]
 name = "lockbook-desktop"
 version = "0.4.3"
 dependencies = [
@@ -2235,21 +2216,6 @@ dependencies = [
  "serde",
  "serde_yaml",
  "sourceview5",
-]
-
-[[package]]
-name = "lockbook-models"
-version = "0.1.0"
-dependencies = [
- "base64 0.13.0",
- "base64-serde",
- "bincode",
- "http",
- "libsecp256k1",
- "rand 0.8.5",
- "serde",
- "serde_bytes",
- "uuid",
 ]
 
 [[package]]
@@ -2269,8 +2235,7 @@ dependencies = [
  "lazy_static",
  "libsecp256k1",
  "lockbook-core",
- "lockbook-crypto",
- "lockbook-models",
+ "lockbook-shared",
  "num_cpus",
  "pagerduty-rs",
  "prometheus",
@@ -2286,6 +2251,30 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "warp",
+]
+
+[[package]]
+name = "lockbook-shared"
+version = "0.1.0"
+dependencies = [
+ "aead",
+ "aes-gcm",
+ "base64 0.13.0",
+ "base64-serde",
+ "bincode",
+ "diffy",
+ "flate2",
+ "hmac 0.11.0",
+ "hmdb",
+ "http",
+ "libsecp256k1",
+ "rand 0.8.5",
+ "serde",
+ "serde_bytes",
+ "sha2 0.9.9",
+ "test_utils",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -3857,7 +3846,7 @@ dependencies = [
  "hmdb",
  "itertools",
  "lockbook-core",
- "lockbook-models",
+ "lockbook-shared",
  "uuid",
 ]
 

@@ -22,13 +22,13 @@ struct RenamingSheet: View {
             if noName {
                 ProgressView()
                         .onAppear {
-                            name = meta.decryptedName
+                            name = meta.name
                             noName = false
                         }
             } else {
                 VStack(alignment: .leading, spacing: 15) {
                     HStack(alignment: .center) {
-                        Text("Renaming: \(meta.decryptedName)")
+                        Text("Renaming: \(meta.name)")
                                 .bold()
                                 .font(.title)
                         Spacer()
@@ -39,7 +39,7 @@ struct RenamingSheet: View {
                                     .frame(width: 50, height: 50, alignment: .center)
                         }
                     }
-                    TextField("Renaming \(meta.decryptedName)", text: $name, onCommit: onCommit)
+                    TextField("Renaming \(meta.name)", text: $name, onCommit: onCommit)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .autocapitalization(.none)
                             .introspectTextField(customize: handleCursor)
@@ -52,7 +52,7 @@ struct RenamingSheet: View {
 
     func onCommit() {
         if let meta = sheets.renamingInfo {
-            if name != meta.decryptedName && name != "" {
+            if name != meta.name && name != "" {
                 fileService.renameFile(id: meta.id, name: name)
                 presentationMode.wrappedValue.dismiss()
             } else {

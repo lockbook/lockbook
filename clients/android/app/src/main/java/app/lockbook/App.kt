@@ -95,6 +95,7 @@ class SyncWork(appContext: Context, workerParams: WorkerParameters) :
         return if (syncResult is Err) {
             val msg = when (val error = syncResult.error) {
                 is CoreError.UiError -> when (error.content) {
+                    SyncAllError.Retry -> "Retry requested."
                     SyncAllError.ClientUpdateRequired -> "Client update required."
                     SyncAllError.CouldNotReachServer -> "Could not reach server."
                 }

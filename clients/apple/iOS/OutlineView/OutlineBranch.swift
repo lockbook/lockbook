@@ -15,10 +15,10 @@ struct OutlineBranch: View {
 
     @StateObject var state: BranchState = BranchState()
     
-    let file: DecryptedFileMetadata
+    let file: File
     let level: CGFloat
     
-    var children: [DecryptedFileMetadata] {
+    var children: [File] {
         files.childrenOf(file)
     }
     
@@ -64,7 +64,7 @@ struct OutlineBranch: View {
         }
     }
     
-    func handleDelete(meta: DecryptedFileMetadata) -> () -> Void {
+    func handleDelete(meta: File) -> () -> Void {
         {
             files.deleteFile(id: meta.id)
         }
