@@ -10,7 +10,6 @@ pub mod service;
 
 mod external_interface;
 
-use lockbook_shared::file::ShareMode;
 pub use uuid::Uuid;
 
 pub use lockbook_shared::account::Account;
@@ -19,6 +18,7 @@ pub use lockbook_shared::api::{StripeAccountTier, SubscriptionInfo};
 pub use lockbook_shared::crypto::DecryptedDocument;
 pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 pub use lockbook_shared::file::File;
+pub use lockbook_shared::file::ShareMode;
 pub use lockbook_shared::file_like::FileLike;
 pub use lockbook_shared::file_metadata::FileType;
 pub use lockbook_shared::filename::NameComponents;
