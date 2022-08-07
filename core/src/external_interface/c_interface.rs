@@ -5,11 +5,11 @@ use serde::Serialize;
 use serde_json::json;
 use uuid::Uuid;
 
-use lockbook_models::file_metadata::FileType;
+use lockbook_shared::file_metadata::FileType;
+use lockbook_shared::path_ops::{filter_from_str, Filter};
 
 use crate::external_interface::json_interface::translate;
 use crate::external_interface::static_state;
-use crate::service::path_service::{filter_from_str, Filter};
 use crate::{get_all_error_variants, Config, SupportedImageFormats};
 
 fn c_string(value: String) -> *const c_char {

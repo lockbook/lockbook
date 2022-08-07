@@ -15,8 +15,7 @@
     <string name="popup_info_name">"Name: "</string>
     <string name="popup_info_id">"Id: "</string>
     <string name="popup_info_file_type">"File Type: "</string>
-    <string name="popup_info_metadata_version">"Metadata Version: "</string>
-    <string name="popup_info_content_version">"Content Version: "</string>
+    <string name="popup_info_metadata_version">"Last modified: "</string>
 
     <string name="settings_export_account_raw">Copy your account key to clipboard</string>
     <string name="settings_export_account_qr">Export your account key (QR Code)</string>
@@ -179,6 +178,7 @@
     <string name="not_premium">Error, you are not premium.</string>
     <string name="already_canceled">You have already canceled your subscription.</string>
     <string name="usage_is_over_free_tier_data_cap">Your total data usage exceeds free tier. Please remove some data.</string>
+    <string name="retry_sync">Please retry syncing.</string>
 
 
     <string name="unexpected_error">An unexpected error has occurred!</string>

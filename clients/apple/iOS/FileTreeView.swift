@@ -9,7 +9,7 @@ struct FileTreeView: View {
     @EnvironmentObject var files: FileService
     @EnvironmentObject var onboarding: OnboardingService
 
-    let currentFolder: DecryptedFileMetadata
+    let currentFolder: File
     let account: Account
     
     var body: some View {

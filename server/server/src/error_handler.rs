@@ -1,13 +1,15 @@
 use crate::billing::billing_service::LockBillingWorkflowError;
 use crate::billing::google_play_client::SimpleGCPError;
+use crate::metrics::MetricsError;
 use crate::ServerError::InternalError;
 use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
-use lockbook_models::api::{
-    CancelSubscriptionError, GetUsageError, UpgradeAccountGooglePlayError,
-    UpgradeAccountStripeError,
+use lockbook_shared::api::{
+    CancelSubscriptionError, ChangeDocError, DeleteAccountError, GetDocumentError, GetUsageError,
+    UpgradeAccountGooglePlayError, UpgradeAccountStripeError, UpsertError,
 };
+use lockbook_shared::SharedError;
 use std::fmt::Debug;
 use std::io::Error;
 
@@ -157,5 +159,48 @@ impl From<ServerError<LockBillingWorkflowError>> for ServerError<CancelSubscript
             }
             InternalError(msg) => InternalError(msg),
         }
+    }
+}
+
+impl From<SharedError> for ServerError<DeleteAccountError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+
+impl From<SharedError> for ServerError<UpsertError> {
+    fn from(err: SharedError) -> Self {
+        use lockbook_shared::api::UpsertError::*;
+        match err {
+            SharedError::OldVersionIncorrect => ClientError(OldVersionIncorrect),
+            SharedError::OldFileNotFound => ClientError(OldFileNotFound),
+            SharedError::OldVersionRequired => ClientError(OldVersionRequired),
+            SharedError::NotPermissioned => ClientError(NotPermissioned),
+            SharedError::DiffMalformed => ClientError(DiffMalformed),
+            SharedError::HmacModificationInvalid => ClientError(HmacModificationInvalid),
+            SharedError::DeletedFileUpdated => ClientError(DeletedFileUpdated),
+            SharedError::RootModificationInvalid => ClientError(RootModificationInvalid),
+            SharedError::ValidationFailure(fail) => ClientError(Validation(fail)),
+            SharedError::Unexpected(msg) => InternalError(String::from(msg)),
+            _ => internal!("{:?}", err),
+        }
+    }
+}
+
+impl From<SharedError> for ServerError<ChangeDocError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+
+impl From<SharedError> for ServerError<MetricsError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+
+impl From<SharedError> for ServerError<GetDocumentError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
     }
 }

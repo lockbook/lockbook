@@ -4,9 +4,8 @@ use std::env;
 use std::fmt::Debug;
 
 use libsecp256k1::PublicKey;
-use lockbook_crypto::pubkey::ECVerifyError;
-use lockbook_crypto::{clock_service, pubkey};
-use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper};
+use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
+use lockbook_shared::{clock, pubkey, SharedError};
 use serde::{Deserialize, Serialize};
 
 use crate::account_service::GetUsageHelperError;
@@ -52,7 +51,7 @@ macro_rules! internal {
     ($($arg:tt)*) => {{
         let msg = format!($($arg)*);
         tracing::error!("{}", msg);
-        crate::ServerError::InternalError(msg)
+        $crate::ServerError::InternalError(msg)
     }};
 }
 
@@ -60,20 +59,20 @@ pub fn verify_client_version<Req: Request>(
     request: &RequestWrapper<Req>,
 ) -> Result<(), ErrorWrapper<Req::Error>> {
     match &request.client_version as &str {
-        "0.4.3" => Ok(()),
+        "0.5.0" => Ok(()),
         _ => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
     }
 }
 
 pub fn verify_auth<TRequest: Request + Serialize>(
     server_state: &ServerState, request: &RequestWrapper<TRequest>,
-) -> Result<(), ECVerifyError> {
+) -> Result<(), SharedError> {
     pubkey::verify(
         &request.signed_request.public_key,
         &request.signed_request,
         server_state.config.server.max_auth_delay as u64,
         server_state.config.server.max_auth_delay as u64,
-        clock_service::get_time,
+        clock::get_time,
     )
 }
 

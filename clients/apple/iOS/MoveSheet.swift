@@ -15,7 +15,7 @@ struct MoveSheet: View {
             
             ScrollView {
                 VStack {
-                    Text("Moving \(meta.decryptedName)").font(.headline)
+                    Text("Moving \(meta.name)").font(.headline)
                     NestedList(
                         node: wc,
                         row: { dest in
@@ -23,7 +23,7 @@ struct MoveSheet: View {
                                 fileService.moveFile(id: meta.id, newParent: dest.id)
                                 presentationMode.wrappedValue.dismiss()
                             }, label: {
-                                Label(dest.decryptedName, systemImage: "folder")
+                                Label(dest.name, systemImage: "folder")
                             })
                         }
                     )
@@ -103,7 +103,7 @@ struct NestedList_Previews: PreviewProvider {
         NestedList(
             node: .init(FakeApi.root, FakeApi.fileMetas, { $0.id == $1.parent && $0.id != $1.id && $1.fileType == .Folder }),
             row: {
-                Label($0.decryptedName, systemImage: "folder")
+                Label($0.name, systemImage: "folder")
             }
         )
     }
