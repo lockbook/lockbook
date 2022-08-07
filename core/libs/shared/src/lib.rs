@@ -1,7 +1,3 @@
-use bincode::Error;
-use hmac::crypto_mac::{InvalidKeyLength, MacError};
-pub use lazy::ValidationFailure;
-
 pub mod access_info;
 pub mod account;
 pub mod api;
@@ -28,6 +24,10 @@ pub mod symkey;
 pub mod tree_like;
 pub mod validate;
 pub mod work_unit;
+
+pub use lazy::ValidationFailure;
+
+use hmac::crypto_mac::{InvalidKeyLength, MacError};
 
 pub type SharedResult<T> = Result<T, SharedError>;
 
@@ -83,8 +83,8 @@ pub enum SharedError {
     Unexpected(&'static str),
 }
 
-impl From<Error> for SharedError {
-    fn from(err: Error) -> Self {
+impl From<bincode::Error> for SharedError {
+    fn from(err: bincode::Error) -> Self {
         Self::BincodeError(err.to_string())
     }
 }
