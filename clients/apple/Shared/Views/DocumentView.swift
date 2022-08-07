@@ -4,7 +4,7 @@ import PencilKit
 
 struct DocumentView: View {
         
-    let meta: DecryptedFileMetadata
+    let meta: File
     
     @EnvironmentObject var model: DocumentLoader
     #if os(iOS)
@@ -17,11 +17,11 @@ struct DocumentView: View {
                 .onAppear {
                     model.startLoading(meta)
                 }
-                .title(meta.decryptedName)
+                .title(meta.name)
         } else if model.error != "" {
             Text("errors while loading: \(model.error)")
         } else if model.deleted {
-            Text("\(meta.decryptedName) was deleted.")
+            Text("\(meta.name) was deleted.")
         } else {
             if let type = model.type {
                 switch type {
@@ -29,7 +29,7 @@ struct DocumentView: View {
                     if let img = model.image {
                         ScrollView([.horizontal, .vertical]) {
                             img
-                        }.title(meta.decryptedName)
+                        }.title(meta.name)
                     }
                 #if os(iOS)
                 case .Drawing:
@@ -37,7 +37,7 @@ struct DocumentView: View {
                         model: model,
                         toolPicker: toolbar
                     )
-                    .navigationBarTitle(meta.decryptedName, displayMode: .inline)
+                    .navigationBarTitle(meta.name, displayMode: .inline)
                     .toolbar {
                         ToolbarItemGroup(placement: .bottomBar) {
                             Spacer()
@@ -53,11 +53,11 @@ struct DocumentView: View {
                             frame: geo.frame(in: .local)
                         )
                     }
-                    .title(meta.decryptedName)
+                    .title(meta.name)
                         
                 case .Unknown:
-                    Text("\(meta.decryptedName) cannot be opened on this device.")
-                        .title(meta.decryptedName)
+                    Text("\(meta.name) cannot be opened on this device.")
+                        .title(meta.name)
                 }
             }
         }

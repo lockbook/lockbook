@@ -15,9 +15,9 @@ use uuid::Uuid;
 use crate::{
     get_all_error_variants, unexpected_only, Config, Error, SupportedImageFormats, UnexpectedError,
 };
-use lockbook_crypto::clock_service;
-use lockbook_models::file_metadata::FileType;
-use lockbook_models::work_unit::ClientWorkUnit;
+use lockbook_shared::clock;
+use lockbook_shared::file_metadata::FileType;
+use lockbook_shared::work_unit::ClientWorkUnit;
 
 use crate::external_interface::json_interface::translate;
 use crate::external_interface::static_state;
@@ -248,12 +248,12 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_convertToHumanDuration(
-    env: JNIEnv, _: JClass, metadata_version: jlong,
+    env: JNIEnv, _: JClass, time_stamp: jlong,
 ) -> jstring {
     string_to_jstring(
         &env,
-        if metadata_version != 0 {
-            Duration::milliseconds(clock_service::get_time().0 - metadata_version)
+        if time_stamp != 0 {
+            Duration::milliseconds(clock::get_time().0 - time_stamp)
                 .format_human()
                 .to_string()
         } else {

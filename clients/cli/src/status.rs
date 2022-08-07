@@ -23,7 +23,7 @@ pub fn status(core: &Core) -> Result<(), CliError> {
             WorkUnit::ServerChange { .. } => "pulled",
         };
 
-        println!("{} needs to be {}", work_unit.get_metadata().decrypted_name, action)
+        println!("{} needs to be {}", work_unit.get_metadata().name, action)
     });
 
     print_last_successful_sync(core)

@@ -5,9 +5,9 @@ use crate::file_service::*;
 use crate::utils::get_build_info;
 use crate::{router_service, verify_auth, verify_client_version, ServerError, ServerState};
 use lazy_static::lazy_static;
-use lockbook_crypto::pubkey::ECVerifyError;
-use lockbook_models::api::*;
-use lockbook_models::api::{ErrorWrapper, Request, RequestWrapper};
+use lockbook_shared::api::*;
+use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
+use lockbook_shared::SharedError;
 use prometheus::{register_histogram_vec, HistogramVec, TextEncoder};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -30,12 +30,11 @@ lazy_static! {
 #[macro_export]
 macro_rules! core_req {
     ($Req: ty, $handler: path, $state: ident) => {{
-        use crate::router_service;
-        use crate::router_service::{deserialize_and_check, method};
-        use crate::{RequestContext, ServerError};
-        use lockbook_models::api::{ErrorWrapper, Request};
-        use lockbook_models::file_metadata::Owner;
+        use lockbook_shared::api::{ErrorWrapper, Request};
+        use lockbook_shared::file_metadata::Owner;
         use tracing::*;
+        use $crate::router_service::{self, deserialize_and_check, method};
+        use $crate::{RequestContext, ServerError};
 
         let cloned_state = $state.clone();
 
@@ -116,9 +115,9 @@ pub fn core_routes(
     server_state: &Arc<ServerState>,
 ) -> impl Filter<Extract = impl warp::Reply, Error = Rejection> + Clone {
     core_req!(NewAccountRequest, new_account, server_state)
-        .or(core_req!(ChangeDocumentContentRequest, change_document_content, server_state))
-        .or(core_req!(FileMetadataUpsertsRequest, upsert_file_metadata, server_state))
-        .or(core_req!(GetDocumentRequest, get_document, server_state))
+        .or(core_req!(ChangeDocRequest, change_doc, server_state))
+        .or(core_req!(UpsertRequest, upsert_file_metadata, server_state))
+        .or(core_req!(GetDocRequest, get_document, server_state))
         .or(core_req!(GetPublicKeyRequest, get_public_key, server_state))
         .or(core_req!(GetUsageRequest, get_usage, server_state))
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
@@ -284,7 +283,7 @@ where
     verify_client_version(&request)?;
 
     verify_auth(server_state, &request).map_err(|err| match err {
-        ECVerifyError::SignatureExpired(_) | ECVerifyError::SignatureInTheFuture(_) => {
+        SharedError::SignatureExpired(_) | SharedError::SignatureInTheFuture(_) => {
             warn!("expired auth");
             ErrorWrapper::<Req::Error>::ExpiredAuth
         }

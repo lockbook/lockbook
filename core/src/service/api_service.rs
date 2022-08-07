@@ -4,11 +4,10 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::get_code_version;
-use lockbook_crypto::clock_service::{get_time, Timestamp};
-use lockbook_crypto::pubkey;
-use lockbook_crypto::pubkey::ECSignError;
-use lockbook_models::account::Account;
-use lockbook_models::api::*;
+use lockbook_shared::account::Account;
+use lockbook_shared::api::*;
+use lockbook_shared::clock::{get_time, Timestamp};
+use lockbook_shared::pubkey;
 
 impl<E> From<ErrorWrapper<E>> for ApiError<E> {
     fn from(err: ErrorWrapper<E>) -> Self {
@@ -23,7 +22,7 @@ impl<E> From<ErrorWrapper<E>> for ApiError<E> {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum ApiError<E> {
     Endpoint(E),
     ClientUpdateRequired,
@@ -31,7 +30,7 @@ pub enum ApiError<E> {
     ExpiredAuth,
     InternalError,
     BadRequest,
-    Sign(ECSignError),
+    Sign(lockbook_shared::SharedError),
     Serialize(String),
     SendFailed(String),
     ReceiveFailed(String),

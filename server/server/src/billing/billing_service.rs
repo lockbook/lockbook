@@ -14,15 +14,15 @@ use crate::{
 use base64::DecodeError;
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
-use lockbook_crypto::clock_service::get_time;
-use lockbook_models::api::{
+use lockbook_shared::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, CancelSubscriptionResponse,
     GetSubscriptionInfoError, GetSubscriptionInfoRequest, GetSubscriptionInfoResponse,
     GooglePlayAccountState, PaymentPlatform, SubscriptionInfo, UpgradeAccountGooglePlayError,
     UpgradeAccountGooglePlayRequest, UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError,
     UpgradeAccountStripeRequest, UpgradeAccountStripeResponse,
 };
-use lockbook_models::file_metadata::Owner;
+use lockbook_shared::clock::get_time;
+use lockbook_shared::file_metadata::Owner;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -44,7 +44,8 @@ fn lock_subscription_profile(
         let mut account = tx
             .accounts
             .get(&owner)
-            .ok_or(ClientError(UserNotFound))?;
+            .ok_or(ClientError(UserNotFound))?
+            .clone();
         let current_time = get_time().0 as u64;
 
         if current_time - account.billing_info.last_in_payment_flow < state.config.billing.millis_between_user_payment_flows {
