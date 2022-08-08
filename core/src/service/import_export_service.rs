@@ -165,7 +165,7 @@ impl RequestContext<'_, '_> {
                         account,
                         tree,
                         &tree.find(&target)?.clone(),
-                        &disk_path,
+                        disk_path,
                         edit,
                         export_progress,
                     )?;
@@ -282,7 +282,7 @@ fn get_total_child_count(paths: &[PathBuf]) -> Result<usize, CoreError> {
 fn get_child_count(path: &Path) -> Result<usize, CoreError> {
     let mut count = 1;
     if path.is_dir() {
-        let children = std::fs::read_dir(path).map_err(CoreError::from)?;
+        let children = fs::read_dir(path).map_err(CoreError::from)?;
         for maybe_child in children {
             let child_path = maybe_child.map_err(CoreError::from)?.path();
 

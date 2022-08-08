@@ -6,53 +6,72 @@ use itertools::Itertools;
 use lockbook_shared::api::*;
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{Diff, Owner};
+use lockbook_shared::file_metadata::{Diff, FileDiff, Owner};
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
-use std::collections::HashSet;
-use uuid::Uuid;
+use std::collections::{HashMap, HashSet};
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, UpsertRequest>,
 ) -> Result<(), ServerError<UpsertError>> {
     let (request, server_state) = (context.request, context.server_state);
-    let owner = Owner(context.public_key);
-    let docs_to_delete: Result<Vec<(Uuid, [u8; 32])>, ServerError<UpsertError>> =
-        context.server_state.index_db.transaction(|tx| {
-            let mut tree =
-                ServerTree { owner, owned: &mut tx.owned_files, metas: &mut tx.metas }.to_lazy();
+    let req_owner = Owner(context.public_key);
 
-            let mut prior_deleted_docs = HashSet::new();
-            for id in tree.owned_ids() {
-                if tree.find(&id)?.is_document() && tree.calculate_deleted(&id)? {
-                    prior_deleted_docs.insert(id);
+    let mut tree_diff_group: HashMap<Owner, Vec<FileDiff>> = HashMap::new();
+    for diff in request.updates {
+        let owner = diff.new.owner();
+        let mut existing = tree_diff_group.remove(&owner).unwrap_or_default();
+        existing.push(diff);
+        tree_diff_group.insert(owner, existing);
+    }
+    let mut prior_deleted_docs = HashSet::new();
+    let mut new_deleted = vec![];
+
+    let res: Result<(), ServerError<UpsertError>> =
+        context.server_state.index_db.transaction(|tx| {
+            // validate all trees
+            for (owner, updates) in tree_diff_group.clone() {
+                let mut tree =
+                    ServerTree { owner, owned: &mut tx.owned_files, metas: &mut tx.metas }
+                        .to_lazy();
+
+                for id in tree.owned_ids() {
+                    if tree.find(&id)?.is_document() && tree.calculate_deleted(&id)? {
+                        prior_deleted_docs.insert(id);
+                    }
                 }
+
+                let mut tree = tree.stage_diff(&req_owner, updates)?;
+                tree.validate()?;
             }
 
-            let mut tree = tree.stage_diff(&owner, request.updates)?;
-            tree.validate()?;
-            let mut tree = tree.promote();
+            for (owner, updates) in tree_diff_group {
+                let mut tree =
+                    ServerTree { owner, owned: &mut tx.owned_files, metas: &mut tx.metas }
+                        .to_lazy()
+                        .stage_diff(&req_owner, updates)?
+                        .promote();
 
-            let mut new_deleted = vec![];
-            for id in tree.owned_ids() {
-                if tree.find(&id)?.is_document()
-                    && tree.calculate_deleted(&id)?
-                    && !prior_deleted_docs.contains(&id)
-                {
-                    let meta = tree.find(&id)?;
-                    if let Some(digest) = meta.file.timestamped_value.value.document_hmac {
-                        tx.sizes.delete(*meta.id());
-                        new_deleted.push((*meta.id(), digest));
+                for id in tree.owned_ids() {
+                    if tree.find(&id)?.is_document()
+                        && tree.calculate_deleted(&id)?
+                        && !prior_deleted_docs.contains(&id)
+                    {
+                        let meta = tree.find(&id)?;
+                        if let Some(digest) = meta.file.timestamped_value.value.document_hmac {
+                            tx.sizes.delete(*meta.id());
+                            new_deleted.push((*meta.id(), digest));
+                        }
                     }
                 }
             }
-            Ok(new_deleted)
+            Ok(())
         })?;
 
-    let docs_to_delete = docs_to_delete?;
+    res?;
 
-    for (id, digest) in docs_to_delete {
+    for (id, digest) in new_deleted {
         document_service::delete(server_state, &id, &digest).await?;
     }
     Ok(())
