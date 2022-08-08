@@ -72,7 +72,7 @@ where
             let removed = new_owned.remove(&id);
             self.owned.insert(self.owner, new_owned);
             if removed {
-                return self.metas.remove(id);
+                return self.metas.delete(id);
             }
         } else {
             error!("Server tree created without known owner")

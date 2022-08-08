@@ -49,6 +49,7 @@ pub fn new(
             LbError::UiError(err) => match err {
                 FileDeleteError::FileDoesNotExist => CliError::file_not_found(path),
                 FileDeleteError::CannotDeleteRoot => CliError::no_root_ops("delete"),
+                FileDeleteError::InsufficientPermission => CliError::no_write_permission(file.name),
             },
             LbError::Unexpected(msg) => CliError::unexpected(msg),
         })?;

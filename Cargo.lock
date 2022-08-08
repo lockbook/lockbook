@@ -2232,6 +2232,7 @@ dependencies = [
  "google-androidpublisher3",
  "hmdb",
  "indicatif 0.16.2",
+ "itertools",
  "lazy_static",
  "libsecp256k1",
  "lockbook-core",

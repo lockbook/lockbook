@@ -91,6 +91,11 @@ where
         let mut path = match meta.file_type() {
             FileType::Document => format!("/{}", self.name(id, account)?),
             FileType::Folder => format!("/{}/", self.name(id, account)?),
+            FileType::Link { target: _ } => {
+                return Err(SharedError::Unexpected(
+                    "cannot get path for link because links do not have paths",
+                ))
+            }
         };
 
         loop {
