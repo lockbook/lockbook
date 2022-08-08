@@ -3,7 +3,7 @@ use lockbook_core::service::api_service::ApiError;
 use lockbook_shared::api::*;
 use lockbook_shared::crypto::AESEncrypted;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{FileDiff, Owner};
+use lockbook_shared::file_metadata::FileDiff;
 use test_utils::*;
 
 #[test]
@@ -16,10 +16,7 @@ fn upsert_id_takeover() {
         core1.sync(None).unwrap();
         api_service::request(
             &core1.get_account().unwrap(),
-            GetUpdatesRequest {
-                owner: Owner(core1.get_account().unwrap().public_key()),
-                since_metadata_version: 0,
-            },
+            GetUpdatesRequest { since_metadata_version: 0 },
         )
         .unwrap()
         .file_metadata
@@ -49,19 +46,13 @@ fn upsert_id_takeover_change_parent() {
     let file1 = {
         let id = core1.create_at_path("/test.md").unwrap().id;
         core1.sync(None).unwrap();
-        api_service::request(
-            &account1,
-            GetUpdatesRequest {
-                owner: Owner(core1.get_account().unwrap().public_key()),
-                since_metadata_version: 0,
-            },
-        )
-        .unwrap()
-        .file_metadata
-        .iter()
-        .find(|&f| f.id() == &id)
-        .unwrap()
-        .clone()
+        api_service::request(&account1, GetUpdatesRequest { since_metadata_version: 0 })
+            .unwrap()
+            .file_metadata
+            .iter()
+            .find(|&f| f.id() == &id)
+            .unwrap()
+            .clone()
     };
 
     // If this succeeded account2 would be able to control file1

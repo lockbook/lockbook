@@ -17,6 +17,9 @@ where
         // Check ownership
         for change in &changes {
             if let Some(old) = &change.old {
+                if old.public_key != change.new.public_key {
+                    return Err(SharedError::DiffMalformed);
+                }
                 if old.public_key != owner.0 || &old.timestamped_value.value.owner != owner {
                     return Err(SharedError::NotPermissioned);
                 }
