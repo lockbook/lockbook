@@ -1,5 +1,6 @@
-use crate::{CoreError, OneKey, RequestContext};
+use crate::{CoreError, CoreResult, OneKey, RequestContext};
 use lockbook_shared::file::File;
+use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileType, Owner};
 use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::tree_like::TreeLike;
@@ -184,5 +185,18 @@ impl RequestContext<'_, '_> {
             .ok_or(CoreError::AccountNonexistent)?;
 
         Ok(tree.finalize(id, account)?)
+    }
+
+    pub fn find_owner(&self, id: &Uuid) -> CoreResult<Owner> {
+        let meta = match self.tx.base_metadata.get(id) {
+            Some(file) => file,
+            None => self
+                .tx
+                .local_metadata
+                .get(id)
+                .ok_or(CoreError::FileNonexistent)?,
+        };
+
+        Ok(meta.owner())
     }
 }

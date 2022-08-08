@@ -119,7 +119,11 @@ pub async fn change_doc(
         let mut share_access = false;
 
         if !direct_access {
-            for ancestor in tree.ancestors(request.diff.id())? {
+            for ancestor in tree
+                .ancestors(request.diff.id())?
+                .iter()
+                .chain(vec![request.diff.new.id()])
+            {
                 let meta = tree.find(&ancestor)?;
 
                 if meta
@@ -169,8 +173,15 @@ pub async fn change_doc(
     .await?;
 
     let result = server_state.index_db.transaction(|tx| {
+        let meta = tx
+            .metas
+            .get(&request.diff.new.id())
+            .ok_or(ClientError(DocumentNotFound))?;
+
+        let meta_owner = meta.owner();
+
         let mut tree =
-            ServerTree { owner: request_pk, owned: &mut tx.owned_files, metas: &mut tx.metas }
+            ServerTree { owner: meta_owner, owned: &mut tx.owned_files, metas: &mut tx.metas }
                 .to_lazy();
         let new_size = request.new_content.value.len() as u64;
 

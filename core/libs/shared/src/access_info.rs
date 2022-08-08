@@ -34,7 +34,7 @@ impl UserAccessInfo {
         account: &Account, encrypted_by: &PublicKey, encrypted_for: &PublicKey, key: &AESKey,
     ) -> SharedResult<Self> {
         let private_key = account.private_key;
-        let user_key = pubkey::get_aes_key(&private_key, encrypted_by)?;
+        let user_key = pubkey::get_aes_key(&private_key, encrypted_for)?;
         let encrypted_file_key = symkey::encrypt(&user_key, key)?;
         Ok(UserAccessInfo {
             mode: UserAccessMode::Owner,
@@ -43,5 +43,46 @@ impl UserAccessInfo {
             access_key: encrypted_file_key,
             deleted: false,
         })
+    }
+
+    pub fn decrypt(&self, account: &Account) -> SharedResult<AESKey> {
+        let shared_secret = pubkey::get_aes_key(&account.private_key, &self.encrypted_by)?;
+        let encrypted = &self.access_key;
+        let decrypted = symkey::decrypt(&shared_secret, encrypted)?;
+        Ok(decrypted)
+    }
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use crate::access_info::UserAccessInfo;
+    use crate::account::Account;
+    use crate::symkey;
+
+    #[test]
+    fn encrypt_decrypt_1() {
+        let account = Account::new("test1".to_string(), "test2".to_string());
+        let key = symkey::generate_key();
+        let encrypted =
+            UserAccessInfo::encrypt(&account, &account.public_key(), &account.public_key(), &key)
+                .unwrap();
+        let decrypted = encrypted.decrypt(&account).unwrap();
+        assert_eq!(key, decrypted);
+    }
+
+    #[test]
+    fn encrypt_decrypt_2() {
+        let account1 = Account::new("test1".to_string(), "test2".to_string());
+        let account2 = Account::new("test2".to_string(), "test2".to_string());
+        let key = symkey::generate_key();
+        let encrypted = UserAccessInfo::encrypt(
+            &account1,
+            &account1.public_key(),
+            &account2.public_key(),
+            &key,
+        )
+        .unwrap();
+        let decrypted = encrypted.decrypt(&account2).unwrap();
+        assert_eq!(key, decrypted);
     }
 }

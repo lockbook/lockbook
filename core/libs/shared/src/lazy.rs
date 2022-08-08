@@ -3,7 +3,7 @@ use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::file_like::FileLike;
 use crate::staged::StagedTree;
 use crate::tree_like::{Stagable, TreeLike};
-use crate::{compression_service, pubkey, symkey, SharedError, SharedResult};
+use crate::{compression_service, symkey, SharedError, SharedResult};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
@@ -64,7 +64,16 @@ impl<T: Stagable> LazyTree<T> {
                     break;
                 }
 
-                file = self.find_parent(file)?;
+                file = match self.maybe_find_parent(file) {
+                    Some(file) => file,
+                    None => {
+                        if !file.user_access_keys().is_empty() {
+                            break;
+                        } else {
+                            return Err(SharedError::FileParentNonexistent);
+                        }
+                    }
+                }
             }
 
             (visited_ids, deleted)
@@ -86,15 +95,18 @@ impl<T: Stagable> LazyTree<T> {
                 break;
             }
 
-            let maybe_file_key =
-                if let Some(user_access) = self.find(&file_id)?.user_access_keys().iter().next() {
-                    let user_access_key =
-                        pubkey::get_aes_key(&account.private_key, &user_access.encrypted_by)?;
-                    let file_key = symkey::decrypt(&user_access_key, &user_access.access_key)?;
-                    Some(file_key)
-                } else {
-                    None
-                };
+            let my_pk = account.public_key();
+
+            let maybe_file_key = if let Some(user_access) = self
+                .find(&file_id)?
+                .user_access_keys()
+                .iter()
+                .find(|access| access.encrypted_for == my_pk)
+            {
+                Some(user_access.decrypt(account)?)
+            } else {
+                None
+            };
             if let Some(file_key) = maybe_file_key {
                 self.key.insert(file_id, file_key);
                 break;
@@ -236,7 +248,7 @@ impl<T: Stagable> LazyTree<T> {
 
     pub fn assert_no_orphans(&mut self) -> SharedResult<()> {
         for file in self.ids().into_iter().filter_map(|id| self.maybe_find(id)) {
-            if self.maybe_find_parent(file).is_none() {
+            if self.maybe_find_parent(file).is_none() && file.user_access_keys().is_empty() {
                 return Err(SharedError::ValidationFailure(ValidationFailure::Orphan(*file.id())));
             }
         }
@@ -269,7 +281,16 @@ impl<T: Stagable> LazyTree<T> {
                     )));
                 }
                 ancestors.insert(*current_file.id());
-                current_file = self.find_parent(current_file)?;
+                current_file = match self.maybe_find_parent(current_file) {
+                    Some(file) => file,
+                    None => {
+                        if !current_file.user_access_keys().is_empty() {
+                            break;
+                        } else {
+                            return Err(SharedError::FileParentNonexistent);
+                        }
+                    }
+                }
             }
             no_cycles_in_ancestors.extend(ancestors);
         }

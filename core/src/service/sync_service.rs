@@ -6,6 +6,7 @@ use crate::repo::schema::OneKey;
 use crate::service::api_service;
 use crate::CoreResult;
 use crate::{CoreError, RequestContext};
+use lockbook_shared::account::Account;
 use lockbook_shared::api::{
     ChangeDocRequest, GetDocRequest, GetUpdatesRequest, GetUpdatesResponse, UpsertRequest,
 };
@@ -237,7 +238,7 @@ impl RequestContext<'_, '_> {
     }
 
     // todo: cache or something
-    pub fn owners(&self, remote_changes: &Vec<SignedFile>) -> CoreResult<HashSet<Owner>> {
+    pub fn owners(&self, remote_changes: &[SignedFile]) -> CoreResult<HashSet<Owner>> {
         let mut result = HashSet::new();
         for (_, file) in self.tx.base_metadata.get_all() {
             result.insert(file.owner());
@@ -272,10 +273,12 @@ impl RequestContext<'_, '_> {
     pub fn prune_remote_orphans(
         &mut self, owner: Owner, remote_changes: Vec<SignedFile>,
     ) -> CoreResult<Vec<SignedFile>> {
+        let me = Owner(self.get_public_key()?);
         let remote = LazyTree::base_tree(owner, &mut self.tx.base_metadata).stage(remote_changes);
         let mut result = Vec::new();
         for id in remote.tree.staged.owned_ids() {
-            if remote.maybe_find_parent(remote.find(&id)?).is_some() {
+            let meta = remote.find(&id)?;
+            if remote.maybe_find_parent(meta).is_some() || meta.shared_access(&me) {
                 result.push(remote.find(&id)?.clone()); // todo: don't clone
             }
         }
@@ -325,11 +328,8 @@ impl RequestContext<'_, '_> {
         // remote = local
         let mut local_changes_no_digests = Vec::new();
         let mut updates = Vec::new();
-        let local = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let local =
+            LazyStaged1::core_tree(owner, &mut self.tx.base_metadata, &mut self.tx.local_metadata);
         let account = self
             .tx
             .account
@@ -384,11 +384,8 @@ impl RequestContext<'_, '_> {
     where
         F: FnMut(SyncProgressOperation),
     {
-        let mut local = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let mut local =
+            LazyStaged1::core_tree(owner, &mut self.tx.base_metadata, &mut self.tx.local_metadata);
         let account = self
             .tx
             .account

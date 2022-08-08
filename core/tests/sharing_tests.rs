@@ -57,6 +57,10 @@ fn write_document_write_share() {
     cores[1]
         .write_document(document0.id, b"document content")
         .unwrap();
+    assert_eq!(cores[1].read_document(document0.id).unwrap(), b"document content");
+    cores[1].sync(None).unwrap();
+    cores[0].sync(None).unwrap();
+    assert_eq!(cores[0].read_document(document0.id).unwrap(), b"document content");
 }
 
 #[test]

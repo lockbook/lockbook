@@ -25,7 +25,11 @@ where
             let direct_access = &change.new.timestamped_value.value.owner == owner;
             let mut share_access = false;
             if !direct_access {
-                for ancestor in self.ancestors(change.new.id())? {
+                for ancestor in self
+                    .ancestors(change.new.id())?
+                    .iter()
+                    .chain(vec![change.new.id()])
+                {
                     let meta = self.find(&ancestor)?;
 
                     if meta
