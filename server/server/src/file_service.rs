@@ -83,7 +83,6 @@ pub async fn change_doc(
     use ChangeDocError::*;
 
     let (request, server_state) = (context.request, context.server_state);
-    let request_pk = Owner(context.public_key);
 
     // Validate Diff
     if request.diff.diff() != vec![Diff::Hmac] {
@@ -105,7 +104,7 @@ pub async fn change_doc(
     context.server_state.index_db.transaction(|tx| {
         let meta = tx
             .metas
-            .get(&request.diff.new.id())
+            .get(request.diff.new.id())
             .ok_or(ClientError(DocumentNotFound))?;
 
         let meta_owner = meta.owner();
@@ -124,7 +123,7 @@ pub async fn change_doc(
                 .iter()
                 .chain(vec![request.diff.new.id()])
             {
-                let meta = tree.find(&ancestor)?;
+                let meta = tree.find(ancestor)?;
 
                 if meta
                     .user_access_keys()
@@ -175,7 +174,7 @@ pub async fn change_doc(
     let result = server_state.index_db.transaction(|tx| {
         let meta = tx
             .metas
-            .get(&request.diff.new.id())
+            .get(request.diff.new.id())
             .ok_or(ClientError(DocumentNotFound))?;
 
         let meta_owner = meta.owner();

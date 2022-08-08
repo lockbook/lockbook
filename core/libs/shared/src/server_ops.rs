@@ -30,7 +30,7 @@ where
                     .iter()
                     .chain(vec![change.new.id()])
                 {
-                    let meta = self.find(&ancestor)?;
+                    let meta = self.find(ancestor)?;
 
                     if meta
                         .user_access_keys()
