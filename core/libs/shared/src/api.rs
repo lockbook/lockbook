@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::account::Account;
 use crate::account::Username;
 use crate::crypto::*;
-use crate::file_metadata::{DocumentHmac, FileDiff, FileMetadata, Owner};
+use crate::file_metadata::{DocumentHmac, FileDiff, FileMetadata};
 use crate::signed_file::SignedFile;
 use crate::ValidationFailure;
 

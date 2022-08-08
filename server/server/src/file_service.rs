@@ -81,10 +81,42 @@ pub async fn change_doc(
         return Err(ClientError(HmacMissing));
     }
 
+    let req_pk = context.public_key;
+
     context.server_state.index_db.transaction(|tx| {
+        let meta = tx
+            .metas
+            .get(&request.diff.new.id())
+            .ok_or(ClientError(DocumentNotFound))?;
+
+        let meta_owner = meta.owner();
+
+        let direct_access = meta_owner.0 == req_pk;
+
         let mut tree =
-            ServerTree { owner: request_pk, owned: &mut tx.owned_files, metas: &mut tx.metas }
+            ServerTree { owner: meta_owner, owned: &mut tx.owned_files, metas: &mut tx.metas }
                 .to_lazy();
+
+        let mut share_access = false;
+
+        if !direct_access {
+            for ancestor in tree.ancestors(request.diff.id())? {
+                let meta = tree.find(&ancestor)?;
+
+                if meta
+                    .user_access_keys()
+                    .iter()
+                    .any(|access| access.encrypted_for == req_pk)
+                {
+                    share_access = true;
+                    break;
+                }
+            }
+        }
+
+        if !direct_access && !share_access {
+            return Err(ClientError(NotPermissioned));
+        }
 
         let meta = &tree
             .maybe_find(request.diff.new.id())
@@ -95,11 +127,6 @@ pub async fn change_doc(
             if meta != old {
                 return Err(ClientError(OldVersionIncorrect));
             }
-        }
-
-        // Maybe a moot check now that the tree is constructed based on ownership
-        if meta.owner() != request_pk {
-            return Err(ClientError(NotPermissioned));
         }
 
         if tree.calculate_deleted(request.diff.new.id())? {
