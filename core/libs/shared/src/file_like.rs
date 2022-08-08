@@ -31,6 +31,16 @@ pub trait FileLike: PartialEq + Debug {
     fn is_root(&self) -> bool {
         self.id() == self.parent()
     }
+
+    fn has_access(&self, pk: &Owner) -> bool {
+        &self.owner() == pk || self.shared_access(pk)
+    }
+
+    fn shared_access(&self, pk: &Owner) -> bool {
+        self.user_access_keys()
+            .iter()
+            .any(|access| access.encrypted_for == pk.0)
+    }
 }
 
 impl<F> FileLike for F
@@ -77,6 +87,7 @@ where
         match fm.file_type() {
             FileType::Folder => format!("id: {}/", fm.id),
             FileType::Document => format!("id: {}", fm.id),
+            FileType::Link { target } => format!("id: {}, target: {}", fm.id, target),
         }
     }
 

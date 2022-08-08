@@ -35,6 +35,10 @@ pub fn mv(
                 MoveFileError::TargetParentHasChildNamedThat => CliError::file_name_taken(""), //todo
                 MoveFileError::DocumentTreatedAsFolder => CliError::doc_treated_as_dir(dest_path)
                     .with_extra(format!("{} cannot be moved to {}", src_meta.name, dest_meta.name)),
+                MoveFileError::LinkInSharedFolder => CliError::link_in_shared(dest_meta.name),
+                MoveFileError::InsufficientPermission => {
+                    CliError::no_write_permission(src_meta.name)
+                }
             },
             LbError::Unexpected(msg) => CliError::unexpected(msg),
         })

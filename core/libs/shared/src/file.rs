@@ -3,6 +3,19 @@ use crate::file_metadata::FileType;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
+pub enum ShareMode {
+    Write,
+    Read,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
+pub struct Share {
+    pub mode: ShareMode,
+    pub shared_by: Username,
+    pub shared_with: Username,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct File {
     pub id: Uuid,
@@ -11,6 +24,7 @@ pub struct File {
     pub file_type: FileType,
     pub last_modified: u64,
     pub last_modified_by: Username,
+    pub shares: Vec<Share>,
 }
 
 impl File {

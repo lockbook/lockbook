@@ -164,12 +164,15 @@ pub fn save_temp_file_contents<P: AsRef<Path>>(
         })?
         .into_bytes();
 
+    let path = core.get_path_by_id(id)?;
+
     core.write_document(id, &secret).map_err(|err| match err {
         LbError::UiError(err) => match err {
             WriteToDocumentError::FileDoesNotExist => CliError::unexpected("file doesn't exist"),
             WriteToDocumentError::FolderTreatedAsDocument => {
                 CliError::unexpected("can't write to folder")
             }
+            WriteToDocumentError::InsufficientPermission => CliError::no_write_permission(path),
         },
         LbError::Unexpected(msg) => CliError::unexpected(msg),
     })
