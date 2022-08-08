@@ -1,3 +1,5 @@
+use structopt::StructOpt;
+
 use dialoguer::{Confirm, Input};
 
 use lockbook_core::Core;
@@ -7,7 +9,19 @@ use lockbook_core::PaymentMethod;
 use lockbook_core::PaymentPlatform;
 use lockbook_core::StripeAccountTier;
 
-use crate::{Billing, CliError};
+use crate::CliError;
+
+#[derive(Debug, PartialEq, StructOpt)]
+pub enum Billing {
+    /// Prints out information about your current tier
+    Status,
+
+    /// Create a new subscription using a credit card
+    Subscribe,
+
+    /// Terminate a lockbook subscription
+    UnSubscribe,
+}
 
 pub fn billing(core: &Core, billing: Billing) -> Result<(), CliError> {
     match billing {
