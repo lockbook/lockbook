@@ -11,7 +11,7 @@ pub struct OneKey;
 hmdb::schema! {
     CoreV1 {
         account: <OneKey, Account>,
-        last_synced: <Owner, i64>,
+        last_synced: <OneKey, i64>,
         root: <OneKey, Uuid>,
         local_metadata: <Uuid, SignedFile>,
         base_metadata: <Uuid, SignedFile>,

@@ -47,7 +47,6 @@ use strum::IntoEnumIterator;
 
 use lockbook_shared::clock;
 use lockbook_shared::crypto::AESKey;
-use lockbook_shared::file_metadata::Owner;
 
 use crate::model::errors::Error::UiError;
 use crate::model::repo::RepoSource;
@@ -331,14 +330,7 @@ impl Core {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn get_last_synced(&self) -> Result<i64, UnexpectedError> {
-        let account = self
-            .get_account()
-            .map_err(|err| unexpected_only!("{:?}", err))?;
-        Ok(self
-            .db
-            .last_synced
-            .get(&Owner(account.public_key()))?
-            .unwrap_or(0))
+        Ok(self.db.last_synced.get(&OneKey {})?.unwrap_or(0))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]

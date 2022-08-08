@@ -158,10 +158,7 @@ pub fn assert_server_work_paths(db: &Core, expected_paths: &[&'static str]) {
         .transaction(|tx| {
             let context = db.context(tx).unwrap();
             let account = context.tx.account.get(&OneKey {}).unwrap();
-            let remote_changes = context
-                .get_updates(&Owner(account.public_key()))
-                .unwrap()
-                .file_metadata;
+            let remote_changes = context.get_updates().unwrap().file_metadata;
             let mut remote =
                 LazyTree::base_tree(Owner(account.public_key()), &mut context.tx.base_metadata)
                     .stage(remote_changes);

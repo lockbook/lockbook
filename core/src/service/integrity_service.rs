@@ -15,7 +15,6 @@ const UTF8_SUFFIXES: [&str; 12] =
 
 impl RequestContext<'_, '_> {
     pub fn test_repo_integrity(&mut self) -> Result<Vec<Warning>, TestRepoError> {
-        let owner = Owner(self.get_public_key()?);
         let mut tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
@@ -27,7 +26,7 @@ impl RequestContext<'_, '_> {
             .get(&OneKey {})
             .ok_or(TestRepoError::NoAccount)?;
 
-        if self.tx.last_synced.get(&owner).unwrap_or(&0) != &0
+        if self.tx.last_synced.get(&OneKey {}).unwrap_or(&0) != &0
             && self.tx.root.get(&OneKey).is_none()
         {
             return Err(TestRepoError::NoRootFolder);

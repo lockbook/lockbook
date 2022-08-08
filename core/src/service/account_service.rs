@@ -6,7 +6,7 @@ use libsecp256k1::PublicKey;
 use lockbook_shared::account::Account;
 use lockbook_shared::api::{GetPublicKeyRequest, NewAccountRequest};
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{FileMetadata, Owner};
+use lockbook_shared::file_metadata::FileMetadata;
 
 impl RequestContext<'_, '_> {
     pub fn create_account(&mut self, username: &str, api_url: &str) -> CoreResult<Account> {
@@ -29,9 +29,7 @@ impl RequestContext<'_, '_> {
 
         self.tx.account.insert(OneKey {}, account.clone());
         self.tx.base_metadata.insert(root_id, root);
-        self.tx
-            .last_synced
-            .insert(Owner(public_key), last_synced as i64);
+        self.tx.last_synced.insert(OneKey {}, last_synced as i64);
         self.tx.root.insert(OneKey {}, root_id);
         Ok(account)
     }

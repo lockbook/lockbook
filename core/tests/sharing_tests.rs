@@ -100,7 +100,7 @@ fn share_file_in_shared_folder() {
 }
 
 #[test]
-fn share_file_deuplicate() {
+fn share_file_duplicate() {
     let core = test_core_with_account();
     let sharee_core = test_core_with_account();
     let sharee_account = &sharee_core.get_account().unwrap();
