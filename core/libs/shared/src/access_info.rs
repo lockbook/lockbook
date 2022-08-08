@@ -32,16 +32,16 @@ impl PartialEq for UserAccessInfo {
 impl UserAccessInfo {
     pub fn encrypt(
         account: &Account, encrypted_by: &PublicKey, encrypted_for: &PublicKey, key: &AESKey,
-    ) -> SharedResult<Vec<Self>> {
+    ) -> SharedResult<Self> {
         let private_key = account.private_key;
         let user_key = pubkey::get_aes_key(&private_key, encrypted_by)?;
         let encrypted_file_key = symkey::encrypt(&user_key, key)?;
-        Ok(vec![UserAccessInfo {
+        Ok(UserAccessInfo {
             mode: UserAccessMode::Owner,
             encrypted_by: *encrypted_by,
             encrypted_for: *encrypted_for,
             access_key: encrypted_file_key,
             deleted: false,
-        }])
+        })
     }
 }
