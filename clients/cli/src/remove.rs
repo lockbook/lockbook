@@ -1,11 +1,11 @@
 use std::io;
 use std::io::Write;
 
-use lockbook_core::Core;
 use lockbook_core::Error as LbError;
 use lockbook_core::FileDeleteError;
 use lockbook_core::GetAndGetChildrenError;
 use lockbook_core::Uuid;
+use lockbook_core::{Core, Error};
 
 use crate::error::CliError;
 use crate::selector::select_meta;
@@ -55,6 +55,9 @@ pub fn remove(
     core.delete_file(meta.id).map_err(|err| match err {
         LbError::UiError(FileDeleteError::FileDoesNotExist) => CliError::file_not_found(path),
         LbError::UiError(FileDeleteError::CannotDeleteRoot) => CliError::no_root_ops("delete"),
+        Error::UiError(FileDeleteError::InsufficientPermission) => {
+            CliError::no_write_permission(meta.name)
+        }
         LbError::Unexpected(msg) => CliError::unexpected(msg),
     })
 }

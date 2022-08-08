@@ -1,6 +1,6 @@
 use crate::selector::select_meta;
 use crate::CliError;
-use lockbook_core::{Core, FileType, Filter, ShareMode, Uuid};
+use lockbook_core::{Core, FileType, ShareMode, Uuid};
 use structopt::StructOpt;
 
 #[derive(Debug, PartialEq, StructOpt)]
@@ -62,7 +62,8 @@ fn accept(
         Some("Select a destination to place the shared file."),
     )?;
 
-    core.create_file(&share.name, dest.id, FileType::Link { target: share.id });
+    core.create_file(&share.name, dest.id, FileType::Link { target: share.id })
+        .unwrap();
 
     Ok(())
 }
