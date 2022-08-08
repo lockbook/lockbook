@@ -218,6 +218,7 @@ impl<T: Stagable> LazyTree<T> {
         self.assert_no_path_conflicts()?;
         // todo
         // self.assert_names_decryptable(account)?;
+        // share validations
         Ok(())
     }
 
