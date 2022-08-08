@@ -191,8 +191,8 @@ pub async fn get_document(
         let mut share_access = false;
 
         if !direct_access {
-            for ansestor in tree.ancestors(&request.id)? {
-                let meta = tree.find(&ansestor)?;
+            for ancestor in tree.ancestors(&request.id)? {
+                let meta = tree.find(&ancestor)?;
 
                 if meta
                     .user_access_keys()
@@ -205,7 +205,7 @@ pub async fn get_document(
             }
         }
 
-        if !direct_access || !share_access {
+        if !direct_access && !share_access {
             return Err(ClientError(GetDocumentError::NotPermissioned));
         }
 
