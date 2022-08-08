@@ -2,6 +2,7 @@ use crate::ServerError;
 use crate::ServerError::ClientError;
 use crate::{document_service, RequestContext};
 use hmdb::transaction::Transaction;
+use itertools::Itertools;
 use lockbook_shared::api::*;
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
@@ -213,32 +214,39 @@ pub async fn get_updates(
 ) -> Result<GetUpdatesResponse, ServerError<GetUpdatesError>> {
     let (request, server_state) = (&context.request, context.server_state);
     server_state.index_db.transaction(|tx| {
-        let mut tree = ServerTree {
-            owner: context.request.owner,
-            owned: &mut tx.owned_files,
-            metas: &mut tx.metas,
-        }
-        .to_lazy();
-        let mut shared_files = HashSet::new();
-        for id in tree.owned_ids() {
-            if tree
-                .find(&id)?
-                .user_access_keys()
-                .iter()
-                .any(|k| k.encrypted_for == context.public_key)
-            {
-                shared_files.extend(tree.descendents(&id)?);
-                shared_files.insert(id);
-            }
-        }
-        let file_metadata = tree
-            .all_files()?
+        let mut file_metadata = vec![];
+        let owners = tx
+            .owned_files
+            .keys()
             .iter()
-            .filter(|meta| {
-                meta.version > request.since_metadata_version && shared_files.contains(meta.id())
-            })
-            .map(|meta| meta.file.clone())
-            .collect();
+            .map(|owner| **owner)
+            .collect_vec();
+        for owner in owners {
+            let mut tree =
+                ServerTree { owner, owned: &mut tx.owned_files, metas: &mut tx.metas }.to_lazy();
+            let mut shared_files = HashSet::new();
+            for id in tree.owned_ids() {
+                if tree
+                    .find(&id)?
+                    .user_access_keys()
+                    .iter()
+                    .any(|k| k.encrypted_for == context.public_key)
+                {
+                    shared_files.extend(tree.descendents(&id)?);
+                    shared_files.insert(id);
+                }
+            }
+            let subtree_updates = tree
+                .all_files()?
+                .iter()
+                .filter(|meta| {
+                    meta.version > request.since_metadata_version
+                        && shared_files.contains(meta.id())
+                })
+                .map(|meta| meta.file.clone())
+                .collect_vec();
+            file_metadata.extend(subtree_updates);
+        }
 
         let as_of_metadata_version = get_time().0 as u64;
         Ok(GetUpdatesResponse { as_of_metadata_version, file_metadata })

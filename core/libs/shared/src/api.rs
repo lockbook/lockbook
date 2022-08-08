@@ -183,7 +183,6 @@ impl Request for GetUsageRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUpdatesRequest {
     pub since_metadata_version: u64,
-    pub owner: Owner,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
