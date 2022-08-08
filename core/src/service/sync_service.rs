@@ -260,7 +260,7 @@ impl RequestContext<'_, '_> {
         let last_synced = self.tx.last_synced.get(owner).copied().unwrap_or_default() as u64;
         let remote_changes = api_service::request(
             account,
-            GetUpdatesRequest { since_metadata_version: last_synced, owner: *owner },
+            GetUpdatesRequest { since_metadata_version: last_synced },
         )?;
         Ok(remote_changes)
     }
