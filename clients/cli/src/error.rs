@@ -243,6 +243,20 @@ impl CliError {
     pub fn billing<T: fmt::Display>(msg: T) -> Self {
         Self::new(ErrCode::Billing, msg)
     }
+
+    pub fn link_in_shared<T: fmt::Display>(name: T) -> Self {
+        Self::new(
+            ErrCode::SharingError,
+            format!("{} is a link and cannot be moved into a shared folder.", name),
+        )
+    }
+
+    pub fn no_write_permission<T: fmt::Display>(name: T) -> Self {
+        Self::new(
+            ErrCode::InsufficientPermission,
+            format!("You don't have permission to modify {}", name),
+        )
+    }
 }
 
 macro_rules! make_errcode_enum {
@@ -308,6 +322,10 @@ make_errcode_enum!(
     55 => NameConflictDetected,
     56 => DocumentReadError,
     57 => WarningsFound,
+
+    // Sharing errors (60s)
+    60 => SharingError,
+    61 => InsufficientPermission,
 );
 
 impl From<UnexpectedError> for CliError {

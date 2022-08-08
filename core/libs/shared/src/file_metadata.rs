@@ -44,7 +44,7 @@ impl FileMetadata {
             owner: Owner(pub_key),
             is_deleted: false,
             document_hmac: None,
-            user_access_keys: UserAccessInfo::encrypt(account, &pub_key, &pub_key, &key)?,
+            user_access_keys: vec![UserAccessInfo::encrypt(account, &pub_key, &pub_key, &key)?],
             folder_access_key: symkey::encrypt(&key, &key)?,
         })
     }
@@ -111,6 +111,7 @@ impl PartialEq for Owner {
 pub enum FileType {
     Document,
     Folder,
+    Link { target: Uuid },
 }
 
 impl FromStr for FileType {

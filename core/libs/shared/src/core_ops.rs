@@ -34,7 +34,15 @@ where
         let id = *id;
         let last_modified_by = account.username.clone();
 
-        Ok(File { id, parent, name, file_type, last_modified, last_modified_by })
+        Ok(File {
+            id,
+            parent,
+            name,
+            file_type,
+            last_modified,
+            last_modified_by,
+            shares: Vec::new(),
+        })
     }
 
     pub fn create(
@@ -211,7 +219,16 @@ where
                     break;
                 }
                 ancestors.insert(*current_file.id());
-                current_file = result.find_parent(current_file)?;
+                current_file = match result.maybe_find_parent(current_file) {
+                    Some(file) => file,
+                    None => {
+                        if current_file.user_access_keys().is_empty() {
+                            return Err(SharedError::FileParentNonexistent);
+                        } else {
+                            break;
+                        }
+                    }
+                }
             }
             no_cycles_in_ancestors.extend(ancestors);
         }

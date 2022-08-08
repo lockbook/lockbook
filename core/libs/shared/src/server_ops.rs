@@ -17,14 +17,33 @@ where
         // Check ownership
         for change in &changes {
             if let Some(old) = &change.old {
-                if old.public_key != owner.0 || &old.timestamped_value.value.owner != owner {
-                    return Err(SharedError::NotPermissioned);
+                if old.timestamped_value.value.owner != change.new.timestamped_value.value.owner {
+                    return Err(SharedError::DiffMalformed);
                 }
             }
 
-            if change.new.public_key != owner.0
-                || &change.new.timestamped_value.value.owner != owner
-            {
+            let direct_access = &change.new.timestamped_value.value.owner == owner;
+            let mut share_access = false;
+            if !direct_access {
+                for ancestor in self
+                    .ancestors(change.new.id())?
+                    .iter()
+                    .chain(vec![change.new.id()])
+                {
+                    let meta = self.find(ancestor)?;
+
+                    if meta
+                        .user_access_keys()
+                        .iter()
+                        .any(|access| access.encrypted_for == owner.0)
+                    {
+                        share_access = true;
+                        break;
+                    }
+                }
+            }
+
+            if !direct_access && !share_access {
                 return Err(SharedError::NotPermissioned);
             }
         }

@@ -6,7 +6,7 @@ use libsecp256k1::PublicKey;
 use lockbook_shared::account::Account;
 use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileType;
+use lockbook_shared::file_metadata::{FileType, Owner};
 use lockbook_shared::filename::NameComponents;
 use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::signed_file::SignedFile;
@@ -34,15 +34,14 @@ impl RequestContext<'_, '_> {
         update_status(ImportStatus::CalculatedTotal(n_files));
 
         let public_key = self.get_public_key()?;
-
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
+        let mut tree = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
 
         let parent = tree.find(&dest)?;
-        if parent.is_document() {
+        if !parent.is_folder() {
             return Err(CoreError::FileNotFolder);
         }
 
@@ -75,13 +74,13 @@ impl RequestContext<'_, '_> {
             return Err(CoreError::DiskPathInvalid);
         }
 
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
+        let mut tree = LazyStaged1::core_tree(
+            Owner(self.get_public_key()?),
+            &mut self.tx.base_metadata,
+            &mut self.tx.local_metadata,
+        );
 
-        let parent_file_metadata = tree.find(&id)?.clone();
+        let file = tree.find(&id)?.clone();
 
         let account = self
             .tx
@@ -93,7 +92,7 @@ impl RequestContext<'_, '_> {
             self.config,
             account,
             &mut tree,
-            &parent_file_metadata,
+            &file,
             &destination,
             edit,
             &export_progress,
@@ -102,25 +101,25 @@ impl RequestContext<'_, '_> {
 
     fn export_file_recursively<Base, Local>(
         config: &Config, account: &Account, tree: &mut LazyStaged1<Base, Local>,
-        parent_file_metadata: &Base::F, disk_path: &Path, edit: bool,
+        this_file: &Base::F, disk_path: &Path, edit: bool,
         export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> Result<(), CoreError>
     where
         Base: Stagable<F = SignedFile>,
         Local: Stagable<F = Base::F>,
     {
-        let dest_with_new = disk_path.join(&tree.name(parent_file_metadata.id(), account)?);
+        let dest_with_new = disk_path.join(&tree.name(this_file.id(), account)?);
 
         if let Some(ref func) = export_progress {
             func(ImportExportFileInfo {
                 disk_path: disk_path.to_path_buf(),
-                lockbook_path: tree.id_to_path(parent_file_metadata.id(), account)?,
+                lockbook_path: tree.id_to_path(this_file.id(), account)?,
             })
         }
 
-        match parent_file_metadata.file_type() {
+        match this_file.file_type() {
             FileType::Folder => {
-                let children = tree.children(parent_file_metadata.id())?;
+                let children = tree.children(this_file.id())?;
                 fs::create_dir(dest_with_new.clone()).map_err(CoreError::from)?;
 
                 for id in children {
@@ -151,14 +150,26 @@ impl RequestContext<'_, '_> {
                 }
                 .map_err(CoreError::from)?;
 
-                let doc =
-                    document_repo::get(config, RepoSource::Local, *parent_file_metadata.id())?;
+                let doc = document_repo::get(config, RepoSource::Local, *this_file.id())?;
 
                 file.write_all(
-                    tree.decrypt_document(parent_file_metadata.id(), &doc, account)?
+                    tree.decrypt_document(this_file.id(), &doc, account)?
                         .as_slice(),
                 )
                 .map_err(CoreError::from)?;
+            }
+            FileType::Link { target } => {
+                if !tree.calculate_deleted(&target)? {
+                    RequestContext::export_file_recursively(
+                        config,
+                        account,
+                        tree,
+                        &tree.find(&target)?.clone(),
+                        disk_path,
+                        edit,
+                        export_progress,
+                    )?;
+                }
             }
         }
 
@@ -271,7 +282,7 @@ fn get_total_child_count(paths: &[PathBuf]) -> Result<usize, CoreError> {
 fn get_child_count(path: &Path) -> Result<usize, CoreError> {
     let mut count = 1;
     if path.is_dir() {
-        let children = std::fs::read_dir(path).map_err(CoreError::from)?;
+        let children = fs::read_dir(path).map_err(CoreError::from)?;
         for maybe_child in children {
             let child_path = maybe_child.map_err(CoreError::from)?.path();
 

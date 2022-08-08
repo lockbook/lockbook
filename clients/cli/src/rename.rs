@@ -13,7 +13,8 @@ pub fn rename(
 ) -> Result<(), CliError> {
     core.get_account()?;
 
-    let target_id = select_meta(core, path, id, None, Some("Select a file to rename"))?.id;
+    let meta = select_meta(core, path, id, None, Some("Select a file to rename"))?;
+    let target_id = meta.id;
     let target_path = core.get_path_by_id(target_id)?;
 
     let new_name = match new_name {
@@ -38,6 +39,7 @@ pub fn rename(
                 RenameFileError::NewNameContainsSlash => CliError::file_name_has_slash(new_name),
                 RenameFileError::FileNameNotAvailable => CliError::file_name_taken(new_name),
                 RenameFileError::FileDoesNotExist => CliError::file_not_found(target_path),
+                RenameFileError::InsufficientPermission => CliError::no_write_permission(meta.name),
             },
             LbError::Unexpected(msg) => CliError::unexpected(msg),
         })

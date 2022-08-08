@@ -9,5 +9,6 @@ pub mod integrity_service;
 pub mod log_service;
 pub mod path_service;
 pub mod search_service;
+pub mod share_service;
 pub mod sync_service;
 pub mod usage_service;

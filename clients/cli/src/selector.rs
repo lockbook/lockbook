@@ -25,12 +25,14 @@ pub fn select_meta(
     let prompt = prompt.unwrap_or(match target_file_type {
         Some(FileType::Document) => "Select a document",
         Some(FileType::Folder) => "Select a folder",
+        Some(FileType::Link { target: _ }) => "Select a shared folder",
         None => "Select a file",
     });
 
     let filter = target_file_type.map(|file_type| match file_type {
         FileType::Document => Filter::DocumentsOnly,
         FileType::Folder => Filter::FoldersOnly,
+        FileType::Link { target: _ } => todo!(),
     });
 
     match (path, id) {
@@ -86,6 +88,9 @@ pub fn create_meta(
                 CreateFileAtPathError::DocumentTreatedAsFolder => {
                     CliError::doc_treated_as_dir(path)
                 }
+                CreateFileAtPathError::InsufficientPermission => {
+                    CliError::no_write_permission(path)
+                }
             },
             LbError::Unexpected(msg) => CliError::unexpected(msg),
         }),
@@ -140,6 +145,14 @@ fn create_file(core: &Core, name: &str, parent: Uuid) -> Result<File, CliError> 
             LbError::UiError(CreateFileError::FileNameNotAvailable) => {
                 CliError::file_name_taken(name)
             }
+            LbError::UiError(CreateFileError::InsufficientPermission) => {
+                CliError::no_write_permission(parent_path)
+            }
             LbError::Unexpected(msg) => CliError::unexpected(msg),
+            LbError::UiError(CreateFileError::LinkInSharedFolder)
+            | LbError::UiError(CreateFileError::LinkTargetIsOwned)
+            | LbError::UiError(CreateFileError::LinkTargetNonexistent) => CliError::unexpected(
+                "We did not try to create a link, but we are receiving link related errors",
+            ),
         })
 }

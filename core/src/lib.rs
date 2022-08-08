@@ -18,6 +18,7 @@ pub use lockbook_shared::api::{StripeAccountTier, SubscriptionInfo};
 pub use lockbook_shared::crypto::DecryptedDocument;
 pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 pub use lockbook_shared::file::File;
+pub use lockbook_shared::file::ShareMode;
 pub use lockbook_shared::file_like::FileLike;
 pub use lockbook_shared::file_metadata::FileType;
 pub use lockbook_shared::filename::NameComponents;
@@ -231,24 +232,61 @@ impl Core {
         Ok(val?)
     }
 
+    #[instrument(level = "debug", err(Debug))]
+    pub fn share_file(
+        &self, id: Uuid, username: &str, mode: ShareMode,
+    ) -> Result<(), Error<ShareFileError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.share_file(id, username, mode))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_pending_shares(&self) -> Result<Vec<File>, UnexpectedError> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.get_pending_shares())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", err(Debug))]
+    pub fn delete_pending_share(&self, id: Uuid) -> Result<(), Error<DeletePendingShareError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.delete_pending_share(id))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn create_link_at_path(
+        &self, path_and_name: &str, target_id: Uuid,
+    ) -> Result<File, Error<CreateLinkAtPathError>> {
+        let val = self.db.transaction(|tx| {
+            self.context(tx)?
+                .create_link_at_path(path_and_name, target_id)
+        })?;
+        Ok(val?)
+    }
+
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn create_at_path(
         &self, path_and_name: &str,
     ) -> Result<File, Error<CreateFileAtPathError>> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.create_at_path(path_and_name))??;
+            .transaction(|tx| self.context(tx)?.create_at_path(path_and_name))?;
 
-        Ok(val)
+        Ok(val?)
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn get_by_path(&self, path: &str) -> Result<File, Error<GetFileByPathError>> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.get_by_path(path))??;
+            .transaction(|tx| self.context(tx)?.get_by_path(path))?;
 
-        Ok(val)
+        Ok(val?)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -286,9 +324,7 @@ impl Core {
 
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>> {
-        let val = self
-            .db
-            .transaction(|tx| self.context(tx)?.sync(&self.config, f))?;
+        let val = self.db.transaction(|tx| self.context(tx)?.sync(f))?;
         Ok(val?)
     }
 
@@ -299,7 +335,7 @@ impl Core {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn get_last_synced_human_string(&self) -> Result<String, UnexpectedError> {
-        let last_synced = self.db.last_synced.get(&OneKey {})?.unwrap_or(0);
+        let last_synced = self.get_last_synced()?;
 
         Ok(if last_synced != 0 {
             Duration::milliseconds(clock::get_time().0 - last_synced)

@@ -1,9 +1,36 @@
+use structopt::StructOpt;
+
 use lockbook_core::Core;
 use lockbook_core::{TestRepoError, Warning};
 
 use crate::error::CliError;
 use crate::selector::select_meta;
-use crate::{error, Debug, Uuid};
+use crate::{error, Uuid};
+
+#[derive(Debug, PartialEq, StructOpt)]
+pub enum Debug {
+    /// Prints metadata associated with a file
+    Info {
+        path: Option<String>,
+
+        #[structopt(short, long)]
+        id: Option<Uuid>,
+    },
+
+    /// Prints all the error codes that the cli can generate
+    Errors,
+
+    /// Prints who is logged into this lockbook
+    #[structopt(name = "whoami")]
+    WhoAmI,
+
+    /// Prints information about where this lockbook is stored and what server it communicates with
+    #[structopt(name = "whereami")]
+    WhereAmI,
+
+    /// Helps find invalid states within lockbook
+    Validate,
+}
 
 pub fn debug(core: &Core, debug: Debug) -> Result<(), CliError> {
     use Debug::*;
