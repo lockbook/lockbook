@@ -46,7 +46,7 @@ impl RequestContext<'_, '_> {
         }
         if !found {
             let sharee_public_key = api_service::request(
-                &account,
+                account,
                 GetPublicKeyRequest { username: String::from(username) },
             )
             .map_err(CoreError::from)?

@@ -6,7 +6,6 @@ use crate::repo::schema::OneKey;
 use crate::service::api_service;
 use crate::CoreResult;
 use crate::{CoreError, RequestContext};
-use lockbook_shared::account::Account;
 use lockbook_shared::api::{
     ChangeDocRequest, GetDocRequest, GetUpdatesRequest, GetUpdatesResponse, UpsertRequest,
 };
@@ -240,13 +239,13 @@ impl RequestContext<'_, '_> {
     // todo: cache or something
     pub fn owners(&self, remote_changes: &[SignedFile]) -> CoreResult<HashSet<Owner>> {
         let mut result = HashSet::new();
-        for (_, file) in self.tx.base_metadata.get_all() {
+        for file in self.tx.base_metadata.get_all().values() {
             result.insert(file.owner());
         }
         for file in remote_changes {
             result.insert(file.owner());
         }
-        for (_, file) in self.tx.local_metadata.get_all() {
+        for file in self.tx.local_metadata.get_all().values() {
             result.insert(file.owner());
         }
         Ok(result)
