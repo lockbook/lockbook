@@ -313,6 +313,7 @@ fn get_icon_name(fname: &str, ftype: &lb::FileType) -> String {
     match ftype {
         lb::FileType::Document => ui::document_icon_from_name(fname),
         lb::FileType::Folder => "folder".to_string(),
+        lb::FileType::Link { .. } => "link".to_string(),
     }
 }
 
