@@ -2149,7 +2149,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.4.3"
+version = "0.5.0"
 dependencies = [
  "atty",
  "chrono",
@@ -2204,7 +2204,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-desktop"
-version = "0.4.3"
+version = "0.5.0"
 dependencies = [
  "gdk-pixbuf",
  "gio",

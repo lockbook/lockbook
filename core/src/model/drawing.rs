@@ -17,9 +17,9 @@ use serde::Deserialize;
 use serde_json::error::Category;
 
 use crate::model::errors::core_err_unexpected;
-use crate::CoreError;
+use crate::{CoreError, CoreResult};
 
-pub fn parse_drawing(drawing_bytes: &[u8]) -> Result<Drawing, CoreError> {
+pub fn parse_drawing(drawing_bytes: &[u8]) -> CoreResult<Drawing> {
     // represent an empty string as an empty drawing, rather than returning an error
     if drawing_bytes.is_empty() {
         return Ok(Drawing::default());
@@ -59,7 +59,7 @@ impl std::str::FromStr for SupportedImageFormats {
 pub fn export_drawing(
     drawing_bytes: &[u8], format: SupportedImageFormats,
     render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-) -> Result<Vec<u8>, CoreError> {
+) -> CoreResult<Vec<u8>> {
     let drawing = parse_drawing(drawing_bytes)?;
 
     let theme = match render_theme {
