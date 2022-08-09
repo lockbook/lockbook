@@ -49,7 +49,7 @@ impl RequestContext<'_, '_> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync<F: Fn(SyncProgress)>(
         &mut self, maybe_update_sync_progress: Option<F>,
-    ) -> Result<(), CoreError> {
+    ) -> CoreResult<()> {
         // initialize sync progress: 3 metadata pulls + 1 metadata push + num local doc changes
         // note: num doc changes can change as a result of pull (can make new/changes docs deleted or add new docs from merge conflicts)
         let mut num_doc_changes = 0;
@@ -305,7 +305,7 @@ impl RequestContext<'_, '_> {
 
     /// Updates remote and base metadata to local.
     #[instrument(level = "debug", skip_all, err(Debug))]
-    fn push_metadata<F>(&mut self, update_sync_progress: &mut F) -> Result<(), CoreError>
+    fn push_metadata<F>(&mut self, update_sync_progress: &mut F) -> CoreResult<()>
     where
         F: FnMut(SyncProgressOperation),
     {
@@ -320,7 +320,7 @@ impl RequestContext<'_, '_> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     fn push_metadata_owner<F>(
         &mut self, owner: Owner, update_sync_progress: &mut F,
-    ) -> Result<(), CoreError>
+    ) -> CoreResult<()>
     where
         F: FnMut(SyncProgressOperation),
     {
@@ -364,7 +364,7 @@ impl RequestContext<'_, '_> {
 
     /// Updates remote and base files to local. Assumes metadata is already pushed for all new files.
     #[instrument(level = "debug", skip_all, err(Debug))]
-    fn push_documents<F>(&mut self, update_sync_progress: &mut F) -> Result<(), CoreError>
+    fn push_documents<F>(&mut self, update_sync_progress: &mut F) -> CoreResult<()>
     where
         F: FnMut(SyncProgressOperation),
     {
@@ -379,7 +379,7 @@ impl RequestContext<'_, '_> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     fn push_documents_owner<F>(
         &mut self, owner: Owner, update_sync_progress: &mut F,
-    ) -> Result<(), CoreError>
+    ) -> CoreResult<()>
     where
         F: FnMut(SyncProgressOperation),
     {
