@@ -45,7 +45,7 @@ impl RequestContext<'_, '_> {
         Ok(doc)
     }
 
-    pub fn write_document(&mut self, id: Uuid, content: &[u8]) -> Result<(), CoreError> {
+    pub fn write_document(&mut self, id: Uuid, content: &[u8]) -> CoreResult<()> {
         let mut tree = LazyStaged1::core_tree(
             self.find_owner(&id)?,
             &mut self.tx.base_metadata,

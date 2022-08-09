@@ -1,7 +1,7 @@
 use crate::model::repo::RepoSource;
 use crate::repo::document_repo;
-use crate::OneKey;
 use crate::{Config, CoreError, RequestContext};
+use crate::{CoreResult, OneKey};
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Account;
 use lockbook_shared::file::File;
@@ -29,7 +29,7 @@ pub enum ImportStatus {
 impl RequestContext<'_, '_> {
     pub fn import_files<F: Fn(ImportStatus)>(
         &mut self, sources: &[PathBuf], dest: Uuid, update_status: &F,
-    ) -> Result<(), CoreError> {
+    ) -> CoreResult<()> {
         let n_files = get_total_child_count(sources)?;
         update_status(ImportStatus::CalculatedTotal(n_files));
 
@@ -69,7 +69,7 @@ impl RequestContext<'_, '_> {
     pub fn export_file(
         &mut self, id: Uuid, destination: PathBuf, edit: bool,
         export_progress: Option<Box<dyn Fn(ImportExportFileInfo)>>,
-    ) -> Result<(), CoreError> {
+    ) -> CoreResult<()> {
         if destination.is_file() {
             return Err(CoreError::DiskPathInvalid);
         }
@@ -103,7 +103,7 @@ impl RequestContext<'_, '_> {
         config: &Config, account: &Account, tree: &mut LazyStaged1<Base, Local>,
         this_file: &Base::F, disk_path: &Path, edit: bool,
         export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
-    ) -> Result<(), CoreError>
+    ) -> CoreResult<()>
     where
         Base: Stagable<F = SignedFile>,
         Local: Stagable<F = Base::F>,
@@ -179,7 +179,7 @@ impl RequestContext<'_, '_> {
     fn import_file_recursively<F: Fn(ImportStatus), Base, Local>(
         account: &Account, config: &Config, public_key: &PublicKey,
         mut tree: LazyStaged1<Base, Local>, disk_path: &Path, dest: &Uuid, update_status: &F,
-    ) -> Result<LazyStaged1<Base, Local>, CoreError>
+    ) -> CoreResult<LazyStaged1<Base, Local>>
     where
         Base: Stagable<F = SignedFile>,
         Local: Stagable<F = Base::F>,
@@ -242,7 +242,7 @@ impl RequestContext<'_, '_> {
 
     fn generate_non_conflicting_name<Base, Local>(
         tree: &mut LazyStaged1<Base, Local>, account: &Account, parent: &Uuid, proposed_name: &str,
-    ) -> Result<String, CoreError>
+    ) -> CoreResult<String>
     where
         Base: Stagable<F = SignedFile>,
         Local: Stagable<F = Base::F>,
@@ -271,7 +271,7 @@ impl RequestContext<'_, '_> {
     }
 }
 
-fn get_total_child_count(paths: &[PathBuf]) -> Result<usize, CoreError> {
+fn get_total_child_count(paths: &[PathBuf]) -> CoreResult<usize> {
     let mut count = 0;
     for p in paths {
         count += get_child_count(p)?;
@@ -279,7 +279,7 @@ fn get_total_child_count(paths: &[PathBuf]) -> Result<usize, CoreError> {
     Ok(count)
 }
 
-fn get_child_count(path: &Path) -> Result<usize, CoreError> {
+fn get_child_count(path: &Path) -> CoreResult<usize> {
     let mut count = 1;
     if path.is_dir() {
         let children = fs::read_dir(path).map_err(CoreError::from)?;

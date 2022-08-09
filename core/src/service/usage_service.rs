@@ -9,8 +9,8 @@ use lockbook_shared::tree_like::TreeLike;
 use crate::model::repo::RepoSource;
 use crate::repo::document_repo;
 use crate::service::api_service;
-use crate::OneKey;
 use crate::{CoreError, RequestContext};
+use crate::{CoreResult, OneKey};
 
 pub const BYTE: u64 = 1;
 pub const KILOBYTE: u64 = BYTE * 1000;
@@ -37,13 +37,13 @@ pub struct UsageItemMetric {
 }
 
 impl RequestContext<'_, '_> {
-    fn server_usage(&self) -> Result<GetUsageResponse, CoreError> {
+    fn server_usage(&self) -> CoreResult<GetUsageResponse> {
         let acc = &self.get_account()?;
 
         Ok(api_service::request(acc, GetUsageRequest {})?)
     }
 
-    pub fn get_usage(&self) -> Result<UsageMetrics, CoreError> {
+    pub fn get_usage(&self) -> CoreResult<UsageMetrics> {
         let server_usage_and_cap = self.server_usage()?;
 
         let server_usage = server_usage_and_cap.sum_server_usage();
@@ -59,7 +59,7 @@ impl RequestContext<'_, '_> {
         })
     }
 
-    pub fn get_uncompressed_usage(&mut self) -> Result<UsageItemMetric, CoreError> {
+    pub fn get_uncompressed_usage(&mut self) -> CoreResult<UsageItemMetric> {
         let mut tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
