@@ -38,6 +38,7 @@ pub fn parent_info(
             match meta.file_type {
                 lb::FileType::Document => meta.parent,
                 lb::FileType::Folder => meta.id,
+                lb::FileType::Link { .. } => todo!(),
             }
         }
         None => core.get_root().map_err(|e| format!("{:?}", e))?.id,
