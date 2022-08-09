@@ -78,7 +78,7 @@ impl RequestContext<'_, '_> {
         Ok(path)
     }
 
-    pub fn list_paths(&mut self, filter: Option<Filter>) -> Result<Vec<String>, CoreError> {
+    pub fn list_paths(&mut self, filter: Option<Filter>) -> CoreResult<Vec<String>> {
         let mut tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,

@@ -16,11 +16,11 @@ use crate::model::drawing::SupportedImageFormats;
 use crate::model::errors::CoreError;
 use crate::model::repo::RepoSource;
 use crate::repo::document_repo;
-use crate::OneKey;
 use crate::RequestContext;
+use crate::{CoreResult, OneKey};
 
 impl RequestContext<'_, '_> {
-    pub fn get_drawing(&mut self, id: Uuid) -> Result<Drawing, CoreError> {
+    pub fn get_drawing(&mut self, id: Uuid) -> CoreResult<Drawing> {
         let mut tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
@@ -37,7 +37,7 @@ impl RequestContext<'_, '_> {
         drawing::parse_drawing(&tree.decrypt_document(&id, &doc, account)?)
     }
 
-    pub fn save_drawing(&mut self, id: Uuid, d: &Drawing) -> Result<(), CoreError> {
+    pub fn save_drawing(&mut self, id: Uuid, d: &Drawing) -> CoreResult<()> {
         let mut tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
@@ -62,7 +62,7 @@ impl RequestContext<'_, '_> {
     pub fn export_drawing(
         &mut self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
-    ) -> Result<Vec<u8>, CoreError> {
+    ) -> CoreResult<Vec<u8>> {
         let mut tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
@@ -86,7 +86,7 @@ impl RequestContext<'_, '_> {
     pub fn export_drawing_to_disk(
         &mut self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
-    ) -> Result<(), CoreError> {
+    ) -> CoreResult<()> {
         let mut tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
@@ -115,7 +115,7 @@ impl RequestContext<'_, '_> {
         Self::save_document_to_disk(&exported_drawing_bytes, location.to_string())
     }
 
-    fn save_document_to_disk(document: &[u8], location: String) -> Result<(), CoreError> {
+    fn save_document_to_disk(document: &[u8], location: String) -> CoreResult<()> {
         OpenOptions::new()
             .write(true)
             .create_new(true)

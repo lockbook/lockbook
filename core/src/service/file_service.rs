@@ -9,7 +9,7 @@ use uuid::Uuid;
 impl RequestContext<'_, '_> {
     pub fn create_file(
         &mut self, name: &str, parent: &Uuid, file_type: FileType,
-    ) -> Result<File, CoreError> {
+    ) -> CoreResult<File> {
         let pub_key = self.get_public_key()?;
         let tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
@@ -29,7 +29,7 @@ impl RequestContext<'_, '_> {
         Ok(ui_file)
     }
 
-    pub fn rename_file(&mut self, id: &Uuid, new_name: &str) -> Result<(), CoreError> {
+    pub fn rename_file(&mut self, id: &Uuid, new_name: &str) -> CoreResult<()> {
         let tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
@@ -46,7 +46,7 @@ impl RequestContext<'_, '_> {
         Ok(())
     }
 
-    pub fn move_file(&mut self, id: &Uuid, new_parent: &Uuid) -> Result<(), CoreError> {
+    pub fn move_file(&mut self, id: &Uuid, new_parent: &Uuid) -> CoreResult<()> {
         let tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
@@ -62,7 +62,7 @@ impl RequestContext<'_, '_> {
         Ok(())
     }
 
-    pub fn delete(&mut self, id: &Uuid) -> Result<(), CoreError> {
+    pub fn delete(&mut self, id: &Uuid) -> CoreResult<()> {
         let tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
@@ -84,7 +84,7 @@ impl RequestContext<'_, '_> {
         Ok(())
     }
 
-    pub fn root(&mut self) -> Result<File, CoreError> {
+    pub fn root(&mut self) -> CoreResult<File> {
         let mut tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
@@ -107,7 +107,7 @@ impl RequestContext<'_, '_> {
         Ok(root)
     }
 
-    pub fn list_metadatas(&mut self) -> Result<Vec<File>, CoreError> {
+    pub fn list_metadatas(&mut self) -> CoreResult<Vec<File>> {
         let mut tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
@@ -130,7 +130,7 @@ impl RequestContext<'_, '_> {
         Ok(files)
     }
 
-    pub fn get_children(&mut self, id: &Uuid) -> Result<Vec<File>, CoreError> {
+    pub fn get_children(&mut self, id: &Uuid) -> CoreResult<Vec<File>> {
         let mut tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
@@ -151,7 +151,7 @@ impl RequestContext<'_, '_> {
         Ok(children)
     }
 
-    pub fn get_and_get_children(&mut self, id: &Uuid) -> Result<Vec<File>, CoreError> {
+    pub fn get_and_get_children(&mut self, id: &Uuid) -> CoreResult<Vec<File>> {
         let mut tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
@@ -172,7 +172,7 @@ impl RequestContext<'_, '_> {
         Ok(files)
     }
 
-    pub fn get_file_by_id(&mut self, id: &Uuid) -> Result<File, CoreError> {
+    pub fn get_file_by_id(&mut self, id: &Uuid) -> CoreResult<File> {
         let mut tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,

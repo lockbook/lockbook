@@ -1,6 +1,6 @@
 use crate::model::repo::RepoSource;
 use crate::repo::document_repo;
-use crate::{CoreError, OneKey, RequestContext, UnexpectedError};
+use crate::{CoreError, CoreResult, OneKey, RequestContext, UnexpectedError};
 use crossbeam::channel::{self, Receiver, RecvTimeoutError, Sender};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
@@ -49,7 +49,7 @@ impl PartialOrd for SearchResultItem {
 }
 
 impl RequestContext<'_, '_> {
-    pub fn search_file_paths(&mut self, input: &str) -> Result<Vec<SearchResultItem>, CoreError> {
+    pub fn search_file_paths(&mut self, input: &str) -> CoreResult<Vec<SearchResultItem>> {
         if input.is_empty() {
             return Ok(Vec::new());
         }
@@ -83,7 +83,7 @@ impl RequestContext<'_, '_> {
         Ok(results)
     }
 
-    pub fn start_search(&mut self) -> Result<StartSearchInfo, CoreError> {
+    pub fn start_search(&mut self) -> CoreResult<StartSearchInfo> {
         let mut tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,

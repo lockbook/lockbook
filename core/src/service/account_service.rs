@@ -34,7 +34,7 @@ impl RequestContext<'_, '_> {
         Ok(account)
     }
 
-    pub fn import_account(&mut self, account_string: &str) -> Result<Account, CoreError> {
+    pub fn import_account(&mut self, account_string: &str) -> CoreResult<Account> {
         if self.tx.account.get(&OneKey {}).is_some() {
             warn!("tried to import an account, but account exists already.");
             return Err(CoreError::AccountExists);
@@ -72,7 +72,7 @@ impl RequestContext<'_, '_> {
         Ok(account)
     }
 
-    pub fn export_account(&self) -> Result<String, CoreError> {
+    pub fn export_account(&self) -> CoreResult<String> {
         let account = self
             .tx
             .account
@@ -82,14 +82,14 @@ impl RequestContext<'_, '_> {
         Ok(base64::encode(&encoded))
     }
 
-    pub fn get_account(&self) -> Result<&Account, CoreError> {
+    pub fn get_account(&self) -> CoreResult<&Account> {
         self.tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)
     }
 
-    pub fn get_public_key(&mut self) -> Result<PublicKey, CoreError> {
+    pub fn get_public_key(&mut self) -> CoreResult<PublicKey> {
         match self.data_cache.public_key {
             Some(pk) => Ok(pk),
             None => {
