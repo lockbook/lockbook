@@ -1,11 +1,12 @@
 use crate::error::CliError;
+use crate::setup::ANDROID_CLI_FOLDER_NAME;
 use execute_command_macro::command;
 use serde::{Deserialize, Serialize};
 use std::env::VarError;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
+use std::process::{Command, Stdio};
 use std::{env, fs};
 
 pub fn tmp_dir() -> PathBuf {
@@ -47,7 +48,8 @@ pub fn test_env_path<P: AsRef<Path>>(root: P) -> PathBuf {
 pub fn get_commit_hash() -> Result<String, CliError> {
     let commit_hash = command!("git rev-parse HEAD")
         .stdout(Stdio::piped())
-        .output()?
+        .output()
+        .map_err(|e| CliError(Some(format!("Cannot get commit hash: {:?}", e))))?
         .stdout;
 
     Ok(String::from_utf8_lossy(commit_hash.as_slice())
@@ -55,7 +57,9 @@ pub fn get_commit_hash() -> Result<String, CliError> {
         .to_string())
 }
 
-pub fn get_root_and_target_dir() -> Result<(PathBuf, PathBuf), CliError> {
+pub fn get_dirs() -> Result<(PathBuf, PathBuf, PathBuf, PathBuf, PathBuf), CliError> {
+    let home_dir = env::var("HOME")?;
+
     let root_dir = {
         let root_bytes = command!("git rev-parse --show-toplevel")
             .stdout(Stdio::piped())
@@ -67,13 +71,24 @@ pub fn get_root_and_target_dir() -> Result<(PathBuf, PathBuf), CliError> {
             .to_string()
     };
 
-    let target_dir = if is_ci_env()? {
-        format!("{}/.lockbook-dev/rust-target", env::var("HOME")?)
-    } else {
-        format!("{}/target", root_dir)
-    };
+    let dev_dir = format!("{}/.lockbook-dev", home_dir);
 
-    Ok((PathBuf::from(root_dir), PathBuf::from(target_dir)))
+    fs::create_dir_all(&dev_dir)?;
+
+    let target_dir =
+        if is_ci_env()? { format!("{}/target", dev_dir) } else { format!("{}/target", root_dir) };
+
+    let sdk_dir = format!("{}/{}", dev_dir, "android-sdk");
+
+    fs::create_dir_all(&sdk_dir)?;
+
+    Ok((
+        PathBuf::from(home_dir),
+        PathBuf::from(root_dir),
+        PathBuf::from(target_dir),
+        PathBuf::from(dev_dir),
+        PathBuf::from(sdk_dir),
+    ))
 }
 
 pub fn is_ci_env() -> Result<bool, CliError> {
@@ -85,7 +100,7 @@ pub fn is_ci_env() -> Result<bool, CliError> {
         },
         Err(e) => match e {
             VarError::NotPresent => Ok(false),
-            _ => Err(CliError::from(e)),
+            _ => Err(CliError(Some(format!("Unknown ci state: {:?}", e)))),
         },
     }
 }
@@ -111,7 +126,8 @@ impl HashInfo {
         let port_dir = get_hash_port_dir(commit_hash);
         let contents = fs::read_to_string(&port_dir)?;
 
-        Ok(serde_json::from_str(&contents)?)
+        Ok(serde_json::from_str(&contents)
+            .map_err(|e| CliError(Some(format!("Cannot get hash info from disk: {:?}", e))))?)
     }
 
     pub fn save(&self, commit_hash: &str) -> Result<(), CliError> {

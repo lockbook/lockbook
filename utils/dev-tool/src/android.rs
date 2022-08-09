@@ -22,6 +22,7 @@ pub fn fmt_android(tool_env: ToolEnvironment) -> Result<(), CliError> {
 
 pub fn lint_android(tool_env: ToolEnvironment) -> Result<(), CliError> {
     let lint_result = command!("./gradlew lint")
+        .env("ANDROID_HOME", tool_env.sdk_dir.join("android-ndk"))
         .current_dir(utils::android_dir(tool_env.root_dir))
         .spawn()?
         .wait()?;

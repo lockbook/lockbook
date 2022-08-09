@@ -14,8 +14,8 @@ pub mod workspace;
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "Lockbook's development and ci tool.")]
 enum Commands {
-    /// Install all dependencies (only supports debian based machines)
-    InstallDependencies,
+    /// Install all ci dependencies (only supports debian based machines)
+    InstallCIDependencies,
 
     /// Check the formatting
     FmtCheck,
@@ -59,16 +59,26 @@ enum Commands {
 
 #[derive(Clone)]
 pub struct ToolEnvironment {
+    home_dir: PathBuf,
     root_dir: PathBuf,
+    dev_dir: PathBuf,
     target_dir: PathBuf,
+    sdk_dir: PathBuf,
     commit_hash: String,
 }
 
 impl ToolEnvironment {
     pub fn new() -> Result<ToolEnvironment, CliError> {
-        let (root_dir, target_dir) = utils::get_root_and_target_dir()?;
+        let (home_dir, root_dir, target_dir, dev_dir, sdk_dir) = utils::get_dirs()?;
 
-        Ok(ToolEnvironment { root_dir, target_dir, commit_hash: utils::get_commit_hash()? })
+        Ok(ToolEnvironment {
+            home_dir,
+            root_dir,
+            dev_dir,
+            target_dir,
+            sdk_dir,
+            commit_hash: utils::get_commit_hash()?,
+        })
     }
 }
 
@@ -91,7 +101,7 @@ fn parse_and_run() -> Result<(), CliError> {
 
     use Commands::*;
     match Commands::from_args() {
-        InstallDependencies => setup::install_dependencies(tool_env),
+        InstallCIDependencies => setup::install_ci_dependencies(tool_env),
         FmtCheck => workspace::fmt_workspace(tool_env),
         ClippyCheck => workspace::clippy_workspace(tool_env),
         AndroidFmtCheck => android::fmt_android(tool_env),

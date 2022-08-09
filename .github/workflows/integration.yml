@@ -10,7 +10,7 @@ on:
 
 jobs:
   Workspace-Fmt:
-    runs-on: [self-hosted, dockerized]
+    runs-on: [self-hosted]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       LOCKBOOK_CI: 1
@@ -20,7 +20,7 @@ jobs:
       run: cargo run -p lockbook-dev fmt-check
 
   Workspace-Clippy:
-    runs-on: [self-hosted, dockerized]
+    runs-on: [self-hosted]
     needs: [ Workspace-Fmt ]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -31,7 +31,7 @@ jobs:
       run: cargo run -p lockbook-dev clippy-check
 
   Android:
-    runs-on: [self-hosted, dockerized]
+    runs-on: [self-hosted]
     needs: [ Workspace-Clippy ]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -44,7 +44,7 @@ jobs:
         run: cargo run -p lockbook-dev android-lint-check
 
   Build-Server:
-    runs-on: [self-hosted, dockerized]
+    runs-on: [self-hosted]
     needs: [ Workspace-Clippy ]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -55,7 +55,7 @@ jobs:
         run: cargo run -p lockbook-dev build-server
   
   Run-Server:
-    runs-on: [self-hosted, dockerized]
+    runs-on: [self-hosted]
     needs: [ Build-Server ]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -66,7 +66,7 @@ jobs:
         run: cargo run -p lockbook-dev run-server
 
   Run-Rust-Tests:
-    runs-on: [self-hosted, dockerized]
+    runs-on: [self-hosted]
     needs: [ Run-Server ]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -77,7 +77,7 @@ jobs:
         run: cargo run -p lockbook-dev run-rust-tests
 
   Run-Kotlin-Tests:
-    runs-on: [self-hosted, dockerized]
+    runs-on: [self-hosted]
     needs: [ Run-Server ]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -88,7 +88,7 @@ jobs:
         run: cargo run -p lockbook-dev run-kotlin-tests
 
   Run-Swift-Tests:
-    runs-on: [self-hosted, dockerized]
+    runs-on: [self-hosted]
     needs: [ Run-Server ]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -99,7 +99,7 @@ jobs:
         run: cargo run -p lockbook-dev run-swift-tests
 
   Cleanup:
-    runs-on: [self-hosted, dockerized]
+    runs-on: [self-hosted]
     needs: [ Run-Rust-Tests, Run-Kotlin-Tests, Run-Swift-Tests ]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
