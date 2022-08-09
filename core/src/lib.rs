@@ -76,9 +76,7 @@ pub struct Core {
 }
 
 impl Core {
-    pub fn context<'a, 'b>(
-        &'a self, tx: &'a mut Tx<'b>,
-    ) -> Result<RequestContext<'a, 'b>, CoreError> {
+    pub fn context<'a, 'b>(&'a self, tx: &'a mut Tx<'b>) -> CoreResult<RequestContext<'a, 'b>> {
         let config = &self.config;
         let data_cache = self.data_cache.lock().map_err(|err| {
             CoreError::Unexpected(format!("Could not get key_cache mutex: {:?}", err))
@@ -153,7 +151,7 @@ impl Core {
     pub fn write_document(
         &self, id: Uuid, content: &[u8],
     ) -> Result<(), Error<WriteToDocumentError>> {
-        let val: Result<_, CoreError> = self.db.transaction(|tx| {
+        let val: CoreResult<_> = self.db.transaction(|tx| {
             let mut ctx = self.context(tx)?;
             ctx.write_document(id, content)?;
             Ok(())
@@ -291,7 +289,7 @@ impl Core {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn get_path_by_id(&self, id: Uuid) -> Result<String, UnexpectedError> {
-        let val: Result<_, CoreError> = self
+        let val: CoreResult<_> = self
             .db
             .transaction(|tx| self.context(tx)?.get_path_by_id(id))?;
         Ok(val?)
@@ -299,7 +297,7 @@ impl Core {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn list_paths(&self, filter: Option<Filter>) -> Result<Vec<String>, UnexpectedError> {
-        let val: Result<_, CoreError> = self
+        let val: CoreResult<_> = self
             .db
             .transaction(|tx| self.context(tx)?.list_paths(filter))?;
 
