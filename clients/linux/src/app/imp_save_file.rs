@@ -31,6 +31,7 @@ impl super::App {
                 lb::Error::UiError(err) => match err {
                     FileDoesNotExist => "file does not exist",
                     FolderTreatedAsDocument => "folder treated as document",
+                    InsufficientPermission => todo!(),
                 }
                 .to_string(),
                 lb::Error::Unexpected(msg) => msg,
