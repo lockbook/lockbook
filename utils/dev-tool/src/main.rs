@@ -1,11 +1,8 @@
-use crate::error::CliError;
-use std::env;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
 pub mod android;
 pub mod apple;
-pub mod error;
 pub mod server;
 pub mod setup;
 pub mod utils;
@@ -61,43 +58,31 @@ enum Commands {
 pub struct ToolEnvironment {
     home_dir: PathBuf,
     root_dir: PathBuf,
-    dev_dir: PathBuf,
     target_dir: PathBuf,
     sdk_dir: PathBuf,
     commit_hash: String,
 }
 
 impl ToolEnvironment {
-    pub fn new() -> Result<ToolEnvironment, CliError> {
-        let (home_dir, root_dir, target_dir, dev_dir, sdk_dir) = utils::get_dirs()?;
+    pub fn new() -> ToolEnvironment {
+        let (home_dir, root_dir, target_dir, sdk_dir) = utils::get_dirs();
 
-        Ok(ToolEnvironment {
+        ToolEnvironment {
             home_dir,
             root_dir,
-            dev_dir,
             target_dir,
             sdk_dir,
-            commit_hash: utils::get_commit_hash()?,
-        })
+            commit_hash: utils::get_commit_hash(),
+        }
     }
 }
 
 fn main() {
-    let exit_code = match parse_and_run() {
-        Ok(_) => 0,
-        Err(err) => {
-            if let Some(msg) = err.0 {
-                println!("{}", msg);
-            }
-            1
-        }
-    };
-
-    std::process::exit(exit_code)
+    parse_and_run()
 }
 
-fn parse_and_run() -> Result<(), CliError> {
-    let tool_env = ToolEnvironment::new()?;
+fn parse_and_run() {
+    let tool_env = ToolEnvironment::new();
 
     use Commands::*;
     match Commands::from_args() {

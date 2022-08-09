@@ -1,13 +1,16 @@
-use crate::error::CliError;
-use crate::setup::ANDROID_CLI_FOLDER_NAME;
-use execute_command_macro::command;
 use serde::{Deserialize, Serialize};
 use std::env::VarError;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Command, ExitStatus, Stdio};
 use std::{env, fs};
+
+pub fn panic_if_unsuccessful(e: ExitStatus) {
+    if !e.success() {
+        panic!()
+    }
+}
 
 pub fn tmp_dir() -> PathBuf {
     PathBuf::from("/tmp")
@@ -45,25 +48,28 @@ pub fn test_env_path<P: AsRef<Path>>(root: P) -> PathBuf {
     root.as_ref().join("containers/test.env")
 }
 
-pub fn get_commit_hash() -> Result<String, CliError> {
-    let commit_hash = command!("git rev-parse HEAD")
+pub fn get_commit_hash() -> String {
+    let commit_hash = Command::new("git")
+        .args(["rev-parse", "HEAD"])
         .stdout(Stdio::piped())
         .output()
-        .map_err(|e| CliError(Some(format!("Cannot get commit hash: {:?}", e))))?
+        .unwrap()
         .stdout;
 
-    Ok(String::from_utf8_lossy(commit_hash.as_slice())
+    String::from_utf8_lossy(commit_hash.as_slice())
         .trim()
-        .to_string())
+        .to_string()
 }
 
-pub fn get_dirs() -> Result<(PathBuf, PathBuf, PathBuf, PathBuf, PathBuf), CliError> {
-    let home_dir = env::var("HOME")?;
+pub fn get_dirs() -> (PathBuf, PathBuf, PathBuf, PathBuf) {
+    let home_dir = env::var("HOME").unwrap();
 
     let root_dir = {
-        let root_bytes = command!("git rev-parse --show-toplevel")
+        let root_bytes = Command::new("git")
+            .args(["rev-parse", "--show-toplevel"])
             .stdout(Stdio::piped())
-            .output()?
+            .output()
+            .unwrap()
             .stdout;
 
         String::from_utf8_lossy(root_bytes.as_slice())
@@ -73,34 +79,33 @@ pub fn get_dirs() -> Result<(PathBuf, PathBuf, PathBuf, PathBuf, PathBuf), CliEr
 
     let dev_dir = format!("{}/.lockbook-dev", home_dir);
 
-    fs::create_dir_all(&dev_dir)?;
+    fs::create_dir_all(&dev_dir).unwrap();
 
     let target_dir =
-        if is_ci_env()? { format!("{}/target", dev_dir) } else { format!("{}/target", root_dir) };
+        if is_ci_env() { format!("{}/target", dev_dir) } else { format!("{}/target", root_dir) };
 
     let sdk_dir = format!("{}/{}", dev_dir, "android-sdk");
 
-    fs::create_dir_all(&sdk_dir)?;
+    fs::create_dir_all(&sdk_dir).unwrap();
 
-    Ok((
+    (
         PathBuf::from(home_dir),
         PathBuf::from(root_dir),
         PathBuf::from(target_dir),
-        PathBuf::from(dev_dir),
         PathBuf::from(sdk_dir),
-    ))
+    )
 }
 
-pub fn is_ci_env() -> Result<bool, CliError> {
+pub fn is_ci_env() -> bool {
     match env::var("LOCKBOOK_CI") {
         Ok(is_ci) => match is_ci.as_str() {
-            "1" => Ok(true),
-            "0" => Ok(false),
-            _ => Err(CliError(Some(format!("Unknown ci state: {}", is_ci)))),
+            "1" => true,
+            "0" => false,
+            _ => panic!("Unknown ci state: {}", is_ci),
         },
         Err(e) => match e {
-            VarError::NotPresent => Ok(false),
-            _ => Err(CliError(Some(format!("Unknown ci state: {:?}", e)))),
+            VarError::NotPresent => false,
+            _ => panic!("Unknown ci state: {:?}", e),
         },
     }
 }
@@ -116,25 +121,22 @@ pub struct HashInfo {
 }
 
 impl HashInfo {
-    pub fn get_port(&self) -> Result<u16, CliError> {
-        Ok(self
-            .maybe_port
-            .ok_or(CliError(Some("Server not running.".to_string())))?)
+    pub fn get_port(&self) -> u16 {
+        self.maybe_port.unwrap()
     }
 
-    pub fn get_from_disk(commit_hash: &str) -> Result<HashInfo, CliError> {
+    pub fn get_from_disk(commit_hash: &str) -> HashInfo {
         let port_dir = get_hash_port_dir(commit_hash);
-        let contents = fs::read_to_string(&port_dir)?;
+        let contents = fs::read_to_string(&port_dir).unwrap();
 
-        Ok(serde_json::from_str(&contents)
-            .map_err(|e| CliError(Some(format!("Cannot get hash info from disk: {:?}", e))))?)
+        serde_json::from_str(&contents).unwrap()
     }
 
-    pub fn save(&self, commit_hash: &str) -> Result<(), CliError> {
-        File::create(get_hash_port_dir(commit_hash))?
-            .write_all(serde_json::to_string(self)?.as_bytes())?;
-
-        Ok(())
+    pub fn save(&self, commit_hash: &str) {
+        File::create(get_hash_port_dir(commit_hash))
+            .unwrap()
+            .write_all(serde_json::to_string(self).unwrap().as_bytes())
+            .unwrap();
     }
 }
 
