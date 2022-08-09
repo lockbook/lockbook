@@ -52,6 +52,7 @@ impl super::App {
             Ok(meta) => match meta.file_type {
                 lb::FileType::Document => meta.parent,
                 lb::FileType::Folder => meta.id,
+                lb::FileType::Link { .. } => todo!(),
             },
             Err(err) => {
                 self.show_err_dialog(&format!("{:?}", err));

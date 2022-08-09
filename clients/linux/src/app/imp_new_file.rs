@@ -119,6 +119,10 @@ impl super::App {
                             FileNameNotAvailable => "That file name is alrady taken.",
                             FileNameEmpty => "File names cannot be empty.",
                             FileNameContainsSlash => "File names cannot contain a slash (/).",
+                            LinkInSharedFolder => "Can't save a link in a shared folder.",
+                            LinkTargetIsOwned => "Link target is owned.",
+                            LinkTargetNonexistent => "Link target doesn't exist.",
+                            InsufficientPermission => "Permission denied.",
                         }
                         .to_string(),
                         lb::Error::Unexpected(msg) => msg,
