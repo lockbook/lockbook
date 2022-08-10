@@ -1,5 +1,5 @@
-use crate::utils::HashInfo;
-use crate::{panic_if_unsuccessful, utils, ToolEnvironment};
+use crate::utils::{CommandRunner, HashInfo};
+use crate::{utils, ToolEnvironment};
 
 use std::fs;
 use std::process::{Command, Stdio};
@@ -7,12 +7,9 @@ use std::process::{Command, Stdio};
 pub fn build_server(tool_env: ToolEnvironment) {
     dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
 
-    let build_results = Command::new("cargo")
+    Command::new("cargo")
         .args(["build", "-p", "lockbook-server"])
-        .status()
-        .unwrap();
-
-    panic_if_unsuccessful!(build_results);
+        .assert_success();
 
     let server_path = tool_env.target_dir.join("debug/lockbook-server");
     let new_server_path =
@@ -52,12 +49,9 @@ pub fn kill_server(tool_env: ToolEnvironment) {
 }
 
 fn kill_server_at_port(hash_info: &HashInfo) {
-    let kill_result = Command::new("fuser")
+    Command::new("fuser")
         .args(["-k", &format!("{}/tcp", hash_info.get_port())])
-        .status()
-        .unwrap();
-
-    panic_if_unsuccessful!(kill_result);
+        .assert_success();
 }
 
 pub fn kill_all_servers(tool_env: ToolEnvironment) {
@@ -75,12 +69,9 @@ pub fn run_rust_tests(tool_env: ToolEnvironment) {
     let hash_info = HashInfo::get_from_dir(&tool_env.hash_info_dir, &tool_env.commit_hash);
     dotenv::from_path(utils::test_env_path(&tool_env.root_dir)).unwrap();
 
-    let test_results = Command::new("cargo")
+    Command::new("cargo")
         .args(["test", "--release", "--no-fail-fast", "--all", "--", "--nocapture"])
         .env("API_URL", utils::get_api_url(hash_info.get_port()))
         .current_dir(tool_env.root_dir)
-        .status()
-        .unwrap();
-
-    panic_if_unsuccessful!(test_results);
+        .assert_success();
 }

@@ -1,5 +1,5 @@
-use crate::utils::HashInfo;
-use crate::{panic_if_unsuccessful, utils, ToolEnvironment};
+use crate::utils::{CommandRunner, HashInfo};
+use crate::{utils, ToolEnvironment};
 use std::fs;
 use std::fs::File;
 use std::io::Write;
@@ -14,22 +14,21 @@ pub fn run_swift_tests(tool_env: ToolEnvironment) {
 
     make_swift_test_lib(tool_env.clone());
 
-    let build_results = Command::new("swift")
+    Command::new("swift")
         .arg("build")
         .current_dir(utils::swift_dir(&tool_env.root_dir))
-        .status()
-        .unwrap();
+        .assert_success();
 
-    panic_if_unsuccessful!(build_results);
-
-    let test_results = Command::new("swift")
+    Command::new("swift")
         .args(&["test", "--generate-linuxmain"])
         .current_dir(utils::swift_dir(&tool_env.root_dir))
-        .env("API_URL", utils::get_api_url(hash_info.get_port()))
-        .status()
-        .unwrap();
+        .assert_success();
 
-    panic_if_unsuccessful!(test_results)
+    Command::new("swift")
+        .arg("test")
+        .current_dir(utils::swift_dir(&tool_env.root_dir))
+        .env("API_URL", utils::get_api_url(hash_info.get_port()))
+        .assert_success();
 }
 
 pub fn make_swift_test_lib(tool_env: ToolEnvironment) {
@@ -44,10 +43,7 @@ pub fn make_swift_test_lib(tool_env: ToolEnvironment) {
         .args([&c_interface_dir, "-l", "c"])
         .current_dir(utils::core_dir(&tool_env.root_dir))
         .stdout(Stdio::piped())
-        .output()
-        .unwrap();
-
-    panic_if_unsuccessful!(build_results.status);
+        .assert_success();
 
     let swift_inc_dir = utils::swift_inc(&tool_env.root_dir);
 
@@ -57,13 +53,10 @@ pub fn make_swift_test_lib(tool_env: ToolEnvironment) {
         .write_all(build_results.stdout.as_slice())
         .unwrap();
 
-    let build_results = Command::new("cargo")
+    Command::new("cargo")
         .args(["build", "--release"])
         .current_dir(utils::core_dir(&tool_env.root_dir))
-        .status()
-        .unwrap();
-
-    panic_if_unsuccessful!(build_results);
+        .assert_success();
 
     let swift_lib_dir = utils::swift_lib(&tool_env.root_dir);
 

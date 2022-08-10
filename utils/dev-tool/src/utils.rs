@@ -3,16 +3,22 @@ use std::env::VarError;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Command, Output, Stdio};
 use std::{env, fs};
 
-#[macro_export]
-macro_rules! panic_if_unsuccessful {
-    ($success_code:expr) => {
-        if !$success_code.success() {
+pub trait CommandRunner {
+    fn assert_success(&mut self) -> Output;
+}
+
+impl CommandRunner for Command {
+    fn assert_success(&mut self) -> Output {
+        let output = self.output().unwrap();
+        if !output.status.success() {
             panic!()
         }
-    };
+
+        output
+    }
 }
 
 pub fn tmp_dir() -> PathBuf {

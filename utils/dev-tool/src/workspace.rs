@@ -1,30 +1,22 @@
-use crate::{panic_if_unsuccessful, ToolEnvironment};
+use crate::utils::CommandRunner;
+use crate::ToolEnvironment;
 use std::process::Command;
 
 pub fn fmt_workspace(tool_env: ToolEnvironment) {
-    let fmt_result = Command::new("cargo")
+    Command::new("cargo")
         .args(["fmt", "--", "--check", "-l"])
         .current_dir(&tool_env.root_dir)
-        .status()
-        .unwrap();
-
-    panic_if_unsuccessful!(fmt_result);
+        .assert_success();
 }
 
 pub fn clippy_workspace(tool_env: ToolEnvironment) {
-    let clippy_result = Command::new("cargo")
+    Command::new("cargo")
         .args(["clippy", "--", "-D", "warnings"])
         .current_dir(&tool_env.root_dir)
-        .status()
-        .unwrap();
+        .assert_success();
 
-    panic_if_unsuccessful!(clippy_result);
-
-    let clippy_result = Command::new("cargo")
+    Command::new("cargo")
         .args(["clippy", "--tests", "--", "-D", "warnings"])
         .current_dir(&tool_env.root_dir)
-        .status()
-        .unwrap();
-
-    panic_if_unsuccessful!(clippy_result);
+        .assert_success();
 }

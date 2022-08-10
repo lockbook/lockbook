@@ -1,5 +1,5 @@
-use crate::utils::HashInfo;
-use crate::{panic_if_unsuccessful, utils, ToolEnvironment};
+use crate::utils::{CommandRunner, HashInfo};
+use crate::{utils, ToolEnvironment};
 
 use std::fs;
 use std::path::Path;
@@ -11,25 +11,19 @@ const NDK_LIB_NAME: &str = "liblockbook_core.so";
 pub fn fmt_android(tool_env: ToolEnvironment) {
     let android_dir = utils::android_dir(tool_env.root_dir);
 
-    let fmt_result = Command::new(android_dir.join("gradlew"))
+    Command::new(android_dir.join("gradlew"))
         .arg("lintKotlin")
         .current_dir(android_dir)
-        .status()
-        .unwrap();
-
-    panic_if_unsuccessful!(fmt_result);
+        .assert_success();
 }
 
 pub fn lint_android(tool_env: ToolEnvironment) {
     let android_dir = utils::android_dir(tool_env.root_dir);
 
-    let lint_result = Command::new(android_dir.join("gradlew"))
+    Command::new(android_dir.join("gradlew"))
         .arg("lint")
         .current_dir(android_dir)
-        .status()
-        .unwrap();
-
-    panic_if_unsuccessful!(lint_result);
+        .assert_success();
 }
 
 pub fn run_kotlin_tests(tool_env: ToolEnvironment) {
@@ -40,14 +34,11 @@ pub fn run_kotlin_tests(tool_env: ToolEnvironment) {
 
     let android_dir = utils::android_dir(&tool_env.root_dir);
 
-    let test_results = Command::new(android_dir.join("gradlew"))
+    Command::new(android_dir.join("gradlew"))
         .arg("testDebugUnitTest")
         .current_dir(utils::android_dir(&tool_env.root_dir))
         .env("API_URL", utils::get_api_url(hash_info.get_port()))
-        .status()
-        .unwrap();
-
-    panic_if_unsuccessful!(test_results);
+        .assert_success();
 }
 
 pub fn make_android_libs(tool_env: ToolEnvironment) {
@@ -100,13 +91,10 @@ pub fn make_android_libs(tool_env: ToolEnvironment) {
 }
 
 pub fn make_android_test_lib(tool_env: ToolEnvironment) {
-    let test_results = Command::new("cargo")
+    Command::new("cargo")
         .args(["build", "--lib", "--release"])
         .current_dir(&utils::core_dir(&tool_env.root_dir))
-        .status()
-        .unwrap();
-
-    panic_if_unsuccessful!(test_results);
+        .assert_success();
 
     let jni_lib_dir = utils::jni_lib_dir(&tool_env.root_dir);
 
@@ -120,7 +108,7 @@ pub fn make_android_test_lib(tool_env: ToolEnvironment) {
 }
 
 fn build_core_for_android_arch<P: AsRef<Path>>(core_dir: P, platform: &str) {
-    let build_results = Command::new("cargo")
+    Command::new("cargo")
         .args([
             "ndk",
             "--target",
@@ -132,8 +120,5 @@ fn build_core_for_android_arch<P: AsRef<Path>>(core_dir: P, platform: &str) {
             "--release",
         ])
         .current_dir(core_dir)
-        .status()
-        .unwrap();
-
-    panic_if_unsuccessful!(build_results);
+        .assert_success();
 }
