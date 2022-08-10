@@ -1,10 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::env::VarError;
-use std::fs::File;
+use std::env::{self, VarError};
+use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
-use std::{env, fs};
+use std::process::{Command, Stdio};
 
 pub trait CommandRunner {
     fn assert_success(&mut self) -> Output;
@@ -21,7 +20,7 @@ impl CommandRunner for Command {
     }
 }
 
-pub fn tmp_dir() -> PathBuf {
+pub fn tmp() -> PathBuf {
     PathBuf::from("/tmp")
 }
 

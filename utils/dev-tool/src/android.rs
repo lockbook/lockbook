@@ -1,5 +1,5 @@
-use crate::utils::{CommandRunner, HashInfo};
-use crate::{utils, ToolEnvironment};
+use crate::utils::{self, CommandRunner, HashInfo};
+use crate::ToolEnvironment;
 
 use std::fs;
 use std::path::Path;
