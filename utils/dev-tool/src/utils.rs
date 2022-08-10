@@ -1,10 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::env::VarError;
-use std::fs::File;
+use std::env::{self, VarError};
+use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::{env, fs};
 
 #[macro_export]
 macro_rules! panic_if_unsuccessful {
@@ -15,7 +14,7 @@ macro_rules! panic_if_unsuccessful {
     };
 }
 
-pub fn tmp_dir() -> PathBuf {
+pub fn tmp() -> PathBuf {
     PathBuf::from("/tmp")
 }
 

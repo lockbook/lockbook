@@ -1,5 +1,5 @@
-use crate::utils::HashInfo;
-use crate::{panic_if_unsuccessful, utils, ToolEnvironment};
+use crate::utils::{self, HashInfo};
+use crate::{panic_if_unsuccessful, ToolEnvironment};
 
 use std::fs;
 use std::path::Path;
