@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Check Workspace Fmt
-      run: env
+      run: echo $HOME
     - name: Check Workspace Clippy
       run: cargo run -p lockbook-dev -- check-workspace-clippy
     - name: Build Server
