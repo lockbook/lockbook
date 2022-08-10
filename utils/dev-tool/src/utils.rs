@@ -6,12 +6,20 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
 pub trait CommandRunner {
-    fn assert_success(&mut self) -> Output;
+    fn assert_success(&mut self);
+    fn assert_success_with_output(&mut self) -> Output;
 }
 
 impl CommandRunner for Command {
-    fn assert_success(&mut self) -> Output {
+    fn assert_success(&mut self) {
+        if !self.status().unwrap().success() {
+            panic!()
+        }
+    }
+
+    fn assert_success_with_output(&mut self) -> Output {
         let output = self.output().unwrap();
+
         if !output.status.success() {
             panic!()
         }

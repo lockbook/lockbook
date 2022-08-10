@@ -43,7 +43,7 @@ pub fn make_swift_test_lib(tool_env: ToolEnvironment) {
         .args([&c_interface_dir, "-l", "c"])
         .current_dir(utils::core_dir(&tool_env.root_dir))
         .stdout(Stdio::piped())
-        .assert_success();
+        .assert_success_with_output();
 
     let swift_inc_dir = utils::swift_inc(&tool_env.root_dir);
 

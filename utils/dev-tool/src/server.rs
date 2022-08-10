@@ -30,6 +30,7 @@ pub fn run_server_detached(tool_env: ToolEnvironment) {
     let mut port;
 
     loop {
+        println!("STARTED");
         port = rand::thread_rng().gen_range(1024..u16::MAX);
 
         let mut run_result = Command::new(&hash_info.server_binary_path)
@@ -42,6 +43,7 @@ pub fn run_server_detached(tool_env: ToolEnvironment) {
         thread::sleep(Duration::from_millis(5000));
 
         if run_result.try_wait().unwrap().is_none() {
+            println!("RERUNNING");
             break;
         }
     }
