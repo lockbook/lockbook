@@ -28,7 +28,7 @@ pub fn verify_command_exists(command: &str) {
 }
 
 pub fn verify_env_var_exists(env_var: &str) {
-    if let Err(_) = env::var(env_var) {
+    if env::var(env_var).is_err() {
         panic!("'{}' environment variable is not set.", env_var);
     }
 }

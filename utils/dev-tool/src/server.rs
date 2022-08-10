@@ -53,7 +53,7 @@ pub fn kill_server(tool_env: ToolEnvironment) {
 
 fn kill_server_at_port(hash_info: &HashInfo) {
     let kill_result = Command::new("fuser")
-        .args(["-k", &format!("{}/tcp", hash_info.get_port().to_string())])
+        .args(["-k", &format!("{}/tcp", hash_info.get_port())])
         .status()
         .unwrap();
 

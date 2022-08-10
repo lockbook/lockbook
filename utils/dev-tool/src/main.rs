@@ -65,8 +65,8 @@ pub struct ToolEnvironment {
     commit_hash: String,
 }
 
-impl ToolEnvironment {
-    pub fn new() -> ToolEnvironment {
+impl Default for ToolEnvironment {
+    fn default() -> Self {
         let (root_dir, target_dir, hash_info_dir) = utils::get_dirs();
 
         ToolEnvironment {
@@ -79,7 +79,7 @@ impl ToolEnvironment {
 }
 
 fn main() {
-    let tool_env = ToolEnvironment::new();
+    let tool_env = ToolEnvironment::default();
 
     use Commands::*;
     match Commands::from_args() {
