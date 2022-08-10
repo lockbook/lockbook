@@ -1,10 +1,36 @@
+use structopt::StructOpt;
+
 use lockbook_core::Core;
-use lockbook_core::{FileMetaMapExt, FileMetaVecExt};
 use lockbook_core::{TestRepoError, Warning};
 
 use crate::error::CliError;
 use crate::selector::select_meta;
-use crate::{error, Debug, Uuid};
+use crate::{error, Uuid};
+
+#[derive(Debug, PartialEq, StructOpt)]
+pub enum Debug {
+    /// Prints metadata associated with a file
+    Info {
+        path: Option<String>,
+
+        #[structopt(short, long)]
+        id: Option<Uuid>,
+    },
+
+    /// Prints all the error codes that the cli can generate
+    Errors,
+
+    /// Prints who is logged into this lockbook
+    #[structopt(name = "whoami")]
+    WhoAmI,
+
+    /// Prints information about where this lockbook is stored and what server it communicates with
+    #[structopt(name = "whereami")]
+    WhereAmI,
+
+    /// Helps find invalid states within lockbook
+    Validate,
+}
 
 pub fn debug(core: &Core, debug: Debug) -> Result<(), CliError> {
     use Debug::*;
@@ -14,7 +40,6 @@ pub fn debug(core: &Core, debug: Debug) -> Result<(), CliError> {
         WhoAmI => whoami(core),
         WhereAmI => whereami(core),
         Validate => validate(core),
-        Tree => tree(core),
     }
 }
 
@@ -77,8 +102,8 @@ fn validate(core: &Core) -> Result<(), CliError> {
             TestRepoError::FileNameContainsSlash(id) => {
                 CliError::file_name_has_slash(core.get_path_by_id(id)?)
             }
-            TestRepoError::NameConflictDetected(id) => {
-                CliError::name_conflict_detected(core.get_path_by_id(id)?)
+            TestRepoError::PathConflict(ids) => {
+                CliError::name_conflict_detected(&format!("{:?}", ids))
             }
             TestRepoError::DocumentReadError(id, err) => {
                 CliError::validate_doc_read(core.get_path_by_id(id)?, format!("{:#?}", err))
@@ -86,23 +111,14 @@ fn validate(core: &Core) -> Result<(), CliError> {
             TestRepoError::Core(err) => {
                 CliError::unexpected(format!("unexpected error: {:#?}", err))
             }
-            TestRepoError::Tree(err) => {
+            TestRepoError::NonDecryptableFileName(id) => {
+                CliError::unexpected(format!("nondecryptable file name for id: {}", id))
+            }
+            TestRepoError::Shared(err) => {
                 CliError::unexpected(format!("unexpected error: {:#?}", err))
             }
         },
     };
 
     Err(err)
-}
-
-fn tree(core: &Core) -> Result<(), CliError> {
-    core.get_account()?;
-
-    let files = core
-        .list_metadatas()
-        .map_err(|err| CliError::unexpected(format!("{}", err)))?;
-
-    println!("{}", files.to_map().pretty_print());
-
-    Ok(())
 }

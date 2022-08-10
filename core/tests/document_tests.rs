@@ -2,8 +2,8 @@ use uuid::Uuid;
 
 use lockbook_core::model::repo::RepoSource;
 use lockbook_core::repo::document_repo;
-use lockbook_crypto::symkey;
-use lockbook_models::crypto::AESEncrypted;
+use lockbook_shared::crypto::AESEncrypted;
+use lockbook_shared::symkey;
 use test_utils::*;
 
 #[test]
@@ -21,7 +21,7 @@ fn maybe_get() {
     let config = &test_config();
 
     let id = Uuid::new_v4();
-    let result = document_repo::maybe_get(config, RepoSource::Local, id).unwrap();
+    let result = document_repo::maybe_get(config, RepoSource::Local, &id).unwrap();
 
     assert_eq!(result, None);
 }
@@ -47,7 +47,7 @@ fn insert_get_different_source() {
     let (id, document) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
     document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
-    let result = document_repo::maybe_get(config, RepoSource::Base, id).unwrap();
+    let result = document_repo::maybe_get(config, RepoSource::Base, &id).unwrap();
 
     assert_eq!(result, None);
 }
@@ -127,7 +127,7 @@ fn insert_delete() {
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
     document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
     document_repo::delete(config, RepoSource::Local, id).unwrap();
-    let result = document_repo::maybe_get(config, RepoSource::Local, id).unwrap();
+    let result = document_repo::maybe_get(config, RepoSource::Local, &id).unwrap();
 
     assert_eq!(result, None);
 }

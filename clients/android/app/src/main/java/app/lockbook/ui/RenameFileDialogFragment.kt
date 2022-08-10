@@ -38,7 +38,7 @@ class RenameFileDialogFragment : DialogFragment() {
             .apply {
                 binding = DialogRenameFileBinding.inflate(layoutInflater)
 
-                binding.renameFile.setText(file.decryptedName)
+                binding.renameFile.setText(file.name)
                 binding.renameFile.setOnEditorActionListener { _, actionId, _ ->
                     if (actionId == EditorInfo.IME_ACTION_DONE) {
                         onButtonPositive()

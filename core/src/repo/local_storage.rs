@@ -2,9 +2,9 @@ use std::fs::{self, create_dir_all, remove_file, File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
 use std::path::Path;
 
-use crate::{Config, CoreError};
+use crate::{Config, CoreError, CoreResult};
 
-pub fn write<N, K, V>(db: &Config, namespace: N, key: K, value: V) -> Result<(), CoreError>
+pub fn write<N, K, V>(db: &Config, namespace: N, key: K, value: V) -> CoreResult<()>
 where
     N: AsRef<[u8]>,
     K: AsRef<[u8]>,
@@ -24,7 +24,7 @@ where
     fs::rename(path, key_path(db, &namespace, &key)).map_err(CoreError::from)
 }
 
-pub fn read<N, K, V>(db: &Config, namespace: N, key: K) -> Result<Option<V>, CoreError>
+pub fn read<N, K, V>(db: &Config, namespace: N, key: K) -> CoreResult<Option<V>>
 where
     N: AsRef<[u8]>,
     K: AsRef<[u8]>,
@@ -46,7 +46,7 @@ where
     }
 }
 
-pub fn delete<N, K>(db: &Config, namespace: N, key: K) -> Result<(), CoreError>
+pub fn delete<N, K>(db: &Config, namespace: N, key: K) -> CoreResult<()>
 where
     N: AsRef<[u8]>,
     K: AsRef<[u8]>,
@@ -61,7 +61,7 @@ where
     }
 }
 
-pub fn delete_all<N>(db: &Config, namespace: N) -> Result<(), CoreError>
+pub fn delete_all<N>(db: &Config, namespace: N) -> CoreResult<()>
 where
     N: AsRef<[u8]>,
 {

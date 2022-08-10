@@ -1,11 +1,11 @@
 use uuid::Uuid;
 
-use lockbook_models::crypto::*;
+use lockbook_shared::crypto::*;
 
 use crate::model::errors::core_err_unexpected;
 use crate::model::repo::RepoSource;
 use crate::repo::local_storage;
-use crate::{Config, CoreError};
+use crate::{Config, CoreError, CoreResult};
 
 const NAMESPACE_LOCAL: &str = "changed_local_documents";
 const NAMESPACE_BASE: &str = "all_base_documents";
@@ -20,7 +20,7 @@ pub fn namespace(source: RepoSource) -> &'static str {
 #[instrument(level = "debug", skip(config, document), err(Debug))]
 pub fn insert(
     config: &Config, source: RepoSource, id: Uuid, document: &EncryptedDocument,
-) -> Result<(), CoreError> {
+) -> CoreResult<()> {
     local_storage::write(
         config,
         namespace(source),
@@ -30,7 +30,7 @@ pub fn insert(
 }
 
 #[instrument(level = "debug", skip(config), err(Debug))]
-pub fn get(config: &Config, source: RepoSource, id: Uuid) -> Result<EncryptedDocument, CoreError> {
+pub fn get(config: &Config, source: RepoSource, id: Uuid) -> CoreResult<EncryptedDocument> {
     let maybe_data: Option<Vec<u8>> =
         local_storage::read(config, namespace(source), id.to_string().as_str())?;
     match maybe_data {
@@ -41,8 +41,8 @@ pub fn get(config: &Config, source: RepoSource, id: Uuid) -> Result<EncryptedDoc
 
 #[instrument(level = "debug", skip(config), err(Debug))]
 pub fn maybe_get(
-    config: &Config, source: RepoSource, id: Uuid,
-) -> Result<Option<EncryptedDocument>, CoreError> {
+    config: &Config, source: RepoSource, id: &Uuid,
+) -> CoreResult<Option<EncryptedDocument>> {
     let maybe_data: Option<Vec<u8>> =
         local_storage::read(config, namespace(source), id.to_string().as_str())?;
     match maybe_data {
@@ -54,11 +54,11 @@ pub fn maybe_get(
 }
 
 #[instrument(level = "debug", skip(config), err(Debug))]
-pub fn delete(config: &Config, source: RepoSource, id: Uuid) -> Result<(), CoreError> {
+pub fn delete(config: &Config, source: RepoSource, id: Uuid) -> CoreResult<()> {
     local_storage::delete(config, namespace(source), id.to_string().as_str())
 }
 
 #[instrument(level = "debug", skip(config), err(Debug))]
-pub fn delete_all(config: &Config, source: RepoSource) -> Result<(), CoreError> {
+pub fn delete_all(config: &Config, source: RepoSource) -> CoreResult<()> {
     local_storage::delete_all(config, namespace(source))
 }

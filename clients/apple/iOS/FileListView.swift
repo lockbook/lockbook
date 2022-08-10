@@ -4,14 +4,14 @@ import PencilKit
 
 struct FileListView: View {
 
-    let currentFolder: DecryptedFileMetadata
+    let currentFolder: File
     let account: Account
 
     @EnvironmentObject var current: CurrentDocument
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var fileService: FileService
     @EnvironmentObject var errors: UnexpectedErrorService
-    var files: [DecryptedFileMetadata] {
+    var files: [File] {
         fileService.childrenOf(currentFolder)
     }
 
@@ -38,7 +38,7 @@ struct FileListView: View {
                         sheets.creatingInfo = CreatingInfo(parent: currentFolder, child_type: .Document)
                     })
                 }
-                        .navigationBarTitle(currentFolder.decryptedName)
+                        .navigationBarTitle(currentFolder.name)
                         .padding(.horizontal, 10)
                         .onReceive(current.$selectedItem) { _ in
                             print("cleared")

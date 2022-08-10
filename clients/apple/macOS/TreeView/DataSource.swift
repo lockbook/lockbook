@@ -5,13 +5,13 @@ import SwiftLockbookCore
 // https://github.com/KinematicSystems/NSOutlineViewReorder/blob/master/OutlineViewReorder/OutlineDataSource.swift
 class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvider {
 
-    var dragged: DecryptedFileMetadata? = nil
+    var dragged: File? = nil
 
     func outlineView(
             _ outlineView: NSOutlineView,
             numberOfChildrenOfItem item: Any?
     ) -> Int {
-        let file = item as? DecryptedFileMetadata
+        let file = item as? File
         let children = DI.files.childrenOf(file)
         print(children.count)
         return children.count
@@ -21,7 +21,7 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
             _ outlineView: NSOutlineView,
             isItemExpandable item: Any
     ) -> Bool {
-        let file = item as! DecryptedFileMetadata
+        let file = item as! File
 
         return file.fileType == .Folder
                 && !DI.files.childrenOf(file).isEmpty
@@ -32,10 +32,10 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
             child index: Int,
             ofItem item: Any?
     ) -> Any {
-        let parent = item as? DecryptedFileMetadata
+        let parent = item as? File
         let siblings = DI.files.childrenOf(parent)
         let node = siblings[index]
-        print(node.decryptedName)
+        print(node.name)
         return node
     }
 
@@ -48,12 +48,12 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
     }
 
     func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession, willBeginAt screenPoint: NSPoint, forItems draggedItems: [Any]) {
-        dragged = draggedItems[0] as? DecryptedFileMetadata
+        dragged = draggedItems[0] as? File
         session.draggingPasteboard.setData(Data(), forType: NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE))
     }
 
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
-        let parent = item == nil ? DI.files.root! : item as! DecryptedFileMetadata
+        let parent = item == nil ? DI.files.root! : item as! File
         if parent.fileType == .Document {
             return []
         }
@@ -61,7 +61,7 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
     }
 
     func outlineView(_ outlineView: NSOutlineView, acceptDrop info: NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool {
-        let parent = item == nil ? DI.files.root! : item as! DecryptedFileMetadata
+        let parent = item == nil ? DI.files.root! : item as! File
         return DI.files.moveFileSync(id: dragged!.id, newParent: parent.id)
     }
 
@@ -79,12 +79,12 @@ class DataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvide
 }
 
 class TreeDelegate: NSObject, MenuOutlineViewDelegate {
-    var documentSelected: (DecryptedFileMetadata) -> Void = { _ in
+    var documentSelected: (File) -> Void = { _ in
     }
 
     func outlineView(_ outlineView: NSOutlineView, menuForItem item: Any?) -> NSMenu? {
         let menu = NSMenu()
-        let parent = item == nil ? DI.files.root! : item as! DecryptedFileMetadata
+        let parent = item == nil ? DI.files.root! : item as! File
 
         if parent.fileType == .Folder {
             menu.addItem(Create(file: parent))
@@ -102,7 +102,7 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
             viewFor tableColumn: NSTableColumn?,
             item: Any
     ) -> NSView? {
-        let file = item as! DecryptedFileMetadata
+        let file = item as! File
         return FileItemView(file: file)
     }
 
@@ -112,14 +112,14 @@ class TreeDelegate: NSObject, MenuOutlineViewDelegate {
 
     func outlineView(_ outlineView: NSOutlineView,
                      shouldSelectItem item: Any) -> Bool {
-        let file = item as! DecryptedFileMetadata
+        let file = item as! File
         return file.fileType == .Document
     }
 
     func outlineViewSelectionDidChange(_ notification: Notification) {
         let outlineView = notification.object as! NSOutlineView
         if outlineView.selectedRow != -1 {
-            let file = outlineView.item(atRow: outlineView.selectedRow) as! DecryptedFileMetadata
+            let file = outlineView.item(atRow: outlineView.selectedRow) as! File
             documentSelected(file)
         }
     }

@@ -64,9 +64,9 @@ impl super::App {
                 .unwrap();
             for f in &all_files {
                 if f.id == tab.id() {
-                    tab.set_name(&f.decrypted_name);
+                    tab.set_name(&f.name);
                     if Some(i) == tabs.current_page() {
-                        self.window.set_title(Some(&f.decrypted_name));
+                        self.window.set_title(Some(&f.name));
                     }
                     continue 'tabloop;
                 }

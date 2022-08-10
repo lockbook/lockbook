@@ -3,13 +3,13 @@ import SwiftLockbookCore
 
 struct OutlineContextMenu: View {
     
-    let meta: DecryptedFileMetadata
+    let meta: File
     @State var branchState: BranchState?
 
     @EnvironmentObject var sheets: SheetState
 
     var body: some View {
-        Text(meta.decryptedName)
+        Text(meta.name)
         VStack {
             if meta.fileType == .Folder {
                 Button(action: {

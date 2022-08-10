@@ -1,64 +1,40 @@
 use crate::model::errors::core_err_unexpected;
-use crate::pure_functions::files;
 use crate::repo::schema::OneKey;
-use crate::service::{api_service, file_encryption_service};
-use crate::{CoreError, RequestContext};
+use crate::service::api_service;
+use crate::{CoreError, CoreResult, RequestContext};
 use libsecp256k1::PublicKey;
-use lockbook_crypto::clock_service::get_time;
-use lockbook_crypto::pubkey;
-use lockbook_models::account::Account;
-use lockbook_models::api::{GetPublicKeyRequest, NewAccountRequest};
-use lockbook_models::tree::FileMetaMapExt;
-use std::collections::HashMap;
+use lockbook_shared::account::Account;
+use lockbook_shared::api::{GetPublicKeyRequest, NewAccountRequest};
+use lockbook_shared::file_like::FileLike;
+use lockbook_shared::file_metadata::FileMetadata;
 
 impl RequestContext<'_, '_> {
-    pub fn create_account(&mut self, username: &str, api_url: &str) -> Result<Account, CoreError> {
+    pub fn create_account(&mut self, username: &str, api_url: &str) -> CoreResult<Account> {
         let username = String::from(username).to_lowercase();
 
         if self.tx.account.get(&OneKey {}).is_some() {
             return Err(CoreError::AccountExists);
         }
 
-        let keys = pubkey::generate_key();
-
-        let account = Account { username, api_url: api_url.to_string(), private_key: keys };
+        let account = Account::new(username, api_url.to_string());
         let public_key = account.public_key();
         self.data_cache.public_key = Some(public_key);
 
-        let mut root_metadata = files::create_root(&account);
-        let encrypted_metadata = file_encryption_service::encrypt_metadata(
-            &account,
-            &public_key,
-            &HashMap::with(root_metadata.clone()),
-        )?;
-        let encrypted_metadatum = if encrypted_metadata.len() == 1 {
-            Ok(encrypted_metadata.into_values().next().unwrap())
-        } else {
-            Err(CoreError::Unexpected(String::from(
-                "create_account: multiple metadata decrypted from root",
-            )))
-        }?;
+        let root = FileMetadata::create_root(&account)?.sign(&account)?;
 
-        root_metadata.metadata_version =
-            api_service::request(&account, NewAccountRequest::new(&account, &encrypted_metadatum))?
-                .folder_metadata_version;
+        let last_synced =
+            api_service::request(&account, NewAccountRequest::new(&account, &root))?.last_synced;
 
-        let root = file_encryption_service::encrypt_metadata(
-            &account,
-            &public_key,
-            &HashMap::with(root_metadata.clone()),
-        )?
-        .get(&root_metadata.id)
-        .ok_or_else(|| CoreError::Unexpected("Failed to encrypt root".to_string()))?
-        .clone();
+        let root_id = *root.id();
+
         self.tx.account.insert(OneKey {}, account.clone());
-        self.tx.base_metadata.insert(root.id, root.clone());
-        self.tx.last_synced.insert(OneKey {}, get_time().0);
-        self.tx.root.insert(OneKey {}, root.id);
+        self.tx.base_metadata.insert(root_id, root);
+        self.tx.last_synced.insert(OneKey {}, last_synced as i64);
+        self.tx.root.insert(OneKey {}, root_id);
         Ok(account)
     }
 
-    pub fn import_account(&mut self, account_string: &str) -> Result<Account, CoreError> {
+    pub fn import_account(&mut self, account_string: &str) -> CoreResult<Account> {
         if self.tx.account.get(&OneKey {}).is_some() {
             warn!("tried to import an account, but account exists already.");
             return Err(CoreError::AccountExists);
@@ -96,7 +72,7 @@ impl RequestContext<'_, '_> {
         Ok(account)
     }
 
-    pub fn export_account(&self) -> Result<String, CoreError> {
+    pub fn export_account(&self) -> CoreResult<String> {
         let account = self
             .tx
             .account
@@ -106,14 +82,14 @@ impl RequestContext<'_, '_> {
         Ok(base64::encode(&encoded))
     }
 
-    pub fn get_account(&self) -> Result<Account, CoreError> {
+    pub fn get_account(&self) -> CoreResult<&Account> {
         self.tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)
     }
 
-    pub fn get_public_key(&mut self) -> Result<PublicKey, CoreError> {
+    pub fn get_public_key(&mut self) -> CoreResult<PublicKey> {
         match self.data_cache.public_key {
             Some(pk) => Ok(pk),
             None => {

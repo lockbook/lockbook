@@ -5,9 +5,8 @@ use indicatif::{ProgressBar, ProgressStyle};
 use lockbook_core::model::errors::MoveFileError;
 use lockbook_core::Core;
 use lockbook_core::Error::UiError;
-use lockbook_models::file_metadata::DecryptedFileMetadata;
-use lockbook_models::file_metadata::FileType::{Document, Folder};
-use lockbook_models::tree::FileMetadata;
+use lockbook_shared::file::File;
+use lockbook_shared::file_metadata::FileType::{Document, Folder};
 use rand::distributions::{Alphanumeric, Distribution, Standard};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -19,7 +18,6 @@ static SEED: u64 = 0;
 static CLIENTS: u8 = 2;
 static ACTION_COUNT: u64 = 250;
 static MAX_FILE_SIZE: usize = 1024;
-///
 static SHOW_PROGRESS: bool = false;
 
 /// If you add a variant here, make sure you add the corresponding entry for random selection
@@ -189,7 +187,7 @@ impl Actions {
             .collect()
     }
 
-    fn pick_random_file(core: &Core, rng: &mut StdRng) -> Option<DecryptedFileMetadata> {
+    fn pick_random_file(core: &Core, rng: &mut StdRng) -> Option<File> {
         let mut possible_files = core.list_metadatas().unwrap();
         possible_files.retain(|meta| meta.parent != meta.id);
         possible_files.sort_by(Self::deterministic_sort());
@@ -202,19 +200,19 @@ impl Actions {
         }
     }
 
-    fn deterministic_sort() -> fn(&DecryptedFileMetadata, &DecryptedFileMetadata) -> Ordering {
+    fn deterministic_sort() -> fn(&File, &File) -> Ordering {
         |lhs, rhs| {
             if lhs.parent == lhs.id {
                 Ordering::Less
-            } else if rhs.is_root() {
+            } else if rhs.id == rhs.parent {
                 Ordering::Greater
             } else {
-                lhs.decrypted_name.cmp(&rhs.decrypted_name)
+                lhs.name.cmp(&rhs.name)
             }
         }
     }
 
-    fn pick_random_parent(core: &Core, rng: &mut StdRng) -> DecryptedFileMetadata {
+    fn pick_random_parent(core: &Core, rng: &mut StdRng) -> File {
         let mut possible_parents = core.list_metadatas().unwrap();
         possible_parents.retain(|meta| meta.is_folder());
         possible_parents.sort_by(Self::deterministic_sort());
@@ -223,7 +221,7 @@ impl Actions {
         possible_parents[parent_index].clone()
     }
 
-    fn pick_random_document(core: &Core, rng: &mut StdRng) -> Option<DecryptedFileMetadata> {
+    fn pick_random_document(core: &Core, rng: &mut StdRng) -> Option<File> {
         let mut possible_documents = core.list_metadatas().unwrap();
         possible_documents.retain(|meta| meta.is_document());
         possible_documents.sort_by(Self::deterministic_sort());

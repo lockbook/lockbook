@@ -8,7 +8,7 @@ struct FileInfo {
     id: lb::Uuid,
     ftype: lb::FileType,
     path: String,
-    all_children: Vec<lb::DecryptedFileMetadata>,
+    all_children: Vec<lb::File>,
 }
 
 impl super::App {
@@ -104,6 +104,7 @@ impl super::App {
                     .core
                     .get_and_get_children_recursively(id)
                     .map_err(|err| format!("{:?}", err))?,
+                lb::FileType::Link { .. } => todo!(),
             };
 
             files.push(FileInfo { id, ftype, path, all_children });
@@ -134,6 +135,7 @@ fn build_tree(files: &[FileInfo]) -> gtk::TreeView {
                 has_folder = true;
                 format!("{}", f.all_children.len())
             }
+            lb::FileType::Link { .. } => todo!(),
         };
         model.insert_with_values(None, None, &[(0, &f.path), (1, &n_children)]);
     }

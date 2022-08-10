@@ -168,7 +168,7 @@ impl FileTree {
         });
     }
 
-    pub fn populate(&self, metas: &mut Vec<lb::DecryptedFileMetadata>) {
+    pub fn populate(&self, metas: &mut Vec<lb::File>) {
         let root = match metas.iter().position(|fm| fm.parent == fm.id) {
             Some(i) => metas.swap_remove(i),
             None => panic!("unable to find root in metadata list"),
@@ -179,11 +179,9 @@ impl FileTree {
     }
 
     pub fn append_any_children(
-        &self, parent_id: lb::Uuid, parent_iter: &gtk::TreeIter,
-        metas: &[lb::DecryptedFileMetadata],
+        &self, parent_id: lb::Uuid, parent_iter: &gtk::TreeIter, metas: &[lb::File],
     ) {
-        let children: Vec<&lb::DecryptedFileMetadata> =
-            metas.iter().filter(|fm| fm.parent == parent_id).collect();
+        let children: Vec<&lb::File> = metas.iter().filter(|fm| fm.parent == parent_id).collect();
 
         for child in children {
             let item_iter = self.append(Some(parent_iter), child);
@@ -194,17 +192,15 @@ impl FileTree {
         }
     }
 
-    pub fn append(
-        &self, parent_iter: Option<&gtk::TreeIter>, fm: &lb::DecryptedFileMetadata,
-    ) -> gtk::TreeIter {
-        let name = &fm.decrypted_name;
+    pub fn append(&self, parent_iter: Option<&gtk::TreeIter>, fm: &lb::File) -> gtk::TreeIter {
+        let name = &fm.name;
         let icon_name = get_icon_name(name, &fm.file_type);
         let id = &fm.id.to_string();
         let ftype = format!("{:?}", fm.file_type);
         self.model.insert_with_values(
             parent_iter,
             None,
-            &[(0, &icon_name), (1, name), (2, id), (3, &ftype)],
+            &[(0, &icon_name), (1, &name), (2, id), (3, &ftype)],
         )
     }
 
@@ -226,7 +222,7 @@ impl FileTree {
         ui::id_from_tpath(&self.model, &tpath)
     }
 
-    pub fn add_file(&self, fm: &lb::DecryptedFileMetadata) -> Result<(), String> {
+    pub fn add_file(&self, fm: &lb::File) -> Result<(), String> {
         match self.search(fm.parent) {
             Some(parent_iter) => {
                 self.append(Some(&parent_iter), fm);
@@ -317,6 +313,7 @@ fn get_icon_name(fname: &str, ftype: &lb::FileType) -> String {
     match ftype {
         lb::FileType::Document => ui::document_icon_from_name(fname),
         lb::FileType::Folder => "folder".to_string(),
+        lb::FileType::Link { .. } => "link".to_string(),
     }
 }
 

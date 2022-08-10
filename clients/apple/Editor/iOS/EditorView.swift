@@ -21,7 +21,7 @@ struct EditorView: UIViewRepresentable {
         textView.autoresizingMask = .flexibleHeight
         textView.textContainerInset = UIEdgeInsets(top: 20, left: horizontalInset(), bottom: 20, right: horizontalInset())
 
-        storage.name = model.meta!.decryptedName
+        storage.name = model.meta!.name
         storage.syntaxHighlight()
         return textView
     }
@@ -40,7 +40,7 @@ struct EditorView: UIViewRepresentable {
             model.reloadContent = false
             uiView.text = model.textDocument!
             let storage = (uiView.textStorage as! Storage)
-            storage.name = model.meta!.decryptedName
+            storage.name = model.meta!.name
             storage.syntaxHighlight()
         }
     }
