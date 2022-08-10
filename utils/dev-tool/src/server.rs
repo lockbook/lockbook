@@ -1,8 +1,10 @@
 use crate::utils::{CommandRunner, HashInfo};
 use crate::{utils, ToolEnvironment};
 
-use std::fs;
+use rand::Rng;
 use std::process::{Command, Stdio};
+use std::time::Duration;
+use std::{fs, thread};
 
 pub fn build_server(tool_env: ToolEnvironment) {
     dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
@@ -22,18 +24,27 @@ pub fn build_server(tool_env: ToolEnvironment) {
 }
 
 pub fn run_server_detached(tool_env: ToolEnvironment) {
-    let port = port_scanner::request_open_port().unwrap();
-
     dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
-
     let mut hash_info = HashInfo::get_from_dir(&tool_env.hash_info_dir, &tool_env.commit_hash);
 
-    Command::new(&hash_info.server_binary_path)
-        .env("SERVER_PORT", port.to_string())
-        .stderr(Stdio::null())
-        .stdout(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut port;
+
+    loop {
+        port = rand::thread_rng().gen_range(1024..u16::MAX);
+
+        let mut run_result = Command::new(&hash_info.server_binary_path)
+            .env("SERVER_PORT", port.to_string())
+            .stderr(Stdio::null())
+            .stdout(Stdio::null())
+            .spawn()
+            .unwrap();
+
+        thread::sleep(Duration::from_millis(5000));
+
+        if run_result.try_wait().unwrap().is_none() {
+            break;
+        }
+    }
 
     hash_info.maybe_port = Some(port);
     hash_info.save();

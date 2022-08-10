@@ -9,102 +9,28 @@ on:
     branches: [ master ]
 
 jobs:
-  Workspace-Fmt:
+  Verify-Commit:
     runs-on: [self-hosted]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       LOCKBOOK_CI: 1
     steps:
     - uses: actions/checkout@v2
-    - name: Fmt
-      run: cargo run -p lockbook-dev fmt-check
-
-  Workspace-Clippy:
-    runs-on: [self-hosted]
-    needs: [ Workspace-Fmt ]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      LOCKBOOK_CI: 1
-    steps:
-    - uses: actions/checkout@v2
-    - name: Build container
-      run: cargo run -p lockbook-dev clippy-check
-
-  Android:
-    runs-on: [self-hosted]
-    needs: [ Workspace-Clippy ]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      LOCKBOOK_CI: 1
-    steps:
-      - uses: actions/checkout@v2
-      - name: Fmt
-        run: cargo run -p lockbook-dev android-fmt-check
-      - name: Lint
-        run: cargo run -p lockbook-dev android-lint-check
-
-  Build-Server:
-    runs-on: [self-hosted]
-    needs: [ Workspace-Clippy ]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      LOCKBOOK_CI: 1
-    steps:
-      - uses: actions/checkout@v2
-      - name: Build
-        run: cargo run -p lockbook-dev build-server
-  
-  Run-Server:
-    runs-on: [self-hosted]
-    needs: [ Build-Server ]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      LOCKBOOK_CI: 1
-    steps:
-      - uses: actions/checkout@v2
-      - name: Run
-        run: cargo run -p lockbook-dev run-server
-
-  Run-Rust-Tests:
-    runs-on: [self-hosted]
-    needs: [ Run-Server ]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      LOCKBOOK_CI: 1
-    steps:
-      - uses: actions/checkout@v2
-      - name: Test
-        run: cargo run -p lockbook-dev run-rust-tests
-
-  Run-Kotlin-Tests:
-    runs-on: [self-hosted]
-    needs: [ Run-Server ]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      LOCKBOOK_CI: 1
-    steps:
-      - uses: actions/checkout@v2
-      - name: Test
-        run: cargo run -p lockbook-dev run-kotlin-tests
-
-  Run-Swift-Tests:
-    runs-on: [self-hosted]
-    needs: [ Run-Server ]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      LOCKBOOK_CI: 1
-    steps:
-      - uses: actions/checkout@v2
-      - name: Test
-        run: cargo run -p lockbook-dev run-swift-tests
-
-  Cleanup:
-    runs-on: [self-hosted]
-    needs: [ Run-Rust-Tests, Run-Kotlin-Tests, Run-Swift-Tests ]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      LOCKBOOK_CI: 1
-    steps:
-      - uses: actions/checkout@v2
-      - name: Kill Server
-        run: cargo run -p lockbook-dev kill-server
+    - name: Check Workspace Fmt
+      run: cargo run -p lockbook-dev -- check-workspace-fmt
+    - name: Check Workspace Clippy
+      run: cargo run -p lockbook-dev -- check-workspace-clippy
+    - name: Build Server
+      run: cargo run -p lockbook-dev -- build-server
+    - name: Run Server
+      run: cargo run -p lockbook-dev -- run-server
+    - name: Run Rust Tests
+      run: cargo run -p lockbook-dev -- run-rust-tests
+    - name: Run Android Fmt
+      run: cargo run -p lockbook-dev -- run-android-fmt
+    - name: Run Android Lint
+      run: cargo run -p lockbook-dev -- run-android-lint
+    - name: Run Swift Tests
+      run: cargo run -p lockbook-dev -- run-swift-tests
+    - name: Cleanup
+      run: cargo run -p lockbook-dev -- kill-server

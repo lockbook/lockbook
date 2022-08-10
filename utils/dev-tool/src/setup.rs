@@ -14,7 +14,7 @@ pub fn verify_ci_environment() {
     }
 }
 
-pub fn verify_command_exists(command: &str) {
+fn verify_command_exists(command: &str) {
     let command_result = Command::new("which")
         .arg(command)
         .stdout(Stdio::null())
@@ -27,7 +27,7 @@ pub fn verify_command_exists(command: &str) {
     }
 }
 
-pub fn verify_env_var_exists(env_var: &str) {
+fn verify_env_var_exists(env_var: &str) {
     if env::var(env_var).is_err() {
         panic!("'{}' environment variable is not set.", env_var);
     }

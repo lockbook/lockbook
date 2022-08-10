@@ -3,7 +3,7 @@ use std::env::{self, VarError};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Command, Output, Stdio};
 
 pub trait CommandRunner {
     fn assert_success(&mut self) -> Output;
@@ -20,8 +20,8 @@ impl CommandRunner for Command {
     }
 }
 
-pub fn tmp() -> PathBuf {
-    PathBuf::from("/tmp")
+pub fn get_api_url(port: u16) -> String {
+    format!("http://localhost:{}", port)
 }
 
 pub fn android_dir<P: AsRef<Path>>(root: P) -> PathBuf {
@@ -69,36 +69,37 @@ pub fn get_commit_hash() -> String {
         .to_string()
 }
 
-pub fn get_dirs() -> (PathBuf, PathBuf, PathBuf) {
-    let home_dir = env::var("HOME").unwrap();
+pub fn root_dir() -> PathBuf {
+    let root_bytes = Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .stdout(Stdio::piped())
+        .output()
+        .unwrap()
+        .stdout;
 
-    let root_dir = {
-        let root_bytes = Command::new("git")
-            .args(["rev-parse", "--show-toplevel"])
-            .stdout(Stdio::piped())
-            .output()
-            .unwrap()
-            .stdout;
-
+    PathBuf::from(
         String::from_utf8_lossy(root_bytes.as_slice())
             .trim()
-            .to_string()
-    };
+            .to_string(),
+    )
+}
 
-    let dev_dir = format!("{}/.lockbook-dev", home_dir);
+pub fn dev_dir() -> PathBuf {
+    let home_dir = env::var("HOME").unwrap();
 
-    fs::create_dir_all(&dev_dir).unwrap();
+    PathBuf::from(home_dir).join(".lockbook-dev")
+}
 
-    let target_dir =
-        if is_ci_env() { format!("{}/target", dev_dir) } else { format!("{}/target", root_dir) };
+pub fn target_dir<P: AsRef<Path>>(dev_dir: P, root_dir: P) -> PathBuf {
+    if is_ci_env() {
+        dev_dir.as_ref().join("target")
+    } else {
+        root_dir.as_ref().join("target")
+    }
+}
 
-    env::set_var("CARGO_TARGET_DIR", &target_dir);
-
-    let hash_info_dir = format!("{}/hash-info", dev_dir);
-
-    fs::create_dir_all(&hash_info_dir).unwrap();
-
-    (PathBuf::from(root_dir), PathBuf::from(target_dir), PathBuf::from(hash_info_dir))
+pub fn hash_infos_dir<P: AsRef<Path>>(dev_dir: P) -> PathBuf {
+    dev_dir.as_ref().join("hash-info")
 }
 
 pub fn is_ci_env() -> bool {
@@ -166,8 +167,4 @@ impl HashInfo {
             .write_all(serde_json::to_string(self).unwrap().as_bytes())
             .unwrap();
     }
-}
-
-pub fn get_api_url(port: u16) -> String {
-    format!("http://localhost:{}", port)
 }
