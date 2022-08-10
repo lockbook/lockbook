@@ -1,5 +1,5 @@
 use crate::utils::HashInfo;
-use crate::{utils, ToolEnvironment};
+use crate::{panic_if_unsuccessful, utils, ToolEnvironment};
 
 use std::fs;
 use std::process::{Command, Stdio};
@@ -12,7 +12,7 @@ pub fn build_server(tool_env: ToolEnvironment) {
         .status()
         .unwrap();
 
-    utils::panic_if_unsuccessful(build_results);
+    panic_if_unsuccessful!(build_results);
 
     let server_path = tool_env.target_dir.join("debug/lockbook-server");
     let new_server_path =
@@ -20,8 +20,8 @@ pub fn build_server(tool_env: ToolEnvironment) {
 
     fs::rename(server_path, &new_server_path).unwrap();
 
-    let hash_info = HashInfo { maybe_port: None, server_binary_path: new_server_path };
-    hash_info.save(&tool_env.commit_hash);
+    let hash_info = HashInfo::new(&tool_env.hash_info_dir, &new_server_path, &tool_env.commit_hash);
+    hash_info.save();
 }
 
 pub fn run_server_detached(tool_env: ToolEnvironment) {
@@ -29,7 +29,7 @@ pub fn run_server_detached(tool_env: ToolEnvironment) {
 
     dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
 
-    let mut hash_info = HashInfo::get_from_disk(&tool_env.commit_hash);
+    let mut hash_info = HashInfo::get_from_dir(&tool_env.hash_info_dir, &tool_env.commit_hash);
 
     Command::new(&hash_info.server_binary_path)
         .env("SERVER_PORT", port.to_string())
@@ -39,26 +39,40 @@ pub fn run_server_detached(tool_env: ToolEnvironment) {
         .unwrap();
 
     hash_info.maybe_port = Some(port);
-    hash_info.save(&tool_env.commit_hash);
+    hash_info.save();
 }
 
 pub fn kill_server(tool_env: ToolEnvironment) {
-    let mut hash_info = HashInfo::get_from_disk(&tool_env.commit_hash);
+    let mut hash_info = HashInfo::get_from_dir(&tool_env.hash_info_dir, &tool_env.commit_hash);
 
+    kill_server_at_port(&hash_info);
+
+    hash_info.maybe_port = None;
+    hash_info.save();
+}
+
+fn kill_server_at_port(hash_info: &HashInfo) {
     let kill_result = Command::new("fuser")
         .args(["-k", &format!("{}/tcp", hash_info.get_port().to_string())])
-        .current_dir(utils::swift_dir(&tool_env.root_dir))
         .status()
         .unwrap();
 
-    utils::panic_if_unsuccessful(kill_result);
+    panic_if_unsuccessful!(kill_result);
+}
 
-    hash_info.maybe_port = None;
-    hash_info.save(&tool_env.commit_hash);
+pub fn kill_all_servers(tool_env: ToolEnvironment) {
+    let children = fs::read_dir(&tool_env.hash_info_dir).unwrap();
+
+    for child in children {
+        let path = child.unwrap().path();
+        kill_server_at_port(&HashInfo::get_at_path(&path));
+
+        fs::remove_file(path).unwrap();
+    }
 }
 
 pub fn run_rust_tests(tool_env: ToolEnvironment) {
-    let hash_info = HashInfo::get_from_disk(&tool_env.commit_hash);
+    let hash_info = HashInfo::get_from_dir(&tool_env.hash_info_dir, &tool_env.commit_hash);
     dotenv::from_path(utils::test_env_path(&tool_env.root_dir)).unwrap();
 
     let test_results = Command::new("cargo")
@@ -68,5 +82,5 @@ pub fn run_rust_tests(tool_env: ToolEnvironment) {
         .status()
         .unwrap();
 
-    utils::panic_if_unsuccessful(test_results);
+    panic_if_unsuccessful!(test_results);
 }

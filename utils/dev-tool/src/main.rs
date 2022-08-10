@@ -11,8 +11,8 @@ pub mod workspace;
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "Lockbook's development and ci tool.")]
 enum Commands {
-    /// Install all ci dependencies (only supports debian based machines)
-    InstallCIDependencies,
+    /// Verify CI environment
+    VerifyCIEnvironment,
 
     /// Check the formatting
     FmtCheck,
@@ -52,41 +52,38 @@ enum Commands {
 
     /// Kill server for commit hash
     KillServer,
+
+    /// Kill all servers running
+    KillAllServers,
 }
 
 #[derive(Clone)]
 pub struct ToolEnvironment {
-    home_dir: PathBuf,
     root_dir: PathBuf,
     target_dir: PathBuf,
-    sdk_dir: PathBuf,
+    hash_info_dir: PathBuf,
     commit_hash: String,
 }
 
 impl ToolEnvironment {
     pub fn new() -> ToolEnvironment {
-        let (home_dir, root_dir, target_dir, sdk_dir) = utils::get_dirs();
+        let (root_dir, target_dir, hash_info_dir) = utils::get_dirs();
 
         ToolEnvironment {
-            home_dir,
             root_dir,
             target_dir,
-            sdk_dir,
+            hash_info_dir,
             commit_hash: utils::get_commit_hash(),
         }
     }
 }
 
 fn main() {
-    parse_and_run()
-}
-
-fn parse_and_run() {
     let tool_env = ToolEnvironment::new();
 
     use Commands::*;
     match Commands::from_args() {
-        InstallCIDependencies => setup::install_ci_dependencies(tool_env),
+        VerifyCIEnvironment => setup::verify_ci_environment(),
         FmtCheck => workspace::fmt_workspace(tool_env),
         ClippyCheck => workspace::clippy_workspace(tool_env),
         AndroidFmtCheck => android::fmt_android(tool_env),
@@ -100,5 +97,6 @@ fn parse_and_run() {
         RunKotlinTests => android::run_kotlin_tests(tool_env),
         RunSwiftTests => apple::run_swift_tests(tool_env),
         KillServer => server::kill_server(tool_env),
+        KillAllServers => server::kill_all_servers(tool_env),
     }
 }

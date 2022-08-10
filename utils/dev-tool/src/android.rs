@@ -1,5 +1,5 @@
 use crate::utils::HashInfo;
-use crate::{utils, ToolEnvironment};
+use crate::{panic_if_unsuccessful, utils, ToolEnvironment};
 
 use std::fs;
 use std::path::Path;
@@ -17,7 +17,7 @@ pub fn fmt_android(tool_env: ToolEnvironment) {
         .status()
         .unwrap();
 
-    utils::panic_if_unsuccessful(fmt_result);
+    panic_if_unsuccessful!(fmt_result);
 }
 
 pub fn lint_android(tool_env: ToolEnvironment) {
@@ -25,16 +25,15 @@ pub fn lint_android(tool_env: ToolEnvironment) {
 
     let lint_result = Command::new(android_dir.join("gradlew"))
         .arg("lint")
-        .env("ANDROID_HOME", tool_env.sdk_dir.join("android-ndk"))
         .current_dir(android_dir)
         .status()
         .unwrap();
 
-    utils::panic_if_unsuccessful(lint_result);
+    panic_if_unsuccessful!(lint_result);
 }
 
 pub fn run_kotlin_tests(tool_env: ToolEnvironment) {
-    let hash_info = HashInfo::get_from_disk(&tool_env.commit_hash);
+    let hash_info = HashInfo::get_from_dir(&tool_env.hash_info_dir, &tool_env.commit_hash);
     dotenv::from_path(utils::test_env_path(&tool_env.root_dir)).unwrap();
 
     make_android_test_lib(tool_env.clone());
@@ -48,7 +47,7 @@ pub fn run_kotlin_tests(tool_env: ToolEnvironment) {
         .status()
         .unwrap();
 
-    utils::panic_if_unsuccessful(test_results);
+    panic_if_unsuccessful!(test_results);
 }
 
 pub fn make_android_libs(tool_env: ToolEnvironment) {
@@ -107,7 +106,7 @@ pub fn make_android_test_lib(tool_env: ToolEnvironment) {
         .status()
         .unwrap();
 
-    utils::panic_if_unsuccessful(test_results);
+    panic_if_unsuccessful!(test_results);
 
     let jni_lib_dir = utils::jni_lib_dir(&tool_env.root_dir);
 
@@ -136,5 +135,5 @@ fn build_core_for_android_arch<P: AsRef<Path>>(core_dir: P, platform: &str) {
         .status()
         .unwrap();
 
-    utils::panic_if_unsuccessful(build_results);
+    panic_if_unsuccessful!(build_results);
 }

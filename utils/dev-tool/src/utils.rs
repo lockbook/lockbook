@@ -3,13 +3,16 @@ use std::env::VarError;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitStatus, Stdio};
+use std::process::{Command, Stdio};
 use std::{env, fs};
 
-pub fn panic_if_unsuccessful(e: ExitStatus) {
-    if !e.success() {
-        panic!()
-    }
+#[macro_export]
+macro_rules! panic_if_unsuccessful {
+    ($success_code:expr) => {
+        if !$success_code.success() {
+            panic!()
+        }
+    };
 }
 
 pub fn tmp_dir() -> PathBuf {
@@ -61,7 +64,7 @@ pub fn get_commit_hash() -> String {
         .to_string()
 }
 
-pub fn get_dirs() -> (PathBuf, PathBuf, PathBuf, PathBuf) {
+pub fn get_dirs() -> (PathBuf, PathBuf, PathBuf) {
     let home_dir = env::var("HOME").unwrap();
 
     let root_dir = {
@@ -84,16 +87,13 @@ pub fn get_dirs() -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     let target_dir =
         if is_ci_env() { format!("{}/target", dev_dir) } else { format!("{}/target", root_dir) };
 
-    let sdk_dir = format!("{}/{}", dev_dir, "android-sdk");
+    env::set_var("CARGO_TARGET_DIR", &target_dir);
 
-    fs::create_dir_all(&sdk_dir).unwrap();
+    let hash_info_dir = format!("{}/hash-info", dev_dir);
 
-    (
-        PathBuf::from(home_dir),
-        PathBuf::from(root_dir),
-        PathBuf::from(target_dir),
-        PathBuf::from(sdk_dir),
-    )
+    fs::create_dir_all(&hash_info_dir).unwrap();
+
+    (PathBuf::from(root_dir), PathBuf::from(target_dir), PathBuf::from(hash_info_dir))
 }
 
 pub fn is_ci_env() -> bool {
@@ -110,30 +110,53 @@ pub fn is_ci_env() -> bool {
     }
 }
 
-pub fn get_hash_port_dir(commit_hash: &str) -> PathBuf {
-    tmp_dir().join(format!("{}.ec", commit_hash))
+pub fn hash_info_dir(dev_dir: PathBuf, commit_hash: &str) -> PathBuf {
+    dev_dir
+        .join("hash-info")
+        .join(format!("{}.json", commit_hash))
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct HashInfo {
     pub maybe_port: Option<u16>,
     pub server_binary_path: PathBuf,
+    pub hash_info_dir: PathBuf,
 }
 
 impl HashInfo {
+    pub fn new<P: AsRef<Path>>(
+        hash_infos_dir: P, server_binary_path: P, commit_hash: &str,
+    ) -> Self {
+        let hash_info_dir = hash_infos_dir.as_ref().join(commit_hash);
+
+        Self {
+            maybe_port: None,
+            server_binary_path: server_binary_path.as_ref().to_path_buf(),
+            hash_info_dir,
+        }
+    }
+
     pub fn get_port(&self) -> u16 {
         self.maybe_port.unwrap()
     }
 
-    pub fn get_from_disk(commit_hash: &str) -> HashInfo {
-        let port_dir = get_hash_port_dir(commit_hash);
-        let contents = fs::read_to_string(&port_dir).unwrap();
-
-        serde_json::from_str(&contents).unwrap()
+    pub fn get_from_dir<P: AsRef<Path>>(hash_infos_dir: P, commit_hash: &str) -> Self {
+        let hash_info_dir = hash_infos_dir.as_ref().join(commit_hash);
+        Self::get_at_path(hash_info_dir)
     }
 
-    pub fn save(&self, commit_hash: &str) {
-        File::create(get_hash_port_dir(commit_hash))
+    pub fn get_at_path<P: AsRef<Path>>(hash_info_dir: P) -> Self {
+        match fs::read_to_string(hash_info_dir) {
+            Ok(contents) => serde_json::from_str(&contents).unwrap(),
+            Err(e) => panic!(
+                "No hash info file found. Server may not be running or even built! err: {:?}",
+                e
+            ),
+        }
+    }
+
+    pub fn save(&self) {
+        File::create(&self.hash_info_dir)
             .unwrap()
             .write_all(serde_json::to_string(self).unwrap().as_bytes())
             .unwrap();

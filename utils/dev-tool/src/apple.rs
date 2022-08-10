@@ -1,5 +1,5 @@
 use crate::utils::HashInfo;
-use crate::{utils, ToolEnvironment};
+use crate::{panic_if_unsuccessful, utils, ToolEnvironment};
 use std::fs;
 use std::fs::File;
 use std::io::Write;
@@ -9,18 +9,18 @@ const LIB_NAME_HEADER: &str = "lockbook_core.h";
 const LIB_NAME: &str = "liblockbook_core.a";
 
 pub fn run_swift_tests(tool_env: ToolEnvironment) {
-    let hash_info = HashInfo::get_from_disk(&tool_env.commit_hash);
+    let hash_info = HashInfo::get_from_dir(&tool_env.hash_info_dir, &tool_env.commit_hash);
     dotenv::from_path(utils::test_env_path(&tool_env.root_dir)).unwrap();
 
     make_swift_test_lib(tool_env.clone());
 
     let build_results = Command::new("swift")
-        .args(["build"])
+        .arg("build")
         .current_dir(utils::swift_dir(&tool_env.root_dir))
         .status()
         .unwrap();
 
-    utils::panic_if_unsuccessful(build_results);
+    panic_if_unsuccessful!(build_results);
 
     let test_results = Command::new("swift")
         .args(&["test", "--generate-linuxmain"])
@@ -29,7 +29,7 @@ pub fn run_swift_tests(tool_env: ToolEnvironment) {
         .status()
         .unwrap();
 
-    utils::panic_if_unsuccessful(test_results)
+    panic_if_unsuccessful!(test_results)
 }
 
 pub fn make_swift_test_lib(tool_env: ToolEnvironment) {
@@ -47,7 +47,7 @@ pub fn make_swift_test_lib(tool_env: ToolEnvironment) {
         .output()
         .unwrap();
 
-    utils::panic_if_unsuccessful(build_results.status);
+    panic_if_unsuccessful!(build_results.status);
 
     let swift_inc_dir = utils::swift_inc(&tool_env.root_dir);
 
@@ -63,7 +63,7 @@ pub fn make_swift_test_lib(tool_env: ToolEnvironment) {
         .status()
         .unwrap();
 
-    utils::panic_if_unsuccessful(build_results);
+    panic_if_unsuccessful!(build_results);
 
     let swift_lib_dir = utils::swift_lib(&tool_env.root_dir);
 

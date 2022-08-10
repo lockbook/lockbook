@@ -1,4 +1,4 @@
-use crate::{utils, ToolEnvironment};
+use crate::{panic_if_unsuccessful, ToolEnvironment};
 use std::process::Command;
 
 pub fn fmt_workspace(tool_env: ToolEnvironment) {
@@ -8,7 +8,7 @@ pub fn fmt_workspace(tool_env: ToolEnvironment) {
         .status()
         .unwrap();
 
-    utils::panic_if_unsuccessful(fmt_result);
+    panic_if_unsuccessful!(fmt_result);
 }
 
 pub fn clippy_workspace(tool_env: ToolEnvironment) {
@@ -18,7 +18,7 @@ pub fn clippy_workspace(tool_env: ToolEnvironment) {
         .status()
         .unwrap();
 
-    utils::panic_if_unsuccessful(clippy_result);
+    panic_if_unsuccessful!(clippy_result);
 
     let clippy_result = Command::new("cargo")
         .args(["clippy", "--tests", "--", "-D", "warnings"])
@@ -26,5 +26,5 @@ pub fn clippy_workspace(tool_env: ToolEnvironment) {
         .status()
         .unwrap();
 
-    utils::panic_if_unsuccessful(clippy_result);
+    panic_if_unsuccessful!(clippy_result);
 }
