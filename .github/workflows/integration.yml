@@ -14,10 +14,11 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       LOCKBOOK_CI: 1
+      CARGO_TARGET_DIR: $HOME/.lockbook-dev/target
     steps:
     - uses: actions/checkout@v2
     - name: Check Workspace Fmt
-      run: env
+      run: cargo run -p lockbook-dev -- check-workspace-fmt
     - name: Check Workspace Clippy
       run: cargo run -p lockbook-dev -- check-workspace-clippy
     - name: Build Server
