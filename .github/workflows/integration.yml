@@ -10,16 +10,14 @@ on:
 
 jobs:
   Verify-Commit:
-    runs-on: [self-hosted]
+    runs-on: [self-hosted, ci]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       LOCKBOOK_CI: 1
-      CARGO_TARGET_DIR: /tmp/.lockbook-dev/target/
-      HOME: /tmp/
     steps:
     - uses: actions/checkout@v2
     - name: Check Workspace Fmt
-      run: cargo run -p lockbook-dev -- check-workspace-fmt
+      run: env
     - name: Check Workspace Clippy
       run: cargo run -p lockbook-dev -- check-workspace-clippy
     - name: Build Server
