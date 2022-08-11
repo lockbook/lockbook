@@ -7,8 +7,9 @@ use lockbook_shared::tree_like::TreeLike;
 
 use crate::model::drawing;
 use crate::model::errors::{TestRepoError, Warning};
-use crate::repo::document_repo;
-use crate::{CoreError, OneKey, RepoSource, RequestContext};
+use crate::{CoreError, OneKey, RequestContext};
+use lockbook_shared::document_repo;
+use lockbook_shared::document_repo::RepoSource;
 
 const UTF8_SUFFIXES: [&str; 12] =
     ["md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs"];

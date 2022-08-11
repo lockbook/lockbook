@@ -1,8 +1,8 @@
 use uuid::Uuid;
 
-use lockbook_core::model::repo::RepoSource;
-use lockbook_core::repo::document_repo;
 use lockbook_shared::crypto::AESEncrypted;
+use lockbook_shared::document_repo;
+use lockbook_shared::document_repo::RepoSource;
 use lockbook_shared::symkey;
 use test_utils::*;
 
@@ -130,32 +130,4 @@ fn insert_delete() {
     let result = document_repo::maybe_get(config, RepoSource::Local, &id).unwrap();
 
     assert_eq!(result, None);
-}
-
-#[test]
-fn insert_delete_all() {
-    let config = &test_config();
-    let key = &symkey::generate_key();
-
-    let (id, document) =
-        (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
-    document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
-    document_repo::delete_all(config, RepoSource::Local).unwrap();
-    let result = test_utils::doc_repo_get_all(config, RepoSource::Local);
-
-    assert_eq!(result, Vec::<AESEncrypted<Vec<u8>>>::new());
-}
-
-#[test]
-fn insert_delete_all_different_source() {
-    let config = &test_config();
-    let key = &symkey::generate_key();
-
-    let (id, document) =
-        (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
-    document_repo::insert(config, RepoSource::Local, id, &document).unwrap();
-    document_repo::delete_all(config, RepoSource::Base).unwrap();
-    let result = test_utils::doc_repo_get_all(config, RepoSource::Local);
-
-    assert_eq!(result, vec![document]);
 }

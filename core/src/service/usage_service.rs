@@ -6,11 +6,11 @@ use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::tree_like::TreeLike;
 
-use crate::model::repo::RepoSource;
-use crate::repo::document_repo;
 use crate::service::api_service;
 use crate::{CoreError, RequestContext};
 use crate::{CoreResult, OneKey};
+use lockbook_shared::document_repo;
+use lockbook_shared::document_repo::RepoSource;
 
 const BYTE: u64 = 1;
 const KILOBYTE: u64 = BYTE * 1000;

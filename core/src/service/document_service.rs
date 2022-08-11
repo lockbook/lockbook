@@ -1,7 +1,8 @@
-use crate::repo::document_repo;
-use crate::{CoreError, RepoSource, RequestContext};
+use crate::{CoreError, RequestContext};
 use crate::{CoreResult, OneKey};
 use lockbook_shared::crypto::DecryptedDocument;
+use lockbook_shared::document_repo;
+use lockbook_shared::document_repo::RepoSource;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::tree_like::TreeLike;

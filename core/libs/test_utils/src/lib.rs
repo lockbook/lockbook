@@ -1,12 +1,13 @@
 use chrono::Datelike;
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
-use lockbook_core::model::repo::RepoSource;
 use lockbook_core::repo::schema::OneKey;
-use lockbook_core::repo::{document_repo, local_storage};
-use lockbook_core::{Config, Core};
+use lockbook_core::Core;
 use lockbook_shared::api::{PaymentMethod, StripeAccountTier};
+use lockbook_shared::core_config::Config;
 use lockbook_shared::crypto::EncryptedDocument;
+use lockbook_shared::document_repo;
+use lockbook_shared::document_repo::{local_storage, RepoSource};
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::lazy::{LazyStaged1, LazyTree};
 use lockbook_shared::path_ops::Filter::DocumentsOnly;

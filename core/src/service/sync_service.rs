@@ -1,7 +1,5 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::model::repo::RepoSource;
-use crate::repo::document_repo;
 use crate::repo::schema::OneKey;
 use crate::service::api_service;
 use crate::CoreResult;
@@ -10,6 +8,8 @@ use lockbook_shared::api::{
     ChangeDocRequest, GetDocRequest, GetUpdatesRequest, GetUpdatesResponse, UpsertRequest,
 };
 use lockbook_shared::core_tree::CoreTree;
+use lockbook_shared::document_repo;
+use lockbook_shared::document_repo::RepoSource;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{DocumentHmac, FileDiff, Owner};
 use lockbook_shared::lazy::{LazyStage2, LazyStaged1, LazyTree};

@@ -5,17 +5,16 @@ use std::path::Path;
 
 use uuid::Uuid;
 
+use lockbook_shared::document_repo::RepoSource;
 use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing};
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::tree_like::TreeLike;
-use lockbook_shared::validate;
+use lockbook_shared::{document_repo, validate};
 
 use crate::model::drawing;
 use crate::model::drawing::SupportedImageFormats;
 use crate::model::errors::CoreError;
-use crate::model::repo::RepoSource;
-use crate::repo::document_repo;
 use crate::RequestContext;
 use crate::{CoreResult, OneKey};
 
@@ -56,7 +55,7 @@ impl RequestContext<'_, '_> {
         let drawing_bytes = serde_json::to_vec(d)?;
         let (_, doc) = tree.update_document(&id, &drawing_bytes, account)?;
 
-        document_repo::insert(self.config, RepoSource::Local, id, &doc)
+        Ok(document_repo::insert(self.config, RepoSource::Local, id, &doc)?)
     }
 
     pub fn export_drawing(

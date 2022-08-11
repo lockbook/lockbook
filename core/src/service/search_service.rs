@@ -1,9 +1,9 @@
-use crate::model::repo::RepoSource;
-use crate::repo::document_repo;
 use crate::{CoreError, CoreResult, OneKey, RequestContext, UnexpectedError};
 use crossbeam::channel::{self, Receiver, RecvTimeoutError, Sender};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
+use lockbook_shared::document_repo;
+use lockbook_shared::document_repo::RepoSource;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::filename::DocumentType;

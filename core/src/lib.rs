@@ -41,25 +41,17 @@ use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use libsecp256k1::PublicKey;
-use serde::Deserialize;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 
 use lockbook_shared::clock;
+use lockbook_shared::core_config::Config;
 use lockbook_shared::crypto::AESKey;
 
 use crate::model::errors::Error::UiError;
-use crate::model::repo::RepoSource;
 use crate::repo::schema::{transaction, CoreV1, OneKey, Tx};
 use crate::service::log_service;
 use crate::service::search_service::{SearchResultItem, StartSearchInfo};
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct Config {
-    pub logs: bool,
-    pub colored_logs: bool,
-    pub writeable_path: String,
-}
 
 #[derive(Clone, Debug, Default)]
 pub struct DataCache {

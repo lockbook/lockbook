@@ -1,5 +1,5 @@
-use lockbook_core::model::repo::RepoSource;
-use lockbook_core::repo::document_repo;
+use lockbook_shared::document_repo;
+use lockbook_shared::document_repo::RepoSource;
 use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::file_metadata::FileType::Folder;
 use test_utils::*;

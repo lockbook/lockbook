@@ -1,4 +1,4 @@
-use lockbook_core::repo::local_storage;
+use lockbook_shared::document_repo::local_storage;
 use test_utils::test_config;
 
 #[test]
@@ -49,25 +49,4 @@ fn delete() {
 
     assert_eq!(String::from_utf8_lossy(&result1), "value-1");
     assert_eq!(result2, None);
-}
-
-#[test]
-fn delete_all() {
-    let db = &test_config();
-
-    local_storage::write(db, "namespace", "key-1", "value-1".as_bytes()).unwrap();
-    local_storage::write(db, "namespace", "key-2", "value-2".as_bytes()).unwrap();
-    local_storage::delete_all(db, "namespace").unwrap();
-    let result1: Option<Vec<u8>> = local_storage::read(db, "namespace", "key-1").unwrap();
-    let result2: Option<Vec<u8>> = local_storage::read(db, "namespace", "key-2").unwrap();
-
-    assert_eq!(result1, None);
-    assert_eq!(result2, None);
-}
-
-#[test]
-fn delete_all_no_writes() {
-    let db = &test_config();
-
-    local_storage::delete_all(db, "namespace").unwrap();
 }

@@ -1,9 +1,10 @@
-use crate::model::repo::RepoSource;
-use crate::repo::document_repo;
-use crate::{Config, CoreError, RequestContext};
+use crate::{CoreError, RequestContext};
 use crate::{CoreResult, OneKey};
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Account;
+use lockbook_shared::core_config::Config;
+use lockbook_shared::document_repo;
+use lockbook_shared::document_repo::RepoSource;
 use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileType, Owner};
