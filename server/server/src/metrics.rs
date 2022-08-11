@@ -122,10 +122,10 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
         METRICS_STATISTICS.total_document_bytes.set(total_bytes);
         METRICS_STATISTICS.premium_users.set(premium_users);
 
-        METRICS_USAGE_BY_USER_VEC
+        METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC
             .with_label_values(&[STRIPE_LABEL_NAME])
             .set(premium_stripe_users);
-        METRICS_USAGE_BY_USER_VEC
+        METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC
             .with_label_values(&[GOOGLE_PLAY_LABEL_NAME])
             .set(premium_google_play_users);
 
