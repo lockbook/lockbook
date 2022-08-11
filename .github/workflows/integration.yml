@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       LOCKBOOK_CI: 1
-      CARGO_TARGET_DIR: $HOME/.lockbook-dev/target
+      CARGO_TARGET_DIR: ${{ env.HOME }}/.lockbook-dev/target
     steps:
     - uses: actions/checkout@v2
     - name: Check Workspace Fmt
