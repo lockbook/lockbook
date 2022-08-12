@@ -12,16 +12,16 @@ use crate::service::api_service;
 use crate::{CoreError, RequestContext};
 use crate::{CoreResult, OneKey};
 
-pub const BYTE: u64 = 1;
-pub const KILOBYTE: u64 = BYTE * 1000;
-pub const MEGABYTE: u64 = KILOBYTE * 1000;
-pub const GIGABYTE: u64 = MEGABYTE * 1000;
-pub const TERABYTE: u64 = GIGABYTE * 1000;
+const BYTE: u64 = 1;
+const KILOBYTE: u64 = BYTE * 1000;
+const MEGABYTE: u64 = KILOBYTE * 1000;
+const GIGABYTE: u64 = MEGABYTE * 1000;
+const TERABYTE: u64 = GIGABYTE * 1000;
 
-pub const KILOBYTE_MINUS_ONE: u64 = KILOBYTE - 1;
-pub const MEGABYTE_MINUS_ONE: u64 = MEGABYTE - 1;
-pub const GIGABYTE_MINUS_ONE: u64 = GIGABYTE - 1;
-pub const TERABYTE_MINUS_ONE: u64 = TERABYTE - 1;
+const KILOBYTE_MINUS_ONE: u64 = KILOBYTE - 1;
+const MEGABYTE_MINUS_ONE: u64 = MEGABYTE - 1;
+const GIGABYTE_MINUS_ONE: u64 = GIGABYTE - 1;
+const TERABYTE_MINUS_ONE: u64 = TERABYTE - 1;
 
 #[derive(Serialize, Debug)]
 pub struct UsageMetrics {
