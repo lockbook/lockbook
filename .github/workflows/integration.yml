@@ -42,6 +42,5 @@ jobs:
       LOCKBOOK_CI: 1
     steps:
       - uses: actions/checkout@v2
-      - name: Check Workspace Fmt
       - name: Cleanup
         run: cargo run -p lockbook-dev -- kill-server
