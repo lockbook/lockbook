@@ -27,7 +27,7 @@ jobs:
     - name: Run Android Fmt
       run: cargo run -p lockbook-dev -- check-android-fmt
     - name: Run Android Lint
-      run: cargo run -p lockbook-dev -- run-kotlin-tests
+      run: cargo run -p lockbook-dev -- check-android-lint
     - name: Run Swift Tests
       run: cargo run -p lockbook-dev -- run-swift-tests
     - name: Cleanup
