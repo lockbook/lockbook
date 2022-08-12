@@ -1,16 +1,18 @@
 use crate::{CoreError, RequestContext};
 use crate::{CoreResult, OneKey};
 use lockbook_shared::crypto::DecryptedDocument;
-use lockbook_shared::lazy::LazyStaged1;
+use lockbook_shared::file_like::FileLike;
+use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::validate;
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
     pub fn read_document(&mut self, id: Uuid) -> CoreResult<DecryptedDocument> {
-        let tree = LazyStaged1::core_tree(
-            self.find_owner(&id)?,
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account
@@ -23,11 +25,11 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn write_document(&mut self, id: Uuid, content: &[u8]) -> CoreResult<()> {
-        let tree = LazyStaged1::core_tree(
-            self.find_owner(&id)?,
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account

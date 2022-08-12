@@ -9,7 +9,6 @@ use test_utils::*;
 use uuid::Uuid;
 
 #[test]
-#[ignore]
 fn write_document_read_share() {
     let cores = vec![test_core_with_account(), test_core_with_account()];
     let accounts = cores

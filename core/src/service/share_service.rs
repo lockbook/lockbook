@@ -3,8 +3,7 @@ use lockbook_shared::api::GetPublicKeyRequest;
 use lockbook_shared::file::{File, ShareMode};
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileType, Owner};
-use lockbook_shared::lazy::LazyStaged1;
-use lockbook_shared::tree_like::TreeLike;
+use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::validate;
 use uuid::Uuid;
 
@@ -20,8 +19,11 @@ impl RequestContext<'_, '_> {
             ShareMode::Read => UserAccessMode::Read,
         };
 
-        let mut tree =
-            LazyStaged1::core_tree(owner, &mut self.tx.base_metadata, &mut self.tx.local_metadata);
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let mut file = tree.find(&id)?.timestamped_value.value.clone();
         if tree.calculate_deleted(&id)? {
             return Err(CoreError::FileNonexistent);
@@ -69,8 +71,11 @@ impl RequestContext<'_, '_> {
     pub fn get_pending_shares(&mut self) -> CoreResult<Vec<File>> {
         let account = &self.get_account()?.clone(); // todo: don't clone
         let owner = Owner(self.get_public_key()?);
-        let mut tree =
-            LazyStaged1::core_tree(owner, &mut self.tx.base_metadata, &mut self.tx.local_metadata);
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
 
         let mut result = Vec::new();
         'outer: for id in tree.owned_ids() {
@@ -108,8 +113,11 @@ impl RequestContext<'_, '_> {
     pub fn delete_pending_share(&mut self, id: Uuid) -> CoreResult<()> {
         let account = &self.get_account()?.clone(); // todo: don't clone
         let owner = Owner(self.get_public_key()?);
-        let mut tree =
-            LazyStaged1::core_tree(owner, &mut self.tx.base_metadata, &mut self.tx.local_metadata);
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let mut file = tree.find(&id)?.timestamped_value.value.clone();
 
         // file must not be deleted

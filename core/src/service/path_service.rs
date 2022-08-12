@@ -1,9 +1,8 @@
 use crate::OneKey;
 use crate::{CoreError, CoreResult, RequestContext};
 use lockbook_shared::file::File;
-use lockbook_shared::file_metadata::Owner;
-use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::path_ops::Filter;
+use lockbook_shared::tree_like::Stagable;
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
@@ -13,11 +12,11 @@ impl RequestContext<'_, '_> {
 
     pub fn create_at_path(&mut self, path: &str) -> CoreResult<File> {
         let pub_key = self.get_public_key()?;
-        let tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account
@@ -38,11 +37,11 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn get_by_path(&mut self, path: &str) -> CoreResult<File> {
-        let mut tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account
@@ -63,11 +62,11 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn get_path_by_id(&mut self, id: Uuid) -> CoreResult<String> {
-        let mut tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account
@@ -79,11 +78,11 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn list_paths(&mut self, filter: Option<Filter>) -> CoreResult<Vec<String>> {
-        let mut tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account
