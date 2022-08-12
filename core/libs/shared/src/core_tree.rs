@@ -8,7 +8,6 @@ use hmdb::transaction::TransactionTable;
 use std::collections::HashSet;
 use tracing::error;
 use uuid::Uuid;
-extern crate tracing;
 
 pub struct CoreTree<'a, 'b, Log>
 where

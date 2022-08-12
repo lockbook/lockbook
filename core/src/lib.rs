@@ -2,7 +2,6 @@
 
 #[macro_use]
 extern crate tracing;
-extern crate core; // TODO This can prob go
 
 pub mod model;
 pub mod repo;
@@ -15,6 +14,7 @@ pub use uuid::Uuid;
 pub use lockbook_shared::account::Account;
 pub use lockbook_shared::api::{GooglePlayAccountState, StripeAccountTier, SubscriptionInfo};
 pub use lockbook_shared::api::{PaymentMethod, PaymentPlatform};
+pub use lockbook_shared::core_config::Config;
 pub use lockbook_shared::crypto::DecryptedDocument;
 pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 pub use lockbook_shared::file::File;
@@ -45,7 +45,6 @@ use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 
 use lockbook_shared::clock;
-pub use lockbook_shared::core_config::Config;
 use lockbook_shared::crypto::AESKey;
 
 use crate::model::errors::Error::UiError;
