@@ -42,71 +42,74 @@ macro_rules! core_req {
             .and(warp::path(&<$Req>::ROUTE[1..]))
             .and(warp::any().map(move || cloned_state.clone()))
             .and(warp::body::bytes())
-            .then(|state: Arc<ServerState>, request: Bytes| async move {
+            .then(|state: Arc<ServerState>, request: Bytes| {
                 let span1 = span!(
                     Level::INFO,
                     "matched_request",
                     method = &<$Req>::METHOD.as_str(),
                     route = &<$Req>::ROUTE,
                 );
-                let _enter = span1.enter();
-                let state = state.as_ref();
-                let timer = router_service::HTTP_REQUEST_DURATION_HISTOGRAM
-                    .with_label_values(&[<$Req>::ROUTE])
-                    .start_timer();
+                async move {
+                    let state = state.as_ref();
+                    let timer = router_service::HTTP_REQUEST_DURATION_HISTOGRAM
+                        .with_label_values(&[<$Req>::ROUTE])
+                        .start_timer();
 
-                let request: RequestWrapper<$Req> = match deserialize_and_check(state, request) {
-                    Ok(req) => req,
-                    Err(err) => {
-                        warn!("request failed to parse: {:?}", err);
-                        return warp::reply::json::<Result<RequestWrapper<$Req>, _>>(&Err(err));
-                    }
-                };
+                    let request: RequestWrapper<$Req> = match deserialize_and_check(state, request)
+                    {
+                        Ok(req) => req,
+                        Err(err) => {
+                            warn!("request failed to parse: {:?}", err);
+                            return warp::reply::json::<Result<RequestWrapper<$Req>, _>>(&Err(err));
+                        }
+                    };
 
-                debug!("request verified successfully");
-                let req_pk = request.signed_request.public_key;
-                let username = match state.index_db.accounts.get(&Owner(req_pk)) {
-                    Ok(Some(account)) => account.username,
-                    Ok(None) => "~unknown~".to_string(),
-                    Err(err) => {
-                        error!("hmdb error! {:?}", err);
-                        "~error~".to_string()
-                    }
-                };
-                let req_pk = base64::encode(req_pk.serialize_compressed());
+                    debug!("request verified successfully");
+                    let req_pk = request.signed_request.public_key;
+                    let username = match state.index_db.accounts.get(&Owner(req_pk)) {
+                        Ok(Some(account)) => account.username,
+                        Ok(None) => "~unknown~".to_string(),
+                        Err(err) => {
+                            error!("hmdb error! {:?}", err);
+                            "~error~".to_string()
+                        }
+                    };
+                    let req_pk = base64::encode(req_pk.serialize_compressed());
 
-                let span2 = span!(
-                    Level::INFO,
-                    "verified_request_signature",
-                    username = username.as_str(),
-                    public_key = req_pk.as_str()
-                );
-                let _enter = span2.enter();
-                let rc: RequestContext<$Req> = RequestContext {
-                    server_state: state,
-                    request: request.signed_request.timestamped_value.value,
-                    public_key: request.signed_request.public_key,
-                };
-
-                let result = span2.in_scope(|| $handler(rc)).await;
-
-                let to_serialize = match result {
-                    Ok(response) => {
-                        info!("request processed successfully");
-                        Ok(response)
+                    let span2 = span!(
+                        Level::INFO,
+                        "verified_request_signature",
+                        username = username.as_str(),
+                        public_key = req_pk.as_str()
+                    );
+                    let rc: RequestContext<$Req> = RequestContext {
+                        server_state: state,
+                        request: request.signed_request.timestamped_value.value,
+                        public_key: request.signed_request.public_key,
+                    };
+                    async move {
+                        let to_serialize = match $handler(rc).await {
+                            Ok(response) => {
+                                info!("request processed successfully");
+                                Ok(response)
+                            }
+                            Err(ServerError::ClientError(e)) => {
+                                warn!("request rejected due to a client error: {:?}", e);
+                                Err(ErrorWrapper::Endpoint(e))
+                            }
+                            Err(ServerError::InternalError(e)) => {
+                                error!("Internal error {}: {}", <$Req>::ROUTE, e);
+                                Err(ErrorWrapper::InternalError)
+                            }
+                        };
+                        let response = warp::reply::json(&to_serialize);
+                        timer.observe_duration();
+                        response
                     }
-                    Err(ServerError::ClientError(e)) => {
-                        warn!("request rejected due to a client error: {:?}", e);
-                        Err(ErrorWrapper::Endpoint(e))
-                    }
-                    Err(ServerError::InternalError(e)) => {
-                        error!("Internal error {}: {}", <$Req>::ROUTE, e);
-                        Err(ErrorWrapper::InternalError)
-                    }
-                };
-                let response = warp::reply::json(&to_serialize);
-                timer.observe_duration();
-                response
+                    .instrument(span2)
+                    .await
+                }
+                .instrument(span1)
             })
     }};
 }
