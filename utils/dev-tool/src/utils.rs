@@ -45,11 +45,13 @@ pub fn swift_core_dir<P: AsRef<Path>>(root: P) -> PathBuf {
 }
 
 pub fn swift_inc<P: AsRef<Path>>(root: P) -> PathBuf {
-    swift_core_dir(root).join("Sources/CLockbookCore/include")
+    root.as_ref()
+        .join("clients/apple/CLockbookCore/Sources/CLockbookCore/include")
 }
 
 pub fn swift_lib<P: AsRef<Path>>(root: P) -> PathBuf {
-    swift_core_dir(root).join("Sources/CLockbookCore/lib")
+    root.as_ref()
+        .join("clients/apple/CLockbookCore/Sources/CLockbookCore/lib")
 }
 
 pub fn core_dir<P: AsRef<Path>>(root: P) -> PathBuf {
