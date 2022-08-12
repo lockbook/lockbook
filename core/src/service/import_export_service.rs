@@ -1,9 +1,8 @@
-use crate::model::repo::RepoSource;
-use crate::repo::document_repo;
-use crate::{Config, CoreError, RequestContext};
+use crate::{CoreError, RequestContext};
 use crate::{CoreResult, OneKey};
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Account;
+use lockbook_shared::core_config::Config;
 use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileType, Owner};
@@ -74,7 +73,7 @@ impl RequestContext<'_, '_> {
             return Err(CoreError::DiskPathInvalid);
         }
 
-        let mut tree = LazyStaged1::core_tree(
+        let tree = LazyStaged1::core_tree(
             Owner(self.get_public_key()?),
             &mut self.tx.base_metadata,
             &mut self.tx.local_metadata,
@@ -91,19 +90,21 @@ impl RequestContext<'_, '_> {
         Self::export_file_recursively(
             self.config,
             account,
-            &mut tree,
+            tree,
             &file,
             &destination,
             edit,
             &export_progress,
-        )
+        )?;
+
+        Ok(())
     }
 
     fn export_file_recursively<Base, Local>(
-        config: &Config, account: &Account, tree: &mut LazyStaged1<Base, Local>,
+        config: &Config, account: &Account, mut tree: LazyStaged1<Base, Local>,
         this_file: &Base::F, disk_path: &Path, edit: bool,
         export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
-    ) -> CoreResult<()>
+    ) -> CoreResult<LazyStaged1<Base, Local>>
     where
         Base: Stagable<F = SignedFile>,
         Local: Stagable<F = Base::F>,
@@ -124,11 +125,12 @@ impl RequestContext<'_, '_> {
 
                 for id in children {
                     if !tree.calculate_deleted(&id)? {
-                        RequestContext::export_file_recursively(
+                        let file = tree.find(&id)?.clone();
+                        tree = RequestContext::export_file_recursively(
                             config,
                             account,
                             tree,
-                            &tree.find(&id)?.clone(),
+                            &file,
                             &dest_with_new,
                             edit,
                             export_progress,
@@ -150,21 +152,20 @@ impl RequestContext<'_, '_> {
                 }
                 .map_err(CoreError::from)?;
 
-                let doc = document_repo::get(config, RepoSource::Local, *this_file.id())?;
+                let doc_read = tree.read_document(config, this_file.id(), account)?;
+                tree = doc_read.0;
+                let doc = doc_read.1;
 
-                file.write_all(
-                    tree.decrypt_document(this_file.id(), &doc, account)?
-                        .as_slice(),
-                )
-                .map_err(CoreError::from)?;
+                file.write_all(doc.as_slice()).map_err(CoreError::from)?;
             }
             FileType::Link { target } => {
                 if !tree.calculate_deleted(&target)? {
-                    RequestContext::export_file_recursively(
+                    let file = tree.find(&target)?.clone();
+                    tree = RequestContext::export_file_recursively(
                         config,
                         account,
                         tree,
-                        &tree.find(&target)?.clone(),
+                        &file,
                         disk_path,
                         edit,
                         export_progress,
@@ -173,7 +174,7 @@ impl RequestContext<'_, '_> {
             }
         }
 
-        Ok(())
+        Ok(tree)
     }
 
     fn import_file_recursively<F: Fn(ImportStatus), Base, Local>(
@@ -211,9 +212,7 @@ impl RequestContext<'_, '_> {
 
         let tree = if ftype == FileType::Document {
             let doc = fs::read(&disk_path).map_err(CoreError::from)?;
-            let (tree, doc) = tree.update_document(&id, &doc, account)?;
-            document_repo::insert(config, RepoSource::Local, id, &doc)?;
-
+            let tree = tree.write_document(config, &id, &doc, account)?;
             update_status(ImportStatus::FinishedItem(file));
             tree
         } else {
