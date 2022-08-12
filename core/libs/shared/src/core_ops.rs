@@ -602,7 +602,7 @@ where
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// let (base, local, remote) = ("hello", "hello local", "hello remote");
 /// let result = merge(base, local, remote, remote);
 /// assert_eq!(result, "hello remote");
