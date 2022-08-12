@@ -1,12 +1,12 @@
 use chrono::Datelike;
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
-use lockbook_core::model::repo::RepoSource;
 use lockbook_core::repo::schema::OneKey;
-use lockbook_core::repo::{document_repo, local_storage};
-use lockbook_core::{Config, Core};
+use lockbook_core::Core;
 use lockbook_shared::api::{PaymentMethod, StripeAccountTier};
+use lockbook_shared::core_config::Config;
 use lockbook_shared::crypto::EncryptedDocument;
+use lockbook_shared::document_repo::{self, RepoSource};
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::lazy::{LazyStaged1, LazyTree};
 use lockbook_shared::path_ops::Filter::DocumentsOnly;
@@ -17,7 +17,7 @@ use std::env;
 use std::fmt::Debug;
 use std::fs;
 use std::hash::Hash;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 pub fn test_config() -> Config {
@@ -270,37 +270,31 @@ pub fn assert_repo_integrity(core: &Core) {
 }
 
 pub fn doc_repo_get_all(config: &Config, source: RepoSource) -> Vec<EncryptedDocument> {
-    dump_local_storage::<_, Vec<u8>>(config, document_repo::namespace(source))
-        .into_iter()
-        .map(|s| bincode::deserialize(s.as_ref()).unwrap())
-        .collect::<Vec<EncryptedDocument>>()
-        .into_iter()
-        .collect()
+    let mut docs = vec![];
+    for file in list_files(config, &source) {
+        let content = fs::read(file).unwrap();
+        docs.push(bincode::deserialize(&content).unwrap());
+    }
+    docs
 }
 
-fn dump_local_storage<N, V>(db: &Config, namespace: N) -> Vec<V>
-where
-    N: AsRef<[u8]> + Copy,
-    V: From<Vec<u8>>,
-{
-    let path_str = local_storage::namespace_path(db, namespace);
-    let path = Path::new(&path_str);
+fn list_files(db: &Config, namespace: &RepoSource) -> Vec<String> {
+    let path = document_repo::namespace_path(db, namespace);
+    let path = Path::new(&path);
 
-    match fs::read_dir(path) {
+    match fs::read_dir(&path) {
         Ok(rd) => {
             let mut file_names = rd
-                .map(|dir_entry| dir_entry.unwrap().file_name().into_string().unwrap())
+                .map(|dir_entry| {
+                    let entry = dir_entry.unwrap().file_name().into_string().unwrap();
+                    let mut path = PathBuf::from(path);
+                    path.push(entry);
+                    path.to_str().unwrap().to_string()
+                })
                 .collect::<Vec<String>>();
             file_names.sort();
 
             file_names
-                .iter()
-                .map(|file_name| {
-                    local_storage::read(db, namespace, file_name)
-                        .unwrap()
-                        .unwrap()
-                })
-                .collect::<Vec<V>>()
         }
         Err(_) => Vec::new(),
     }
