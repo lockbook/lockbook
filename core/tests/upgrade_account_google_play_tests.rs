@@ -8,6 +8,7 @@ use test_utils::{
 };
 
 #[test]
+#[ignore]
 fn upgrade_account_google_play_already_premium() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
