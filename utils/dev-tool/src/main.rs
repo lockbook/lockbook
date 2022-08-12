@@ -77,12 +77,7 @@ impl Default for ToolEnvironment {
 
         env::set_var("CARGO_TARGET_DIR", &target_dir.to_str().unwrap());
 
-        Self {
-            root_dir,
-            target_dir,
-            hash_info_dir,
-            commit_hash: utils::get_commit_hash(),
-        }
+        Self { root_dir, target_dir, hash_info_dir, commit_hash: utils::get_commit_hash() }
     }
 }
 
