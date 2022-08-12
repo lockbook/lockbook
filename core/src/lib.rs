@@ -13,8 +13,8 @@ mod external_interface;
 pub use uuid::Uuid;
 
 pub use lockbook_shared::account::Account;
+pub use lockbook_shared::api::{GooglePlayAccountState, StripeAccountTier, SubscriptionInfo};
 pub use lockbook_shared::api::{PaymentMethod, PaymentPlatform};
-pub use lockbook_shared::api::{StripeAccountTier, SubscriptionInfo};
 pub use lockbook_shared::crypto::DecryptedDocument;
 pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 pub use lockbook_shared::file::File;
