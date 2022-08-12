@@ -30,7 +30,6 @@ pub fn run_server_detached(tool_env: ToolEnvironment) {
     let mut port;
 
     loop {
-        println!("STARTED");
         port = rand::thread_rng().gen_range(1024..u16::MAX);
 
         let mut run_result = Command::new(&hash_info.server_binary_path)
@@ -43,7 +42,6 @@ pub fn run_server_detached(tool_env: ToolEnvironment) {
         thread::sleep(Duration::from_millis(5000));
 
         if run_result.try_wait().unwrap().is_none() {
-            println!("RERUNNING");
             break;
         }
     }
@@ -86,7 +84,7 @@ pub fn run_rust_tests(tool_env: ToolEnvironment) {
     dotenv::from_path(utils::test_env_path(&tool_env.root_dir)).unwrap();
 
     Command::new("cargo")
-        .args(["test", "--release", "--no-fail-fast", "--all", "--", "--nocapture"])
+        .args(["test", "--workspace"])
         .env("API_URL", utils::get_api_url(hash_info.get_port()))
         .current_dir(tool_env.root_dir)
         .assert_success();

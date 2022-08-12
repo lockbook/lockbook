@@ -32,15 +32,6 @@ jobs:
       run: cargo run -p lockbook-dev -- run-android-lint
     - name: Run Swift Tests
       run: cargo run -p lockbook-dev -- run-swift-tests
-
-  Cleanup:
-    runs-on: [self-hosted, ci]
-    needs: [ Checks ]
-    if: always()
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      LOCKBOOK_CI: 1
-    steps:
-      - uses: actions/checkout@v2
-      - name: Cleanup
-        run: cargo run -p lockbook-dev -- kill-server
+    - name: Cleanup
+      if: always()
+      run: cargo run -p lockbook-dev -- kill-server
