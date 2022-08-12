@@ -1,5 +1,5 @@
-use std::env;
 use std::path::PathBuf;
+use std::{env, fs};
 use structopt::StructOpt;
 
 pub mod android;
@@ -74,6 +74,10 @@ impl Default for ToolEnvironment {
         let dev_dir = utils::dev_dir();
         let target_dir = utils::target_dir(&dev_dir, &root_dir);
         let hash_info_dir = utils::hash_infos_dir(&dev_dir);
+
+        fs::create_dir_all(&dev_dir).unwrap();
+        fs::create_dir_all(&hash_info_dir).unwrap();
+        fs::create_dir_all(&target_dir).unwrap();
 
         env::set_var("CARGO_TARGET_DIR", &target_dir.to_str().unwrap());
 

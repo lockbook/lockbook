@@ -53,12 +53,13 @@ pub fn run_server_detached(tool_env: ToolEnvironment) {
 }
 
 pub fn kill_server(tool_env: ToolEnvironment) {
-    let mut hash_info = HashInfo::get_from_dir(&tool_env.hash_info_dir, &tool_env.commit_hash);
+    let maybe_hash_info =
+        HashInfo::maybe_get_from_dir(&tool_env.hash_info_dir, &tool_env.commit_hash);
 
-    kill_server_at_port(&hash_info);
-
-    hash_info.maybe_port = None;
-    hash_info.save();
+    if let Some(hash_info) = maybe_hash_info {
+        kill_server_at_port(&hash_info);
+        hash_info.delete();
+    }
 }
 
 fn kill_server_at_port(hash_info: &HashInfo) {
@@ -72,9 +73,11 @@ pub fn kill_all_servers(tool_env: ToolEnvironment) {
 
     for child in children {
         let path = child.unwrap().path();
-        kill_server_at_port(&HashInfo::get_at_path(&path));
-
-        fs::remove_file(path).unwrap();
+        let maybe_hash_info = HashInfo::maybe_get_at_path(&path);
+        if let Some(hash_info) = maybe_hash_info {
+            kill_server_at_port(&hash_info);
+            hash_info.delete();
+        }
     }
 }
 

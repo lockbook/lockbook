@@ -2,7 +2,7 @@ use std::env;
 use std::process::{Command, Stdio};
 
 const NEEDED_COMMANDS: [&str; 4] = ["cargo", "cbindgen", "swift", "cargo-ndk"];
-const NEEDED_ENV_VARS: [&str; 2] = ["ANDROID_HOME", "ANDROID_NDK"];
+const NEEDED_ENV_VARS: [&str; 1] = ["ANDROID_HOME"];
 
 pub fn verify_ci_environment() {
     for command in NEEDED_COMMANDS {

@@ -9,7 +9,7 @@ on:
     branches: [ master ]
 
 jobs:
-  Verify-Commit:
+  Checks:
     runs-on: [self-hosted, ci]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -32,5 +32,16 @@ jobs:
       run: cargo run -p lockbook-dev -- run-android-lint
     - name: Run Swift Tests
       run: cargo run -p lockbook-dev -- run-swift-tests
-    - name: Cleanup
-      run: cargo run -p lockbook-dev -- kill-server
+
+  Cleanup:
+    runs-on: [self-hosted, ci]
+    needs: [ Checks ]
+    if: always()
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      LOCKBOOK_CI: 1
+    steps:
+      - uses: actions/checkout@v2
+      - name: Check Workspace Fmt
+      - name: Cleanup
+        run: cargo run -p lockbook-dev -- kill-server

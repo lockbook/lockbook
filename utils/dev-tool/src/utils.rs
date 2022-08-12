@@ -156,17 +156,25 @@ impl HashInfo {
 
     pub fn get_from_dir<P: AsRef<Path>>(hash_infos_dir: P, commit_hash: &str) -> Self {
         let hash_info_dir = hash_infos_dir.as_ref().join(commit_hash);
-        Self::get_at_path(hash_info_dir)
+        match Self::maybe_get_at_path(hash_info_dir) {
+            None => {
+                panic!("No hash info file found. Server may not be running or even built!")
+            }
+            Some(hash_info) => hash_info,
+        }
     }
 
-    pub fn get_at_path<P: AsRef<Path>>(hash_info_dir: P) -> Self {
-        match fs::read_to_string(hash_info_dir) {
-            Ok(contents) => serde_json::from_str(&contents).unwrap(),
-            Err(e) => panic!(
-                "No hash info file found. Server may not be running or even built! err: {:?}",
-                e
-            ),
-        }
+    pub fn maybe_get_from_dir<P: AsRef<Path>>(
+        hash_infos_dir: P, commit_hash: &str,
+    ) -> Option<Self> {
+        let hash_info_dir = hash_infos_dir.as_ref().join(commit_hash);
+        Self::maybe_get_at_path(hash_info_dir)
+    }
+
+    pub fn maybe_get_at_path<P: AsRef<Path>>(hash_info_dir: P) -> Option<Self> {
+        fs::read_to_string(hash_info_dir)
+            .ok()
+            .map(|contents| serde_json::from_str(&contents).unwrap())
     }
 
     pub fn save(&self) {
@@ -174,5 +182,9 @@ impl HashInfo {
             .unwrap()
             .write_all(serde_json::to_string(self).unwrap().as_bytes())
             .unwrap();
+    }
+
+    pub fn delete(&self) {
+        fs::remove_file(&self.hash_info_dir).unwrap();
     }
 }
