@@ -1,5 +1,3 @@
-extern crate tracing;
-
 use crate::core_config::Config;
 use crate::crypto::*;
 use crate::{SharedError, SharedResult};
