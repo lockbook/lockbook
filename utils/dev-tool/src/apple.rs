@@ -13,19 +13,16 @@ pub fn run_swift_tests(tool_env: &ToolEnvironment) {
 
     make_swift_test_lib(tool_env);
 
-    Command::new("swift")
-        .arg("build")
-        .current_dir(utils::swift_dir(&tool_env.root_dir))
-        .assert_success();
+    let swift_core_dir = utils::swift_core_dir(&tool_env.root_dir);
 
     Command::new("swift")
-        .args(&["test", "--generate-linuxmain"])
-        .current_dir(utils::swift_dir(&tool_env.root_dir))
+        .arg("build")
+        .current_dir(&swift_core_dir)
         .assert_success();
 
     Command::new("swift")
         .arg("test")
-        .current_dir(utils::swift_dir(&tool_env.root_dir))
+        .current_dir(&swift_core_dir)
         .env("API_URL", utils::get_api_url(hash_info.get_port()))
         .assert_success();
 }
