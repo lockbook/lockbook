@@ -98,11 +98,13 @@ public enum CreateFileAtPathError: String, UiError {
     case NoRoot
     case PathContainsEmptyFile
     case PathDoesntStartWithRoot
+    case InsufficientPermission
 }
 
 public enum WriteToDocumentError: String, UiError {
     case FileDoesNotExist
     case FolderTreatedAsDocument
+    case InsufficientPermission
 }
 
 public enum CreateFileError: String, UiError {
