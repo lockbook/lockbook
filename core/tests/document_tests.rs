@@ -1,8 +1,7 @@
 use uuid::Uuid;
 
 use lockbook_shared::crypto::AESEncrypted;
-use lockbook_shared::document_repo;
-use lockbook_shared::document_repo::RepoSource;
+use lockbook_shared::document_repo::{self, RepoSource};
 use lockbook_shared::symkey;
 use test_utils::*;
 

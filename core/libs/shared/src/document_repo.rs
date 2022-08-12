@@ -3,8 +3,7 @@ extern crate tracing;
 use crate::core_config::Config;
 use crate::crypto::*;
 use crate::{SharedError, SharedResult};
-use std::fs;
-use std::fs::{create_dir_all, remove_file, File, OpenOptions};
+use std::fs::{self, create_dir_all, remove_file, File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
 use std::path::Path;
 use tracing::*;
@@ -24,6 +23,7 @@ impl RepoSource {
         }
     }
 }
+
 pub fn namespace_path(db: &Config, namespace: &RepoSource) -> String {
     format!("{}/{}", db.writeable_path, namespace.disk_name())
 }
@@ -73,10 +73,11 @@ pub fn maybe_get(
             _ => return Err(err.into()),
         },
     };
-    match maybe_data {
-        None => Ok(None),
-        Some(data) => Ok(bincode::deserialize(&data).map(Some)?),
-    }
+    
+    Ok(match maybe_data {
+        Some(data) => bincode::deserialize(&data).map(Some)?,
+        None => None,
+    })
 }
 
 #[instrument(level = "debug", skip(config), err(Debug))]
