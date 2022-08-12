@@ -5,7 +5,9 @@ use libsecp256k1::PublicKey;
 use uuid::Uuid;
 
 use crate::account::Account;
-use crate::crypto::EncryptedDocument;
+use crate::core_config::Config;
+use crate::crypto::{DecryptedDocument, EncryptedDocument};
+use crate::document_repo::RepoSource;
 use crate::file::File;
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileMetadata, FileType};
@@ -15,7 +17,7 @@ use crate::secret_filename::{HmacSha256, SecretFileName};
 use crate::signed_file::SignedFile;
 use crate::staged::StagedTree;
 use crate::tree_like::{Stagable, TreeLike};
-use crate::{compression_service, symkey, validate, SharedError, SharedResult};
+use crate::{compression_service, document_repo, symkey, validate, SharedError, SharedResult};
 
 pub type TreeWithOp<Base, Local> = LazyTree<StagedTree<Stage1<Base, Local>, Option<SignedFile>>>;
 pub type TreeWithOps<Base, Local> = LazyTree<StagedTree<Stage1<Base, Local>, Vec<SignedFile>>>;
@@ -151,12 +153,51 @@ where
         Ok(self.stage(Some(file)))
     }
 
+    pub fn read_document(
+        mut self, config: &Config, id: &Uuid, account: &Account,
+    ) -> SharedResult<(Self, DecryptedDocument)> {
+        if self.calculate_deleted(id)? {
+            return Err(SharedError::FileNonexistent);
+        }
+
+        let meta = self.find(&id)?;
+        validate::is_document(meta)?;
+        if meta.document_hmac().is_none() {
+            return Ok((self, vec![]));
+        }
+
+        let maybe_encrypted_document =
+            match document_repo::maybe_get(config, RepoSource::Local, meta.id())? {
+                Some(local) => Some(local),
+                None => document_repo::maybe_get(config, RepoSource::Base, meta.id())?,
+            };
+
+        let doc = match maybe_encrypted_document {
+            Some(doc) => self.decrypt_document(&id, &doc, account)?,
+            None => return Err(SharedError::FileNonexistent),
+        };
+
+        Ok((self, doc))
+    }
+
+    pub fn write_document(
+        mut self, config: &Config, id: &Uuid, document: &[u8], account: &Account,
+    ) -> SharedResult<Self> {
+        if self.calculate_deleted(id)? {
+            return Err(SharedError::FileNonexistent);
+        }
+
+        let (tree, document) = self.update_document(id, document, account)?;
+        document_repo::insert(config, RepoSource::Local, id, &document)?;
+
+        Ok(tree)
+    }
+
     // todo: validate, split out non-validating version (stage_update_document)
     pub fn update_document(
         mut self, id: &Uuid, document: &[u8], account: &Account,
     ) -> SharedResult<(Self, EncryptedDocument)> {
         let mut file: FileMetadata = self.find(id)?.timestamped_value.value.clone();
-        validate::not_root(&file)?;
         validate::is_document(&file)?;
 
         let key = self.decrypt_key(id, account)?;
