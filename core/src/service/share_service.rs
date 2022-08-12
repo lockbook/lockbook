@@ -18,7 +18,6 @@ impl RequestContext<'_, '_> {
             ShareMode::Write => UserAccessMode::Write,
             ShareMode::Read => UserAccessMode::Read,
         };
-
         let mut tree = self
             .tx
             .base_metadata
@@ -28,38 +27,38 @@ impl RequestContext<'_, '_> {
         if tree.calculate_deleted(&id)? {
             return Err(CoreError::FileNonexistent);
         }
-
         validate::not_root(&file)?;
         if mode == ShareMode::Write && file.owner.0 != owner.0 {
             return Err(CoreError::InsufficientPermission);
         }
-
         // check for and remove duplicate shares
         let mut found = false;
+        let sharee_public_key =
+            api_service::request(account, GetPublicKeyRequest { username: String::from(username) })
+                .map_err(CoreError::from)?
+                .key;
         for user_access in &mut file.user_access_keys {
-            if user_access.encrypted_for == owner.0 {
+            if user_access.encrypted_for == sharee_public_key {
                 found = true;
                 if user_access.mode == access_mode {
                     return Err(CoreError::ShareAlreadyExists);
-                } else {
-                    user_access.mode = access_mode;
                 }
             }
         }
-        if !found {
-            let sharee_public_key = api_service::request(
-                account,
-                GetPublicKeyRequest { username: String::from(username) },
-            )
-            .map_err(CoreError::from)?
-            .key;
-            file.user_access_keys.push(UserAccessInfo::encrypt(
-                account,
-                &owner.0,
-                &sharee_public_key,
-                &tree.decrypt_key(&id, account)?,
-            )?);
+        if found {
+            file.user_access_keys = file
+                .user_access_keys
+                .into_iter()
+                .filter(|k| k.encrypted_for != sharee_public_key)
+                .collect();
         }
+        file.user_access_keys.push(UserAccessInfo::encrypt(
+            account,
+            &owner.0,
+            &sharee_public_key,
+            &tree.decrypt_key(&id, account)?,
+            access_mode,
+        )?);
 
         let mut tree = tree.stage(Some(file.sign(account)?));
         tree.validate()?;
@@ -127,6 +126,10 @@ impl RequestContext<'_, '_> {
         // file must be owned by another user
         if file.owner() == owner {
             return Err(CoreError::FileNotShared);
+        }
+        // must have access to file
+        if tree.access_mode(owner, &id)?.is_none() {
+            return Err(CoreError::FileNonexistent); // todo: put this shit everywhere
         }
         // file must be shared with this user
         match file

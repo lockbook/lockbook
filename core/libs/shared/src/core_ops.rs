@@ -4,13 +4,14 @@ use hmac::{Mac, NewMac};
 use libsecp256k1::PublicKey;
 use uuid::Uuid;
 
+use crate::access_info::UserAccessMode;
 use crate::account::Account;
 use crate::core_config::Config;
 use crate::crypto::{DecryptedDocument, EncryptedDocument};
 use crate::document_repo::RepoSource;
 use crate::file::File;
 use crate::file_like::FileLike;
-use crate::file_metadata::{FileMetadata, FileType};
+use crate::file_metadata::{FileMetadata, FileType, Owner};
 use crate::filename::{DocumentType, NameComponents};
 use crate::lazy::{LazyStage2, LazyStaged1, LazyTree, Stage1};
 use crate::secret_filename::{HmacSha256, SecretFileName};
@@ -186,6 +187,10 @@ where
         if self.calculate_deleted(id)? {
             return Err(SharedError::FileNonexistent);
         }
+        match self.access_mode(Owner(account.public_key()), id)? {
+            None | Some(UserAccessMode::Read) => return Err(SharedError::InsufficientPermission),
+            Some(UserAccessMode::Owner | UserAccessMode::Write) => {}
+        }
 
         let (tree, document) = self.update_document(id, document, account)?;
         document_repo::insert(config, RepoSource::Local, id, &document)?;
@@ -235,7 +240,7 @@ where
         self, account: &Account,
     ) -> SharedResult<TreeWithOps<Base, Local>> {
         let mut result = self.stage(Vec::new());
-        result.assert_no_orphans()?;
+        result.assert_all_files_decryptable()?;
 
         let mut root_found = false;
         let mut no_cycles_in_ancestors = HashSet::new();
@@ -324,7 +329,7 @@ where
         self, account: &Account,
     ) -> SharedResult<TreeWithOps<Base, Local>> {
         let mut result = self.stage(Vec::new());
-        result.assert_no_orphans()?;
+        result.assert_all_files_decryptable()?;
         result.assert_no_cycles()?;
         result.assert_names_decryptable(account)?;
 

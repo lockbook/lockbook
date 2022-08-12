@@ -181,11 +181,15 @@ impl From<SharedError> for CoreError {
             FileNameEmpty => CoreError::FileNameEmpty,
             FileNotFolder => CoreError::FileNotFolder,
             FileNotDocument => CoreError::FileNotDocument,
+            InsufficientPermission => CoreError::InsufficientPermission,
             ValidationFailure(lockbook_shared::ValidationFailure::Cycle(_)) => {
                 CoreError::FolderMovedIntoSelf
             }
             ValidationFailure(lockbook_shared::ValidationFailure::PathConflict(_)) => {
                 CoreError::PathTaken
+            }
+            ValidationFailure(lockbook_shared::ValidationFailure::SharedLink { .. }) => {
+                CoreError::LinkInSharedFolder
             }
             _ => CoreError::Unexpected(format!("unexpected shared error {:?}", err)),
         }
@@ -984,6 +988,7 @@ pub enum TestRepoError {
     FileNameContainsSlash(Uuid),
     PathConflict(HashSet<Uuid>),
     NonDecryptableFileName(Uuid),
+    SharedLink { link: Uuid, shared_ancestor: Uuid },
     DocumentReadError(Uuid, CoreError),
     Core(CoreError),
     Shared(SharedError),
@@ -1001,6 +1006,9 @@ impl From<SharedError> for TestRepoError {
                 }
                 ValidationFailure::NonDecryptableFileName(id) => {
                     TestRepoError::NonDecryptableFileName(id)
+                }
+                ValidationFailure::SharedLink { link, shared_ancestor } => {
+                    TestRepoError::SharedLink { link, shared_ancestor }
                 }
             },
             _ => TestRepoError::Shared(err),

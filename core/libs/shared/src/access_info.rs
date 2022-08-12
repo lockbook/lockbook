@@ -25,19 +25,23 @@ pub struct UserAccessInfo {
 
 impl PartialEq for UserAccessInfo {
     fn eq(&self, other: &Self) -> bool {
-        self.encrypted_for == other.encrypted_for && self.encrypted_by == other.encrypted_by
+        self.mode == other.mode
+            && self.encrypted_for == other.encrypted_for
+            && self.encrypted_by == other.encrypted_by
+            && self.deleted == other.deleted
     }
 }
 
 impl UserAccessInfo {
     pub fn encrypt(
         account: &Account, encrypted_by: &PublicKey, encrypted_for: &PublicKey, key: &AESKey,
+        mode: UserAccessMode,
     ) -> SharedResult<Self> {
         let private_key = account.private_key;
         let user_key = pubkey::get_aes_key(&private_key, encrypted_for)?;
         let encrypted_file_key = symkey::encrypt(&user_key, key)?;
         Ok(UserAccessInfo {
-            mode: UserAccessMode::Owner,
+            mode,
             encrypted_by: *encrypted_by,
             encrypted_for: *encrypted_for,
             access_key: encrypted_file_key,

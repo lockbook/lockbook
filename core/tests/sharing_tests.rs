@@ -26,6 +26,7 @@ fn write_document_read_share() {
     cores[0]
         .share_file(document0.id, &accounts[1].username, ShareMode::Read)
         .unwrap();
+    println!("sharing {:?}", document0.id);
     cores[0].sync(None).unwrap();
 
     cores[1].sync(None).unwrap();
@@ -104,7 +105,6 @@ fn share_file_in_shared_folder() {
 }
 
 #[test]
-#[ignore]
 fn share_file_duplicate() {
     let core = test_core_with_account();
     let sharee_core = test_core_with_account();
@@ -140,7 +140,6 @@ fn share_file_duplicate_new_mode() {
 }
 
 #[test]
-#[ignore]
 fn share_folder_with_link_inside() {
     let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
@@ -173,7 +172,6 @@ fn share_folder_with_link_inside() {
 }
 
 #[test]
-#[ignore]
 fn share_unowned_file_read() {
     let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
@@ -199,7 +197,6 @@ fn share_unowned_file_read() {
 }
 
 #[test]
-#[ignore]
 fn share_unowned_file_write() {
     let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
@@ -224,7 +221,6 @@ fn share_unowned_file_write() {
 }
 
 #[test]
-#[ignore]
 fn delete_pending_share() {
     let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
@@ -257,7 +253,6 @@ fn delete_pending_share_root() {
 }
 
 #[test]
-#[ignore]
 fn delete_pending_share_duplicate() {
     let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
@@ -283,7 +278,6 @@ fn delete_pending_share_duplicate() {
 }
 
 #[test]
-#[ignore]
 fn delete_pending_share_nonexistent() {
     let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
     let accounts = cores
@@ -309,7 +303,6 @@ fn delete_pending_share_nonexistent() {
 }
 
 #[test]
-#[ignore]
 fn create_at_path_insufficient_permission() {
     let core1 = test_core_with_account();
     let account1 = core1.get_account().unwrap();
@@ -334,7 +327,6 @@ fn create_at_path_insufficient_permission() {
 }
 
 #[test]
-#[ignore]
 fn get_path_by_id_link() {
     let core1 = test_core_with_account();
     let account1 = core1.get_account().unwrap();
@@ -359,7 +351,6 @@ fn get_path_by_id_link() {
 }
 
 #[test]
-#[ignore]
 fn create_link_at_path_target_is_owned() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
@@ -373,7 +364,6 @@ fn create_link_at_path_target_is_owned() {
 }
 
 #[test]
-#[ignore]
 fn create_link_at_path_target_nonexistent() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
@@ -383,7 +373,6 @@ fn create_link_at_path_target_nonexistent() {
 }
 
 #[test]
-#[ignore]
 fn create_link_at_path_link_in_shared_folder() {
     let cores = vec![test_core_with_account(), test_core_with_account()];
     let accounts = cores
@@ -422,7 +411,6 @@ fn create_link_at_path_link_in_shared_folder() {
 }
 
 #[test]
-#[ignore]
 fn create_link_at_path_link_duplicate() {
     let cores = vec![test_core_with_account(), test_core_with_account()];
     let accounts = cores

@@ -226,7 +226,7 @@ impl RequestContext<'_, '_> {
         let mut result = Vec::new();
         for id in remote.tree.staged.owned_ids() {
             let meta = remote.find(&id)?;
-            if remote.maybe_find_parent(meta).is_some() || meta.shared_access(&me) {
+            if remote.maybe_find_parent(meta).is_some() || meta.access_mode(&me).is_some() {
                 result.push(remote.find(&id)?.clone()); // todo: don't clone
             }
         }

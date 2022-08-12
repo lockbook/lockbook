@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use uuid::Uuid;
 
-use crate::access_info::{EncryptedFolderAccessKey, UserAccessInfo};
+use crate::access_info::{EncryptedFolderAccessKey, UserAccessInfo, UserAccessMode};
 use crate::file_metadata::{DocumentHmac, FileMetadata, FileType, Owner};
 use crate::secret_filename::SecretFileName;
 use crate::server_file::ServerFile;
@@ -32,14 +32,18 @@ pub trait FileLike: PartialEq + Debug {
         self.id() == self.parent()
     }
 
-    fn has_access(&self, pk: &Owner) -> bool {
-        &self.owner() == pk || self.shared_access(pk)
-    }
-
-    fn shared_access(&self, pk: &Owner) -> bool {
+    fn access_mode(&self, pk: &Owner) -> Option<UserAccessMode> {
         self.user_access_keys()
             .iter()
-            .any(|access| access.encrypted_for == pk.0)
+            .filter(|k| !k.deleted)
+            .find(|k| k.encrypted_for == pk.0)
+            .map(|k| k.mode)
+    }
+
+    fn is_shared(&self) -> bool {
+        self.user_access_keys()
+            .iter()
+            .any(|k| k.encrypted_for != k.encrypted_by)
     }
 }
 
