@@ -23,7 +23,7 @@ pub fn run_swift_tests(tool_env: &ToolEnvironment) {
     Command::new("swift")
         .arg("test")
         .current_dir(&swift_core_dir)
-        .env("API_URL", utils::get_api_url(hash_info.get_port()))
+        .env("API_URL", utils::get_api_url(hash_info.port))
         .assert_success();
 }
 

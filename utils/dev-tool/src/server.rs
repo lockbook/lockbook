@@ -8,7 +8,6 @@ use std::{fs, thread};
 
 pub fn run_server_detached(tool_env: &ToolEnvironment) {
     dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
-    let mut hash_info = HashInfo::new(&tool_env.hash_info_dir, &tool_env.commit_hash);
 
     let mut port;
 
@@ -30,7 +29,7 @@ pub fn run_server_detached(tool_env: &ToolEnvironment) {
         }
     }
 
-    hash_info.maybe_port = Some(port);
+    let hash_info = HashInfo::new(&tool_env.hash_info_dir, &tool_env.commit_hash, port);
     hash_info.save();
 }
 
@@ -46,7 +45,7 @@ pub fn kill_server(tool_env: &ToolEnvironment) {
 
 fn kill_server_at_port(hash_info: &HashInfo) {
     Command::new("fuser")
-        .args(["-k", &format!("{}/tcp", hash_info.get_port())])
+        .args(["-k", &format!("{}/tcp", hash_info.port)])
         .assert_success();
 }
 
@@ -69,7 +68,7 @@ pub fn run_rust_tests(tool_env: &ToolEnvironment) {
 
     Command::new("cargo")
         .args(["test", "--workspace"])
-        .env("API_URL", utils::get_api_url(hash_info.get_port()))
+        .env("API_URL", utils::get_api_url(hash_info.port))
         .current_dir(&tool_env.root_dir)
         .assert_success();
 }

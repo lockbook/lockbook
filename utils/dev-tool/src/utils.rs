@@ -40,20 +40,16 @@ pub fn jni_lib_dir<P: AsRef<Path>>(root: P) -> PathBuf {
     android_dir(root).join("core/src/main/jniLibs")
 }
 
-pub fn swift_dir<P: AsRef<Path>>(root: P) -> PathBuf {
+pub fn swift_core_dir<P: AsRef<Path>>(root: P) -> PathBuf {
     root.as_ref().join("clients/apple/SwiftLockbookCore")
 }
 
-pub fn swift_core_dir<P: AsRef<Path>>(root: P) -> PathBuf {
-    swift_dir(root).join("SwiftLockbookCore")
-}
-
 pub fn swift_inc<P: AsRef<Path>>(root: P) -> PathBuf {
-    swift_dir(root).join("Sources/CLockbookCore/include")
+    swift_core_dir(root).join("Sources/CLockbookCore/include")
 }
 
 pub fn swift_lib<P: AsRef<Path>>(root: P) -> PathBuf {
-    swift_dir(root).join("Sources/CLockbookCore/lib")
+    swift_core_dir(root).join("Sources/CLockbookCore/lib")
 }
 
 pub fn core_dir<P: AsRef<Path>>(root: P) -> PathBuf {
@@ -130,19 +126,15 @@ pub fn is_ci_env() -> bool {
 
 #[derive(Serialize, Deserialize)]
 pub struct HashInfo {
-    pub maybe_port: Option<u16>,
+    pub port: u16,
     pub hash_info_dir: PathBuf,
 }
 
 impl HashInfo {
-    pub fn new<P: AsRef<Path>>(hash_infos_dir: P, commit_hash: &str) -> Self {
+    pub fn new<P: AsRef<Path>>(hash_infos_dir: P, commit_hash: &str, port: u16) -> Self {
         let hash_info_dir = hash_infos_dir.as_ref().join(commit_hash);
 
-        Self { maybe_port: None, hash_info_dir }
-    }
-
-    pub fn get_port(&self) -> u16 {
-        self.maybe_port.unwrap()
+        Self { port, hash_info_dir }
     }
 
     pub fn get_from_dir<P: AsRef<Path>>(hash_infos_dir: P, commit_hash: &str) -> Self {
