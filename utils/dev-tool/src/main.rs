@@ -1,13 +1,13 @@
-use std::path::PathBuf;
-use std::{env, fs};
-use structopt::StructOpt;
-
 pub mod android;
 pub mod apple;
 pub mod server;
 pub mod setup;
 pub mod utils;
 pub mod workspace;
+
+use std::path::PathBuf;
+use std::{env, fs};
+use structopt::StructOpt;
 
 #[derive(Debug, PartialEq, StructOpt)]
 #[structopt(about = "Lockbook's development and ci tool.")]
@@ -57,7 +57,6 @@ enum Commands {
     KillAllServers,
 }
 
-#[derive(Clone)]
 pub struct ToolEnvironment {
     root_dir: PathBuf,
     target_dir: PathBuf,
@@ -93,18 +92,18 @@ fn main() {
     use Commands::*;
     match Commands::from_args() {
         VerifyCIEnvironment => setup::verify_ci_environment(),
-        CheckWorkspaceFmt => workspace::fmt_workspace(tool_env),
-        CheckWorkspaceClippy => workspace::clippy_workspace(tool_env),
-        CheckAndroidFmt => android::fmt_android(tool_env),
-        CheckAndroidLint => android::lint_android(tool_env),
-        MakeKotlinLibs => android::make_android_libs(tool_env),
-        MakeKotlinTestLib => android::make_android_test_lib(tool_env),
-        MakeSwiftTestLib => apple::make_swift_test_lib(tool_env),
-        RunServer => server::run_server_detached(tool_env),
-        RunRustTests => server::run_rust_tests(tool_env),
-        RunKotlinTests => android::run_kotlin_tests(tool_env),
-        RunSwiftTests => apple::run_swift_tests(tool_env),
-        KillServer => server::kill_server(tool_env),
-        KillAllServers => server::kill_all_servers(tool_env),
+        CheckWorkspaceFmt => workspace::fmt_workspace(&tool_env),
+        CheckWorkspaceClippy => workspace::clippy_workspace(&tool_env),
+        CheckAndroidFmt => android::fmt_android(&tool_env),
+        CheckAndroidLint => android::lint_android(&tool_env),
+        MakeKotlinLibs => android::make_android_libs(&tool_env),
+        MakeKotlinTestLib => android::make_android_test_lib(&tool_env),
+        MakeSwiftTestLib => apple::make_swift_test_lib(&tool_env),
+        RunServer => server::run_server_detached(&tool_env),
+        RunRustTests => server::run_rust_tests(&tool_env),
+        RunKotlinTests => android::run_kotlin_tests(&tool_env),
+        RunSwiftTests => apple::run_swift_tests(&tool_env),
+        KillServer => server::kill_server(&tool_env),
+        KillAllServers => server::kill_all_servers(&tool_env),
     }
 }

@@ -8,11 +8,11 @@ use std::process::{Command, Stdio};
 const LIB_NAME_HEADER: &str = "lockbook_core.h";
 const LIB_NAME: &str = "liblockbook_core.a";
 
-pub fn run_swift_tests(tool_env: ToolEnvironment) {
+pub fn run_swift_tests(tool_env: &ToolEnvironment) {
     let hash_info = HashInfo::get_from_dir(&tool_env.hash_info_dir, &tool_env.commit_hash);
     dotenv::from_path(utils::test_env_path(&tool_env.root_dir)).unwrap();
 
-    make_swift_test_lib(tool_env.clone());
+    make_swift_test_lib(tool_env);
 
     Command::new("swift")
         .arg("build")
@@ -31,7 +31,7 @@ pub fn run_swift_tests(tool_env: ToolEnvironment) {
         .assert_success();
 }
 
-pub fn make_swift_test_lib(tool_env: ToolEnvironment) {
+pub fn make_swift_test_lib(tool_env: &ToolEnvironment) {
     let core_dir = utils::core_dir(&tool_env.root_dir);
     let c_interface_dir = core_dir
         .join("src/external_interface/c_interface.rs")

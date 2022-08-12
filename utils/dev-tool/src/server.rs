@@ -6,7 +6,7 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 use std::{fs, thread};
 
-pub fn run_server_detached(tool_env: ToolEnvironment) {
+pub fn run_server_detached(tool_env: &ToolEnvironment) {
     dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
     let mut hash_info = HashInfo::new(&tool_env.hash_info_dir, &tool_env.commit_hash);
 
@@ -34,7 +34,7 @@ pub fn run_server_detached(tool_env: ToolEnvironment) {
     hash_info.save();
 }
 
-pub fn kill_server(tool_env: ToolEnvironment) {
+pub fn kill_server(tool_env: &ToolEnvironment) {
     let maybe_hash_info =
         HashInfo::maybe_get_from_dir(&tool_env.hash_info_dir, &tool_env.commit_hash);
 
@@ -50,7 +50,7 @@ fn kill_server_at_port(hash_info: &HashInfo) {
         .assert_success();
 }
 
-pub fn kill_all_servers(tool_env: ToolEnvironment) {
+pub fn kill_all_servers(tool_env: &ToolEnvironment) {
     let children = fs::read_dir(&tool_env.hash_info_dir).unwrap();
 
     for child in children {
@@ -63,13 +63,13 @@ pub fn kill_all_servers(tool_env: ToolEnvironment) {
     }
 }
 
-pub fn run_rust_tests(tool_env: ToolEnvironment) {
+pub fn run_rust_tests(tool_env: &ToolEnvironment) {
     let hash_info = HashInfo::get_from_dir(&tool_env.hash_info_dir, &tool_env.commit_hash);
     dotenv::from_path(utils::test_env_path(&tool_env.root_dir)).unwrap();
 
     Command::new("cargo")
         .args(["test", "--workspace"])
         .env("API_URL", utils::get_api_url(hash_info.get_port()))
-        .current_dir(tool_env.root_dir)
+        .current_dir(&tool_env.root_dir)
         .assert_success();
 }

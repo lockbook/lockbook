@@ -8,8 +8,8 @@ use std::process::Command;
 const MIN_NDK_VERSION: u32 = 22;
 const NDK_LIB_NAME: &str = "liblockbook_core.so";
 
-pub fn fmt_android(tool_env: ToolEnvironment) {
-    let android_dir = utils::android_dir(tool_env.root_dir);
+pub fn fmt_android(tool_env: &ToolEnvironment) {
+    let android_dir = utils::android_dir(&tool_env.root_dir);
 
     Command::new(android_dir.join("gradlew"))
         .arg("lintKotlin")
@@ -17,8 +17,8 @@ pub fn fmt_android(tool_env: ToolEnvironment) {
         .assert_success();
 }
 
-pub fn lint_android(tool_env: ToolEnvironment) {
-    let android_dir = utils::android_dir(tool_env.root_dir);
+pub fn lint_android(tool_env: &ToolEnvironment) {
+    let android_dir = utils::android_dir(&tool_env.root_dir);
 
     Command::new(android_dir.join("gradlew"))
         .arg("lint")
@@ -26,11 +26,11 @@ pub fn lint_android(tool_env: ToolEnvironment) {
         .assert_success();
 }
 
-pub fn run_kotlin_tests(tool_env: ToolEnvironment) {
+pub fn run_kotlin_tests(tool_env: &ToolEnvironment) {
     let hash_info = HashInfo::get_from_dir(&tool_env.hash_info_dir, &tool_env.commit_hash);
     dotenv::from_path(utils::test_env_path(&tool_env.root_dir)).unwrap();
 
-    make_android_test_lib(tool_env.clone());
+    make_android_test_lib(tool_env);
 
     let android_dir = utils::android_dir(&tool_env.root_dir);
 
@@ -41,7 +41,7 @@ pub fn run_kotlin_tests(tool_env: ToolEnvironment) {
         .assert_success();
 }
 
-pub fn make_android_libs(tool_env: ToolEnvironment) {
+pub fn make_android_libs(tool_env: &ToolEnvironment) {
     let core_dir = utils::core_dir(&tool_env.root_dir);
 
     build_core_for_android_arch(&core_dir, "aarch64-linux-android");
@@ -90,7 +90,7 @@ pub fn make_android_libs(tool_env: ToolEnvironment) {
     .unwrap();
 }
 
-pub fn make_android_test_lib(tool_env: ToolEnvironment) {
+pub fn make_android_test_lib(tool_env: &ToolEnvironment) {
     Command::new("cargo")
         .args(["build", "--lib", "--release"])
         .current_dir(&utils::core_dir(&tool_env.root_dir))

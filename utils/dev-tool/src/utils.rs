@@ -149,12 +149,9 @@ impl HashInfo {
 
     pub fn get_from_dir<P: AsRef<Path>>(hash_infos_dir: P, commit_hash: &str) -> Self {
         let hash_info_dir = hash_infos_dir.as_ref().join(commit_hash);
-        match Self::maybe_get_at_path(hash_info_dir) {
-            None => {
-                panic!("No hash info file found. Server may not be running or even built!")
-            }
-            Some(hash_info) => hash_info,
-        }
+
+        Self::maybe_get_at_path(hash_info_dir)
+            .expect("No hash info file found. Server may not be running or even built!")
     }
 
     pub fn maybe_get_from_dir<P: AsRef<Path>>(
