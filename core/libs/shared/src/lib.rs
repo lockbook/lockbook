@@ -3,9 +3,11 @@ pub mod account;
 pub mod api;
 pub mod clock;
 pub mod compression_service;
+pub mod core_config;
 pub mod core_ops;
 pub mod core_tree;
 pub mod crypto;
+pub mod document_repo;
 pub mod drawing;
 pub mod file;
 pub mod file_like;
@@ -26,6 +28,7 @@ pub mod validate;
 pub mod work_unit;
 
 pub use lazy::ValidationFailure;
+use std::io;
 
 use hmac::crypto_mac::{InvalidKeyLength, MacError};
 
@@ -81,11 +84,19 @@ pub enum SharedError {
     /// Found update to a deleted file
     DeletedFileUpdated,
 
+    Io(String),
+
     Unexpected(&'static str),
 }
 
 impl From<bincode::Error> for SharedError {
     fn from(err: bincode::Error) -> Self {
         Self::BincodeError(err.to_string())
+    }
+}
+
+impl From<io::Error> for SharedError {
+    fn from(err: io::Error) -> Self {
+        Self::Io(err.to_string())
     }
 }
