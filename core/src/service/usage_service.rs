@@ -100,5 +100,9 @@ pub fn bytes_to_human(size: u64) -> String {
     let size_in_unit = size as f64 / unit as f64;
     let dec = f64::trunc(size_in_unit.fract() * 100.0) / 100.0;
 
-    format!("{} {}", size_in_unit.trunc() + dec, abbr)
+    let num = format!("{:.2}", size_in_unit.trunc() + dec)
+        .trim_end_matches(['.', '0'])
+        .to_owned();
+
+    format!("{} {}", num, abbr)
 }
