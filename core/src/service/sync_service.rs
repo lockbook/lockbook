@@ -7,7 +7,6 @@ use crate::{CoreError, RequestContext};
 use lockbook_shared::api::{
     ChangeDocRequest, GetDocRequest, GetUpdatesRequest, GetUpdatesResponse, UpsertRequest,
 };
-use lockbook_shared::core_tree::CoreTree;
 use lockbook_shared::document_repo::{self, RepoSource};
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{DocumentHmac, FileDiff, Owner};

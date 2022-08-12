@@ -1,14 +1,12 @@
 use crate::{CoreError, RequestContext};
 use crate::{CoreResult, OneKey};
 use lockbook_shared::crypto::DecryptedDocument;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::tree_like::{Stagable, TreeLike};
-use lockbook_shared::validate;
+use lockbook_shared::tree_like::Stagable;
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
     pub fn read_document(&mut self, id: Uuid) -> CoreResult<DecryptedDocument> {
-        let mut tree = self
+        let tree = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)
@@ -25,7 +23,7 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn write_document(&mut self, id: Uuid, content: &[u8]) -> CoreResult<()> {
-        let mut tree = self
+        let tree = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)

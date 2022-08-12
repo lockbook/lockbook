@@ -7,8 +7,6 @@ use lockbook_shared::api::{PaymentMethod, StripeAccountTier};
 use lockbook_shared::core_config::Config;
 use lockbook_shared::crypto::EncryptedDocument;
 use lockbook_shared::document_repo::{self, RepoSource};
-use lockbook_shared::file_metadata::Owner;
-use lockbook_shared::lazy::{LazyStaged1, LazyTree};
 use lockbook_shared::path_ops::Filter::DocumentsOnly;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::work_unit::WorkUnit;

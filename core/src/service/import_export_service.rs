@@ -73,7 +73,7 @@ impl RequestContext<'_, '_> {
             return Err(CoreError::DiskPathInvalid);
         }
 
-        let mut tree = self
+        let tree = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)
