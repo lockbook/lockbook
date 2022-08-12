@@ -98,11 +98,13 @@ public enum CreateFileAtPathError: String, UiError {
     case NoRoot
     case PathContainsEmptyFile
     case PathDoesntStartWithRoot
+    case InsufficientPermission
 }
 
 public enum WriteToDocumentError: String, UiError {
     case FileDoesNotExist
     case FolderTreatedAsDocument
+    case InsufficientPermission
 }
 
 public enum CreateFileError: String, UiError {
@@ -111,6 +113,10 @@ public enum CreateFileError: String, UiError {
     case FileNameContainsSlash
     case FileNameEmpty
     case FileNameNotAvailable
+    case LinkInSharedFolder
+    case LinkTargetIsOwned
+    case LinkTargetNonexistent
+    case InsufficientPermission
 }
 
 public enum GetRootError: String, UiError {
@@ -152,6 +158,7 @@ public enum RenameFileError: String, UiError {
     case FileNameNotAvailable
     case NewNameContainsSlash
     case NewNameEmpty
+    case InsufficientPermission
 }
 
 public enum MoveFileError: String, UiError {
@@ -161,6 +168,8 @@ public enum MoveFileError: String, UiError {
     case FolderMovedIntoItself
     case TargetParentDoesNotExist
     case TargetParentHasChildNamedThat
+    case LinkInSharedFolder
+    case InsufficientPermission
 }
 
 public enum SyncAllError: String, UiError {
@@ -183,6 +192,7 @@ public enum GetUsageError: String, UiError {
 public enum FileDeleteError: String, UiError {
     case CannotDeleteRoot
     case FileDoesNotExist
+    case InsufficientPermission
 }
 public enum GetLocalChangesError: String, UiError {
     case Stub
