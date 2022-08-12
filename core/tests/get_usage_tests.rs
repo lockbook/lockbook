@@ -1,5 +1,4 @@
-use lockbook_core::model::repo::RepoSource;
-use lockbook_core::repo::document_repo;
+use lockbook_shared::document_repo::{self, RepoSource};
 use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::file_metadata::FileType::Folder;
 use test_utils::*;
@@ -19,7 +18,7 @@ fn report_usage() {
 
     core.sync(None).unwrap();
 
-    let local_encrypted = document_repo::get(&core.config, RepoSource::Base, file.id)
+    let local_encrypted = document_repo::get(&core.config, RepoSource::Base, &file.id)
         .unwrap()
         .value;
 
@@ -77,7 +76,7 @@ fn usage_go_back_down_after_delete_folder() {
     }
     core.sync(None).unwrap();
 
-    document_repo::get(&core.config, RepoSource::Base, file.id).unwrap();
+    document_repo::get(&core.config, RepoSource::Base, &file.id).unwrap();
 
     let usage = core.get_usage().unwrap_or_else(|err| panic!("{:?}", err));
 
