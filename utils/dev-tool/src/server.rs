@@ -67,7 +67,7 @@ pub fn run_rust_tests(tool_env: &ToolEnvironment) {
     dotenv::from_path(utils::test_env_path(&tool_env.root_dir)).unwrap();
 
     Command::new("cargo")
-        .args(["test", "--workspace"])
+        .args(["test", "--workspace", "--release"])
         .env("API_URL", utils::get_api_url(hash_info.port))
         .current_dir(&tool_env.root_dir)
         .assert_success();

@@ -64,25 +64,24 @@ pub struct ToolEnvironment {
     commit_hash: String,
 }
 
-impl Default for ToolEnvironment {
-    fn default() -> Self {
-        let root_dir = utils::root_dir();
-        let dev_dir = utils::dev_dir();
-        let target_dir = utils::target_dir(&dev_dir, &root_dir);
-        let hash_info_dir = utils::hash_infos_dir(&dev_dir);
-
-        fs::create_dir_all(&dev_dir).unwrap();
-        fs::create_dir_all(&hash_info_dir).unwrap();
-        fs::create_dir_all(&target_dir).unwrap();
-
-        env::set_var("CARGO_TARGET_DIR", &target_dir.to_str().unwrap());
-
-        Self { root_dir, target_dir, hash_info_dir, commit_hash: utils::get_commit_hash() }
-    }
-}
-
 fn main() {
-    let tool_env = ToolEnvironment::default();
+    let root_dir = utils::root_dir();
+    let dev_dir = utils::dev_dir();
+    let target_dir = utils::target_dir(&dev_dir, &root_dir);
+    let hash_info_dir = utils::hash_infos_dir(&dev_dir);
+
+    fs::create_dir_all(&dev_dir).unwrap();
+    fs::create_dir_all(&hash_info_dir).unwrap();
+    fs::create_dir_all(&target_dir).unwrap();
+
+    env::set_var("CARGO_TARGET_DIR", &target_dir.to_str().unwrap());
+
+    let tool_env = ToolEnvironment {
+        root_dir,
+        target_dir,
+        hash_info_dir,
+        commit_hash: utils::get_commit_hash(),
+    };
 
     use Commands::*;
     match Commands::from_args() {
