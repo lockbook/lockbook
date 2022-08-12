@@ -11,11 +11,6 @@ pub fn fmt_workspace(tool_env: ToolEnvironment) {
 
 pub fn clippy_workspace(tool_env: ToolEnvironment) {
     Command::new("cargo")
-        .args(["clippy", "--", "-D", "warnings"])
-        .current_dir(&tool_env.root_dir)
-        .assert_success();
-
-    Command::new("cargo")
         .args(["clippy", "--tests", "--", "-D", "warnings"])
         .current_dir(&tool_env.root_dir)
         .assert_success();
