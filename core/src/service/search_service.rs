@@ -1,5 +1,3 @@
-use crate::model::repo::RepoSource;
-use crate::repo::document_repo;
 use crate::{CoreError, CoreResult, OneKey, RequestContext, UnexpectedError};
 use crossbeam::channel::{self, Receiver, RecvTimeoutError, Sender};
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -99,28 +97,20 @@ impl RequestContext<'_, '_> {
         for id in tree.owned_ids() {
             if !tree.calculate_deleted(&id)? {
                 let file = tree.find(&id)?;
-                let has_content = file.document_hmac().is_some();
 
                 if file.is_document() {
                     let content = match DocumentType::from_file_name_using_extension(
                         &tree.name(&id, account)?,
                     ) {
                         DocumentType::Text => {
-                            if has_content {
-                                let doc = match document_repo::maybe_get(
-                                    self.config,
-                                    RepoSource::Local,
-                                    &id,
-                                )? {
-                                    Some(local) => local,
-                                    None => document_repo::get(self.config, RepoSource::Base, id)?,
-                                };
-
-                                tree.decrypt_document(&id, &doc, account).map(|bytes| {
-                                    Some(String::from_utf8_lossy(&bytes).to_string())
-                                })?
-                            } else {
-                                None
+                            let doc_read = tree.read_document(self.config, &id, account)?;
+                            tree = doc_read.0;
+                            match String::from_utf8(doc_read.1) {
+                                Ok(str) => Some(str),
+                                Err(utf_8) => {
+                                    error!("failed to read {id}, {utf_8}");
+                                    None
+                                }
                             }
                         }
                         _ => None,
