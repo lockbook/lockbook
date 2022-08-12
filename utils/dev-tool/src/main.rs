@@ -78,7 +78,7 @@ impl Default for ToolEnvironment {
 
         env::set_var("CARGO_TARGET_DIR", &target_dir.to_str().unwrap());
 
-        ToolEnvironment {
+        Self {
             root_dir,
             target_dir,
             hash_info_dir,

@@ -1,7 +1,6 @@
-use crate::utils::{CommandRunner, HashInfo};
-use crate::{utils, ToolEnvironment};
-use std::fs;
-use std::fs::File;
+use crate::utils::{self, CommandRunner, HashInfo};
+use crate::ToolEnvironment;
+use std::fs::{self, File};
 use std::io::Write;
 use std::process::{Command, Stdio};
 
