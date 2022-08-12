@@ -9,8 +9,6 @@ use lockbook_shared::tree_like::TreeLike;
 use crate::service::api_service;
 use crate::{CoreError, RequestContext};
 use crate::{CoreResult, OneKey};
-use lockbook_shared::document_repo;
-use lockbook_shared::document_repo::RepoSource;
 
 const BYTE: u64 = 1;
 const KILOBYTE: u64 = BYTE * 1000;
@@ -76,10 +74,12 @@ impl RequestContext<'_, '_> {
             let is_file_deleted = tree.calculate_deleted(&id)?;
             let file = tree.find(&id)?;
 
-            if !is_file_deleted && file.is_document() && file.document_hmac().is_some() {
-                let doc = document_repo::get(self.config, RepoSource::Local, &id)?;
+            if !is_file_deleted && file.is_document() {
+                let result = tree.read_document(self.config, &id, account)?;
+                tree = result.0;
+                let doc = result.1;
 
-                local_usage += tree.decrypt_document(&id, &doc, account)?.len() as u64
+                local_usage += doc.len() as u64
             }
         }
 

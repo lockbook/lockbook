@@ -160,7 +160,7 @@ where
             return Err(SharedError::FileNonexistent);
         }
 
-        let meta = self.find(&id)?;
+        let meta = self.find(id)?;
         validate::is_document(meta)?;
         if meta.document_hmac().is_none() {
             return Ok((self, vec![]));
@@ -173,7 +173,7 @@ where
             };
 
         let doc = match maybe_encrypted_document {
-            Some(doc) => self.decrypt_document(&id, &doc, account)?,
+            Some(doc) => self.decrypt_document(id, &doc, account)?,
             None => return Err(SharedError::FileNonexistent),
         };
 
@@ -643,7 +643,7 @@ where
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
 /// let (base, local, remote) = ("hello", "hello local", "hello remote");
 /// let result = merge(base, local, remote, remote);
 /// assert_eq!(result, "hello remote");

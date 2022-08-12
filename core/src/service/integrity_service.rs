@@ -7,9 +7,7 @@ use lockbook_shared::tree_like::TreeLike;
 
 use crate::model::drawing;
 use crate::model::errors::{TestRepoError, Warning};
-use crate::{CoreError, OneKey, RequestContext};
-use lockbook_shared::document_repo;
-use lockbook_shared::document_repo::RepoSource;
+use crate::{OneKey, RequestContext};
 
 const UTF8_SUFFIXES: [&str; 12] =
     ["md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs"];
@@ -52,13 +50,9 @@ impl RequestContext<'_, '_> {
             let cont = file.document_hmac().is_some();
             let not_deleted = !tree.calculate_deleted(&id)?;
             if not_deleted && doc && cont {
-                let doc = match document_repo::maybe_get(self.config, RepoSource::Local, &id)? {
-                    Some(local) => Some(local),
-                    None => document_repo::maybe_get(self.config, RepoSource::Base, &id)?,
-                }
-                .ok_or(CoreError::FileNonexistent)?;
-
-                let doc = tree.decrypt_document(&id, &doc, account)?;
+                let read_doc = tree.read_document(self.config, &id, account)?;
+                tree = read_doc.0;
+                let doc = read_doc.1;
 
                 if doc.len() as u64 == 0 {
                     warnings.push(Warning::EmptyFile(id));
