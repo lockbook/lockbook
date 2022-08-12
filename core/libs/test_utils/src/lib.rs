@@ -285,8 +285,8 @@ fn list_files(db: &Config, namespace: &RepoSource) -> Vec<String> {
     match fs::read_dir(&path) {
         Ok(rd) => {
             let mut file_names = rd
-                .map(|dir_entry| dir_entry.unwrap().file_name().into_string().unwrap())
-                .map(|entry| {
+                .map(|dir_entry| {
+                    let entry = dir_entry.unwrap().file_name().into_string().unwrap();
                     let mut path = PathBuf::from(path);
                     path.push(entry);
                     path.to_str().unwrap().to_string()
