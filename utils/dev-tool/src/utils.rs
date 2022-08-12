@@ -128,12 +128,6 @@ pub fn is_ci_env() -> bool {
     }
 }
 
-pub fn hash_info_dir(dev_dir: PathBuf, commit_hash: &str) -> PathBuf {
-    dev_dir
-        .join("hash-info")
-        .join(format!("{}.json", commit_hash))
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct HashInfo {
     pub maybe_port: Option<u16>,

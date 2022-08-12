@@ -1,9 +1,9 @@
-pub mod android;
-pub mod apple;
-pub mod server;
-pub mod setup;
-pub mod utils;
-pub mod workspace;
+mod android;
+mod apple;
+mod server;
+mod setup;
+mod utils;
+mod workspace;
 
 use std::path::PathBuf;
 use std::{env, fs};
