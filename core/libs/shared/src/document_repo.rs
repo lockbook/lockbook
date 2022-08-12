@@ -73,7 +73,7 @@ pub fn maybe_get(
             _ => return Err(err.into()),
         },
     };
-    
+
     Ok(match maybe_data {
         Some(data) => bincode::deserialize(&data).map(Some)?,
         None => None,
