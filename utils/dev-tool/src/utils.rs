@@ -133,21 +133,14 @@ pub fn hash_info_dir(dev_dir: PathBuf, commit_hash: &str) -> PathBuf {
 #[derive(Serialize, Deserialize)]
 pub struct HashInfo {
     pub maybe_port: Option<u16>,
-    pub server_binary_path: PathBuf,
     pub hash_info_dir: PathBuf,
 }
 
 impl HashInfo {
-    pub fn new<P: AsRef<Path>>(
-        hash_infos_dir: P, server_binary_path: P, commit_hash: &str,
-    ) -> Self {
+    pub fn new<P: AsRef<Path>>(hash_infos_dir: P, commit_hash: &str) -> Self {
         let hash_info_dir = hash_infos_dir.as_ref().join(commit_hash);
 
-        Self {
-            maybe_port: None,
-            server_binary_path: server_binary_path.as_ref().to_path_buf(),
-            hash_info_dir,
-        }
+        Self { maybe_port: None, hash_info_dir }
     }
 
     pub fn get_port(&self) -> u16 {

@@ -13,16 +13,13 @@ pub mod workspace;
 #[structopt(about = "Lockbook's development and ci tool.")]
 enum Commands {
     // CI steps in order --------------
-    /// Check the formatting of workspace
+    /// Check the formatting of the workspace
     CheckWorkspaceFmt,
 
-    /// Check the lint of workspace
+    /// Check the lint of the workspace
     CheckWorkspaceClippy,
 
-    /// Build server
-    BuildServer,
-
-    /// Run server detached
+    /// Run the server detached
     RunServer,
 
     /// Run all rust tests
@@ -34,10 +31,10 @@ enum Commands {
     /// Check the lint of the android client
     CheckAndroidLint,
 
-    /// Run swift integration tests
+    /// Run the swift integration tests
     RunSwiftTests,
 
-    /// Kill server for commit hash
+    /// Kill the server for commit hash
     KillServer,
 
     // End of CI steps --------------
@@ -103,7 +100,6 @@ fn main() {
         MakeKotlinLibs => android::make_android_libs(tool_env),
         MakeKotlinTestLib => android::make_android_test_lib(tool_env),
         MakeSwiftTestLib => apple::make_swift_test_lib(tool_env),
-        BuildServer => server::build_server(tool_env),
         RunServer => server::run_server_detached(tool_env),
         RunRustTests => server::run_rust_tests(tool_env),
         RunKotlinTests => android::run_kotlin_tests(tool_env),

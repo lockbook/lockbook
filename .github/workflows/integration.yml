@@ -20,8 +20,6 @@ jobs:
       run: cargo run -p lockbook-dev -- check-workspace-fmt
     - name: Check Workspace Clippy
       run: cargo run -p lockbook-dev -- check-workspace-clippy
-    - name: Build Server
-      run: cargo run -p lockbook-dev -- build-server
     - name: Run Server
       run: cargo run -p lockbook-dev -- run-server
     - name: Run Rust Tests

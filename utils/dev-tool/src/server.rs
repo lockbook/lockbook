@@ -6,33 +6,17 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 use std::{fs, thread};
 
-pub fn build_server(tool_env: ToolEnvironment) {
-    dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
-
-    Command::new("cargo")
-        .args(["build", "-p", "lockbook-server"])
-        .assert_success();
-
-    let server_path = tool_env.target_dir.join("debug/lockbook-server");
-    let new_server_path =
-        server_path.with_file_name(format!("lockbook-server-{}", tool_env.commit_hash));
-
-    fs::rename(server_path, &new_server_path).unwrap();
-
-    let hash_info = HashInfo::new(&tool_env.hash_info_dir, &new_server_path, &tool_env.commit_hash);
-    hash_info.save();
-}
-
 pub fn run_server_detached(tool_env: ToolEnvironment) {
     dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
-    let mut hash_info = HashInfo::get_from_dir(&tool_env.hash_info_dir, &tool_env.commit_hash);
+    let mut hash_info = HashInfo::new(&tool_env.hash_info_dir, &tool_env.commit_hash);
 
     let mut port;
 
     loop {
         port = rand::thread_rng().gen_range(1024..u16::MAX);
 
-        let mut run_result = Command::new(&hash_info.server_binary_path)
+        let mut run_result = Command::new("cargo")
+            .args(["run", "-p", "lockbook-server"])
             .env("SERVER_PORT", port.to_string())
             .stderr(Stdio::null())
             .stdout(Stdio::null())
