@@ -213,10 +213,10 @@ impl RequestContext<'_, '_> {
             .stage(remote_changes)
             .promote();
         for (id, document) in remote_document_changes {
-            document_repo::insert(self.config, RepoSource::Base, id, &document)?;
+            document_repo::insert(self.config, RepoSource::Base, &id, &document)?;
         }
         for (id, document) in merge_document_changes {
-            document_repo::insert(self.config, RepoSource::Local, id, &document)?;
+            document_repo::insert(self.config, RepoSource::Local, &id, &document)?;
         }
 
         self.validate()?;
@@ -406,14 +406,14 @@ impl RequestContext<'_, '_> {
             }
 
             let local_change = local_change.sign(account)?;
-            let local_document_change = document_repo::get(self.config, RepoSource::Local, id)?;
+            let local_document_change = document_repo::get(self.config, RepoSource::Local, &id)?;
 
             update_sync_progress(SyncProgressOperation::StartWorkUnit(
                 ClientWorkUnit::PushDocument(local.name(&id, account)?),
             ));
 
             // base = local (document)
-            document_repo::insert(self.config, RepoSource::Base, id, &local_document_change)?;
+            document_repo::insert(self.config, RepoSource::Base, &id, &local_document_change)?;
 
             // remote = local
             api_service::request(

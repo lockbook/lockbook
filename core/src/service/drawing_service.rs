@@ -31,7 +31,7 @@ impl RequestContext<'_, '_> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let doc = document_repo::get(self.config, RepoSource::Local, id)?;
+        let doc = document_repo::get(self.config, RepoSource::Local, &id)?;
 
         drawing::parse_drawing(&tree.decrypt_document(&id, &doc, account)?)
     }
@@ -55,7 +55,7 @@ impl RequestContext<'_, '_> {
         let drawing_bytes = serde_json::to_vec(d)?;
         let (_, doc) = tree.update_document(&id, &drawing_bytes, account)?;
 
-        Ok(document_repo::insert(self.config, RepoSource::Local, id, &doc)?)
+        Ok(document_repo::insert(self.config, RepoSource::Local, &id, &doc)?)
     }
 
     pub fn export_drawing(
@@ -77,7 +77,7 @@ impl RequestContext<'_, '_> {
             return Err(CoreError::FileNonexistent);
         }
 
-        let doc = document_repo::get(self.config, RepoSource::Local, id)?;
+        let doc = document_repo::get(self.config, RepoSource::Local, &id)?;
 
         drawing::export_drawing(&tree.decrypt_document(&id, &doc, account)?, format, render_theme)
     }
@@ -104,7 +104,7 @@ impl RequestContext<'_, '_> {
         let meta = tree.find(&id)?;
         validate::is_document(&meta)?;
 
-        let doc = document_repo::get(self.config, RepoSource::Local, id)?;
+        let doc = document_repo::get(self.config, RepoSource::Local, &id)?;
         let exported_drawing_bytes = drawing::export_drawing(
             &tree.decrypt_document(&id, &doc, account)?,
             format,

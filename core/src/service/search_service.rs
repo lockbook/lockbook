@@ -113,7 +113,7 @@ impl RequestContext<'_, '_> {
                                     &id,
                                 )? {
                                     Some(local) => local,
-                                    None => document_repo::get(self.config, RepoSource::Base, id)?,
+                                    None => document_repo::get(self.config, RepoSource::Base, &id)?,
                                 };
 
                                 tree.decrypt_document(&id, &doc, account).map(|bytes| {

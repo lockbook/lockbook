@@ -77,7 +77,7 @@ impl RequestContext<'_, '_> {
             let file = tree.find(&id)?;
 
             if !is_file_deleted && file.is_document() && file.document_hmac().is_some() {
-                let doc = document_repo::get(self.config, RepoSource::Local, id)?;
+                let doc = document_repo::get(self.config, RepoSource::Local, &id)?;
 
                 local_usage += tree.decrypt_document(&id, &doc, account)?.len() as u64
             }

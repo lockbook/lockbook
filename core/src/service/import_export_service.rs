@@ -151,7 +151,7 @@ impl RequestContext<'_, '_> {
                 }
                 .map_err(CoreError::from)?;
 
-                let doc = document_repo::get(config, RepoSource::Local, *this_file.id())?;
+                let doc = document_repo::get(config, RepoSource::Local, this_file.id())?;
 
                 file.write_all(
                     tree.decrypt_document(this_file.id(), &doc, account)?
@@ -213,7 +213,7 @@ impl RequestContext<'_, '_> {
         let tree = if ftype == FileType::Document {
             let doc = fs::read(&disk_path).map_err(CoreError::from)?;
             let (tree, doc) = tree.update_document(&id, &doc, account)?;
-            document_repo::insert(config, RepoSource::Local, id, &doc)?;
+            document_repo::insert(config, RepoSource::Local, &id, &doc)?;
 
             update_status(ImportStatus::FinishedItem(file));
             tree

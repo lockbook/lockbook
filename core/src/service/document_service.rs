@@ -66,7 +66,7 @@ impl RequestContext<'_, '_> {
         validate::is_document(&meta)?;
 
         let (_, doc) = tree.update_document(&id, content, account)?;
-        document_repo::insert(self.config, RepoSource::Local, id, &doc)?;
+        document_repo::insert(self.config, RepoSource::Local, &id, &doc)?;
         Ok(())
     }
 }

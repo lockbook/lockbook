@@ -45,7 +45,7 @@ use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 
 use lockbook_shared::clock;
-use lockbook_shared::core_config::Config;
+pub use lockbook_shared::core_config::Config;
 use lockbook_shared::crypto::AESKey;
 
 use crate::model::errors::Error::UiError;
