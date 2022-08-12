@@ -31,6 +31,9 @@ enum Commands {
     /// Check the lint of the android client
     CheckAndroidLint,
 
+    /// Run kotlin integration tests
+    RunKotlinTests,
+
     /// Run the swift integration tests
     RunSwiftTests,
 
@@ -49,9 +52,6 @@ enum Commands {
 
     /// Make swift jni libs for tests
     MakeSwiftTestLib,
-
-    /// Run kotlin integration tests
-    RunKotlinTests,
 
     /// Kill all servers running
     KillAllServers,
