@@ -2,8 +2,7 @@ use crate::{CoreError, CoreResult, OneKey, RequestContext};
 use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileType, Owner};
-use lockbook_shared::lazy::LazyStaged1;
-use lockbook_shared::tree_like::TreeLike;
+use lockbook_shared::tree_like::{Stagable, TreeLike};
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
@@ -11,11 +10,11 @@ impl RequestContext<'_, '_> {
         &mut self, name: &str, parent: &Uuid, file_type: FileType,
     ) -> CoreResult<File> {
         let pub_key = self.get_public_key()?;
-        let tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account
@@ -30,11 +29,11 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn rename_file(&mut self, id: &Uuid, new_name: &str) -> CoreResult<()> {
-        let tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account
@@ -47,11 +46,11 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn move_file(&mut self, id: &Uuid, new_parent: &Uuid) -> CoreResult<()> {
-        let tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account
@@ -63,11 +62,11 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn delete(&mut self, id: &Uuid) -> CoreResult<()> {
-        let tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account
@@ -85,11 +84,11 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn root(&mut self) -> CoreResult<File> {
-        let mut tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account
@@ -108,11 +107,11 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn list_metadatas(&mut self) -> CoreResult<Vec<File>> {
-        let mut tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account
@@ -131,11 +130,11 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn get_children(&mut self, id: &Uuid) -> CoreResult<Vec<File>> {
-        let mut tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account
@@ -152,11 +151,11 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn get_and_get_children(&mut self, id: &Uuid) -> CoreResult<Vec<File>> {
-        let mut tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account
@@ -173,11 +172,11 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn get_file_by_id(&mut self, id: &Uuid) -> CoreResult<File> {
-        let mut tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account

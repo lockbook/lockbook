@@ -6,7 +6,7 @@ use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::access_info::{EncryptedFolderAccessKey, UserAccessInfo};
+use crate::access_info::{EncryptedFolderAccessKey, UserAccessInfo, UserAccessMode};
 use crate::account::Account;
 use crate::clock::get_time;
 use crate::crypto::AESKey;
@@ -44,7 +44,13 @@ impl FileMetadata {
             owner: Owner(pub_key),
             is_deleted: false,
             document_hmac: None,
-            user_access_keys: vec![UserAccessInfo::encrypt(account, &pub_key, &pub_key, &key)?],
+            user_access_keys: vec![UserAccessInfo::encrypt(
+                account,
+                &pub_key,
+                &pub_key,
+                &key,
+                UserAccessMode::Owner,
+            )?],
             folder_access_key: symkey::encrypt(&key, &key)?,
         })
     }
