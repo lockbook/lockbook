@@ -161,10 +161,10 @@ where
             return Err(SharedError::FileNonexistent);
         }
 
-        let (id, meta) = if let FileType::Link { target } = self.find(&id)?.file_type() {
+        let (id, meta) = if let FileType::Link { target } = self.find(id)?.file_type() {
             (target, self.find(&target)?)
         } else {
-            (*id, self.find(&id)?)
+            (*id, self.find(id)?)
         };
 
         validate::is_document(meta)?;
