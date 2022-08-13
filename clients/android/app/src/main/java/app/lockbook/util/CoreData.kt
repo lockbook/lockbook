@@ -17,8 +17,23 @@ data class File(
     val lastModified: Long = 0,
     @SerialName("last_modified_by")
     val lastModifiedBy: String = "",
+    val shares: List<Share> = listOf()
 ) {
     fun isRoot() = parent == id
+}
+
+@Serializable
+data class Share(
+    val mode: ShareMode,
+    @SerialName("shared_by")
+    val sharedBy: String,
+    @SerialName("shared_with")
+    val sharedWith: String,
+)
+
+enum class ShareMode {
+    Write,
+    Read,
 }
 
 enum class FileType {
