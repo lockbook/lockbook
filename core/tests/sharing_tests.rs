@@ -26,7 +26,6 @@ fn write_document_read_share() {
     cores[0]
         .share_file(document0.id, &accounts[1].username, ShareMode::Read)
         .unwrap();
-    println!("sharing {:?}", document0.id);
     cores[0].sync(None).unwrap();
 
     cores[1].sync(None).unwrap();
@@ -308,10 +307,7 @@ fn create_at_path_insufficient_permission() {
     let account1 = core1.get_account().unwrap();
 
     let core2 = test_core_with_account();
-    let account2 = core2.get_account().unwrap();
-    let folder = core2
-        .create_at_path(&format!("{}/shared-folder/", &account2.username))
-        .unwrap();
+    let folder = core2.create_at_path("shared-folder/").unwrap();
     core2
         .share_file(folder.id, &account1.username, ShareMode::Read)
         .unwrap();
@@ -319,9 +315,9 @@ fn create_at_path_insufficient_permission() {
 
     core1.sync(None).unwrap();
     core1
-        .create_link_at_path(&format!("{}/received-folder", &account1.username), folder.id)
+        .create_link_at_path("/received-folder", folder.id)
         .unwrap();
-    let result = core1.create_at_path(&format!("{}/received-folder/document", &account1.username));
+    let result = core1.create_at_path("received-folder/document");
 
     assert_matches!(result, Err(UiError(CreateFileAtPathError::InsufficientPermission)));
 }
@@ -332,10 +328,7 @@ fn get_path_by_id_link() {
     let account1 = core1.get_account().unwrap();
 
     let core2 = test_core_with_account();
-    let account2 = core2.get_account().unwrap();
-    let folder = core2
-        .create_at_path(&format!("{}/shared-folder/", &account2.username))
-        .unwrap();
+    let folder = core2.create_at_path("shared-folder/").unwrap();
     core2
         .share_file(folder.id, &account1.username, ShareMode::Read)
         .unwrap();
@@ -343,7 +336,7 @@ fn get_path_by_id_link() {
 
     core1.sync(None).unwrap();
     let link = core1
-        .create_link_at_path(&format!("{}/received-folder", &account1.username), folder.id)
+        .create_link_at_path("received-folder", folder.id)
         .unwrap();
     let result = core1.get_path_by_id(link.id);
 
@@ -353,22 +346,20 @@ fn get_path_by_id_link() {
 #[test]
 fn create_link_at_path_target_is_owned() {
     let core = test_core_with_account();
-    let account = core.get_account().unwrap();
     let root = core.get_root().unwrap();
     let document = core
         .create_file("document0", root.id, FileType::Document)
         .unwrap();
 
-    let result = core.create_link_at_path(&format!("{}/link", &account.username), document.id);
+    let result = core.create_link_at_path("link", document.id);
     assert_matches!(result, Err(UiError(CreateLinkAtPathError::LinkTargetIsOwned)));
 }
 
 #[test]
 fn create_link_at_path_target_nonexistent() {
     let core = test_core_with_account();
-    let account = core.get_account().unwrap();
 
-    let result = core.create_link_at_path(&format!("{}/link", &account.username), Uuid::new_v4());
+    let result = core.create_link_at_path("link", Uuid::new_v4());
     assert_matches!(result, Err(UiError(CreateLinkAtPathError::LinkTargetNonexistent)));
 }
 
@@ -403,10 +394,7 @@ fn create_link_at_path_link_in_shared_folder() {
         .create_file("folder_link", roots[1].id, FileType::Link { target: folder0.id })
         .unwrap();
 
-    let result = cores[1].create_link_at_path(
-        &format!("{}/folder_link/document", &accounts[1].username),
-        document0.id,
-    );
+    let result = cores[1].create_link_at_path("folder_link/document", document0.id);
     assert_matches!(result, Err(UiError(CreateLinkAtPathError::LinkInSharedFolder)));
 }
 
@@ -432,10 +420,9 @@ fn create_link_at_path_link_duplicate() {
 
     cores[1].sync(None).unwrap();
     cores[1]
-        .create_link_at_path(&format!("{}/link1", &accounts[1].username), document0.id)
+        .create_link_at_path("/link1", document0.id)
         .unwrap();
-    let result =
-        cores[1].create_link_at_path(&format!("{}/link2", &accounts[1].username), document0.id);
+    let result = cores[1].create_link_at_path("/link2", document0.id);
     assert_matches!(result, Err(UiError(CreateLinkAtPathError::MultipleLinksToSameFile)));
 }
 

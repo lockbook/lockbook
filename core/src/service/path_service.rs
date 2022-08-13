@@ -6,8 +6,30 @@ use lockbook_shared::tree_like::Stagable;
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
-    pub fn create_link_at_path(&mut self, _path: &str, _target_id: Uuid) -> CoreResult<File> {
-        todo!()
+    pub fn create_link_at_path(&mut self, path: &str, target_id: Uuid) -> CoreResult<File> {
+        let pub_key = self.get_public_key()?;
+        let tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
+
+        let root = self
+            .tx
+            .root
+            .get(&OneKey {})
+            .ok_or(CoreError::RootNonexistent)?;
+
+        let (mut tree, id) = tree.create_link_at_path(path, target_id, root, account, &pub_key)?;
+
+        let ui_file = tree.finalize(&id, account)?;
+
+        Ok(ui_file)
     }
 
     pub fn create_at_path(&mut self, path: &str) -> CoreResult<File> {
