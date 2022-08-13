@@ -117,6 +117,12 @@ fn validate(core: &Core) -> Result<(), CliError> {
             TestRepoError::Shared(err) => {
                 CliError::unexpected(format!("unexpected error: {:#?}", err))
             }
+            TestRepoError::SharedLink { .. }
+            | TestRepoError::DuplicateLink { .. }
+            | TestRepoError::BrokenLink(_)
+            | TestRepoError::OwnedLink(_) => {
+                CliError::unexpected(format!("unexpected error: {:#?}", err))
+            }
         },
     };
 

@@ -25,19 +25,23 @@ pub struct UserAccessInfo {
 
 impl PartialEq for UserAccessInfo {
     fn eq(&self, other: &Self) -> bool {
-        self.encrypted_for == other.encrypted_for && self.encrypted_by == other.encrypted_by
+        self.mode == other.mode
+            && self.encrypted_for == other.encrypted_for
+            && self.encrypted_by == other.encrypted_by
+            && self.deleted == other.deleted
     }
 }
 
 impl UserAccessInfo {
     pub fn encrypt(
         account: &Account, encrypted_by: &PublicKey, encrypted_for: &PublicKey, key: &AESKey,
+        mode: UserAccessMode,
     ) -> SharedResult<Self> {
         let private_key = account.private_key;
         let user_key = pubkey::get_aes_key(&private_key, encrypted_for)?;
         let encrypted_file_key = symkey::encrypt(&user_key, key)?;
         Ok(UserAccessInfo {
-            mode: UserAccessMode::Owner,
+            mode,
             encrypted_by: *encrypted_by,
             encrypted_for: *encrypted_for,
             access_key: encrypted_file_key,
@@ -55,7 +59,7 @@ impl UserAccessInfo {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::access_info::UserAccessInfo;
+    use crate::access_info::{UserAccessInfo, UserAccessMode};
     use crate::account::Account;
     use crate::symkey;
 
@@ -63,9 +67,14 @@ mod unit_tests {
     fn encrypt_decrypt_1() {
         let account = Account::new("test1".to_string(), "test2".to_string());
         let key = symkey::generate_key();
-        let encrypted =
-            UserAccessInfo::encrypt(&account, &account.public_key(), &account.public_key(), &key)
-                .unwrap();
+        let encrypted = UserAccessInfo::encrypt(
+            &account,
+            &account.public_key(),
+            &account.public_key(),
+            &key,
+            UserAccessMode::Owner,
+        )
+        .unwrap();
         let decrypted = encrypted.decrypt(&account).unwrap();
         assert_eq!(key, decrypted);
     }
@@ -80,6 +89,7 @@ mod unit_tests {
             &account1.public_key(),
             &account2.public_key(),
             &key,
+            UserAccessMode::Owner,
         )
         .unwrap();
         let decrypted = encrypted.decrypt(&account2).unwrap();

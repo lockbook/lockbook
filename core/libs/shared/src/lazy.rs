@@ -1,6 +1,8 @@
+use crate::access_info::UserAccessMode;
 use crate::account::Account;
 use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::file_like::FileLike;
+use crate::file_metadata::{FileType, Owner};
 use crate::staged::StagedTree;
 use crate::tree_like::{Stagable, TreeLike};
 use crate::{compression_service, symkey, SharedError, SharedResult};
@@ -30,6 +32,22 @@ impl<T: Stagable> LazyTree<T> {
 }
 
 impl<T: Stagable> LazyTree<T> {
+    // todo: use greatest of all access modes instead of access mode of nearest keyed ancestor
+    pub fn access_mode(&self, owner: Owner, id: &Uuid) -> SharedResult<Option<UserAccessMode>> {
+        let mut file = self.find(id)?;
+        loop {
+            if let Some(access_mode) = file.access_mode(&owner) {
+                return Ok(Some(access_mode));
+            } else if file.parent() == file.id() {
+                return Ok(None); // root
+            } else if let Some(parent) = self.maybe_find(file.parent()) {
+                file = parent
+            } else {
+                return Ok(None); // share root
+            }
+        }
+    }
+
     pub fn all_children(&mut self) -> SharedResult<&HashMap<Uuid, HashSet<Uuid>>> {
         if self.children.is_empty() {
             let mut all_children: HashMap<Uuid, HashSet<Uuid>> = HashMap::new();
@@ -138,11 +156,22 @@ impl<T: Stagable> LazyTree<T> {
         if let Some(name) = self.name.get(id) {
             return Ok(name.clone());
         }
-
-        let key = self.decrypt_key(id, account)?;
-        let name = self.find(id)?.secret_name().to_string(&key)?;
-        self.name.insert(*id, name.clone());
+        let id = if let Some(link) = self.link(id)? { link } else { *id };
+        let key = self.decrypt_key(&id, account)?;
+        let name = self.find(&id)?.secret_name().to_string(&key)?;
+        self.name.insert(id, name.clone());
         Ok(name)
+    }
+
+    pub fn link(&self, id: &Uuid) -> SharedResult<Option<Uuid>> {
+        for link_id in self.owned_ids() {
+            if let FileType::Link { target } = self.find(&link_id)?.file_type() {
+                if id == &target {
+                    return Ok(Some(link_id));
+                }
+            }
+        }
+        Ok(None)
     }
 
     /// Returns ids of files whose parent is the argument. Does not include the argument.
@@ -197,7 +226,10 @@ impl<T: Stagable> LazyTree<T> {
     pub fn ancestors(&self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
         let mut result = HashSet::new();
         let mut current_file = self.find(id)?;
-        while !current_file.is_root() && !result.contains(current_file.parent()) {
+        while !current_file.is_root()
+            && self.maybe_find(current_file.parent()).is_some()
+            && !result.contains(current_file.parent())
+        {
             result.insert(*current_file.parent());
             current_file = self.find_parent(current_file)?;
         }
@@ -224,30 +256,36 @@ impl<T: Stagable> LazyTree<T> {
     }
 
     pub fn validate(&mut self) -> SharedResult<()> {
-        self.assert_no_orphans()?;
+        self.assert_all_files_decryptable()?;
         self.assert_only_folders_have_children()?;
         self.assert_no_cycles()?;
         self.assert_no_path_conflicts()?;
         // todo
         // self.assert_names_decryptable(account)?;
-        // share validations
+        self.assert_no_shared_links()?;
+        self.assert_no_duplicate_links()?;
+        self.assert_no_broken_links()?;
+        self.assert_no_owned_links()?;
+
         Ok(())
     }
 
     pub fn assert_only_folders_have_children(&self) -> SharedResult<()> {
         for file in self.all_files()? {
-            let parent = self.find_parent(file)?;
-            if !parent.is_folder() {
-                return Err(SharedError::ValidationFailure(
-                    ValidationFailure::NonFolderWithChildren(*parent.id()),
-                ));
+            if let Some(parent) = self.maybe_find(file.parent()) {
+                if !parent.is_folder() {
+                    return Err(SharedError::ValidationFailure(
+                        ValidationFailure::NonFolderWithChildren(*parent.id()),
+                    ));
+                }
             }
         }
         Ok(())
     }
 
-    pub fn assert_no_orphans(&mut self) -> SharedResult<()> {
+    pub fn assert_all_files_decryptable(&mut self) -> SharedResult<()> {
         for file in self.ids().into_iter().filter_map(|id| self.maybe_find(id)) {
+            // todo: user access key for this user
             if self.maybe_find_parent(file).is_none() && file.user_access_keys().is_empty() {
                 return Err(SharedError::ValidationFailure(ValidationFailure::Orphan(*file.id())));
             }
@@ -328,6 +366,59 @@ impl<T: Stagable> LazyTree<T> {
         }
         Ok(())
     }
+
+    pub fn assert_no_shared_links(&self) -> SharedResult<()> {
+        for link in self.owned_ids() {
+            if let FileType::Link { target: _ } = self.find(&link)?.file_type() {
+                for ancestor in self.ancestors(&link)? {
+                    if self.find(&ancestor)?.is_shared() {
+                        return Err(SharedError::ValidationFailure(
+                            ValidationFailure::SharedLink { link, shared_ancestor: ancestor },
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn assert_no_duplicate_links(&self) -> SharedResult<()> {
+        let mut linked_targets = HashSet::new();
+        for link in self.owned_ids() {
+            if let FileType::Link { target } = self.find(&link)?.file_type() {
+                if !linked_targets.insert(target) {
+                    return Err(SharedError::ValidationFailure(ValidationFailure::DuplicateLink {
+                        target,
+                    }));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn assert_no_broken_links(&self) -> SharedResult<()> {
+        for link in self.owned_ids() {
+            if let FileType::Link { target } = self.find(&link)?.file_type() {
+                if self.maybe_find(&target).is_none() {
+                    return Err(SharedError::ValidationFailure(ValidationFailure::BrokenLink(
+                        link,
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn assert_no_owned_links(&self) -> SharedResult<()> {
+        for link in self.owned_ids() {
+            if let FileType::Link { target } = self.find(&link)?.file_type() {
+                if self.find(&link)?.owner() == self.find(&target)?.owner() {
+                    return Err(SharedError::ValidationFailure(ValidationFailure::OwnedLink(link)));
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 pub type Stage1<Base, Local> = StagedTree<Base, Local>;
@@ -342,6 +433,10 @@ pub enum ValidationFailure {
     PathConflict(HashSet<Uuid>),
     NonFolderWithChildren(Uuid),
     NonDecryptableFileName(Uuid),
+    SharedLink { link: Uuid, shared_ancestor: Uuid },
+    DuplicateLink { target: Uuid },
+    BrokenLink(Uuid),
+    OwnedLink(Uuid),
 }
 
 impl<Base, Staged> LazyStaged1<Base, Staged>
