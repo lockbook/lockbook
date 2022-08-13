@@ -144,10 +144,15 @@ object CoreModel {
         }
     }
 
-    fun getRoot(): Result<File, CoreError<GetRootError>> =
-        getRootParser.tryParse(
-            app.lockbook.core.getRoot()
+    fun getRoot(): Result<File, CoreError<GetRootError>> {
+        val a = app.lockbook.core.getRoot()
+
+        println(a)
+
+        return getRootParser.tryParse(
+            a
         )
+    }
 
     private val getAccountParser = Json {
         serializersModule = SerializersModule {
