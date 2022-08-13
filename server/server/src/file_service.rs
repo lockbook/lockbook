@@ -248,7 +248,7 @@ pub async fn get_document(
 
         if !direct_access {
             for ancestor in tree.ancestors(&request.id)?.iter().chain(vec![&request.id]) {
-                let meta = tree.find(&ancestor)?;
+                let meta = tree.find(ancestor)?;
 
                 if meta
                     .user_access_keys()
