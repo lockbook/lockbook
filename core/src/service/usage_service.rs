@@ -2,9 +2,7 @@ use serde::Serialize;
 
 use lockbook_shared::api::{FileUsage, GetUsageRequest, GetUsageResponse};
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::Owner;
-use lockbook_shared::lazy::LazyStaged1;
-use lockbook_shared::tree_like::TreeLike;
+use lockbook_shared::tree_like::{Stagable, TreeLike};
 
 use crate::service::api_service;
 use crate::{CoreError, RequestContext};
@@ -58,11 +56,11 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn get_uncompressed_usage(&mut self) -> CoreResult<UsageItemMetric> {
-        let mut tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account

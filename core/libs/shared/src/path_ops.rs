@@ -3,9 +3,10 @@ use std::collections::HashSet;
 use libsecp256k1::PublicKey;
 use uuid::Uuid;
 
+use crate::access_info::UserAccessMode;
 use crate::account::Account;
 use crate::file_like::FileLike;
-use crate::file_metadata::FileType;
+use crate::file_metadata::{FileType, Owner};
 use crate::lazy::LazyStaged1;
 use crate::signed_file::SignedFile;
 use crate::tree_like::{Stagable, TreeLike};
@@ -16,13 +17,28 @@ where
     Base: Stagable<F = SignedFile>,
     Local: Stagable<F = Base::F>,
 {
-    pub fn create_at_path(
-        mut self, path: &str, root: &Uuid, account: &Account, pub_key: &PublicKey,
+    pub fn create_link_at_path(
+        self, path: &str, target_id: Uuid, root: &Uuid, account: &Account, pub_key: &PublicKey,
     ) -> SharedResult<(LazyStaged1<Base, Local>, Uuid)> {
         validate::path(path)?;
-        let is_folder = path.ends_with('/');
-
+        let file_type = FileType::Link { target: target_id };
         let path_components = split_path(path);
+        self.create_at_path_helper(file_type, path_components, root, account, pub_key)
+    }
+
+    pub fn create_at_path(
+        self, path: &str, root: &Uuid, account: &Account, pub_key: &PublicKey,
+    ) -> SharedResult<(LazyStaged1<Base, Local>, Uuid)> {
+        validate::path(path)?;
+        let file_type = if path.ends_with('/') { FileType::Folder } else { FileType::Document };
+        let path_components = split_path(path);
+        self.create_at_path_helper(file_type, path_components, root, account, pub_key)
+    }
+
+    fn create_at_path_helper(
+        mut self, file_type: FileType, path_components: Vec<&str>, root: &Uuid, account: &Account,
+        pub_key: &PublicKey,
+    ) -> SharedResult<(LazyStaged1<Base, Local>, Uuid)> {
         let mut current = *root;
         'path: for index in 0..path_components.len() {
             'child: for child in self.children(&current)? {
@@ -35,24 +51,29 @@ where
                         return Err(SharedError::PathTaken);
                     }
 
-                    if self.find(&child)?.is_folder() {
-                        current = child;
-                        continue 'path;
-                    } else {
-                        return Err(SharedError::FileNotFolder);
-                    }
+                    current = match self.find(&child)?.file_type() {
+                        FileType::Document => {
+                            return Err(SharedError::FileNotFolder);
+                        }
+                        FileType::Folder => child,
+                        FileType::Link { target } => {
+                            let current = self.find(&target)?;
+                            if current.access_mode(&Owner(*pub_key)) < Some(UserAccessMode::Write) {
+                                return Err(SharedError::InsufficientPermission);
+                            }
+                            *current.id()
+                        }
+                    };
+                    continue 'path;
                 }
             }
 
             // Child does not exist, create it
-            let file_type = if is_folder || index != path_components.len() - 1 {
-                FileType::Folder
-            } else {
-                FileType::Document
-            };
+            let this_file_type =
+                if index != path_components.len() - 1 { FileType::Folder } else { file_type };
 
             (self, current) =
-                self.create(&current, path_components[index], file_type, account, pub_key)?;
+                self.create(&current, path_components[index], this_file_type, account, pub_key)?;
         }
 
         Ok((self, current))
