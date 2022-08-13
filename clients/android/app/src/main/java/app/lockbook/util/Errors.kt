@@ -179,11 +179,13 @@ enum class GetRootError : UiCoreError {
 @Serializable
 enum class WriteToDocumentError : UiCoreError {
     FileDoesNotExist,
-    FolderTreatedAsDocument;
+    FolderTreatedAsDocument,
+    InsufficientPermission;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
         FolderTreatedAsDocument -> LbError.newUserError(getString(res, R.string.folder_treated_as_document))
+        InsufficientPermission -> LbError.newUserError(getString(res, R.string.insufficient_permissions))
     }
 }
 
@@ -193,7 +195,11 @@ enum class CreateFileError : UiCoreError {
     CouldNotFindAParent,
     FileNameNotAvailable,
     FileNameContainsSlash,
-    FileNameEmpty;
+    FileNameEmpty,
+    LinkInSharedFolder,
+    LinkTargetIsOwned,
+    LinkTargetNonexistent,
+    InsufficientPermission;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         DocumentTreatedAsFolder -> LbError.newUserError(getString(res, R.string.document_treated_as_folder))
@@ -201,6 +207,10 @@ enum class CreateFileError : UiCoreError {
         FileNameNotAvailable -> LbError.newUserError(getString(res, R.string.file_name_not_available))
         FileNameContainsSlash -> LbError.newUserError(getString(res, R.string.file_name_contains_slash))
         FileNameEmpty -> LbError.newUserError(getString(res, R.string.file_name_empty))
+        LinkInSharedFolder -> LbError.newUserError(getString(res, R.string.link_in_shared_folder))
+        LinkTargetIsOwned -> LbError.newUserError(getString(res, R.string.link_target_is_owned))
+        LinkTargetNonexistent -> LbError.newUserError(getString(res, R.string.link_target_nonexistent))
+        InsufficientPermission -> LbError.newUserError(getString(res, R.string.insufficient_permissions))
     }
 }
 
@@ -219,11 +229,13 @@ enum class GetFileByIdError : UiCoreError {
 @Serializable
 enum class FileDeleteError : UiCoreError {
     FileDoesNotExist,
-    CannotDeleteRoot;
+    CannotDeleteRoot,
+    InsufficientPermission;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
         CannotDeleteRoot -> LbError.newUserError(getString(res, R.string.cannot_delete_root))
+        InsufficientPermission -> LbError.newUserError(getString(res, R.string.insufficient_permissions))
     }
 }
 
@@ -261,7 +273,8 @@ enum class RenameFileError : UiCoreError {
     NewNameContainsSlash,
     FileNameNotAvailable,
     NewNameEmpty,
-    CannotRenameRoot;
+    CannotRenameRoot,
+    InsufficientPermission;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
@@ -269,6 +282,7 @@ enum class RenameFileError : UiCoreError {
         FileNameNotAvailable -> LbError.newUserError(getString(res, R.string.file_name_not_available))
         NewNameEmpty -> LbError.newUserError(getString(res, R.string.file_name_empty))
         CannotRenameRoot -> LbError.newUserError(getString(res, R.string.cannot_rename_root))
+        InsufficientPermission -> LbError.newUserError(getString(res, R.string.insufficient_permissions))
     }
 }
 
@@ -279,7 +293,9 @@ enum class MoveFileError : UiCoreError {
     TargetParentDoesNotExist,
     TargetParentHasChildNamedThat,
     CannotMoveRoot,
-    FolderMovedIntoItself;
+    FolderMovedIntoItself,
+    LinkInSharedFolder,
+    InsufficientPermission;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
@@ -288,6 +304,8 @@ enum class MoveFileError : UiCoreError {
         TargetParentHasChildNamedThat -> LbError.newUserError(getString(res, R.string.target_parent_has_a_child_named_that))
         CannotMoveRoot -> LbError.newUserError(getString(res, R.string.cannot_move_root))
         FolderMovedIntoItself -> LbError.newUserError(getString(res, R.string.folder_moved_into_itself))
+        LinkInSharedFolder -> LbError.newUserError(getString(res, R.string.link_in_shared_folder))
+        InsufficientPermission -> LbError.newUserError(getString(res, R.string.insufficient_permissions))
     }
 }
 
