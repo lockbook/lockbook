@@ -49,18 +49,21 @@ fn write_document_write_share() {
         .create_file("document0", roots[0].id, FileType::Document)
         .unwrap();
     cores[0]
+        .write_document(document0.id, b"document content by sharer")
+        .unwrap();
+    cores[0]
         .share_file(document0.id, &accounts[1].username, ShareMode::Write)
         .unwrap();
     cores[0].sync(None).unwrap();
 
     cores[1].sync(None).unwrap();
     cores[1]
-        .write_document(document0.id, b"document content")
+        .write_document(document0.id, b"document content by sharee")
         .unwrap();
-    assert_eq!(cores[1].read_document(document0.id).unwrap(), b"document content");
+    assert_eq!(cores[1].read_document(document0.id).unwrap(), b"document content by sharee");
     cores[1].sync(None).unwrap();
     cores[0].sync(None).unwrap();
-    assert_eq!(cores[0].read_document(document0.id).unwrap(), b"document content");
+    assert_eq!(cores[0].read_document(document0.id).unwrap(), b"document content by sharee");
 }
 
 #[test]

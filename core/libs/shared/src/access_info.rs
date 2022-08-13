@@ -59,7 +59,7 @@ impl UserAccessInfo {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::access_info::UserAccessInfo;
+    use crate::access_info::{UserAccessInfo, UserAccessMode};
     use crate::account::Account;
     use crate::symkey;
 
@@ -67,9 +67,14 @@ mod unit_tests {
     fn encrypt_decrypt_1() {
         let account = Account::new("test1".to_string(), "test2".to_string());
         let key = symkey::generate_key();
-        let encrypted =
-            UserAccessInfo::encrypt(&account, &account.public_key(), &account.public_key(), &key)
-                .unwrap();
+        let encrypted = UserAccessInfo::encrypt(
+            &account,
+            &account.public_key(),
+            &account.public_key(),
+            &key,
+            UserAccessMode::Owner,
+        )
+        .unwrap();
         let decrypted = encrypted.decrypt(&account).unwrap();
         assert_eq!(key, decrypted);
     }
@@ -84,6 +89,7 @@ mod unit_tests {
             &account1.public_key(),
             &account2.public_key(),
             &key,
+            UserAccessMode::Owner,
         )
         .unwrap();
         let decrypted = encrypted.decrypt(&account2).unwrap();
