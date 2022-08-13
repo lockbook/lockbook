@@ -181,11 +181,24 @@ impl From<SharedError> for CoreError {
             FileNameEmpty => CoreError::FileNameEmpty,
             FileNotFolder => CoreError::FileNotFolder,
             FileNotDocument => CoreError::FileNotDocument,
+            InsufficientPermission => CoreError::InsufficientPermission,
             ValidationFailure(lockbook_shared::ValidationFailure::Cycle(_)) => {
                 CoreError::FolderMovedIntoSelf
             }
             ValidationFailure(lockbook_shared::ValidationFailure::PathConflict(_)) => {
                 CoreError::PathTaken
+            }
+            ValidationFailure(lockbook_shared::ValidationFailure::SharedLink { .. }) => {
+                CoreError::LinkInSharedFolder
+            }
+            ValidationFailure(lockbook_shared::ValidationFailure::DuplicateLink { .. }) => {
+                CoreError::MultipleLinksToSameFile
+            }
+            ValidationFailure(lockbook_shared::ValidationFailure::BrokenLink(_)) => {
+                CoreError::LinkTargetNonexistent
+            }
+            ValidationFailure(lockbook_shared::ValidationFailure::OwnedLink(_)) => {
+                CoreError::LinkTargetIsOwned
             }
             _ => CoreError::Unexpected(format!("unexpected shared error {:?}", err)),
         }
@@ -984,6 +997,10 @@ pub enum TestRepoError {
     FileNameContainsSlash(Uuid),
     PathConflict(HashSet<Uuid>),
     NonDecryptableFileName(Uuid),
+    SharedLink { link: Uuid, shared_ancestor: Uuid },
+    DuplicateLink { target: Uuid },
+    BrokenLink(Uuid),
+    OwnedLink(Uuid),
     DocumentReadError(Uuid, CoreError),
     Core(CoreError),
     Shared(SharedError),
@@ -1002,6 +1019,14 @@ impl From<SharedError> for TestRepoError {
                 ValidationFailure::NonDecryptableFileName(id) => {
                     TestRepoError::NonDecryptableFileName(id)
                 }
+                ValidationFailure::SharedLink { link, shared_ancestor } => {
+                    TestRepoError::SharedLink { link, shared_ancestor }
+                }
+                ValidationFailure::DuplicateLink { target } => {
+                    TestRepoError::DuplicateLink { target }
+                }
+                ValidationFailure::BrokenLink(id) => TestRepoError::BrokenLink(id),
+                ValidationFailure::OwnedLink(id) => TestRepoError::OwnedLink(id),
             },
             _ => TestRepoError::Shared(err),
         }

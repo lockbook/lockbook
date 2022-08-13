@@ -3,10 +3,8 @@ use crossbeam::channel::{self, Receiver, RecvTimeoutError, Sender};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::filename::DocumentType;
-use lockbook_shared::lazy::LazyStaged1;
-use lockbook_shared::tree_like::TreeLike;
+use lockbook_shared::tree_like::{Stagable, TreeLike};
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::sync::atomic::{self, AtomicBool};
@@ -52,11 +50,11 @@ impl RequestContext<'_, '_> {
             return Ok(Vec::new());
         }
 
-        let mut tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
 
         let account = self
             .tx
@@ -82,11 +80,11 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn start_search(&mut self) -> CoreResult<StartSearchInfo> {
-        let mut tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account

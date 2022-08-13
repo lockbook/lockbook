@@ -6,8 +6,7 @@ use std::path::Path;
 use uuid::Uuid;
 
 use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing};
-use lockbook_shared::file_metadata::Owner;
-use lockbook_shared::lazy::LazyStaged1;
+use lockbook_shared::tree_like::Stagable;
 
 use crate::model::drawing;
 use crate::model::drawing::SupportedImageFormats;
@@ -17,11 +16,11 @@ use crate::{CoreResult, OneKey};
 
 impl RequestContext<'_, '_> {
     pub fn get_drawing(&mut self, id: Uuid) -> CoreResult<Drawing> {
-        let tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account
@@ -34,11 +33,11 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn save_drawing(&mut self, id: Uuid, d: &Drawing) -> CoreResult<()> {
-        let tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account
@@ -54,11 +53,11 @@ impl RequestContext<'_, '_> {
         &mut self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>,
     ) -> CoreResult<Vec<u8>> {
-        let tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account
@@ -74,11 +73,11 @@ impl RequestContext<'_, '_> {
         &mut self, id: Uuid, format: SupportedImageFormats,
         render_theme: Option<HashMap<ColorAlias, ColorRGB>>, location: &str,
     ) -> CoreResult<()> {
-        let tree = LazyStaged1::core_tree(
-            Owner(self.get_public_key()?),
-            &mut self.tx.base_metadata,
-            &mut self.tx.local_metadata,
-        );
+        let tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let account = self
             .tx
             .account

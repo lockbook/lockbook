@@ -36,6 +36,7 @@ pub type SharedResult<T> = Result<T, SharedError>;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum SharedError {
+    InsufficientPermission,
     PathContainsEmptyFileName,
     PathTaken,
     RootNonexistent,

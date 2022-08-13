@@ -3,8 +3,7 @@ use lockbook_shared::api::GetPublicKeyRequest;
 use lockbook_shared::file::{File, ShareMode};
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileType, Owner};
-use lockbook_shared::lazy::LazyStaged1;
-use lockbook_shared::tree_like::TreeLike;
+use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::validate;
 use uuid::Uuid;
 
@@ -19,45 +18,47 @@ impl RequestContext<'_, '_> {
             ShareMode::Write => UserAccessMode::Write,
             ShareMode::Read => UserAccessMode::Read,
         };
-
-        let mut tree =
-            LazyStaged1::core_tree(owner, &mut self.tx.base_metadata, &mut self.tx.local_metadata);
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let mut file = tree.find(&id)?.timestamped_value.value.clone();
         if tree.calculate_deleted(&id)? {
             return Err(CoreError::FileNonexistent);
         }
-
         validate::not_root(&file)?;
         if mode == ShareMode::Write && file.owner.0 != owner.0 {
             return Err(CoreError::InsufficientPermission);
         }
-
         // check for and remove duplicate shares
         let mut found = false;
+        let sharee_public_key =
+            api_service::request(account, GetPublicKeyRequest { username: String::from(username) })
+                .map_err(CoreError::from)?
+                .key;
         for user_access in &mut file.user_access_keys {
-            if user_access.encrypted_for == owner.0 {
+            if user_access.encrypted_for == sharee_public_key {
                 found = true;
                 if user_access.mode == access_mode {
                     return Err(CoreError::ShareAlreadyExists);
-                } else {
-                    user_access.mode = access_mode;
                 }
             }
         }
-        if !found {
-            let sharee_public_key = api_service::request(
-                account,
-                GetPublicKeyRequest { username: String::from(username) },
-            )
-            .map_err(CoreError::from)?
-            .key;
-            file.user_access_keys.push(UserAccessInfo::encrypt(
-                account,
-                &owner.0,
-                &sharee_public_key,
-                &tree.decrypt_key(&id, account)?,
-            )?);
+        if found {
+            file.user_access_keys = file
+                .user_access_keys
+                .into_iter()
+                .filter(|k| k.encrypted_for != sharee_public_key)
+                .collect();
         }
+        file.user_access_keys.push(UserAccessInfo::encrypt(
+            account,
+            &owner.0,
+            &sharee_public_key,
+            &tree.decrypt_key(&id, account)?,
+            access_mode,
+        )?);
 
         let mut tree = tree.stage(Some(file.sign(account)?));
         tree.validate()?;
@@ -69,8 +70,11 @@ impl RequestContext<'_, '_> {
     pub fn get_pending_shares(&mut self) -> CoreResult<Vec<File>> {
         let account = &self.get_account()?.clone(); // todo: don't clone
         let owner = Owner(self.get_public_key()?);
-        let mut tree =
-            LazyStaged1::core_tree(owner, &mut self.tx.base_metadata, &mut self.tx.local_metadata);
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
 
         let mut result = Vec::new();
         'outer: for id in tree.owned_ids() {
@@ -108,8 +112,11 @@ impl RequestContext<'_, '_> {
     pub fn delete_pending_share(&mut self, id: Uuid) -> CoreResult<()> {
         let account = &self.get_account()?.clone(); // todo: don't clone
         let owner = Owner(self.get_public_key()?);
-        let mut tree =
-            LazyStaged1::core_tree(owner, &mut self.tx.base_metadata, &mut self.tx.local_metadata);
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
         let mut file = tree.find(&id)?.timestamped_value.value.clone();
 
         // file must not be deleted
@@ -119,6 +126,10 @@ impl RequestContext<'_, '_> {
         // file must be owned by another user
         if file.owner() == owner {
             return Err(CoreError::FileNotShared);
+        }
+        // must have access to file
+        if tree.access_mode(owner, &id)?.is_none() {
+            return Err(CoreError::FileNonexistent); // todo: put this shit everywhere
         }
         // file must be shared with this user
         match file
