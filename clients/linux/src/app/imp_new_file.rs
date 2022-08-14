@@ -123,6 +123,7 @@ impl super::App {
                             LinkTargetIsOwned => "Link target is owned.",
                             LinkTargetNonexistent => "Link target doesn't exist.",
                             InsufficientPermission => "Permission denied.",
+                            MultipleLinksToSameFile => "Can't accept the same share twice.",
                         }
                         .to_string(),
                         lb::Error::Unexpected(msg) => msg,
