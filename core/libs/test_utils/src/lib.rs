@@ -7,6 +7,8 @@ use lockbook_shared::api::{PaymentMethod, StripeAccountTier};
 use lockbook_shared::core_config::Config;
 use lockbook_shared::crypto::EncryptedDocument;
 use lockbook_shared::document_repo::{self, RepoSource};
+use lockbook_shared::file_like::FileLike;
+use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::path_ops::Filter::DocumentsOnly;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::work_unit::WorkUnit;
@@ -97,6 +99,33 @@ pub fn assert_all_paths(core: &Core, expected_paths: &[&str]) {
     }
 }
 
+pub fn assert_all_pending_shares(core: &Core, expected_names: &[&str]) {
+    if expected_names.iter().any(|&path| path.contains('/')) {
+        panic!(
+            "improper call to assert_all_pending_shares; expected_names must not contain with '/'. expected_names={:?}",
+            expected_names
+        );
+    }
+    let mut expected_names: Vec<String> = expected_names
+        .iter()
+        .map(|&name| String::from(name))
+        .collect();
+    let mut actual_names: Vec<String> = core
+        .get_pending_shares()
+        .unwrap()
+        .into_iter()
+        .map(|f| f.name)
+        .collect();
+    actual_names.sort();
+    expected_names.sort();
+    if actual_names != expected_names {
+        panic!(
+            "pending share names did not match expectation. expected={:?}; actual={:?}",
+            expected_names, actual_names
+        );
+    }
+}
+
 fn err_to_string<E: Debug>(e: E) -> String {
     format!("{}: {:?}", std::any::type_name::<E>(), e)
 }
@@ -129,6 +158,9 @@ pub fn assert_local_work_paths(db: &Core, expected_paths: &[&'static str]) {
             let account = tx.account.get(&OneKey {}).unwrap();
             let mut local = tx.base_metadata.stage(&mut tx.local_metadata).to_lazy();
             dirty
+                .iter()
+                .filter(|id| !matches!(local.find(id).unwrap().file_type(), FileType::Link { .. }))
+                .collect::<Vec<_>>()
                 .iter()
                 .map(|id| local.id_to_path(id, account))
                 .collect::<Result<Vec<String>, _>>()

@@ -90,7 +90,11 @@ where
                 }
 
                 if self.name(&child, account)? == path {
-                    current = child;
+                    if let FileType::Link { target } = self.find(&child)?.file_type() {
+                        current = target;
+                    } else {
+                        current = child;
+                    }
                     continue 'path;
                 }
             }
@@ -103,24 +107,32 @@ where
 
     pub fn id_to_path(&mut self, id: &Uuid, account: &Account) -> SharedResult<String> {
         let meta = self.find(id)?;
-        let mut current = *meta.parent();
 
         if meta.is_root() {
             return Ok("/".to_string());
         }
 
         let mut path = match meta.file_type() {
-            FileType::Document => format!("/{}", self.name(id, account)?),
-            FileType::Folder => format!("/{}/", self.name(id, account)?),
+            FileType::Document => "",
+            FileType::Folder => "/",
             FileType::Link { target: _ } => {
                 return Err(SharedError::Unexpected(
                     "cannot get path for link because links do not have paths",
                 ))
             }
-        };
+        }
+        .to_string();
 
+        let mut current = *meta.id();
         loop {
-            let current_meta = self.find(&current)?;
+            let current_meta = if let Some(link) = self.link(&current)? {
+                self.find(&link)?
+            } else {
+                self.find(&current)?
+            };
+            if self.maybe_find(current_meta.parent()).is_none() {
+                return Err(SharedError::FileParentNonexistent);
+            }
             if current_meta.is_root() {
                 return Ok(path);
             }
@@ -167,7 +179,10 @@ where
         // remove deleted
         let mut paths = vec![];
         for id in filtered {
-            if !self.calculate_deleted(&id)? {
+            if !self.calculate_deleted(&id)?
+                && !self.in_pending_share(&id)?
+                && !matches!(self.find(&id)?.file_type(), FileType::Link { .. })
+            {
                 paths.push(self.id_to_path(&id, account)?);
             }
         }
