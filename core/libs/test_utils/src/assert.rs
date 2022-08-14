@@ -122,6 +122,9 @@ pub fn local_work_paths(db: &Core, expected_paths: &[&'static str]) {
                 .filter(|id| !matches!(local.find(id).unwrap().file_type(), FileType::Link { .. }))
                 .collect::<Vec<_>>()
                 .iter()
+                .filter(|id| !local.in_pending_share(id).unwrap())
+                .collect::<Vec<_>>()
+                .iter()
                 .map(|id| local.id_to_path(id, account))
                 .collect::<Result<Vec<String>, _>>()
                 .unwrap()
@@ -150,6 +153,12 @@ pub fn server_work_paths(db: &Core, expected_paths: &[&'static str]) {
                 .tree
                 .staged
                 .owned_ids()
+                .iter()
+                .filter(|id| !matches!(remote.find(id).unwrap().file_type(), FileType::Link { .. }))
+                .collect::<Vec<_>>()
+                .iter()
+                .filter(|id| !remote.in_pending_share(id).unwrap())
+                .collect::<Vec<_>>()
                 .iter()
                 .map(|id| remote.id_to_path(id, account))
                 .collect::<Result<Vec<String>, _>>()
