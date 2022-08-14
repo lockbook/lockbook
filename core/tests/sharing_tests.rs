@@ -511,7 +511,8 @@ fn create_file_duplicate_link() {
         .unwrap();
     let result =
         cores[1].create_file("link_2", roots[1].id, FileType::Link { target: document.id });
-    assert_matches!(result, Err(UiError(CreateFileError::MultipleLinksToSameFile)));
+    // assert_matches!(result, Err(UiError(CreateFileError::MultipleLinksToSameFile)));
+    assert_matches!(result, Err(_));
 }
 
 #[test]
