@@ -67,6 +67,9 @@ where
         if self.calculate_deleted(parent)? {
             return Err(SharedError::FileParentNonexistent);
         }
+        if self.access_mode(Owner(*pub_key), parent)? < Some(UserAccessMode::Write) {
+            return Err(SharedError::InsufficientPermission);
+        }
 
         let parent_key = self.decrypt_key(parent, account)?;
         let new_file =
@@ -92,6 +95,15 @@ where
 
         if self.calculate_deleted(id)? {
             return Err(SharedError::FileNonexistent);
+        }
+        if let Some(parent) = self.maybe_find(file.parent()) {
+            if self.access_mode(Owner(account.public_key()), parent.id())?
+                < Some(UserAccessMode::Write)
+            {
+                return Err(SharedError::InsufficientPermission);
+            }
+        } else {
+            return Err(SharedError::InsufficientPermission);
         }
 
         let parent_key = self.decrypt_key(file.parent(), account)?;
@@ -122,9 +134,21 @@ where
         if self.calculate_deleted(id)? {
             return Err(SharedError::FileNonexistent);
         }
-
         if self.calculate_deleted(new_parent)? {
             return Err(SharedError::FileParentNonexistent);
+        }
+        if let Some(parent) = self.maybe_find(file.parent()) {
+            if self.access_mode(Owner(account.public_key()), parent.id())?
+                < Some(UserAccessMode::Write)
+            {
+                return Err(SharedError::InsufficientPermission);
+            }
+        } else {
+            return Err(SharedError::InsufficientPermission);
+        }
+        if self.access_mode(Owner(account.public_key()), new_parent)? < Some(UserAccessMode::Write)
+        {
+            return Err(SharedError::InsufficientPermission);
         }
 
         let key = self.decrypt_key(id, account)?;
@@ -145,12 +169,28 @@ where
     }
 
     pub fn stage_delete(
-        self, id: &Uuid, account: &Account,
+        mut self, id: &Uuid, account: &Account,
     ) -> SharedResult<TreeWithOp<Base, Local>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
+
         validate::not_root(&file)?;
+
+        if self.calculate_deleted(id)? {
+            return Err(SharedError::FileNonexistent);
+        }
+        if let Some(parent) = self.maybe_find(file.parent()) {
+            if self.access_mode(Owner(account.public_key()), parent.id())?
+                < Some(UserAccessMode::Write)
+            {
+                return Err(SharedError::InsufficientPermission);
+            }
+        } else {
+            return Err(SharedError::InsufficientPermission);
+        }
+
         file.is_deleted = true;
         let file = file.sign(account)?;
+
         Ok(self.stage(Some(file)))
     }
 
@@ -192,9 +232,8 @@ where
         if self.calculate_deleted(id)? {
             return Err(SharedError::FileNonexistent);
         }
-        match self.access_mode(Owner(account.public_key()), id)? {
-            None | Some(UserAccessMode::Read) => return Err(SharedError::InsufficientPermission),
-            Some(UserAccessMode::Owner | UserAccessMode::Write) => {}
+        if self.access_mode(Owner(account.public_key()), id)? < Some(UserAccessMode::Write) {
+            return Err(SharedError::InsufficientPermission);
         }
 
         let (tree, document) = self.update_document(id, document, account)?;

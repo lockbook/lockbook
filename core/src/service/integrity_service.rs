@@ -57,8 +57,8 @@ impl RequestContext<'_, '_> {
                     continue;
                 }
 
-                let file_path = tree.id_to_path(&id, account)?;
-                let extension = Path::new(&file_path)
+                let name = tree.name(&id, account)?;
+                let extension = Path::new(&name)
                     .extension()
                     .and_then(|ext| ext.to_str())
                     .unwrap_or("");
