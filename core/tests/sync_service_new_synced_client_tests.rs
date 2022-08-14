@@ -6,11 +6,11 @@ use test_utils::*;
 
 fn assert_stuff(c1: &Core, c2: &Core) {
     c1.validate().unwrap();
-    assert_dbs_eq(c1, c2);
-    assert_local_work_paths(c1, &[]);
-    assert_server_work_paths(c1, &[]);
-    assert_deleted_files_pruned(c1);
-    assert_new_synced_client_dbs_eq(c1);
+    assert::cores_equal(c1, c2);
+    assert::local_work_paths(c1, &[]);
+    assert::server_work_paths(c1, &[]);
+    assert::deleted_files_pruned(c1);
+    assert::new_synced_client_core_equal(c1);
 }
 
 #[test]
@@ -20,8 +20,8 @@ fn unmodified() {
 
     let c2 = another_client(&c1);
     c2.sync(None).unwrap();
-    assert_all_paths(&c2, &["/"]);
-    assert_all_document_contents(&c2, &[]);
+    assert::all_paths(&c2, &["/"]);
+    assert::all_document_contents(&c2, &[]);
     assert_stuff(&c1, &c2);
 }
 
@@ -33,8 +33,8 @@ fn new_file() {
 
     let c2 = another_client(&c1);
     c2.sync(None).unwrap();
-    assert_all_paths(&c2, &["/", "/document"]);
-    assert_all_document_contents(&c2, &[("/document", b"")]);
+    assert::all_paths(&c2, &["/", "/document"]);
+    assert::all_document_contents(&c2, &[("/document", b"")]);
     assert_stuff(&c1, &c2);
 }
 
@@ -46,8 +46,8 @@ fn new_files() {
 
     let c2 = another_client(&c1);
     c2.sync(None).unwrap();
-    assert_all_paths(&c2, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
-    assert_all_document_contents(&c2, &[("/a/b/c/d", b"")]);
+    assert::all_paths(&c2, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
+    assert::all_document_contents(&c2, &[("/a/b/c/d", b"")]);
     assert_stuff(&c1, &c2);
 }
 
@@ -60,8 +60,8 @@ fn edited_document() {
 
     let c2 = another_client(&c1);
     c2.sync(None).unwrap();
-    assert_all_paths(&c2, &["/", "/document"]);
-    assert_all_document_contents(&c2, &[("/document", b"document content")]);
+    assert::all_paths(&c2, &["/", "/document"]);
+    assert::all_document_contents(&c2, &[("/document", b"document content")]);
     assert_stuff(&c1, &c2);
 }
 
@@ -75,8 +75,8 @@ fn mv() {
 
     let c2 = another_client(&c1);
     c2.sync(None).unwrap();
-    assert_all_paths(&c2, &["/", "/folder/", "/folder/document"]);
-    assert_all_document_contents(&c2, &[("/folder/document", b"")]);
+    assert::all_paths(&c2, &["/", "/folder/", "/folder/document"]);
+    assert::all_document_contents(&c2, &[("/folder/document", b"")]);
     assert_stuff(&c1, &c2);
 }
 
@@ -89,8 +89,8 @@ fn rename() {
 
     let c2 = another_client(&c1);
     c2.sync(None).unwrap();
-    assert_all_paths(&c2, &["/", "/document2"]);
-    assert_all_document_contents(&c2, &[("/document2", b"")]);
+    assert::all_paths(&c2, &["/", "/document2"]);
+    assert::all_document_contents(&c2, &[("/document2", b"")]);
     assert_stuff(&c1, &c2);
 }
 
@@ -103,8 +103,8 @@ fn delete() {
 
     let c2 = another_client(&c1);
     c2.sync(None).unwrap();
-    assert_all_paths(&c2, &["/"]);
-    assert_all_document_contents(&c2, &[]);
+    assert::all_paths(&c2, &["/"]);
+    assert::all_document_contents(&c2, &[]);
     assert_stuff(&c1, &c2);
 }
 
@@ -117,8 +117,8 @@ fn delete_parent() {
 
     let c2 = another_client(&c1);
     c2.sync(None).unwrap();
-    assert_all_paths(&c2, &["/"]);
-    assert_all_document_contents(&c2, &[]);
+    assert::all_paths(&c2, &["/"]);
+    assert::all_document_contents(&c2, &[]);
     assert_stuff(&c1, &c2);
 }
 
@@ -131,7 +131,7 @@ fn delete_grandparent() {
 
     let c2 = another_client(&c1);
     c2.sync(None).unwrap();
-    assert_all_paths(&c2, &["/"]);
-    assert_all_document_contents(&c2, &[]);
+    assert::all_paths(&c2, &["/"]);
+    assert::all_document_contents(&c2, &[]);
     assert_stuff(&c1, &c2);
 }
