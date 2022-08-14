@@ -310,7 +310,7 @@ impl<T: Stagable> LazyTree<T> {
 
     // assumption: no orphans
     pub fn assert_no_cycles(&mut self) -> SharedResult<()> {
-        let mut root_found = false;
+        let mut owners_with_found_roots = HashSet::new();
         let mut no_cycles_in_ancestors = HashSet::new();
         for id in self.owned_ids() {
             let mut ancestors = HashSet::new();
@@ -319,8 +319,7 @@ impl<T: Stagable> LazyTree<T> {
                 if no_cycles_in_ancestors.contains(current_file.id()) {
                     break;
                 } else if current_file.is_root() {
-                    if !root_found {
-                        root_found = true;
+                    if owners_with_found_roots.insert(current_file.owner()) {
                         ancestors.insert(*current_file.id());
                         break;
                     } else {

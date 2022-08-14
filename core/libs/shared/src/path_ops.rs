@@ -90,7 +90,11 @@ where
                 }
 
                 if self.name(&child, account)? == path {
-                    current = child;
+                    if let FileType::Link { target } = self.find(&child)?.file_type() {
+                        current = target;
+                    } else {
+                        current = child;
+                    }
                     continue 'path;
                 }
             }
