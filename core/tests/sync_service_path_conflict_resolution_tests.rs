@@ -12,10 +12,10 @@ fn sync_and_assert_stuff(c1: &Core, c2: &Core) {
     c2.sync(None).unwrap();
 
     c1.validate().unwrap();
-    assert_dbs_eq(c1, c2);
-    assert_local_work_paths(c1, &[]);
-    assert_server_work_paths(c1, &[]);
-    assert_deleted_files_pruned(c1);
+    assert::cores_equal(c1, c2);
+    assert::local_work_paths(c1, &[]);
+    assert::server_work_paths(c1, &[]);
+    assert::deleted_files_pruned(c1);
 }
 
 #[test]
@@ -27,8 +27,8 @@ fn concurrent_create_documents() {
     c2.create_at_path("/a.md").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert_all_paths(&c2, &["/", "/a.md", "/a-1.md"]);
-    assert_all_document_contents(&c2, &[("/a.md", b""), ("/a-1.md", b"")]);
+    assert::all_paths(&c2, &["/", "/a.md", "/a-1.md"]);
+    assert::all_document_contents(&c2, &[("/a.md", b""), ("/a-1.md", b"")]);
 }
 
 #[test]
@@ -40,8 +40,8 @@ fn concurrent_create_folders() {
     c2.create_at_path("/a/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert_all_paths(&c2, &["/", "/a/", "/a-1/"]);
-    assert_all_document_contents(&c2, &[]);
+    assert::all_paths(&c2, &["/", "/a/", "/a-1/"]);
+    assert::all_document_contents(&c2, &[]);
 }
 
 #[test]
@@ -53,8 +53,8 @@ fn concurrent_create_folders_with_children() {
     c2.create_at_path("/a/child/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert_all_paths(&c2, &["/", "/a/", "/a-1/", "/a/child/", "/a-1/child/"]);
-    assert_all_document_contents(&c2, &[]);
+    assert::all_paths(&c2, &["/", "/a/", "/a-1/", "/a/child/", "/a-1/child/"]);
+    assert::all_document_contents(&c2, &[]);
 }
 
 #[test]
@@ -66,8 +66,8 @@ fn concurrent_create_document_then_folder() {
     c2.create_at_path("/a.md/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert_all_paths(&c2, &["/", "/a.md", "/a-1.md/"]);
-    assert_all_document_contents(&c2, &[("/a.md", b"")]);
+    assert::all_paths(&c2, &["/", "/a.md", "/a-1.md/"]);
+    assert::all_document_contents(&c2, &[("/a.md", b"")]);
 }
 
 #[test]
@@ -79,8 +79,8 @@ fn concurrent_create_folder_then_document() {
     c2.create_at_path("/a.md").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert_all_paths(&c2, &["/", "/a.md/", "/a-1.md"]);
-    assert_all_document_contents(&c2, &[("/a-1.md", b"")]);
+    assert::all_paths(&c2, &["/", "/a.md/", "/a-1.md"]);
+    assert::all_document_contents(&c2, &[("/a-1.md", b"")]);
 }
 
 #[test]
@@ -92,8 +92,8 @@ fn concurrent_create_document_then_folder_with_child() {
     c2.create_at_path("/a.md/child/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert_all_paths(&c2, &["/", "/a.md", "/a-1.md/", "/a-1.md/child/"]);
-    assert_all_document_contents(&c2, &[("/a.md", b"")]);
+    assert::all_paths(&c2, &["/", "/a.md", "/a-1.md/", "/a-1.md/child/"]);
+    assert::all_document_contents(&c2, &[("/a.md", b"")]);
 }
 
 #[test]
@@ -105,8 +105,8 @@ fn concurrent_create_folder_with_child_then_document() {
     c2.create_at_path("/a.md").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert_all_paths(&c2, &["/", "/a.md/", "/a.md/child/", "/a-1.md"]);
-    assert_all_document_contents(&c2, &[("/a-1.md", b"")]);
+    assert::all_paths(&c2, &["/", "/a.md/", "/a.md/child/", "/a-1.md"]);
+    assert::all_document_contents(&c2, &[("/a-1.md", b"")]);
 }
 
 #[test]
@@ -122,8 +122,8 @@ fn concurrent_move_then_create_documents() {
     c2.create_at_path("/a.md").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert_all_paths(&c2, &["/", "/folder/", "/a.md", "/a-1.md"]);
-    assert_all_document_contents(&c2, &[("/a.md", b""), ("/a-1.md", b"")]);
+    assert::all_paths(&c2, &["/", "/folder/", "/a.md", "/a-1.md"]);
+    assert::all_document_contents(&c2, &[("/a.md", b""), ("/a-1.md", b"")]);
 }
 
 #[test]
@@ -139,8 +139,8 @@ fn concurrent_create_then_move_documents() {
     move_by_path(&c2, "/folder/a.md", "").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert_all_paths(&c2, &["/", "/folder/", "/a.md", "/a-1.md"]);
-    assert_all_document_contents(&c2, &[("/a.md", b""), ("/a-1.md", b"")]);
+    assert::all_paths(&c2, &["/", "/folder/", "/a.md", "/a-1.md"]);
+    assert::all_document_contents(&c2, &[("/a.md", b""), ("/a-1.md", b"")]);
 }
 
 #[test]
@@ -156,8 +156,8 @@ fn concurrent_move_then_create_folders() {
     c2.create_at_path("/a.md/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert_all_paths(&c2, &["/", "/folder/", "/a.md/", "/a-1.md/"]);
-    assert_all_document_contents(&c2, &[]);
+    assert::all_paths(&c2, &["/", "/folder/", "/a.md/", "/a-1.md/"]);
+    assert::all_document_contents(&c2, &[]);
 }
 
 #[test]
@@ -173,8 +173,8 @@ fn concurrent_create_then_move_folders() {
     move_by_path(&c2, "/folder/a.md/", "").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert_all_paths(&c2, &["/", "/folder/", "/a.md/", "/a-1.md/"]);
-    assert_all_document_contents(&c2, &[]);
+    assert::all_paths(&c2, &["/", "/folder/", "/a.md/", "/a-1.md/"]);
+    assert::all_document_contents(&c2, &[]);
 }
 
 #[test]
@@ -190,11 +190,11 @@ fn concurrent_move_then_create_folders_with_children() {
     c2.create_at_path("/a.md/child/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert_all_paths(
+    assert::all_paths(
         &c2,
         &["/", "/folder/", "/a.md/", "/a-1.md/", "/a.md/child/", "/a-1.md/child/"],
     );
-    assert_all_document_contents(&c2, &[]);
+    assert::all_document_contents(&c2, &[]);
 }
 
 #[test]
@@ -210,9 +210,9 @@ fn concurrent_create_then_move_folders_with_children() {
     move_by_path(&c2, "/folder/a.md/", "").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert_all_paths(
+    assert::all_paths(
         &c2,
         &["/", "/folder/", "/a.md/", "/a-1.md/", "/a.md/child/", "/a-1.md/child/"],
     );
-    assert_all_document_contents(&c2, &[]);
+    assert::all_document_contents(&c2, &[]);
 }

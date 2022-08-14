@@ -5,18 +5,18 @@ use test_utils::*;
 
 fn assert_stuff(core: &Core) {
     core.validate().unwrap();
-    assert_local_work_paths(core, &[]);
-    assert_server_work_paths(core, &[]);
-    assert_deleted_files_pruned(core);
-    assert_new_synced_client_dbs_eq(core);
+    assert::local_work_paths(core, &[]);
+    assert::server_work_paths(core, &[]);
+    assert::deleted_files_pruned(core);
+    assert::new_synced_client_core_equal(core);
 }
 
 #[test]
 fn unmodified() {
     let core = test_core_with_account();
     core.sync(None).unwrap();
-    assert_all_paths(&core, &["/"]);
-    assert_all_document_contents(&core, &[]);
+    assert::all_paths(&core, &["/"]);
+    assert::all_document_contents(&core, &[]);
     assert_stuff(&core);
 }
 
@@ -25,8 +25,8 @@ fn new_file() {
     let core = test_core_with_account();
     core.create_at_path("/document").unwrap();
     core.sync(None).unwrap();
-    assert_all_paths(&core, &["/", "/document"]);
-    assert_all_document_contents(&core, &[("/document", b"")]);
+    assert::all_paths(&core, &["/", "/document"]);
+    assert::all_document_contents(&core, &[("/document", b"")]);
     assert_stuff(&core);
 }
 
@@ -39,8 +39,8 @@ fn new_file_name_same_as_username() {
     core.sync(None).unwrap();
     let account = core.get_account().unwrap();
     let document_path = format!("/{}", account.username);
-    assert_all_paths(&core, &["/", &document_path]);
-    assert_all_document_contents(&core, &[(&document_path, b"")]);
+    assert::all_paths(&core, &["/", &document_path]);
+    assert::all_document_contents(&core, &[(&document_path, b"")]);
     assert_stuff(&core);
 }
 
@@ -49,8 +49,8 @@ fn new_files() {
     let core = test_core_with_account();
     core.create_at_path("/a/b/c/d").unwrap();
     core.sync(None).unwrap();
-    assert_all_paths(&core, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
-    assert_all_document_contents(&core, &[("/a/b/c/d", b"")]);
+    assert::all_paths(&core, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
+    assert::all_document_contents(&core, &[("/a/b/c/d", b"")]);
     assert_stuff(&core);
 }
 
@@ -60,8 +60,8 @@ fn edited_document() {
     core.create_at_path("/document").unwrap();
     write_path(&core, "/document", b"document content").unwrap();
     core.sync(None).unwrap();
-    assert_all_paths(&core, &["/", "/document"]);
-    assert_all_document_contents(&core, &[("/document", b"document content")]);
+    assert::all_paths(&core, &["/", "/document"]);
+    assert::all_document_contents(&core, &[("/document", b"document content")]);
     assert_stuff(&core);
 }
 
@@ -72,8 +72,8 @@ fn mv() {
     let doc = core.create_at_path("/document").unwrap();
     core.move_file(doc.id, folder.id).unwrap();
     core.sync(None).unwrap();
-    assert_all_paths(&core, &["/", "/folder/", "/folder/document"]);
-    assert_all_document_contents(&core, &[("/folder/document", b"")]);
+    assert::all_paths(&core, &["/", "/folder/", "/folder/document"]);
+    assert::all_document_contents(&core, &[("/folder/document", b"")]);
     assert_stuff(&core);
 }
 
@@ -83,8 +83,8 @@ fn rename() {
     let doc = core.create_at_path("/document").unwrap();
     core.rename_file(doc.id, "document2").unwrap();
     core.sync(None).unwrap();
-    assert_all_paths(&core, &["/", "/document2"]);
-    assert_all_document_contents(&core, &[("/document2", b"")]);
+    assert::all_paths(&core, &["/", "/document2"]);
+    assert::all_document_contents(&core, &[("/document2", b"")]);
     assert_stuff(&core);
 }
 
@@ -94,8 +94,8 @@ fn delete() {
     let doc = core.create_at_path("/document").unwrap();
     core.delete_file(doc.id).unwrap();
     core.sync(None).unwrap();
-    assert_all_paths(&core, &["/"]);
-    assert_all_document_contents(&core, &[]);
+    assert::all_paths(&core, &["/"]);
+    assert::all_document_contents(&core, &[]);
     assert_stuff(&core);
 }
 
@@ -105,8 +105,8 @@ fn delete_parent() {
     core.create_at_path("/folder/document").unwrap();
     delete_path(&core, "/folder/").unwrap();
     core.sync(None).unwrap();
-    assert_all_paths(&core, &["/"]);
-    assert_all_document_contents(&core, &[]);
+    assert::all_paths(&core, &["/"]);
+    assert::all_document_contents(&core, &[]);
     assert_stuff(&core);
 }
 
@@ -116,7 +116,7 @@ fn delete_grandparent() {
     core.create_at_path("/grandparent/parent/document").unwrap();
     delete_path(&core, "/grandparent/").unwrap();
     core.sync(None).unwrap();
-    assert_all_paths(&core, &["/"]);
-    assert_all_document_contents(&core, &[]);
+    assert::all_paths(&core, &["/"]);
+    assert::all_document_contents(&core, &[]);
     assert_stuff(&core);
 }

@@ -7,12 +7,12 @@ use test_utils::*;
 fn assert_stuff(c1: &Core, c2: &Core) {
     for c in [c1, c2] {
         c.validate().unwrap();
-        assert_local_work_paths(c, &[]);
-        assert_server_work_paths(c, &[]);
-        assert_deleted_files_pruned(c);
+        assert::local_work_paths(c, &[]);
+        assert::server_work_paths(c, &[]);
+        assert::deleted_files_pruned(c);
     }
-    assert_all_paths(c2, &["/"]);
-    assert_all_document_contents(c2, &[]);
+    assert::all_paths(c2, &["/"]);
+    assert::all_document_contents(c2, &[]);
 }
 
 #[test]
@@ -32,7 +32,7 @@ fn new_file() {
     cores[1].sync(None).unwrap();
 
     assert_stuff(&cores[0], &cores[1]);
-    assert_all_pending_shares(&cores[1], &["folder"]);
+    assert::all_pending_shares(&cores[1], &["folder"]);
 }
 
 #[test]
@@ -58,7 +58,7 @@ fn new_files() {
     cores[1].sync(None).unwrap();
 
     assert_stuff(&cores[0], &cores[1]);
-    assert_all_pending_shares(&cores[1], &["a", "e"]);
+    assert::all_pending_shares(&cores[1], &["a", "e"]);
 }
 
 #[test]
@@ -81,5 +81,5 @@ fn edited_document() {
     cores[1].sync(None).unwrap();
 
     assert_stuff(&cores[0], &cores[1]);
-    assert_all_pending_shares(&cores[1], &["document"]);
+    assert::all_pending_shares(&cores[1], &["document"]);
 }

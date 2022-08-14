@@ -6,10 +6,10 @@ use test_utils::*;
 
 fn assert_stuff(c1: &Core, c2: &Core) {
     c1.validate().unwrap();
-    assert_dbs_eq(c1, c2);
-    assert_local_work_paths(c1, &[]);
-    assert_server_work_paths(c1, &[]);
-    assert_deleted_files_pruned(c1);
+    assert::cores_equal(c1, c2);
+    assert::local_work_paths(c1, &[]);
+    assert::server_work_paths(c1, &[]);
+    assert::deleted_files_pruned(c1);
 }
 
 #[test]
@@ -19,8 +19,8 @@ fn unmodified() {
     c2.sync(None).unwrap();
     c1.sync(None).unwrap();
     c2.sync(None).unwrap();
-    assert_all_paths(&c2, &["/"]);
-    assert_all_document_contents(&c2, &[]);
+    assert::all_paths(&c2, &["/"]);
+    assert::all_document_contents(&c2, &[]);
     assert_stuff(&c1, &c2);
 }
 
@@ -33,8 +33,8 @@ fn new_file() {
     c1.create_at_path("/document").unwrap();
     c1.sync(None).unwrap();
     c2.sync(None).unwrap();
-    assert_all_paths(&c2, &["/", "/document"]);
-    assert_all_document_contents(&c2, &[("/document", b"")]);
+    assert::all_paths(&c2, &["/", "/document"]);
+    assert::all_document_contents(&c2, &[("/document", b"")]);
     assert_stuff(&c1, &c2);
 }
 
@@ -47,8 +47,8 @@ fn new_files() {
     c1.create_at_path("/a/b/c/d").unwrap();
     c1.sync(None).unwrap();
     c2.sync(None).unwrap();
-    assert_all_paths(&c2, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
-    assert_all_document_contents(&c2, &[("/a/b/c/d", b"")]);
+    assert::all_paths(&c2, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
+    assert::all_document_contents(&c2, &[("/a/b/c/d", b"")]);
     assert_stuff(&c1, &c2);
 }
 
@@ -65,8 +65,8 @@ fn edited_document() {
     c1.sync(None).unwrap();
     c2.sync(None).unwrap();
 
-    assert_all_paths(&c2, &["/", "/document"]);
-    assert_all_document_contents(&c2, &[("/document", b"document content")]);
+    assert::all_paths(&c2, &["/", "/document"]);
+    assert::all_document_contents(&c2, &[("/document", b"document content")]);
     assert_stuff(&c1, &c2);
 }
 
@@ -84,8 +84,8 @@ fn mv() {
     c1.sync(None).unwrap();
 
     c2.sync(None).unwrap();
-    assert_all_paths(&c2, &["/", "/folder/", "/folder/document"]);
-    assert_all_document_contents(&c2, &[("/folder/document", b"")]);
+    assert::all_paths(&c2, &["/", "/folder/", "/folder/document"]);
+    assert::all_document_contents(&c2, &[("/folder/document", b"")]);
     assert_stuff(&c1, &c2);
 }
 
@@ -102,8 +102,8 @@ fn rename() {
     c1.sync(None).unwrap();
 
     c2.sync(None).unwrap();
-    assert_all_paths(&c2, &["/", "/document2"]);
-    assert_all_document_contents(&c2, &[("/document2", b"")]);
+    assert::all_paths(&c2, &["/", "/document2"]);
+    assert::all_document_contents(&c2, &[("/document2", b"")]);
     assert_stuff(&c1, &c2);
 }
 
@@ -120,8 +120,8 @@ fn delete() {
     c1.sync(None).unwrap();
 
     c2.sync(None).unwrap();
-    assert_all_paths(&c2, &["/"]);
-    assert_all_document_contents(&c2, &[]);
+    assert::all_paths(&c2, &["/"]);
+    assert::all_document_contents(&c2, &[]);
     assert_stuff(&c1, &c2);
 }
 
@@ -138,8 +138,8 @@ fn delete_parent() {
     c1.sync(None).unwrap();
 
     c2.sync(None).unwrap();
-    assert_all_paths(&c2, &["/"]);
-    assert_all_document_contents(&c2, &[]);
+    assert::all_paths(&c2, &["/"]);
+    assert::all_document_contents(&c2, &[]);
     assert_stuff(&c1, &c2);
 }
 
@@ -156,7 +156,7 @@ fn delete_grandparent() {
     c1.sync(None).unwrap();
 
     c2.sync(None).unwrap();
-    assert_all_paths(&c2, &["/"]);
-    assert_all_document_contents(&c2, &[]);
+    assert::all_paths(&c2, &["/"]);
+    assert::all_document_contents(&c2, &[]);
     assert_stuff(&c1, &c2);
 }
