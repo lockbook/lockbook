@@ -307,33 +307,53 @@ pub async fn get_document(
 pub async fn get_updates(
     context: RequestContext<'_, GetUpdatesRequest>,
 ) -> Result<GetUpdatesResponse, ServerError<GetUpdatesError>> {
-    let owner = Owner(context.public_key);
     let (request, server_state) = (&context.request, context.server_state);
+    let mut result = Vec::new();
     server_state.index_db.transaction(|tx| {
-        let mut tree = tx.metas.to_lazy(); // note: tree consists of all files on server
-        let mut result_ids = HashSet::new();
-        for id in tree.owned_ids() {
-            let file = tree.find(&id)?;
-            if file.version > request.since_metadata_version {
-                if file.owner() == owner {
-                    result_ids.insert(*file.id());
-                } else if file
-                    .user_access_keys()
-                    .iter()
-                    .any(|k| k.encrypted_for == context.public_key)
-                {
-                    result_ids.insert(id);
-                    result_ids.extend(tree.descendents(&id)?);
+        let owners = tx
+            .owned_files
+            .keys()
+            .iter()
+            .map(|owner| **owner)
+            .collect::<Vec<_>>();
+        for owner in owners {
+            let mut tree = ServerTree {
+                owners: vec![owner],
+                owned: &mut tx.owned_files,
+                metas: &mut tx.metas,
+            }
+            .to_lazy();
+
+            let mut result_ids = HashSet::new();
+            if owner.0 == context.public_key {
+                for id in tree.owned_ids() {
+                    if tree.find(&id)?.version > request.since_metadata_version {
+                        result_ids.insert(id);
+                    }
+                }
+            } else {
+                for id in tree.owned_ids() {
+                    let file = tree.find(&id)?;
+                    if file.version > request.since_metadata_version
+                        && file
+                            .user_access_keys()
+                            .iter()
+                            .any(|k| k.encrypted_for == context.public_key)
+                    {
+                        result_ids.insert(id);
+                        result_ids.extend(tree.descendents(&id)?);
+                    }
                 }
             }
+
+            result.extend(
+                tree.all_files()?
+                    .iter()
+                    .filter(|meta| result_ids.contains(meta.id()))
+                    .map(|meta| meta.file.clone()),
+            );
         }
 
-        let result = tree
-            .all_files()?
-            .iter()
-            .filter(|meta| result_ids.contains(meta.id()))
-            .map(|meta| meta.file.clone())
-            .collect::<Vec<_>>();
         Ok(GetUpdatesResponse {
             as_of_metadata_version: get_time().0 as u64,
             file_metadata: result,
