@@ -1,56 +1,20 @@
 package app.lockbook.model
 
 import android.content.Context
-import androidx.preference.PreferenceManager
-import app.lockbook.R
 import app.lockbook.util.*
 import com.github.michaelbull.result.*
 
-enum class SortStyle {
-    AToZ,
-    ZToA,
-    LastChanged,
-    FirstChanged,
-    FileType;
-
-    fun toStringResource(): Int = when (this) {
-        AToZ -> R.string.sort_files_a_z_value
-        ZToA -> R.string.sort_files_z_a_value
-        LastChanged -> R.string.sort_files_last_changed_value
-        FirstChanged -> R.string.sort_files_first_changed_value
-        FileType -> R.string.sort_files_type_value
-    }
-}
-
 class FileModel(
-    var parent: DecryptedFileMetadata,
-    var files: List<DecryptedFileMetadata>,
-    var children: List<DecryptedFileMetadata>,
-    var recentFiles: List<DecryptedFileMetadata>,
-    val fileDir: MutableList<DecryptedFileMetadata>,
-    private var sortStyle: SortStyle
+    var parent: File,
+    var files: List<File>,
+    var children: List<File>,
+    var recentFiles: List<File>,
+    val fileDir: MutableList<File>,
 ) {
 
     companion object {
         // Returns Ok(null) if there is no root
         fun createAtRoot(context: Context): Result<FileModel?, LbError> {
-            val pref = PreferenceManager.getDefaultSharedPreferences(context)
-            val res = context.resources
-
-            val sortStyle = when (
-                pref.getString(
-                    getString(res, R.string.sort_files_key),
-                    getString(res, R.string.sort_files_a_z_value)
-                )
-            ) {
-                getString(res, R.string.sort_files_a_z_value) -> SortStyle.AToZ
-                getString(res, R.string.sort_files_z_a_value) -> SortStyle.ZToA
-                getString(res, R.string.sort_files_first_changed_value) -> SortStyle.FirstChanged
-                getString(res, R.string.sort_files_last_changed_value) -> SortStyle.LastChanged
-                getString(res, R.string.sort_files_type_value) -> SortStyle.FileType
-                else -> return Err(LbError.basicError(context.resources))
-            }
-
             return when (val getRootResult = CoreModel.getRoot()) {
                 is Ok -> {
                     when (val listMetadatasResult = CoreModel.listMetadatas()) {
@@ -62,32 +26,31 @@ class FileModel(
                             val fileModel = FileModel(
                                 root,
                                 files,
-                                files.filter { it.parent == root.id && it.id != it.parent },
+                                listOf(),
                                 recentFiles,
                                 mutableListOf(root),
-                                sortStyle
                             )
-                            fileModel.sortChildren()
+                            fileModel.refreshChildren()
 
                             Ok(fileModel)
                         }
-                        is Err -> Err(listMetadatasResult.error.toLbError(res))
+                        is Err -> Err(listMetadatasResult.error.toLbError(context.resources))
                     }
                 }
                 is Err -> {
                     if ((getRootResult.error as? CoreError.UiError)?.content == GetRootError.NoRoot) {
                         Ok(null)
                     } else {
-                        Err(getRootResult.error.toLbError(res))
+                        Err(getRootResult.error.toLbError(context.resources))
                     }
                 }
             }
         }
 
-        private fun getTenMostRecentFiles(files: List<DecryptedFileMetadata>): List<DecryptedFileMetadata> {
+        private fun getTenMostRecentFiles(files: List<File>): List<File> {
             val intermediateRecentFiles =
                 files.asSequence().filter { it.fileType == FileType.Document }
-                    .sortedBy { it.contentVersion }.toList()
+                    .sortedBy { it.lastModified }.toList()
 
             val recentFiles = try {
                 intermediateRecentFiles.takeLast(10)
@@ -111,21 +74,6 @@ class FileModel(
 
     fun isAtRoot(): Boolean = parent.id == parent.parent
 
-    fun setSortStyle(newSortStyle: SortStyle) {
-        sortStyle = newSortStyle
-        sortChildren()
-    }
-
-    private fun sortChildren() {
-        children = when (sortStyle) {
-            SortStyle.AToZ -> sortFilesAlpha(children)
-            SortStyle.ZToA -> sortFilesAlpha(children).reversed()
-            SortStyle.LastChanged -> sortFilesChanged(children)
-            SortStyle.FirstChanged -> sortFilesChanged(children).reversed()
-            SortStyle.FileType -> sortFilesType(children)
-        }
-    }
-
     fun refreshFiles(): Result<Unit, CoreError<Empty>> {
         return CoreModel.listMetadatas().map { files ->
             this.files = files
@@ -134,7 +82,7 @@ class FileModel(
         }
     }
 
-    fun intoFile(newParent: DecryptedFileMetadata) {
+    fun intoFile(newParent: File) {
         parent = newParent
         refreshChildren()
         fileDir.add(newParent)
@@ -151,35 +99,15 @@ class FileModel(
         sortChildren()
     }
 
-    private fun sortFilesAlpha(files: List<DecryptedFileMetadata>): List<DecryptedFileMetadata> =
-        files.sortedBy { fileMetadata ->
-            fileMetadata.decryptedName
+    private fun sortChildren() {
+        val folders = children.filter { fileMetadata ->
+            fileMetadata.fileType == FileType.Folder
         }
 
-    private fun sortFilesChanged(files: List<DecryptedFileMetadata>): List<DecryptedFileMetadata> =
-        files.sortedBy { fileMetadata ->
-            fileMetadata.metadataVersion
+        val documents = children.filter { fileMetadata ->
+            fileMetadata.fileType == FileType.Document
         }
 
-    private fun sortFilesType(files: List<DecryptedFileMetadata>): List<DecryptedFileMetadata> {
-        val tempFolders = files.filter { fileMetadata ->
-            fileMetadata.fileType.name == FileType.Folder.name
-        }
-        val tempDocuments = files.filter { fileMetadata ->
-            fileMetadata.fileType.name == FileType.Document.name
-        }
-
-        return tempFolders.union(
-            tempDocuments.sortedWith(
-                compareBy(
-                    { fileMetadata ->
-                        Regex(".[^.]+\$").find(fileMetadata.decryptedName)?.value
-                    },
-                    { fileMetaData ->
-                        fileMetaData.decryptedName
-                    }
-                )
-            )
-        ).toList()
+        children = folders.sortedBy { it.name } + documents.sortedBy { it.name }
     }
 }

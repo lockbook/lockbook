@@ -1,18 +1,18 @@
-use crate::model::errors::core_err_unexpected;
-use crate::service::api_service;
-use crate::service::api_service::ApiError;
-use crate::{CoreError, RequestContext};
-use lockbook_models::api::{
+use lockbook_shared::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequest,
     StripeAccountTier, SubscriptionInfo, UpgradeAccountGooglePlayError,
     UpgradeAccountGooglePlayRequest, UpgradeAccountStripeError, UpgradeAccountStripeRequest,
 };
 
+use crate::model::errors::core_err_unexpected;
+use crate::service::api_service::{self, ApiError};
+use crate::{CoreError, CoreResult, RequestContext};
+
 impl RequestContext<'_, '_> {
-    pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> Result<(), CoreError> {
+    pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> CoreResult<()> {
         let account = self.get_account()?;
 
-        api_service::request(&account, UpgradeAccountStripeRequest { account_tier }).map_err(
+        api_service::request(account, UpgradeAccountStripeRequest { account_tier }).map_err(
             |err| match err {
                 ApiError::Endpoint(err) => match err {
                     UpgradeAccountStripeError::OldCardDoesNotExist => {
@@ -48,11 +48,11 @@ impl RequestContext<'_, '_> {
 
     pub fn upgrade_account_google_play(
         &self, purchase_token: &str, account_id: &str,
-    ) -> Result<(), CoreError> {
+    ) -> CoreResult<()> {
         let account = self.get_account()?;
 
         api_service::request(
-            &account,
+            account,
             UpgradeAccountGooglePlayRequest {
                 purchase_token: purchase_token.to_string(),
                 account_id: account_id.to_string(),
@@ -76,10 +76,10 @@ impl RequestContext<'_, '_> {
         Ok(())
     }
 
-    pub fn cancel_subscription(&self) -> Result<(), CoreError> {
+    pub fn cancel_subscription(&self) -> CoreResult<()> {
         let account = self.get_account()?;
 
-        api_service::request(&account, CancelSubscriptionRequest {}).map_err(|err| match err {
+        api_service::request(account, CancelSubscriptionRequest {}).map_err(|err| match err {
             ApiError::Endpoint(CancelSubscriptionError::NotPremium) => CoreError::NotPremium,
             ApiError::Endpoint(CancelSubscriptionError::AlreadyCanceled) => {
                 CoreError::AlreadyCanceled
@@ -98,10 +98,10 @@ impl RequestContext<'_, '_> {
         Ok(())
     }
 
-    pub fn get_subscription_info(&self) -> Result<Option<SubscriptionInfo>, CoreError> {
+    pub fn get_subscription_info(&self) -> CoreResult<Option<SubscriptionInfo>> {
         let account = self.get_account()?;
 
-        Ok(api_service::request(&account, GetSubscriptionInfoRequest {})
+        Ok(api_service::request(account, GetSubscriptionInfoRequest {})
             .map_err(|err| match err {
                 ApiError::SendFailed(_) => CoreError::ServerUnreachable,
                 ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,

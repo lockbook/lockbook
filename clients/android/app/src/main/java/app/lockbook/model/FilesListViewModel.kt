@@ -9,6 +9,7 @@ import app.lockbook.R
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
+import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.afollestad.recyclical.datasource.emptySelectableDataSourceTyped
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -27,7 +28,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     lateinit var fileModel: FileModel
 
     val files = emptySelectableDataSourceTyped<FileViewHolderInfo>()
-    val recentFiles = emptySelectableDataSourceTyped<RecentFileViewHolderInfo>()
+    val recentFiles = emptyDataSourceTyped<RecentFileViewHolderInfo>()
 
     var breadcrumbItems = listOf<BreadCrumbItem>()
 
@@ -53,7 +54,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
                     recentFiles.set(fileModel.recentFiles.intoRecentViewHolderInfo(fileModel.files))
                     files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
-                    breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
+                    breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
 
                     _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
 
@@ -84,20 +85,22 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
             do {
                 iter++
                 fileName = "${getString(R.string.note)}-$iter.md"
-            } while (fileModel.children.any { it.decryptedName == fileName })
+            } while (fileModel.children.any { it.name == fileName })
 
             when (val createFileResult = CoreModel.createFile(fileModel.parent.id, fileName, FileType.Document)) {
                 is Ok -> {
                     withContext(Dispatchers.Main) {
                         activityModel.launchDetailsScreen(DetailsScreen.Loading(createFileResult.value))
                     }
+
+                    refreshFiles()
                 }
                 is Err -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(createFileResult.error.toLbError(getRes())))
             }
         }
     }
 
-    fun enterFolder(folder: DecryptedFileMetadata) {
+    fun enterFolder(folder: File) {
         viewModelScope.launch(Dispatchers.IO) {
             fileModel.intoFile(folder)
 
@@ -112,7 +115,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                 files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
             }
 
-            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
+            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
             _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
         }
     }
@@ -126,7 +129,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                 files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
             }
 
-            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
+            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
             _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
         }
     }
@@ -135,7 +138,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch(Dispatchers.IO) {
             fileModel.refreshChildrenAtAncestor(position)
             maybeToggleRecentFiles()
-            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.decryptedName) }
+            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
             viewModelScope.launch(Dispatchers.Main) {
                 files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
             }
@@ -228,13 +231,6 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
             _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
         }
-    }
-
-    fun changeFileSort(newSortStyle: SortStyle) {
-        fileModel.setSortStyle(newSortStyle)
-
-        files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
-        PreferenceManager.getDefaultSharedPreferences(getContext()).edit().putString(getString(R.string.sort_files_key), getString(newSortStyle.toStringResource())).apply()
     }
 
     private fun refreshWorkInfo() {

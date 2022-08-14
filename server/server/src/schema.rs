@@ -1,23 +1,19 @@
 use crate::billing::billing_model::SubscriptionProfile;
-use lockbook_models::feature_flag::FeatureFlags;
-use lockbook_models::file_metadata::EncryptedFileMetadata;
-use lockbook_models::file_metadata::Owner;
+use lockbook_shared::file_metadata::Owner;
+use lockbook_shared::server_file::ServerFile;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use uuid::Uuid;
-
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub struct OneKey;
 
 hmdb::schema! {
     ServerV1 {
         usernames: <String, Owner>,
         accounts: <Owner, Account>,
-        owned_files: <Owner, Vec<Uuid>>,
-        metas: <Uuid, EncryptedFileMetadata>,
+        owned_files: <Owner, HashSet<Uuid>>,
+        metas: <Uuid, ServerFile>,
         sizes: <Uuid, u64>,
         google_play_ids: <String, Owner>,
-        stripe_ids: <String, Owner>,
-        feature_flags: <OneKey, FeatureFlags>
+        stripe_ids: <String, Owner>
     }
 }
 

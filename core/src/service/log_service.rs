@@ -1,5 +1,5 @@
 use crate::model::errors::core_err_unexpected;
-use crate::{Config, CoreError};
+use crate::{Config, CoreResult};
 use std::env;
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -7,7 +7,7 @@ use tracing_subscriber::{filter, fmt, prelude::*, Layer};
 
 static LOG_FILE: &str = "lockbook.log";
 
-pub fn init(config: &Config) -> Result<(), CoreError> {
+pub fn init(config: &Config) -> CoreResult<()> {
     if config.logs {
         let lockbook_log_level = env::var("LOG_LEVEL")
             .ok()
@@ -22,7 +22,7 @@ pub fn init(config: &Config) -> Result<(), CoreError> {
                 .with_writer(tracing_appender::rolling::never(&config.writeable_path, LOG_FILE))
                 .with_filter(lockbook_log_level)
                 .with_filter(filter::filter_fn(|metadata| {
-                    metadata.target().starts_with("lockbook_core")
+                    metadata.target().starts_with("lockbook")
                 })),
         );
 

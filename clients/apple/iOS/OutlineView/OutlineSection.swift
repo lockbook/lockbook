@@ -7,7 +7,7 @@ struct OutlineSection: View {
     @EnvironmentObject var files: FileService
     @EnvironmentObject var state: SheetState
     
-    var root: DecryptedFileMetadata
+    var root: File
 
     var body: some View {
         let rootOutlineBranch = OutlineBranch(file: root, level: -1)
@@ -24,6 +24,6 @@ struct OutlineSection: View {
         }.contextMenu {
             OutlineContextMenu (meta: root, branchState: nil)
         }
-        .navigationTitle(files.root!.decryptedName)
+        .navigationTitle(files.root!.name)
     }
 }

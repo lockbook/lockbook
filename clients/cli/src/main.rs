@@ -1,7 +1,6 @@
 use std::env;
 use std::path::PathBuf;
 
-use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
 use lockbook_core::Core;
@@ -9,7 +8,6 @@ use lockbook_core::{Config, Uuid};
 
 use crate::error::CliError;
 
-mod admin;
 mod backup;
 mod billing;
 mod copy;
@@ -26,6 +24,7 @@ mod private_key;
 mod remove;
 mod rename;
 mod selector;
+mod share;
 mod status;
 mod sync;
 mod usage;
@@ -38,7 +37,7 @@ enum Lockbook {
     Backup,
 
     /// Commands related to managing premium lockbook subscriptions
-    Billing(Billing),
+    Billing(billing::Billing),
 
     /// Copy a file from your file system into your Lockbook
     ///
@@ -208,6 +207,9 @@ enum Lockbook {
         name: Option<String>,
     },
 
+    /// Manage shared documents
+    Share(share::Share),
+
     /// What operations a sync would perform
     Status,
 
@@ -215,72 +217,7 @@ enum Lockbook {
     Sync,
 
     /// Subcommands that aid in extending lockbook
-    Debug(Debug),
-
-    /// Subcommands for admin users
-    #[structopt(setting(AppSettings::Hidden))]
-    Admin(Admin),
-}
-
-#[derive(Debug, PartialEq, StructOpt)]
-pub enum Admin {
-    /// Commands related to feature flags
-    FeatureFlags(FeatureFlags),
-
-    /// Delete a user
-    DeleteAccount { username: String },
-}
-
-#[derive(Debug, PartialEq, StructOpt)]
-pub enum FeatureFlags {
-    /// Prints out the current state of all feature flags
-    List,
-
-    /// Manage new accounts feature flag
-    NewAccounts {
-        #[structopt(parse(try_from_str))]
-        enable: bool,
-    },
-}
-
-#[derive(Debug, PartialEq, StructOpt)]
-pub enum Debug {
-    /// Prints metadata associated with a file
-    Info {
-        path: Option<String>,
-
-        #[structopt(short, long)]
-        id: Option<Uuid>,
-    },
-
-    /// Prints all the error codes that the cli can generate
-    Errors,
-
-    /// Prints who is logged into this lockbook
-    #[structopt(name = "whoami")]
-    WhoAmI,
-
-    /// Prints information about where this lockbook is stored and what server it communicates with
-    #[structopt(name = "whereami")]
-    WhereAmI,
-
-    /// Helps find invalid states within lockbook
-    Validate,
-
-    /// Visualizes the filetree as a graphical tree
-    Tree,
-}
-
-#[derive(Debug, PartialEq, StructOpt)]
-pub enum Billing {
-    /// Prints out information about your current tier
-    Status,
-
-    /// Create a new subscription using a credit card
-    Subscribe,
-
-    /// Terminate a lockbook subscription
-    UnSubscribe,
+    Debug(debug::Debug),
 }
 
 fn exit_with(err: CliError) -> ! {
@@ -311,13 +248,13 @@ fn parse_and_run() -> Result<(), CliError> {
         Print { path, id } => print::print(&core, path, id),
         Remove { path, id, force } => remove::remove(&core, path, id, force),
         Rename { path, id, name } => rename::rename(&core, path, id, name),
+        Share(share) => share::share(&core, share),
         Status => status::status(&core),
         Sync => sync::sync(&core),
         Backup => backup::backup(&core),
         GetUsage { exact } => usage::usage(&core, exact),
         Drawing { path, id, format } => drawing::drawing(&core, path, id, &format),
         Debug(debug) => debug::debug(&core, debug),
-        Admin(admin) => admin::admin(&core, admin),
     }
 }
 

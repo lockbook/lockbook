@@ -1,6 +1,6 @@
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
-use lockbook_models::api::{
+use lockbook_shared::api::{
     UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest, UpgradeAccountStripeRequest,
 };
 use test_utils::{
@@ -8,6 +8,7 @@ use test_utils::{
 };
 
 #[test]
+#[ignore]
 fn upgrade_account_google_play_already_premium() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();

@@ -1,9 +1,10 @@
 use lockbook_core::service::api_service;
 use lockbook_core::service::api_service::ApiError;
-use lockbook_models::api::*;
+use lockbook_shared::api::*;
 use test_utils::*;
 
 #[test]
+#[ignore]
 fn upgrade_account_to_premium() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
@@ -19,6 +20,7 @@ fn upgrade_account_to_premium() {
 }
 
 #[test]
+#[ignore]
 fn new_tier_is_old_tier() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
@@ -49,6 +51,7 @@ fn new_tier_is_old_tier() {
 }
 
 #[test]
+#[ignore]
 fn card_does_not_exist() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
@@ -70,6 +73,7 @@ fn card_does_not_exist() {
 }
 
 #[test]
+#[ignore]
 fn card_decline() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
@@ -104,6 +108,7 @@ fn card_decline() {
 }
 
 #[test]
+#[ignore]
 fn invalid_cards() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();

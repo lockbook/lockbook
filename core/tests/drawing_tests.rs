@@ -1,6 +1,6 @@
-use lockbook_core::pure_functions::drawing;
-use lockbook_core::pure_functions::drawing::SupportedImageFormats;
-use lockbook_models::drawing::{ColorAlias, Drawing, Stroke};
+use lockbook_core::model::drawing;
+use lockbook_core::model::drawing::SupportedImageFormats;
+use lockbook_shared::drawing::{ColorAlias, Drawing, Stroke};
 
 #[test]
 fn parse_drawing_invalid() {

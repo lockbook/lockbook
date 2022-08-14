@@ -24,11 +24,20 @@ fun createRandomPath(): String {
     return path
 }
 
-fun <E> Result<*, CoreError<E>>?.unwrapErrorType(enumType: UiCoreError): UiCoreError
-where E : Enum<E>, E : UiCoreError {
+fun <E, A> Result<*, CoreError<E>>?.unwrapErrorType(enumType: A): UiCoreError
+where E : Enum<E>, E : UiCoreError, A : Enum<E>, A : UiCoreError {
     val error = this?.unwrapError()
-    require(error is CoreError.UiError && error.content == enumType) {
-        "${Thread.currentThread().stackTrace[1]}: ${if (error == null) "null" else error::class.qualifiedName} is not of type ${enumType::class.qualifiedName}"
+    require(error != null) {
+        "${Thread.currentThread().stackTrace[1]}: null is not of type ${enumType.name}"
+    }
+
+    require(error is CoreError.UiError) {
+        "${Thread.currentThread().stackTrace[1]}: ${error::class.qualifiedName} is not of type ${enumType.name}" +
+            "\nmsg: ${(error as CoreError.Unexpected).content}"
+    }
+
+    require(error.content == enumType) {
+        "${Thread.currentThread().stackTrace[1]}: ${error.content.name} is not of type ${enumType.name}"
     }
 
     return error.content

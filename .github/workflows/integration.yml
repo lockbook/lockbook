@@ -9,195 +9,29 @@ on:
     branches: [ master ]
 
 jobs:
-  Core:
-    runs-on: [self-hosted, dockerized]
+  Checks:
+    runs-on: [self-hosted, ci]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      LOCKBOOK_CI: 1
     steps:
     - uses: actions/checkout@v2
-    - name: Build container
-      run: make core
-    - name: Check Formatting
-      run: make core_fmt
-    - name: Lint
-      run: make core_lint
-
-  Cli:
-    runs-on: [self-hosted, dockerized]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-    - uses: actions/checkout@v2
-    - name: Build container
-      run: make cli
-    - name: Compile and run tests
-      run: make cli_test
-    - name: Check Formatting
-      run: make cli_fmt
-    - name: Lint
-      run: make cli_lint
-
-  Linux:
-    runs-on: [self-hosted, dockerized]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-    - uses: actions/checkout@v2
-    - name: Build container
-      run: make linux
-    - name: Check Formatting
-      run: make linux_fmt
-    - name: Lint
-      run: make linux_lint
-    - name: Compile and run tests
-      run: make linux_test
-
-  Android:
-    runs-on: [self-hosted, dockerized]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Build container
-        run: make android
-      - name: Check Formatting
-        run: make android_fmt
-      - name: Lint
-        run: make android_lint
-
-  Server:
-    runs-on: [self-hosted, dockerized]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Build server container
-        run: make server
-      - name: Check Formatting
-        run: make server_fmt
-      - name: Lint
-        run: make server_lint
-
-  Prep-Core-Server-Db:
-    runs-on: [self-hosted, dockerized]
-    needs: [Core, Server]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Prep-Core-Server-Db
-        run: make core_server_tests
-
-  Prep-Server-DB:
-    runs-on: [self-hosted, dockerized]
-    needs: [Core, Server]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Prep-Server-DB
-        run: make server_tests
-  
-  Prep-Kotlin-Core:
-    runs-on: [self-hosted, dockerized]
-    needs: [Core, Server]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Prep-Kotlin-Core
-        run: make kotlin_interface_tests
-  
-  Prep-Swift-Core:
-    runs-on: [self-hosted, dockerized]
-    needs: [Core, Server]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Prep-Swift-Core
-        run: make swift_interface_tests
-
-  Prep-CSharp-Core:
-    runs-on: [self-hosted, dockerized]
-    needs: [Core, Server]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Prep-CSharp-Core
-        run: make csharp_interface_tests
-
-  Run-Dev-Stack:
-    runs-on: [self-hosted, dockerized]
-    needs: [Prep-Core-Server-Db, Prep-Server-DB, Prep-Kotlin-Core, Prep-Swift-Core, Prep-CSharp-Core]
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Spin up dev stack
-        run: make dev_stack_run
-
-  Core-Server-Db:
-    runs-on: [self-hosted, dockerized]
-    needs: Run-Dev-Stack
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Core-Server-DB Tests
-        run: make core_server_tests_run
-
-  Kotlin-Core:
-    runs-on: [self-hosted, dockerized]
-    needs: Run-Dev-Stack
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Kotlin-Core
-        run: make kotlin_interface_tests_run
-
-  Swift-Core:
-    runs-on: [self-hosted, dockerized]
-    needs: Run-Dev-Stack
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Swift-Core
-        run: make swift_interface_tests_run
-
-  CSharp-Core:
-    runs-on: [self-hosted, dockerized]
-    needs: Run-Dev-Stack
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: CSharp-Core
-        run: make csharp_interface_tests_run
-
-  Server-Logs:
-    runs-on: [self-hosted, dockerized]
-    needs: [Core-Server-Db, Kotlin-Core, Swift-Core, CSharp-Core]
-    if: always()
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Get Server Logs
-        run: make get_server_logs
-        if: always()
-
-  Clean-Up:
-    runs-on: [self-hosted, dockerized]
-    needs: [Server-Logs]
-    if: always()
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Tear Down Stack
-        run: make kill_dev_stack
-        if: always()
+    - name: Check Workspace Fmt
+      run: cargo run -p lockbook-dev -- check-workspace-fmt
+    - name: Check Workspace Clippy
+      run: cargo run -p lockbook-dev -- check-workspace-clippy
+    - name: Run Server
+      run: cargo run -p lockbook-dev -- run-server
+    - name: Run Rust Tests
+      run: cargo run -p lockbook-dev -- run-rust-tests
+    - name: Run Android Fmt
+      run: cargo run -p lockbook-dev -- check-android-fmt
+    - name: Run Android Lint
+      run: cargo run -p lockbook-dev -- check-android-lint
+    - name: Run Kotlin Tests
+      run: cargo run -p lockbook-dev -- run-kotlin-tests
+    - name: Run Swift Tests
+      run: cargo run -p lockbook-dev -- run-swift-tests
+    - name: Cleanup
+      if: always()
+      run: cargo run -p lockbook-dev -- kill-server

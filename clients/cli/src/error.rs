@@ -2,7 +2,7 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
-use lockbook_core::{DecryptedFileMetadata, Error as LbError, FeatureFlagError};
+use lockbook_core::{Error as LbError, File};
 use lockbook_core::{GetAccountError, Uuid};
 use lockbook_core::{GetSubscriptionInfoError, UnexpectedError};
 
@@ -160,13 +160,10 @@ impl CliError {
         )
     }
 
-    pub fn dir_treated_as_doc(meta: &DecryptedFileMetadata) -> Self {
+    pub fn dir_treated_as_doc(f: &File) -> Self {
         Self::new(
             ErrCode::FolderTreatedAsDoc,
-            format!(
-                "a file named '{}' is a folder being treated as a document",
-                meta.decrypted_name
-            ),
+            format!("a file named '{}' is a folder being treated as a document", f.name),
         )
     }
 
@@ -232,10 +229,10 @@ impl CliError {
         Self::new(ErrCode::FileOrphaned, format!("file '{}' has no path to root", lb_path))
     }
 
-    pub fn name_conflict_detected<T: fmt::Display>(lb_path: T) -> Self {
+    pub fn name_conflict_detected<T: fmt::Display>(ids: T) -> Self {
         Self::new(
             ErrCode::NameConflictDetected,
-            format!("A name conflict was detected for file at path `{}`", lb_path),
+            format!("A name conflict was detected for these files: `{}`", ids),
         )
     }
 
@@ -247,12 +244,18 @@ impl CliError {
         Self::new(ErrCode::Billing, msg)
     }
 
-    pub fn username_not_found(uname: &str) -> Self {
-        Self::new(ErrCode::UsernameNotFound, format!("username '{}' was not found.", uname))
+    pub fn link_in_shared<T: fmt::Display>(name: T) -> Self {
+        Self::new(
+            ErrCode::SharingError,
+            format!("{} is a link and cannot be moved into a shared folder.", name),
+        )
     }
 
-    pub fn not_permissioned() -> Self {
-        Self::new(ErrCode::NotPermissioned, "your account is unauthorized.".to_string())
+    pub fn no_write_permission<T: fmt::Display>(name: T) -> Self {
+        Self::new(
+            ErrCode::InsufficientPermission,
+            format!("You don't have permission to modify {}", name),
+        )
     }
 }
 
@@ -320,10 +323,9 @@ make_errcode_enum!(
     56 => DocumentReadError,
     57 => WarningsFound,
 
-    // Admin errors (58 - 60)
-
-    58 => UsernameNotFound,
-    59 => NotPermissioned,
+    // Sharing errors (60s)
+    60 => SharingError,
+    61 => InsufficientPermission,
 );
 
 impl From<UnexpectedError> for CliError {
@@ -350,17 +352,6 @@ impl From<LbError<GetSubscriptionInfoError>> for CliError {
             LbError::UiError(GetSubscriptionInfoError::ClientUpdateRequired) => {
                 CliError::update_required()
             }
-            LbError::Unexpected(msg) => CliError::unexpected(msg),
-        }
-    }
-}
-
-impl From<LbError<FeatureFlagError>> for CliError {
-    fn from(err: LbError<FeatureFlagError>) -> Self {
-        match err {
-            LbError::UiError(FeatureFlagError::CouldNotReachServer) => CliError::network_issue(),
-            LbError::UiError(FeatureFlagError::ClientUpdateRequired) => CliError::update_required(),
-            LbError::UiError(FeatureFlagError::NotPermissioned) => CliError::not_permissioned(),
             LbError::Unexpected(msg) => CliError::unexpected(msg),
         }
     }

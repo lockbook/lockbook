@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::io::ErrorKind;
 
@@ -6,9 +7,8 @@ use serde::{Serialize, Serializer};
 use strum_macros::EnumIter;
 use uuid::Uuid;
 
-use lockbook_models::api;
-use lockbook_models::api::{GetPublicKeyError, GetUpdatesError, NewAccountError};
-use lockbook_models::tree::TreeError;
+use lockbook_shared::api::{self, GetPublicKeyError, GetUpdatesError, NewAccountError};
+use lockbook_shared::{SharedError, ValidationFailure};
 
 use crate::service::api_service::ApiError;
 use crate::UiError;
@@ -103,6 +103,8 @@ macro_rules! unexpected_only {
     }};
 }
 
+pub type CoreResult<T> = Result<T, CoreError>;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum CoreError {
     AccountExists,
@@ -112,17 +114,18 @@ pub enum CoreError {
     AlreadyPremium,
     CardDecline,
     CardHasInsufficientFunds,
-    TryAgain,
     CardNotSupported,
-    ExpiredCard,
     ClientUpdateRequired,
     ClientWipeRequired,
     CurrentUsageIsMoreThanNewTier,
     DiskPathInvalid,
     DiskPathTaken,
-    ServerDisabled,
     DrawingInvalid,
+    ExistingRequestPending,
+    ExpiredCard,
     FileExists,
+    FileIsLink,
+    FileNotShared,
     FileNameContainsSlash,
     FileNameEmpty,
     FileNonexistent,
@@ -130,24 +133,30 @@ pub enum CoreError {
     FileNotFolder,
     FileParentNonexistent,
     FolderMovedIntoSelf,
-    InvalidCardNumber,
-    InvalidCardExpYear,
-    InvalidCardExpMonth,
+    InsufficientPermission,
     InvalidCardCvc,
+    InvalidCardExpMonth,
+    InvalidCardExpYear,
+    InvalidCardNumber,
     InvalidPurchaseToken,
-    NotPermissioned,
+    LinkInSharedFolder,
+    LinkTargetIsOwned,
+    LinkTargetNonexistent,
+    MultipleLinksToSameFile,
     NotPremium,
+    OldCardDoesNotExist,
     PathContainsEmptyFileName,
     PathNonexistent,
+    PathStartsWithNonRoot,
     PathTaken,
-    OldCardDoesNotExist,
     RootModificationInvalid,
     RootNonexistent,
+    ServerDisabled,
     ServerUnreachable,
-    ExistingRequestPending,
+    ShareAlreadyExists,
+    TryAgain,
     UsageIsOverFreeTierDataCap,
     UsernameInvalid,
-    UsernameNotFound,
     UsernamePublicKeyMismatch,
     UsernameTaken,
     Unexpected(String),
@@ -155,6 +164,45 @@ pub enum CoreError {
 
 pub fn core_err_unexpected<T: std::fmt::Debug>(err: T) -> CoreError {
     CoreError::Unexpected(format!("{:#?}", err))
+}
+
+impl From<SharedError> for CoreError {
+    fn from(err: SharedError) -> Self {
+        use SharedError::*;
+        match err {
+            RootNonexistent => CoreError::RootNonexistent,
+            FileNonexistent => CoreError::FileNonexistent,
+            FileParentNonexistent => CoreError::FileParentNonexistent,
+            Unexpected(err) => CoreError::Unexpected(err.to_string()),
+            PathContainsEmptyFileName => CoreError::PathContainsEmptyFileName,
+            PathTaken => CoreError::PathTaken,
+            FileNameContainsSlash => CoreError::FileNameContainsSlash,
+            RootModificationInvalid => CoreError::RootModificationInvalid,
+            FileNameEmpty => CoreError::FileNameEmpty,
+            FileNotFolder => CoreError::FileNotFolder,
+            FileNotDocument => CoreError::FileNotDocument,
+            InsufficientPermission => CoreError::InsufficientPermission,
+            ValidationFailure(lockbook_shared::ValidationFailure::Cycle(_)) => {
+                CoreError::FolderMovedIntoSelf
+            }
+            ValidationFailure(lockbook_shared::ValidationFailure::PathConflict(_)) => {
+                CoreError::PathTaken
+            }
+            ValidationFailure(lockbook_shared::ValidationFailure::SharedLink { .. }) => {
+                CoreError::LinkInSharedFolder
+            }
+            ValidationFailure(lockbook_shared::ValidationFailure::DuplicateLink { .. }) => {
+                CoreError::MultipleLinksToSameFile
+            }
+            ValidationFailure(lockbook_shared::ValidationFailure::BrokenLink(_)) => {
+                CoreError::LinkTargetNonexistent
+            }
+            ValidationFailure(lockbook_shared::ValidationFailure::OwnedLink(_)) => {
+                CoreError::LinkTargetIsOwned
+            }
+            _ => CoreError::Unexpected(format!("unexpected shared error {:?}", err)),
+        }
+    }
 }
 
 impl From<hmdb::errors::Error> for CoreError {
@@ -166,17 +214,6 @@ impl From<hmdb::errors::Error> for CoreError {
 impl<E: Serialize> From<hmdb::errors::Error> for Error<E> {
     fn from(err: hmdb::errors::Error) -> Self {
         Self::Unexpected(format!("{:#?}", err))
-    }
-}
-
-impl From<TreeError> for CoreError {
-    fn from(tree: TreeError) -> Self {
-        match tree {
-            TreeError::FileNonexistent => CoreError::FileNonexistent,
-            TreeError::FileParentNonexistent => CoreError::FileParentNonexistent,
-            TreeError::RootNonexistent => CoreError::RootNonexistent,
-            TreeError::Unexpected(err) => CoreError::Unexpected(err),
-        }
     }
 }
 
@@ -304,6 +341,7 @@ pub enum CreateFileAtPathError {
     NoRoot,
     PathContainsEmptyFile,
     DocumentTreatedAsFolder,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<CreateFileAtPathError> {
@@ -315,6 +353,9 @@ impl From<CoreError> for Error<CreateFileAtPathError> {
             CoreError::RootNonexistent => UiError(CreateFileAtPathError::NoRoot),
             CoreError::PathTaken => UiError(CreateFileAtPathError::FileAlreadyExists),
             CoreError::FileNotFolder => UiError(CreateFileAtPathError::DocumentTreatedAsFolder),
+            CoreError::InsufficientPermission => {
+                UiError(CreateFileAtPathError::InsufficientPermission)
+            }
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -341,6 +382,10 @@ pub enum CreateFileError {
     FileNameNotAvailable,
     FileNameEmpty,
     FileNameContainsSlash,
+    LinkInSharedFolder,
+    LinkTargetIsOwned,
+    LinkTargetNonexistent,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<CreateFileError> {
@@ -352,6 +397,10 @@ impl From<CoreError> for Error<CreateFileError> {
             CoreError::FileParentNonexistent => UiError(CreateFileError::CouldNotFindAParent),
             CoreError::FileNameEmpty => UiError(CreateFileError::FileNameEmpty),
             CoreError::FileNameContainsSlash => UiError(CreateFileError::FileNameContainsSlash),
+            CoreError::LinkInSharedFolder => UiError(CreateFileError::LinkInSharedFolder),
+            CoreError::LinkTargetIsOwned => UiError(CreateFileError::LinkTargetIsOwned),
+            CoreError::LinkTargetNonexistent => UiError(CreateFileError::LinkTargetNonexistent),
+            CoreError::InsufficientPermission => UiError(CreateFileError::InsufficientPermission),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -361,6 +410,7 @@ impl From<CoreError> for Error<CreateFileError> {
 pub enum WriteToDocumentError {
     FileDoesNotExist,
     FolderTreatedAsDocument,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<WriteToDocumentError> {
@@ -368,6 +418,9 @@ impl From<CoreError> for Error<WriteToDocumentError> {
         match e {
             CoreError::FileNonexistent => UiError(WriteToDocumentError::FileDoesNotExist),
             CoreError::FileNotDocument => UiError(WriteToDocumentError::FolderTreatedAsDocument),
+            CoreError::InsufficientPermission => {
+                UiError(WriteToDocumentError::InsufficientPermission)
+            }
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -421,6 +474,7 @@ impl From<CoreError> for Error<GetFileByIdError> {
 pub enum FileDeleteError {
     CannotDeleteRoot,
     FileDoesNotExist,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<FileDeleteError> {
@@ -428,6 +482,7 @@ impl From<CoreError> for Error<FileDeleteError> {
         match e {
             CoreError::RootModificationInvalid => UiError(FileDeleteError::CannotDeleteRoot),
             CoreError::FileNonexistent => UiError(FileDeleteError::FileDoesNotExist),
+            CoreError::InsufficientPermission => UiError(FileDeleteError::InsufficientPermission),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -476,6 +531,7 @@ pub enum RenameFileError {
     NewNameContainsSlash,
     FileNameNotAvailable,
     CannotRenameRoot,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<RenameFileError> {
@@ -486,6 +542,7 @@ impl From<CoreError> for Error<RenameFileError> {
             CoreError::FileNameContainsSlash => UiError(RenameFileError::NewNameContainsSlash),
             CoreError::PathTaken => UiError(RenameFileError::FileNameNotAvailable),
             CoreError::RootModificationInvalid => UiError(RenameFileError::CannotRenameRoot),
+            CoreError::InsufficientPermission => UiError(RenameFileError::InsufficientPermission),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -499,6 +556,8 @@ pub enum MoveFileError {
     FolderMovedIntoItself,
     TargetParentDoesNotExist,
     TargetParentHasChildNamedThat,
+    LinkInSharedFolder,
+    InsufficientPermission,
 }
 
 impl From<CoreError> for Error<MoveFileError> {
@@ -510,6 +569,76 @@ impl From<CoreError> for Error<MoveFileError> {
             CoreError::FolderMovedIntoSelf => UiError(MoveFileError::FolderMovedIntoItself),
             CoreError::FileParentNonexistent => UiError(MoveFileError::TargetParentDoesNotExist),
             CoreError::PathTaken => UiError(MoveFileError::TargetParentHasChildNamedThat),
+            CoreError::LinkInSharedFolder => UiError(MoveFileError::LinkInSharedFolder),
+            CoreError::InsufficientPermission => UiError(MoveFileError::InsufficientPermission),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum ShareFileError {
+    CannotShareRoot,
+    FileNonexistent,
+    ShareAlreadyExists,
+    LinkInSharedFolder,
+    InsufficientPermission,
+}
+
+impl From<CoreError> for Error<ShareFileError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::RootModificationInvalid => UiError(ShareFileError::CannotShareRoot),
+            CoreError::FileNonexistent => UiError(ShareFileError::FileNonexistent),
+            CoreError::ShareAlreadyExists => UiError(ShareFileError::ShareAlreadyExists),
+            CoreError::LinkInSharedFolder => UiError(ShareFileError::LinkInSharedFolder),
+            CoreError::InsufficientPermission => UiError(ShareFileError::InsufficientPermission),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum DeletePendingShareError {
+    FileNonexistent,
+}
+
+impl From<CoreError> for Error<DeletePendingShareError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::FileNonexistent => UiError(DeletePendingShareError::FileNonexistent),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum CreateLinkAtPathError {
+    FileAlreadyExists,
+    PathContainsEmptyFile,
+    DocumentTreatedAsFolder,
+    LinkInSharedFolder,
+    LinkTargetIsOwned,
+    LinkTargetNonexistent,
+    MultipleLinksToSameFile,
+}
+
+impl From<CoreError> for Error<CreateLinkAtPathError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::PathContainsEmptyFileName => {
+                UiError(CreateLinkAtPathError::PathContainsEmptyFile)
+            }
+            CoreError::PathTaken => UiError(CreateLinkAtPathError::FileAlreadyExists),
+            CoreError::FileNotFolder => UiError(CreateLinkAtPathError::DocumentTreatedAsFolder),
+            CoreError::LinkInSharedFolder => UiError(CreateLinkAtPathError::LinkInSharedFolder),
+            CoreError::LinkTargetIsOwned => UiError(CreateLinkAtPathError::LinkTargetIsOwned),
+            CoreError::MultipleLinksToSameFile => {
+                UiError(CreateLinkAtPathError::MultipleLinksToSameFile)
+            }
+            CoreError::LinkTargetNonexistent => {
+                UiError(CreateLinkAtPathError::LinkTargetNonexistent)
+            }
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -517,6 +646,7 @@ impl From<CoreError> for Error<MoveFileError> {
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum SyncAllError {
+    Retry,
     ClientUpdateRequired,
     CouldNotReachServer,
 }
@@ -524,6 +654,7 @@ pub enum SyncAllError {
 impl From<CoreError> for Error<SyncAllError> {
     fn from(e: CoreError) -> Self {
         match e {
+            // TODO figure out under what circumstances a user should retry a sync
             CoreError::ServerUnreachable => UiError(SyncAllError::CouldNotReachServer),
             CoreError::ClientUpdateRequired => UiError(SyncAllError::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
@@ -551,8 +682,8 @@ impl From<ApiError<api::GetDocumentError>> for CoreError {
     }
 }
 
-impl From<ApiError<api::FileMetadataUpsertsError>> for CoreError {
-    fn from(e: ApiError<api::FileMetadataUpsertsError>) -> Self {
+impl From<ApiError<api::UpsertError>> for CoreError {
+    fn from(e: ApiError<api::UpsertError>) -> Self {
         match e {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
@@ -561,8 +692,8 @@ impl From<ApiError<api::FileMetadataUpsertsError>> for CoreError {
     }
 }
 
-impl From<ApiError<api::ChangeDocumentContentError>> for CoreError {
-    fn from(e: ApiError<api::ChangeDocumentContentError>) -> Self {
+impl From<ApiError<api::ChangeDocError>> for CoreError {
+    fn from(e: ApiError<api::ChangeDocError>) -> Self {
         match e {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
@@ -855,64 +986,59 @@ impl From<CoreError> for Error<GetSubscriptionInfoError> {
     }
 }
 
-#[derive(Debug, Serialize, EnumIter)]
-pub enum AdminDeleteAccountError {
-    NotPermissioned,
-    UsernameNotFound,
-    CouldNotReachServer,
-    ClientUpdateRequired,
-}
-
-impl From<CoreError> for Error<AdminDeleteAccountError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::NotPermissioned => UiError(AdminDeleteAccountError::NotPermissioned),
-            CoreError::UsernameNotFound => UiError(AdminDeleteAccountError::UsernameNotFound),
-            CoreError::ServerUnreachable => UiError(AdminDeleteAccountError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => {
-                UiError(AdminDeleteAccountError::ClientUpdateRequired)
-            }
-            _ => unexpected!("{:#?}", e),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, EnumIter)]
-pub enum FeatureFlagError {
-    NotPermissioned,
-    CouldNotReachServer,
-    ClientUpdateRequired,
-}
-
-impl From<CoreError> for Error<FeatureFlagError> {
-    fn from(e: CoreError) -> Self {
-        match e {
-            CoreError::NotPermissioned => UiError(FeatureFlagError::NotPermissioned),
-            CoreError::ServerUnreachable => UiError(FeatureFlagError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => UiError(FeatureFlagError::ClientUpdateRequired),
-            _ => unexpected!("{:#?}", e),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum TestRepoError {
     NoAccount,
     NoRootFolder,
     DocumentTreatedAsFolder(Uuid),
     FileOrphaned(Uuid),
-    CycleDetected(Uuid),
+    CycleDetected(HashSet<Uuid>),
     FileNameEmpty(Uuid),
     FileNameContainsSlash(Uuid),
-    NameConflictDetected(Uuid),
+    PathConflict(HashSet<Uuid>),
+    NonDecryptableFileName(Uuid),
+    SharedLink { link: Uuid, shared_ancestor: Uuid },
+    DuplicateLink { target: Uuid },
+    BrokenLink(Uuid),
+    OwnedLink(Uuid),
     DocumentReadError(Uuid, CoreError),
-    Tree(TreeError),
     Core(CoreError),
+    Shared(SharedError),
+}
+
+impl From<SharedError> for TestRepoError {
+    fn from(err: SharedError) -> Self {
+        match err {
+            SharedError::ValidationFailure(validation) => match validation {
+                ValidationFailure::Orphan(id) => TestRepoError::FileOrphaned(id),
+                ValidationFailure::Cycle(ids) => TestRepoError::CycleDetected(ids),
+                ValidationFailure::PathConflict(ids) => TestRepoError::PathConflict(ids),
+                ValidationFailure::NonFolderWithChildren(id) => {
+                    TestRepoError::DocumentTreatedAsFolder(id)
+                }
+                ValidationFailure::NonDecryptableFileName(id) => {
+                    TestRepoError::NonDecryptableFileName(id)
+                }
+                ValidationFailure::SharedLink { link, shared_ancestor } => {
+                    TestRepoError::SharedLink { link, shared_ancestor }
+                }
+                ValidationFailure::DuplicateLink { target } => {
+                    TestRepoError::DuplicateLink { target }
+                }
+                ValidationFailure::BrokenLink(id) => TestRepoError::BrokenLink(id),
+                ValidationFailure::OwnedLink(id) => TestRepoError::OwnedLink(id),
+            },
+            _ => TestRepoError::Shared(err),
+        }
+    }
 }
 
 impl From<CoreError> for TestRepoError {
-    fn from(e: CoreError) -> Self {
-        Self::Core(e)
+    fn from(err: CoreError) -> Self {
+        match err {
+            CoreError::AccountNonexistent => Self::NoAccount,
+            _ => Self::Core(err),
+        }
     }
 }
 
