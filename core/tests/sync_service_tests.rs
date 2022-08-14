@@ -104,7 +104,7 @@ fn fuzzer_stuck_test_2() {
     db1.sync(None).unwrap();
     db2.sync(None).unwrap();
     db1.validate().unwrap();
-    assert_dbs_eq(&db1, &db2);
+    assert::cores_equal(&db1, &db2);
 }
 
 // this case did not actually get the fuzzer stuck and was written while reproducing the issue
@@ -125,7 +125,7 @@ fn fuzzer_stuck_test_3() {
     db1.sync(None).unwrap();
     db2.sync(None).unwrap();
     db1.validate().unwrap();
-    assert_dbs_eq(&db1, &db2);
+    assert::cores_equal(&db1, &db2);
 
     db1.create_at_path("/a/b.md").unwrap();
     let c = db1.create_at_path("/a/c").unwrap();
@@ -138,7 +138,7 @@ fn fuzzer_stuck_test_3() {
     db1.sync(None).unwrap();
     db2.sync(None).unwrap();
     db1.validate().unwrap();
-    assert_dbs_eq(&db1, &db2);
+    assert::cores_equal(&db1, &db2);
 }
 
 // this case did not actually get the fuzzer stuck and was written while reproducing the issue
@@ -166,7 +166,7 @@ fn fuzzer_stuck_test_4() {
     db1.sync(None).unwrap();
     db2.sync(None).unwrap();
     db1.validate().unwrap();
-    assert_dbs_eq(&db1, &db2);
+    assert::cores_equal(&db1, &db2);
 }
 
 #[test]
@@ -188,7 +188,7 @@ fn fuzzer_stuck_test_5() {
     db1.sync(None).unwrap();
     db2.sync(None).unwrap();
     db1.validate().unwrap();
-    assert_dbs_eq(&db1, &db2);
+    assert::cores_equal(&db1, &db2);
 
     db1.move_file(b.id, root.id).unwrap();
     db1.move_file(a.id, b.id).unwrap();
@@ -199,7 +199,7 @@ fn fuzzer_stuck_test_5() {
     db1.sync(None).unwrap();
     db2.sync(None).unwrap();
     db1.validate().unwrap();
-    assert_dbs_eq(&db1, &db2);
+    assert::cores_equal(&db1, &db2);
 }
 
 #[test]
@@ -219,7 +219,7 @@ fn fuzzer_stuck_test_6() {
     core1.sync(None).unwrap();
     core2.sync(None).unwrap();
     core1.validate().unwrap();
-    assert_dbs_eq(&core1, &core2);
+    assert::cores_equal(&core1, &core2);
 }
 
 #[test]
