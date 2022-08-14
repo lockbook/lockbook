@@ -334,14 +334,21 @@ pub async fn get_updates(
             } else {
                 for id in tree.owned_ids() {
                     let file = tree.find(&id)?;
-                    if file.version > request.since_metadata_version
-                        && file
-                            .user_access_keys()
-                            .iter()
-                            .any(|k| k.encrypted_for == context.public_key)
+                    if file
+                        .user_access_keys()
+                        .iter()
+                        .any(|k| k.encrypted_for == context.public_key)
                     {
-                        result_ids.insert(id);
-                        result_ids.extend(tree.descendents(&id)?);
+                        if file.version > request.since_metadata_version {
+                            result_ids.insert(id);
+                            result_ids.extend(tree.descendents(&id)?);
+                        } else {
+                            for id in tree.descendents(&id)? {
+                                if tree.find(&id)?.version > request.since_metadata_version {
+                                    result_ids.insert(id);
+                                }
+                            }
+                        }
                     }
                 }
             }
