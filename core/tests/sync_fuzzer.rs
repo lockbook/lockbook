@@ -74,7 +74,7 @@ impl Actions {
 
                 for row in clients {
                     for col in clients {
-                        assert_dbs_eq(row, col);
+                        assert::cores_equal(row, col);
                     }
                     row.validate().unwrap();
                     assert!(row.calculate_work().unwrap().work_units.is_empty());

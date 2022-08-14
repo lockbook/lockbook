@@ -6,9 +6,9 @@ use test_utils::*;
 
 fn assert_stuff(c: &Core) {
     c.validate().unwrap();
-    assert_all_paths(c, &[]);
-    assert_all_document_contents(c, &[]);
-    assert_local_work_paths(c, &[]);
+    assert::all_paths(c, &[]);
+    assert::all_document_contents(c, &[]);
+    assert::local_work_paths(c, &[]);
 }
 
 #[test]
@@ -17,7 +17,7 @@ fn unmodified() {
     c1.sync(None).unwrap();
 
     let c2 = another_client(&c1);
-    assert_server_work_paths(&c2, &["/"]);
+    assert::server_work_paths(&c2, &["/"]);
     assert_stuff(&c2);
 }
 
@@ -28,7 +28,7 @@ fn new_file() {
     c1.sync(None).unwrap();
 
     let c2 = another_client(&c1);
-    assert_server_work_paths(&c2, &["/", "/document"]);
+    assert::server_work_paths(&c2, &["/", "/document"]);
     assert_stuff(&c2);
 }
 
@@ -39,7 +39,7 @@ fn new_files() {
     c1.sync(None).unwrap();
 
     let c2 = another_client(&c1);
-    assert_server_work_paths(&c2, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
+    assert::server_work_paths(&c2, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]);
     assert_stuff(&c2);
 }
 
@@ -51,7 +51,7 @@ fn edited_document() {
     c1.sync(None).unwrap();
 
     let c2 = another_client(&c1);
-    assert_server_work_paths(&c2, &["/", "/document"]);
+    assert::server_work_paths(&c2, &["/", "/document"]);
     assert_stuff(&c2);
 }
 
@@ -64,7 +64,7 @@ fn mv() {
     c1.sync(None).unwrap();
 
     let c2 = another_client(&c1);
-    assert_server_work_paths(&c2, &["/", "/folder/", "/folder/document"]);
+    assert::server_work_paths(&c2, &["/", "/folder/", "/folder/document"]);
     assert_stuff(&c2);
 }
 
@@ -76,7 +76,7 @@ fn rename() {
     c1.sync(None).unwrap();
 
     let c2 = another_client(&c1);
-    assert_server_work_paths(&c2, &["/", "/document2"]);
+    assert::server_work_paths(&c2, &["/", "/document2"]);
     assert_stuff(&c2);
 }
 
@@ -88,7 +88,7 @@ fn delete() {
     c1.sync(None).unwrap();
 
     let c2 = another_client(&c1);
-    assert_server_work_paths(&c2, &["/", "/document"]);
+    assert::server_work_paths(&c2, &["/", "/document"]);
     assert_stuff(&c2);
 }
 
@@ -100,7 +100,7 @@ fn delete_parent() {
     c1.sync(None).unwrap();
 
     let c2 = another_client(&c1);
-    assert_server_work_paths(&c2, &["/", "/parent/", "/parent/document"]);
+    assert::server_work_paths(&c2, &["/", "/parent/", "/parent/document"]);
     assert_stuff(&c2);
 }
 
@@ -112,7 +112,7 @@ fn delete_grandparent() {
     c1.sync(None).unwrap();
 
     let c2 = another_client(&c1);
-    assert_server_work_paths(
+    assert::server_work_paths(
         &c2,
         &["/", "/grandparent/parent/document", "/grandparent/parent/", "/grandparent/"],
     );
