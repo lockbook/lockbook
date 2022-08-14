@@ -7,6 +7,18 @@ use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::path_ops::Filter::DocumentsOnly;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 
+#[macro_export]
+macro_rules! assert_matches (
+    ($actual:expr, $expected:pat) => {
+        // Only compute actual once
+        let actual_value = $actual;
+        match actual_value {
+            $expected => {},
+            _ => panic!("assertion failed: {:?} did not match expectation", actual_value)
+        }
+    }
+);
+
 pub fn all_paths(core: &Core, expected_paths: &[&str]) {
     let mut expected_paths: Vec<String> = expected_paths
         .iter()

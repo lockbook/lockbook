@@ -172,18 +172,6 @@ pub fn generate_premium_account_tier(
     })
 }
 
-#[macro_export]
-macro_rules! assert_matches (
-    ($actual:expr, $expected:pat) => {
-        // Only compute actual once
-        let actual_value = $actual;
-        match actual_value {
-            $expected => {},
-            _ => panic!("assertion failed: {:?} did not match expectation", actual_value)
-        }
-    }
-);
-
 fn get_frequencies<T: Hash + Eq>(a: &[T]) -> HashMap<&T, i32> {
     let mut result = HashMap::new();
     for element in a {
