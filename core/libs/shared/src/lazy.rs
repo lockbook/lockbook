@@ -48,6 +48,21 @@ impl<T: Stagable> LazyTree<T> {
         }
     }
 
+    pub fn in_pending_share(&self, id: &Uuid) -> SharedResult<bool> {
+        let mut file = self.find(id)?;
+        loop {
+            if file.parent() == file.id() {
+                return Ok(false); // root
+            } else if let Some(parent) = self.maybe_find(file.parent()) {
+                file = parent
+            } else if let Some(link) = self.link(file.id())? {
+                file = self.find(&link)?
+            } else {
+                return Ok(true); // share root
+            }
+        }
+    }
+
     pub fn all_children(&mut self) -> SharedResult<&HashMap<Uuid, HashSet<Uuid>>> {
         if self.children.is_empty() {
             let mut all_children: HashMap<Uuid, HashSet<Uuid>> = HashMap::new();
