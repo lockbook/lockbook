@@ -15,12 +15,13 @@ use lockbook_shared::api::{
 };
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{DocumentHmac, Owner};
+use lockbook_shared::file_metadata::{DocumentHmac, FileDiff, FileType, Owner};
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use std::collections::HashSet;
 use std::fmt::Debug;
+use tracing::error;
 use uuid::Uuid;
 
 /// Create a new account given a username, public_key, and root folder.
@@ -170,7 +171,7 @@ pub async fn delete_account_helper(
     let all_files: Result<Vec<(Uuid, DocumentHmac)>, ServerError<DeleteAccountHelperError>> =
         server_state.index_db.transaction(|tx| {
             let mut tree = ServerTree {
-                owner: Owner(*public_key),
+                owners: sharers(tx, Owner(*public_key)),
                 owned: &mut tx.owned_files,
                 metas: &mut tx.metas,
             }
@@ -223,4 +224,38 @@ pub fn is_admin<E: Debug>(
     };
 
     Ok(is_admin)
+}
+
+pub fn sharers_with_diffs(tx: &mut Tx<'_>, owner: Owner, diffs: &[FileDiff]) -> Vec<Owner> {
+    let mut result = HashSet::new();
+    result.insert(owner);
+
+    if let Some(owned_ids) = tx.owned_files.get(&owner) {
+        for id in owned_ids {
+            if let Some(file) = tx.metas.get(id) {
+                if let FileType::Link { target } = file.file_type() {
+                    if let Some(target_file) = tx.metas.get(&target) {
+                        result.insert(target_file.owner());
+                    }
+                }
+            } else {
+                error!("File owner has no entry in owned_files");
+            }
+        }
+    } else {
+        error!("File owner has no entry in owned_files");
+    }
+    for diff in diffs {
+        if let FileType::Link { target } = diff.new.file_type() {
+            if let Some(target_file) = tx.metas.get(&target) {
+                result.insert(target_file.owner());
+            }
+        }
+    }
+
+    result.into_iter().collect()
+}
+
+pub fn sharers(tx: &mut Tx<'_>, owner: Owner) -> Vec<Owner> {
+    sharers_with_diffs(tx, owner, &[])
 }

@@ -59,7 +59,7 @@ pub fn verify_client_version<Req: Request>(
     request: &RequestWrapper<Req>,
 ) -> Result<(), ErrorWrapper<Req::Error>> {
     match &request.client_version as &str {
-        "0.5.0" => Ok(()),
+        "0.5.1" => Ok(()),
         _ => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
     }
 }
