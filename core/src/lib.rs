@@ -14,9 +14,12 @@ pub use uuid::Uuid;
 pub use lockbook_shared::account::Account;
 pub use lockbook_shared::api::{GooglePlayAccountState, StripeAccountTier, SubscriptionInfo};
 pub use lockbook_shared::api::{PaymentMethod, PaymentPlatform};
+use lockbook_shared::clock;
 pub use lockbook_shared::core_config::Config;
+use lockbook_shared::crypto::AESKey;
 pub use lockbook_shared::crypto::DecryptedDocument;
 pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
+pub use lockbook_shared::feature_flag::{FeatureFlag, FeatureFlags};
 pub use lockbook_shared::file::File;
 pub use lockbook_shared::file::ShareMode;
 pub use lockbook_shared::file_like::FileLike;
@@ -43,9 +46,6 @@ use itertools::Itertools;
 use libsecp256k1::PublicKey;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
-
-use lockbook_shared::clock;
-use lockbook_shared::crypto::AESKey;
 
 use crate::model::errors::Error::UiError;
 use crate::repo::schema::{transaction, CoreV1, OneKey, Tx};
@@ -468,6 +468,34 @@ impl Core {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.get_subscription_info())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self, username), err(Debug))]
+    pub fn admin_delete_account(
+        &self, username: &str,
+    ) -> Result<(), Error<AdminDeleteAccountError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.delete_account(username))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self, feature, enable), err(Debug))]
+    pub fn toggle_feature_flag(
+        &self, feature: FeatureFlag, enable: bool,
+    ) -> Result<(), Error<FeatureFlagError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.toggle_feature_flag(feature, enable))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_feature_flags_state(&self) -> Result<FeatureFlags, Error<FeatureFlagError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.get_feature_flags_state())?;
         Ok(val?)
     }
 }

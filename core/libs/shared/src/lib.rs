@@ -9,6 +9,7 @@ pub mod core_tree;
 pub mod crypto;
 pub mod document_repo;
 pub mod drawing;
+pub mod feature_flag;
 pub mod file;
 pub mod file_like;
 pub mod file_metadata;

@@ -1,10 +1,10 @@
 use crate::schema::OneKey;
 use crate::{account_service, ClientError, RequestContext, ServerError, ServerV1};
-use lockbook_models::api::{
+use lockbook_shared::api::{
     FeatureFlagError, GetFeatureFlagsStateRequest, GetFeatureFlagsStateResponse,
     ToggleFeatureFlagRequest,
 };
-use lockbook_models::feature_flag::{FeatureFlag, FeatureFlags};
+use lockbook_shared::feature_flag::{FeatureFlag, FeatureFlags};
 use std::fmt::Debug;
 
 pub fn initialize_flags(db: &ServerV1) {
@@ -29,9 +29,9 @@ pub async fn toggle_feature_flag(
     let (request, db) = (&context.request, &context.server_state.index_db);
 
     if !account_service::is_admin(
+        db,
         &context.public_key,
         &context.server_state.config.admin.admins,
-        db,
     )? {
         return Err(ClientError(FeatureFlagError::NotPermissioned));
     }
@@ -56,9 +56,9 @@ pub async fn get_feature_flags_state(
     let db = &context.server_state.index_db;
 
     if !account_service::is_admin(
+        db,
         &context.public_key,
         &context.server_state.config.admin.admins,
-        db,
     )? {
         return Err(ClientError(FeatureFlagError::NotPermissioned));
     }

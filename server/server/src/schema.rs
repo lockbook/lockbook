@@ -1,9 +1,13 @@
 use crate::billing::billing_model::SubscriptionProfile;
+use lockbook_shared::feature_flag::FeatureFlags;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::server_file::ServerFile;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use uuid::Uuid;
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OneKey;
 
 hmdb::schema! {
     ServerV1 {
@@ -13,7 +17,8 @@ hmdb::schema! {
         metas: <Uuid, ServerFile>,
         sizes: <Uuid, u64>,
         google_play_ids: <String, Owner>,
-        stripe_ids: <String, Owner>
+        stripe_ids: <String, Owner>,
+        feature_flags: <OneKey, FeatureFlags>
     }
 }
 

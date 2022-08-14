@@ -157,6 +157,7 @@ pub enum CoreError {
     TryAgain,
     UsageIsOverFreeTierDataCap,
     UsernameInvalid,
+    UsernameNotFound,
     UsernamePublicKeyMismatch,
     UsernameTaken,
     Unexpected(String),
@@ -232,6 +233,19 @@ impl From<std::io::Error> for CoreError {
 impl From<serde_json::Error> for CoreError {
     fn from(err: serde_json::Error) -> Self {
         Self::Unexpected(format!("{err}"))
+    }
+}
+
+impl From<ApiError<api::FeatureFlagError>> for CoreError {
+    fn from(err: ApiError<api::FeatureFlagError>) -> Self {
+        match err {
+            ApiError::Endpoint(api::FeatureFlagError::NotPermissioned) => {
+                CoreError::InsufficientPermission
+            }
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            _ => core_err_unexpected(err),
+        }
     }
 }
 
@@ -981,6 +995,48 @@ impl From<CoreError> for Error<GetSubscriptionInfoError> {
             CoreError::ClientUpdateRequired => {
                 UiError(GetSubscriptionInfoError::ClientUpdateRequired)
             }
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum AdminDeleteAccountError {
+    InsufficientPermission,
+    UsernameNotFound,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<AdminDeleteAccountError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::InsufficientPermission => {
+                UiError(AdminDeleteAccountError::InsufficientPermission)
+            }
+            CoreError::UsernameNotFound => UiError(AdminDeleteAccountError::UsernameNotFound),
+            CoreError::ServerUnreachable => UiError(AdminDeleteAccountError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => {
+                UiError(AdminDeleteAccountError::ClientUpdateRequired)
+            }
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum FeatureFlagError {
+    InsufficientPermission,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<FeatureFlagError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::InsufficientPermission => UiError(FeatureFlagError::InsufficientPermission),
+            CoreError::ServerUnreachable => UiError(FeatureFlagError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(FeatureFlagError::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
         }
     }

@@ -129,7 +129,8 @@ pub fn core_routes(
         .or(core_req!(UpgradeAccountStripeRequest, upgrade_account_stripe, server_state))
         .or(core_req!(CancelSubscriptionRequest, cancel_subscription, server_state))
         .or(core_req!(GetSubscriptionInfoRequest, get_subscription_info, server_state))
-        .or(core_req!(AdminDeleteAccountRequest, delete_account, server_state))
+        .or(core_req!(DeleteAccountRequest, delete_account, server_state))
+        .or(core_req!(AdminDeleteAccountRequest, admin_delete_account, server_state))
         .or(core_req!(ToggleFeatureFlagRequest, toggle_feature_flag, server_state))
         .or(core_req!(GetFeatureFlagsStateRequest, get_feature_flags_state, server_state))
 }

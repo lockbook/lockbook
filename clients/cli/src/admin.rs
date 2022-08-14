@@ -1,7 +1,29 @@
-use crate::{Admin, CliError, FeatureFlags};
+use crate::CliError;
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::Confirm;
 use lockbook_core::{AdminDeleteAccountError, Core, Error, FeatureFlag};
+use structopt::StructOpt;
+
+#[derive(Debug, PartialEq, StructOpt)]
+pub enum Admin {
+    /// Commands related to feature flags
+    FeatureFlags(FeatureFlags),
+
+    /// Delete a user
+    DeleteAccount { username: String },
+}
+
+#[derive(Debug, PartialEq, StructOpt)]
+pub enum FeatureFlags {
+    /// Prints out the current state of all feature flags
+    List,
+
+    /// Manage new accounts feature flag
+    NewAccounts {
+        #[structopt(parse(try_from_str))]
+        enable: bool,
+    },
+}
 
 pub fn admin(core: &Core, admin: Admin) -> Result<(), CliError> {
     match admin {
@@ -60,7 +82,9 @@ fn delete_account(core: &Core, username: String) -> Result<(), CliError> {
             core.admin_delete_account(&username)
                 .map_err(|err| match err {
                     Error::UiError(err) => match err {
-                        AdminDeleteAccountError::NotPermissioned => CliError::not_permissioned(),
+                        AdminDeleteAccountError::InsufficientPermission => {
+                            CliError::not_permissioned()
+                        }
                         AdminDeleteAccountError::UsernameNotFound => {
                             CliError::username_not_found(&username)
                         }

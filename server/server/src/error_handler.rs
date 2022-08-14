@@ -1,3 +1,4 @@
+use crate::account_service::DeleteAccountHelperError;
 use crate::billing::billing_service::LockBillingWorkflowError;
 use crate::billing::google_play_client::SimpleGCPError;
 use crate::metrics::MetricsError;
@@ -6,8 +7,9 @@ use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
 use lockbook_shared::api::{
-    CancelSubscriptionError, ChangeDocError, DeleteAccountError, GetDocumentError, GetUpdatesError,
-    GetUsageError, UpgradeAccountGooglePlayError, UpgradeAccountStripeError, UpsertError,
+    AdminDeleteAccountError, CancelSubscriptionError, ChangeDocError, DeleteAccountError,
+    GetDocumentError, GetUpdatesError, GetUsageError, UpgradeAccountGooglePlayError,
+    UpgradeAccountStripeError, UpsertError,
 };
 use lockbook_shared::SharedError;
 use std::fmt::Debug;
@@ -162,9 +164,31 @@ impl From<ServerError<LockBillingWorkflowError>> for ServerError<CancelSubscript
     }
 }
 
-impl From<SharedError> for ServerError<DeleteAccountError> {
+impl From<SharedError> for ServerError<DeleteAccountHelperError> {
     fn from(err: SharedError) -> Self {
         internal!("{:?}", err)
+    }
+}
+
+impl From<ServerError<DeleteAccountHelperError>> for ServerError<DeleteAccountError> {
+    fn from(err: ServerError<DeleteAccountHelperError>) -> Self {
+        match err {
+            ClientError(DeleteAccountHelperError::UserNotFound) => {
+                ClientError(DeleteAccountError::UserNotFound)
+            }
+            InternalError(msg) => InternalError(msg),
+        }
+    }
+}
+
+impl From<ServerError<DeleteAccountHelperError>> for ServerError<AdminDeleteAccountError> {
+    fn from(err: ServerError<DeleteAccountHelperError>) -> Self {
+        match err {
+            ClientError(DeleteAccountHelperError::UserNotFound) => {
+                ClientError(AdminDeleteAccountError::UserNotFound)
+            }
+            InternalError(msg) => InternalError(msg),
+        }
     }
 }
 

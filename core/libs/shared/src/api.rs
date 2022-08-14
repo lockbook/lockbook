@@ -6,6 +6,7 @@ use uuid::Uuid;
 use crate::account::Account;
 use crate::account::Username;
 use crate::crypto::*;
+use crate::feature_flag::{FeatureFlag, FeatureFlags};
 use crate::file_metadata::{DocumentHmac, FileDiff, FileMetadata};
 use crate::signed_file::SignedFile;
 use crate::ValidationFailure;
@@ -404,6 +405,57 @@ impl Request for GetSubscriptionInfoRequest {
     type Error = GetSubscriptionInfoError;
     const METHOD: Method = Method::GET;
     const ROUTE: &'static str = "/get-subscription-info";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct AdminDeleteAccountRequest {
+    pub username: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum AdminDeleteAccountError {
+    NotPermissioned,
+    UserNotFound,
+}
+
+impl Request for AdminDeleteAccountRequest {
+    type Response = ();
+    type Error = AdminDeleteAccountError;
+    const METHOD: Method = Method::DELETE;
+    const ROUTE: &'static str = "/admin-delete-account";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct ToggleFeatureFlagRequest {
+    pub feature_flag: FeatureFlag,
+    pub enable: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum FeatureFlagError {
+    NotPermissioned,
+}
+
+impl Request for ToggleFeatureFlagRequest {
+    type Response = ();
+    type Error = FeatureFlagError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/toggle-feature-flag";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetFeatureFlagsStateRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetFeatureFlagsStateResponse {
+    pub feature_flags: FeatureFlags,
+}
+
+impl Request for GetFeatureFlagsStateRequest {
+    type Response = GetFeatureFlagsStateResponse;
+    type Error = FeatureFlagError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/get-feature-flags-state";
 }
 
 // number of milliseconds that have elapsed since the unix epoch

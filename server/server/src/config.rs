@@ -1,5 +1,5 @@
 use crate::config::Environment::{Local, Prod, Unknown};
-use lockbook_models::account::Username;
+use lockbook_shared::account::Username;
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::path::PathBuf;
