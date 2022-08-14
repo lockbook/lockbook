@@ -108,6 +108,10 @@ pub fn target_dir<P: AsRef<Path>>(dev_dir: P, root_dir: P) -> PathBuf {
     }
 }
 
+pub fn server_dbs_dir<P: AsRef<Path>>(dev_dir: P) -> PathBuf {
+    dev_dir.as_ref().join("server-db")
+}
+
 pub fn hash_infos_dir<P: AsRef<Path>>(dev_dir: P) -> PathBuf {
     dev_dir.as_ref().join("hash-info")
 }
@@ -130,13 +134,16 @@ pub fn is_ci_env() -> bool {
 pub struct HashInfo {
     pub port: u16,
     pub hash_info_dir: PathBuf,
+    pub server_db_dir: PathBuf,
 }
 
 impl HashInfo {
-    pub fn new<P: AsRef<Path>>(hash_infos_dir: P, commit_hash: &str, port: u16) -> Self {
+    pub fn new<P: AsRef<Path>>(
+        hash_infos_dir: P, server_db_dir: P, commit_hash: &str, port: u16,
+    ) -> Self {
         let hash_info_dir = hash_infos_dir.as_ref().join(commit_hash);
 
-        Self { port, hash_info_dir }
+        Self { port, hash_info_dir, server_db_dir: server_db_dir.as_ref().to_path_buf() }
     }
 
     pub fn get_from_dir<P: AsRef<Path>>(hash_infos_dir: P, commit_hash: &str) -> Self {
@@ -168,5 +175,6 @@ impl HashInfo {
 
     pub fn delete(&self) {
         fs::remove_file(&self.hash_info_dir).unwrap();
+        fs::remove_dir_all(&self.server_db_dir).unwrap()
     }
 }
