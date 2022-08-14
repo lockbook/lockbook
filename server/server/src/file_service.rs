@@ -3,7 +3,6 @@ use crate::ServerError;
 use crate::ServerError::ClientError;
 use crate::{document_service, RequestContext};
 use hmdb::transaction::Transaction;
-use itertools::Itertools;
 use lockbook_shared::api::*;
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
@@ -308,47 +307,36 @@ pub async fn get_document(
 pub async fn get_updates(
     context: RequestContext<'_, GetUpdatesRequest>,
 ) -> Result<GetUpdatesResponse, ServerError<GetUpdatesError>> {
+    let owner = Owner(context.public_key);
     let (request, server_state) = (&context.request, context.server_state);
     server_state.index_db.transaction(|tx| {
-        let mut file_metadata = vec![];
-        let owners = tx
-            .owned_files
-            .keys()
-            .iter()
-            .map(|owner| **owner)
-            .collect_vec();
-        for owner in owners {
-            let mut tree = ServerTree {
-                owners: sharers(tx, owner),
-                owned: &mut tx.owned_files,
-                metas: &mut tx.metas,
-            }
-            .to_lazy();
-            let mut shared_files = HashSet::new();
-            for id in tree.owned_ids() {
-                if tree
-                    .find(&id)?
+        let mut tree = tx.metas.to_lazy(); // note: tree consists of all files on server
+        let mut result_ids = HashSet::new();
+        for id in tree.owned_ids() {
+            let file = tree.find(&id)?;
+            if file.version > request.since_metadata_version {
+                if file.owner() == owner {
+                    result_ids.insert(*file.id());
+                } else if file
                     .user_access_keys()
                     .iter()
                     .any(|k| k.encrypted_for == context.public_key)
                 {
-                    shared_files.extend(tree.descendents(&id)?);
-                    shared_files.insert(id);
+                    result_ids.insert(id);
+                    result_ids.extend(tree.descendents(&id)?);
                 }
             }
-            let subtree_updates = tree
-                .all_files()?
-                .iter()
-                .filter(|meta| {
-                    meta.version > request.since_metadata_version
-                        && shared_files.contains(meta.id())
-                })
-                .map(|meta| meta.file.clone())
-                .collect_vec();
-            file_metadata.extend(subtree_updates);
         }
 
-        let as_of_metadata_version = get_time().0 as u64;
-        Ok(GetUpdatesResponse { as_of_metadata_version, file_metadata })
+        let result = tree
+            .all_files()?
+            .iter()
+            .filter(|meta| result_ids.contains(meta.id()))
+            .map(|meta| meta.file.clone())
+            .collect::<Vec<_>>();
+        Ok(GetUpdatesResponse {
+            as_of_metadata_version: get_time().0 as u64,
+            file_metadata: result,
+        })
     })?
 }
