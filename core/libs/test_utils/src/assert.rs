@@ -19,6 +19,25 @@ macro_rules! assert_matches (
     }
 );
 
+pub fn cores_equal(left: &Core, right: &Core) {
+    assert_eq!(&left.db.account.get_all().unwrap(), &right.db.account.get_all().unwrap());
+    assert_eq!(&left.db.root.get_all().unwrap(), &right.db.root.get_all().unwrap());
+    assert_eq!(
+        &left.db.local_metadata.get_all().unwrap(),
+        &right.db.local_metadata.get_all().unwrap()
+    );
+    assert_eq!(
+        &left.db.base_metadata.get_all().unwrap(),
+        &right.db.base_metadata.get_all().unwrap()
+    );
+}
+
+pub fn new_synced_client_core_equal(core: &Core) {
+    let new_client = test_core_from(core);
+    new_client.validate().unwrap();
+    cores_equal(core, &new_client);
+}
+
 pub fn all_paths(core: &Core, expected_paths: &[&str]) {
     let mut expected_paths: Vec<String> = expected_paths
         .iter()
@@ -32,6 +51,32 @@ pub fn all_paths(core: &Core, expected_paths: &[&str]) {
         panic!(
             "paths did not match expectation. expected={:?}; actual={:?}",
             expected_paths, actual_paths
+        );
+    }
+}
+
+pub fn all_document_contents(db: &Core, expected_contents_by_path: &[(&str, &[u8])]) {
+    let expected_contents_by_path = expected_contents_by_path
+        .iter()
+        .map(|&(path, contents)| (path.to_string(), contents.to_vec()))
+        .collect::<Vec<(String, Vec<u8>)>>();
+    let actual_contents_by_path = db
+        .list_paths(Some(DocumentsOnly))
+        .unwrap()
+        .iter()
+        .map(|path| (path.clone(), db.read_document(db.get_by_path(path).unwrap().id).unwrap()))
+        .collect::<Vec<(String, Vec<u8>)>>();
+    if !slices_equal_ignore_order(&actual_contents_by_path, &expected_contents_by_path) {
+        panic!(
+            "document contents did not match expectation. expected={:?}; actual={:?}",
+            expected_contents_by_path
+                .into_iter()
+                .map(|(path, contents)| (path, String::from_utf8_lossy(&contents).to_string()))
+                .collect::<Vec<(String, String)>>(),
+            actual_contents_by_path
+                .into_iter()
+                .map(|(path, contents)| (path, String::from_utf8_lossy(&contents).to_string()))
+                .collect::<Vec<(String, String)>>(),
         );
     }
 }
@@ -121,32 +166,6 @@ pub fn server_work_paths(db: &Core, expected_paths: &[&'static str]) {
     }
 }
 
-pub fn all_document_contents(db: &Core, expected_contents_by_path: &[(&str, &[u8])]) {
-    let expected_contents_by_path = expected_contents_by_path
-        .iter()
-        .map(|&(path, contents)| (path.to_string(), contents.to_vec()))
-        .collect::<Vec<(String, Vec<u8>)>>();
-    let actual_contents_by_path = db
-        .list_paths(Some(DocumentsOnly))
-        .unwrap()
-        .iter()
-        .map(|path| (path.clone(), db.read_document(db.get_by_path(path).unwrap().id).unwrap()))
-        .collect::<Vec<(String, Vec<u8>)>>();
-    if !slices_equal_ignore_order(&actual_contents_by_path, &expected_contents_by_path) {
-        panic!(
-            "document contents did not match expectation. expected={:?}; actual={:?}",
-            expected_contents_by_path
-                .into_iter()
-                .map(|(path, contents)| (path, String::from_utf8_lossy(&contents).to_string()))
-                .collect::<Vec<(String, String)>>(),
-            actual_contents_by_path
-                .into_iter()
-                .map(|(path, contents)| (path, String::from_utf8_lossy(&contents).to_string()))
-                .collect::<Vec<(String, String)>>(),
-        );
-    }
-}
-
 pub fn deleted_files_pruned(_: &Core) {
     // todo: unskip
     // core.db
@@ -172,23 +191,4 @@ pub fn deleted_files_pruned(_: &Core) {
     //         }
     //     })
     //     .unwrap();
-}
-
-pub fn cores_equal(left: &Core, right: &Core) {
-    assert_eq!(&left.db.account.get_all().unwrap(), &right.db.account.get_all().unwrap());
-    assert_eq!(&left.db.root.get_all().unwrap(), &right.db.root.get_all().unwrap());
-    assert_eq!(
-        &left.db.local_metadata.get_all().unwrap(),
-        &right.db.local_metadata.get_all().unwrap()
-    );
-    assert_eq!(
-        &left.db.base_metadata.get_all().unwrap(),
-        &right.db.base_metadata.get_all().unwrap()
-    );
-}
-
-pub fn new_synced_client_core_equal(core: &Core) {
-    let new_client = test_core_from(core);
-    new_client.validate().unwrap();
-    cores_equal(core, &new_client);
 }
