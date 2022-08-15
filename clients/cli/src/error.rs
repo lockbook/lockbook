@@ -248,8 +248,8 @@ impl CliError {
         Self::new(ErrCode::UsernameNotFound, format!("username '{}' was not found.", uname))
     }
 
-    pub fn not_permissioned() -> Self {
-        Self::new(ErrCode::NotPermissioned, "your account is unauthorized.".to_string())
+    pub fn insufficient_permission() -> Self {
+        Self::new(ErrCode::InsufficientPermission, "your account is unauthorized.".to_string())
     }
 
     pub fn link_in_shared<T: fmt::Display>(name: T) -> Self {
@@ -301,6 +301,7 @@ make_errcode_enum!(
     25 => UsernameInvalid,
     26 => UsernamePkMismatch,
     27 => Billing,
+    28 => InsufficientPermission,
 
     // OS (30s)
     30 => OsCwdMissing,
@@ -332,13 +333,10 @@ make_errcode_enum!(
     57 => WarningsFound,
 
     // Admin errors (58 - 59)
-
     58 => UsernameNotFound,
-    59 => NotPermissioned,
 
     // Sharing errors (60s)
     60 => SharingError,
-    61 => InsufficientPermission,
 );
 
 impl From<UnexpectedError> for CliError {
@@ -376,7 +374,7 @@ impl From<LbError<FeatureFlagError>> for CliError {
             LbError::UiError(FeatureFlagError::CouldNotReachServer) => CliError::network_issue(),
             LbError::UiError(FeatureFlagError::ClientUpdateRequired) => CliError::update_required(),
             LbError::UiError(FeatureFlagError::InsufficientPermission) => {
-                CliError::not_permissioned()
+                CliError::insufficient_permission()
             }
             LbError::Unexpected(msg) => CliError::unexpected(msg),
         }

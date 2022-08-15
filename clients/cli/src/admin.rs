@@ -83,7 +83,7 @@ fn delete_account(core: &Core, username: String) -> Result<(), CliError> {
                 .map_err(|err| match err {
                     Error::UiError(err) => match err {
                         AdminDeleteAccountError::InsufficientPermission => {
-                            CliError::not_permissioned()
+                            CliError::insufficient_permission()
                         }
                         AdminDeleteAccountError::UsernameNotFound => {
                             CliError::username_not_found(&username)

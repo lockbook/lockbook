@@ -14,9 +14,7 @@ pub use uuid::Uuid;
 pub use lockbook_shared::account::Account;
 pub use lockbook_shared::api::{GooglePlayAccountState, StripeAccountTier, SubscriptionInfo};
 pub use lockbook_shared::api::{PaymentMethod, PaymentPlatform};
-use lockbook_shared::clock;
 pub use lockbook_shared::core_config::Config;
-use lockbook_shared::crypto::AESKey;
 pub use lockbook_shared::crypto::DecryptedDocument;
 pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 pub use lockbook_shared::feature_flag::{FeatureFlag, FeatureFlags};
@@ -44,6 +42,8 @@ use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use libsecp256k1::PublicKey;
+use lockbook_shared::clock;
+use lockbook_shared::crypto::AESKey;
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 
