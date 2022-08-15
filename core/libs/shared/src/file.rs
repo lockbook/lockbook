@@ -16,7 +16,7 @@ pub struct Share {
     pub shared_with: Username,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct File {
     pub id: Uuid,
     pub parent: Uuid,
