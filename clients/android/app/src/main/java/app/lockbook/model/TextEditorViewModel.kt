@@ -7,16 +7,31 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import app.lockbook.util.*
-import app.lockbook.util.getRes
 import com.github.michaelbull.result.Err
+import io.noties.markwon.Markwon
+import io.noties.markwon.SoftBreakAddsNewLinePlugin
+import io.noties.markwon.ext.latex.JLatexMathPlugin
+import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
+import io.noties.markwon.image.ImagesPlugin
+import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin
 import kotlinx.coroutines.*
+
 
 class TextEditorViewModel(application: Application, val id: String, private val text: String) :
     AndroidViewModel(application) {
 
+    val markwon = Markwon.builder(getContext())
+        .usePlugin(StrikethroughPlugin.create())
+        .usePlugin(MarkwonInlineParserPlugin.create())
+        .usePlugin(JLatexMathPlugin.create(50f
+        ) { builder ->
+            builder.inlinesEnabled(true)
+        })
+        .usePlugin(ImagesPlugin.create())
+        .build()
+
     private val handler = Handler(Looper.myLooper()!!)
     var lastEdit = 0L
-
     val editHistory = EditTextModel.EditHistory()
 
     private val _content = SingleMutableLiveData<String>()

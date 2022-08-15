@@ -19,10 +19,10 @@ import io.noties.markwon.editor.handler.StrongEmphasisEditHandler
 class CustomPunctuationSpan internal constructor(color: Int) : ForegroundColorSpan(color)
 
 object MarkdownModel {
-    fun createMarkdownEditor(context: Context): MarkwonEditor {
+    fun createMarkdownEditor(markwon: Markwon, context: Context): MarkwonEditor {
         val theme = MarkwonTheme.builderWithDefaults(context).build()
 
-        return MarkwonEditor.builder(Markwon.create(context))
+        return MarkwonEditor.builder(markwon)
             .punctuationSpan(
                 CustomPunctuationSpan::class.java
             ) {
@@ -91,7 +91,7 @@ class CodeBlockEditHandler(private val theme: MarkwonTheme) : AbstractEditHandle
         spanTextLength: Int
     ) {
         val match =
-            MarkwonEditorUtils.findDelimited(input, spanStart, "```", "```")
+            MarkwonEditorUtils.findDelimited(input, spanStart, "```")
         if (match != null) {
             editable.setSpan(
                 persistedSpans[CodeBlockSpan::class.java],
@@ -142,6 +142,12 @@ class HeadingEditHandler(private val theme: MarkwonTheme) : AbstractEditHandler<
             .persistSpan(
                 Head2::class.java
             ) { Head2(theme) }
+            .persistSpan(
+                Head3::class.java
+            ) { Head3(theme) }
+            .persistSpan(
+                Head4::class.java
+            ) { Head4(theme) }
     }
 
     override fun handleMarkdownSpan(
@@ -156,6 +162,8 @@ class HeadingEditHandler(private val theme: MarkwonTheme) : AbstractEditHandler<
         val type = when (span.level) {
             1 -> Head1::class.java
             2 -> Head2::class.java
+            3 -> Head3::class.java
+            4 -> Head4::class.java
             else -> null
         }
         if (type != null) {
@@ -178,6 +186,8 @@ class HeadingEditHandler(private val theme: MarkwonTheme) : AbstractEditHandler<
 
     private class Head1(theme: MarkwonTheme) : HeadingSpan(theme, 1)
     private class Head2(theme: MarkwonTheme) : HeadingSpan(theme, 2)
+    private class Head3(theme: MarkwonTheme) : HeadingSpan(theme, 3)
+    private class Head4(theme: MarkwonTheme) : HeadingSpan(theme, 4)
 }
 
 class StrikethroughEditHandler : AbstractEditHandler<StrikethroughSpan>() {
@@ -195,11 +205,10 @@ class StrikethroughEditHandler : AbstractEditHandler<StrikethroughSpan>() {
         spanStart: Int,
         spanTextLength: Int
     ) {
-        val match =
-            MarkwonEditorUtils.findDelimited(input, spanStart, "~~")
+        val match = MarkwonEditorUtils.findDelimited(input, spanStart, "~~")
         if (match != null) {
             editable.setSpan(
-                persistedSpans[StrikethroughSpan::class.java],
+                persistedSpans.get(StrikethroughSpan::class.java),
                 match.start(),
                 match.end(),
                 Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -207,95 +216,7 @@ class StrikethroughEditHandler : AbstractEditHandler<StrikethroughSpan>() {
         }
     }
 
-    override fun markdownSpanType(): Class<StrikethroughSpan> = StrikethroughSpan::class.java
+    override fun markdownSpanType(): Class<StrikethroughSpan> {
+        return StrikethroughSpan::class.java
+    }
 }
-
-
-//            .useEditHandler(object : AbstractEditHandler<StrongEmphasisSpan>() {
-//                override fun configurePersistedSpans(builder: PersistedSpans.Builder) {
-//                    builder.persistSpan(
-//                        StrongEmphasisSpan::class.java
-//                    ) { StrongEmphasisSpan() }
-//                }
-//
-//                override fun handleMarkdownSpan(
-//                    persistedSpans: PersistedSpans,
-//                    editable: Editable,
-//                    input: String,
-//                    span: StrongEmphasisSpan,
-//                    spanStart: Int,
-//                    spanTextLength: Int
-//                ) {
-//                    val match =
-//                        MarkwonEditorUtils.findDelimited(input, spanStart, "**", "**")
-//                    if (match != null) {
-//                        editable.setSpan(
-//                            persistedSpans[StrongEmphasisSpan::class.java],
-//                            match.start(),
-//                            match.end(),
-//                            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-//                        )
-//                    }
-//                }
-//
-//                override fun markdownSpanType(): Class<StrongEmphasisSpan> = StrongEmphasisSpan::class.java
-//
-//            })
-//            .useEditHandler(object : AbstractEditHandler<EmphasisSpan>() {
-//                override fun configurePersistedSpans(builder: PersistedSpans.Builder) {
-//                    builder.persistSpan(
-//                        EmphasisSpan::class.java
-//                    ) { EmphasisSpan() }
-//                }
-//
-//                override fun handleMarkdownSpan(
-//                    persistedSpans: PersistedSpans,
-//                    editable: Editable,
-//                    input: String,
-//                    span: EmphasisSpan,
-//                    spanStart: Int,
-//                    spanTextLength: Int
-//                ) {
-//                    val match =
-//                        MarkwonEditorUtils.findDelimited(input, spanStart, "__", "__")
-//                    if (match != null) {
-//                        editable.setSpan(
-//                            persistedSpans[EmphasisSpan::class.java],
-//                            match.start(),
-//                            match.end(),
-//                            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-//                        )
-//                    }
-//                }
-//
-//                override fun markdownSpanType(): Class<EmphasisSpan> = EmphasisSpan::class.java
-//            })
-//            .useEditHandler(object : AbstractEditHandler<CodeSpan>() {
-//                override fun configurePersistedSpans(builder: PersistedSpans.Builder) {
-//                    builder.persistSpan(
-//                        CodeSpan::class.java
-//                    ) { CodeSpan(theme) }
-//                }
-//
-//                override fun handleMarkdownSpan(
-//                    persistedSpans: PersistedSpans,
-//                    editable: Editable,
-//                    input: String,
-//                    span: CodeSpan,
-//                    spanStart: Int,
-//                    spanTextLength: Int
-//                ) {
-//                    val match =
-//                        MarkwonEditorUtils.findDelimited(input, spanStart, "`", "`")
-//                    if (match != null) {
-//                        editable.setSpan(
-//                            persistedSpans[CodeSpan::class.java],
-//                            match.start(),
-//                            match.end(),
-//                            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-//                        )
-//                    }
-//                }
-//
-//                override fun markdownSpanType(): Class<CodeSpan> = CodeSpan::class.java
-//            })

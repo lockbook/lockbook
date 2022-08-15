@@ -86,7 +86,7 @@ class TextEditorFragment : Fragment() {
             viewLifecycleOwner
         ) { content ->
             if (name.endsWith(".md")) {
-                val markdownEditor = MarkdownModel.createMarkdownEditor(requireContext())
+                val markdownEditor = MarkdownModel.createMarkdownEditor(model.markwon, requireContext())
 
                 binding.markdownToolbar.visibility = View.VISIBLE
                 textField.addTextChangedListener(
@@ -175,8 +175,7 @@ class TextEditorFragment : Fragment() {
 
     private fun viewMarkdown() {
         if (binding.textEditorScroller.visibility == View.VISIBLE) {
-            val markdown = Markwon.create(requireContext())
-            markdown.setMarkdown(binding.markdownViewer, textField.text.toString())
+            model.markwon.setMarkdown(binding.markdownViewer, textField.text.toString())
             textEditorToolbar.menu?.findItem(R.id.menu_text_editor_undo)?.isVisible = false
             textEditorToolbar.menu?.findItem(R.id.menu_text_editor_redo)?.isVisible = false
             binding.markdownToolbar.isVisible = false
