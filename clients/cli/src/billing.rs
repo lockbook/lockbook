@@ -11,7 +11,7 @@ use lockbook_core::StripeAccountTier;
 
 use crate::CliError;
 
-#[derive(Debug, PartialEq, StructOpt)]
+#[derive(Debug, PartialEq, Eq, StructOpt)]
 pub enum Billing {
     /// Prints out information about your current tier
     Status,

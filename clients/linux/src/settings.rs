@@ -1,7 +1,7 @@
 use std::fs;
 use std::io;
 
-#[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct Settings {
     pub hidden_tree_cols: Vec<String>,
