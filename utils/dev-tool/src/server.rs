@@ -12,7 +12,7 @@ pub fn run_server_detached(tool_env: &ToolEnvironment) {
     let server_db_dir = tool_env.server_dbs_dir.join(&tool_env.hash_info_dir);
 
     Command::new("cargo")
-        .args(["build", "-p", "lockbook-server"])
+        .args(["build", "-p", "lockbook-server", "--release"])
         .assert_success();
 
     loop {
