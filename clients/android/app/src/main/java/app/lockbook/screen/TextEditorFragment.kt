@@ -1,6 +1,8 @@
 package app.lockbook.screen
 
 import android.os.Bundle
+import android.text.Editable
+import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.view.LayoutInflater
 import android.view.View
@@ -16,10 +18,11 @@ import app.lockbook.R
 import app.lockbook.databinding.FragmentTextEditorBinding
 import app.lockbook.model.*
 import io.noties.markwon.Markwon
-import io.noties.markwon.editor.MarkwonEditor
-import io.noties.markwon.editor.MarkwonEditorTextWatcher
+import io.noties.markwon.core.spans.StrongEmphasisSpan
+import io.noties.markwon.editor.*
 import java.lang.ref.WeakReference
 import java.util.concurrent.Executors
+
 
 class TextEditorFragment : Fragment() {
     private var _binding: FragmentTextEditorBinding? = null
@@ -83,19 +86,7 @@ class TextEditorFragment : Fragment() {
             viewLifecycleOwner
         ) { content ->
             if (name.endsWith(".md")) {
-                val markdownEditor = MarkwonEditor.builder(Markwon.create(requireContext()))
-                    .punctuationSpan(
-                        CustomPunctuationSpan::class.java
-                    ) {
-                        CustomPunctuationSpan(
-                            ResourcesCompat.getColor(
-                                resources,
-                                R.color.md_theme_primary,
-                                null
-                            )
-                        )
-                    }
-                    .build()
+
 
                 binding.markdownToolbar.visibility = View.VISIBLE
 
@@ -217,4 +208,3 @@ class TextEditorFragment : Fragment() {
     }
 }
 
-class CustomPunctuationSpan internal constructor(color: Int) : ForegroundColorSpan(color)
