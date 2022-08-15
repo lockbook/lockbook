@@ -34,7 +34,7 @@ use hmac::crypto_mac::{InvalidKeyLength, MacError};
 
 pub type SharedResult<T> = Result<T, SharedError>;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SharedError {
     InsufficientPermission,
     PathContainsEmptyFileName,

@@ -7,7 +7,7 @@ use crate::error::CliError;
 use crate::selector::select_meta;
 use crate::{error, Uuid};
 
-#[derive(Debug, PartialEq, StructOpt)]
+#[derive(Debug, PartialEq, Eq, StructOpt)]
 pub enum Debug {
     /// Prints metadata associated with a file
     Info {

@@ -158,7 +158,7 @@ impl fmt::Debug for FileDiff {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum Diff {
     New,
     Id,

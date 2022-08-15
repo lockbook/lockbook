@@ -26,7 +26,7 @@ pub struct UsageMetrics {
     pub data_cap: UsageItemMetric,
 }
 
-#[derive(Serialize, PartialEq, Debug)]
+#[derive(Serialize, PartialEq, Eq, Debug)]
 pub struct UsageItemMetric {
     pub exact: u64,
     pub readable: String,

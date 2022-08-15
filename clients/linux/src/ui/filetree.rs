@@ -19,7 +19,7 @@ pub struct FileTree {
     pub overlay: gtk::Overlay,
 }
 
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum FileTreeCol {
     IconAndName,
     Id,

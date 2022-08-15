@@ -3,7 +3,7 @@ use crate::CliError;
 use lockbook_core::{Core, FileType, ShareMode, Uuid};
 use structopt::StructOpt;
 
-#[derive(Debug, PartialEq, StructOpt)]
+#[derive(Debug, PartialEq, Eq, StructOpt)]
 pub enum Share {
     /// Share a specified document with a user. If neither a path or id
     /// is specified, an interactivve selector will be launched
