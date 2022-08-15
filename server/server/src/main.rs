@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let index_db = ServerV1::init(&cfg.index_db.db_location).expect("Failed to load index_db");
 
     if index_db.incomplete_write() {
-        error!("starting server with an incomplete write in db")
+        error!("hmdb indicated that the last write to the log was unsuccessful")
     }
 
     let server_state =
