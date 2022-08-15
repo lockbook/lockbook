@@ -12,7 +12,7 @@ pub fn run_server_detached(tool_env: &ToolEnvironment) {
     let server_db_dir = tool_env.server_dbs_dir.join(&tool_env.hash_info_dir);
 
     Command::new("cargo")
-        .args(["build", "-p", "lockbook-server"])
+        .args(["build", "-p", "lockbook-server", "--release"])
         .assert_success();
 
     loop {
@@ -73,7 +73,7 @@ pub fn run_rust_tests(tool_env: &ToolEnvironment) {
     dotenv::from_path(utils::test_env_path(&tool_env.root_dir)).unwrap();
 
     Command::new("cargo")
-        .args(["test", "--workspace", "--release"])
+        .args(["test", "--workspace"])
         .env("API_URL", utils::get_api_url(hash_info.port))
         .current_dir(&tool_env.root_dir)
         .assert_success();
