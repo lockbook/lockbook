@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 pub type Username = String;
 pub type ApiUrl = String;
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct Account {
     pub username: Username,
     pub api_url: ApiUrl,

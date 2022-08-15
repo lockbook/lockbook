@@ -105,7 +105,7 @@ macro_rules! unexpected_only {
 
 pub type CoreResult<T> = Result<T, CoreError>;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CoreError {
     AccountExists,
     AccountNonexistent,

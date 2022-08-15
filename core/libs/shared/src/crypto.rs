@@ -9,7 +9,7 @@ pub type AESKey = [u8; 32];
 pub type DecryptedDocument = Vec<u8>;
 pub type EncryptedDocument = AESEncrypted<DecryptedDocument>;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct AESEncrypted<T: DeserializeOwned> {
     #[serde(with = "serde_bytes")]
     pub value: Vec<u8>,
@@ -26,7 +26,7 @@ impl<T: DeserializeOwned> AESEncrypted<T> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct Timestamped<T> {
     pub value: T,
     pub timestamp: i64,

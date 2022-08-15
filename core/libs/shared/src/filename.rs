@@ -16,7 +16,7 @@ impl DocumentType {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct NameComponents {
     pub name: String,
     pub variant: Option<usize>,
