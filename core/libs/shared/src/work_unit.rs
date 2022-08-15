@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::file::File;
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "tag", content = "content")]
 pub enum WorkUnit {
     LocalChange { metadata: File },

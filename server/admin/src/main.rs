@@ -25,7 +25,7 @@ enum Subcommands {
     DeleteAccount { username: String },
 }
 
-#[derive(Debug, PartialEq, StructOpt)]
+#[derive(Debug, PartialEq, Eq, StructOpt)]
 #[structopt(about = "Toggleable features for lockbook server.")]
 pub enum FeatureFlag {
     NewAccount {
