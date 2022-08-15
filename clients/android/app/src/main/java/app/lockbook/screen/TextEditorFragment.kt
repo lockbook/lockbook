@@ -86,10 +86,9 @@ class TextEditorFragment : Fragment() {
             viewLifecycleOwner
         ) { content ->
             if (name.endsWith(".md")) {
-
+                val markdownEditor = MarkdownModel.createMarkdownEditor(requireContext())
 
                 binding.markdownToolbar.visibility = View.VISIBLE
-
                 textField.addTextChangedListener(
                     MarkwonEditorTextWatcher.withPreRender(
                         markdownEditor,
