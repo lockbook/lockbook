@@ -16,6 +16,8 @@ jobs:
       LOCKBOOK_CI: 1
     steps:
     - uses: actions/checkout@v2
+    - name: Set Rust Version
+      run: rustup default 1.63
     - name: Check Workspace Fmt
       run: cargo run -p lockbook-dev -- check-workspace-fmt
     - name: Check Workspace Clippy
