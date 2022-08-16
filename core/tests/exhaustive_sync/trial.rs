@@ -27,7 +27,7 @@ pub enum Action {
     SyncAndCheck,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Status {
     Ready,
     Running,
