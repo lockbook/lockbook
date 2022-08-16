@@ -1,11 +1,9 @@
 package app.lockbook.screen
 
 import android.os.Bundle
-import android.text.style.ForegroundColorSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -15,11 +13,8 @@ import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.databinding.FragmentTextEditorBinding
 import app.lockbook.model.*
-import io.noties.markwon.Markwon
-import io.noties.markwon.editor.MarkwonEditor
-import io.noties.markwon.editor.MarkwonEditorTextWatcher
+import io.noties.markwon.editor.*
 import java.lang.ref.WeakReference
-import java.util.concurrent.Executors
 
 class TextEditorFragment : Fragment() {
     private var _binding: FragmentTextEditorBinding? = null
@@ -33,7 +28,7 @@ class TextEditorFragment : Fragment() {
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(TextEditorViewModel::class.java))
-                        return TextEditorViewModel(requireActivity().application, activityModel.detailsScreen!!.fileMetadata.id, (activityModel.detailsScreen as DetailsScreen.TextEditor).text) as T
+                        return TextEditorViewModel(requireActivity().application, activityModel.detailsScreen!!.fileMetadata, (activityModel.detailsScreen as DetailsScreen.TextEditor).text, binding.textEditorTextField.textSize) as T
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }
             }
@@ -83,29 +78,8 @@ class TextEditorFragment : Fragment() {
             viewLifecycleOwner
         ) { content ->
             if (name.endsWith(".md")) {
-                val markdownEditor = MarkwonEditor.builder(Markwon.create(requireContext()))
-                    .punctuationSpan(
-                        CustomPunctuationSpan::class.java
-                    ) {
-                        CustomPunctuationSpan(
-                            ResourcesCompat.getColor(
-                                resources,
-                                R.color.md_theme_primary,
-                                null
-                            )
-                        )
-                    }
-                    .build()
-
+                model.markdownModel!!.addMarkdownEditorTheming(textField)
                 binding.markdownToolbar.visibility = View.VISIBLE
-
-                textField.addTextChangedListener(
-                    MarkwonEditorTextWatcher.withPreRender(
-                        markdownEditor,
-                        Executors.newCachedThreadPool(),
-                        textField
-                    )
-                )
             }
 
             textField.setText(content)
@@ -185,8 +159,7 @@ class TextEditorFragment : Fragment() {
 
     private fun viewMarkdown() {
         if (binding.textEditorScroller.visibility == View.VISIBLE) {
-            val markdown = Markwon.create(requireContext())
-            markdown.setMarkdown(binding.markdownViewer, textField.text.toString())
+            model.markdownModel!!.renderMarkdown(textField.text.toString(), binding.markdownViewer)
             textEditorToolbar.menu?.findItem(R.id.menu_text_editor_undo)?.isVisible = false
             textEditorToolbar.menu?.findItem(R.id.menu_text_editor_redo)?.isVisible = false
             binding.markdownToolbar.isVisible = false
@@ -212,9 +185,7 @@ class TextEditorFragment : Fragment() {
     fun saveOnExit() {
         if (model.editHistory.isDirty) {
             model.lastEdit = System.currentTimeMillis()
-            activityModel.saveTextOnExit(model.id, textField.text.toString())
+            activityModel.saveTextOnExit(model.fileMetadata.id, textField.text.toString())
         }
     }
 }
-
-class CustomPunctuationSpan internal constructor(color: Int) : ForegroundColorSpan(color)
