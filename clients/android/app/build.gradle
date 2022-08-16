@@ -103,8 +103,7 @@ dependencies {
     implementation "io.noties.markwon:ext-strikethrough:$markwon_version"
     implementation "io.noties.markwon:ext-latex:$markwon_version"
     implementation "io.noties.markwon:image:$markwon_version"
-    implementation "io.noties.markwon:syntax-highlight:$markwon_version"
-    implementation "io.noties:prism4j-bundler:$syntax_highlighting_version"
+    implementation "io.noties.markwon:linkify:$markwon_version"
 
     // Testing Libraries
     testImplementation "junit:junit:$junit_version"

@@ -8,16 +8,9 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
-import io.noties.markwon.Markwon
-import io.noties.markwon.SoftBreakAddsNewLinePlugin
-import io.noties.markwon.ext.latex.JLatexMathPlugin
-import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
-import io.noties.markwon.image.ImagesPlugin
-import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin
 import kotlinx.coroutines.*
 
-
-class TextEditorViewModel(application: Application, val fileMetadata: File, private val text: String) :
+class TextEditorViewModel(application: Application, val fileMetadata: File, private val text: String, textSize: Float) :
     AndroidViewModel(application) {
 
     private val handler = Handler(Looper.myLooper()!!)
@@ -33,8 +26,8 @@ class TextEditorViewModel(application: Application, val fileMetadata: File, priv
     val content: LiveData<String>
         get() = _content
 
-    val markdownModel = if(fileMetadata.name.endsWith(".md")) {
-        MarkdownModel(getApplication())
+    val markdownModel = if (fileMetadata.name.endsWith(".md")) {
+        MarkdownModel(getApplication(), textSize)
     } else {
         null
     }

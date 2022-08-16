@@ -1,13 +1,9 @@
 package app.lockbook.screen
 
 import android.os.Bundle
-import android.text.Editable
-import android.text.Spanned
-import android.text.style.ForegroundColorSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -17,12 +13,8 @@ import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.databinding.FragmentTextEditorBinding
 import app.lockbook.model.*
-import io.noties.markwon.Markwon
-import io.noties.markwon.core.spans.StrongEmphasisSpan
 import io.noties.markwon.editor.*
 import java.lang.ref.WeakReference
-import java.util.concurrent.Executors
-
 
 class TextEditorFragment : Fragment() {
     private var _binding: FragmentTextEditorBinding? = null
@@ -36,7 +28,7 @@ class TextEditorFragment : Fragment() {
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(TextEditorViewModel::class.java))
-                        return TextEditorViewModel(requireActivity().application, activityModel.detailsScreen!!.fileMetadata, (activityModel.detailsScreen as DetailsScreen.TextEditor).text) as T
+                        return TextEditorViewModel(requireActivity().application, activityModel.detailsScreen!!.fileMetadata, (activityModel.detailsScreen as DetailsScreen.TextEditor).text, binding.textEditorTextField.textSize) as T
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }
             }
@@ -167,7 +159,7 @@ class TextEditorFragment : Fragment() {
 
     private fun viewMarkdown() {
         if (binding.textEditorScroller.visibility == View.VISIBLE) {
-            model.markdownModel!!.markwon.setMarkdown(binding.markdownViewer, textField.text.toString())
+            model.markdownModel!!.renderMarkdown(textField.text.toString(), binding.markdownViewer)
             textEditorToolbar.menu?.findItem(R.id.menu_text_editor_undo)?.isVisible = false
             textEditorToolbar.menu?.findItem(R.id.menu_text_editor_redo)?.isVisible = false
             binding.markdownToolbar.isVisible = false
@@ -197,4 +189,3 @@ class TextEditorFragment : Fragment() {
         }
     }
 }
-

@@ -8,11 +8,13 @@ import android.text.style.StrikethroughSpan
 import androidx.core.content.res.ResourcesCompat
 import app.lockbook.R
 import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textview.MaterialTextView
 import io.noties.markwon.Markwon
 import io.noties.markwon.SoftBreakAddsNewLinePlugin
 import io.noties.markwon.core.MarkwonTheme
 import io.noties.markwon.core.spans.BlockQuoteSpan
 import io.noties.markwon.core.spans.CodeBlockSpan
+import io.noties.markwon.core.spans.CodeSpan
 import io.noties.markwon.core.spans.HeadingSpan
 import io.noties.markwon.editor.*
 import io.noties.markwon.editor.handler.EmphasisEditHandler
@@ -21,30 +23,25 @@ import io.noties.markwon.ext.latex.JLatexMathPlugin
 import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
 import io.noties.markwon.image.ImagesPlugin
 import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin
-import io.noties.markwon.syntax.Prism4jThemeDefault
-import io.noties.markwon.syntax.SyntaxHighlightPlugin
-import io.noties.prism4j.Prism4j
 import java.util.concurrent.Executors
-
 
 class CustomPunctuationSpan internal constructor(color: Int) : ForegroundColorSpan(color)
 
-class MarkdownModel(applicationContext: Context) {
+class MarkdownModel(applicationContext: Context, textSize: Float) {
     private val theme = MarkwonTheme.builderWithDefaults(applicationContext).build()
-
     val markwon = Markwon.builder(applicationContext)
         .usePlugin(StrikethroughPlugin.create())
         .usePlugin(MarkwonInlineParserPlugin.create())
         .usePlugin(
-            JLatexMathPlugin.create(50f
-        ) { builder ->
-            builder.inlinesEnabled(true)
-        })
+            JLatexMathPlugin.create(
+                textSize + 3
+            ) { builder ->
+                builder.inlinesEnabled(true)
+            }
+        )
         .usePlugin(ImagesPlugin.create())
         .usePlugin(SoftBreakAddsNewLinePlugin.create())
         .build()
-
-
 
     private val markwonEditor = MarkwonEditor.builder(markwon)
         .punctuationSpan(
@@ -77,20 +74,23 @@ class MarkdownModel(applicationContext: Context) {
         )
     }
 
+    fun renderMarkdown(markdown: String, textView: MaterialTextView) {
+        markwon.setMarkdown(textView, markdown)
+    }
 }
 
-class CodeEditHandler(private val theme: MarkwonTheme) : AbstractEditHandler<CodeEditHandler>() {
+class CodeEditHandler(private val theme: MarkwonTheme) : AbstractEditHandler<CodeSpan>() {
     override fun configurePersistedSpans(builder: PersistedSpans.Builder) {
         builder.persistSpan(
-            CodeEditHandler::class.java
-        ) { CodeEditHandler(theme) }
+            CodeSpan::class.java
+        ) { CodeSpan(theme) }
     }
 
     override fun handleMarkdownSpan(
         persistedSpans: PersistedSpans,
         editable: Editable,
         input: String,
-        span: CodeEditHandler,
+        span: CodeSpan,
         spanStart: Int,
         spanTextLength: Int
     ) {
@@ -98,7 +98,7 @@ class CodeEditHandler(private val theme: MarkwonTheme) : AbstractEditHandler<Cod
             MarkwonEditorUtils.findDelimited(input, spanStart, "`")
         if (match != null) {
             editable.setSpan(
-                persistedSpans[CodeEditHandler::class.java],
+                persistedSpans[CodeSpan::class.java],
                 match.start(),
                 match.end(),
                 Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -106,7 +106,7 @@ class CodeEditHandler(private val theme: MarkwonTheme) : AbstractEditHandler<Cod
         }
     }
 
-    override fun markdownSpanType(): Class<CodeEditHandler> = CodeEditHandler::class.java
+    override fun markdownSpanType(): Class<CodeSpan> = CodeSpan::class.java
 }
 
 class CodeBlockEditHandler(private val theme: MarkwonTheme) : AbstractEditHandler<CodeBlockSpan>() {
