@@ -67,10 +67,19 @@ dependencies {
     implementation "androidx.fragment:fragment-ktx:$fragment_version"
     implementation "androidx.slidingpanelayout:slidingpanelayout:$sliding_pane_layout_version"
     implementation "com.afollestad:recyclical:$recyclical_version"
-
-    // Support Libraries
+    implementation "com.github.MikeOrtiz:TouchImageView:$image_viewer_version"
+    implementation "com.github.mhiew:android-pdf-viewer:$pdf_viewer_version"
+    implementation "com.leinardi.android:speed-dial:$fab_speed_dial"
+    implementation("app.futured.donut:donut:$donut_chart_version")
     implementation "androidx.constraintlayout:constraintlayout:$constraint_layout_version"
     implementation "androidx.appcompat:appcompat:$appcompat_version"
+    implementation "androidx.biometric:biometric:$fingerprint_version"
+    implementation "com.journeyapps:zxing-android-embedded:$qr_embedded_version"
+
+    // Serialization
+    implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:$json_parser_version"
+    implementation "org.jetbrains.kotlin:kotlin-reflect:$kotlin_reflect"
+
 
     // Android KTX
     implementation "androidx.core:core-ktx:$core_ktx_version"
@@ -80,13 +89,6 @@ dependencies {
     implementation "androidx.navigation:navigation-ui-ktx:$navigation_version"
     implementation "androidx.swiperefreshlayout:swiperefreshlayout:$refresh_version"
 
-    // Testing Libraries
-    testImplementation "junit:junit:$junit_version"
-    androidTestImplementation "androidx.test.ext:junit:$junit_test_version"
-    androidTestImplementation "androidx.test.espresso:espresso-core:$espresso_test_version"
-    androidTestImplementation "androidx.test:runner:$test_runner_version"
-    androidTestImplementation "androidx.test:rules:$test_runner_version"
-
     // Coroutines
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$coroutine_version"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$coroutine_android_version"
@@ -95,24 +97,27 @@ dependencies {
     implementation "androidx.lifecycle:lifecycle-livedata-ktx:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-process:$lifecycle_version"
 
-    // Miscellaneous
-    implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:$json_parser_version"
-    implementation "org.jetbrains.kotlin:kotlin-reflect:$kotlin_reflect"
-    implementation "com.journeyapps:zxing-android-embedded:$qr_embedded_version"
-    implementation "com.michael-bull.kotlin-result:kotlin-result:$result_version"
-    implementation "androidx.biometric:biometric:$fingerprint_version"
+    // Markdown
     implementation "io.noties.markwon:core:$markwon_version"
     implementation "io.noties.markwon:editor:$markwon_version"
     implementation "io.noties.markwon:ext-strikethrough:$markwon_version"
     implementation "io.noties.markwon:ext-latex:$markwon_version"
     implementation "io.noties.markwon:image:$markwon_version"
+    implementation "io.noties.markwon:syntax-highlight:$markwon_version"
+    implementation "io.noties:prism4j-bundler:$syntax_highlighting_version"
+
+    // Testing Libraries
+    testImplementation "junit:junit:$junit_version"
+    androidTestImplementation "androidx.test.ext:junit:$junit_test_version"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$espresso_test_version"
+    androidTestImplementation "androidx.test:runner:$test_runner_version"
+    androidTestImplementation "androidx.test:rules:$test_runner_version"
+
+    // Miscellaneous
+    implementation "com.michael-bull.kotlin-result:kotlin-result:$result_version"
     implementation "com.jakewharton.timber:timber:$logger_version"
     implementation "androidx.work:work-runtime-ktx:$work_version"
     implementation "com.android.billingclient:billing-ktx:$billing_version"
-    implementation "com.github.MikeOrtiz:TouchImageView:$image_viewer_version"
-    implementation "com.github.mhiew:android-pdf-viewer:$pdf_viewer_version"
-    implementation "com.leinardi.android:speed-dial:$fab_speed_dial"
-    implementation("app.futured.donut:donut:$donut_chart_version")
 
     implementation project(':core')
 }

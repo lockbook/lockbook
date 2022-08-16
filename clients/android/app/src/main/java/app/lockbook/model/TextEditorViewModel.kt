@@ -17,18 +17,8 @@ import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin
 import kotlinx.coroutines.*
 
 
-class TextEditorViewModel(application: Application, val id: String, private val text: String) :
+class TextEditorViewModel(application: Application, val fileMetadata: File, private val text: String) :
     AndroidViewModel(application) {
-
-    val markwon = Markwon.builder(getContext())
-        .usePlugin(StrikethroughPlugin.create())
-        .usePlugin(MarkwonInlineParserPlugin.create())
-        .usePlugin(JLatexMathPlugin.create(50f
-        ) { builder ->
-            builder.inlinesEnabled(true)
-        })
-        .usePlugin(ImagesPlugin.create())
-        .build()
 
     private val handler = Handler(Looper.myLooper()!!)
     var lastEdit = 0L
@@ -42,6 +32,12 @@ class TextEditorViewModel(application: Application, val id: String, private val 
 
     val content: LiveData<String>
         get() = _content
+
+    val markdownModel = if(fileMetadata.name.endsWith(".md")) {
+        MarkdownModel(getApplication())
+    } else {
+        null
+    }
 
     init {
         setUpTextView()
@@ -61,7 +57,7 @@ class TextEditorViewModel(application: Application, val id: String, private val 
                 viewModelScope.launch(Dispatchers.IO) {
                     if (currentEdit == lastEdit && editHistory.isDirty) {
                         val writeToDocumentResult =
-                            CoreModel.writeToDocument(id, content)
+                            CoreModel.writeToDocument(fileMetadata.id, content)
                         if (writeToDocumentResult is Err) {
                             _notifyError.postValue(writeToDocumentResult.error.toLbError(getRes()))
                         } else {

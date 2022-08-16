@@ -36,7 +36,7 @@ class TextEditorFragment : Fragment() {
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(TextEditorViewModel::class.java))
-                        return TextEditorViewModel(requireActivity().application, activityModel.detailsScreen!!.fileMetadata.id, (activityModel.detailsScreen as DetailsScreen.TextEditor).text) as T
+                        return TextEditorViewModel(requireActivity().application, activityModel.detailsScreen!!.fileMetadata, (activityModel.detailsScreen as DetailsScreen.TextEditor).text) as T
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }
             }
@@ -86,16 +86,8 @@ class TextEditorFragment : Fragment() {
             viewLifecycleOwner
         ) { content ->
             if (name.endsWith(".md")) {
-                val markdownEditor = MarkdownModel.createMarkdownEditor(model.markwon, requireContext())
-
+                model.markdownModel!!.addMarkdownEditorTheming(textField)
                 binding.markdownToolbar.visibility = View.VISIBLE
-                textField.addTextChangedListener(
-                    MarkwonEditorTextWatcher.withPreRender(
-                        markdownEditor,
-                        Executors.newCachedThreadPool(),
-                        textField
-                    )
-                )
             }
 
             textField.setText(content)
@@ -175,7 +167,7 @@ class TextEditorFragment : Fragment() {
 
     private fun viewMarkdown() {
         if (binding.textEditorScroller.visibility == View.VISIBLE) {
-            model.markwon.setMarkdown(binding.markdownViewer, textField.text.toString())
+            model.markdownModel!!.markwon.setMarkdown(binding.markdownViewer, textField.text.toString())
             textEditorToolbar.menu?.findItem(R.id.menu_text_editor_undo)?.isVisible = false
             textEditorToolbar.menu?.findItem(R.id.menu_text_editor_redo)?.isVisible = false
             binding.markdownToolbar.isVisible = false
@@ -201,7 +193,7 @@ class TextEditorFragment : Fragment() {
     fun saveOnExit() {
         if (model.editHistory.isDirty) {
             model.lastEdit = System.currentTimeMillis()
-            activityModel.saveTextOnExit(model.id, textField.text.toString())
+            activityModel.saveTextOnExit(model.fileMetadata.id, textField.text.toString())
         }
     }
 }

@@ -7,7 +7,9 @@ import android.text.style.ForegroundColorSpan
 import android.text.style.StrikethroughSpan
 import androidx.core.content.res.ResourcesCompat
 import app.lockbook.R
+import com.google.android.material.textfield.TextInputEditText
 import io.noties.markwon.Markwon
+import io.noties.markwon.SoftBreakAddsNewLinePlugin
 import io.noties.markwon.core.MarkwonTheme
 import io.noties.markwon.core.spans.BlockQuoteSpan
 import io.noties.markwon.core.spans.CodeBlockSpan
@@ -15,34 +17,66 @@ import io.noties.markwon.core.spans.HeadingSpan
 import io.noties.markwon.editor.*
 import io.noties.markwon.editor.handler.EmphasisEditHandler
 import io.noties.markwon.editor.handler.StrongEmphasisEditHandler
+import io.noties.markwon.ext.latex.JLatexMathPlugin
+import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
+import io.noties.markwon.image.ImagesPlugin
+import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin
+import io.noties.markwon.syntax.Prism4jThemeDefault
+import io.noties.markwon.syntax.SyntaxHighlightPlugin
+import io.noties.prism4j.Prism4j
+import java.util.concurrent.Executors
+
 
 class CustomPunctuationSpan internal constructor(color: Int) : ForegroundColorSpan(color)
 
-object MarkdownModel {
-    fun createMarkdownEditor(markwon: Markwon, context: Context): MarkwonEditor {
-        val theme = MarkwonTheme.builderWithDefaults(context).build()
+class MarkdownModel(applicationContext: Context) {
+    private val theme = MarkwonTheme.builderWithDefaults(applicationContext).build()
 
-        return MarkwonEditor.builder(markwon)
-            .punctuationSpan(
-                CustomPunctuationSpan::class.java
-            ) {
-                CustomPunctuationSpan(
-                    ResourcesCompat.getColor(
-                        context.resources,
-                        R.color.md_theme_primary,
-                        null
-                    )
+    val markwon = Markwon.builder(applicationContext)
+        .usePlugin(StrikethroughPlugin.create())
+        .usePlugin(MarkwonInlineParserPlugin.create())
+        .usePlugin(
+            JLatexMathPlugin.create(50f
+        ) { builder ->
+            builder.inlinesEnabled(true)
+        })
+        .usePlugin(ImagesPlugin.create())
+        .usePlugin(SoftBreakAddsNewLinePlugin.create())
+        .build()
+
+
+
+    private val markwonEditor = MarkwonEditor.builder(markwon)
+        .punctuationSpan(
+            CustomPunctuationSpan::class.java
+        ) {
+            CustomPunctuationSpan(
+                ResourcesCompat.getColor(
+                    applicationContext.resources,
+                    R.color.md_theme_primary,
+                    null
                 )
-            }
-            .useEditHandler(EmphasisEditHandler())
-            .useEditHandler(StrongEmphasisEditHandler())
-            .useEditHandler(CodeEditHandler(theme))
-            .useEditHandler(CodeBlockEditHandler(theme))
-            .useEditHandler(BlockQuoteEditHandler(theme))
-            .useEditHandler(HeadingEditHandler(theme))
-            .useEditHandler(StrikethroughEditHandler())
-            .build()
+            )
+        }
+        .useEditHandler(EmphasisEditHandler())
+        .useEditHandler(StrongEmphasisEditHandler())
+        .useEditHandler(CodeEditHandler(theme))
+        .useEditHandler(CodeBlockEditHandler(theme))
+        .useEditHandler(BlockQuoteEditHandler(theme))
+        .useEditHandler(HeadingEditHandler(theme))
+        .useEditHandler(StrikethroughEditHandler())
+        .build()
+
+    fun addMarkdownEditorTheming(textField: TextInputEditText) {
+        textField.addTextChangedListener(
+            MarkwonEditorTextWatcher.withPreRender(
+                markwonEditor,
+                Executors.newCachedThreadPool(),
+                textField
+            )
+        )
     }
+
 }
 
 class CodeEditHandler(private val theme: MarkwonTheme) : AbstractEditHandler<CodeEditHandler>() {

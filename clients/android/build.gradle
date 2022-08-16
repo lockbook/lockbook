@@ -25,6 +25,7 @@ buildscript {
         preference_version = '1.2.0'
         refresh_version = '1.1.0'
         markwon_version = '4.6.2'
+        syntax_highlighting_version = '2.0.0'
         logger_version = '4.7.1'
         work_version = '2.7.1'
         kotlinter_version = '3.0.2'
