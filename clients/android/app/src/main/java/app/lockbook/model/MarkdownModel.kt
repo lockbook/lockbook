@@ -25,8 +25,6 @@ import io.noties.markwon.image.ImagesPlugin
 import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin
 import java.util.concurrent.Executors
 
-class CustomPunctuationSpan internal constructor(color: Int) : ForegroundColorSpan(color)
-
 class MarkdownModel(applicationContext: Context, textSize: Float) {
     private val theme = MarkwonTheme.builderWithDefaults(applicationContext).build()
     val markwon = Markwon.builder(applicationContext)
@@ -78,6 +76,8 @@ class MarkdownModel(applicationContext: Context, textSize: Float) {
         markwon.setMarkdown(textView, markdown)
     }
 }
+
+class CustomPunctuationSpan internal constructor(color: Int) : ForegroundColorSpan(color)
 
 class CodeEditHandler(private val theme: MarkwonTheme) : AbstractEditHandler<CodeSpan>() {
     override fun configurePersistedSpans(builder: PersistedSpans.Builder) {
