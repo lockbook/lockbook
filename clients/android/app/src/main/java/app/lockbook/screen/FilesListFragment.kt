@@ -566,10 +566,8 @@ class FilesListFragment : Fragment(), FilesFragment {
         when {
             newDocument != null && PreferenceManager.getDefaultSharedPreferences(requireContext())
                 .getBoolean(getString(R.string.open_new_doc_automatically_key), true) -> {
+                model.reloadFiles()
                 enterFile(newDocument)
-                if (newDocument.fileType == FileType.Document) {
-                    model.reloadFiles()
-                }
             }
             newDocument != null -> model.reloadFiles()
         }
