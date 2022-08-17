@@ -18,7 +18,7 @@ pub fn run_server_detached(tool_env: &ToolEnvironment) {
     loop {
         port = rand::thread_rng().gen_range(1024..u16::MAX);
 
-        let mut run_result = Command::new(tool_env.target_dir.join("debug/lockbook-server"))
+        let mut run_result = Command::new(tool_env.target_dir.join("release/lockbook-server"))
             .env("SERVER_PORT", port.to_string())
             .env("INDEX_DB_LOCATION", &server_db_dir)
             .current_dir(&tool_env.root_dir)
