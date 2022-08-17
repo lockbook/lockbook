@@ -40,8 +40,8 @@
 <img src="drawing-light.png"  width="30%" height="30%">
 <img src="drawing-dark.png"  width="30%" height="30%">
 
-<img src="drawing-tablet-light.png"  width="80%" height="80%">
-<img src="drawing-tablet-dark.png"  width="80%" height="80%">
+<img src="drawing-tablet-light.jpg"  width="80%" height="80%">
+<img src="drawing-tablet-dark.jpg"  width="80%" height="80%">
 </details>
 
 ## Search 
