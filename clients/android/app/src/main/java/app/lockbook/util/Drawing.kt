@@ -136,14 +136,14 @@ enum class SupportedImageFormats {
 }
 
 val DEFAULT_THEME = linkedMapOf(
-    Pair(ColorAlias.White.name, ColorRGB(0xFF, 0xFF, 0xFF)),
-    Pair(ColorAlias.Black.name, ColorRGB(0x00, 0x00, 0x00)),
-    Pair(ColorAlias.Red.name, ColorRGB(0xFF, 0x00, 0x00)),
-    Pair(ColorAlias.Green.name, ColorRGB(0x00, 0xFF, 0x00)),
-    Pair(ColorAlias.Yellow.name, ColorRGB(0xFF, 0xFF, 0x00)),
-    Pair(ColorAlias.Blue.name, ColorRGB(0x00, 0x00, 0xFF)),
-    Pair(ColorAlias.Magenta.name, ColorRGB(0xFF, 0x00, 0xFF)),
-    Pair(ColorAlias.Cyan.name, ColorRGB(0x00, 0xFF, 0xFF)),
+    Pair(ColorAlias.White.name, ColorRGB(209, 209, 214)),
+    Pair(ColorAlias.Black.name, ColorRGB(44, 44, 46)),
+    Pair(ColorAlias.Red.name, ColorRGB(255, 59, 48)),
+    Pair(ColorAlias.Green.name, ColorRGB(52, 199, 89)),
+    Pair(ColorAlias.Yellow.name, ColorRGB(255, 204, 0)),
+    Pair(ColorAlias.Blue.name, ColorRGB(0, 122, 255)),
+    Pair(ColorAlias.Magenta.name, ColorRGB(175, 82, 222)),
+    Pair(ColorAlias.Cyan.name, ColorRGB(50, 173, 230)),
 )
 
 val IMAGE_EXPORT_TYPE = SupportedImageFormats.Jpeg
