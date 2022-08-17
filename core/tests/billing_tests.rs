@@ -13,7 +13,7 @@ use test_utils::{
 
 #[test]
 #[ignore]
-/// Run all tests with: cargo test --package lockbook-core --test upgrade_account_tests "" -- --ignored
+/// Run all tests with: cargo test --package lockbook-core --test billing_tests "" -- --ignored
 fn upgrade_account_google_play_already_premium() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
