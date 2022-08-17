@@ -9,4 +9,5 @@ members = [
 	"clients/linux",
 	"clients/cli",
 	"utils/dev-tool",
+	"utils/releaser"
 ]
