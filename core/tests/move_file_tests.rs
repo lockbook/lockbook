@@ -123,7 +123,7 @@ fn move_folder_into_itself() {
         &account,
         UpsertRequest { updates: vec![FileDiff::edit(&folder, &new)] },
     );
-    assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(_))));
+    assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::DiffMalformed)));
 }
 
 #[test]
