@@ -69,7 +69,7 @@ fn new_files() {
 }
 
 #[test]
-fn move_file() {
+fn move_file_a() {
     let cores = vec![test_core_with_account(), test_core_with_account()];
     let accounts = cores
         .iter()
@@ -94,6 +94,57 @@ fn move_file() {
     cores[1].sync(None).unwrap();
 
     assert_stuff(&cores[0], &cores[1]);
+    assert::all_paths(&cores[1], &["/", "/link/", "/link/document"]);
+}
+
+#[test]
+fn create_file_in_shared_folder() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let folder = cores[0].create_at_path("folder/").unwrap();
+    cores[0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    let shares = cores[1].get_pending_shares().unwrap();
+    cores[1].create_link_at_path("link", shares[0].id).unwrap();
+    let _document = cores[1].create_at_path("/link/document").unwrap();
+    cores[1].sync(None).unwrap();
+    cores[0].sync(None).unwrap();
+    assert::all_paths(&cores[0], &["/", "/folder/", "/folder/document"]);
+    assert::all_paths(&cores[1], &["/", "/link/", "/link/document"]);
+}
+
+#[test]
+fn move_file_b() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0].create_at_path("folder/").unwrap();
+    cores[0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    let shares = cores[1].get_pending_shares().unwrap();
+    cores[1].create_link_at_path("link", shares[0].id).unwrap();
+    let document = cores[1].create_at_path("document").unwrap();
+    cores[1].move_file(document.id, folder.id).unwrap();
+    cores[1].sync(None).unwrap();
+
+    cores[0].sync(None).unwrap();
+
+    assert_stuff(&cores[0], &cores[1]);
+    assert::all_paths(&cores[0], &["/", "/folder/", "/folder/document"]);
     assert::all_paths(&cores[1], &["/", "/link/", "/link/document"]);
 }
 

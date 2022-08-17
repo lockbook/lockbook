@@ -16,14 +16,13 @@ fn test_empty() {
 #[test]
 fn test_stage_promote() {
     let account = &Account::new(random_name(), url());
-    let pk = &account.public_key();
     let root = FileMetadata::create_root(account)
         .unwrap()
         .sign(account)
         .unwrap();
     let files = vec![root.clone()].to_lazy().stage(vec![]);
     let files = files
-        .stage_create(root.id(), "test", FileType::Folder, account, pk)
+        .stage_create(root.id(), "test", FileType::Folder, account)
         .unwrap()
         .0;
 
@@ -39,14 +38,13 @@ fn test_stage_promote() {
 #[test]
 fn test_stage_unstage() {
     let account = &Account::new(random_name(), url());
-    let pk = &account.public_key();
     let root = FileMetadata::create_root(account)
         .unwrap()
         .sign(account)
         .unwrap();
     let files = vec![root.clone()].to_lazy().stage(vec![]);
     let files = files
-        .stage_create(root.id(), "test", FileType::Folder, account, pk)
+        .stage_create(root.id(), "test", FileType::Folder, account)
         .unwrap()
         .0;
 

@@ -11,7 +11,7 @@ pub type EncryptedFolderAccessKey = AESEncrypted<AESKey>;
 pub enum UserAccessMode {
     Read,
     Write,
-    Owner,
+    Owner, // todo: remove
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -72,7 +72,7 @@ mod unit_tests {
             &account.public_key(),
             &account.public_key(),
             &key,
-            UserAccessMode::Owner,
+            UserAccessMode::Write,
         )
         .unwrap();
         let decrypted = encrypted.decrypt(&account).unwrap();
@@ -89,7 +89,7 @@ mod unit_tests {
             &account1.public_key(),
             &account2.public_key(),
             &key,
-            UserAccessMode::Owner,
+            UserAccessMode::Write,
         )
         .unwrap();
         let decrypted = encrypted.decrypt(&account2).unwrap();
