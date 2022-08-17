@@ -33,7 +33,10 @@ fn upsert_id_takeover() {
         &core2.get_account().unwrap(),
         UpsertRequest { updates: vec![FileDiff::new(&file1)] },
     );
-    assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::NotPermissioned)));
+    assert_matches!(
+        result,
+        Err(ApiError::<UpsertError>::Endpoint(UpsertError::OldVersionRequired))
+    );
 }
 
 #[test]
@@ -58,7 +61,10 @@ fn upsert_id_takeover_change_parent() {
     // If this succeeded account2 would be able to control file1
     let result =
         api_service::request(&account2, UpsertRequest { updates: vec![FileDiff::new(&file1)] });
-    assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::NotPermissioned)));
+    assert_matches!(
+        result,
+        Err(ApiError::<UpsertError>::Endpoint(UpsertError::OldVersionRequired))
+    );
 }
 
 #[test]
