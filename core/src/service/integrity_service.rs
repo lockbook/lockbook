@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use lockbook_shared::file_like::FileLike;
+use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 
 use crate::model::drawing;
@@ -29,7 +30,7 @@ impl RequestContext<'_, '_> {
             return Err(TestRepoError::NoRootFolder);
         }
 
-        tree.validate()?;
+        tree.validate(Owner(account.public_key()))?;
 
         for id in tree.owned_ids() {
             let name = tree.name(&id, account)?;

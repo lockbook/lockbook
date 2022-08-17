@@ -57,6 +57,7 @@ pub enum SharedError {
     Decryption(aead::Error),
     HmacValidationError(MacError),
     ParseError(libsecp256k1::Error),
+    ShareNonexistent,
     SharedSecretUnexpectedSize,
     SharedSecretError(libsecp256k1::Error),
     ValidationFailure(ValidationFailure),

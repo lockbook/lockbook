@@ -85,7 +85,10 @@ impl<T: Stagable> LazyTree<T> {
             let mut visited_ids = vec![];
             let mut deleted = false;
 
-            while !file.is_root() && !visited_ids.contains(file.parent()) {
+            while !file.is_root()
+                && self.maybe_find(file.parent()).is_some()
+                && !visited_ids.contains(file.parent())
+            {
                 visited_ids.push(*file.id());
                 if let Some(&implicit) = self.implicit_deleted.get(file.id()) {
                     deleted = implicit;
@@ -270,105 +273,6 @@ impl<T: Stagable> LazyTree<T> {
         }
     }
 
-    pub fn validate(&mut self) -> SharedResult<()> {
-        self.assert_all_files_decryptable()?;
-        self.assert_only_folders_have_children()?;
-        self.assert_no_cycles()?;
-        self.assert_no_path_conflicts()?;
-        // todo
-        // self.assert_names_decryptable(account)?;
-        self.assert_no_shared_links()?;
-        self.assert_no_duplicate_links()?;
-        self.assert_no_broken_links()?;
-        self.assert_no_owned_links()?;
-
-        Ok(())
-    }
-
-    pub fn assert_only_folders_have_children(&self) -> SharedResult<()> {
-        for file in self.all_files()? {
-            if let Some(parent) = self.maybe_find(file.parent()) {
-                if !parent.is_folder() {
-                    return Err(SharedError::ValidationFailure(
-                        ValidationFailure::NonFolderWithChildren(*parent.id()),
-                    ));
-                }
-            }
-        }
-        Ok(())
-    }
-
-    pub fn assert_all_files_decryptable(&mut self) -> SharedResult<()> {
-        for file in self.ids().into_iter().filter_map(|id| self.maybe_find(id)) {
-            // todo: user access key for this user
-            if self.maybe_find_parent(file).is_none() && file.user_access_keys().is_empty() {
-                return Err(SharedError::ValidationFailure(ValidationFailure::Orphan(*file.id())));
-            }
-        }
-        Ok(())
-    }
-
-    // assumption: no orphans
-    pub fn assert_no_cycles(&mut self) -> SharedResult<()> {
-        let mut owners_with_found_roots = HashSet::new();
-        let mut no_cycles_in_ancestors = HashSet::new();
-        for id in self.owned_ids() {
-            let mut ancestors = HashSet::new();
-            let mut current_file = self.find(&id)?;
-            loop {
-                if no_cycles_in_ancestors.contains(current_file.id()) {
-                    break;
-                } else if current_file.is_root() {
-                    if owners_with_found_roots.insert(current_file.owner()) {
-                        ancestors.insert(*current_file.id());
-                        break;
-                    } else {
-                        return Err(SharedError::ValidationFailure(ValidationFailure::Cycle(
-                            HashSet::from([id]),
-                        )));
-                    }
-                } else if ancestors.contains(current_file.parent()) {
-                    return Err(SharedError::ValidationFailure(ValidationFailure::Cycle(
-                        self.ancestors(current_file.id())?,
-                    )));
-                }
-                ancestors.insert(*current_file.id());
-                current_file = match self.maybe_find_parent(current_file) {
-                    Some(file) => file,
-                    None => {
-                        if !current_file.user_access_keys().is_empty() {
-                            break;
-                        } else {
-                            return Err(SharedError::FileParentNonexistent);
-                        }
-                    }
-                }
-            }
-            no_cycles_in_ancestors.extend(ancestors);
-        }
-        Ok(())
-    }
-
-    // todo: optimize
-    pub fn assert_no_path_conflicts(&mut self) -> SharedResult<()> {
-        let mut id_by_name = HashMap::new();
-        for id in self.owned_ids() {
-            if !self.calculate_deleted(&id)? {
-                let file = self.find(&id)?;
-                if file.is_root() {
-                    continue;
-                }
-                if let Some(conflicting) = id_by_name.remove(file.secret_name()) {
-                    return Err(SharedError::ValidationFailure(ValidationFailure::PathConflict(
-                        HashSet::from([conflicting, *file.id()]),
-                    )));
-                }
-                id_by_name.insert(file.secret_name().clone(), *file.id());
-            }
-        }
-        Ok(())
-    }
-
     // todo: optimize
     pub fn assert_names_decryptable(&mut self, account: &Account) -> SharedResult<()> {
         for id in self.owned_ids() {
@@ -376,59 +280,6 @@ impl<T: Stagable> LazyTree<T> {
                 return Err(SharedError::ValidationFailure(
                     ValidationFailure::NonDecryptableFileName(id),
                 ));
-            }
-        }
-        Ok(())
-    }
-
-    pub fn assert_no_shared_links(&self) -> SharedResult<()> {
-        for link in self.owned_ids() {
-            if let FileType::Link { target: _ } = self.find(&link)?.file_type() {
-                for ancestor in self.ancestors(&link)? {
-                    if self.find(&ancestor)?.is_shared() {
-                        return Err(SharedError::ValidationFailure(
-                            ValidationFailure::SharedLink { link, shared_ancestor: ancestor },
-                        ));
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-
-    pub fn assert_no_duplicate_links(&self) -> SharedResult<()> {
-        let mut linked_targets = HashSet::new();
-        for link in self.owned_ids() {
-            if let FileType::Link { target } = self.find(&link)?.file_type() {
-                if !linked_targets.insert(target) {
-                    return Err(SharedError::ValidationFailure(ValidationFailure::DuplicateLink {
-                        target,
-                    }));
-                }
-            }
-        }
-        Ok(())
-    }
-
-    pub fn assert_no_broken_links(&self) -> SharedResult<()> {
-        for link in self.owned_ids() {
-            if let FileType::Link { target } = self.find(&link)?.file_type() {
-                if self.maybe_find(&target).is_none() {
-                    return Err(SharedError::ValidationFailure(ValidationFailure::BrokenLink(
-                        link,
-                    )));
-                }
-            }
-        }
-        Ok(())
-    }
-
-    pub fn assert_no_owned_links(&self) -> SharedResult<()> {
-        for link in self.owned_ids() {
-            if let FileType::Link { target } = self.find(&link)?.file_type() {
-                if self.find(&link)?.owner() == self.find(&target)?.owner() {
-                    return Err(SharedError::ValidationFailure(ValidationFailure::OwnedLink(link)));
-                }
             }
         }
         Ok(())
