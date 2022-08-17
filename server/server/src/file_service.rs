@@ -6,11 +6,11 @@ use hmdb::transaction::Transaction;
 use lockbook_shared::api::*;
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{Diff, FileDiff, Owner};
+use lockbook_shared::file_metadata::{Diff, Owner};
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, UpsertRequest>,
@@ -18,57 +18,46 @@ pub async fn upsert_file_metadata(
     let (request, server_state) = (context.request, context.server_state);
     let req_owner = Owner(context.public_key);
 
-    let mut tree_diff_group: HashMap<Owner, Vec<FileDiff>> = HashMap::new();
-    for diff in &request.updates {
-        let owner = diff.new.owner();
-        let mut existing = tree_diff_group.remove(&owner).unwrap_or_default();
-        existing.push(diff.clone()); // todo: don't clone
-        tree_diff_group.insert(owner, existing);
-    }
     let mut prior_deleted_docs = HashSet::new();
     let mut new_deleted = vec![];
 
     let res: Result<(), ServerError<UpsertError>> =
         context.server_state.index_db.transaction(|tx| {
             // validate all trees
-            for (owner, updates) in tree_diff_group.clone() {
-                let mut tree = ServerTree {
-                    owners: sharers_with_diffs(tx, owner, &request.updates),
-                    owned: &mut tx.owned_files,
-                    metas: &mut tx.metas,
-                }
-                .to_lazy();
+            let mut tree = ServerTree {
+                owners: sharers_with_diffs(tx, req_owner, &request.updates),
+                owned: &mut tx.owned_files,
+                metas: &mut tx.metas,
+            }
+            .to_lazy();
 
-                for id in tree.owned_ids() {
-                    if tree.find(&id)?.is_document() && tree.calculate_deleted(&id)? {
-                        prior_deleted_docs.insert(id);
-                    }
+            for id in tree.owned_ids() {
+                if tree.find(&id)?.is_document() && tree.calculate_deleted(&id)? {
+                    prior_deleted_docs.insert(id);
                 }
-
-                let mut tree = tree.stage_diff(&req_owner, updates)?;
-                tree.validate()?;
             }
 
-            for (owner, updates) in tree_diff_group {
-                let mut tree = ServerTree {
-                    owners: sharers_with_diffs(tx, owner, &request.updates),
-                    owned: &mut tx.owned_files,
-                    metas: &mut tx.metas,
-                }
-                .to_lazy()
-                .stage_diff(&req_owner, updates)?
-                .promote();
+            let mut tree = tree.stage_diff(&req_owner, request.updates.clone())?;
+            tree.validate()?;
 
-                for id in tree.owned_ids() {
-                    if tree.find(&id)?.is_document()
-                        && tree.calculate_deleted(&id)?
-                        && !prior_deleted_docs.contains(&id)
-                    {
-                        let meta = tree.find(&id)?;
-                        if let Some(digest) = meta.file.timestamped_value.value.document_hmac {
-                            tx.sizes.delete(*meta.id());
-                            new_deleted.push((*meta.id(), digest));
-                        }
+            let mut tree = ServerTree {
+                owners: sharers_with_diffs(tx, req_owner, &request.updates.clone()),
+                owned: &mut tx.owned_files,
+                metas: &mut tx.metas,
+            }
+            .to_lazy()
+            .stage_diff(&req_owner, request.updates)?
+            .promote();
+
+            for id in tree.owned_ids() {
+                if tree.find(&id)?.is_document()
+                    && tree.calculate_deleted(&id)?
+                    && !prior_deleted_docs.contains(&id)
+                {
+                    let meta = tree.find(&id)?;
+                    if let Some(digest) = meta.file.timestamped_value.value.document_hmac {
+                        tx.sizes.delete(*meta.id());
+                        new_deleted.push((*meta.id(), digest));
                     }
                 }
             }

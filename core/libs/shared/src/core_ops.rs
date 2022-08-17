@@ -71,9 +71,10 @@ where
             return Err(SharedError::InsufficientPermission);
         }
 
+        let parent_owner = self.find(parent)?.owner().0;
         let parent_key = self.decrypt_key(parent, account)?;
-        let new_file =
-            FileMetadata::create(pub_key, *parent, &parent_key, name, file_type)?.sign(account)?;
+        let new_file = FileMetadata::create(&parent_owner, *parent, &parent_key, name, file_type)?
+            .sign(account)?;
         let id = *new_file.id();
         Ok((self.stage(Some(new_file)), id))
     }
@@ -153,6 +154,7 @@ where
 
         let key = self.decrypt_key(id, account)?;
         let parent_key = self.decrypt_key(new_parent, account)?;
+        file.owner = self.find(new_parent)?.owner();
         file.parent = *new_parent;
         file.folder_access_key = symkey::encrypt(&parent_key, &key)?;
         file.name = SecretFileName::from_str(&self.name(id, account)?, &key, &parent_key)?;

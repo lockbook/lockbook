@@ -174,6 +174,7 @@ pub async fn delete_account(
     Ok(())
 }
 
+// will not include pending shares
 pub fn sharers_with_diffs(tx: &mut Tx<'_>, owner: Owner, diffs: &[FileDiff]) -> Vec<Owner> {
     let mut result = HashSet::new();
     result.insert(owner);

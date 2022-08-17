@@ -56,7 +56,7 @@ impl FileMetadata {
     }
 
     pub fn create(
-        pub_key: &PublicKey, parent: Uuid, parent_key: &AESKey, name: &str, file_type: FileType,
+        owner: &PublicKey, parent: Uuid, parent_key: &AESKey, name: &str, file_type: FileType,
     ) -> SharedResult<Self> {
         let id = Uuid::new_v4();
         let key = symkey::generate_key();
@@ -66,7 +66,7 @@ impl FileMetadata {
             file_type,
             parent,
             name: SecretFileName::from_str(name, &key, parent_key)?,
-            owner: Owner(*pub_key),
+            owner: Owner(*owner),
             is_deleted: false,
             document_hmac: None,
             user_access_keys: Default::default(),
