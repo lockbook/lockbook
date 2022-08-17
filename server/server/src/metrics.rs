@@ -9,7 +9,6 @@ use std::fmt::Debug;
 use tracing::*;
 use uuid::Uuid;
 
-use crate::account_service::sharers;
 use crate::billing::billing_model::BillingPlatform;
 use crate::transaction::ServerV1 as TransactionalServerV1;
 use lockbook_shared::file_like::FileLike;
@@ -149,12 +148,7 @@ pub async fn get_user_info(
     state: &ServerState, owner: Owner,
 ) -> Result<(i64, i64, bool), ServerError<MetricsError>> {
     state.index_db.transaction(|tx| {
-        let mut tree = ServerTree {
-            owners: sharers(tx, owner),
-            owned: &mut tx.owned_files,
-            metas: &mut tx.metas,
-        }
-        .to_lazy();
+        let mut tree = ServerTree::new(owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
 
         let metadatas = tree.all_files()?;
         let mut ids = Vec::new();

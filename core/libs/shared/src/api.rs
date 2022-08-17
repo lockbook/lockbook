@@ -35,7 +35,7 @@ pub enum ErrorWrapper<E> {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct UpsertRequest {
-    pub updates: Vec<FileDiff>,
+    pub updates: Vec<FileDiff<SignedFile>>,
 }
 
 impl Request for UpsertRequest {
@@ -79,7 +79,7 @@ pub enum UpsertError {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ChangeDocRequest {
-    pub diff: FileDiff,
+    pub diff: FileDiff<SignedFile>,
     pub new_content: EncryptedDocument,
 }
 
