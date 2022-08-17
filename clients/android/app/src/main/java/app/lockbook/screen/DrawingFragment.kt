@@ -220,10 +220,10 @@ class DrawingFragment : Fragment() {
         blackButton.background.setTint(black)
         redButton.background.setTint(red)
         greenButton.background.setTint(green)
-        cyanButton.background.setTint(cyan)
         magentaButton.background.setTint(magenta)
         blueButton.background.setTint(blue)
         yellowButton.background.setTint(yellow)
+        cyanButton.background.setTint(cyan)
 
         toolbar.visibility = View.VISIBLE
 
