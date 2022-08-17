@@ -131,7 +131,7 @@ impl FromStr for FileType {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct FileDiff<F: FileLike> {
     pub old: Option<F>,
     pub new: F,
