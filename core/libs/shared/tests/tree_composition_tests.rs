@@ -16,7 +16,6 @@ fn test_empty() {
 #[test]
 fn test_stage_promote() {
     let account = &Account::new(random_name(), url());
-    let pk = &account.public_key();
     let root = FileMetadata::create_root(account)
         .unwrap()
         .sign(account)
@@ -39,7 +38,6 @@ fn test_stage_promote() {
 #[test]
 fn test_stage_unstage() {
     let account = &Account::new(random_name(), url());
-    let pk = &account.public_key();
     let root = FileMetadata::create_root(account)
         .unwrap()
         .sign(account)
