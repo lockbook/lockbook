@@ -8,12 +8,9 @@ use test_utils::{
     assert_matches, generate_premium_account_tier, test_core_with_account, test_credit_cards,
 };
 
-/*
-Run all tests with: cargo test --package lockbook-core --test upgrade_account_tests "" -- --ignored
- */
-
 #[test]
 #[ignore]
+/// Run all tests with: cargo test --package lockbook-core --test upgrade_account_tests "" -- --ignored
 fn upgrade_account_google_play_already_premium() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
