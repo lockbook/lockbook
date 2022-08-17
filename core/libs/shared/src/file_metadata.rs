@@ -49,7 +49,7 @@ impl FileMetadata {
                 &pub_key,
                 &pub_key,
                 &key,
-                UserAccessMode::Owner,
+                UserAccessMode::Write,
             )?],
             folder_access_key: symkey::encrypt(&key, &key)?,
         })
@@ -132,12 +132,12 @@ impl FromStr for FileType {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
-pub struct FileDiff {
-    pub old: Option<SignedFile>,
-    pub new: SignedFile,
+pub struct FileDiff<F: FileLike> {
+    pub old: Option<F>,
+    pub new: F,
 }
 
-impl fmt::Debug for FileDiff {
+impl<F: FileLike> fmt::Debug for FileDiff<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut result = &mut f.debug_struct("FileDiff");
         result = result.field("id", self.id());
@@ -171,7 +171,7 @@ pub enum Diff {
     FolderKeys,
 }
 
-impl FileDiff {
+impl<F: FileLike> FileDiff<F> {
     pub fn id(&self) -> &Uuid {
         match &self.old {
             Some(old) => old.id(),
@@ -222,13 +222,13 @@ impl FileDiff {
         }
     }
 
-    pub fn new(new: &SignedFile) -> Self {
+    pub fn new(new: &F) -> Self {
         let old = None;
         let new = new.clone();
         Self { old, new }
     }
 
-    pub fn edit(old: &SignedFile, new: &SignedFile) -> Self {
+    pub fn edit(old: &F, new: &F) -> Self {
         let old = Some(old.clone());
         let new = new.clone();
         Self { old, new }

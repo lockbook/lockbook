@@ -52,23 +52,19 @@ where
         self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
         pub_key: &PublicKey,
     ) -> SharedResult<(Self, Uuid)> {
-        let (mut tree, id) = self.stage_create(parent, name, file_type, account, pub_key)?;
-        tree.validate()?;
+        let (mut tree, id) = self.stage_create(parent, name, file_type, account)?;
+        tree.validate(Owner(*pub_key))?;
         let tree = tree.promote();
         Ok((tree, id))
     }
 
     pub fn stage_create(
         mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
-        pub_key: &PublicKey,
     ) -> SharedResult<(TreeWithOp<Base, Local>, Uuid)> {
         validate::file_name(name)?;
 
         if self.calculate_deleted(parent)? {
             return Err(SharedError::FileParentNonexistent);
-        }
-        if self.access_mode(Owner(*pub_key), parent)? < Some(UserAccessMode::Write) {
-            return Err(SharedError::InsufficientPermission);
         }
 
         let parent_owner = self.find(parent)?.owner().0;
@@ -81,7 +77,7 @@ where
 
     pub fn rename(self, id: &Uuid, name: &str, account: &Account) -> SharedResult<Self> {
         let mut tree = self.stage_rename(id, name, account)?;
-        tree.validate()?;
+        tree.validate(Owner(account.public_key()))?;
         let tree = tree.promote();
         Ok(tree)
     }
@@ -116,7 +112,7 @@ where
 
     pub fn move_file(self, id: &Uuid, new_parent: &Uuid, account: &Account) -> SharedResult<Self> {
         let mut tree = self.stage_move(id, new_parent, account)?;
-        tree.validate()?;
+        tree.validate(Owner(account.public_key()))?;
 
         Ok(tree.promote())
     }
@@ -165,7 +161,7 @@ where
 
     pub fn delete(self, id: &Uuid, account: &Account) -> SharedResult<LazyStaged1<Base, Local>> {
         let mut tree = self.stage_delete(id, account)?;
-        tree.validate()?;
+        tree.validate(Owner(account.public_key()))?;
         let tree = tree.promote();
         Ok(tree)
     }
@@ -286,7 +282,6 @@ where
         self, account: &Account,
     ) -> SharedResult<TreeWithOps<Base, Local>> {
         let mut result = self.stage(Vec::new());
-        result.assert_all_files_decryptable()?;
 
         let mut root_found = false;
         let mut no_cycles_in_ancestors = HashSet::new();
@@ -361,9 +356,6 @@ where
             }
         }
 
-        result.assert_no_cycles()?;
-        result.assert_names_decryptable(account)?;
-
         Ok(result)
     }
 
@@ -375,9 +367,6 @@ where
         self, account: &Account,
     ) -> SharedResult<TreeWithOps<Base, Local>> {
         let mut result = self.stage(Vec::new());
-        result.assert_all_files_decryptable()?;
-        result.assert_no_cycles()?;
-        result.assert_names_decryptable(account)?;
 
         for (_, sibling_ids) in result.all_children()?.clone() {
             let mut not_deleted_sibling_ids = HashSet::new();
@@ -529,7 +518,7 @@ where
                                     owner: base_file.owner(),
                                     is_deleted: local_change.explicitly_deleted(),
                                     document_hmac,
-                                    user_access_keys: base_file.user_access_keys().clone(),
+                                    user_access_keys: base_file.user_access_keys().clone(), // todo
                                     folder_access_key,
                                 }
                                 .sign(account)?,
@@ -572,7 +561,7 @@ where
                                     owner: remote_change.owner(),
                                     is_deleted: remote_deleted | local_change.explicitly_deleted(),
                                     document_hmac: remote_change.document_hmac().cloned(), // overwritten during document merge if local != remote
-                                    user_access_keys: remote_change.user_access_keys().clone(),
+                                    user_access_keys: remote_change.user_access_keys().clone(), // todo
                                     folder_access_key: remote_change.folder_access_key().clone(),
                                 }
                                 .sign(account)?,
@@ -665,7 +654,6 @@ where
                             &name,
                             existing_file_type,
                             account,
-                            &account.public_key(),
                         )?;
                         let result = result.promote();
                         let (result, encrypted_document) = result.update_document(

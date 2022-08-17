@@ -23,7 +23,7 @@ fn test_stage_promote() {
         .unwrap();
     let files = vec![root.clone()].to_lazy().stage(vec![]);
     let files = files
-        .stage_create(root.id(), "test", FileType::Folder, account, pk)
+        .stage_create(root.id(), "test", FileType::Folder, account)
         .unwrap()
         .0;
 
@@ -46,7 +46,7 @@ fn test_stage_unstage() {
         .unwrap();
     let files = vec![root.clone()].to_lazy().stage(vec![]);
     let files = files
-        .stage_create(root.id(), "test", FileType::Folder, account, pk)
+        .stage_create(root.id(), "test", FileType::Folder, account)
         .unwrap()
         .0;
 

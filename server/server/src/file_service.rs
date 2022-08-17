@@ -1,4 +1,3 @@
-use crate::account_service::{sharers, sharers_with_diffs};
 use crate::ServerError;
 use crate::ServerError::ClientError;
 use crate::{document_service, RequestContext};
@@ -24,12 +23,8 @@ pub async fn upsert_file_metadata(
     let res: Result<(), ServerError<UpsertError>> =
         context.server_state.index_db.transaction(|tx| {
             // validate all trees
-            let mut tree = ServerTree {
-                owners: sharers_with_diffs(tx, req_owner, &request.updates),
-                owned: &mut tx.owned_files,
-                metas: &mut tx.metas,
-            }
-            .to_lazy();
+            let mut tree =
+                ServerTree::new(req_owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
 
             for id in tree.owned_ids() {
                 if tree.find(&id)?.is_document() && tree.calculate_deleted(&id)? {
@@ -37,17 +32,13 @@ pub async fn upsert_file_metadata(
                 }
             }
 
-            let mut tree = tree.stage_diff(&req_owner, request.updates.clone())?;
-            tree.validate()?;
+            let mut tree = tree.stage_diff(request.updates.clone())?;
+            tree.validate(req_owner)?;
 
-            let mut tree = ServerTree {
-                owners: sharers_with_diffs(tx, req_owner, &request.updates.clone()),
-                owned: &mut tx.owned_files,
-                metas: &mut tx.metas,
-            }
-            .to_lazy()
-            .stage_diff(&req_owner, request.updates)?
-            .promote();
+            let mut tree = ServerTree::new(req_owner, &mut tx.owned_files, &mut tx.metas)?
+                .to_lazy()
+                .stage_diff(request.updates)?
+                .promote();
 
             for id in tree.owned_ids() {
                 if tree.find(&id)?.is_document()
@@ -106,12 +97,7 @@ pub async fn change_doc(
 
         let direct_access = meta_owner.0 == req_pk;
 
-        let mut tree = ServerTree {
-            owners: sharers(tx, meta_owner),
-            owned: &mut tx.owned_files,
-            metas: &mut tx.metas,
-        }
-        .to_lazy();
+        let mut tree = ServerTree::new(meta_owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
 
         let mut share_access = false;
 
@@ -177,12 +163,7 @@ pub async fn change_doc(
 
         let meta_owner = meta.owner();
 
-        let mut tree = ServerTree {
-            owners: sharers(tx, meta_owner),
-            owned: &mut tx.owned_files,
-            metas: &mut tx.metas,
-        }
-        .to_lazy();
+        let mut tree = ServerTree::new(meta_owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
         let new_size = request.new_content.value.len() as u64;
 
         if tree.calculate_deleted(request.diff.new.id())? {
@@ -241,12 +222,7 @@ pub async fn get_document(
 
         let direct_access = meta_owner.0 == context.public_key;
 
-        let mut tree = ServerTree {
-            owners: sharers(tx, meta_owner),
-            owned: &mut tx.owned_files,
-            metas: &mut tx.metas,
-        }
-        .to_lazy();
+        let mut tree = ServerTree::new(meta_owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
 
         let mut share_access = false;
 
@@ -306,12 +282,7 @@ pub async fn get_updates(
             .map(|owner| **owner)
             .collect::<Vec<_>>();
         for owner in owners {
-            let mut tree = ServerTree {
-                owners: vec![owner],
-                owned: &mut tx.owned_files,
-                metas: &mut tx.metas,
-            }
-            .to_lazy();
+            let mut tree = ServerTree::new(owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
 
             let mut result_ids = HashSet::new();
             if owner.0 == context.public_key {

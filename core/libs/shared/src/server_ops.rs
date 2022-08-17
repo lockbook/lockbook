@@ -3,21 +3,27 @@ use crate::file_like::FileLike;
 use crate::file_metadata::{FileDiff, Owner};
 use crate::lazy::{LazyStaged1, LazyTree};
 use crate::server_file::{IntoServerFile, ServerFile};
+use hmdb::log::SchemaEvent;
 use std::collections::HashSet;
+use uuid::Uuid;
 
-use crate::access_info::UserAccessMode;
-use crate::tree_like::{Stagable, TreeLike};
+use crate::server_tree::ServerTree;
+use crate::signed_file::SignedFile;
+use crate::tree_like::TreeLike;
 use crate::{SharedError, SharedResult};
 
-impl<T> LazyTree<T>
+impl<'a, 'b, Log1, Log2> LazyTree<ServerTree<'a, 'b, Log1, Log2>>
 where
-    T: Stagable<F = ServerFile>,
+    Log1: SchemaEvent<Owner, HashSet<Uuid>>,
+    Log2: SchemaEvent<Uuid, ServerFile>,
 {
     /// Validates a diff prior to staging it. Performs individual validations, then validations that
     /// require a tree
     pub fn stage_diff(
-        mut self, owner: &Owner, changes: Vec<FileDiff>,
-    ) -> SharedResult<LazyStaged1<T, Vec<ServerFile>>> {
+        mut self, changes: Vec<FileDiff<SignedFile>>,
+    ) -> SharedResult<LazyStaged1<ServerTree<'a, 'b, Log1, Log2>, Vec<ServerFile>>> {
+        self.tree.ids.extend(changes.iter().map(|diff| *diff.id()));
+
         // Check new.id == old.id
         for change in &changes {
             if let Some(old) = &change.old {
@@ -78,52 +84,6 @@ where
                         return Err(SharedError::OldVersionRequired);
                     }
                 }
-            }
-        }
-
-        // Check ownership
-
-        // Files that exist already must have access mode > write to edit them
-        // New files are filtered so that the parent in a series of created folders is evaluated for access
-
-        let mut files_with_old = changes.clone();
-        files_with_old.retain(|change| change.old.is_some());
-
-        let mut files_without_old = changes.clone();
-        files_without_old.retain(|change| change.old.is_none());
-        let mut redundant_new_files = HashSet::new();
-        for file in &files_without_old {
-            if files_without_old
-                .iter()
-                .any(|parent| file.new.parent() == parent.id())
-            {
-                redundant_new_files.insert(*file.id());
-            }
-        }
-        files_without_old.retain(|f| !redundant_new_files.contains(f.new.id()));
-
-        for change in files_with_old {
-            if let Some(old) = change.old {
-                if old.parent() != change.new.parent() {
-                    if self.access_mode(*owner, change.new.parent())? < Some(UserAccessMode::Write)
-                    {
-                        return Err(SharedError::NotPermissioned);
-                    }
-
-                    if self.access_mode(*owner, old.parent())? < Some(UserAccessMode::Write) {
-                        return Err(SharedError::NotPermissioned);
-                    }
-                }
-
-                if self.access_mode(*owner, change.new.id())? < Some(UserAccessMode::Write) {
-                    return Err(SharedError::NotPermissioned);
-                }
-            }
-        }
-
-        for change in files_without_old {
-            if self.access_mode(*owner, change.new.parent())? < Some(UserAccessMode::Write) {
-                return Err(SharedError::NotPermissioned);
             }
         }
 

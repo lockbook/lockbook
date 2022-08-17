@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 impl<'a, F, Log> TreeLike for &mut TransactionTable<'a, Uuid, F, Log>
 where
-    F: FileLike + Clone,
+    F: FileLike,
     Log: SchemaEvent<Uuid, F>,
 {
     type F = F;
@@ -31,7 +31,7 @@ where
 
 impl<'a, F, Log> Stagable for &mut TransactionTable<'a, Uuid, F, Log>
 where
-    F: FileLike + Clone,
+    F: FileLike,
     Log: SchemaEvent<Uuid, F>,
 {
 }
