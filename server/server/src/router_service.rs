@@ -1,7 +1,6 @@
 use crate::account_service::*;
 use crate::billing::billing_service;
 use crate::billing::billing_service::*;
-use crate::feature_flags::*;
 use crate::file_service::*;
 use crate::utils::get_build_info;
 use crate::{router_service, verify_auth, verify_client_version, ServerError, ServerState};
@@ -131,8 +130,6 @@ pub fn core_routes(
         .or(core_req!(GetSubscriptionInfoRequest, get_subscription_info, server_state))
         .or(core_req!(DeleteAccountRequest, delete_account, server_state))
         .or(core_req!(AdminDeleteAccountRequest, admin_delete_account, server_state))
-        .or(core_req!(ToggleFeatureFlagRequest, toggle_feature_flag, server_state))
-        .or(core_req!(GetFeatureFlagsStateRequest, get_feature_flags_state, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {

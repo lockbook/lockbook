@@ -105,7 +105,7 @@ macro_rules! unexpected_only {
 
 pub type CoreResult<T> = Result<T, CoreError>;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CoreError {
     AccountExists,
     AccountNonexistent,
@@ -233,19 +233,6 @@ impl From<std::io::Error> for CoreError {
 impl From<serde_json::Error> for CoreError {
     fn from(err: serde_json::Error) -> Self {
         Self::Unexpected(format!("{err}"))
-    }
-}
-
-impl From<ApiError<api::FeatureFlagError>> for CoreError {
-    fn from(err: ApiError<api::FeatureFlagError>) -> Self {
-        match err {
-            ApiError::Endpoint(api::FeatureFlagError::NotPermissioned) => {
-                CoreError::InsufficientPermission
-            }
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            _ => core_err_unexpected(err),
-        }
     }
 }
 

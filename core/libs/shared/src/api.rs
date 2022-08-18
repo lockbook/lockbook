@@ -6,7 +6,6 @@ use uuid::Uuid;
 use crate::account::Account;
 use crate::account::Username;
 use crate::crypto::*;
-use crate::feature_flag::{FeatureFlag, FeatureFlags};
 use crate::file_metadata::{DocumentHmac, FileDiff, FileMetadata};
 use crate::signed_file::SignedFile;
 use crate::ValidationFailure;
@@ -24,7 +23,7 @@ pub struct RequestWrapper<T: Request> {
     pub client_version: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum ErrorWrapper<E> {
     Endpoint(E),
     ClientUpdateRequired,
@@ -36,7 +35,7 @@ pub enum ErrorWrapper<E> {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct UpsertRequest {
-    pub updates: Vec<FileDiff>,
+    pub updates: Vec<FileDiff<SignedFile>>,
 }
 
 impl Request for UpsertRequest {
@@ -80,11 +79,11 @@ pub enum UpsertError {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ChangeDocRequest {
-    pub diff: FileDiff,
+    pub diff: FileDiff<SignedFile>,
     pub new_content: EncryptedDocument,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum ChangeDocError {
     HmacMissing,
     DocumentNotFound,
@@ -101,18 +100,18 @@ impl Request for ChangeDocRequest {
     const ROUTE: &'static str = "/change-document-content";
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetDocRequest {
     pub id: Uuid,
     pub hmac: DocumentHmac,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetDocumentResponse {
     pub content: EncryptedDocument,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum GetDocumentError {
     DocumentNotFound,
     NotPermissioned,
@@ -125,17 +124,17 @@ impl Request for GetDocRequest {
     const ROUTE: &'static str = "/get-document";
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetPublicKeyRequest {
     pub username: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetPublicKeyResponse {
     pub key: PublicKey,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum GetPublicKeyError {
     InvalidUsername,
     UserNotFound,
@@ -148,10 +147,10 @@ impl Request for GetPublicKeyRequest {
     const ROUTE: &'static str = "/get-public-key";
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetUsageRequest {}
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetUsageResponse {
     pub usages: Vec<FileUsage>,
     pub cap: u64,
@@ -163,13 +162,13 @@ impl GetUsageResponse {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct FileUsage {
     pub file_id: Uuid,
     pub size_bytes: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum GetUsageError {
     UserNotFound,
 }
@@ -181,7 +180,7 @@ impl Request for GetUsageRequest {
     const ROUTE: &'static str = "/get-usage";
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetUpdatesRequest {
     pub since_metadata_version: u64,
 }
@@ -192,7 +191,7 @@ pub struct GetUpdatesResponse {
     pub file_metadata: Vec<SignedFile>,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum GetUpdatesError {
     UserNotFound,
 }
@@ -222,12 +221,12 @@ impl NewAccountRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct NewAccountResponse {
     pub last_synced: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum NewAccountError {
     UsernameTaken,
     PublicKeyTaken,
@@ -243,13 +242,13 @@ impl Request for NewAccountRequest {
     const ROUTE: &'static str = "/new-account";
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetBuildInfoRequest {}
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum GetBuildInfoError {}
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetBuildInfoResponse {
     pub build_version: &'static str,
     pub git_commit_hash: &'static str,
@@ -262,10 +261,10 @@ impl Request for GetBuildInfoRequest {
     const ROUTE: &'static str = "/get-build-info";
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct DeleteAccountRequest {}
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum DeleteAccountError {
     UserNotFound,
 }
@@ -277,26 +276,26 @@ impl Request for DeleteAccountRequest {
     const ROUTE: &'static str = "/delete-account";
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum PaymentMethod {
     NewCard { number: String, exp_year: i32, exp_month: i32, cvc: String },
     OldCard,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum StripeAccountTier {
     Premium(PaymentMethod),
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct UpgradeAccountStripeRequest {
     pub account_tier: StripeAccountTier,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct UpgradeAccountStripeResponse {}
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum UpgradeAccountStripeError {
     OldCardDoesNotExist,
     AlreadyPremium,
@@ -320,16 +319,16 @@ impl Request for UpgradeAccountStripeRequest {
     const ROUTE: &'static str = "/upgrade-account-stripe";
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct UpgradeAccountGooglePlayRequest {
     pub purchase_token: String,
     pub account_id: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct UpgradeAccountGooglePlayResponse {}
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum UpgradeAccountGooglePlayError {
     AlreadyPremium,
     InvalidPurchaseToken,
@@ -344,13 +343,13 @@ impl Request for UpgradeAccountGooglePlayRequest {
     const ROUTE: &'static str = "/upgrade-account-google-play";
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct CancelSubscriptionRequest {}
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct CancelSubscriptionResponse {}
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum CancelSubscriptionError {
     NotPremium,
     AlreadyCanceled,
@@ -366,23 +365,23 @@ impl Request for CancelSubscriptionRequest {
     const ROUTE: &'static str = "/cancel-subscription";
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetSubscriptionInfoRequest {}
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct SubscriptionInfo {
     pub payment_platform: PaymentPlatform,
     pub period_end: UnixTimeMillis,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(tag = "tag")]
 pub enum PaymentPlatform {
     Stripe { card_last_4_digits: String },
     GooglePlay { account_state: GooglePlayAccountState },
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum GooglePlayAccountState {
     Ok,
     Canceled,
@@ -390,12 +389,12 @@ pub enum GooglePlayAccountState {
     OnHold,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetSubscriptionInfoResponse {
     pub subscription_info: Option<SubscriptionInfo>,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum GetSubscriptionInfoError {
     UserNotFound,
 }
@@ -407,12 +406,12 @@ impl Request for GetSubscriptionInfoRequest {
     const ROUTE: &'static str = "/get-subscription-info";
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct AdminDeleteAccountRequest {
     pub username: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum AdminDeleteAccountError {
     NotPermissioned,
     UserNotFound,
@@ -423,39 +422,6 @@ impl Request for AdminDeleteAccountRequest {
     type Error = AdminDeleteAccountError;
     const METHOD: Method = Method::DELETE;
     const ROUTE: &'static str = "/admin-delete-account";
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct ToggleFeatureFlagRequest {
-    pub feature_flag: FeatureFlag,
-    pub enable: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum FeatureFlagError {
-    NotPermissioned,
-}
-
-impl Request for ToggleFeatureFlagRequest {
-    type Response = ();
-    type Error = FeatureFlagError;
-    const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/toggle-feature-flag";
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct GetFeatureFlagsStateRequest {}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct GetFeatureFlagsStateResponse {
-    pub feature_flags: FeatureFlags,
-}
-
-impl Request for GetFeatureFlagsStateRequest {
-    type Response = GetFeatureFlagsStateResponse;
-    type Error = FeatureFlagError;
-    const METHOD: Method = Method::GET;
-    const ROUTE: &'static str = "/get-feature-flags-state";
 }
 
 // number of milliseconds that have elapsed since the unix epoch

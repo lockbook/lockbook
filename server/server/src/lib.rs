@@ -84,7 +84,6 @@ pub mod billing;
 pub mod config;
 pub mod document_service;
 pub mod error_handler;
-pub mod feature_flags;
 pub mod file_service;
 pub mod loggers;
 pub mod metrics;

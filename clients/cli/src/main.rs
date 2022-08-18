@@ -218,7 +218,7 @@ enum Lockbook {
     /// Get updates, push changes
     Sync,
 
-    /// Subcommands that aid in extending lockbook
+    /// Subcommands that aid in extending Lockbook
     Debug(debug::Debug),
 
     /// Subcommands for admin users

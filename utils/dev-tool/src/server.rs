@@ -8,15 +8,20 @@ use std::{fs, thread};
 
 pub fn run_server_detached(tool_env: &ToolEnvironment) {
     dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
-
     let mut port;
+    let server_db_dir = tool_env.server_dbs_dir.join(&tool_env.hash_info_dir);
+
+    Command::new("cargo")
+        .args(["build", "-p", "lockbook-server", "--release"])
+        .assert_success();
 
     loop {
         port = rand::thread_rng().gen_range(1024..u16::MAX);
 
-        let mut run_result = Command::new("cargo")
-            .args(["run", "-p", "lockbook-server"])
+        let mut run_result = Command::new(tool_env.target_dir.join("release/lockbook-server"))
             .env("SERVER_PORT", port.to_string())
+            .env("INDEX_DB_LOCATION", &server_db_dir)
+            .current_dir(&tool_env.root_dir)
             .stderr(Stdio::null())
             .stdout(Stdio::null())
             .spawn()
@@ -29,7 +34,8 @@ pub fn run_server_detached(tool_env: &ToolEnvironment) {
         }
     }
 
-    let hash_info = HashInfo::new(&tool_env.hash_info_dir, &tool_env.commit_hash, port);
+    let hash_info =
+        HashInfo::new(&tool_env.hash_info_dir, &server_db_dir, &tool_env.commit_hash, port);
     hash_info.save();
 }
 
@@ -67,7 +73,7 @@ pub fn run_rust_tests(tool_env: &ToolEnvironment) {
     dotenv::from_path(utils::test_env_path(&tool_env.root_dir)).unwrap();
 
     Command::new("cargo")
-        .args(["test", "--workspace", "--release"])
+        .args(["test", "--workspace"])
         .env("API_URL", utils::get_api_url(hash_info.port))
         .current_dir(&tool_env.root_dir)
         .assert_success();

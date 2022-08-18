@@ -23,10 +23,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let google_play_client = get_google_play_client(&cfg.billing.google.service_account_key).await;
     let index_db = ServerV1::init(&cfg.index_db.db_location).expect("Failed to load index_db");
 
+    if index_db.incomplete_write() {
+        error!("hmdb indicated that the last write to the log was unsuccessful")
+    }
+
     let server_state =
         Arc::new(ServerState { config, index_db, stripe_client, google_play_client });
-
-    feature_flags::initialize_flags(&server_state.index_db);
 
     let routes = core_routes(&server_state)
         .or(build_info())

@@ -49,14 +49,14 @@ impl FileMetadata {
                 &pub_key,
                 &pub_key,
                 &key,
-                UserAccessMode::Owner,
+                UserAccessMode::Write,
             )?],
             folder_access_key: symkey::encrypt(&key, &key)?,
         })
     }
 
     pub fn create(
-        pub_key: &PublicKey, parent: Uuid, parent_key: &AESKey, name: &str, file_type: FileType,
+        owner: &PublicKey, parent: Uuid, parent_key: &AESKey, name: &str, file_type: FileType,
     ) -> SharedResult<Self> {
         let id = Uuid::new_v4();
         let key = symkey::generate_key();
@@ -66,7 +66,7 @@ impl FileMetadata {
             file_type,
             parent,
             name: SecretFileName::from_str(name, &key, parent_key)?,
-            owner: Owner(*pub_key),
+            owner: Owner(*owner),
             is_deleted: false,
             document_hmac: None,
             user_access_keys: Default::default(),
@@ -131,13 +131,13 @@ impl FromStr for FileType {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone)]
-pub struct FileDiff {
-    pub old: Option<SignedFile>,
-    pub new: SignedFile,
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone)]
+pub struct FileDiff<F: FileLike> {
+    pub old: Option<F>,
+    pub new: F,
 }
 
-impl fmt::Debug for FileDiff {
+impl<F: FileLike> fmt::Debug for FileDiff<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut result = &mut f.debug_struct("FileDiff");
         result = result.field("id", self.id());
@@ -158,7 +158,7 @@ impl fmt::Debug for FileDiff {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum Diff {
     New,
     Id,
@@ -171,7 +171,7 @@ pub enum Diff {
     FolderKeys,
 }
 
-impl FileDiff {
+impl<F: FileLike> FileDiff<F> {
     pub fn id(&self) -> &Uuid {
         match &self.old {
             Some(old) => old.id(),
@@ -222,13 +222,13 @@ impl FileDiff {
         }
     }
 
-    pub fn new(new: &SignedFile) -> Self {
+    pub fn new(new: &F) -> Self {
         let old = None;
         let new = new.clone();
         Self { old, new }
     }
 
-    pub fn edit(old: &SignedFile, new: &SignedFile) -> Self {
+    pub fn edit(old: &F, new: &F) -> Self {
         let old = Some(old.clone());
         let new = new.clone();
         Self { old, new }

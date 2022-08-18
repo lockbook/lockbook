@@ -17,7 +17,6 @@ pub use lockbook_shared::api::{PaymentMethod, PaymentPlatform};
 pub use lockbook_shared::core_config::Config;
 pub use lockbook_shared::crypto::DecryptedDocument;
 pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
-pub use lockbook_shared::feature_flag::{FeatureFlag, FeatureFlags};
 pub use lockbook_shared::file::File;
 pub use lockbook_shared::file::ShareMode;
 pub use lockbook_shared::file_like::FileLike;
@@ -478,24 +477,6 @@ impl Core {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.delete_account(username))?;
-        Ok(val?)
-    }
-
-    #[instrument(level = "debug", skip(self, feature, enable), err(Debug))]
-    pub fn toggle_feature_flag(
-        &self, feature: FeatureFlag, enable: bool,
-    ) -> Result<(), Error<FeatureFlagError>> {
-        let val = self
-            .db
-            .transaction(|tx| self.context(tx)?.toggle_feature_flag(feature, enable))?;
-        Ok(val?)
-    }
-
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn get_feature_flags_state(&self) -> Result<FeatureFlags, Error<FeatureFlagError>> {
-        let val = self
-            .db
-            .transaction(|tx| self.context(tx)?.get_feature_flags_state())?;
         Ok(val?)
     }
 }

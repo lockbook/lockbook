@@ -1,11 +1,7 @@
 use crate::service::api_service;
 use crate::service::api_service::ApiError;
 use crate::{core_err_unexpected, CoreError, RequestContext};
-use lockbook_shared::api::{
-    AdminDeleteAccountError, AdminDeleteAccountRequest, GetFeatureFlagsStateRequest,
-    ToggleFeatureFlagRequest,
-};
-use lockbook_shared::feature_flag::{FeatureFlag, FeatureFlags};
+use lockbook_shared::api::{AdminDeleteAccountError, AdminDeleteAccountRequest};
 
 impl RequestContext<'_, '_> {
     pub fn delete_account(&self, username: &str) -> Result<(), CoreError> {
@@ -23,21 +19,5 @@ impl RequestContext<'_, '_> {
                 ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
             })
-    }
-
-    pub fn get_feature_flags_state(&self) -> Result<FeatureFlags, CoreError> {
-        let account = self.get_account()?;
-
-        Ok(api_service::request(account, GetFeatureFlagsStateRequest {})?.feature_flags)
-    }
-
-    pub fn toggle_feature_flag(
-        &self, feature_flag: FeatureFlag, enable: bool,
-    ) -> Result<(), CoreError> {
-        let account = self.get_account()?;
-
-        api_service::request(account, ToggleFeatureFlagRequest { feature_flag, enable })?;
-
-        Ok(())
     }
 }

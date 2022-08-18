@@ -194,6 +194,7 @@ impl From<ServerError<DeleteAccountHelperError>> for ServerError<AdminDeleteAcco
 
 impl From<SharedError> for ServerError<UpsertError> {
     fn from(err: SharedError) -> Self {
+        // panic!("{err}");
         use lockbook_shared::api::UpsertError::*;
         match err {
             SharedError::OldVersionIncorrect => ClientError(OldVersionIncorrect),

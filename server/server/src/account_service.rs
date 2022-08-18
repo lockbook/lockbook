@@ -1,9 +1,7 @@
 use crate::schema::Account;
 use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
-use crate::{
-    document_service, feature_flags, RequestContext, ServerError, ServerState, ServerV1, Tx,
-};
+use crate::{document_service, RequestContext, ServerError, ServerState, ServerV1, Tx};
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Username;
@@ -15,13 +13,12 @@ use lockbook_shared::api::{
 };
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{DocumentHmac, FileDiff, FileType, Owner};
+use lockbook_shared::file_metadata::{DocumentHmac, Owner};
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use std::collections::HashSet;
 use std::fmt::Debug;
-use tracing::error;
 use uuid::Uuid;
 
 /// Create a new account given a username, public_key, and root folder.
@@ -38,7 +35,7 @@ pub async fn new_account(
         return Err(ClientError(NewAccountError::InvalidUsername));
     }
 
-    if !feature_flags::is_new_accounts_enabled(&context.server_state.index_db)? {
+    if !context.server_state.config.features.new_accounts {
         return Err(ClientError(NewAccountError::Disabled));
     }
 
@@ -170,12 +167,8 @@ pub async fn delete_account_helper(
 ) -> Result<(), ServerError<DeleteAccountHelperError>> {
     let all_files: Result<Vec<(Uuid, DocumentHmac)>, ServerError<DeleteAccountHelperError>> =
         server_state.index_db.transaction(|tx| {
-            let mut tree = ServerTree {
-                owners: sharers(tx, Owner(*public_key)),
-                owned: &mut tx.owned_files,
-                metas: &mut tx.metas,
-            }
-            .to_lazy();
+            let mut tree =
+                ServerTree::new(Owner(*public_key), &mut tx.owned_files, &mut tx.metas)?.to_lazy();
             let mut docs_to_delete = vec![];
             let metas_to_delete = tree.owned_ids();
 
@@ -224,38 +217,4 @@ pub fn is_admin<E: Debug>(
     };
 
     Ok(is_admin)
-}
-
-pub fn sharers_with_diffs(tx: &mut Tx<'_>, owner: Owner, diffs: &[FileDiff]) -> Vec<Owner> {
-    let mut result = HashSet::new();
-    result.insert(owner);
-
-    if let Some(owned_ids) = tx.owned_files.get(&owner) {
-        for id in owned_ids {
-            if let Some(file) = tx.metas.get(id) {
-                if let FileType::Link { target } = file.file_type() {
-                    if let Some(target_file) = tx.metas.get(&target) {
-                        result.insert(target_file.owner());
-                    }
-                }
-            } else {
-                error!("File owner has no entry in owned_files");
-            }
-        }
-    } else {
-        error!("File owner has no entry in owned_files");
-    }
-    for diff in diffs {
-        if let FileType::Link { target } = diff.new.file_type() {
-            if let Some(target_file) = tx.metas.get(&target) {
-                result.insert(target_file.owner());
-            }
-        }
-    }
-
-    result.into_iter().collect()
-}
-
-pub fn sharers(tx: &mut Tx<'_>, owner: Owner) -> Vec<Owner> {
-    sharers_with_diffs(tx, owner, &[])
 }

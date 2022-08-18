@@ -14,6 +14,7 @@ pub struct Config {
     pub metrics: MetricsConfig,
     pub billing: BillingConfig,
     pub admin: AdminConfig,
+    pub features: FeatureFlags,
 }
 
 impl Config {
@@ -25,6 +26,7 @@ impl Config {
             metrics: MetricsConfig::from_env_vars(),
             billing: BillingConfig::from_env_vars(),
             admin: AdminConfig::from_env_vars(),
+            features: FeatureFlags::from_env_vars(),
         }
     }
 
@@ -59,6 +61,22 @@ impl AdminConfig {
                 .split(", ")
                 .map(|part| part.to_string())
                 .collect(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct FeatureFlags {
+    pub new_accounts: bool,
+}
+
+impl FeatureFlags {
+    pub fn from_env_vars() -> Self {
+        Self {
+            new_accounts: env::var("FEATURE_NEW_ACCOUNTS")
+                .unwrap_or_else(|_| "true".to_string())
+                .parse()
+                .unwrap(),
         }
     }
 }

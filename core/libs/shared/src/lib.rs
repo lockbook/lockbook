@@ -9,7 +9,6 @@ pub mod core_tree;
 pub mod crypto;
 pub mod document_repo;
 pub mod drawing;
-pub mod feature_flag;
 pub mod file;
 pub mod file_like;
 pub mod file_metadata;
@@ -35,7 +34,7 @@ use hmac::crypto_mac::{InvalidKeyLength, MacError};
 
 pub type SharedResult<T> = Result<T, SharedError>;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SharedError {
     InsufficientPermission,
     PathContainsEmptyFileName,
@@ -58,6 +57,7 @@ pub enum SharedError {
     Decryption(aead::Error),
     HmacValidationError(MacError),
     ParseError(libsecp256k1::Error),
+    ShareNonexistent,
     SharedSecretUnexpectedSize,
     SharedSecretError(libsecp256k1::Error),
     ValidationFailure(ValidationFailure),
