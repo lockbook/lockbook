@@ -162,7 +162,27 @@ impl RequestContext<'_, '_> {
         let mut children = Vec::new();
 
         for id in tree.children(id)? {
-            children.push(tree.finalize(&id, account)?);
+            if !tree.calculate_deleted(&id)? && !tree.in_pending_share(&id)? {
+                let (id, parent) = {
+                    let file = tree.find(&id)?;
+
+                    match file.file_type() {
+                        FileType::Link { target } => {
+                            let resolved_file = tree.find(&target)?;
+
+                            (*resolved_file.id(), *file.parent())
+                        }
+                        _ => (*file.id(), *file.parent()),
+                    }
+                };
+
+                let mut file = tree.finalize(&id, account)?;
+                if file.parent != parent {
+                    file.parent = parent;
+                }
+
+                children.push(file);
+            }
         }
 
         Ok(children)

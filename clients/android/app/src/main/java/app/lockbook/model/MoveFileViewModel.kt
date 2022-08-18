@@ -11,8 +11,9 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
-class MoveFileViewModel(application: Application, val startId: String) :
+class MoveFileViewModel(application: Application, private val startId: String) :
     AndroidViewModel(application) {
     private lateinit var currentParent: File
     lateinit var ids: List<String>
@@ -21,7 +22,6 @@ class MoveFileViewModel(application: Application, val startId: String) :
 
     private val _closeDialog = MutableLiveData<Unit>()
     private val _notifyError = SingleMutableLiveData<LbError>()
-    private val _unexpectedErrorHasOccurred = SingleMutableLiveData<String>()
 
     val closeDialog: LiveData<Unit>
         get() = _closeDialog
@@ -86,10 +86,7 @@ class MoveFileViewModel(application: Application, val startId: String) :
                     files.set(tempFiles)
                 }
             }
-            is Err -> when (val error = getChildrenResult.error) {
-                is CoreError.UiError -> _unexpectedErrorHasOccurred.postValue(basicErrorString(getRes()))
-                is CoreError.Unexpected -> _unexpectedErrorHasOccurred.postValue(error.content)
-            }.exhaustive
+            is Err -> _notifyError.postValue(getChildrenResult.error.toLbError(getRes()))
         }
     }
 
