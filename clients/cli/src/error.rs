@@ -2,7 +2,7 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
-use lockbook_core::{Error as LbError, File};
+use lockbook_core::{Error as LbError, FeatureFlagError, File};
 use lockbook_core::{GetAccountError, Uuid};
 use lockbook_core::{GetSubscriptionInfoError, UnexpectedError};
 
@@ -244,6 +244,14 @@ impl CliError {
         Self::new(ErrCode::Billing, msg)
     }
 
+    pub fn username_not_found(uname: &str) -> Self {
+        Self::new(ErrCode::UsernameNotFound, format!("username '{}' was not found.", uname))
+    }
+
+    pub fn insufficient_permission() -> Self {
+        Self::new(ErrCode::InsufficientPermission, "your account is unauthorized.".to_string())
+    }
+
     pub fn link_in_shared<T: fmt::Display>(name: T) -> Self {
         Self::new(
             ErrCode::SharingError,
@@ -293,6 +301,7 @@ make_errcode_enum!(
     25 => UsernameInvalid,
     26 => UsernamePkMismatch,
     27 => Billing,
+    28 => InsufficientPermission,
 
     // OS (30s)
     30 => OsCwdMissing,
@@ -323,9 +332,11 @@ make_errcode_enum!(
     56 => DocumentReadError,
     57 => WarningsFound,
 
+    // Admin errors (58 - 59)
+    58 => UsernameNotFound,
+
     // Sharing errors (60s)
     60 => SharingError,
-    61 => InsufficientPermission,
 );
 
 impl From<UnexpectedError> for CliError {
@@ -351,6 +362,19 @@ impl From<LbError<GetSubscriptionInfoError>> for CliError {
             }
             LbError::UiError(GetSubscriptionInfoError::ClientUpdateRequired) => {
                 CliError::update_required()
+            }
+            LbError::Unexpected(msg) => CliError::unexpected(msg),
+        }
+    }
+}
+
+impl From<LbError<FeatureFlagError>> for CliError {
+    fn from(err: LbError<FeatureFlagError>) -> Self {
+        match err {
+            LbError::UiError(FeatureFlagError::CouldNotReachServer) => CliError::network_issue(),
+            LbError::UiError(FeatureFlagError::ClientUpdateRequired) => CliError::update_required(),
+            LbError::UiError(FeatureFlagError::InsufficientPermission) => {
+                CliError::insufficient_permission()
             }
             LbError::Unexpected(msg) => CliError::unexpected(msg),
         }
