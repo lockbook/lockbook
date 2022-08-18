@@ -1,14 +1,15 @@
 use crate::schema::Account;
 use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
-use crate::{document_service, RequestContext, ServerError, ServerState, Tx};
+use crate::{document_service, RequestContext, ServerError, ServerState, ServerV1, Tx};
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
+use lockbook_shared::account::Username;
 use lockbook_shared::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
 use lockbook_shared::api::{
-    DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError, GetPublicKeyRequest,
-    GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse, NewAccountError,
-    NewAccountRequest, NewAccountResponse,
+    AdminDeleteAccountError, AdminDeleteAccountRequest, DeleteAccountError, DeleteAccountRequest,
+    FileUsage, GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError,
+    GetUsageRequest, GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse,
 };
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
@@ -17,6 +18,7 @@ use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use std::collections::HashSet;
+use std::fmt::Debug;
 use uuid::Uuid;
 
 /// Create a new account given a username, public_key, and root folder.
@@ -128,11 +130,45 @@ pub fn get_usage_helper(
 pub async fn delete_account(
     context: RequestContext<'_, DeleteAccountRequest>,
 ) -> Result<(), ServerError<DeleteAccountError>> {
-    let all_files: Result<Vec<(Uuid, DocumentHmac)>, ServerError<DeleteAccountError>> =
-        context.server_state.index_db.transaction(|tx| {
+    delete_account_helper(context.server_state, &context.public_key).await?;
+
+    Ok(())
+}
+
+pub async fn admin_delete_account(
+    context: RequestContext<'_, AdminDeleteAccountRequest>,
+) -> Result<(), ServerError<AdminDeleteAccountError>> {
+    let db = &context.server_state.index_db;
+    if !is_admin::<AdminDeleteAccountError>(
+        db,
+        &context.public_key,
+        &context.server_state.config.admin.admins,
+    )? {
+        return Err(ClientError(AdminDeleteAccountError::NotPermissioned));
+    }
+
+    let owner = db
+        .usernames
+        .get(&context.request.username)?
+        .ok_or(ClientError(AdminDeleteAccountError::UserNotFound))?;
+
+    delete_account_helper(context.server_state, &owner.0).await?;
+
+    Ok(())
+}
+
+#[derive(Debug)]
+pub enum DeleteAccountHelperError {
+    UserNotFound,
+}
+
+pub async fn delete_account_helper(
+    server_state: &ServerState, public_key: &PublicKey,
+) -> Result<(), ServerError<DeleteAccountHelperError>> {
+    let all_files: Result<Vec<(Uuid, DocumentHmac)>, ServerError<DeleteAccountHelperError>> =
+        server_state.index_db.transaction(|tx| {
             let mut tree =
-                ServerTree::new(Owner(context.public_key), &mut tx.owned_files, &mut tx.metas)?
-                    .to_lazy();
+                ServerTree::new(Owner(*public_key), &mut tx.owned_files, &mut tx.metas)?.to_lazy();
             let mut docs_to_delete = vec![];
             let metas_to_delete = tree.owned_ids();
 
@@ -147,16 +183,16 @@ pub async fn delete_account(
                     }
                 }
             }
-            tx.owned_files.delete(Owner(context.public_key));
+            tx.owned_files.delete(Owner(*public_key));
             for id in metas_to_delete {
                 tx.metas.delete(id);
             }
 
-            if !context.server_state.config.is_prod() {
+            if !server_state.config.is_prod() {
                 let username = tx
                     .accounts
-                    .delete(Owner(context.public_key))
-                    .ok_or(ClientError(DeleteAccountError::UserNotFound))?
+                    .delete(Owner(*public_key))
+                    .ok_or(ClientError(DeleteAccountHelperError::UserNotFound))?
                     .username;
                 tx.usernames.delete(username);
             }
@@ -164,8 +200,21 @@ pub async fn delete_account(
         })?;
 
     for (id, version) in all_files? {
-        document_service::delete(context.server_state, &id, &version).await?;
+        document_service::delete(server_state, &id, &version).await?;
     }
 
     Ok(())
+}
+
+pub fn is_admin<E: Debug>(
+    db: &ServerV1, public_key: &PublicKey, admins: &HashSet<Username>,
+) -> Result<bool, ServerError<E>> {
+    let is_admin = match db.accounts.get(&Owner(*public_key))? {
+        None => false,
+        Some(account) => admins
+            .iter()
+            .any(|admin_username| *admin_username == account.username),
+    };
+
+    Ok(is_admin)
 }
