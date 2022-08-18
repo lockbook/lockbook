@@ -121,11 +121,15 @@ impl RequestContext<'_, '_> {
         let mut files = Vec::new();
 
         for id in tree.owned_ids() {
-            if !tree.calculate_deleted(&id)?
-                && !tree.in_pending_share(&id)?
-                && !matches!(tree.find(&id)?.file_type(), FileType::Link { .. })
-            {
-                let id = tree.link(&id)?.unwrap_or(id);
+            if !tree.calculate_deleted(&id)? && !tree.in_pending_share(&id)? {
+                let id = {
+                    let file = tree.find(&id)?;
+
+                    match file.file_type() {
+                        FileType::Link { target } => *tree.find(&target)?.id(),
+                        _ => *file.id(),
+                    }
+                };
 
                 files.push(tree.finalize(&id, account)?);
             }
