@@ -157,6 +157,7 @@ pub enum CoreError {
     TryAgain,
     UsageIsOverFreeTierDataCap,
     UsernameInvalid,
+    UsernameNotFound,
     UsernamePublicKeyMismatch,
     UsernameTaken,
     Unexpected(String),
@@ -983,6 +984,48 @@ impl From<CoreError> for Error<GetSubscriptionInfoError> {
             CoreError::ClientUpdateRequired => {
                 UiError(GetSubscriptionInfoError::ClientUpdateRequired)
             }
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum AdminDeleteAccountError {
+    InsufficientPermission,
+    UsernameNotFound,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<AdminDeleteAccountError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::InsufficientPermission => {
+                UiError(AdminDeleteAccountError::InsufficientPermission)
+            }
+            CoreError::UsernameNotFound => UiError(AdminDeleteAccountError::UsernameNotFound),
+            CoreError::ServerUnreachable => UiError(AdminDeleteAccountError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => {
+                UiError(AdminDeleteAccountError::ClientUpdateRequired)
+            }
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum FeatureFlagError {
+    InsufficientPermission,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<FeatureFlagError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::InsufficientPermission => UiError(FeatureFlagError::InsufficientPermission),
+            CoreError::ServerUnreachable => UiError(FeatureFlagError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(FeatureFlagError::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
         }
     }

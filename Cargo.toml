@@ -5,7 +5,6 @@ members = [
 	"core/libs/shared",
 	"core/libs/test_utils",
 	"server/server",
-	"server/admin",
 	"clients/linux",
 	"clients/cli",
 	"utils/dev-tool",

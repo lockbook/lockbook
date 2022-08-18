@@ -1,4 +1,6 @@
 use crate::config::Environment::{Local, Prod, Unknown};
+use lockbook_shared::account::Username;
+use std::collections::HashSet;
 use std::fmt::Display;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -11,6 +13,7 @@ pub struct Config {
     pub files: FilesConfig,
     pub metrics: MetricsConfig,
     pub billing: BillingConfig,
+    pub admin: AdminConfig,
     pub features: FeatureFlags,
 }
 
@@ -22,6 +25,7 @@ impl Config {
             server: ServerConfig::from_env_vars(),
             metrics: MetricsConfig::from_env_vars(),
             billing: BillingConfig::from_env_vars(),
+            admin: AdminConfig::from_env_vars(),
             features: FeatureFlags::from_env_vars(),
         }
     }
@@ -41,6 +45,23 @@ pub struct IndexDbConf {
 impl IndexDbConf {
     pub fn from_env_vars() -> Self {
         Self { db_location: env_or_panic("INDEX_DB_LOCATION") }
+    }
+}
+
+#[derive(Clone)]
+pub struct AdminConfig {
+    pub admins: HashSet<Username>,
+}
+
+impl AdminConfig {
+    pub fn from_env_vars() -> Self {
+        Self {
+            admins: env::var("ADMINS")
+                .unwrap_or_else(|_| "".to_string())
+                .split(", ")
+                .map(|part| part.to_string())
+                .collect(),
+        }
     }
 }
 

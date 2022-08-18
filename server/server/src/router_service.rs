@@ -124,11 +124,12 @@ pub fn core_routes(
         .or(core_req!(GetPublicKeyRequest, get_public_key, server_state))
         .or(core_req!(GetUsageRequest, get_usage, server_state))
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
-        .or(core_req!(DeleteAccountRequest, delete_account, server_state))
         .or(core_req!(UpgradeAccountGooglePlayRequest, upgrade_account_google_play, server_state))
         .or(core_req!(UpgradeAccountStripeRequest, upgrade_account_stripe, server_state))
         .or(core_req!(CancelSubscriptionRequest, cancel_subscription, server_state))
         .or(core_req!(GetSubscriptionInfoRequest, get_subscription_info, server_state))
+        .or(core_req!(DeleteAccountRequest, delete_account, server_state))
+        .or(core_req!(AdminDeleteAccountRequest, admin_delete_account, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {

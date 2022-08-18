@@ -2050,19 +2050,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
-name = "lba"
-version = "0.1.0"
-dependencies = [
- "async-stripe",
- "google-androidpublisher3",
- "hmdb",
- "lockbook-server",
- "lockbook-shared",
- "structopt",
- "tokio",
-]
-
-[[package]]
 name = "lebe"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
