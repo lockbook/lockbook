@@ -33,7 +33,7 @@ fn replace_old_server() {
 
     println!("mv new-server /usr/bin");
     Command::new("ssh")
-        .args(["root@api.prod.lockbook.net", "mv", "/root/new-server", "/usr/bin/"])
+        .args(["root@api.prod.lockbook.net", "mv", "/root/new-server", "/usr/bin/lockbook-server"])
         .assert_success()
 }
 
