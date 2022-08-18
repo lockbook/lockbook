@@ -406,5 +406,23 @@ impl Request for GetSubscriptionInfoRequest {
     const ROUTE: &'static str = "/get-subscription-info";
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminDeleteAccountRequest {
+    pub username: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminDeleteAccountError {
+    NotPermissioned,
+    UserNotFound,
+}
+
+impl Request for AdminDeleteAccountRequest {
+    type Response = ();
+    type Error = AdminDeleteAccountError;
+    const METHOD: Method = Method::DELETE;
+    const ROUTE: &'static str = "/admin-delete-account";
+}
+
 // number of milliseconds that have elapsed since the unix epoch
 pub type UnixTimeMillis = u64;

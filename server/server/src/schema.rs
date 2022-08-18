@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use uuid::Uuid;
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OneKey;
+
 hmdb::schema! {
     ServerV1 {
         usernames: <String, Owner>,

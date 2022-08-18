@@ -41,11 +41,10 @@ use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use libsecp256k1::PublicKey;
-use serde_json::{json, value::Value};
-use strum::IntoEnumIterator;
-
 use lockbook_shared::clock;
 use lockbook_shared::crypto::AESKey;
+use serde_json::{json, value::Value};
+use strum::IntoEnumIterator;
 
 use crate::model::errors::Error::UiError;
 use crate::repo::schema::{transaction, CoreV1, OneKey, Tx};
@@ -468,6 +467,16 @@ impl Core {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.get_subscription_info())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self, username), err(Debug))]
+    pub fn admin_delete_account(
+        &self, username: &str,
+    ) -> Result<(), Error<AdminDeleteAccountError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.delete_account(username))?;
         Ok(val?)
     }
 }
