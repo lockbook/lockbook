@@ -122,16 +122,25 @@ impl RequestContext<'_, '_> {
 
         for id in tree.owned_ids() {
             if !tree.calculate_deleted(&id)? && !tree.in_pending_share(&id)? {
-                let id = {
+                let (id, parent) = {
                     let file = tree.find(&id)?;
 
                     match file.file_type() {
-                        FileType::Link { target } => *tree.find(&target)?.id(),
-                        _ => *file.id(),
+                        FileType::Link { target } => {
+                            let resolved_file = tree.find(&target)?;
+
+                            (*resolved_file.id(), *file.parent())
+                        }
+                        _ => (*file.id(), *file.parent()),
                     }
                 };
 
-                files.push(tree.finalize(&id, account)?);
+                let mut file = tree.finalize(&id, account)?;
+                if file.parent != parent {
+                    file.parent = parent;
+                }
+
+                files.push(file);
             }
         }
 
