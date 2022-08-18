@@ -1,0 +1,1 @@
+cargo run -p releaser --release -- deploy-server
