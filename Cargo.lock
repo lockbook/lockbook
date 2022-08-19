@@ -1322,6 +1322,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "github_release_rs"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11206bf237b6a06d994040e947afa791187283b34d1fd09dc7c302843485ac0a"
+dependencies = [
+ "reqwest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "glib"
 version = "0.15.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3154,7 +3165,11 @@ checksum = "a3f87b73ce11b1619a3c6332f45341e0047173771e8b8b73f87bfeefb7b56244"
 name = "releaser"
 version = "0.1.0"
 dependencies = [
+ "github_release_rs",
+ "hex",
+ "sha2 0.10.2",
  "structopt",
+ "toml",
 ]
 
 [[package]]
