@@ -2,7 +2,7 @@
 
 ## Build from source
 
-[See building from source](building.md#ios-iphone-and-ipad)
+[See building from source](../build/apple.md)
 
 ## Test Flight
 

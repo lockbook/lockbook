@@ -1,5 +1,9 @@
 # CLI Installing
 
+## Build from source
+
+[See building from source](../build/cli.md)
+
 ## Package Managers
 
 [Arch Linux](https://aur.archlinux.org/packages/lockbook): `yay -S lockbook`

@@ -23,7 +23,7 @@ Be the customer, not the product. We make money by selling a note-taking app, no
 | Annual         | $30 per 50gb |
 
 ### Developer Friendly
-The Lockbook CLI will right into your favorite chain of piped-together unix commands. Search your notes with `fzf`, edit them with `vim`, and schedule backups with `cron`. When scripting doesn't cut it, use our Rust library for a robust programmatic interface with Lockbook.
+The Lockbook CLI will fit right into your favorite chain of piped-together unix commands. Search your notes with `fzf`, edit them with `vim`, and schedule backups with `cron`. When scripting doesn't cut it, use our Rust library for a robust programmatic interface with Lockbook.
 
 ## Feature Matrix
 
@@ -45,7 +45,7 @@ The Lockbook CLI will right into your favorite chain of piped-together unix comm
 | QR Import          |   ⛔️     |    📆     |     ✅      |     📆       |      ✅        |    📆     |
 | Import Account     |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
 | Space Utilized     |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
-| Billing            |   📆✅     |    📆✅    |     📆 ✅     |     📆       |      📆        |    📆     |
+| Billing            |   ✅     |    ✅     |     ✅      |     📆       |      📆        |    📆     |
 
 ### File Operations
 
@@ -57,7 +57,7 @@ The Lockbook CLI will right into your favorite chain of piped-together unix comm
 | Sync                  |   ✅     |    ✅     |     ✅      |     ✅       |      ✅        |    ✅     |
 | Export file to host   |   ✅     |    ✅     |     ✅      |     📆       |      📆        |    📆     |
 | Import file from host |   ✅     |    ✅     |     📆      |     📆       |      📆        |    📆     |
-| Sharing               |   📆     |    📆     |     📆      |     📆       |      📆        |    📆     |
+| Sharing               |   ✅     |    📆     |     📆      |     📆       |      📆        |    📆     |
 
 ### Document Types
 

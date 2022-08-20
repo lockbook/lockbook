@@ -2,7 +2,7 @@
 
 ## Build from source
 
-[See building from source](building.md#android)
+[See building from source](../build/android.md)
 
 ## Download APK
 
