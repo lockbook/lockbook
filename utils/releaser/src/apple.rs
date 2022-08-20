@@ -9,9 +9,10 @@ pub fn release_apple(secret: Secrets) {
 mod cli {
     use crate::utils::{core_version, lb_repo, sha_file, CommandRunner};
     use crate::Secrets;
-    use github_release_rs::ReleaseClient;
+    use gh_release::ReleaseClient;
     use std::fs;
     use std::fs::File;
+    use std::io::Write;
     use std::process::Command;
 
     static CLI_NAME: &str = "lockbook-cli-macos.tar.gz";
@@ -22,7 +23,7 @@ mod cli {
         lipo_binaries();
         tar_binary();
         upload(secret);
-        bump_brew();
+        update_brew();
     }
 
     fn build_x86() {
@@ -79,7 +80,10 @@ mod cli {
             .unwrap();
     }
 
-    fn bump_brew() {}
+    fn update_brew() {
+        overwrite_lockbook_rb();
+        push_brew();
+    }
 
     fn overwrite_lockbook_rb() {
         let version = core_version();
@@ -100,6 +104,24 @@ class Lockbook < Formula
 end
 "#
         );
+
+        let mut file = File::open("../homebrew-lockbook/lockbook.rb").unwrap();
+        file.write_all(&new_content.as_bytes()).unwrap();
+    }
+
+    fn push_brew() {
+        Command::new("git")
+            .args(["add", "-A"])
+            .current_dir("../homebrew-lockbook")
+            .assert_success();
+        Command::new("git")
+            .args(["commit", "-m", "releaser update"])
+            .current_dir("../homebrew-lockbook")
+            .assert_success();
+        Command::new("git")
+            .args(["push", "origin", "master"])
+            .current_dir("../homebrew-lockbook")
+            .assert_success();
     }
 }
 

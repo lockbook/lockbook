@@ -1253,6 +1253,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "gh_release"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "357ffb6dc32993b6d69447cbac823760a5bb2ab006cd3352543eca03f8773c83"
+dependencies = [
+ "reqwest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "ghash"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1319,17 +1330,6 @@ dependencies = [
  "libgit2-sys",
  "log 0.4.17",
  "url 2.2.2",
-]
-
-[[package]]
-name = "github_release_rs"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11206bf237b6a06d994040e947afa791187283b34d1fd09dc7c302843485ac0a"
-dependencies = [
- "reqwest",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -3165,7 +3165,7 @@ checksum = "a3f87b73ce11b1619a3c6332f45341e0047173771e8b8b73f87bfeefb7b56244"
 name = "releaser"
 version = "0.1.0"
 dependencies = [
- "github_release_rs",
+ "gh_release",
  "hex",
  "sha2 0.10.2",
  "structopt",

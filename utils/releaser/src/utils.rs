@@ -1,4 +1,4 @@
-use github_release_rs::RepoInfo;
+use gh_release::RepoInfo;
 use sha2::Digest;
 use sha2::Sha256;
 use std::fs;
@@ -17,8 +17,8 @@ impl CommandRunner for Command {
     }
 }
 
-pub fn lb_repo() -> RepoInfo {
-    RepoInfo { owner: "lockbook".to_string(), repo_name: "lockbook".to_string() }
+pub fn lb_repo() -> RepoInfo<'static> {
+    RepoInfo { owner: "lockbook", repo_name: "lockbook" }
 }
 
 pub fn core_version() -> String {
