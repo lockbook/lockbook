@@ -53,10 +53,15 @@ where
     Base: Stagable,
     Local: Stagable<F = Base::F>,
 {
-    pub fn validate(&mut self, owner: Owner) -> SharedResult<()> {
-        // check tree integrity
+    pub fn validate(mut self, owner: Owner) -> SharedResult<Self> {
+        // point checks
+        self.assert_no_root_changes()?;
+        self = self.assert_no_changes_to_deleted_files()?;
         self.assert_all_files_decryptable(owner)?;
         self.assert_only_folders_have_children()?;
+        self.assert_all_files_same_owner_as_parent()?;
+
+        // structure checks
         self.assert_no_cycles()?;
         self.assert_no_path_conflicts()?;
         self.assert_no_shared_links()?;
@@ -64,10 +69,10 @@ where
         self.assert_no_broken_links()?;
         self.assert_no_owned_links()?;
 
-        // check changes valid
+        // authorization check
         self.assert_changes_authorized(owner)?;
 
-        Ok(())
+        Ok(self)
     }
 
     // note: deleted access keys permissible
@@ -91,6 +96,19 @@ where
                 if !parent.is_folder() {
                     return Err(SharedError::ValidationFailure(
                         ValidationFailure::NonFolderWithChildren(*parent.id()),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn assert_all_files_same_owner_as_parent(&self) -> SharedResult<()> {
+        for file in self.all_files()? {
+            if let Some(parent) = self.maybe_find(file.parent()) {
+                if parent.owner() != file.owner() {
+                    return Err(SharedError::ValidationFailure(
+                        ValidationFailure::FileWithDifferentOwnerParent(*file.id()),
                     ));
                 }
             }
@@ -215,6 +233,46 @@ where
         Ok(())
     }
 
+    pub fn assert_no_root_changes(&mut self) -> SharedResult<()> {
+        for id in self.tree.staged.owned_ids() {
+            // already root
+            if let Some(base) = self.tree.base.maybe_find(&id) {
+                if base.is_root() {
+                    return Err(SharedError::RootModificationInvalid);
+                }
+            }
+            // newly root
+            if self.find(&id)?.is_root() {
+                return Err(SharedError::RootModificationInvalid);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn assert_no_changes_to_deleted_files(mut self) -> SharedResult<Self> {
+        for id in self.tree.staged.owned_ids() {
+            // already deleted files cannot have updates
+            let mut base = self.tree.base.to_lazy();
+            if base.maybe_find(&id).is_some() && base.calculate_deleted(&id)? {
+                return Err(SharedError::DeletedFileUpdated);
+            }
+            self.tree.base = base.tree;
+            // newly deleted files cannot have non-deletion updates
+            if self.calculate_deleted(&id)? {
+                if let Some(base) = self.tree.base.maybe_find(&id) {
+                    if FileDiff::edit(&base, &self.find(&id)?)
+                        .diff()
+                        .iter()
+                        .any(|d| d != &Diff::Deleted)
+                    {
+                        return Err(SharedError::DeletedFileUpdated);
+                    }
+                }
+            }
+        }
+        Ok(self)
+    }
+
     pub fn assert_changes_authorized(&mut self, owner: Owner) -> SharedResult<()> {
         // Design rationale:
         // * No combination of individually valid changes should compose into an invalid change.
@@ -267,7 +325,7 @@ where
                             }
                         }
                     }
-                    Diff::Parent | Diff::Owner | Diff::FolderKeys => {
+                    Diff::Parent | Diff::Owner => {
                         // check access for base parent
                         {
                             let parent = if let Some(ref old) = file_diff.old {

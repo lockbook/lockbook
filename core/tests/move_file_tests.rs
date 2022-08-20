@@ -66,8 +66,14 @@ fn move_document_deleted() {
     let mut doc2 = doc1.clone();
     doc2.timestamped_value.value.is_deleted = true;
     doc2.timestamped_value.value.parent = *folder.id();
-    api_service::request(&account, UpsertRequest { updates: vec![FileDiff::edit(&doc1, &doc2)] })
-        .unwrap();
+    let result = api_service::request(
+        &account,
+        UpsertRequest { updates: vec![FileDiff::edit(&doc1, &doc2)] },
+    );
+    assert_matches!(
+        result,
+        Err(ApiError::<UpsertError>::Endpoint(UpsertError::DeletedFileUpdated))
+    );
 }
 
 #[test]
@@ -123,7 +129,10 @@ fn move_folder_into_itself() {
         &account,
         UpsertRequest { updates: vec![FileDiff::edit(&folder, &new)] },
     );
-    assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::DiffMalformed)));
+    assert_matches!(
+        result,
+        Err(ApiError::<UpsertError>::Endpoint(UpsertError::RootModificationInvalid))
+    );
 }
 
 #[test]
