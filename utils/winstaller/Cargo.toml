@@ -1,0 +1,7 @@
+[package]
+name = "lockbook-winstaller"
+version = "0.1.0"
+edition = "2021"
+
+[target.'cfg(windows)'.dependencies]
+mslnk = "0.1.8"

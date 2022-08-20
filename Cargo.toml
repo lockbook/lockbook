@@ -5,8 +5,10 @@ members = [
 	"core/libs/shared",
 	"core/libs/test_utils",
 	"server/server",
-	"clients/linux",
 	"clients/cli",
+	"clients/egui",
+	"clients/linux",
 	"utils/dev-tool",
-	"utils/releaser"
+	"utils/releaser",
+	"utils/winstaller",
 ]
