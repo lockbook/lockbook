@@ -120,7 +120,8 @@ fn validate(core: &Core) -> Result<(), CliError> {
             TestRepoError::SharedLink { .. }
             | TestRepoError::DuplicateLink { .. }
             | TestRepoError::BrokenLink(_)
-            | TestRepoError::OwnedLink(_) => {
+            | TestRepoError::OwnedLink(_)
+            | TestRepoError::FileWithDifferentOwnerParent(_) => {
                 CliError::unexpected(format!("unexpected error: {:#?}", err))
             }
         },

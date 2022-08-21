@@ -144,3 +144,13 @@ fn test_delete_list_files() {
 
     assert!(files.is_empty());
 }
+
+#[test]
+fn test_write_delete_sync_doc() {
+    let core = test_core_with_account();
+
+    let doc = core.create_at_path("test.md").unwrap().id;
+    core.write_document(doc, &[1, 2, 3]).unwrap();
+    core.delete_file(doc).unwrap();
+    core.sync(None).unwrap();
+}
