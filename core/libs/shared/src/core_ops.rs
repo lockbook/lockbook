@@ -488,6 +488,25 @@ where
         }
         Ok(result)
     }
+
+    pub fn resolve_owned_links(self, account: &Account) -> SharedResult<TreeWithOps<Base, Local>> {
+        let mut result = self.stage(Vec::new());
+
+        for id in result.tree.base.staged.owned_ids() {
+            if let FileType::Link { target } = result.find(&id)?.file_type() {
+                if result.find(&target)?.owner().0 == account.public_key() {
+                    // delete new link to owned file
+                    result = result.stage_delete(&id, account)?.promote();
+                }
+            }
+            if result.find(&id)?.owner().0 == account.public_key() && result.link(&id)?.is_some() {
+                // unmove newly owned file with a link targeting it
+                let old_parent = *result.tree.base.base.find(&id)?.parent();
+                result = result.stage_move(&id, &old_parent, account)?.promote();
+            }
+        }
+        Ok(result)
+    }
 }
 
 impl<Base, Remote, Local> LazyStage2<Base, Remote, Local>
@@ -750,6 +769,7 @@ where
         result = result.rename_files_with_path_conflicts(account)?.promote();
         result = result.deduplicate_links(account)?.promote();
         result = result.resolve_shared_links(account)?.promote();
+        result = result.resolve_owned_links(account)?.promote();
 
         Ok((result, merge_document_changes))
     }
