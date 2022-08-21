@@ -163,7 +163,7 @@ where
         self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
     ) -> SharedResult<TreeWithOps<Base, Local>> {
         let mut result = self.stage(Vec::new());
-        let mut file = result.find(&id)?.timestamped_value.value.clone();
+        let mut file = result.find(id)?.timestamped_value.value.clone();
 
         let mut found = false;
         for key in file.user_access_keys.iter_mut() {
