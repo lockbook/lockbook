@@ -6,6 +6,7 @@ use uuid::Uuid;
 use lockbook_shared::api::*;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileDiff;
+use lockbook_shared::ValidationFailure;
 
 #[test]
 fn move_document() {
@@ -131,7 +132,9 @@ fn move_folder_into_itself() {
     );
     assert_matches!(
         result,
-        Err(ApiError::<UpsertError>::Endpoint(UpsertError::RootModificationInvalid))
+        Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(ValidationFailure::Cycle(
+            _
+        ))))
     );
 }
 

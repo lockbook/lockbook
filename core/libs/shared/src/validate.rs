@@ -243,7 +243,9 @@ where
             }
             // newly root
             if self.find(&id)?.is_root() {
-                return Err(SharedError::RootModificationInvalid);
+                return Err(SharedError::ValidationFailure(ValidationFailure::Cycle(
+                    vec![id].into_iter().collect(),
+                )));
             }
         }
         Ok(())
