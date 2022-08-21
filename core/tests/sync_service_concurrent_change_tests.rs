@@ -985,10 +985,6 @@ fn create_link_then_move_to_owned_folder() {
 
     sync_and_assert(&cores[1][0], &cores[1][1]);
 
-    println!("root: {:?}", cores[1][0].get_root().unwrap());
-    println!("link: {:?}", cores[1][0].get_file_by_id(link.id).unwrap());
-    println!("document: {:?}", cores[1][0].get_file_by_id(document.id).unwrap());
-
     assert::all_paths(&cores[1][0], &["/", "/link"]);
 }
 
