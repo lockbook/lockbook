@@ -179,10 +179,12 @@ impl From<SharedError> for CoreError {
             PathTaken => CoreError::PathTaken,
             FileNameContainsSlash => CoreError::FileNameContainsSlash,
             RootModificationInvalid => CoreError::RootModificationInvalid,
+            DeletedFileUpdated => CoreError::FileNonexistent,
             FileNameEmpty => CoreError::FileNameEmpty,
             FileNotFolder => CoreError::FileNotFolder,
             FileNotDocument => CoreError::FileNotDocument,
             InsufficientPermission => CoreError::InsufficientPermission,
+            NotPermissioned => CoreError::InsufficientPermission,
             ValidationFailure(lockbook_shared::ValidationFailure::Cycle(_)) => {
                 CoreError::FolderMovedIntoSelf
             }
@@ -200,6 +202,9 @@ impl From<SharedError> for CoreError {
             }
             ValidationFailure(lockbook_shared::ValidationFailure::OwnedLink(_)) => {
                 CoreError::LinkTargetIsOwned
+            }
+            ValidationFailure(lockbook_shared::ValidationFailure::NonFolderWithChildren(_)) => {
+                CoreError::FileNotFolder
             }
             _ => CoreError::Unexpected(format!("unexpected shared error {:?}", err)),
         }
@@ -1042,6 +1047,7 @@ pub enum TestRepoError {
     FileNameContainsSlash(Uuid),
     PathConflict(HashSet<Uuid>),
     NonDecryptableFileName(Uuid),
+    FileWithDifferentOwnerParent(Uuid),
     SharedLink { link: Uuid, shared_ancestor: Uuid },
     DuplicateLink { target: Uuid },
     BrokenLink(Uuid),
@@ -1072,6 +1078,9 @@ impl From<SharedError> for TestRepoError {
                 }
                 ValidationFailure::BrokenLink(id) => TestRepoError::BrokenLink(id),
                 ValidationFailure::OwnedLink(id) => TestRepoError::OwnedLink(id),
+                ValidationFailure::FileWithDifferentOwnerParent(id) => {
+                    TestRepoError::FileWithDifferentOwnerParent(id)
+                }
             },
             _ => TestRepoError::Shared(err),
         }

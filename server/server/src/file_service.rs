@@ -20,9 +20,10 @@ pub async fn upsert_file_metadata(
     let mut prior_deleted_docs = HashSet::new();
     let mut new_deleted = vec![];
 
-    let res: Result<(), ServerError<UpsertError>> =
-        context.server_state.index_db.transaction(|tx| {
-            // validate all trees
+    context
+        .server_state
+        .index_db
+        .transaction::<_, Result<(), ServerError<_>>>(|tx| {
             let mut tree =
                 ServerTree::new(req_owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
 
@@ -32,12 +33,9 @@ pub async fn upsert_file_metadata(
                 }
             }
 
-            let mut tree = tree.stage_diff(request.updates.clone())?;
-            tree.validate(req_owner)?;
-
-            let mut tree = ServerTree::new(req_owner, &mut tx.owned_files, &mut tx.metas)?
-                .to_lazy()
-                .stage_diff(request.updates)?
+            let mut tree = tree
+                .stage_diff(request.updates.clone())?
+                .validate(req_owner)?
                 .promote();
 
             for id in tree.owned_ids() {
@@ -53,9 +51,7 @@ pub async fn upsert_file_metadata(
                 }
             }
             Ok(())
-        })?;
-
-    res?;
+        })??;
 
     for (id, digest) in new_deleted {
         document_service::delete(server_state, &id, &digest).await?;
@@ -301,9 +297,9 @@ pub async fn get_updates(
                     {
                         if file.version > request.since_metadata_version {
                             result_ids.insert(id);
-                            result_ids.extend(tree.descendents(&id)?);
+                            result_ids.extend(tree.descendants(&id)?);
                         } else {
-                            for id in tree.descendents(&id)? {
+                            for id in tree.descendants(&id)? {
                                 if tree.find(&id)?.version > request.since_metadata_version {
                                     result_ids.insert(id);
                                 }
