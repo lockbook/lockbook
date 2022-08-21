@@ -385,6 +385,26 @@ where
 
         Ok(result)
     }
+
+    pub fn deduplicate_links(self, account: &Account) -> SharedResult<TreeWithOps<Base, Local>> {
+        let mut result = self.stage(Vec::new());
+
+        let mut base_link_targets = HashSet::new();
+        for id in result.tree.base.base.owned_ids() {
+            if let FileType::Link { target } = result.find(&id)?.file_type() {
+                base_link_targets.insert(target);
+            }
+        }
+
+        for id in result.tree.base.staged.owned_ids() {
+            if let FileType::Link { target } = result.find(&id)?.file_type() {
+                if base_link_targets.contains(&target) {
+                    result = result.stage_delete(&id, account)?.promote();
+                }
+            }
+        }
+        Ok(result)
+    }
 }
 
 impl<Base, Remote, Local> LazyStage2<Base, Remote, Local>
@@ -645,6 +665,7 @@ where
         let mut result = result.promote();
         result = result.unmove_moved_files_in_cycles(account)?.promote();
         result = result.rename_files_with_path_conflicts(account)?.promote();
+        result = result.deduplicate_links(account)?.promote();
 
         Ok((result, merge_document_changes))
     }

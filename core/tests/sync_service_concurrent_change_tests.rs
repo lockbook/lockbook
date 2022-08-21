@@ -1,4 +1,5 @@
 use lockbook_core::Core;
+use lockbook_shared::file::ShareMode;
 use test_utils::*;
 
 /// Tests that setup two synced devices, operate on both devices, then sync both twice (work
@@ -859,3 +860,42 @@ fn edit_content_then_delete_grandparent() {
     assert::all_paths(&c2, &["/"]);
     assert::all_document_contents(&c2, &[]);
 }
+
+#[test]
+fn create_two_links() {
+    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let new_client = another_client(&cores[1][0]);
+    cores[1].push(new_client);
+    let accounts = cores
+        .iter()
+        .map(|cores| cores[0].get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let document = cores[0][0].create_at_path("/document").unwrap();
+    cores[0][0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0][0].sync(None).unwrap();
+
+    cores[1][0].sync(None).unwrap();
+    cores[1][0]
+        .create_link_at_path("/link1", document.id)
+        .unwrap();
+
+    cores[1][1].sync(None).unwrap();
+    cores[1][1]
+        .create_link_at_path("/link2", document.id)
+        .unwrap();
+
+    sync_and_assert(&cores[1][0], &cores[1][1]);
+    assert::all_paths(&cores[1][0], &["/", "/link1"]);
+}
+
+#[test]
+fn share_then_create_link_in_folder() {}
+
+#[test]
+fn create_link_then_move_to_owned_folder() {}
+
+#[test]
+fn create_link_then_delete() {}
