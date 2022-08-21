@@ -892,7 +892,66 @@ fn create_two_links() {
 }
 
 #[test]
-fn share_then_create_link_in_folder() {}
+fn share_then_create_link_in_folder() {
+    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let new_client = another_client(&cores[1][0]);
+    cores[1].push(new_client);
+    let accounts = cores
+        .iter()
+        .map(|cores| cores[0].get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let document = cores[0][0].create_at_path("/document").unwrap();
+    cores[0][0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0][0].sync(None).unwrap();
+
+    let folder = cores[1][0].create_at_path("/folder/").unwrap();
+    cores[1][0].sync(None).unwrap();
+    cores[1][0]
+        .share_file(folder.id, &accounts[0].username, ShareMode::Read)
+        .unwrap();
+
+    cores[1][1].sync(None).unwrap();
+    cores[1][1]
+        .create_link_at_path("/folder/link", document.id)
+        .unwrap();
+
+    sync_and_assert(&cores[1][0], &cores[1][1]);
+    assert::all_paths(&cores[1][0], &["/", "/folder/"]);
+}
+
+#[test]
+fn create_link_in_folder_then_share() {
+    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let new_client = another_client(&cores[1][0]);
+    cores[1].push(new_client);
+    let accounts = cores
+        .iter()
+        .map(|cores| cores[0].get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let document = cores[0][0].create_at_path("/document").unwrap();
+    cores[0][0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0][0].sync(None).unwrap();
+
+    let folder = cores[1][0].create_at_path("/folder/").unwrap();
+    cores[1][0].sync(None).unwrap();
+    cores[1][0]
+        .share_file(folder.id, &accounts[0].username, ShareMode::Read)
+        .unwrap();
+
+    cores[1][1].sync(None).unwrap();
+    cores[1][1]
+        .create_link_at_path("/folder/link", document.id)
+        .unwrap();
+
+    sync_and_assert(&cores[1][1], &cores[1][0]); // note: reverse order from above test
+    assert::all_paths(&cores[1][0], &["/", "/folder/", "/folder/link"]);
+}
 
 #[test]
 fn create_link_then_move_to_owned_folder() {}
