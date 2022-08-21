@@ -30,7 +30,7 @@ impl RequestContext<'_, '_> {
             return Err(TestRepoError::NoRootFolder);
         }
 
-        tree.validate(Owner(account.public_key()))?;
+        tree = tree.validate(Owner(account.public_key()))?;
 
         for id in tree.owned_ids() {
             let name = tree.name(&id, account)?;

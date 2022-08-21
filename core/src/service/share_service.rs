@@ -61,7 +61,7 @@ impl RequestContext<'_, '_> {
         )?);
 
         let mut tree = tree.stage(Some(file.sign(account)?));
-        tree.validate(Owner(account.public_key()))?;
+        tree = tree.validate(Owner(account.public_key()))?;
         tree.promote();
 
         Ok(())
@@ -143,7 +143,7 @@ impl RequestContext<'_, '_> {
             Some(user_access) => {
                 user_access.deleted = true;
                 let mut new_tree = tree.stage(Some(file.sign(account)?));
-                new_tree.validate(owner)?;
+                new_tree = new_tree.validate(owner)?;
                 tree = new_tree.promote();
             }
         }
@@ -156,7 +156,7 @@ impl RequestContext<'_, '_> {
                     let mut link = link.timestamped_value.value.clone();
                     link.is_deleted = true;
                     let mut tree = tree.stage(Some(link.sign(account)?));
-                    tree.validate(owner)?;
+                    tree = tree.validate(owner)?;
                     tree.promote();
                     break;
                 }

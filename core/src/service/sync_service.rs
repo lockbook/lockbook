@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::repo::schema::OneKey;
 use crate::service::api_service;
 use crate::CoreResult;
@@ -14,6 +12,7 @@ use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Serialize, Clone)]
 pub struct WorkCalculated {
@@ -78,15 +77,15 @@ impl RequestContext<'_, '_> {
         self.pull(&mut update_sync_progress)?;
         self.push_metadata(&mut update_sync_progress)?;
         self.push_documents(&mut update_sync_progress)?;
-        self.pull(&mut update_sync_progress)?;
-        self.prune()?;
+        let update_as_of = self.pull(&mut update_sync_progress)?;
 
+        self.tx.last_synced.insert(OneKey {}, update_as_of);
         Ok(())
     }
 
     /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.
     /// Promotes Base to Stage<Base, Remote> and Local to Stage<Local, Merge>
-    fn pull<F>(&mut self, update_sync_progress: &mut F) -> CoreResult<()>
+    fn pull<F>(&mut self, update_sync_progress: &mut F) -> CoreResult<i64>
     where
         F: FnMut(SyncProgressOperation),
     {
@@ -124,7 +123,7 @@ impl RequestContext<'_, '_> {
             update_sync_progress(SyncProgressOperation::IncrementTotalWork(num_documents_to_pull));
         }
 
-        // prune prunable files
+        // pre-process changes
         remote_changes = self.prune_remote_orphans(remote_changes)?;
 
         // fetch document updates and local documents for merge (todo: don't hold these all in memory at the same time)
@@ -178,6 +177,7 @@ impl RequestContext<'_, '_> {
                 .stage(remote_changes)
                 .stage(&mut self.tx.local_metadata)
                 .to_lazy();
+
             let (local, merge_document_changes) = local.merge(
                 account,
                 &base_documents,
@@ -188,49 +188,24 @@ impl RequestContext<'_, '_> {
             let (_, remote_changes) = remote.unstage();
             (remote_changes, merge_document_changes)
         };
-        self.tx
-            .base_metadata
-            .to_lazy()
-            .stage(remote_changes)
-            .promote();
-        for (id, document) in remote_document_changes {
-            document_repo::insert(self.config, RepoSource::Base, &id, &document)?;
-        }
-        for (id, document) in merge_document_changes {
-            document_repo::insert(self.config, RepoSource::Local, &id, &document)?;
-        }
 
-        self.tx.last_synced.insert(OneKey {}, update_as_of as i64);
-
-        Ok(())
-    }
-
-    fn prune(&mut self) -> CoreResult<()> {
-        let local = self
+        let tree = self
             .tx
             .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
-        let (mut local, prunable_ids) = local.prunable_ids()?;
-        for id in prunable_ids {
-            local.remove(id);
+            .stage(remote_changes)
+            .to_lazy()
+            .promote()
+            .stage(&mut self.tx.local_metadata);
+        for (id, document) in remote_document_changes {
+            tree.write_document_content(self.config, RepoSource::Base, &id, &document)?;
         }
-        Ok(())
-    }
+        for (id, document) in merge_document_changes {
+            tree.write_document_content(self.config, RepoSource::Local, &id, &document)?;
+        }
+        self.reset_deleted_files()?;
+        self.prune()?;
 
-    pub fn prune_remote_orphans(
-        &mut self, remote_changes: Vec<SignedFile>,
-    ) -> CoreResult<Vec<SignedFile>> {
-        let me = Owner(self.get_public_key()?);
-        let remote = self.tx.base_metadata.to_lazy().stage(remote_changes);
-        let mut result = Vec::new();
-        for id in remote.tree.staged.owned_ids() {
-            let meta = remote.find(&id)?;
-            if remote.maybe_find_parent(meta).is_some() || meta.access_mode(&me).is_some() {
-                result.push(remote.find(&id)?.clone()); // todo: don't clone
-            }
-        }
-        Ok(result)
+        Ok(update_as_of as i64)
     }
 
     pub fn get_updates(&self) -> CoreResult<GetUpdatesResponse> {
@@ -250,6 +225,96 @@ impl RequestContext<'_, '_> {
             GetUpdatesRequest { since_metadata_version: last_synced },
         )?;
         Ok(remote_changes)
+    }
+
+    pub fn prune_remote_orphans(
+        &mut self, remote_changes: Vec<SignedFile>,
+    ) -> CoreResult<Vec<SignedFile>> {
+        let me = Owner(self.get_public_key()?);
+        let remote = self.tx.base_metadata.to_lazy().stage(remote_changes);
+        let mut result = Vec::new();
+        for id in remote.tree.staged.owned_ids() {
+            let meta = remote.find(&id)?;
+            if remote.maybe_find_parent(meta).is_some() || meta.access_mode(&me).is_some() {
+                result.push(remote.find(&id)?.clone()); // todo: don't clone
+            }
+        }
+        Ok(result)
+    }
+
+    fn reset_deleted_files(&mut self) -> CoreResult<()> {
+        // resets all changes to files that are implicitly deleted, then explicitly deletes them
+        // we don't want to push updates to deleted documents and we might as well not push updates to deleted metadata
+        // we must explicitly delete a file which is moved into a deleted folder because otherwise resetting it makes it no longer deleted
+        // todo: document repo deletions are not atomic and an interruption during sync can cause digests to become out of date
+        let account = self.get_account()?.clone();
+
+        let mut tree = self.tx.base_metadata.to_lazy();
+        let mut already_deleted = HashSet::new();
+        for id in tree.owned_ids() {
+            if tree.calculate_deleted(&id)? {
+                already_deleted.insert(id);
+            }
+        }
+
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+        let mut local_change_removals = HashSet::new();
+        let mut local_change_resets = Vec::new();
+
+        for id in tree.tree.staged.owned_ids() {
+            let local_file = tree.find(&id)?.timestamped_value.value.clone();
+            if let Some(base_file) = tree.tree.base.maybe_find(&id) {
+                let mut base_file = base_file.timestamped_value.value.clone();
+                if already_deleted.contains(&id) {
+                    // reset file
+                    if base_file.document_hmac != local_file.document_hmac
+                        && local_file.document_hmac.is_some()
+                    {
+                        document_repo::delete(self.config, RepoSource::Local, &id)?;
+                    }
+                    local_change_resets.push(base_file.sign(&account)?);
+                } else if tree.calculate_deleted(&id)? {
+                    // reset everything but set deleted=true
+                    base_file.is_deleted = true;
+                    if base_file.document_hmac != local_file.document_hmac
+                        && local_file.document_hmac.is_some()
+                    {
+                        document_repo::delete(self.config, RepoSource::Local, &id)?;
+                    }
+                    local_change_resets.push(base_file.sign(&account)?);
+                }
+            } else if tree.calculate_deleted(&id)? {
+                // delete
+                if local_file.document_hmac.is_some() {
+                    document_repo::delete(self.config, RepoSource::Local, &id)?;
+                }
+                local_change_removals.insert(id);
+            }
+        }
+
+        for id in local_change_removals {
+            tree.remove(id);
+        }
+        tree.stage(local_change_resets).promote();
+
+        Ok(())
+    }
+
+    fn prune(&mut self) -> CoreResult<()> {
+        let local = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+        let (mut local, prunable_ids) = local.prunable_ids()?;
+        for id in prunable_ids {
+            local.remove(id);
+        }
+        Ok(())
     }
 
     /// Updates remote and base metadata to local.
@@ -340,6 +405,7 @@ impl RequestContext<'_, '_> {
 
             // base = local (document)
             document_repo::insert(self.config, RepoSource::Base, &id, &local_document_change)?;
+            document_repo::delete(self.config, RepoSource::Local, &id)?;
 
             // remote = local
             api_service::request(

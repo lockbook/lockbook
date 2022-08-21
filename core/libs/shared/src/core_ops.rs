@@ -4,7 +4,6 @@ use hmac::{Mac, NewMac};
 use libsecp256k1::PublicKey;
 use uuid::Uuid;
 
-use crate::access_info::UserAccessMode;
 use crate::account::Account;
 use crate::core_config::Config;
 use crate::crypto::{DecryptedDocument, EncryptedDocument};
@@ -53,7 +52,7 @@ where
         pub_key: &PublicKey,
     ) -> SharedResult<(Self, Uuid)> {
         let (mut tree, id) = self.stage_create(parent, name, file_type, account)?;
-        tree.validate(Owner(*pub_key))?;
+        tree = tree.validate(Owner(*pub_key))?;
         let tree = tree.promote();
         Ok((tree, id))
     }
@@ -77,7 +76,7 @@ where
 
     pub fn rename(self, id: &Uuid, name: &str, account: &Account) -> SharedResult<Self> {
         let mut tree = self.stage_rename(id, name, account)?;
-        tree.validate(Owner(account.public_key()))?;
+        tree = tree.validate(Owner(account.public_key()))?;
         let tree = tree.promote();
         Ok(tree)
     }
@@ -88,21 +87,10 @@ where
         let mut file = self.find(id)?.timestamped_value.value.clone();
 
         validate::file_name(name)?;
-        validate::not_root(&file)?;
 
-        if self.calculate_deleted(id)? {
-            return Err(SharedError::FileNonexistent);
+        if self.maybe_find(file.parent()).is_none() {
+            return Err(SharedError::NotPermissioned);
         }
-        if let Some(parent) = self.maybe_find(file.parent()) {
-            if self.access_mode(Owner(account.public_key()), parent.id())?
-                < Some(UserAccessMode::Write)
-            {
-                return Err(SharedError::InsufficientPermission);
-            }
-        } else {
-            return Err(SharedError::InsufficientPermission);
-        }
-
         let parent_key = self.decrypt_key(file.parent(), account)?;
         let key = self.decrypt_key(id, account)?;
         file.name = SecretFileName::from_str(name, &key, &parent_key)?;
@@ -112,79 +100,49 @@ where
 
     pub fn move_file(self, id: &Uuid, new_parent: &Uuid, account: &Account) -> SharedResult<Self> {
         let mut tree = self.stage_move(id, new_parent, account)?;
-        tree.validate(Owner(account.public_key()))?;
+        tree = tree.validate(Owner(account.public_key()))?;
 
         Ok(tree.promote())
     }
 
     pub fn stage_move(
         mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
-    ) -> SharedResult<TreeWithOp<Base, Local>> {
+    ) -> SharedResult<TreeWithOps<Base, Local>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
-        let parent = self
-            .maybe_find(new_parent)
-            .ok_or(SharedError::FileParentNonexistent)?;
-
-        validate::not_root(&file)?;
-        validate::is_folder(parent)?;
-
-        if self.calculate_deleted(id)? {
-            return Err(SharedError::FileNonexistent);
-        }
-        if self.calculate_deleted(new_parent)? {
+        if self.maybe_find(new_parent).is_none() || self.calculate_deleted(new_parent)? {
             return Err(SharedError::FileParentNonexistent);
-        }
-        if let Some(parent) = self.maybe_find(file.parent()) {
-            if self.access_mode(Owner(account.public_key()), parent.id())?
-                < Some(UserAccessMode::Write)
-            {
-                return Err(SharedError::InsufficientPermission);
-            }
-        } else {
-            return Err(SharedError::InsufficientPermission);
-        }
-        if self.access_mode(Owner(account.public_key()), new_parent)? < Some(UserAccessMode::Write)
-        {
-            return Err(SharedError::InsufficientPermission);
         }
 
         let key = self.decrypt_key(id, account)?;
         let parent_key = self.decrypt_key(new_parent, account)?;
-        file.owner = self.find(new_parent)?.owner();
+        let owner = self.find(new_parent)?.owner();
+        file.owner = owner;
         file.parent = *new_parent;
         file.folder_access_key = symkey::encrypt(&parent_key, &key)?;
         file.name = SecretFileName::from_str(&self.name(id, account)?, &key, &parent_key)?;
         let file = file.sign(account)?;
 
-        Ok(self.stage(Some(file)))
+        let mut staged = vec![file];
+        for id in self.descendants(id)? {
+            let mut descendant = self.find(&id)?.timestamped_value.value.clone();
+            descendant.owner = owner;
+            staged.push(descendant.sign(account)?);
+        }
+
+        Ok(self.stage(staged))
     }
 
     pub fn delete(self, id: &Uuid, account: &Account) -> SharedResult<LazyStaged1<Base, Local>> {
         let mut tree = self.stage_delete(id, account)?;
-        tree.validate(Owner(account.public_key()))?;
+        tree = tree.validate(Owner(account.public_key()))?;
         let tree = tree.promote();
         Ok(tree)
     }
 
     pub fn stage_delete(
-        mut self, id: &Uuid, account: &Account,
+        self, id: &Uuid, account: &Account,
     ) -> SharedResult<TreeWithOp<Base, Local>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
-
-        validate::not_root(&file)?;
-
-        if self.calculate_deleted(id)? {
-            return Err(SharedError::FileNonexistent);
-        }
-        if let Some(parent) = self.maybe_find(file.parent()) {
-            if self.access_mode(Owner(account.public_key()), parent.id())?
-                < Some(UserAccessMode::Write)
-            {
-                return Err(SharedError::InsufficientPermission);
-            }
-        } else {
-            return Err(SharedError::InsufficientPermission);
-        }
 
         file.is_deleted = true;
         let file = file.sign(account)?;
@@ -225,25 +183,56 @@ where
     }
 
     pub fn write_document(
-        mut self, config: &Config, id: &Uuid, document: &[u8], account: &Account,
+        self, config: &Config, id: &Uuid, document: &[u8], account: &Account,
     ) -> SharedResult<Self> {
-        if self.calculate_deleted(id)? {
-            return Err(SharedError::FileNonexistent);
-        }
-        if self.access_mode(Owner(account.public_key()), id)? < Some(UserAccessMode::Write) {
-            return Err(SharedError::InsufficientPermission);
-        }
-
         let (tree, document) = self.update_document(id, document, account)?;
-        document_repo::insert(config, RepoSource::Local, id, &document)?;
+        tree.write_document_content(config, RepoSource::Local, id, &document)?;
 
         Ok(tree)
     }
 
-    // todo: validate, split out non-validating version (stage_update_document)
+    /// assumes hmacs have already been written
+    pub fn write_document_content(
+        &self, config: &Config, source: RepoSource, id: &Uuid, document: &EncryptedDocument,
+    ) -> SharedResult<()> {
+        let base_hmac = self
+            .tree
+            .base
+            .maybe_find(id)
+            .and_then(|f| f.document_hmac());
+        let local_hmac = self
+            .tree
+            .staged
+            .maybe_find(id)
+            .and_then(|f| f.document_hmac());
+        match source {
+            RepoSource::Local => {
+                if base_hmac != local_hmac {
+                    document_repo::insert(config, RepoSource::Local, id, document)?;
+                }
+            }
+            RepoSource::Base => {
+                document_repo::insert(config, RepoSource::Base, id, document)?;
+                if base_hmac == local_hmac {
+                    document_repo::delete(config, RepoSource::Local, id)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn update_document(
-        mut self, id: &Uuid, document: &[u8], account: &Account,
+        self, id: &Uuid, document: &[u8], account: &Account,
     ) -> SharedResult<(Self, EncryptedDocument)> {
+        let (mut tree, document) = self.stage_update_document(id, document, account)?;
+        tree = tree.validate(Owner(account.public_key()))?;
+        let tree = tree.promote();
+        Ok((tree, document))
+    }
+
+    pub fn stage_update_document(
+        mut self, id: &Uuid, document: &[u8], account: &Account,
+    ) -> SharedResult<(TreeWithOp<Base, Local>, EncryptedDocument)> {
         let mut file: FileMetadata = self.find(id)?.timestamped_value.value.clone();
         validate::is_document(&file)?;
 
@@ -262,7 +251,7 @@ where
         let document = compression_service::compress(document)?;
         let document = symkey::encrypt(&key, &document)?;
 
-        Ok((self.stage(Some(file)).promote(), document))
+        Ok((self.stage(Some(file)), document))
     }
 
     /// Returns ids of files which can be safely forgotten - files which are deleted on remote (including implicitly
@@ -330,10 +319,6 @@ where
                 result = {
                     let id = &id;
                     let mut file = result.find(id)?.timestamped_value.value.clone();
-                    let parent = result.find(&parent_id)?;
-
-                    validate::not_root(&file)?;
-                    validate::is_folder(parent)?;
 
                     let (key, parent_key) = {
                         let mut local = result.tree.base.to_lazy();
@@ -421,24 +406,6 @@ where
     {
         let mut result = self.stage(Vec::new());
         let mut merge_document_changes = HashMap::new();
-
-        // forget about local changes to remotely deleted files (including implicit deletes)
-        {
-            for local_change_id in result.tree.base.staged.owned_ids() {
-                let (local, merge_changes) = result.unstage();
-                let (mut remote, local_changes) = local.unstage();
-                let mut local_change_resets = Vec::new();
-                if remote.maybe_find(&local_change_id).is_some()
-                    && remote.calculate_deleted(&local_change_id)?
-                {
-                    // todo: avoid clone
-                    local_change_resets.push(remote.find(&local_change_id)?.clone());
-                }
-                let local = remote.stage(local_changes);
-                let local = local.stage(local_change_resets).promote();
-                result = local.stage(merge_changes);
-            }
-        }
 
         // merge files on an individual basis
         {
@@ -638,8 +605,12 @@ where
                         };
 
                         // overwrite existing document (todo: avoid decrypting and re-encrypting document)
-                        let (mut result, encrypted_document) =
-                            result.update_document(id, &decrypted_remote_document, account)?;
+                        let (result, encrypted_document) = result.stage_update_document(
+                            id,
+                            &decrypted_remote_document,
+                            account,
+                        )?;
+                        let mut result = result.promote();
                         merge_document_changes.insert(*id, encrypted_document);
 
                         // create copied document (todo: avoid decrypting and re-encrypting document)
@@ -656,11 +627,12 @@ where
                             account,
                         )?;
                         let result = result.promote();
-                        let (result, encrypted_document) = result.update_document(
+                        let (result, encrypted_document) = result.stage_update_document(
                             &copied_document_id,
                             &decrypted_local_document,
                             account,
                         )?;
+                        let result = result.promote();
                         merge_document_changes.insert(copied_document_id, encrypted_document);
 
                         result

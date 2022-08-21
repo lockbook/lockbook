@@ -929,9 +929,6 @@ fn move_write_shared_folder() {
     cores[0].sync(None).unwrap();
 
     cores[1].sync(None).unwrap();
-    cores[1]
-        .create_file("folder_link", roots[1].id, FileType::Link { target: folder.id })
-        .unwrap();
     let child_folder = cores[1]
         .create_file("child_folder", roots[1].id, FileType::Folder)
         .unwrap();

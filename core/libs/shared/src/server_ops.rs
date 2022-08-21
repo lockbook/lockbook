@@ -33,22 +33,6 @@ where
             }
         }
 
-        // Check for updates to root
-        for change in &changes {
-            if let Some(file) = self.maybe_find(change.new.id()) {
-                if file.is_root() {
-                    return Err(SharedError::RootModificationInvalid);
-                }
-            }
-        }
-
-        // Check for root creations
-        for change in &changes {
-            if change.new.is_root() {
-                return Err(SharedError::DiffMalformed);
-            }
-        }
-
         // Check for changes to digest
         for change in &changes {
             match &change.old {
@@ -84,15 +68,6 @@ where
                         return Err(SharedError::OldVersionRequired);
                     }
                 }
-            }
-        }
-
-        // Check for updates to deleted files
-        for change in &changes {
-            if self.maybe_find(change.new.id()).is_some()
-                && self.calculate_deleted(change.new.id())?
-            {
-                return Err(SharedError::DeletedFileUpdated);
             }
         }
 

@@ -42,7 +42,7 @@ where
         let mut tree = metas.to_lazy();
         let mut descendants_of_shared_ids = shared_ids.clone();
         for id in shared_ids {
-            descendants_of_shared_ids.extend(tree.descendents(&id)?);
+            descendants_of_shared_ids.extend(tree.descendants(&id)?);
         }
         Ok(Self { ids: descendants_of_shared_ids, owned, metas })
     }

@@ -151,7 +151,6 @@ impl<F: FileLike> fmt::Debug for FileDiff<F> {
                 Diff::Deleted => result.field("new_deleted", &self.new.explicitly_deleted()),
                 Diff::Hmac => result.field("new_hmac", &self.new.document_hmac()),
                 Diff::UserKeys => result.field("new_user_keys", &true),
-                Diff::FolderKeys => result.field("new_folder_keys", &true),
             };
         }
         result.finish()
@@ -168,7 +167,6 @@ pub enum Diff {
     Deleted,
     Hmac,
     UserKeys,
-    FolderKeys,
 }
 
 impl<F: FileLike> FileDiff<F> {
@@ -214,9 +212,6 @@ impl<F: FileLike> FileDiff<F> {
                     changes.push(UserKeys);
                 }
 
-                if old.folder_access_key() != new.folder_access_key() {
-                    changes.push(FolderKeys);
-                }
                 changes
             }
         }
