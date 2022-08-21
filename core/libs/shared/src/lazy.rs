@@ -219,7 +219,7 @@ impl<T: Stagable> LazyTree<T> {
 
     /// Returns ids of files for which the argument is an ancestor—the files' children, recursively. Does not include the argument.
     /// This function tolerates cycles.
-    pub fn descendents(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+    pub fn descendants(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
         // todo: caching?
         let mut result = HashSet::new();
         let mut to_process = vec![*id];
@@ -297,6 +297,7 @@ pub enum ValidationFailure {
     Cycle(HashSet<Uuid>),
     PathConflict(HashSet<Uuid>),
     NonFolderWithChildren(Uuid),
+    FileWithDifferentOwnerParent(Uuid),
     NonDecryptableFileName(Uuid),
     SharedLink { link: Uuid, shared_ancestor: Uuid },
     DuplicateLink { target: Uuid },

@@ -8,7 +8,7 @@ use crate::secret_filename::SecretFileName;
 use crate::server_file::ServerFile;
 use crate::signed_file::SignedFile;
 
-pub trait FileLike: PartialEq + Debug + Clone {
+pub trait FileLike: PartialEq + Debug + Clone + AsRef<FileMetadata> {
     fn id(&self) -> &Uuid;
     fn file_type(&self) -> FileType;
     fn parent(&self) -> &Uuid;

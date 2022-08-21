@@ -88,7 +88,7 @@ fn delete() {
     c1.sync(None).unwrap();
 
     let c2 = another_client(&c1);
-    assert::server_work_paths(&c2, &["/", "/document"]);
+    assert::server_work_paths(&c2, &["/"]);
     assert_stuff(&c2);
 }
 
@@ -100,7 +100,7 @@ fn delete_parent() {
     c1.sync(None).unwrap();
 
     let c2 = another_client(&c1);
-    assert::server_work_paths(&c2, &["/", "/parent/", "/parent/document"]);
+    assert::server_work_paths(&c2, &["/"]);
     assert_stuff(&c2);
 }
 
@@ -112,9 +112,6 @@ fn delete_grandparent() {
     c1.sync(None).unwrap();
 
     let c2 = another_client(&c1);
-    assert::server_work_paths(
-        &c2,
-        &["/", "/grandparent/parent/document", "/grandparent/parent/", "/grandparent/"],
-    );
+    assert::server_work_paths(&c2, &["/"]);
     assert_stuff(&c2);
 }

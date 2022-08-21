@@ -135,7 +135,13 @@ class MoveFileTest {
 
         val rootFileMetadata = CoreModel.getRoot().unwrapOk()
 
-        CoreModel.moveFile(rootFileMetadata.id, rootFileMetadata.id)
+        val folder = CoreModel.createFile(
+            rootFileMetadata.id,
+            generateAlphaString(),
+            FileType.Folder
+        ).unwrapOk()
+
+        CoreModel.moveFile(rootFileMetadata.id, folder.id)
             .unwrapErrorType(MoveFileError.CannotMoveRoot)
     }
 
