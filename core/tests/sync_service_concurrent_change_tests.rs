@@ -974,7 +974,7 @@ fn create_link_then_move_to_owned_folder() {
     cores[0][0].sync(None).unwrap();
 
     cores[1][0].sync(None).unwrap();
-    let link = cores[1][0]
+    cores[1][0]
         .create_link_at_path("/link", document.id)
         .unwrap();
 
@@ -1023,4 +1023,67 @@ fn move_to_owned_folder_then_create_link() {
 }
 
 #[test]
-fn create_link_then_delete() {}
+fn create_link_then_delete() {
+    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let new_client = another_client(&cores[1][0]);
+    cores[1].push(new_client);
+    let accounts = cores
+        .iter()
+        .map(|cores| cores[0].get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0][0].create_at_path("/folder/").unwrap();
+    let document = cores[0][0].create_at_path("/folder/document").unwrap();
+    cores[0][0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0][0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0][0].sync(None).unwrap();
+
+    cores[1][0].sync(None).unwrap();
+    cores[1][0]
+        .create_link_at_path("/link", document.id)
+        .unwrap();
+
+    cores[1][1].sync(None).unwrap();
+    cores[1][1].delete_file(document.id).unwrap();
+
+    sync_and_assert(&cores[1][0], &cores[1][1]);
+
+    assert::all_paths(&cores[1][0], &["/"]);
+}
+
+#[test]
+fn delete_then_create_link() {
+    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let new_client = another_client(&cores[1][0]);
+    cores[1].push(new_client);
+    let accounts = cores
+        .iter()
+        .map(|cores| cores[0].get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0][0].create_at_path("/folder/").unwrap();
+    let document = cores[0][0].create_at_path("/folder/document").unwrap();
+    cores[0][0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0][0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0][0].sync(None).unwrap();
+
+    cores[1][0].sync(None).unwrap();
+    cores[1][0]
+        .create_link_at_path("/link", document.id)
+        .unwrap();
+
+    cores[1][1].sync(None).unwrap();
+    cores[1][1].delete_file(document.id).unwrap();
+
+    sync_and_assert(&cores[1][0], &cores[1][1]);
+
+    assert::all_paths(&cores[1][0], &["/"]);
+}
