@@ -1,8 +1,9 @@
 mod apple;
+mod secrets;
 mod server;
 mod utils;
 
-use std::env;
+use crate::secrets::{AppStore, Github};
 use structopt::StructOpt;
 
 #[derive(StructOpt)]
@@ -11,20 +12,9 @@ enum Releaser {
     ReleaseApple,
 }
 
-pub struct Secrets {
-    pub gh_token: String,
-}
-
-impl Secrets {
-    fn from_env_vars() -> Self {
-        let gh_token = env::var("GITHUB_TOKEN").unwrap();
-        Self { gh_token }
-    }
-}
-
 fn main() {
     match Releaser::from_args() {
         Releaser::DeployServer => server::deploy_server(),
-        Releaser::ReleaseApple => apple::release_apple(Secrets::from_env_vars()),
+        Releaser::ReleaseApple => apple::release_apple(&Github::env(), &AppStore::env()),
     }
 }
