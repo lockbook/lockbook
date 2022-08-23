@@ -1,10 +1,24 @@
 mod cli;
+mod core;
+mod ios;
+mod mac;
 
-use crate::Secrets;
+use crate::secrets::AppStore;
+use crate::Github;
+use std::fs;
+use std::path::Path;
 
-pub fn release_apple(secret: Secrets) {
-    cli::release(secret);
-    // (todo)
-    // release_ios();
-    // release_macos();
+pub fn release_apple(gh: &Github, asc: &AppStore) {
+    cli::release(gh);
+    core::build();
+    clean_build_dir();
+    ios::release(asc);
+    mac::release(asc, gh);
+}
+
+fn clean_build_dir() {
+    let build_dir = Path::new("clients/apple/build");
+    if build_dir.exists() {
+        fs::remove_dir_all("clients/apple/build").unwrap()
+    }
 }
