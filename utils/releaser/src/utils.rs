@@ -2,11 +2,12 @@ use gh_release::RepoInfo;
 use sha2::Digest;
 use sha2::Sha256;
 use std::fs;
-use std::process::Command;
+use std::process::{Command, Output};
 use toml::Value;
 
 pub trait CommandRunner {
     fn assert_success(&mut self);
+    fn success_output(&mut self) -> Output;
 }
 
 impl CommandRunner for Command {
@@ -14,6 +15,16 @@ impl CommandRunner for Command {
         if !self.status().unwrap().success() {
             panic!()
         }
+    }
+
+    fn success_output(&mut self) -> Output {
+        let out = self.output().unwrap();
+
+        if !out.status.success() {
+            panic!("{:#?}", out)
+        }
+
+        out
     }
 }
 
