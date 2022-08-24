@@ -43,7 +43,7 @@ pub trait FileLike: PartialEq + Debug + Clone + AsRef<FileMetadata> {
     fn is_shared(&self) -> bool {
         self.user_access_keys()
             .iter()
-            .any(|k| k.encrypted_for != k.encrypted_by)
+            .any(|k| !k.deleted && k.encrypted_for != k.encrypted_by)
     }
 }
 
