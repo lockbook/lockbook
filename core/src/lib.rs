@@ -240,9 +240,11 @@ impl Core {
 
     #[instrument(level = "debug", err(Debug))]
     pub fn delete_pending_share(&self, id: Uuid) -> Result<(), Error<DeletePendingShareError>> {
-        let val = self
-            .db
-            .transaction(|tx| self.context(tx)?.delete_pending_share(id))?;
+        let val = self.db.transaction(|tx| {
+            let mut context = self.context(tx)?;
+            let public_key = context.get_public_key()?;
+            context.delete_share(&id, Some(public_key))
+        })?;
         Ok(val?)
     }
 

@@ -1,3 +1,6 @@
+use crate::service::api_service;
+use crate::{CoreError, CoreResult, OneKey, RequestContext};
+use libsecp256k1::PublicKey;
 use lockbook_shared::access_info::{UserAccessInfo, UserAccessMode};
 use lockbook_shared::api::GetPublicKeyRequest;
 use lockbook_shared::file::{File, ShareMode};
@@ -7,10 +10,8 @@ use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::validate;
 use uuid::Uuid;
 
-use crate::service::api_service;
-use crate::{CoreError, CoreResult, RequestContext};
-
 impl RequestContext<'_, '_> {
+    // todo: move to tree, split non-validating version
     pub fn share_file(&mut self, id: Uuid, username: &str, mode: ShareMode) -> CoreResult<()> {
         let account = &self.get_account()?.clone(); // todo: don't clone
         let owner = Owner(self.get_public_key()?);
@@ -67,6 +68,7 @@ impl RequestContext<'_, '_> {
         Ok(())
     }
 
+    // todo: move to tree, split non-validating version
     pub fn get_pending_shares(&mut self) -> CoreResult<Vec<File>> {
         let account = &self.get_account()?.clone(); // todo: don't clone
         let owner = Owner(self.get_public_key()?);
@@ -109,59 +111,21 @@ impl RequestContext<'_, '_> {
         Ok(result)
     }
 
-    pub fn delete_pending_share(&mut self, id: Uuid) -> CoreResult<()> {
-        let account = &self.get_account()?.clone(); // todo: don't clone
-        let owner = Owner(self.get_public_key()?);
-        let mut tree = self
+    pub fn delete_share(
+        &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>,
+    ) -> CoreResult<()> {
+        let tree = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
-        let mut file = tree.find(&id)?.timestamped_value.value.clone();
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
 
-        // file must not be deleted
-        if tree.calculate_deleted(&id)? {
-            return Err(CoreError::FileNonexistent);
-        }
-        // file must be owned by another user
-        if file.owner() == owner {
-            return Err(CoreError::FileNotShared);
-        }
-        // must have access to file
-        if tree.access_mode(owner, &id)?.is_none() {
-            return Err(CoreError::FileNonexistent); // todo: put this shit everywhere
-        }
-        // file must be shared with this user
-        match file
-            .user_access_keys
-            .iter_mut()
-            .find(|user_access| user_access.encrypted_for == owner.0)
-        {
-            None => {
-                return Err(CoreError::FileNotShared);
-            }
-            Some(user_access) => {
-                user_access.deleted = true;
-                let mut new_tree = tree.stage(Some(file.sign(account)?));
-                new_tree = new_tree.validate(owner)?;
-                tree = new_tree.promote();
-            }
-        }
-        // file must not have any links pointing to it
-        for link_id in tree.owned_ids() {
-            let link = tree.find(&link_id)?;
-            if let FileType::Link { target } = link.file_type() {
-                if target == id {
-                    // delete the link pointing to it
-                    let mut link = link.timestamped_value.value.clone();
-                    link.is_deleted = true;
-                    let mut tree = tree.stage(Some(link.sign(account)?));
-                    tree = tree.validate(owner)?;
-                    tree.promote();
-                    break;
-                }
-            }
-        }
+        tree.delete_share(id, maybe_encrypted_for, account)?;
         Ok(())
     }
 }

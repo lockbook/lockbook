@@ -53,10 +53,10 @@ impl<T: Stagable> LazyTree<T> {
         loop {
             if file.parent() == file.id() {
                 return Ok(false); // root
-            } else if let Some(parent) = self.maybe_find(file.parent()) {
-                file = parent
             } else if let Some(link) = self.link(file.id())? {
                 file = self.find(&link)?
+            } else if let Some(parent) = self.maybe_find(file.parent()) {
+                file = parent
             } else {
                 return Ok(true); // share root
             }
