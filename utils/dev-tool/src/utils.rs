@@ -1,9 +1,8 @@
-use serde::{Deserialize, Serialize};
 use std::env::{self, VarError};
-use std::fs::{self, File};
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
+
+pub const SERVER_PORT: u16 = 8500;
 
 pub trait CommandRunner {
     fn assert_success(&mut self);
@@ -28,8 +27,8 @@ impl CommandRunner for Command {
     }
 }
 
-pub fn get_api_url(port: u16) -> String {
-    format!("http://localhost:{}", port)
+pub fn get_api_url() -> String {
+    format!("http://localhost:{}", SERVER_PORT)
 }
 
 pub fn android_dir<P: AsRef<Path>>(root: P) -> PathBuf {
@@ -112,10 +111,6 @@ pub fn server_dbs_dir<P: AsRef<Path>>(dev_dir: P) -> PathBuf {
     dev_dir.as_ref().join("server-db")
 }
 
-pub fn hash_infos_dir<P: AsRef<Path>>(dev_dir: P) -> PathBuf {
-    dev_dir.as_ref().join("hash-info")
-}
-
 pub fn is_ci_env() -> bool {
     match env::var("LOCKBOOK_CI") {
         Ok(is_ci) => match is_ci.as_str() {
@@ -127,54 +122,5 @@ pub fn is_ci_env() -> bool {
             VarError::NotPresent => false,
             _ => panic!("Unknown ci state: {:?}", e),
         },
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct HashInfo {
-    pub port: u16,
-    pub hash_info_dir: PathBuf,
-    pub server_db_dir: PathBuf,
-}
-
-impl HashInfo {
-    pub fn new<P: AsRef<Path>>(
-        hash_infos_dir: P, server_db_dir: P, commit_hash: &str, port: u16,
-    ) -> Self {
-        let hash_info_dir = hash_infos_dir.as_ref().join(commit_hash);
-
-        Self { port, hash_info_dir, server_db_dir: server_db_dir.as_ref().to_path_buf() }
-    }
-
-    pub fn get_from_dir<P: AsRef<Path>>(hash_infos_dir: P, commit_hash: &str) -> Self {
-        let hash_info_dir = hash_infos_dir.as_ref().join(commit_hash);
-
-        Self::maybe_get_at_path(hash_info_dir)
-            .expect("No hash info file found. Server may not be running or even built!")
-    }
-
-    pub fn maybe_get_from_dir<P: AsRef<Path>>(
-        hash_infos_dir: P, commit_hash: &str,
-    ) -> Option<Self> {
-        let hash_info_dir = hash_infos_dir.as_ref().join(commit_hash);
-        Self::maybe_get_at_path(hash_info_dir)
-    }
-
-    pub fn maybe_get_at_path<P: AsRef<Path>>(hash_info_dir: P) -> Option<Self> {
-        fs::read_to_string(hash_info_dir)
-            .ok()
-            .map(|contents| serde_json::from_str(&contents).unwrap())
-    }
-
-    pub fn save(&self) {
-        File::create(&self.hash_info_dir)
-            .unwrap()
-            .write_all(serde_json::to_string(self).unwrap().as_bytes())
-            .unwrap();
-    }
-
-    pub fn delete(&self) {
-        fs::remove_file(&self.hash_info_dir).unwrap();
-        fs::remove_dir_all(&self.server_db_dir).unwrap()
     }
 }

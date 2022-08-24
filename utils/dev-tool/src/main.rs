@@ -52,15 +52,11 @@ enum Commands {
 
     /// Make swift jni libs for tests
     MakeSwiftTestLib,
-
-    /// Kill all servers running
-    KillAllServers,
 }
 
 pub struct ToolEnvironment {
     root_dir: PathBuf,
     target_dir: PathBuf,
-    hash_info_dir: PathBuf,
     server_dbs_dir: PathBuf,
     commit_hash: String,
 }
@@ -70,10 +66,8 @@ fn main() {
     let dev_dir = utils::dev_dir();
     let target_dir = utils::target_dir(&dev_dir, &root_dir);
     let server_dbs_dir = utils::server_dbs_dir(&dev_dir);
-    let hash_info_dir = utils::hash_infos_dir(&dev_dir);
 
     fs::create_dir_all(&dev_dir).unwrap();
-    fs::create_dir_all(&hash_info_dir).unwrap();
     fs::create_dir_all(&target_dir).unwrap();
     fs::create_dir_all(&server_dbs_dir).unwrap();
 
@@ -82,7 +76,6 @@ fn main() {
     let tool_env = ToolEnvironment {
         root_dir,
         target_dir,
-        hash_info_dir,
         server_dbs_dir,
         commit_hash: utils::get_commit_hash(),
     };
@@ -101,7 +94,6 @@ fn main() {
         RunRustTests => server::run_rust_tests(&tool_env),
         RunKotlinTests => android::run_kotlin_tests(&tool_env),
         RunSwiftTests => apple::run_swift_tests(&tool_env),
-        KillServer => server::kill_server(&tool_env),
-        KillAllServers => server::kill_all_servers(&tool_env),
+        KillServer => server::kill_server(),
     }
 }
