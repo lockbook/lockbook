@@ -169,7 +169,7 @@ impl Core {
     ) -> Result<Vec<File>, Error<GetAndGetChildrenError>> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.get_and_get_children(&id))?;
+            .transaction(|tx| self.context(tx)?.get_and_get_children_recursively(&id))?;
         Ok(val?)
     }
 
