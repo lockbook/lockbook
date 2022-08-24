@@ -19,7 +19,7 @@
             android:layout_width="140dp"
             android:layout_height="140dp"
             android:layout_gravity="start"
-            android:src="@drawable/splash_background"
+            android:src="@drawable/large_foreground"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
