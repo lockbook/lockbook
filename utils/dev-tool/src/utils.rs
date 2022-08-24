@@ -2,7 +2,7 @@ use std::env::{self, VarError};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
-pub const SERVER_PORT: u16 = 8500;
+pub const SERVER_PORT: u16 = 8501;
 
 pub trait CommandRunner {
     fn assert_success(&mut self);
