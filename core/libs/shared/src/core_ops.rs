@@ -150,6 +150,52 @@ where
         Ok(self.stage(Some(file)))
     }
 
+    pub fn delete_share(
+        self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
+    ) -> SharedResult<LazyStaged1<Base, Local>> {
+        let mut tree = self.stage_delete_share(id, maybe_encrypted_for, account)?;
+        tree = tree.validate(Owner(account.public_key()))?;
+        let tree = tree.promote();
+        Ok(tree)
+    }
+
+    pub fn stage_delete_share(
+        self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
+    ) -> SharedResult<TreeWithOps<Base, Local>> {
+        let mut result = self.stage(Vec::new());
+        let mut file = result.find(id)?.timestamped_value.value.clone();
+
+        let mut found = false;
+        for key in file.user_access_keys.iter_mut() {
+            if let Some(encrypted_for) = maybe_encrypted_for {
+                if !key.deleted && key.encrypted_for == encrypted_for {
+                    found = true;
+                    key.deleted = true;
+                }
+            } else if !key.deleted {
+                found = true;
+                key.deleted = true;
+            }
+        }
+        if !found {
+            return Err(SharedError::FileNonexistent);
+        }
+        result = result.stage(Some(file.sign(account)?)).promote();
+
+        // delete any links pointing to file
+        if let Some(encrypted_for) = maybe_encrypted_for {
+            if encrypted_for == account.public_key() {
+                if let Some(link) = result.link(id)? {
+                    let mut link = result.find(&link)?.timestamped_value.value.clone();
+                    link.is_deleted = true;
+                    result = result.stage(Some(link.sign(account)?)).promote();
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
     pub fn read_document(
         mut self, config: &Config, id: &Uuid, account: &Account,
     ) -> SharedResult<(Self, DecryptedDocument)> {
@@ -383,6 +429,82 @@ where
             }
         }
 
+        Ok(result)
+    }
+
+    pub fn deduplicate_links(self, account: &Account) -> SharedResult<TreeWithOps<Base, Local>> {
+        let mut result = self.stage(Vec::new());
+
+        let mut base_link_targets = HashSet::new();
+        for id in result.tree.base.base.owned_ids() {
+            if let FileType::Link { target } = result.find(&id)?.file_type() {
+                base_link_targets.insert(target);
+            }
+        }
+
+        for id in result.tree.base.staged.owned_ids() {
+            if let FileType::Link { target } = result.find(&id)?.file_type() {
+                if base_link_targets.contains(&target) {
+                    result = result.stage_delete(&id, account)?.promote();
+                }
+            }
+        }
+        Ok(result)
+    }
+
+    pub fn resolve_shared_links(
+        mut self, account: &Account,
+    ) -> SharedResult<TreeWithOps<Base, Local>> {
+        let mut base_shared_files = HashSet::new();
+        let mut base_links = HashSet::new();
+        let (base, local_changes) = self.unstage();
+        for id in base.owned_ids() {
+            let file = base.find(&id)?;
+            if file.is_shared() {
+                base_shared_files.insert(id);
+            }
+            if matches!(file.file_type(), FileType::Link { .. }) {
+                base_links.insert(id);
+            }
+        }
+        self = base.stage(local_changes);
+
+        let mut result = self.stage(Vec::new());
+        for id in result.tree.base.staged.owned_ids() {
+            if result.find(&id)?.is_shared() {
+                for descendant in result.descendants(&id)? {
+                    if base_links.contains(&descendant) {
+                        // unshare newly shared folder with link inside
+                        result = result.stage_delete_share(&id, None, account)?.promote();
+                    }
+                }
+            }
+            if !result.ancestors(&id)?.is_disjoint(&base_shared_files)
+                && matches!(result.find(&id)?.file_type(), FileType::Link { .. })
+            {
+                // delete new link in shared folder
+                result = result.stage_delete(&id, account)?.promote();
+            }
+        }
+        Ok(result)
+    }
+
+    pub fn resolve_owned_links(self, account: &Account) -> SharedResult<TreeWithOps<Base, Local>> {
+        let mut result = self.stage(Vec::new());
+
+        for id in result.tree.base.staged.owned_ids() {
+            if let FileType::Link { target } = result.find(&id)?.file_type() {
+                if result.find(&target)?.owner().0 == account.public_key() {
+                    // delete new link to owned file
+                    result = result.stage_delete(&id, account)?.promote();
+                }
+            }
+            if result.find(&id)?.owner().0 == account.public_key() && result.link(&id)?.is_some() {
+                // unmove newly owned file with a link targeting it
+                let old_parent = *result.tree.base.base.find(&id)?.parent();
+                result = result.stage_move(&id, &old_parent, account)?.promote();
+            }
+        }
         Ok(result)
     }
 }
@@ -645,6 +767,9 @@ where
         let mut result = result.promote();
         result = result.unmove_moved_files_in_cycles(account)?.promote();
         result = result.rename_files_with_path_conflicts(account)?.promote();
+        result = result.deduplicate_links(account)?.promote();
+        result = result.resolve_shared_links(account)?.promote();
+        result = result.resolve_owned_links(account)?.promote();
 
         Ok((result, merge_document_changes))
     }
