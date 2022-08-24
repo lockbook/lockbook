@@ -3,6 +3,7 @@ use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileType, Owner};
 use lockbook_shared::tree_like::{Stagable, TreeLike};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
@@ -120,9 +121,30 @@ impl RequestContext<'_, '_> {
 
         let mut files = Vec::new();
 
+        let mut parent_substitutions = HashMap::new();
+
         for id in tree.owned_ids() {
             if !tree.calculate_deleted(&id)? {
-                files.push(tree.finalize(&id, account)?);
+                let file = tree.find(&id)?;
+                match file.file_type() {
+                    FileType::Document | FileType::Folder => {
+                        files.push(tree.finalize(&id, account)?)
+                    }
+                    FileType::Link { target } => {
+                        parent_substitutions.insert(target, id);
+                        let mut old_file = tree.finalize(&target, account)?;
+                        old_file.name = tree.name(&id, account)?;
+                        old_file.parent = id;
+                        let file = old_file;
+                        files.push(file);
+                    }
+                }
+            }
+        }
+
+        for item in &mut files {
+            if let Some(new_parent) = parent_substitutions.get(&item.id) {
+                item.parent = *new_parent;
             }
         }
 
