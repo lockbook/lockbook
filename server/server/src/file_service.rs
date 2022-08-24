@@ -1,3 +1,4 @@
+use crate::account_service::is_admin;
 use crate::ServerError;
 use crate::ServerError::ClientError;
 use crate::{document_service, RequestContext};
@@ -10,6 +11,7 @@ use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use std::collections::HashSet;
+use tracing::error;
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, UpsertRequest>,
@@ -322,4 +324,47 @@ pub async fn get_updates(
             file_metadata: result,
         })
     })?
+}
+
+pub async fn admin_disappear_file(
+    context: RequestContext<'_, AdminDisappearFileRequest>,
+) -> Result<(), ServerError<AdminDisappearFileError>> {
+    let db = &context.server_state.index_db;
+    if !is_admin::<AdminDisappearFileError>(
+        db,
+        &context.public_key,
+        &context.server_state.config.admin.admins,
+    )? {
+        return Err(ClientError(AdminDisappearFileError::NotPermissioned));
+    }
+
+    context
+        .server_state
+        .index_db
+        .transaction::<_, Result<(), ServerError<_>>>(|tx| {
+            let meta = tx
+                .metas
+                .delete(context.request.id)
+                .ok_or(ClientError(AdminDisappearFileError::FileNonexistent))?;
+
+            let owner = meta.owner();
+            let mut owned_files = tx.owned_files.delete(owner).ok_or_else(|| {
+                internal!(
+                    "Attempted to disappear a file, the owner was not present, id: {}, owner: {:?}",
+                    context.request.id,
+                    owner
+                )
+            })?;
+            if !owned_files.remove(&context.request.id) {
+                error!(
+                    "attempted to disappear a file, the owner didn't own it id: {}, owner: {:?}",
+                    context.request.id, owner
+                );
+            }
+            tx.owned_files.insert(owner, owned_files);
+
+            Ok(())
+        })??;
+
+    Ok(())
 }
