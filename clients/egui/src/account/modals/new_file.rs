@@ -68,44 +68,41 @@ impl super::Modal for NewFileModal {
                 ui.label("Name:");
 
                 // The new file's name and extension.
-                ui.with_layout(
-                    egui::Layout::left_to_right().with_cross_align(egui::Align::Center),
-                    |ui| {
-                        ui.set_max_width(300.0);
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    ui.set_max_width(300.0);
 
-                        let out = egui::TextEdit::singleline(&mut self.new_name)
-                            .margin(egui::vec2(8.0, 8.0))
-                            .hint_text("Name...")
-                            .show(ui);
+                    let out = egui::TextEdit::singleline(&mut self.new_name)
+                        .margin(egui::vec2(8.0, 8.0))
+                        .hint_text("Name...")
+                        .show(ui);
 
-                        if out.response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
-                            if self.new_name.is_empty() {
-                                self.err_msg = Some("File names cannot be empty!".to_string());
-                            } else {
-                                let name = format!(
-                                    "{}{}",
-                                    self.new_name,
-                                    self.ftype.ext().unwrap_or_default()
-                                );
-                                maybe_submission = Some(NewFileParams {
-                                    ftype: self.ftype.as_lb_type(),
-                                    parent_path: self.parent_path.clone(),
-                                    name,
-                                });
-                            }
+                    if out.response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
+                        if self.new_name.is_empty() {
+                            self.err_msg = Some("File names cannot be empty!".to_string());
+                        } else {
+                            let name = format!(
+                                "{}{}",
+                                self.new_name,
+                                self.ftype.ext().unwrap_or_default()
+                            );
+                            maybe_submission = Some(NewFileParams {
+                                ftype: self.ftype.as_lb_type(),
+                                parent_path: self.parent_path.clone(),
+                                name,
+                            });
                         }
+                    }
 
-                        // If this is the first frame for the modal, or if a file type was
-                        // selected, focus the name input field.
-                        if self.name_field_needs_focus {
-                            out.response.request_focus();
-                        }
+                    // If this is the first frame for the modal, or if a file type was
+                    // selected, focus the name input field.
+                    if self.name_field_needs_focus {
+                        out.response.request_focus();
+                    }
 
-                        if let Some(ext) = self.ftype.ext() {
-                            ui.label(ext);
-                        }
-                    },
-                );
+                    if let Some(ext) = self.ftype.ext() {
+                        ui.label(ext);
+                    }
+                });
 
                 ui.end_row();
             });
