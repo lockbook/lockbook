@@ -37,6 +37,9 @@ enum Commands {
     /// Run the swift integration tests
     RunSwiftTests,
 
+    /// Print server logs
+    PrintServerLogs,
+
     /// Kill the server for commit hash
     KillServer,
 
@@ -94,6 +97,7 @@ fn main() {
         RunRustTests => server::run_rust_tests(&tool_env),
         RunKotlinTests => android::run_kotlin_tests(&tool_env),
         RunSwiftTests => apple::run_swift_tests(&tool_env),
-        KillServer => server::kill_server(),
+        PrintServerLogs => server::print_server_logs(&tool_env),
+        KillServer => server::kill_server(&tool_env),
     }
 }
