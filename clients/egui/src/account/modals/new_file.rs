@@ -69,7 +69,7 @@ impl super::Modal for NewFileModal {
 
                 // The new file's name and extension.
                 ui.with_layout(
-                    egui::Layout::left_to_right().with_cross_align(egui::Align::Center),
+                    egui::Layout::left_to_right(egui::Align::Center),
                     |ui| {
                         ui.set_max_width(300.0);
 
