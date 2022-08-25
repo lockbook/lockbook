@@ -72,8 +72,7 @@ impl Markdown {
             .show(ui, |ui| {
                 let initial_size = egui::vec2(ui.available_width(), ui.spacing().interact_size.y);
 
-                let layout = egui::Layout::left_to_right(egui::Align::Center)
-                    .with_main_wrap(true);
+                let layout = egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true);
 
                 ui.allocate_ui_with_layout(initial_size, layout, |ui| {
                     ui.spacing_mut().item_spacing.x = 0.0;
