@@ -76,10 +76,13 @@ impl super::AccountScreen {
                                     ui.label(&usage.used);
                                 });
 
-                                uis[1].with_layout(egui::Layout::right_to_left(), |ui| {
-                                    ui.add_space(15.0);
-                                    ui.label(&usage.available);
-                                });
+                                uis[1].with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Min),
+                                    |ui| {
+                                        ui.add_space(15.0);
+                                        ui.label(&usage.available);
+                                    },
+                                );
                             });
                         });
 
@@ -103,7 +106,7 @@ impl super::AccountScreen {
         let desired_size = egui::vec2(ui.available_size_before_wrap().x, 40.0);
         ui.allocate_ui_with_layout(
             desired_size,
-            egui::Layout::left_to_right().with_cross_align(egui::Align::Center),
+            egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
                 ui.add_space(6.0);
 
@@ -120,23 +123,20 @@ impl super::AccountScreen {
                     Err(msg) => ui.label(egui::RichText::new(msg).color(egui::Color32::RED)),
                 };
 
-                ui.with_layout(
-                    egui::Layout::right_to_left().with_cross_align(egui::Align::Center),
-                    |ui| {
-                        ui.add_space(7.0);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add_space(7.0);
 
-                        if Button::default()
-                            .icon(&Icon::SYNC)
-                            .stroke((1.25, ui.visuals().extreme_bg_color))
-                            .rounding(egui::Rounding::same(3.0))
-                            .padding((6.0, 6.0))
-                            .show(ui)
-                            .clicked()
-                        {
-                            self.perform_sync(ui.ctx());
-                        }
-                    },
-                );
+                    if Button::default()
+                        .icon(&Icon::SYNC)
+                        .stroke((1.25, ui.visuals().extreme_bg_color))
+                        .rounding(egui::Rounding::same(3.0))
+                        .padding((6.0, 6.0))
+                        .show(ui)
+                        .clicked()
+                    {
+                        self.perform_sync(ui.ctx());
+                    }
+                });
             },
         );
 
