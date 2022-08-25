@@ -7,7 +7,7 @@ pub struct HelpModal;
 impl HelpModal {
     pub fn show(&mut self, ui: &mut egui::Ui) {
         TableBuilder::new(ui)
-            .cell_layout(egui::Layout::left_to_right().with_cross_align(egui::Align::Center))
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
             .striped(true)
             .column(Size::exact(120.0))
             .column(Size::remainder().at_least(60.0))
