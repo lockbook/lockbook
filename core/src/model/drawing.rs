@@ -8,7 +8,7 @@ use image::codecs::jpeg::JpegEncoder;
 use image::codecs::png::PngEncoder;
 use image::codecs::pnm::PnmEncoder;
 use image::codecs::tga::TgaEncoder;
-use image::ColorType;
+use image::{ColorType, ImageEncoder};
 use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 use raqote::{
     DrawOptions, DrawTarget, LineCap, LineJoin, PathBuilder, SolidSource, Source, StrokeStyle,
@@ -177,7 +177,7 @@ pub fn export_drawing(
     }
 
     match format {
-        SupportedImageFormats::Png => PngEncoder::new(&mut buf_writer).encode(
+        SupportedImageFormats::Png => PngEncoder::new(&mut buf_writer).write_image(
             drawing_bytes.as_slice(),
             width,
             height,
