@@ -424,5 +424,23 @@ impl Request for AdminDeleteAccountRequest {
     const ROUTE: &'static str = "/admin-delete-account";
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminDisappearFileRequest {
+    pub id: Uuid,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminDisappearFileError {
+    NotPermissioned,
+    FileNonexistent,
+}
+
+impl Request for AdminDisappearFileRequest {
+    type Response = ();
+    type Error = AdminDisappearFileError;
+    const METHOD: Method = Method::DELETE;
+    const ROUTE: &'static str = "/admin-disappear-file";
+}
+
 // number of milliseconds that have elapsed since the unix epoch
 pub type UnixTimeMillis = u64;

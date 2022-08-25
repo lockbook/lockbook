@@ -1019,6 +1019,30 @@ impl From<CoreError> for Error<AdminDeleteAccountError> {
 }
 
 #[derive(Debug, Serialize, EnumIter)]
+pub enum AdminDisappearFileError {
+    InsufficientPermission,
+    FileNotFound,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<AdminDisappearFileError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::InsufficientPermission => {
+                UiError(AdminDisappearFileError::InsufficientPermission)
+            }
+            CoreError::UsernameNotFound => UiError(AdminDisappearFileError::FileNotFound),
+            CoreError::ServerUnreachable => UiError(AdminDisappearFileError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => {
+                UiError(AdminDisappearFileError::ClientUpdateRequired)
+            }
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
 pub enum FeatureFlagError {
     InsufficientPermission,
     CouldNotReachServer,

@@ -481,6 +481,14 @@ impl Core {
             .transaction(|tx| self.context(tx)?.delete_account(username))?;
         Ok(val?)
     }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn admin_disappear_file(&self, id: Uuid) -> Result<(), Error<AdminDisappearFileError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.disappear_file(id))?;
+        Ok(val?)
+    }
 }
 
 pub fn get_code_version() -> &'static str {
