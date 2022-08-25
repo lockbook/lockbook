@@ -2871,7 +2871,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "atty",
  "chrono",
@@ -2885,7 +2885,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-core"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "backtrace",
  "base64 0.11.0",
@@ -2926,7 +2926,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-desktop"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "gdk-pixbuf",
  "gio",
@@ -2969,7 +2969,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "async-stripe",
  "atomic-counter",
