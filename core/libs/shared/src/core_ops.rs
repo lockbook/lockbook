@@ -231,8 +231,13 @@ where
     pub fn write_document(
         self, config: &Config, id: &Uuid, document: &[u8], account: &Account,
     ) -> SharedResult<Self> {
-        let (tree, document) = self.update_document(id, document, account)?;
-        tree.write_document_content(config, RepoSource::Local, id, &document)?;
+        let id = match self.find(id)?.file_type() {
+            FileType::Document | FileType::Folder => *id,
+            FileType::Link { target } => target,
+        };
+
+        let (tree, document) = self.update_document(&id, document, account)?;
+        tree.write_document_content(config, RepoSource::Local, &id, &document)?;
 
         Ok(tree)
     }
