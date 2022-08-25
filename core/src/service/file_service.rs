@@ -3,6 +3,7 @@ use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileType, Owner};
 use lockbook_shared::tree_like::{Stagable, TreeLike};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
@@ -120,9 +121,32 @@ impl RequestContext<'_, '_> {
 
         let mut files = Vec::new();
 
+        let mut parent_substitutions = HashMap::new();
+
         for id in tree.owned_ids() {
             if !tree.calculate_deleted(&id)? {
-                files.push(tree.finalize(&id, account)?);
+                let finalized = tree.finalize(&id, account)?;
+                match finalized.file_type {
+                    FileType::Document | FileType::Folder => files.push(finalized),
+                    FileType::Link { target } => {
+                        let mut target_file = tree.finalize(&target, account)?;
+                        if target_file.is_folder() {
+                            parent_substitutions.insert(target, id);
+                        }
+
+                        target_file.id = finalized.id;
+                        target_file.parent = finalized.parent;
+                        target_file.name = finalized.name;
+
+                        files.push(target_file);
+                    }
+                }
+            }
+        }
+
+        for item in &mut files {
+            if let Some(new_parent) = parent_substitutions.get(&item.id) {
+                item.parent = *new_parent;
             }
         }
 
@@ -141,16 +165,21 @@ impl RequestContext<'_, '_> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
+        let id = match tree.find(id)?.file_type() {
+            FileType::Document | FileType::Folder => *id,
+            FileType::Link { target } => target,
+        };
+
         let mut children = Vec::new();
 
-        for id in tree.children(id)? {
+        for id in tree.children(&id)? {
             children.push(tree.finalize(&id, account)?);
         }
 
         Ok(children)
     }
 
-    pub fn get_and_get_children(&mut self, id: &Uuid) -> CoreResult<Vec<File>> {
+    pub fn get_and_get_children_recursively(&mut self, id: &Uuid) -> CoreResult<Vec<File>> {
         let mut tree = self
             .tx
             .base_metadata
@@ -162,9 +191,14 @@ impl RequestContext<'_, '_> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let mut files = vec![tree.finalize(id, account)?];
+        let id = match tree.find(id)?.file_type() {
+            FileType::Document | FileType::Folder => *id,
+            FileType::Link { target } => target,
+        };
 
-        for id in tree.children(id)? {
+        let mut files = vec![tree.finalize(&id, account)?];
+
+        for id in tree.descendants(&id)? {
             files.push(tree.finalize(&id, account)?);
         }
 

@@ -3,8 +3,9 @@ use lockbook_core::{
     CreateFileAtPathError, CreateFileError, CreateLinkAtPathError, DeletePendingShareError, Error,
     FileDeleteError, MoveFileError, RenameFileError, ShareFileError, WriteToDocumentError,
 };
-use lockbook_shared::file::ShareMode;
+use lockbook_shared::file::{File, ShareMode};
 use lockbook_shared::file_metadata::FileType;
+use std::collections::HashMap;
 use test_utils::*;
 use uuid::Uuid;
 
@@ -59,6 +60,42 @@ fn write_document_write_share() {
     cores[1].sync(None).unwrap();
     cores[1]
         .write_document(document0.id, b"document content by sharee")
+        .unwrap();
+    assert_eq!(cores[1].read_document(document0.id).unwrap(), b"document content by sharee");
+    cores[1].sync(None).unwrap();
+    cores[0].sync(None).unwrap();
+    assert_eq!(cores[0].read_document(document0.id).unwrap(), b"document content by sharee");
+}
+
+#[test]
+fn write_document_write_share_by_link() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let document0 = cores[0]
+        .create_file("document0", roots[0].id, FileType::Document)
+        .unwrap();
+    cores[0]
+        .write_document(document0.id, b"document content by sharer")
+        .unwrap();
+    cores[0]
+        .share_file(document0.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    let link_id = cores[1]
+        .create_file("link0", roots[1].id, FileType::Link { target: document0.id })
+        .unwrap();
+    cores[1]
+        .write_document(link_id.id, b"document content by sharee")
         .unwrap();
     assert_eq!(cores[1].read_document(document0.id).unwrap(), b"document content by sharee");
     cores[1].sync(None).unwrap();
@@ -1023,4 +1060,69 @@ fn delete_write_shared_folder() {
         .unwrap();
     let result = cores[1].delete_file(folder.id);
     assert_matches!(result, Err(UiError(FileDeleteError::InsufficientPermission)));
+}
+
+#[test]
+fn list_metadatas_resolves_links() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder_id = cores[0]
+        .create_file("folder", roots[0].id, FileType::Folder)
+        .unwrap()
+        .id;
+    cores[0].create_at_path("folder/file1.md").unwrap();
+    cores[0].create_at_path("folder/file2.md").unwrap();
+    cores[0].create_at_path("folder/file3.md").unwrap();
+    cores[0].create_at_path("folder/folder2/file4.md").unwrap();
+    cores[0]
+        .share_file(folder_id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+
+    let link_id = cores[1]
+        .create_file("folder_link", roots[1].id, FileType::Link { target: folder_id })
+        .unwrap()
+        .id;
+
+    let mut files: Vec<HashMap<Uuid, File>> = vec![HashMap::new(), HashMap::new()];
+
+    // no links
+    for (index, core) in cores.iter().enumerate() {
+        for file in core.list_metadatas().unwrap() {
+            if !file.is_document() && !file.is_folder() {
+                panic!("non document / folder file found: {:#?}", file);
+            }
+            files[index].insert(file.id, file);
+        }
+    }
+
+    // no orphans
+    for (index, core) in cores.iter().enumerate() {
+        for file in core.list_metadatas().unwrap() {
+            assert!(files[index].contains_key(&file.parent));
+        }
+    }
+
+    // link id should be present in core1
+    assert!(files[1].contains_key(&link_id));
+
+    // Check children of links
+    assert_eq!(cores[1].get_children(link_id).unwrap().len(), 4);
+    assert_eq!(
+        cores[1]
+            .get_and_get_children_recursively(link_id)
+            .unwrap()
+            .len(),
+        6
+    );
 }
