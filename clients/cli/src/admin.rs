@@ -1,8 +1,10 @@
-use crate::{CliError, Uuid};
+use crate::CliError;
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::Confirm;
-use lockbook_core::{AdminDeleteAccountError, AdminDisappearFileError, Core, Error};
 use structopt::StructOpt;
+
+use lockbook_core::Uuid;
+use lockbook_core::{AdminDeleteAccountError, AdminDisappearFileError, Core, Error};
 
 #[derive(Debug, PartialEq, Eq, StructOpt)]
 pub enum Admin {
