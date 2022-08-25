@@ -1,11 +1,6 @@
 #[cfg(windows)]
-fn main() -> io::Result<()> {
-    use std::io;
-    use winres::WindowsResource;
-
-    WindowsResource::new().set_icon("lockbook.ico").compile()?;
-
-    Ok(())
+fn main() -> std::io::Result<()> {
+    winres::WindowsResource::new().set_icon("lockbook.ico").compile()
 }
 
 #[cfg(not(windows))]
