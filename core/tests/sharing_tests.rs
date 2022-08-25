@@ -68,6 +68,42 @@ fn write_document_write_share() {
 }
 
 #[test]
+fn write_document_write_share_by_link() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let document0 = cores[0]
+        .create_file("document0", roots[0].id, FileType::Document)
+        .unwrap();
+    cores[0]
+        .write_document(document0.id, b"document content by sharer")
+        .unwrap();
+    cores[0]
+        .share_file(document0.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    let link_id = cores[1]
+        .create_file("link0", roots[1].id, FileType::Link { target: document0.id })
+        .unwrap();
+    cores[1]
+        .write_document(link_id.id, b"document content by sharee")
+        .unwrap();
+    assert_eq!(cores[1].read_document(document0.id).unwrap(), b"document content by sharee");
+    cores[1].sync(None).unwrap();
+    cores[0].sync(None).unwrap();
+    assert_eq!(cores[0].read_document(document0.id).unwrap(), b"document content by sharee");
+}
+
+#[test]
 fn share_file_root() {
     let core = test_core_with_account();
     let sharee_core = test_core_with_account();
