@@ -39,6 +39,8 @@ buildscript {
         fab_speed_dial = '3.3.0'
         billing_version = '5.0.0'
         donut_chart_version = '2.2.2'
+
+        maybeStoreFile = System.getenv("ANDROID_RELEASE_STORE_FILE")
     }
 
     repositories {

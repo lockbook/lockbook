@@ -17,6 +17,18 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        release {
+            if(maybeStoreFile != null) {
+                storeFile file(maybeStoreFile)
+            }
+
+            storePassword System.getenv("ANDROID_RELEASE_STORE_PASSWORD")
+            keyAlias System.getenv("ANDROID_RELEASE_KEY_ALIAS")
+            keyPassword System.getenv("ANDROID_RELEASE_KEY_PASSWORD")
+        }
+    }
+
     lintOptions {
         warningsAsErrors true
         htmlReport false
@@ -27,6 +39,8 @@ android {
 
     buildTypes {
         release {
+            signingConfig signingConfigs.release
+
             minifyEnabled false
 	        zipAlignEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'

@@ -11,7 +11,7 @@ static MAC_LIB_DIR: &str = "clients/apple/CLockbookCore/Sources/CLockbookCore/li
 static LIB: &str = "liblockbook_core.a";
 static HEAD: &str = "lockbook_core.h";
 
-pub fn build() {
+pub fn build_apple() {
     clean_dirs();
     header();
     build_libs();

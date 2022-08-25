@@ -1,3 +1,4 @@
+mod android;
 mod apple;
 mod secrets;
 mod server;
@@ -10,11 +11,13 @@ use structopt::StructOpt;
 enum Releaser {
     DeployServer,
     ReleaseApple,
+    ReleaseAndroid,
 }
 
 fn main() {
     match Releaser::from_args() {
         Releaser::DeployServer => server::deploy_server(),
         Releaser::ReleaseApple => apple::release_apple(&Github::env(), &AppStore::env()),
+        Releaser::ReleaseAndroid => android::release_android(&Github::env()),
     }
 }

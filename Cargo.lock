@@ -4143,6 +4143,7 @@ name = "releaser"
 version = "0.1.0"
 dependencies = [
  "gh_release",
+ "google-androidpublisher3",
  "hex",
  "sha2 0.10.2",
  "structopt",
