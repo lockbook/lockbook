@@ -10,7 +10,7 @@ pub use error::ErrorModal;
 pub use help::HelpModal;
 pub use new_file::{NewFileModal, NewFileParams};
 pub use search::SearchModal;
-pub use settings::SettingsModal;
+pub use settings::{SettingsModal, SettingsResponse};
 
 use eframe::egui;
 
@@ -33,6 +33,11 @@ impl super::AccountScreen {
         if let Some(response) = show(ctx, x_offset, &mut self.modals.settings) {
             if response.closed {
                 self.save_settings();
+            } else if let Some(inner) = response.inner {
+                use SettingsResponse::*;
+                match inner {
+                    SuccessfullyUpgraded => self.refresh_sync_status(ctx),
+                }
             }
         }
 

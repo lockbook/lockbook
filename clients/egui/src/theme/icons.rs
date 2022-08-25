@@ -6,10 +6,11 @@ pub struct Icon {
     icon: &'static str,
     size: f32,
     color: Option<egui::Color32>,
+    weak: bool,
 }
 
 const fn ic(c: &'static str) -> Icon {
-    Icon { icon: c, size: 20.0, color: None }
+    Icon { icon: c, size: 20.0, color: None, weak: false }
 }
 
 impl Icon {
@@ -22,12 +23,15 @@ impl Icon {
     pub const CONTENT_COPY: Self = ic("\u{e14d}"); // Content Copy
     pub const DOC_UNKNOWN: Self = ic("\u{e06f}"); // Note
     pub const DOC_TEXT: Self = ic("\u{e873}"); // Description
+    pub const DONE: Self = ic("\u{e876}"); // Done
     pub const DRAW: Self = ic("\u{e746}"); // Draw
     pub const EDIT: Self = ic("\u{e254}"); // Mode Edit
     pub const FOLDER: Self = ic("\u{e2c7}"); // Folder
     pub const FOLDER_OPEN: Self = ic("\u{e2c8}"); // Folder Open
     pub const HIGHLIGHT_OFF: Self = ic("\u{e888}"); // Highlight Off
     pub const IMAGE: Self = ic("\u{e3f4}"); // Image
+    pub const INFO: Self = ic("\u{e88e}");
+    pub const MONEY: Self = ic("\u{e263}"); // Monetization On
     pub const PLACE_ITEM: Self = ic("\u{f1f0}"); // Place Item
     pub const PREVIEW: Self = ic("\u{f1c5}"); // Preview
     pub const SETTINGS: Self = ic("\u{e8b8}"); // Settings
@@ -35,6 +39,7 @@ impl Icon {
     pub const SYNC: Self = ic("\u{e863}"); // Auto-renew
     pub const SYNC_DISABLED: Self = ic("\u{e628}"); // Sync Disabled
     pub const SYNC_PROBLEM: Self = ic("\u{e629}"); // Sync Problem
+    pub const THUMBS_UP: Self = ic("\u{e8dc}"); // Thumbs Up
     pub const VERTICAL_SPLIT: Self = ic("\u{e949}"); // Vertical Split
     pub const VIDEO_LABEL: Self = ic("\u{e071}"); // Video Label
     pub const VISIBILITY_ON: Self = ic("\u{e8f4}"); // Visibility On
@@ -46,7 +51,6 @@ impl Icon {
     //pub const EDIT_OFF: Self = ic("\u{e950}"); // Edit Off
     //pub const FIND_REPLACE: Self = ic("\u{e881}"); // Find Replace
     //pub const ACCOUNT: Self = Self('\u{e853}');
-    //pub const INFO: Self = Self('\u{e88e}');
     //pub const SHIELD: Self = Self("\u{e8e8}");
     //pub const SHIELD_OFF: Self = Self("\u{e9d4}");
     //pub const VISIBILITY_OFF: Self = Self("\u{e8f5}");
@@ -64,6 +68,10 @@ impl Icon {
         this.size = sz;
         this
     }
+
+    pub fn weak(self, weak: bool) -> Self {
+        Self { weak, ..self }
+    }
 }
 
 impl From<&Icon> for egui::WidgetText {
@@ -71,6 +79,9 @@ impl From<&Icon> for egui::WidgetText {
         let mut rt = egui::RichText::new(ic.icon).font(egui::FontId::monospace(ic.size));
         if let Some(color) = ic.color {
             rt = rt.color(color);
+        }
+        if ic.weak {
+            rt = rt.weak();
         }
 
         rt.into()
