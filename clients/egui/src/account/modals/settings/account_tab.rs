@@ -22,7 +22,7 @@ impl super::SettingsModal {
                     .horizontal(|mut strip| {
                         strip.cell(|ui| {
                             if ui.button("Copy to Clipboard").clicked() {
-                                Clipboard::default().set(key.to_owned());
+                                Clipboard::new(None).set(key.to_owned());
                             }
                         });
                         strip.cell(|ui| {

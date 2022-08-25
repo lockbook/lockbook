@@ -111,9 +111,9 @@ impl eframe::App for Lockbook {
         }
     }
 
-    /// We override `on_exit_event` in order to give the Account screen a chance to close any open
+    /// We override `on_close_event` in order to give the Account screen a chance to close any open
     /// modals or dialogs via a window close event.
-    fn on_exit_event(&mut self) -> bool {
+    fn on_close_event(&mut self) -> bool {
         match self {
             Self::Account(screen) => !screen.close_something(),
             _ => true,

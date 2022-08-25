@@ -5,9 +5,9 @@ edition = "2021"
 
 [dependencies]
 lb = { package = "lockbook-core", path = "../../core", default-features = false, features=["native-tls"] }
-eframe = "0.18.0"
-egui-winit = "0.18.0"
-egui_extras = { version = "0.18.0", features = ["image"] }
+eframe = "0.19.0"
+egui-winit = "0.19.0"
+egui_extras = { version = "0.19.0", features = ["image"] }
 image = { version = "0.24", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "ico"] }
 dark-light = "0.2.2"
 pulldown-cmark = "0.9.2"

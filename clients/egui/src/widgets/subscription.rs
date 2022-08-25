@@ -68,7 +68,7 @@ fn usage_bar(
         ui.columns(2, |uis| {
             uis[0].label(&format!("{}    ({:.2} %)", human_usage, percent));
 
-            uis[1].with_layout(egui::Layout::right_to_left(), |ui| {
+            uis[1].with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                 ui.label(&lb::bytes_to_human(available as u64));
             });
         });
