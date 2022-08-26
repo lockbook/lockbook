@@ -4,7 +4,6 @@ use crate::Github;
 use gh_release::ReleaseClient;
 use google_androidpublisher3::api::AppEdit;
 use google_androidpublisher3::{hyper, hyper_rustls, oauth2, AndroidPublisher};
-use std::fs;
 use std::fs::File;
 use std::process::Command;
 
@@ -12,12 +11,13 @@ mod core;
 
 const OUTPUTS: &str = "clients/android/app/build/outputs";
 const PACKAGE: &str = "app.lockbook";
+const RELEASE: &str = "release/app-release";
 
-pub fn release_android(gh: &Github) {
+pub async fn release_android(gh: &Github) {
     core::build_libs();
     build_android();
     release_gh(gh);
-    release_play_store();
+    release_play_store().await;
 }
 
 fn build_android() {
@@ -30,12 +30,6 @@ fn build_android() {
         .args(["bundleRelease"])
         .current_dir("clients/android")
         .assert_success();
-
-    fs::rename(
-        format!("{OUTPUTS}/apk/release/app-release.apk"),
-        format!("{OUTPUTS}/apk/release/lockbook-android.apk"),
-    )
-    .unwrap();
 }
 
 fn release_gh(gh: &Github) {
@@ -43,7 +37,7 @@ fn release_gh(gh: &Github) {
     let release = client
         .get_release_by_tag_name(&lb_repo(), &core_version())
         .unwrap();
-    let file = File::open(format!("{OUTPUTS}/apk/release/lockbook-android.apk")).unwrap();
+    let file = File::open(format!("{OUTPUTS}/apk/{RELEASE}.apk")).unwrap();
     client
         .upload_release_asset(
             &lb_repo(),
@@ -56,7 +50,7 @@ fn release_gh(gh: &Github) {
         .unwrap();
 }
 
-fn release_play_store() {
+async fn release_play_store() {
     let service_account_key: oauth2::ServiceAccountKey =
         oauth2::parse_service_account_key(&PlayStore::env().0).unwrap();
 
@@ -75,12 +69,25 @@ fn release_play_store() {
 
     let publisher = AndroidPublisher::new(client, auth);
 
-    let edit = publisher
+    let app_edit = publisher
         .edits()
         .insert(AppEdit::default(), PACKAGE)
         .doit()
         .await
+        .unwrap()
+        .1;
+
+    let id = app_edit.id.unwrap();
+
+    publisher
+        .edits()
+        .bundles_upload(PACKAGE, &id)
+        .upload(
+            File::open(format!("{OUTPUTS}/bundle/{RELEASE}.aab")).unwrap(),
+            "application/octet-stream".parse().unwrap(),
+        )
+        .await
         .unwrap();
 
-    publisher.edits().bundles_upload(PACKAGE, edit)
+    publisher.edits().commit(PACKAGE, &id).doit().await.unwrap();
 }

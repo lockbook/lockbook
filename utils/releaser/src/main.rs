@@ -14,10 +14,11 @@ enum Releaser {
     ReleaseAndroid,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     match Releaser::from_args() {
         Releaser::DeployServer => server::deploy_server(),
         Releaser::ReleaseApple => apple::release_apple(&Github::env(), &AppStore::env()),
-        Releaser::ReleaseAndroid => android::release_android(&Github::env()),
+        Releaser::ReleaseAndroid => android::release_android(&Github::env()).await,
     }
 }

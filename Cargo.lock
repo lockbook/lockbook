@@ -4147,6 +4147,7 @@ dependencies = [
  "hex",
  "sha2 0.10.2",
  "structopt",
+ "tokio",
  "toml",
 ]
 

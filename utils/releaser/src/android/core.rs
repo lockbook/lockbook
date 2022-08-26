@@ -1,6 +1,5 @@
 use crate::utils::CommandRunner;
 use std::fs;
-use std::path::Path;
 use std::process::Command;
 
 const MIN_NDK_VERSION: u32 = 22;
@@ -28,10 +27,10 @@ pub fn build_libs() {
     let android_i686 = format!("{JNI_LIB}/{SHORT_I686}");
     let android_x86_64 = format!("{JNI_LIB}/{SHORT_X86_64}");
 
-    fs::create_dir_all(android_arch64).unwrap();
-    fs::create_dir_all(android_armv7).unwrap();
-    fs::create_dir_all(android_i686).unwrap();
-    fs::create_dir_all(android_x86_64).unwrap();
+    fs::create_dir_all(&android_arch64).unwrap();
+    fs::create_dir_all(&android_armv7).unwrap();
+    fs::create_dir_all(&android_i686).unwrap();
+    fs::create_dir_all(&android_x86_64).unwrap();
 
     fs::copy(
         format!("target/{ARCH64}/release/{NDK_LIB_NAME}"),
