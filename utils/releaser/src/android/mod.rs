@@ -13,20 +13,20 @@ const OUTPUTS: &str = "clients/android/app/build/outputs";
 const PACKAGE: &str = "app.lockbook";
 const RELEASE: &str = "release/app-release";
 
-pub async fn release_android(gh: &Github) {
+pub async fn release_android(gh: &Github, ps: &PlayStore) {
     core::build_libs();
     build_android();
     release_gh(gh);
-    release_play_store().await;
+    release_play_store(ps).await;
 }
 
 fn build_android() {
-    Command::new("gradlew")
+    Command::new("./gradlew")
         .args(["assembleRelease"])
         .current_dir("clients/android")
         .assert_success();
 
-    Command::new("gradlew")
+    Command::new("./gradlew")
         .args(["bundleRelease"])
         .current_dir("clients/android")
         .assert_success();
@@ -50,9 +50,9 @@ fn release_gh(gh: &Github) {
         .unwrap();
 }
 
-async fn release_play_store() {
+async fn release_play_store(ps: &PlayStore) {
     let service_account_key: oauth2::ServiceAccountKey =
-        oauth2::parse_service_account_key(&PlayStore::env().0).unwrap();
+        oauth2::parse_service_account_key(&ps.0).unwrap();
 
     let auth = oauth2::ServiceAccountAuthenticator::builder(service_account_key)
         .build()

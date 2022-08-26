@@ -10,7 +10,7 @@ use std::path::Path;
 
 pub fn release_apple(gh: &Github, asc: &AppStore) {
     cli::release(gh);
-    core::build_apple();
+    core::build();
     clean_build_dir();
     ios::release(asc);
     mac::release(asc, gh);
