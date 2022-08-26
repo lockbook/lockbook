@@ -8,7 +8,7 @@ use std::process::{Command, Stdio};
 pub fn run_server_detached(tool_env: &ToolEnvironment) {
     dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
 
-    let server_log = File::open(utils::server_log(&tool_env.dev_dir)).unwrap();
+    let server_log = File::create(utils::server_log(&tool_env.dev_dir)).unwrap();
 
     let out = Stdio::from(server_log);
 
