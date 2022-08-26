@@ -76,7 +76,7 @@ fn main() {
             let ctx = ctx.clone();
 
             let install_dir = self.install_dir.clone();
-            let lnk_dir = self.install_dir.clone();
+            let lnk_dir = self.lnk_dir.clone();
 
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_secs(1));
@@ -92,8 +92,8 @@ fn main() {
                 }
 
                 let exe_file = format!(r"{}\Lockbook.exe", install_dir);
-                let exe_bytes =
-                    include_bytes!(conact!("../../../target/", env!("LB_TARGET"), "/lockbook.exe"));
+                let exe_bytes = include_bytes!("../../../target/release/lockbook.exe");
+                //include_bytes!(concat!("../../../target/", env!("LB_TARGET"), "/lockbook.exe"));
                 if let Err(err) = fs::write(&exe_file, exe_bytes) {
                     update_tx.send(Err(format!("{:?}", err))).unwrap();
                     return;
@@ -120,7 +120,7 @@ fn main() {
     }
 
     impl eframe::App for Winstaller {
-        fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
             while let Ok(result) = self.update_rx.try_recv() {
                 self.stage = Stage::Done(result);
             }
