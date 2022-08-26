@@ -1,4 +1,4 @@
-use std::env::{self, VarError};
+use std::env;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
@@ -94,20 +94,10 @@ pub fn target_dir<P: AsRef<Path>>(dev_dir: P, root_dir: P) -> PathBuf {
     }
 }
 
-pub fn server_dbs_dir<P: AsRef<Path>>(dev_dir: P) -> PathBuf {
-    dev_dir.as_ref().join("server-db")
+pub fn server_log<P: AsRef<Path>>(dev_dir: P) -> PathBuf {
+    dev_dir.as_ref().join("server_log.txt")
 }
 
 pub fn is_ci_env() -> bool {
-    match env::var("LOCKBOOK_CI") {
-        Ok(is_ci) => match is_ci.as_str() {
-            "1" => true,
-            "0" => false,
-            _ => panic!("Unknown ci state: {}", is_ci),
-        },
-        Err(e) => match e {
-            VarError::NotPresent => false,
-            _ => panic!("Unknown ci state: {:?}", e),
-        },
-    }
+    env::var("CI").unwrap().parse().unwrap()
 }
