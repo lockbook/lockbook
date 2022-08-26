@@ -10,7 +10,8 @@ pub fn run_server_detached(tool_env: &ToolEnvironment) {
 
     let server_log = File::create(utils::server_log(&tool_env.dev_dir)).unwrap();
     let out = Stdio::from(server_log);
-    let build_info_address = utils::build_info_address(&env::var("SERVER_PORT").unwrap());
+    let port = env::var("SERVER_PORT").unwrap();
+    let build_info_address = utils::build_info_address(&port);
 
     let mut run_result = Command::new("cargo")
         .args(["run", "-p", "lockbook-server", "--release"])
@@ -26,6 +27,7 @@ pub fn run_server_detached(tool_env: &ToolEnvironment) {
         }
 
         if reqwest::blocking::get(&build_info_address).is_ok() {
+            println!("Server running on '{}'", utils::api_url(&port));
             break;
         }
     }
@@ -47,7 +49,7 @@ pub fn print_server_logs(tool_env: &ToolEnvironment) {
 }
 
 pub fn run_rust_tests(tool_env: &ToolEnvironment) {
-    dotenv::from_path(utils::test_env_path(&tool_env.root_dir)).unwrap();
+    dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
 
     Command::new("cargo")
         .args(["test", "--workspace"])

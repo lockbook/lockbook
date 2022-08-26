@@ -27,7 +27,7 @@ pub fn lint_android(tool_env: &ToolEnvironment) {
 }
 
 pub fn run_kotlin_tests(tool_env: &ToolEnvironment) {
-    dotenv::from_path(utils::test_env_path(&tool_env.root_dir)).unwrap();
+    dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
 
     make_android_test_lib(tool_env);
 

@@ -55,10 +55,6 @@ pub fn local_env_path<P: AsRef<Path>>(root: P) -> PathBuf {
     root.as_ref().join("containers/local.env")
 }
 
-pub fn test_env_path<P: AsRef<Path>>(root: P) -> PathBuf {
-    root.as_ref().join("containers/test.env")
-}
-
 pub fn root_dir() -> PathBuf {
     let root_bytes = Command::new("git")
         .args(["rev-parse", "--show-toplevel"])
@@ -99,6 +95,10 @@ pub fn is_ci_env() -> bool {
         .unwrap()
 }
 
+pub fn api_url(port: &str) -> String {
+    format!("http://localhost:{}", port)
+}
+
 pub fn build_info_address(port: &str) -> String {
-    format!("http://localhost:{}/get-build-info", port)
+    format!("{}/get-build-info", api_url(port))
 }
