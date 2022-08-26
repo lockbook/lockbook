@@ -7,7 +7,6 @@ use std::{fs, thread};
 
 pub fn run_server_detached(tool_env: &ToolEnvironment) {
     dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
-    let server_db_dir = tool_env.server_dbs_dir.join(&tool_env.commit_hash);
 
     Command::new("cargo")
         .args(["build", "-p", "lockbook-server", "--release"])
@@ -15,8 +14,8 @@ pub fn run_server_detached(tool_env: &ToolEnvironment) {
 
     let mut run_result = Command::new(tool_env.target_dir.join("release/lockbook-server"))
         .env("SERVER_PORT", SERVER_PORT.to_string())
-        .env("INDEX_DB_LOCATION", &server_db_dir)
-        .env("LOG_PATH", server_db_dir)
+        .env("INDEX_DB_LOCATION", &tool_env.server_db_dir)
+        .env("LOG_PATH", &tool_env.server_db_dir)
         .current_dir(&tool_env.root_dir)
         .stderr(Stdio::null())
         .stdout(Stdio::null())
@@ -31,7 +30,7 @@ pub fn run_server_detached(tool_env: &ToolEnvironment) {
 }
 
 pub fn kill_server(tool_env: &ToolEnvironment) {
-    fs::remove_dir_all(&tool_env.server_dbs_dir).unwrap();
+    fs::remove_dir_all(&tool_env.server_db_dir).unwrap();
 
     Command::new("fuser")
         .args(["-k", &format!("{}/tcp", SERVER_PORT)])
@@ -39,9 +38,9 @@ pub fn kill_server(tool_env: &ToolEnvironment) {
 }
 
 pub fn print_server_logs(tool_env: &ToolEnvironment) {
-    let server_db_dir = tool_env.server_dbs_dir.join(&tool_env.commit_hash);
+    let logs = tool_env.server_db_dir.join("lockbook_server.log");
 
-    println!("{}", fs::read_to_string(server_db_dir.join("lockbook_server.log")).unwrap())
+    println!("{}", fs::read_to_string(logs).unwrap())
 }
 
 pub fn run_rust_tests(tool_env: &ToolEnvironment) {

@@ -65,19 +65,6 @@ pub fn test_env_path<P: AsRef<Path>>(root: P) -> PathBuf {
     root.as_ref().join("containers/test.env")
 }
 
-pub fn get_commit_hash() -> String {
-    let commit_hash = Command::new("git")
-        .args(["rev-parse", "HEAD"])
-        .stdout(Stdio::piped())
-        .output()
-        .unwrap()
-        .stdout;
-
-    String::from_utf8_lossy(commit_hash.as_slice())
-        .trim()
-        .to_string()
-}
-
 pub fn root_dir() -> PathBuf {
     let root_bytes = Command::new("git")
         .args(["rev-parse", "--show-toplevel"])
