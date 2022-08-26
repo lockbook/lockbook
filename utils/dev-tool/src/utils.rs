@@ -99,5 +99,8 @@ pub fn server_log<P: AsRef<Path>>(dev_dir: P) -> PathBuf {
 }
 
 pub fn is_ci_env() -> bool {
-    env::var("CI").unwrap().parse().unwrap()
+    env::var("CI")
+        .unwrap_or_else(|_| "false".to_string())
+        .parse()
+        .unwrap()
 }
