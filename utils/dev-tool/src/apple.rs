@@ -1,4 +1,4 @@
-use crate::utils::{self, CommandRunner, HashInfo};
+use crate::utils::{self, CommandRunner};
 use crate::ToolEnvironment;
 use std::fs::{self, File};
 use std::io::Write;
@@ -8,8 +8,7 @@ const LIB_NAME_HEADER: &str = "lockbook_core.h";
 const LIB_NAME: &str = "liblockbook_core.a";
 
 pub fn run_swift_tests(tool_env: &ToolEnvironment) {
-    let hash_info = HashInfo::get_from_dir(&tool_env.hash_info_dir, &tool_env.commit_hash);
-    dotenv::from_path(utils::test_env_path(&tool_env.root_dir)).unwrap();
+    dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
 
     make_swift_test_lib(tool_env);
 
@@ -23,7 +22,6 @@ pub fn run_swift_tests(tool_env: &ToolEnvironment) {
     Command::new("swift")
         .arg("test")
         .current_dir(&swift_core_dir)
-        .env("API_URL", utils::get_api_url(hash_info.port))
         .assert_success();
 }
 
