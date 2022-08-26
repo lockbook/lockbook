@@ -1,4 +1,4 @@
-use crate::utils::{self, CommandRunner, HashInfo};
+use crate::utils::{self, CommandRunner};
 use crate::ToolEnvironment;
 
 use std::fs;
@@ -27,8 +27,7 @@ pub fn lint_android(tool_env: &ToolEnvironment) {
 }
 
 pub fn run_kotlin_tests(tool_env: &ToolEnvironment) {
-    let hash_info = HashInfo::get_from_dir(&tool_env.hash_info_dir, &tool_env.commit_hash);
-    dotenv::from_path(utils::test_env_path(&tool_env.root_dir)).unwrap();
+    dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
 
     make_android_test_lib(tool_env);
 
@@ -37,7 +36,6 @@ pub fn run_kotlin_tests(tool_env: &ToolEnvironment) {
     Command::new(android_dir.join("gradlew"))
         .arg("testDebugUnitTest")
         .current_dir(utils::android_dir(&tool_env.root_dir))
-        .env("API_URL", utils::get_api_url(hash_info.port))
         .assert_success();
 }
 
