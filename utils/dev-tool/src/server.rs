@@ -1,80 +1,60 @@
-use crate::utils::{self, CommandRunner, HashInfo};
+use crate::utils::{self, CommandRunner};
 use crate::ToolEnvironment;
 
-use rand::Rng;
+use std::fs::File;
 use std::process::{Command, Stdio};
-use std::time::Duration;
-use std::{fs, thread};
+use std::{env, fs};
 
 pub fn run_server_detached(tool_env: &ToolEnvironment) {
     dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
-    let mut port;
-    let server_db_dir = tool_env.server_dbs_dir.join(&tool_env.hash_info_dir);
 
-    Command::new("cargo")
-        .args(["build", "-p", "lockbook-server", "--release"])
-        .assert_success();
+    let server_log = File::create(utils::server_log(&tool_env.root_dir)).unwrap();
+    let out = Stdio::from(server_log);
+    let port = env::var("SERVER_PORT").unwrap();
+    let build_info_address = utils::build_info_address(&port);
+
+    let mut run_result = Command::new("cargo")
+        .args(["run", "-p", "lockbook-server", "--release"])
+        .current_dir(&tool_env.root_dir)
+        .stderr(Stdio::null())
+        .stdout(out)
+        .spawn()
+        .unwrap();
 
     loop {
-        port = rand::thread_rng().gen_range(1024..u16::MAX);
+        if run_result.try_wait().unwrap().is_some() {
+            panic!("Server failed to start.")
+        }
 
-        let mut run_result = Command::new(tool_env.target_dir.join("release/lockbook-server"))
-            .env("SERVER_PORT", port.to_string())
-            .env("INDEX_DB_LOCATION", &server_db_dir)
-            .current_dir(&tool_env.root_dir)
-            .stderr(Stdio::null())
-            .stdout(Stdio::null())
-            .spawn()
-            .unwrap();
-
-        thread::sleep(Duration::from_millis(5000));
-
-        if run_result.try_wait().unwrap().is_none() {
+        if reqwest::blocking::get(&build_info_address).is_ok() {
+            println!("Server running on '{}'", utils::api_url(&port));
             break;
         }
     }
-
-    let hash_info =
-        HashInfo::new(&tool_env.hash_info_dir, &server_db_dir, &tool_env.commit_hash, port);
-    hash_info.save();
 }
 
 pub fn kill_server(tool_env: &ToolEnvironment) {
-    let maybe_hash_info =
-        HashInfo::maybe_get_from_dir(&tool_env.hash_info_dir, &tool_env.commit_hash);
+    dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
 
-    if let Some(hash_info) = maybe_hash_info {
-        kill_server_at_port(&hash_info);
-        hash_info.delete();
-    }
-}
-
-fn kill_server_at_port(hash_info: &HashInfo) {
     Command::new("fuser")
-        .args(["-k", &format!("{}/tcp", hash_info.port)])
+        .args(["-k", &format!("{}/tcp", env::var("SERVER_PORT").unwrap())])
         .assert_success();
+
+    fs::remove_dir_all("/tmp/lbdev").unwrap();
+    fs::remove_file(utils::server_log(&tool_env.root_dir)).unwrap();
 }
 
-pub fn kill_all_servers(tool_env: &ToolEnvironment) {
-    let children = fs::read_dir(&tool_env.hash_info_dir).unwrap();
+pub fn print_server_logs(tool_env: &ToolEnvironment) {
+    let logs = utils::server_log(&tool_env.root_dir);
 
-    for child in children {
-        let path = child.unwrap().path();
-        let maybe_hash_info = HashInfo::maybe_get_at_path(&path);
-        if let Some(hash_info) = maybe_hash_info {
-            kill_server_at_port(&hash_info);
-            hash_info.delete();
-        }
-    }
+    println!("{}", fs::read_to_string(logs).unwrap())
 }
 
 pub fn run_rust_tests(tool_env: &ToolEnvironment) {
-    let hash_info = HashInfo::get_from_dir(&tool_env.hash_info_dir, &tool_env.commit_hash);
-    dotenv::from_path(utils::test_env_path(&tool_env.root_dir)).unwrap();
+    dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
 
     Command::new("cargo")
         .args(["test", "--workspace"])
-        .env("API_URL", utils::get_api_url(hash_info.port))
         .current_dir(&tool_env.root_dir)
         .assert_success();
 }
