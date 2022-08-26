@@ -1,16 +1,16 @@
-use crate::utils::{self, CommandRunner, SERVER_PORT};
+use crate::utils::{self, CommandRunner};
 use crate::ToolEnvironment;
 
-use std::fs;
 use std::fs::File;
 use std::process::{Command, Stdio};
+use std::{env, fs};
 
 pub fn run_server_detached(tool_env: &ToolEnvironment) {
     dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
 
     let server_log = File::create(utils::server_log(&tool_env.dev_dir)).unwrap();
-
     let out = Stdio::from(server_log);
+    let build_info_address = utils::build_info_address(&env::var("SERVER_PORT").unwrap());
 
     let mut run_result = Command::new("cargo")
         .args(["run", "-p", "lockbook-server", "--release"])
@@ -25,7 +25,7 @@ pub fn run_server_detached(tool_env: &ToolEnvironment) {
             panic!("Server failed to start.")
         }
 
-        if reqwest::blocking::get("http://localhost:8000/get-build-info").is_ok() {
+        if reqwest::blocking::get(&build_info_address).is_ok() {
             break;
         }
     }
@@ -33,7 +33,7 @@ pub fn run_server_detached(tool_env: &ToolEnvironment) {
 
 pub fn kill_server(tool_env: &ToolEnvironment) {
     Command::new("fuser")
-        .args(["-k", &format!("{}/tcp", SERVER_PORT)])
+        .args(["-k", &format!("{}/tcp", env::var("SERVER_PORT").unwrap())])
         .assert_success();
 
     fs::remove_dir_all("/tmp/lbdev").unwrap();

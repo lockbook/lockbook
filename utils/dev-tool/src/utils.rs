@@ -2,8 +2,6 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
-pub const SERVER_PORT: u16 = 8501;
-
 pub trait CommandRunner {
     fn assert_success(&mut self);
     fn assert_success_with_output(&mut self) -> Output;
@@ -25,10 +23,6 @@ impl CommandRunner for Command {
 
         output
     }
-}
-
-pub fn get_api_url() -> String {
-    format!("http://localhost:{}", SERVER_PORT)
 }
 
 pub fn android_dir<P: AsRef<Path>>(root: P) -> PathBuf {
@@ -103,4 +97,8 @@ pub fn is_ci_env() -> bool {
         .unwrap_or_else(|_| "false".to_string())
         .parse()
         .unwrap()
+}
+
+pub fn build_info_address(port: &str) -> String {
+    format!("http://localhost:{}/get-build-info", port)
 }

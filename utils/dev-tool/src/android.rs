@@ -36,7 +36,6 @@ pub fn run_kotlin_tests(tool_env: &ToolEnvironment) {
     Command::new(android_dir.join("gradlew"))
         .arg("testDebugUnitTest")
         .current_dir(utils::android_dir(&tool_env.root_dir))
-        .env("API_URL", utils::get_api_url())
         .assert_success();
 }
 
