@@ -18,16 +18,16 @@ fn build_x86(gh: &Github) {
         .args(["build", "-p", "winstaller", "--release", "--target=x86_64-pc-windows-msvc"])
         .assert_success();
 
-	upload(gh, "lockbook-windows-setup-x86_64.exe");
+    upload(gh, "lockbook-windows-setup-x86_64.exe");
 }
 
 fn build_arm(gh: &Github) {
     Command::new("cargo")
-		.env("LB_TARGET", "aarch64-pc-windows-msvc")
+        .env("LB_TARGET", "aarch64-pc-windows-msvc")
         .args(["build", "-p", "winstaller", "--release", "--target=aarch64-pc-windows-msvc"])
         .assert_success();
 
-	upload(gh, "lockbook-windows-setup-aarch64.exe");
+    upload(gh, "lockbook-windows-setup-aarch64.exe");
 }
 
 fn upload<P: AsRef<Path>>(gh: &Github, name: &str, fpath: P) {
