@@ -92,8 +92,8 @@ fn main() {
                 }
 
                 let exe_file = format!(r"{}\Lockbook.exe", install_dir);
-                let exe_bytes = include_bytes!("../../../target/release/lockbook.exe");
-                //include_bytes!(concat!("../../../target/", env!("LB_TARGET"), "/lockbook.exe"));
+                let exe_bytes =
+                    include_bytes!(concat!("../../../target/", env!("LB_TARGET"), "/lockbook.exe"));
                 if let Err(err) = fs::write(&exe_file, exe_bytes) {
                     update_tx.send(Err(format!("{:?}", err))).unwrap();
                     return;
