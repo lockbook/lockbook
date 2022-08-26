@@ -111,7 +111,7 @@
                 <com.google.android.material.textview.MaterialTextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/fifty_gb"
+                    android:text="@string/premium_gb"
                     android:textStyle="bold"
                     android:paddingEnd="30dp"
                     android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
@@ -133,7 +133,7 @@
                 <com.google.android.material.textview.MaterialTextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/two_fifty"
+                    android:text="@string/premium_price"
                     android:textStyle="bold"
                     android:paddingEnd="5dp"
                     tools:ignore="RtlSymmetry" />

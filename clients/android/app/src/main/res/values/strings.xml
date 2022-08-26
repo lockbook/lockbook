@@ -228,11 +228,11 @@
     <string name="premium_space">Storage Space</string>
     <string name="subscribe">Subscribe</string>
     <string name="free_tier_current">Free (Current)</string>
-    <string name="fifty_gb">50 GB</string>
+    <string name="premium_gb">30 GB</string>
     <string name="per_month">/ month</string>
     <string name="one_mb">1 MB</string>
-    <string name="two_fifty">$2.50</string>
-    <string name="success_subscription_benefit">Your data cap has been extended to 50 GB.</string>
+    <string name="premium_price">$2.99</string>
+    <string name="success_subscription_benefit">Your data cap has been extended to 30 GB.</string>
     <string name="successful_purchase">Thank you for purchasing premium.</string>
     <string name="upgrade_pitch">If you upgraded to premium, your usage would be:</string>
     <string name="settings_premium">Premium</string>

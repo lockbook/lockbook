@@ -320,7 +320,7 @@ impl ConfirmDetails {
 
         let prompt = gtk::Label::builder()
             .label(
-                "You are about to pay\n$2.50 per month via credit card\nfor 50 gigabytes of space.",
+                "You are about to pay\n$2.99 per month via credit card\nfor 30 gigabytes of space.",
             )
             .justify(gtk::Justification::Center)
             .margin_bottom(24)
