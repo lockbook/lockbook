@@ -55,6 +55,10 @@ pub fn local_env_path<P: AsRef<Path>>(root: P) -> PathBuf {
     root.as_ref().join("containers/local.env")
 }
 
+pub fn server_log<P: AsRef<Path>>(root_dir: P) -> PathBuf {
+    root_dir.as_ref().join("server/server/server_log.txt")
+}
+
 pub fn root_dir() -> PathBuf {
     let root_bytes = Command::new("git")
         .args(["rev-parse", "--show-toplevel"])
@@ -70,29 +74,10 @@ pub fn root_dir() -> PathBuf {
     )
 }
 
-pub fn dev_dir() -> PathBuf {
-    let home_dir = env::var("HOME").unwrap();
-
-    PathBuf::from(home_dir).join(".lockbook-dev")
-}
-
-pub fn target_dir<P: AsRef<Path>>(dev_dir: P, root_dir: P) -> PathBuf {
-    if is_ci_env() {
-        dev_dir.as_ref().join("target")
-    } else {
-        root_dir.as_ref().join("target")
-    }
-}
-
-pub fn server_log<P: AsRef<Path>>(dev_dir: P) -> PathBuf {
-    dev_dir.as_ref().join("server_log.txt")
-}
-
-pub fn is_ci_env() -> bool {
-    env::var("CI")
-        .unwrap_or_else(|_| "false".to_string())
-        .parse()
-        .unwrap()
+pub fn target_dir<P: AsRef<Path>>(root_dir: P) -> PathBuf {
+    env::var("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| root_dir.as_ref().join("target"))
 }
 
 pub fn api_url(port: &str) -> String {

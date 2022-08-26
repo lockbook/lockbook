@@ -8,7 +8,7 @@ use std::{env, fs};
 pub fn run_server_detached(tool_env: &ToolEnvironment) {
     dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
 
-    let server_log = File::create(utils::server_log(&tool_env.dev_dir)).unwrap();
+    let server_log = File::create(utils::server_log(&tool_env.root_dir)).unwrap();
     let out = Stdio::from(server_log);
     let port = env::var("SERVER_PORT").unwrap();
     let build_info_address = utils::build_info_address(&port);
@@ -41,11 +41,11 @@ pub fn kill_server(tool_env: &ToolEnvironment) {
         .assert_success();
 
     fs::remove_dir_all("/tmp/lbdev").unwrap();
-    fs::remove_file(utils::server_log(&tool_env.dev_dir)).unwrap();
+    fs::remove_file(utils::server_log(&tool_env.root_dir)).unwrap();
 }
 
 pub fn print_server_logs(tool_env: &ToolEnvironment) {
-    let logs = utils::server_log(&tool_env.dev_dir);
+    let logs = utils::server_log(&tool_env.root_dir);
 
     println!("{}", fs::read_to_string(logs).unwrap())
 }

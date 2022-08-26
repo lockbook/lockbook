@@ -5,8 +5,8 @@ mod setup;
 mod utils;
 mod workspace;
 
+use std::fs;
 use std::path::PathBuf;
-use std::{env, fs};
 use structopt::StructOpt;
 
 #[derive(Debug, PartialEq, StructOpt)]
@@ -59,20 +59,16 @@ enum Commands {
 
 pub struct ToolEnvironment {
     root_dir: PathBuf,
-    dev_dir: PathBuf,
     target_dir: PathBuf,
 }
 
 fn main() {
     let root_dir = utils::root_dir();
-    let dev_dir = utils::dev_dir();
-    let target_dir = utils::target_dir(&dev_dir, &root_dir);
+    let target_dir = utils::target_dir(&root_dir);
 
     fs::create_dir_all(&target_dir).unwrap();
 
-    env::set_var("CARGO_TARGET_DIR", &target_dir.to_str().unwrap());
-
-    let tool_env = ToolEnvironment { root_dir, dev_dir, target_dir };
+    let tool_env = ToolEnvironment { root_dir, target_dir };
 
     use Commands::*;
     match Commands::from_args() {
