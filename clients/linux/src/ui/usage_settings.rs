@@ -41,7 +41,7 @@ impl UsageSettings {
 
         let upgraded_usage = ui::UsageTier::new();
         upgraded_usage.set_title(&heading("Premium"));
-        upgraded_usage.set_price("$2.50 / month");
+        upgraded_usage.set_price("$2.99 / month");
 
         let btn_upgrade = gtk::Button::new();
         btn_upgrade.set_child(Some(&upgraded_usage.cntr));
@@ -93,9 +93,9 @@ impl UsageSettings {
         self.current_usage
             .set_metrics(server_usage, metrics.data_cap.exact as f64);
         self.current_usage
-            .set_price(if is_free_tier { "Free" } else { "$2.50 / month" });
+            .set_price(if is_free_tier { "Free" } else { "$2.99 / month" });
 
-        self.upgraded_usage.set_metrics(server_usage, 50000000000.0);
+        self.upgraded_usage.set_metrics(server_usage, 30000000000.0);
 
         let uncompressed = match uncompressed_result {
             Ok(data) => data,

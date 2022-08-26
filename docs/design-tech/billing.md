@@ -14,8 +14,8 @@ Pricing will be on an `Annual` basis or a `Monthly` basis.
 
 Billing will be:
 
-+ `$2.50 / month per 50gb`
-+ `$25 / year per 50gb`
++ `$2.99 / month per 30gb`
++ `$30 / year per 30gb`
 
 # Data Model
 
