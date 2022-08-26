@@ -26,7 +26,7 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
     }
 
     companion object {
-        const val PAID_TIER_USAGE_BYTES: Long = 50000000000
+        const val PAID_TIER_USAGE_BYTES: Long = 30000000000
         const val ROUND_DECIMAL_PLACES: Long = 10000
     }
 
