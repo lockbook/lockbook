@@ -1,7 +1,4 @@
-use serde::{Deserialize, Serialize};
-use std::env::{self, VarError};
-use std::fs::{self, File};
-use std::io::Write;
+use std::env;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
@@ -26,10 +23,6 @@ impl CommandRunner for Command {
 
         output
     }
-}
-
-pub fn get_api_url(port: u16) -> String {
-    format!("http://localhost:{}", port)
 }
 
 pub fn android_dir<P: AsRef<Path>>(root: P) -> PathBuf {
@@ -62,21 +55,8 @@ pub fn local_env_path<P: AsRef<Path>>(root: P) -> PathBuf {
     root.as_ref().join("containers/local.env")
 }
 
-pub fn test_env_path<P: AsRef<Path>>(root: P) -> PathBuf {
-    root.as_ref().join("containers/test.env")
-}
-
-pub fn get_commit_hash() -> String {
-    let commit_hash = Command::new("git")
-        .args(["rev-parse", "HEAD"])
-        .stdout(Stdio::piped())
-        .output()
-        .unwrap()
-        .stdout;
-
-    String::from_utf8_lossy(commit_hash.as_slice())
-        .trim()
-        .to_string()
+pub fn server_log<P: AsRef<Path>>(root_dir: P) -> PathBuf {
+    root_dir.as_ref().join("server/server/server_log.txt")
 }
 
 pub fn root_dir() -> PathBuf {
@@ -94,87 +74,16 @@ pub fn root_dir() -> PathBuf {
     )
 }
 
-pub fn dev_dir() -> PathBuf {
-    let home_dir = env::var("HOME").unwrap();
-
-    PathBuf::from(home_dir).join(".lockbook-dev")
+pub fn target_dir<P: AsRef<Path>>(root_dir: P) -> PathBuf {
+    env::var("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| root_dir.as_ref().join("target"))
 }
 
-pub fn target_dir<P: AsRef<Path>>(dev_dir: P, root_dir: P) -> PathBuf {
-    if is_ci_env() {
-        dev_dir.as_ref().join("target")
-    } else {
-        root_dir.as_ref().join("target")
-    }
+pub fn api_url(port: &str) -> String {
+    format!("http://localhost:{}", port)
 }
 
-pub fn server_dbs_dir<P: AsRef<Path>>(dev_dir: P) -> PathBuf {
-    dev_dir.as_ref().join("server-db")
-}
-
-pub fn hash_infos_dir<P: AsRef<Path>>(dev_dir: P) -> PathBuf {
-    dev_dir.as_ref().join("hash-info")
-}
-
-pub fn is_ci_env() -> bool {
-    match env::var("LOCKBOOK_CI") {
-        Ok(is_ci) => match is_ci.as_str() {
-            "1" => true,
-            "0" => false,
-            _ => panic!("Unknown ci state: {}", is_ci),
-        },
-        Err(e) => match e {
-            VarError::NotPresent => false,
-            _ => panic!("Unknown ci state: {:?}", e),
-        },
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct HashInfo {
-    pub port: u16,
-    pub hash_info_dir: PathBuf,
-    pub server_db_dir: PathBuf,
-}
-
-impl HashInfo {
-    pub fn new<P: AsRef<Path>>(
-        hash_infos_dir: P, server_db_dir: P, commit_hash: &str, port: u16,
-    ) -> Self {
-        let hash_info_dir = hash_infos_dir.as_ref().join(commit_hash);
-
-        Self { port, hash_info_dir, server_db_dir: server_db_dir.as_ref().to_path_buf() }
-    }
-
-    pub fn get_from_dir<P: AsRef<Path>>(hash_infos_dir: P, commit_hash: &str) -> Self {
-        let hash_info_dir = hash_infos_dir.as_ref().join(commit_hash);
-
-        Self::maybe_get_at_path(hash_info_dir)
-            .expect("No hash info file found. Server may not be running or even built!")
-    }
-
-    pub fn maybe_get_from_dir<P: AsRef<Path>>(
-        hash_infos_dir: P, commit_hash: &str,
-    ) -> Option<Self> {
-        let hash_info_dir = hash_infos_dir.as_ref().join(commit_hash);
-        Self::maybe_get_at_path(hash_info_dir)
-    }
-
-    pub fn maybe_get_at_path<P: AsRef<Path>>(hash_info_dir: P) -> Option<Self> {
-        fs::read_to_string(hash_info_dir)
-            .ok()
-            .map(|contents| serde_json::from_str(&contents).unwrap())
-    }
-
-    pub fn save(&self) {
-        File::create(&self.hash_info_dir)
-            .unwrap()
-            .write_all(serde_json::to_string(self).unwrap().as_bytes())
-            .unwrap();
-    }
-
-    pub fn delete(&self) {
-        fs::remove_file(&self.hash_info_dir).unwrap();
-        fs::remove_dir_all(&self.server_db_dir).unwrap()
-    }
+pub fn build_info_address(port: &str) -> String {
+    format!("{}/get-build-info", api_url(port))
 }

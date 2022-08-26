@@ -13,7 +13,7 @@ jobs:
     runs-on: [self-hosted, ci]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      LOCKBOOK_CI: 1
+      CARGO_TARGET_DIR: /home/lockbook-ci/.lockbook-dev/target
     steps:
     - uses: actions/checkout@v2
     - name: Set Rust Version
@@ -34,6 +34,9 @@ jobs:
       run: cargo run -p lockbook-dev -- run-kotlin-tests
     - name: Run Swift Tests
       run: cargo run -p lockbook-dev -- run-swift-tests
+    - name: Server Logs
+      if: always()
+      run: cargo run -p lockbook-dev -- print-server-logs
     - name: Cleanup
       if: always()
       run: cargo run -p lockbook-dev -- kill-server
