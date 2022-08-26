@@ -34,6 +34,8 @@ pub fn run_server_detached(tool_env: &ToolEnvironment) {
 }
 
 pub fn kill_server(tool_env: &ToolEnvironment) {
+    dotenv::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
+
     Command::new("fuser")
         .args(["-k", &format!("{}/tcp", env::var("SERVER_PORT").unwrap())])
         .assert_success();
