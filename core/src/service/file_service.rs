@@ -171,9 +171,34 @@ impl RequestContext<'_, '_> {
         };
 
         let mut children = Vec::new();
+        let mut parent_substitutions = HashMap::new();
 
         for id in tree.children(&id)? {
-            children.push(tree.finalize(&id, account)?);
+            if !tree.calculate_deleted(&id)? {
+                let finalized = tree.finalize(&id, account)?;
+
+                match finalized.file_type {
+                    FileType::Document | FileType::Folder => children.push(finalized),
+                    FileType::Link { target } => {
+                        let mut target_file = tree.finalize(&target, account)?;
+                        if target_file.is_folder() {
+                            parent_substitutions.insert(target, id);
+                        }
+
+                        target_file.id = finalized.id;
+                        target_file.parent = finalized.parent;
+                        target_file.name = finalized.name;
+
+                        children.push(target_file);
+                    }
+                }
+            }
+        }
+
+        for item in &mut children {
+            if let Some(new_parent) = parent_substitutions.get(&item.id) {
+                item.parent = *new_parent;
+            }
         }
 
         Ok(children)
