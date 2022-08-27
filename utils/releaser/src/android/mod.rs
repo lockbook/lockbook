@@ -2,10 +2,11 @@ use crate::secrets::PlayStore;
 use crate::utils::{core_version, lb_repo, CommandRunner};
 use crate::Github;
 use gh_release::ReleaseClient;
-use google_androidpublisher3::api::AppEdit;
+use google_androidpublisher3::api::{AppEdit, LocalizedText, Track, TrackRelease};
 use google_androidpublisher3::{hyper, hyper_rustls, oauth2, AndroidPublisher};
 use std::fs::File;
 use std::process::Command;
+use tokio::runtime::Runtime;
 
 mod core;
 
@@ -13,10 +14,12 @@ const OUTPUTS: &str = "clients/android/app/build/outputs";
 const PACKAGE: &str = "app.lockbook";
 const RELEASE: &str = "release/app-release";
 
+const RELEASES: &str = "https://github.com/lockbook/lockbook/releases/tag";
+
 pub fn release_android(gh: &Github, ps: &PlayStore) {
-    core::build_libs();
-    build_android();
-    release_gh(gh);
+    // core::build_libs();
+    // build_android();
+    // release_gh(gh);
     release_play_store(ps);
 }
 
@@ -55,7 +58,9 @@ fn release_play_store(ps: &PlayStore) {
     let service_account_key: oauth2::ServiceAccountKey =
         oauth2::parse_service_account_key(&ps.0).unwrap();
 
-    futures::executor::block_on(async move {
+    let runtime = Runtime::new().unwrap();
+
+    runtime.block_on(async move {
         let auth = oauth2::ServiceAccountAuthenticator::builder(service_account_key)
             .build()
             .await
@@ -90,6 +95,27 @@ fn release_play_store(ps: &PlayStore) {
             )
             .await
             .unwrap();
+
+        publisher.edits().tracks_update(
+            Track {
+                releases: Some(vec![TrackRelease {
+                    country_targeting: None,
+                    in_app_update_priority: None,
+                    name: None,
+                    release_notes: Some(vec![LocalizedText {
+                        language: Some("en-US".to_string()),
+                        text: Some(format!("Release notes on {}/{}", RELEASES, core_version())),
+                    }]),
+                    status: Some("completed".to_string()),
+                    user_fraction: None,
+                    version_codes: None,
+                }]),
+                track: Some("internal".to_string()),
+            },
+            PACKAGE,
+            &id,
+            "internal",
+        );
 
         publisher.edits().commit(PACKAGE, &id).doit().await.unwrap();
     });
