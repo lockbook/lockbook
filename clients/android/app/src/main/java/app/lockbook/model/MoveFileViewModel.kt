@@ -11,7 +11,6 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import timber.log.Timber
 
 class MoveFileViewModel(application: Application, private val startId: String) :
     AndroidViewModel(application) {
