@@ -55,7 +55,7 @@ object CoreModel {
             where E : Enum<E>, E : UiCoreError = try {
         decodeFromString<IntermCoreResult<C, E>>(json).toResult(isNullable)
     } catch (e: Exception) {
-        Err(CoreError.Unexpected("Cannot parse json."))
+        Err(CoreError.Unexpected("Cannot parse json: ${e.message}"))
     }
 
     val setUpInitLoggerParser = Json {

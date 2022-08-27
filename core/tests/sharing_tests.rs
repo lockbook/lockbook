@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use lockbook_core::Error::UiError;
 use lockbook_core::{
     CreateFileAtPathError, CreateFileError, CreateLinkAtPathError, DeletePendingShareError, Error,
@@ -1124,5 +1125,69 @@ fn list_metadatas_resolves_links() {
             .unwrap()
             .len(),
         6
+    );
+}
+
+#[test]
+fn get_children_resolves_links() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+    let folder_id = cores[0]
+        .create_file("folder", roots[0].id, FileType::Folder)
+        .unwrap()
+        .id;
+    cores[0].create_at_path("folder/file1.md").unwrap();
+    cores[0].create_at_path("folder/file2.md").unwrap();
+    cores[0].create_at_path("folder/folder2/file4.md").unwrap();
+    cores[0]
+        .share_file(folder_id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[1].create_at_path("file1.md").unwrap();
+    cores[1].create_at_path("file2.md").unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+
+    let link_id = cores[1]
+        .create_file("folder_link", roots[1].id, FileType::Link { target: folder_id })
+        .unwrap()
+        .id;
+
+    // no links
+    for (index, core) in cores.iter().enumerate() {
+        for file in core.get_children(roots[index].id).unwrap() {
+            if !file.is_document() && !file.is_folder() {
+                panic!("non document / folder file found: {:#?}", file);
+            }
+        }
+    }
+
+    // link id should be present in core1
+    assert!(cores[1]
+        .get_children(roots[1].id)
+        .unwrap()
+        .iter()
+        .map(|file| file.id)
+        .contains(&link_id));
+
+    // Check children of root
+    assert_eq!(cores[1].get_children(roots[1].id).unwrap().len(), 3);
+
+    // Check children of links
+    assert_eq!(cores[1].get_children(link_id).unwrap().len(), 3);
+    assert_eq!(
+        cores[1]
+            .get_and_get_children_recursively(link_id)
+            .unwrap()
+            .len(),
+        5
     );
 }
