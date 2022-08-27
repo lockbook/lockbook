@@ -32,20 +32,23 @@ impl<T: Stagable> LazyTree<T> {
 }
 
 impl<T: Stagable> LazyTree<T> {
-    // todo: use greatest of all access modes instead of access mode of nearest keyed ancestor
     pub fn access_mode(&self, owner: Owner, id: &Uuid) -> SharedResult<Option<UserAccessMode>> {
         let mut file = self.find(id)?;
+        let mut max_access_mode = None;
         loop {
-            if let Some(access_mode) = file.access_mode(&owner) {
-                return Ok(Some(access_mode));
-            } else if file.parent() == file.id() {
-                return Ok(None); // root
+            let access_mode = file.access_mode(&owner);
+            if access_mode > max_access_mode {
+                max_access_mode = access_mode;
+            }
+            if file.parent() == file.id() {
+                break; // root
             } else if let Some(parent) = self.maybe_find(file.parent()) {
                 file = parent
             } else {
-                return Ok(None); // share root
+                break; // share root
             }
         }
+        Ok(max_access_mode)
     }
 
     pub fn in_pending_share(&self, id: &Uuid) -> SharedResult<bool> {

@@ -17,21 +17,35 @@ fn write_document_read_share() {
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
-    let roots = cores
-        .iter()
-        .map(|core| core.get_root().unwrap())
-        .collect::<Vec<_>>();
 
-    let document0 = cores[0]
-        .create_file("document0", roots[0].id, FileType::Document)
-        .unwrap();
+    let document = cores[0].create_at_path("/document").unwrap();
     cores[0]
-        .share_file(document0.id, &accounts[1].username, ShareMode::Read)
+        .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .unwrap();
     cores[0].sync(None).unwrap();
 
     cores[1].sync(None).unwrap();
-    let result = cores[1].write_document(document0.id, b"document content");
+    let result = cores[1].write_document(document.id, b"document content");
+    assert_matches!(result, Err(Error::UiError(WriteToDocumentError::InsufficientPermission)));
+}
+
+#[test]
+fn write_document_in_read_shared_folder() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0].create_at_path("/folder/").unwrap();
+    let document = cores[0].create_at_path("/folder/document").unwrap();
+    cores[0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    let result = cores[1].write_document(document.id, b"document content");
     assert_matches!(result, Err(Error::UiError(WriteToDocumentError::InsufficientPermission)));
 }
 
@@ -42,30 +56,116 @@ fn write_document_write_share() {
         .iter()
         .map(|core| core.get_account().unwrap())
         .collect::<Vec<_>>();
-    let roots = cores
-        .iter()
-        .map(|core| core.get_root().unwrap())
-        .collect::<Vec<_>>();
 
-    let document0 = cores[0]
-        .create_file("document0", roots[0].id, FileType::Document)
+    let document = cores[0].create_at_path("/document").unwrap();
+    cores[0]
+        .write_document(document.id, b"document content by sharer")
         .unwrap();
     cores[0]
-        .write_document(document0.id, b"document content by sharer")
-        .unwrap();
-    cores[0]
-        .share_file(document0.id, &accounts[1].username, ShareMode::Write)
+        .share_file(document.id, &accounts[1].username, ShareMode::Write)
         .unwrap();
     cores[0].sync(None).unwrap();
 
     cores[1].sync(None).unwrap();
     cores[1]
-        .write_document(document0.id, b"document content by sharee")
+        .write_document(document.id, b"document content by sharee")
         .unwrap();
-    assert_eq!(cores[1].read_document(document0.id).unwrap(), b"document content by sharee");
+    assert_eq!(cores[1].read_document(document.id).unwrap(), b"document content by sharee");
     cores[1].sync(None).unwrap();
     cores[0].sync(None).unwrap();
-    assert_eq!(cores[0].read_document(document0.id).unwrap(), b"document content by sharee");
+    assert_eq!(cores[0].read_document(document.id).unwrap(), b"document content by sharee");
+}
+
+#[test]
+fn write_document_in_write_shared_folder() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0].create_at_path("/folder/").unwrap();
+    let document = cores[0].create_at_path("/folder/document").unwrap();
+    cores[0]
+        .write_document(document.id, b"document content by sharer")
+        .unwrap();
+    cores[0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    cores[1]
+        .write_document(document.id, b"document content by sharee")
+        .unwrap();
+    assert_eq!(cores[1].read_document(document.id).unwrap(), b"document content by sharee");
+    cores[1].sync(None).unwrap();
+    cores[0].sync(None).unwrap();
+    assert_eq!(cores[0].read_document(document.id).unwrap(), b"document content by sharee");
+}
+
+#[test]
+fn write_document_in_write_shared_folder_in_read_shared_folder() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder1 = cores[0].create_at_path("/folder/").unwrap();
+    let folder2 = cores[0].create_at_path("/folder/folder/").unwrap();
+    let document = cores[0].create_at_path("/folder/folder/document").unwrap();
+    cores[0]
+        .write_document(document.id, b"document content by sharer")
+        .unwrap();
+    cores[0]
+        .share_file(folder1.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0]
+        .share_file(folder2.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    cores[1]
+        .write_document(document.id, b"document content by sharee")
+        .unwrap();
+    assert_eq!(cores[1].read_document(document.id).unwrap(), b"document content by sharee");
+    cores[1].sync(None).unwrap();
+    cores[0].sync(None).unwrap();
+    assert_eq!(cores[0].read_document(document.id).unwrap(), b"document content by sharee");
+}
+
+#[test]
+fn write_document_in_read_shared_folder_in_write_shared_folder() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder1 = cores[0].create_at_path("/folder/").unwrap();
+    let folder2 = cores[0].create_at_path("/folder/folder/").unwrap();
+    let document = cores[0].create_at_path("/folder/folder/document").unwrap();
+    cores[0]
+        .write_document(document.id, b"document content by sharer")
+        .unwrap();
+    cores[0]
+        .share_file(folder1.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0]
+        .share_file(folder2.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    cores[1]
+        .write_document(document.id, b"document content by sharee")
+        .unwrap();
+    assert_eq!(cores[1].read_document(document.id).unwrap(), b"document content by sharee");
+    cores[1].sync(None).unwrap();
+    cores[0].sync(None).unwrap();
+    assert_eq!(cores[0].read_document(document.id).unwrap(), b"document content by sharee");
 }
 
 #[test]
@@ -80,28 +180,27 @@ fn write_document_write_share_by_link() {
         .map(|core| core.get_root().unwrap())
         .collect::<Vec<_>>();
 
-    let document0 = cores[0]
-        .create_file("document0", roots[0].id, FileType::Document)
+    let document = cores[0].create_at_path("/document").unwrap();
+    cores[0]
+        .write_document(document.id, b"document content by sharer")
         .unwrap();
     cores[0]
-        .write_document(document0.id, b"document content by sharer")
-        .unwrap();
-    cores[0]
-        .share_file(document0.id, &accounts[1].username, ShareMode::Write)
+        .share_file(document.id, &accounts[1].username, ShareMode::Write)
         .unwrap();
     cores[0].sync(None).unwrap();
 
     cores[1].sync(None).unwrap();
-    let link_id = cores[1]
-        .create_file("link0", roots[1].id, FileType::Link { target: document0.id })
+    let link = cores[1]
+        .create_file("link0", roots[1].id, FileType::Link { target: document.id })
         .unwrap();
     cores[1]
-        .write_document(link_id.id, b"document content by sharee")
+        .write_document(link.id, b"document content by sharee")
         .unwrap();
-    assert_eq!(cores[1].read_document(document0.id).unwrap(), b"document content by sharee");
+    assert_eq!(cores[1].read_document(document.id).unwrap(), b"document content by sharee");
+    assert_eq!(cores[1].read_document(link.id).unwrap(), b"document content by sharee");
     cores[1].sync(None).unwrap();
     cores[0].sync(None).unwrap();
-    assert_eq!(cores[0].read_document(document0.id).unwrap(), b"document content by sharee");
+    assert_eq!(cores[0].read_document(document.id).unwrap(), b"document content by sharee");
 }
 
 #[test]
