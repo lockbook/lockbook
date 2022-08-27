@@ -60,6 +60,18 @@ class FileModel(
 
             return recentFiles.reversed()
         }
+
+        fun sortFiles(files: List<File>): List<File> {
+            val folders = files.filter { fileMetadata ->
+                fileMetadata.fileType == FileType.Folder
+            }
+
+            val documents = files.filter { fileMetadata ->
+                fileMetadata.fileType == FileType.Document
+            }
+
+            return folders.sortedBy { it.name } + documents.sortedBy { it.name }
+        }
     }
 
     fun refreshChildrenAtAncestor(position: Int) {
@@ -100,14 +112,6 @@ class FileModel(
     }
 
     private fun sortChildren() {
-        val folders = children.filter { fileMetadata ->
-            fileMetadata.fileType == FileType.Folder
-        }
-
-        val documents = children.filter { fileMetadata ->
-            fileMetadata.fileType == FileType.Document
-        }
-
-        children = folders.sortedBy { it.name } + documents.sortedBy { it.name }
+        children = sortFiles(children)
     }
 }
