@@ -3,7 +3,6 @@ use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileType, Owner};
 use lockbook_shared::tree_like::{Stagable, TreeLike};
-use std::collections::HashMap;
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
@@ -119,38 +118,9 @@ impl RequestContext<'_, '_> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let mut files = Vec::new();
+        let ids = tree.owned_ids().into_iter();
 
-        let mut parent_substitutions = HashMap::new();
-
-        for id in tree.owned_ids() {
-            if !tree.calculate_deleted(&id)? {
-                let finalized = tree.finalize(&id, account)?;
-                match finalized.file_type {
-                    FileType::Document | FileType::Folder => files.push(finalized),
-                    FileType::Link { target } => {
-                        let mut target_file = tree.finalize(&target, account)?;
-                        if target_file.is_folder() {
-                            parent_substitutions.insert(target, id);
-                        }
-
-                        target_file.id = finalized.id;
-                        target_file.parent = finalized.parent;
-                        target_file.name = finalized.name;
-
-                        files.push(target_file);
-                    }
-                }
-            }
-        }
-
-        for item in &mut files {
-            if let Some(new_parent) = parent_substitutions.get(&item.id) {
-                item.parent = *new_parent;
-            }
-        }
-
-        Ok(files)
+        Ok(tree.resolve_and_finalize(account, ids)?)
     }
 
     pub fn get_children(&mut self, id: &Uuid) -> CoreResult<Vec<File>> {
@@ -170,38 +140,9 @@ impl RequestContext<'_, '_> {
             FileType::Link { target } => target,
         };
 
-        let mut children = Vec::new();
-        let mut parent_substitutions = HashMap::new();
+        let ids = tree.children(&id)?.into_iter();
 
-        for id in tree.children(&id)? {
-            if !tree.calculate_deleted(&id)? {
-                let finalized = tree.finalize(&id, account)?;
-
-                match finalized.file_type {
-                    FileType::Document | FileType::Folder => children.push(finalized),
-                    FileType::Link { target } => {
-                        let mut target_file = tree.finalize(&target, account)?;
-                        if target_file.is_folder() {
-                            parent_substitutions.insert(target, id);
-                        }
-
-                        target_file.id = finalized.id;
-                        target_file.parent = finalized.parent;
-                        target_file.name = finalized.name;
-
-                        children.push(target_file);
-                    }
-                }
-            }
-        }
-
-        for item in &mut children {
-            if let Some(new_parent) = parent_substitutions.get(&item.id) {
-                item.parent = *new_parent;
-            }
-        }
-
-        Ok(children)
+        Ok(tree.resolve_and_finalize(account, ids)?)
     }
 
     pub fn get_and_get_children_recursively(&mut self, id: &Uuid) -> CoreResult<Vec<File>> {
