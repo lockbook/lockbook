@@ -139,13 +139,21 @@ fn show_modal<M: Modal>(
 
     let title = d.title();
 
+    let frame = egui::Frame::window(&ctx.style()).inner_margin(egui::style::Margin {
+        left: 0.0,
+        bottom: 0.0,
+        ..ctx.style().spacing.window_margin
+    });
+
     let win_resp = egui::Window::new(title)
         .anchor(M::ANCHOR, egui::vec2(x_offset, M::Y_OFFSET))
         .title_bar(!title.is_empty())
         .open(&mut is_open)
         .collapsible(false)
+        .resizable(false)
         .default_width(400.0)
         .default_height(f32::INFINITY)
+        .frame(frame)
         .show(ctx, |ui| d.show(ui))
         .unwrap(); // Will never be `None` because `is_open` will always start as `true`.
 

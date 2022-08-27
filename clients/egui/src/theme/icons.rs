@@ -14,6 +14,7 @@ const fn ic(c: &'static str) -> Icon {
 }
 
 impl Icon {
+    pub const ACCOUNT: Self = ic("\u{e7ff}"); // Person Outline
     pub const ARROW_CIRCLE_DOWN: Self = ic("\u{f181}"); // Arrow Circle Down
     pub const CHECK_CIRCLE: Self = ic("\u{e86c}"); // Check Circle
     pub const CIRCLE: Self = ic("\u{ef4a}"); // Circle
@@ -35,7 +36,8 @@ impl Icon {
     pub const PLACE_ITEM: Self = ic("\u{f1f0}"); // Place Item
     pub const PREVIEW: Self = ic("\u{f1c5}"); // Preview
     pub const SETTINGS: Self = ic("\u{e8b8}"); // Settings
-    pub const SPARKLE: Self = ic("\u{f8c9}"); // Temp Preferences Custom
+    pub const SPARKLE: Self = ic("\u{e65f}"); // Auto Awesome
+    pub const SAVE: Self = ic("\u{e161}"); // Save
     pub const SYNC: Self = ic("\u{e863}"); // Auto-renew
     pub const SYNC_DISABLED: Self = ic("\u{e628}"); // Sync Disabled
     pub const SYNC_PROBLEM: Self = ic("\u{e629}"); // Sync Problem
@@ -50,12 +52,13 @@ impl Icon {
     //pub const SWAP_HORIZONTAL: Self = Self('\u{e933}'); // Swap Horizontal Circle
     //pub const EDIT_OFF: Self = ic("\u{e950}"); // Edit Off
     //pub const FIND_REPLACE: Self = ic("\u{e881}"); // Find Replace
-    //pub const ACCOUNT: Self = Self('\u{e853}');
     //pub const SHIELD: Self = Self("\u{e8e8}");
     //pub const SHIELD_OFF: Self = Self("\u{e9d4}");
     //pub const VISIBILITY_OFF: Self = Self("\u{e8f5}");
     //pub const WARNING: Self = Self("\u{e002}");
     //pub const RECTANGLE: Self = ic("\u{eb54}"); // Rectangle
+    //pub const PALETTE: Self = ic("\u{e40a}"); // Palette
+    //pub const QR_CODE: Self = ic("\u{e00a}"); // Qr Code 2
 
     pub fn color(self, color: egui::Color32) -> Self {
         let mut this = self;
@@ -89,7 +92,7 @@ impl From<&Icon> for egui::WidgetText {
 }
 
 impl Icon {
-    pub fn show(self, ui: &mut egui::Ui) -> egui::Response {
+    pub fn show(&self, ui: &mut egui::Ui) -> egui::Response {
         let padding = egui::vec2(0.0, 0.0);
         let desired_size = egui::vec2(self.size + padding.x, self.size + padding.y);
 
@@ -102,7 +105,7 @@ impl Icon {
             let icon_pos =
                 egui::pos2(rect.min.x + padding.x, rect.center().y - self.size / 4.1 - 1.0);
 
-            let icon: egui::WidgetText = (&self).into();
+            let icon: egui::WidgetText = self.into();
             let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
 
             icon.paint_with_visuals(ui.painter(), icon_pos, visuals);
