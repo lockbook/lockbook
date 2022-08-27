@@ -47,6 +47,44 @@ where
         })
     }
 
+    pub fn resolve_and_finalize<I>(&mut self, account: &Account, ids: I) -> SharedResult<Vec<File>>
+    where
+        I: Iterator<Item = Uuid>,
+    {
+        let mut files = Vec::new();
+        let mut parent_substitutions = HashMap::new();
+
+        for id in ids {
+            if !self.calculate_deleted(&id)? {
+                let finalized = self.finalize(&id, account)?;
+
+                match finalized.file_type {
+                    FileType::Document | FileType::Folder => files.push(finalized),
+                    FileType::Link { target } => {
+                        let mut target_file = self.finalize(&target, account)?;
+                        if target_file.is_folder() {
+                            parent_substitutions.insert(target, id);
+                        }
+
+                        target_file.id = finalized.id;
+                        target_file.parent = finalized.parent;
+                        target_file.name = finalized.name;
+
+                        files.push(target_file);
+                    }
+                }
+            }
+        }
+
+        for item in &mut files {
+            if let Some(new_parent) = parent_substitutions.get(&item.id) {
+                item.parent = *new_parent;
+            }
+        }
+
+        Ok(files)
+    }
+
     pub fn create(
         self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
         pub_key: &PublicKey,
