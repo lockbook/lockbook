@@ -19,6 +19,17 @@ fn build() {
         .assert_success();
 }
 
+fn zip_binary() {
+    let exe_bytes = fs::read("target/release/lockbook.exe").unwrap();
+
+    let zip_file = File::create("windows-build/lockbook-cli.zip").unwrap();
+    let mut zip = zip::ZipWriter::new(zip_file);
+
+    zip.start_file("lockbook.exe", Default::default()).unwrap();
+    zip.write_all(&exe_bytes).unwrap();
+    zip.finish().unwrap();
+}
+
 fn upload(gh: &Github) {
     let client = ReleaseClient::new(gh.0.clone()).unwrap();
     let release = client
@@ -35,15 +46,4 @@ fn upload(gh: &Github) {
             None,
         )
         .unwrap();
-}
-
-fn zip_binary() {
-    let exe_bytes = fs::read("target/release/lockbook.exe").unwrap();
-
-    let zip_file = File::open("windows-build/lockbook-cli.zip").unwrap();
-    let mut zip = zip::ZipWriter::new(zip_file);
-
-    zip.start_file("lockbook.exe", Default::default()).unwrap();
-    zip.write_all(&exe_bytes).unwrap();
-    zip.finish().unwrap();
 }

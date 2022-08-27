@@ -1,4 +1,5 @@
-use std::fs::{self, File};
+use std::fs::File;
+use std::path::Path;
 use std::process::Command;
 
 use gh_release::ReleaseClient;
@@ -7,27 +8,42 @@ use crate::utils::{core_version, lb_repo, CommandRunner};
 use crate::Github;
 
 pub fn release_installers(gh: &Github) {
-    build_x86();
-    build_arm();
-    upload(gh);
+    build_x86(gh);
+    build_arm(gh);
 }
 
 fn build_x86(gh: &Github) {
+    Command::new("cargo")
+        .args(["build", "-p", "lockbook-egui", "--release", "--target=x86_64-pc-windows-msvc"])
+        .assert_success();
+
     Command::new("cargo")
         .env("LB_TARGET", "x86_64-pc-windows-msvc")
         .args(["build", "-p", "winstaller", "--release", "--target=x86_64-pc-windows-msvc"])
         .assert_success();
 
-    upload(gh, "lockbook-windows-setup-x86_64.exe");
+    upload(
+        gh,
+        "lockbook-windows-setup-x86_64.exe",
+        "target/x86_64-pc-windows-msvc/release/winstaller.exe",
+    );
 }
 
 fn build_arm(gh: &Github) {
+    Command::new("cargo")
+        .args(["build", "-p", "lockbook-egui", "--release", "--target=aarch64-pc-windows-msvc"])
+        .assert_success();
+
     Command::new("cargo")
         .env("LB_TARGET", "aarch64-pc-windows-msvc")
         .args(["build", "-p", "winstaller", "--release", "--target=aarch64-pc-windows-msvc"])
         .assert_success();
 
-    upload(gh, "lockbook-windows-setup-aarch64.exe");
+    upload(
+        gh,
+        "lockbook-windows-setup-aarch64.exe",
+        "target/aarch64-pc-windows-msvc/release/winstaller.exe",
+    );
 }
 
 fn upload<P: AsRef<Path>>(gh: &Github, name: &str, fpath: P) {

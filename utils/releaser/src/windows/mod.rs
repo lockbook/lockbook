@@ -1,19 +1,18 @@
 mod cli;
 mod egui;
 
+use std::fs;
 use std::path::Path;
 
 use crate::Github;
 
 pub fn release(gh: &Github) {
+    let build_dir = Path::new("windows-build");
+    if !build_dir.exists() {
+        fs::create_dir("windows-build").unwrap();
+    }
     cli::release(gh);
     egui::release_installers(gh);
-    clean_build_dir();
-}
 
-fn clean_build_dir() {
-    let build_dir = Path::new("windows-build");
-    if build_dir.exists() {
-        std::fs::remove_dir_all("windows-build").unwrap();
-    }
+    fs::remove_dir_all("windows-build").unwrap();
 }
