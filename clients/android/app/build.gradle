@@ -72,6 +72,10 @@ android {
     android.buildFeatures.viewBinding = true
 }
 
+task printVersionCode {
+    print android.defaultConfig.versionCode
+}
+
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 

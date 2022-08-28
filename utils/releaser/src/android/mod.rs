@@ -1,5 +1,5 @@
 use crate::secrets::PlayStore;
-use crate::utils::{core_version, lb_repo, CommandRunner};
+use crate::utils::{android_version_code, core_version, lb_repo, CommandRunner};
 use crate::Github;
 use gh_release::ReleaseClient;
 use google_androidpublisher3::api::{AppEdit, LocalizedText, Track, TrackRelease};
@@ -16,10 +16,15 @@ const RELEASE: &str = "release/app-release";
 
 const RELEASES: &str = "https://github.com/lockbook/lockbook/releases/tag";
 
+const TRACK: &str = "internal";
+const STATUS: &str = "completed";
+const DEFAULT_LOC: &str = "en-US";
+const MIME: &str = "application/octet-stream";
+
 pub fn release_android(gh: &Github, ps: &PlayStore) {
-    // core::build_libs();
-    // build_android();
-    // release_gh(gh);
+    core::build_libs();
+    build_android();
+    release_gh(gh);
     release_play_store(ps);
 }
 
@@ -91,31 +96,36 @@ fn release_play_store(ps: &PlayStore) {
             .bundles_upload(PACKAGE, &id)
             .upload(
                 File::open(format!("{OUTPUTS}/bundle/{RELEASE}.aab")).unwrap(),
-                "application/octet-stream".parse().unwrap(),
+                MIME.parse().unwrap(),
             )
             .await
             .unwrap();
 
-        publisher.edits().tracks_update(
-            Track {
-                releases: Some(vec![TrackRelease {
-                    country_targeting: None,
-                    in_app_update_priority: None,
-                    name: None,
-                    release_notes: Some(vec![LocalizedText {
-                        language: Some("en-US".to_string()),
-                        text: Some(format!("Release notes on {}/{}", RELEASES, core_version())),
+        publisher
+            .edits()
+            .tracks_update(
+                Track {
+                    releases: Some(vec![TrackRelease {
+                        country_targeting: None,
+                        in_app_update_priority: None,
+                        name: None,
+                        release_notes: Some(vec![LocalizedText {
+                            language: Some(DEFAULT_LOC.to_string()),
+                            text: Some(format!("Release notes on {}/{}", RELEASES, core_version())),
+                        }]),
+                        status: Some(STATUS.to_string()),
+                        user_fraction: None,
+                        version_codes: Some(vec![android_version_code()]),
                     }]),
-                    status: Some("completed".to_string()),
-                    user_fraction: None,
-                    version_codes: None,
-                }]),
-                track: Some("internal".to_string()),
-            },
-            PACKAGE,
-            &id,
-            "internal",
-        );
+                    track: Some(TRACK.to_string()),
+                },
+                PACKAGE,
+                &id,
+                TRACK,
+            )
+            .doit()
+            .await
+            .unwrap();
 
         publisher.edits().commit(PACKAGE, &id).doit().await.unwrap();
     });
