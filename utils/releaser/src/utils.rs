@@ -2,7 +2,7 @@ use gh_release::RepoInfo;
 use sha2::Digest;
 use sha2::Sha256;
 use std::fs;
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 use toml::Value;
 
 pub trait CommandRunner {
@@ -37,6 +37,20 @@ pub fn core_version() -> String {
     core.parse::<Value>().unwrap()["package"]["version"]
         .as_str()
         .unwrap()
+        .to_string()
+}
+
+pub fn android_version_code() -> String {
+    let version_bytes = Command::new("./gradlew")
+        .args(&["-q", "printVersionCode"])
+        .current_dir("clients/android")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .success_output()
+        .stdout;
+
+    String::from_utf8_lossy(version_bytes.as_slice())
+        .trim()
         .to_string()
 }
 
