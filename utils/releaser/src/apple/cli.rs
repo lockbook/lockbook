@@ -83,7 +83,7 @@ fn overwrite_lockbook_rb() {
     let new_content = format!(
         r#"
 class Lockbook < Formula
-  desc "The best place to store and share thoughts."
+  desc "The private, polished note-taking platform."
   homepage "https://github.com/lockbook/lockbook"
   url "https://github.com/lockbook/lockbook/releases/download/{version}/{CLI_NAME}"
   sha256 "{sha}"
