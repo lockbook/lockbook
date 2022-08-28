@@ -182,7 +182,6 @@ impl RequestContext<'_, '_> {
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
-
         Ok(tree.finalize(id, account)?)
     }
 

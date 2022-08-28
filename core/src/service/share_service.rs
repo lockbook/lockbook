@@ -89,12 +89,7 @@ impl RequestContext<'_, '_> {
                 continue;
             }
             // file must be shared with this user
-            if !tree
-                .find(&id)?
-                .user_access_keys()
-                .iter()
-                .any(|user_access| user_access.encrypted_for == owner.0)
-            {
+            if tree.access_mode(owner, &id)?.is_none() {
                 continue;
             }
             // file must not have any links pointing to it
