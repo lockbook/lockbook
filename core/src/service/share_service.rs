@@ -41,7 +41,7 @@ impl RequestContext<'_, '_> {
         for user_access in &mut file.user_access_keys {
             if user_access.encrypted_for == sharee_public_key {
                 found = true;
-                if user_access.mode == access_mode {
+                if user_access.mode == access_mode && !user_access.deleted {
                     return Err(CoreError::ShareAlreadyExists);
                 }
             }

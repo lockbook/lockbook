@@ -4,6 +4,7 @@ use hmac::{Mac, NewMac};
 use libsecp256k1::PublicKey;
 use uuid::Uuid;
 
+use crate::access_info::UserAccessInfo;
 use crate::account::Account;
 use crate::core_config::Config;
 use crate::crypto::{DecryptedDocument, EncryptedDocument};
@@ -220,7 +221,7 @@ where
             }
         }
         if !found {
-            return Err(SharedError::FileNonexistent);
+            return Err(SharedError::ShareNonexistent);
         }
         result = result.stage(Some(file.sign(account)?)).promote();
 
@@ -590,6 +591,7 @@ where
                             name,
                             document_hmac,
                             folder_access_key,
+                            user_access_keys,
                         ) = {
                             let (local, merge_changes) = result.unstage();
                             let (remote, local_changes) = local.unstage();
@@ -630,6 +632,11 @@ where
                                 &parent_key,
                             )?;
                             let folder_access_key = symkey::encrypt(&parent_key, &key)?;
+                            let user_access_keys = merge_user_access(
+                                Some(base_file.user_access_keys()),
+                                remote_change.user_access_keys(),
+                                local_change.user_access_keys(),
+                            );
                             (
                                 base_file,
                                 remote_deleted,
@@ -638,6 +645,7 @@ where
                                 name,
                                 document_hmac,
                                 folder_access_key,
+                                user_access_keys,
                             )
                         };
 
@@ -654,7 +662,7 @@ where
                                     owner: base_file.owner(),
                                     is_deleted: local_change.explicitly_deleted(),
                                     document_hmac,
-                                    user_access_keys: base_file.user_access_keys().clone(), // todo
+                                    user_access_keys,
                                     folder_access_key,
                                 }
                                 .sign(account)?,
@@ -663,7 +671,13 @@ where
                     }
                     // 2-way merge
                     else {
-                        let (remote_change, remote_name, remote_deleted, local_change) = {
+                        let (
+                            remote_change,
+                            remote_name,
+                            remote_deleted,
+                            local_change,
+                            user_access_keys,
+                        ) = {
                             let (local, merge_changes) = result.unstage();
                             let (remote, local_changes) = local.unstage();
                             let (base, remote_changes) = remote.unstage();
@@ -674,7 +688,18 @@ where
                             let remote_deleted = remote.calculate_deleted(&id)?;
                             let local = remote.stage(local_changes);
                             result = local.stage(merge_changes);
-                            (remote_change, remote_name, remote_deleted, local_change)
+                            let user_access_keys = merge_user_access(
+                                None,
+                                remote_change.user_access_keys(),
+                                local_change.user_access_keys(),
+                            );
+                            (
+                                remote_change,
+                                remote_name,
+                                remote_deleted,
+                                local_change,
+                                user_access_keys,
+                            )
                         };
 
                         let key = result.decrypt_key(&id, account)?;
@@ -697,7 +722,7 @@ where
                                     owner: remote_change.owner(),
                                     is_deleted: remote_deleted | local_change.explicitly_deleted(),
                                     document_hmac: remote_change.document_hmac().cloned(), // overwritten during document merge if local != remote
-                                    user_access_keys: remote_change.user_access_keys().clone(), // todo
+                                    user_access_keys,
                                     folder_access_key: remote_change.folder_access_key().clone(),
                                 }
                                 .sign(account)?,
@@ -820,6 +845,34 @@ where
 
         Ok((result, merge_document_changes))
     }
+}
+
+fn merge_user_access(
+    base_user_access: Option<&[UserAccessInfo]>, remote_user_access: &[UserAccessInfo],
+    local_user_access: &[UserAccessInfo],
+) -> Vec<UserAccessInfo> {
+    let mut user_access_keys = HashMap::<Owner, UserAccessInfo>::new();
+    for user_access in base_user_access
+        .unwrap_or(&[])
+        .iter()
+        .chain(remote_user_access.iter())
+        .chain(local_user_access.iter())
+    {
+        if let Some(existing_user_access) =
+            user_access_keys.remove(&Owner(user_access.encrypted_for))
+        {
+            if user_access.mode >= existing_user_access.mode {
+                user_access_keys.insert(Owner(user_access.encrypted_for), user_access.clone());
+            } else {
+                user_access_keys
+                    .insert(Owner(existing_user_access.encrypted_for), existing_user_access);
+            }
+        } else {
+            user_access_keys.insert(Owner(user_access.encrypted_for), user_access.clone());
+        }
+    }
+    let result = user_access_keys.into_values().into_iter().collect();
+    result
 }
 
 /// Returns the 3-way merge of any comparable value; returns `resolution` in the event of a conflict.

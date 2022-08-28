@@ -487,6 +487,52 @@ fn share_file_in_shared_folder() {
 }
 
 #[test]
+fn delete_nonexistent_share() {
+    let core = test_core_with_account();
+    let root = core.get_root().unwrap();
+    let document = core
+        .create_file("document", root.id, FileType::Document)
+        .unwrap();
+
+    let result = core.delete_pending_share(document.id);
+    assert_matches!(result, Err(Error::UiError(DeletePendingShareError::ShareNonexistent)));
+}
+
+#[test]
+fn share_file_duplicate_original_deleted() {
+    let core = test_core_with_account();
+    let sharee_core = test_core_with_account();
+    let sharee_account = &sharee_core.get_account().unwrap();
+    let root = core.get_root().unwrap();
+    let document = core
+        .create_file("document", root.id, FileType::Document)
+        .unwrap();
+    core.write_document(document.id, b"document content by sharer")
+        .unwrap();
+    core.share_file(document.id, &sharee_account.username, ShareMode::Write)
+        .unwrap();
+    core.sync(None).unwrap();
+
+    sharee_core.sync(None).unwrap();
+    sharee_core.delete_pending_share(document.id).unwrap();
+    sharee_core.sync(None).unwrap();
+
+    core.sync(None).unwrap();
+    core.share_file(document.id, &sharee_account.username, ShareMode::Write)
+        .unwrap();
+    core.sync(None).unwrap();
+
+    sharee_core.sync(None).unwrap();
+    sharee_core
+        .write_document(document.id, b"document content by sharee")
+        .unwrap();
+    sharee_core.sync(None).unwrap();
+
+    core.sync(None).unwrap();
+    assert_eq!(core.read_document(document.id).unwrap(), b"document content by sharee");
+}
+
+#[test]
 fn share_file_duplicate() {
     let core = test_core_with_account();
     let sharee_core = test_core_with_account();
@@ -660,7 +706,7 @@ fn delete_pending_share_duplicate() {
     cores[1].delete_pending_share(folder0.id).unwrap();
 
     let result = cores[1].delete_pending_share(folder0.id);
-    assert_matches!(result, Err(Error::UiError(DeletePendingShareError::FileNonexistent)));
+    assert_matches!(result, Err(Error::UiError(DeletePendingShareError::ShareNonexistent)));
 }
 
 #[test]
@@ -686,7 +732,7 @@ fn delete_pending_share_nonexistent() {
     cores[1].delete_pending_share(folder0.id).unwrap();
 
     let result = cores[1].delete_pending_share(folder0.id);
-    assert_matches!(result, Err(Error::UiError(DeletePendingShareError::FileNonexistent)));
+    assert_matches!(result, Err(Error::UiError(DeletePendingShareError::ShareNonexistent)));
 }
 
 #[test]
