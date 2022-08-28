@@ -61,7 +61,7 @@ fn release_gh(gh: &Github) {
 
 fn release_play_store(ps: &PlayStore) {
     let service_account_key: oauth2::ServiceAccountKey =
-        oauth2::parse_service_account_key(&ps.0).unwrap();
+        oauth2::parse_service_account_key(&ps.service_account_key).unwrap();
 
     let runtime = Runtime::new().unwrap();
 

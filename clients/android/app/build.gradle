@@ -19,13 +19,14 @@ android {
 
     signingConfigs {
         release {
+            ext.maybeStoreFile = System.getenv("ANDROID_RELEASE_STORE_FILE")
+
             if(maybeStoreFile != null) {
                 storeFile file(maybeStoreFile)
+                storePassword System.getenv("ANDROID_RELEASE_STORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_RELEASE_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_RELEASE_KEY_PASSWORD")
             }
-
-            storePassword System.getenv("ANDROID_RELEASE_STORE_PASSWORD")
-            keyAlias System.getenv("ANDROID_RELEASE_KEY_ALIAS")
-            keyPassword System.getenv("ANDROID_RELEASE_KEY_PASSWORD")
         }
     }
 
@@ -73,7 +74,9 @@ android {
 }
 
 task printVersionCode {
-    print android.defaultConfig.versionCode
+    doLast {
+        print android.defaultConfig.versionCode
+    }
 }
 
 dependencies {
