@@ -29,10 +29,6 @@ where
     Local: Stagable<F = Base::F>,
 {
     pub fn finalize(&mut self, id: &Uuid, account: &Account) -> SharedResult<File> {
-        if self.calculate_deleted(id)? {
-            return Err(SharedError::FileNonexistent);
-        }
-
         let meta = self.find(id)?;
         let file_type = meta.file_type();
         let parent = *meta.parent();
@@ -48,7 +44,7 @@ where
             file_type,
             last_modified,
             last_modified_by,
-            shares: Vec::new(),
+            shares: Vec::new(), // todo
         })
     }
 

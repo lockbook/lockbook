@@ -182,6 +182,10 @@ impl RequestContext<'_, '_> {
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
+        if tree.calculate_deleted(id)? {
+            return Err(CoreError::FileNonexistent);
+        }
+
         Ok(tree.finalize(id, account)?)
     }
 
