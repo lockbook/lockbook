@@ -89,7 +89,7 @@ impl RequestContext<'_, '_> {
                 continue;
             }
             // file must be shared with this user
-            if tree.access_mode(owner, &id)?.is_none() {
+            if tree.find(&id)?.access_mode(&owner).is_none() {
                 continue;
             }
             // file must not have any links pointing to it
