@@ -169,6 +169,158 @@ fn write_document_in_read_shared_folder_in_write_shared_folder() {
 }
 
 #[test]
+fn write_document_rejected_share() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let document = cores[0].create_at_path("/document").unwrap();
+    cores[0]
+        .write_document(document.id, b"document content by sharer")
+        .unwrap();
+    cores[0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    cores[1].delete_pending_share(document.id).unwrap();
+    let result = cores[1].write_document(document.id, b"document content by sharee");
+    assert_matches!(result, Err(Error::UiError(WriteToDocumentError::InsufficientPermission)));
+}
+
+#[test]
+fn write_document_in_shared_folder_in_rejected_share_folder() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder1 = cores[0].create_at_path("/folder/").unwrap();
+    let folder2 = cores[0].create_at_path("/folder/folder/").unwrap();
+    let document = cores[0].create_at_path("/folder/folder/document").unwrap();
+    cores[0]
+        .write_document(document.id, b"document content by sharer")
+        .unwrap();
+    cores[0]
+        .share_file(folder1.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0]
+        .share_file(folder2.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    cores[1].delete_pending_share(folder2.id).unwrap();
+    cores[1]
+        .write_document(document.id, b"document content by sharee")
+        .unwrap();
+    assert_eq!(cores[1].read_document(document.id).unwrap(), b"document content by sharee");
+    cores[1].sync(None).unwrap();
+    cores[0].sync(None).unwrap();
+    assert_eq!(cores[0].read_document(document.id).unwrap(), b"document content by sharee");
+}
+
+#[test]
+fn write_document_in_rejected_shared_folder_in_share_folder() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder1 = cores[0].create_at_path("/folder/").unwrap();
+    let folder2 = cores[0].create_at_path("/folder/folder/").unwrap();
+    let document = cores[0].create_at_path("/folder/folder/document").unwrap();
+    cores[0]
+        .write_document(document.id, b"document content by sharer")
+        .unwrap();
+    cores[0]
+        .share_file(folder1.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0]
+        .share_file(folder2.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    cores[1].delete_pending_share(folder1.id).unwrap();
+    cores[1]
+        .write_document(document.id, b"document content by sharee")
+        .unwrap();
+    assert_eq!(cores[1].read_document(document.id).unwrap(), b"document content by sharee");
+    cores[1].sync(None).unwrap();
+    cores[0].sync(None).unwrap();
+    assert_eq!(cores[0].read_document(document.id).unwrap(), b"document content by sharee");
+}
+
+#[test]
+fn write_document_in_rejected_shared_folder_in_rejected_share_folder() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder1 = cores[0].create_at_path("/folder/").unwrap();
+    let folder2 = cores[0].create_at_path("/folder/folder/").unwrap();
+    let document = cores[0].create_at_path("/folder/folder/document").unwrap();
+    cores[0]
+        .write_document(document.id, b"document content by sharer")
+        .unwrap();
+    cores[0]
+        .share_file(folder1.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0]
+        .share_file(folder2.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    cores[1].delete_pending_share(folder1.id).unwrap();
+    cores[1].delete_pending_share(folder2.id).unwrap();
+    let result = cores[1].write_document(document.id, b"document content by sharee");
+    assert_matches!(result, Err(Error::UiError(WriteToDocumentError::InsufficientPermission)));
+}
+
+#[test]
+fn linked_nested_shared_folders_distinct_path_changes_when_closest_link_deleted() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder1 = cores[0].create_at_path("/folder/").unwrap();
+    let folder2 = cores[0].create_at_path("/folder/folder/").unwrap();
+    let document = cores[0].create_at_path("/folder/folder/document").unwrap();
+    cores[0]
+        .write_document(document.id, b"document content by sharer")
+        .unwrap();
+    cores[0]
+        .share_file(folder1.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0]
+        .share_file(folder2.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    cores[1].create_link_at_path("/link1", folder1.id).unwrap();
+    let link2 = cores[1].create_link_at_path("/link2", folder2.id).unwrap();
+    assert::all_paths(&cores[1], &["/", "/link1/", "/link2/", "/link2/document"]);
+    cores[1].get_by_path("/link2/document").unwrap();
+    cores[1].get_by_path("/link1/folder/document").unwrap_err();
+    cores[1].delete_file(link2.id).unwrap();
+    assert::all_paths(&cores[1], &["/", "/link1/", "/link1/folder/", "/link1/folder/document"]);
+    cores[1].get_by_path("/link2/document").unwrap_err();
+    cores[1].get_by_path("/link1/folder/document").unwrap();
+}
+
+#[test]
 fn write_document_write_share_by_link() {
     let cores = vec![test_core_with_account(), test_core_with_account()];
     let accounts = cores

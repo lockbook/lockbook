@@ -51,15 +51,15 @@ impl<T: Stagable> LazyTree<T> {
         Ok(max_access_mode)
     }
 
-    pub fn in_pending_share(&self, id: &Uuid) -> SharedResult<bool> {
-        let mut file = self.find(id)?;
+    pub fn in_pending_share(&mut self, id: &Uuid) -> SharedResult<bool> {
+        let mut id = *id;
         loop {
-            if file.parent() == file.id() {
+            if self.find(&id)?.parent() == self.find(&id)?.id() {
                 return Ok(false); // root
-            } else if let Some(link) = self.link(file.id())? {
-                file = self.find(&link)?
-            } else if let Some(parent) = self.maybe_find(file.parent()) {
-                file = parent
+            } else if let Some(link) = self.link(&id)? {
+                id = link;
+            } else if self.maybe_find(self.find(&id)?.parent()).is_some() {
+                id = *self.find(&id)?.parent();
             } else {
                 return Ok(true); // share root
             }
@@ -184,10 +184,10 @@ impl<T: Stagable> LazyTree<T> {
         Ok(name)
     }
 
-    pub fn link(&self, id: &Uuid) -> SharedResult<Option<Uuid>> {
+    pub fn link(&mut self, id: &Uuid) -> SharedResult<Option<Uuid>> {
         for link_id in self.owned_ids() {
             if let FileType::Link { target } = self.find(&link_id)?.file_type() {
-                if id == &target {
+                if id == &target && !self.calculate_deleted(&link_id)? {
                     return Ok(Some(link_id));
                 }
             }
