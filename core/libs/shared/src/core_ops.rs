@@ -889,8 +889,7 @@ fn merge_user_access(
             user_access_keys.insert(Owner(user_access.encrypted_for), user_access.clone());
         }
     }
-    let result = user_access_keys.into_values().into_iter().collect();
-    result
+    user_access_keys.into_values().into_iter().collect()
 }
 
 /// Returns the 3-way merge of any comparable value; returns `resolution` in the event of a conflict.
