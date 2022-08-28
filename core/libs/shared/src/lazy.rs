@@ -126,9 +126,7 @@ impl<T: Stagable> LazyTree<T> {
     }
 
     pub fn decrypt_key(&mut self, id: &Uuid, account: &Account) -> SharedResult<AESKey> {
-        println!("A1");
         let mut file_id = *self.find(id)?.id();
-        println!("A2");
         let mut visited_ids = vec![];
 
         loop {
@@ -138,17 +136,14 @@ impl<T: Stagable> LazyTree<T> {
 
             let my_pk = account.public_key();
 
-            println!("A3");
             let maybe_file_key = if let Some(user_access) = self
                 .find(&file_id)?
                 .user_access_keys()
                 .iter()
                 .find(|access| access.encrypted_for == my_pk)
             {
-                println!("A4.1");
                 Some(user_access.decrypt(account)?)
             } else {
-                println!("A4.2");
                 None
             };
             if let Some(file_key) = maybe_file_key {
@@ -157,18 +152,13 @@ impl<T: Stagable> LazyTree<T> {
             }
 
             visited_ids.push(file_id);
-            println!("A5");
             file_id = *self.find_parent(self.find(&file_id)?)?.id();
-            println!("A6");
         }
 
         for id in visited_ids.iter().rev() {
             let decrypted_key = {
-                println!("A");
                 let file = self.find(id)?;
-                println!("B");
                 let parent = self.find_parent(file)?;
-                println!("C");
                 let parent_key = self.key.get(parent.id()).ok_or(SharedError::Unexpected(
                     "parent key should have been populated by prior routine",
                 ))?;

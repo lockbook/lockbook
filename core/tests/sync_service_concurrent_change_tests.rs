@@ -1242,3 +1242,35 @@ fn share_upgrade_to_write_then_delete() {
         .write_document(document.id, b"document content by sharee")
         .unwrap_err();
 }
+
+#[test]
+fn deleted_share_of_file_with_local_change() {
+    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let new_client = another_client(&cores[1][0]);
+    cores[1].push(new_client);
+    let accounts = cores
+        .iter()
+        .map(|cores| cores[0].get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let document = cores[0][0].create_at_path("/document").unwrap();
+    cores[0][0]
+        .write_document(document.id, b"document content by sharer")
+        .unwrap();
+    cores[0][0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0][0].sync(None).unwrap();
+
+    cores[1][0].sync(None).unwrap();
+    cores[1][0]
+        .write_document(document.id, b"document content by sharee")
+        .unwrap();
+
+    cores[1][1].sync(None).unwrap();
+    cores[1][1].delete_pending_share(document.id).unwrap();
+
+    sync_and_assert(&cores[1][0], &cores[1][1]);
+
+    assert::all_paths(&cores[1][0], &["/"]);
+}
