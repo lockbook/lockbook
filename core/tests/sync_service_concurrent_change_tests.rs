@@ -1087,3 +1087,158 @@ fn delete_then_create_link() {
 
     assert::all_paths(&cores[1][0], &["/"]);
 }
+
+#[test]
+fn share_from_two_clients() {
+    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let new_client = another_client(&cores[0][0]);
+    cores[0].push(new_client);
+    let accounts = cores
+        .iter()
+        .map(|cores| cores[0].get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let document = cores[0][0].create_at_path("/document").unwrap();
+    cores[0][0].sync(None).unwrap();
+    cores[0][0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0][1].sync(None).unwrap();
+    cores[0][1]
+        .share_file(document.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0][0].sync(None).unwrap();
+    cores[0][1].sync(None).unwrap();
+
+    cores[1][0].sync(None).unwrap();
+    cores[1][0]
+        .write_document(document.id, b"document content by sharee")
+        .unwrap();
+    cores[1][0].sync(None).unwrap();
+}
+
+#[test]
+fn share_from_two_clients_read_then_write() {
+    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let new_client = another_client(&cores[0][0]);
+    cores[0].push(new_client);
+    let accounts = cores
+        .iter()
+        .map(|cores| cores[0].get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let document = cores[0][0].create_at_path("/document").unwrap();
+    cores[0][0].sync(None).unwrap();
+    cores[0][0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+
+    cores[0][1].sync(None).unwrap();
+    cores[0][1]
+        .share_file(document.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0][0].sync(None).unwrap();
+    cores[0][1].sync(None).unwrap();
+
+    cores[1][0].sync(None).unwrap();
+    cores[1][0]
+        .write_document(document.id, b"document content by sharee")
+        .unwrap();
+    cores[1][0].sync(None).unwrap();
+}
+
+#[test]
+fn share_from_two_clients_write_then_read() {
+    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let new_client = another_client(&cores[0][0]);
+    cores[0].push(new_client);
+    let accounts = cores
+        .iter()
+        .map(|cores| cores[0].get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let document = cores[0][0].create_at_path("/document").unwrap();
+    cores[0][0].sync(None).unwrap();
+    cores[0][0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0][1].sync(None).unwrap();
+    cores[0][1]
+        .share_file(document.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+
+    cores[0][0].sync(None).unwrap();
+    cores[0][1].sync(None).unwrap();
+
+    cores[1][0].sync(None).unwrap();
+    cores[1][0]
+        .write_document(document.id, b"document content by sharee")
+        .unwrap();
+    cores[1][0].sync(None).unwrap();
+}
+
+#[test]
+fn share_delete_then_upgrade_to_write() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let document = cores[0].create_at_path("/document").unwrap();
+    cores[0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    cores[1].delete_pending_share(document.id).unwrap();
+
+    cores[0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[1].sync(None).unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    cores[1]
+        .write_document(document.id, b"document content by sharee")
+        .unwrap();
+    cores[1].sync(None).unwrap();
+}
+
+#[test]
+fn share_upgrade_to_write_then_delete() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let document = cores[0].create_at_path("/document").unwrap();
+    cores[0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    cores[1].delete_pending_share(document.id).unwrap();
+
+    cores[0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    // note: sync order reversed from above test
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    cores[1]
+        .write_document(document.id, b"document content by sharee")
+        .unwrap_err();
+}

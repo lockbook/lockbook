@@ -616,18 +616,30 @@ where
                                 remote_change.parent(),
                             );
                             let key = result.decrypt_key(&id, account)?;
-                            let parent_key = result.decrypt_key(&parent, account)?;
-                            let name = SecretFileName::from_str(
-                                three_way_merge(
-                                    &base_name,
-                                    &remote_name,
-                                    &local_name,
-                                    &remote_name,
-                                ),
-                                &key,
-                                &parent_key,
-                            )?;
-                            let folder_access_key = symkey::encrypt(&parent_key, &key)?;
+                            let (name, folder_access_key) = {
+                                // we may not have the parent of a direct share
+                                // in that case changes are unauthorized anyway
+                                if result.maybe_find(&parent).is_some() {
+                                    let parent_key = result.decrypt_key(&parent, account)?;
+                                    let name = SecretFileName::from_str(
+                                        three_way_merge(
+                                            &base_name,
+                                            &remote_name,
+                                            &local_name,
+                                            &remote_name,
+                                        ),
+                                        &key,
+                                        &parent_key,
+                                    )?;
+                                    let folder_access_key = symkey::encrypt(&parent_key, &key)?;
+                                    (name, folder_access_key)
+                                } else {
+                                    (
+                                        remote_change.secret_name().clone(),
+                                        remote_change.folder_access_key().clone(),
+                                    )
+                                }
+                            };
                             let user_access_keys = merge_user_access(
                                 Some(base_file.user_access_keys()),
                                 remote_change.user_access_keys(),
@@ -699,7 +711,17 @@ where
                         };
 
                         let key = result.decrypt_key(&id, account)?;
-                        let parent_key = result.decrypt_key(remote_change.parent(), account)?;
+                        let name = {
+                            // we may not have the parent of a direct share
+                            // in that case changes are unauthorized anyway
+                            if result.maybe_find(remote_change.parent()).is_some() {
+                                let parent_key =
+                                    result.decrypt_key(remote_change.parent(), account)?;
+                                SecretFileName::from_str(&remote_name, &key, &parent_key)?
+                            } else {
+                                remote_change.secret_name().clone()
+                            }
+                        };
 
                         if remote_deleted {
                             // discard changes to remote-deleted files
@@ -710,11 +732,7 @@ where
                                     id,
                                     file_type: remote_change.file_type(),
                                     parent: *remote_change.parent(),
-                                    name: SecretFileName::from_str(
-                                        &remote_name,
-                                        &key,
-                                        &parent_key,
-                                    )?,
+                                    name,
                                     owner: remote_change.owner(),
                                     is_deleted: remote_deleted | local_change.explicitly_deleted(),
                                     document_hmac: remote_change.document_hmac().cloned(), // overwritten during document merge if local != remote
@@ -854,10 +872,14 @@ fn merge_user_access(
         .chain(remote_user_access.iter())
         .chain(local_user_access.iter())
     {
-        if let Some(existing_user_access) =
+        if let Some(mut existing_user_access) =
             user_access_keys.remove(&Owner(user_access.encrypted_for))
         {
-            if user_access.mode >= existing_user_access.mode {
+            if user_access.deleted {
+                existing_user_access.deleted = true;
+                user_access_keys
+                    .insert(Owner(existing_user_access.encrypted_for), existing_user_access);
+            } else if user_access.mode >= existing_user_access.mode {
                 user_access_keys.insert(Owner(user_access.encrypted_for), user_access.clone());
             } else {
                 user_access_keys
