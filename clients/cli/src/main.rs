@@ -33,7 +33,7 @@ mod usage;
 mod utils;
 
 #[derive(Debug, PartialEq, StructOpt)]
-#[structopt(about = "The best place to store and share thoughts.")]
+#[structopt(about = "The private, polished note-taking platform.")]
 enum Lockbook {
     /// Backup your Lockbook files and structure to the current directory
     Backup,

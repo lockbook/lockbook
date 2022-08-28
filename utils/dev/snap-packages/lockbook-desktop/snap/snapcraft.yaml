@@ -3,7 +3,7 @@ base: core22
 version: '0.5.0'
 summary: The linux gui version of Lockbook
 description: |
-  The best place to store and share thoughts.
+  The private, polished note-taking platform.
 grade: stable
 confinement: strict
 
