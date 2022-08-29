@@ -16,6 +16,7 @@ use crate::{
     get_all_error_variants, unexpected_only, Config, Error, SupportedImageFormats, UnexpectedError,
 };
 use lockbook_shared::clock;
+use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::work_unit::ClientWorkUnit;
 
@@ -723,6 +724,65 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_stopCurrentSearch(
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_endSearch(env: JNIEnv, _: JClass) -> jstring {
     send_search_request(env, SearchRequest::EndSearch)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_shareFile(
+    env: JNIEnv, _: JClass, jid: JString, jusername: JString, jmode: JString,
+) -> jstring {
+    let id = match deserialize_id(&env, jid) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let username = match jstring_to_string(&env, jusername, "username") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let mode = match deserialize::<ShareMode>(&env, jmode, "share mode") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.share_file(id, &username, mode)),
+            e => translate(e.map(|_| ())),
+        },
+    )
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getPendingShares(
+    env: JNIEnv, _: JClass,
+) -> jstring {
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.get_pending_shares()),
+            e => translate(e.map(|_| ())),
+        },
+    )
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_deletePendingShare(
+    env: JNIEnv, _: JClass, jid: JString,
+) -> jstring {
+    let id = match deserialize_id(&env, jid) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.delete_pending_share(id)),
+            e => translate(e.map(|_| ())),
+        },
+    )
 }
 
 #[no_mangle]

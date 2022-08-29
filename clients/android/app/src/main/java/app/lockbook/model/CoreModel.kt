@@ -427,4 +427,39 @@ object CoreModel {
         stopCurrentSearchParser.tryParse(
             app.lockbook.core.stopCurrentSearch()
         )
+
+    private val shareFileParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), ShareFileError.serializer())
+        }
+    }
+
+    fun shareFile(id: String, username: String, model: ShareMode): Result<Unit, CoreError<ShareFileError>> =
+        shareFileParser.tryParse(
+            app.lockbook.core.shareFile()
+        )
+
+    private val getPendingSharesParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(ListSerializer(File.serializer()), Empty.serializer())
+        }
+    }
+
+    fun getPendingShares(): Result<List<File>, CoreError<Empty>> =
+        getPendingSharesParser.tryParse(
+            app.lockbook.core.getPendingShares()
+        )
+
+    private val deletePendingSharesParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(ListSerializer(File.serializer()), DeletePendingShareError.serializer())
+        }
+    }
+
+    fun deletePendingShares(id: String): Result<List<File>, CoreError<DeletePendingShareError>> =
+        deletePendingSharesParser.tryParse(
+            app.lockbook.core.deletePendingShares(id)
+        )
+
+
 }
