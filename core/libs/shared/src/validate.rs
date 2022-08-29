@@ -403,10 +403,6 @@ where
                                 // editing an existing share
 
                                 let (staged_mode, staged_deleted) = (&key.mode, &key.deleted);
-                                // error - cannot undelete things (todo: not an auth check)
-                                if *base_deleted && !*staged_deleted {
-                                    return Err(SharedError::ShareNonexistent);
-                                }
                                 // cannot delete someone else's share without write access
                                 if *staged_deleted
                                     && !*base_deleted

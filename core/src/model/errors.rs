@@ -154,6 +154,7 @@ pub enum CoreError {
     ServerDisabled,
     ServerUnreachable,
     ShareAlreadyExists,
+    ShareNonexistent,
     TryAgain,
     UsageIsOverFreeTierDataCap,
     UsernameInvalid,
@@ -185,6 +186,7 @@ impl From<SharedError> for CoreError {
             FileNotDocument => CoreError::FileNotDocument,
             InsufficientPermission => CoreError::InsufficientPermission,
             NotPermissioned => CoreError::InsufficientPermission,
+            ShareNonexistent => CoreError::ShareNonexistent,
             ValidationFailure(lockbook_shared::ValidationFailure::Cycle(_)) => {
                 CoreError::FolderMovedIntoSelf
             }
@@ -609,12 +611,14 @@ impl From<CoreError> for Error<ShareFileError> {
 #[derive(Debug, Serialize, EnumIter)]
 pub enum DeletePendingShareError {
     FileNonexistent,
+    ShareNonexistent,
 }
 
 impl From<CoreError> for Error<DeletePendingShareError> {
     fn from(e: CoreError) -> Self {
         match e {
             CoreError::FileNonexistent => UiError(DeletePendingShareError::FileNonexistent),
+            CoreError::ShareNonexistent => UiError(DeletePendingShareError::ShareNonexistent),
             _ => unexpected!("{:#?}", e),
         }
     }
