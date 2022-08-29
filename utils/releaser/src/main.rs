@@ -3,6 +3,7 @@ mod apple;
 mod secrets;
 mod server;
 mod utils;
+mod windows;
 
 use crate::secrets::{AppStore, Github, PlayStore};
 use structopt::StructOpt;
@@ -12,6 +13,7 @@ enum Releaser {
     DeployServer,
     ReleaseApple,
     ReleaseAndroid,
+    ReleaseWindows,
 }
 
 fn main() {
@@ -19,5 +21,6 @@ fn main() {
         Releaser::DeployServer => server::deploy_server(),
         Releaser::ReleaseApple => apple::release_apple(&Github::env(), &AppStore::env()),
         Releaser::ReleaseAndroid => android::release_android(&Github::env(), &PlayStore::env()),
+        Releaser::ReleaseWindows => windows::release(&Github::env()),
     }
 }
