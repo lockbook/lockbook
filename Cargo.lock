@@ -2878,7 +2878,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "atty",
  "chrono",
@@ -2892,7 +2892,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-core"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "backtrace",
  "base64",
@@ -2933,7 +2933,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-desktop"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "gdk-pixbuf",
  "gio",
@@ -2961,7 +2961,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "0.1.0"
+version = "0.5.3"
 dependencies = [
  "dark-light",
  "eframe",
@@ -2977,7 +2977,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "async-stripe",
  "atomic-counter",
