@@ -5,17 +5,17 @@ public class CustomNSTextView: NSTextView {
     override public func insertText(_ maybeString: Any, replacementRange: NSRange) {
         guard let storage = self.textStorage as? Storage else {
             print("Unexpected storage type")
-            return super.insertText(string, replacementRange: replacementRange)
+            return super.insertText(maybeString, replacementRange: replacementRange)
         }
         
         guard let assistant = storage.parser?.typeAssist else {
             print("storage does not have a parser yet")
-            return super.insertText(string, replacementRange: replacementRange)
+            return super.insertText(maybeString, replacementRange: replacementRange)
         }
         
         guard let string = maybeString as? String else {
             print("insertText with a non String type called")
-            return super.insertText(string, replacementRange: replacementRange)
+            return super.insertText(maybeString, replacementRange: replacementRange)
         }
         
         if assistant.mightAssist(string) {
