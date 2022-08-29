@@ -7,7 +7,7 @@ import AppKit
 import Down
 
 public class Storage: NSTextStorage {
-
+    
     var name: String?
     var backingStore = NSMutableAttributedString()
     var currentStyles: [AttributeRange] = []
@@ -15,6 +15,14 @@ public class Storage: NSTextStorage {
     var myChangeInLength: Int = 0
     var us: Bool = true
     var parser: Parser?
+    
+    /// The current incremental implementation doesn't handle emojis well. Emojis are their own font and we don't let external people
+    /// modify our string attributes. We don't let them do this so users can copy paste freely without messing up formatting. Also there
+    /// were many strange behaviors around the boundries of spans, # test would sometimes result in `# t` being a heading and the
+    /// rest being text. Could be worth revisiting exactly how we do ranges.
+    ///
+    /// Could also be worth revisiting the idea of making our own parser where we have a lot of control over the ranges being generated.
+    var incremental = false
     
     public override var string: String {
         get {
@@ -41,29 +49,33 @@ public class Storage: NSTextStorage {
                 return
             }
         }
-
+        
         us = true
         print()
         var startingPoint = Date()
-
+        
         let parser = Parser(backingStore.string)
         self.parser = parser
         let newStyles = parser.processedDocument
-        adjustCurrentStyles()
-        print("parser perf: \(startingPoint.timeIntervalSinceNow * -1)")
-
-        startingPoint = Date()
-        let sameSize = currentStyles.count == newStyles.count
-        var dirty = !sameSize
-        if sameSize {
-            for (index, currentStyle) in currentStyles.enumerated() {
-                if !currentStyle.isEqual(to: newStyles[index]) {
-                    dirty = true
-                    break
+        var dirty: Bool
+        if incremental {
+            print("parser perf: \(startingPoint.timeIntervalSinceNow * -1)")
+            
+            startingPoint = Date()
+            let sameSize = currentStyles.count == newStyles.count
+            dirty = !sameSize
+            if sameSize {
+                for (index, currentStyle) in currentStyles.enumerated() {
+                    if !currentStyle.isEqual(to: newStyles[index]) {
+                        dirty = true
+                        break
+                    }
                 }
             }
+        } else {
+            dirty = true
         }
-
+        
         if dirty {
             print("DIRT")
             currentStyles = newStyles
@@ -77,10 +89,6 @@ public class Storage: NSTextStorage {
         print("doc update perf: \(startingPoint.timeIntervalSinceNow * -1)")
         print()
         us = false
-    }
-    
-    func adjustCurrentStyles() {
-        
     }
     
     public override func setAttributes(_ attrs: [NSAttributedString.Key : Any]?, range: NSRange) {
