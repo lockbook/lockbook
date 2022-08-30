@@ -51,7 +51,7 @@ impl SettingsModal {
         Some(Box::new(Self {
             core: core.clone(),
             settings: s.clone(),
-            account: AccountSettings { export_result },
+            account: AccountSettings::new(export_result),
             usage: UsageSettings {
                 sub_info_result,
                 metrics_result,
