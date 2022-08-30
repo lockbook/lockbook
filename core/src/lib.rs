@@ -120,6 +120,14 @@ impl Core {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn export_account_qr(&self) -> Result<Vec<u8>, Error<AccountExportError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.export_account_qr())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn get_account(&self) -> Result<Account, Error<GetAccountError>> {
         let account = self
             .db
