@@ -7,6 +7,7 @@ use lockbook_shared::account::Account;
 use lockbook_shared::api::{GetPublicKeyRequest, NewAccountRequest};
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileMetadata;
+use qrcode_generator::QrCodeEcc;
 
 impl RequestContext<'_, '_> {
     pub fn create_account(&mut self, username: &str, api_url: &str) -> CoreResult<Account> {
@@ -80,6 +81,12 @@ impl RequestContext<'_, '_> {
             .ok_or(CoreError::AccountNonexistent)?;
         let encoded: Vec<u8> = bincode::serialize(&account).map_err(core_err_unexpected)?;
         Ok(base64::encode(&encoded))
+    }
+
+    pub fn export_account_qr(&self) -> CoreResult<Vec<u8>> {
+        let acct_secret = self.export_account()?;
+        qrcode_generator::to_png_to_vec(&acct_secret, QrCodeEcc::Low, 1024)
+            .map_err(core_err_unexpected)
     }
 
     pub fn get_account(&self) -> CoreResult<&Account> {
