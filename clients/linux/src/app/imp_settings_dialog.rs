@@ -1,7 +1,6 @@
 use gdk_pixbuf::Pixbuf;
 use gtk::glib;
 use gtk::prelude::*;
-use qrcode_generator::QrCodeEcc;
 
 use crate::lbutil;
 use crate::ui;
@@ -79,42 +78,66 @@ impl super::App {
         let btn_show_qr = gtk::Button::builder().label("Show Key as QR Code").build();
 
         let win = settings_win.clone();
+        let core = self.core.clone();
         btn_show_qr.connect_clicked(move |btn_show_qr| {
             let spinner = gtk::Spinner::new();
             spinner.start();
+
             let loading = gtk::Box::new(gtk::Orientation::Horizontal, 4);
             loading.set_halign(gtk::Align::Center);
             loading.append(&spinner);
             loading.append(&gtk::Label::new(Some("Generating QR...")));
+
             btn_show_qr.set_child(Some(&loading));
 
             let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
-            let acct_secret = acct_secret.clone();
+            let core = core.clone();
             std::thread::spawn(move || {
-                let bytes: Vec<u8> =
-                    qrcode_generator::to_png_to_vec(&acct_secret, QrCodeEcc::Low, 1024).unwrap();
-                tx.send(bytes).unwrap();
+                let result = core
+                    .export_account_qr()
+                    .map(std::io::Cursor::new)
+                    .map_err(|err| format!("{:?}", err));
+                tx.send(result).unwrap();
             });
 
             let btn_show_qr = btn_show_qr.clone();
             let win = win.clone();
-            rx.attach(None, move |bytes| {
-                let pixbuf = Pixbuf::from_read(std::io::Cursor::new(bytes)).unwrap();
-                let qr_code = gtk::Image::builder()
-                    .width_request(200)
-                    .height_request(200)
-                    .margin_top(20)
-                    .margin_bottom(20)
-                    .build();
-                qr_code.set_from_pixbuf(Some(&pixbuf));
-                btn_show_qr.set_label("Show Key as QR Code");
-                gtk::Dialog::builder()
+            rx.attach(None, move |png_result| {
+                let d = gtk::Dialog::builder()
                     .transient_for(&win)
                     .modal(true)
-                    .child(&qr_code)
-                    .build()
-                    .show();
+                    .build();
+
+                match png_result.and_then(|cursor| {
+                    Pixbuf::from_read(cursor).map_err(|err| format!("{:?}", err))
+                }) {
+                    Ok(pixbuf) => {
+                        let qr_code = gtk::Image::builder()
+                            .width_request(200)
+                            .height_request(200)
+                            .margin_top(20)
+                            .margin_bottom(20)
+                            .build();
+                        qr_code.set_from_pixbuf(Some(&pixbuf));
+                        d.set_child(Some(&qr_code));
+                    }
+                    Err(err) => {
+                        let err_lbl = gtk::Label::builder()
+                            .label(&err)
+                            .name("err")
+                            .halign(gtk::Align::Start)
+                            .margin_top(16)
+                            .margin_bottom(16)
+                            .margin_start(16)
+                            .margin_end(16)
+                            .build();
+                        d.set_child(Some(&err_lbl));
+                    }
+                }
+
+                btn_show_qr.set_label("Show Key as QR Code");
+                d.show();
                 glib::Continue(false)
             });
         });
