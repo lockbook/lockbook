@@ -389,14 +389,8 @@ enum class ExportFileError : UiCoreError {
     override fun toLbError(res: Resources): LbError = when (this) {
         ParentDoesNotExist -> LbError.newUserError(getString(res, R.string.could_not_find_a_parent))
         // Used basic errors since specific errors are not useful to the user
-        DiskPathTaken -> {
-            Timber.e("GOT THIS TAKEN")
-            LbError.newUserError(getString(res, R.string.basic_error))
-        }
-        DiskPathInvalid -> {
-            Timber.e("GOT THIS INVALID")
-            LbError.newUserError(getString(res, R.string.basic_error))
-        }
+        DiskPathTaken -> LbError.newUserError(getString(res, R.string.basic_error))
+        DiskPathInvalid -> LbError.newUserError(getString(res, R.string.basic_error))
     }
 }
 

@@ -234,14 +234,16 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun refreshWorkInfo() {
-        var sidebarInfo = UpdateFilesUI.UpdateSideBarInfo()
+        val sidebarInfo = UpdateFilesUI.UpdateSideBarInfo()
         maybeLastSidebarInfo = sidebarInfo
 
         when (val usageResult = CoreModel.getUsage()) {
             is Ok -> sidebarInfo.usageMetrics = usageResult.value
-            is Err -> return _notifyUpdateFilesUI.postValue(
-                UpdateFilesUI.NotifyError(usageResult.error.toLbError(getRes()))
-            )
+            is Err -> if((usageResult.error as? CoreError.UiError)?.content != GetUsageError.CouldNotReachServer) {
+                _notifyUpdateFilesUI.postValue(
+                    UpdateFilesUI.NotifyError(usageResult.error.toLbError(getRes()))
+                )
+            }
         }
 
         _notifyUpdateFilesUI.postValue(sidebarInfo)
@@ -267,7 +269,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                     files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
                 }
             }
-            is Err -> {
+            is Err -> if((calculateWorkResult.error as? CoreError.UiError)?.content != CalculateWorkError.CouldNotReachServer) {
                 _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(calculateWorkResult.error.toLbError(getRes())))
             }
         }
