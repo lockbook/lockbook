@@ -208,7 +208,7 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     private fun onFileDeleted(filesFragment: FilesFragment) {
-        val openedFile = model.detailsScreen?.fileMetadata?.id
+        val openedFile = model.detailsScreen?.maybeGetFile()?.id
         if (openedFile != null) {
             val isDeletedFileOpen = (model.transientScreen as TransientScreen.Delete).files.any { file -> file.id == openedFile }
 
@@ -232,6 +232,7 @@ class MainScreenActivity : AppCompatActivity() {
                 is DetailsScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
                 is DetailsScreen.ImageViewer -> replace<ImageViewerFragment>(R.id.detail_container)
                 is DetailsScreen.PdfViewer -> replace<PdfViewerFragment>(R.id.detail_container)
+                DetailsScreen.SharedFiles -> replace<SharedFilesFragment>(R.id.detail_container)
                 null -> {
                     maybeGetFilesFragment()?.syncBasedOnPreferences()
                     supportFragmentManager.findFragmentById(R.id.detail_container)?.let {

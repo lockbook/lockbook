@@ -70,3 +70,11 @@ class SearchedDocumentContentViewHolder(itemView: View) : ViewHolder(itemView) {
     val path: TextView = itemView.findViewById(R.id.searched_document_content_path)
     val content: TextView = itemView.findViewById(R.id.searched_document_content)
 }
+
+class SharedFileViewHolder(itemView: View) : ViewHolder(itemView) {
+    val name: TextView = itemView.findViewById(R.id.shared_file_name)
+    val icon: ImageView = itemView.findViewById(R.id.shared_file_icon)
+    val owner: TextView = itemView.findViewById(R.id.shared_file_owner)
+    val addShared: ImageView = itemView.findViewById(R.id.add_shared)
+    val deleteShared: ImageView = itemView.findViewById(R.id.delete_shared)
+}

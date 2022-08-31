@@ -229,6 +229,9 @@ class FilesListFragment : Fragment(), FilesFragment {
                         SettingsActivity::class.java
                     )
                 )
+                R.id.menu_files_list_sharing -> {
+                    activityModel.launchDetailsScreen(DetailsScreen.SharedFiles)
+                }
             }
 
             binding.drawerLayout.close()

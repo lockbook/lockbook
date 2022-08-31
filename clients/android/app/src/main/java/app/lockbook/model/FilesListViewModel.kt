@@ -234,7 +234,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun refreshWorkInfo() {
-        var sidebarInfo = UpdateFilesUI.UpdateSideBarInfo()
+        val sidebarInfo = UpdateFilesUI.UpdateSideBarInfo()
         maybeLastSidebarInfo = sidebarInfo
 
         when (val usageResult = CoreModel.getUsage()) {

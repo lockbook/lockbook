@@ -124,25 +124,36 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
     }
 }
 
-sealed class DetailsScreen(open val fileMetadata: app.lockbook.util.File) {
-    data class Loading(override val fileMetadata: app.lockbook.util.File) : DetailsScreen(fileMetadata)
-    data class TextEditor(override val fileMetadata: app.lockbook.util.File, val text: String) :
-        DetailsScreen(fileMetadata)
+sealed class DetailsScreen {
+    data class Loading(val fileMetadata: app.lockbook.util.File) : DetailsScreen()
+    data class TextEditor(val fileMetadata: app.lockbook.util.File, val text: String) :
+        DetailsScreen()
 
     data class Drawing(
-        override val fileMetadata: app.lockbook.util.File,
+        val fileMetadata: app.lockbook.util.File,
         val drawing: app.lockbook.util.Drawing
-    ) : DetailsScreen(fileMetadata)
+    ) : DetailsScreen()
 
     data class ImageViewer(
-        override val fileMetadata: app.lockbook.util.File,
+        val fileMetadata: app.lockbook.util.File,
         val bitmap: Bitmap
-    ) : DetailsScreen(fileMetadata)
+    ) : DetailsScreen()
 
     data class PdfViewer(
-        override val fileMetadata: app.lockbook.util.File,
+        val fileMetadata: app.lockbook.util.File,
         val location: File
-    ) : DetailsScreen(fileMetadata)
+    ) : DetailsScreen()
+
+    object SharedFiles : DetailsScreen()
+
+    fun maybeGetFile(): app.lockbook.util.File? = when(this) {
+        is Drawing -> fileMetadata
+        is ImageViewer -> fileMetadata
+        is Loading -> fileMetadata
+        is PdfViewer -> fileMetadata
+        is TextEditor -> fileMetadata
+        SharedFiles -> null
+    }
 }
 
 sealed class TransientScreen {

@@ -260,4 +260,8 @@
     <string name="no_search_results">No search results</string>
     <string name="exit_app">Exit App</string>
     <string name="note">note</string>
+    <string name="pending_shared">Pending Shared Files</string>
+    <string name="shared_files_title">Shared Files</string>
+    <string name="shared_file_icon">Shared file icon</string>
+    <string name="reject_all_shared">Reject all</string>
 </resources>
