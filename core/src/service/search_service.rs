@@ -372,7 +372,7 @@ impl RequestContext<'_, '_> {
                 let take_chars_len = if at_least_take > IDEAL_CONTENT_MATCH_LENGTH {
                     at_least_take
                 } else {
-                    IDEAL_CONTENT_MATCH_LENGTH - (last_match - index_offset)
+                    IDEAL_CONTENT_MATCH_LENGTH
                 };
 
                 new_paragraph = new_paragraph
