@@ -24,6 +24,12 @@ const MATCHED_CONTENT_2: (&str, &str) = (
     Mauris massa nisl, venenatis eget viverra non, ultrices vel enim.",
 );
 
+const MATCHED_CONTENT_3: (&str, &str) = (
+    "scelerisque tempus",
+    "...t amet, scelerisque tempus enim. Duis tristique imperdiet ex. Curabitur sagittis augue \
+    vel orci eleifend, sed cursus ante porta. Phasellus pellente...",
+);
+
 #[test]
 fn test_matches() {
     let core = test_core_with_account();
@@ -155,6 +161,12 @@ fn test_async_content_matches() {
         &start_search.results_rx,
         MATCHED_CONTENT_2.0,
         MATCHED_CONTENT_2.1,
+    );
+    assert_async_content_match(
+        &start_search.search_tx,
+        &start_search.results_rx,
+        MATCHED_CONTENT_3.0,
+        MATCHED_CONTENT_3.1,
     );
 
     start_search
