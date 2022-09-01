@@ -6,13 +6,13 @@ This document only shows iOS views that appear differently on iPad. See [iPhone]
 
 <details>
 
-![img.png](editor.png)
+![img.png](editor.jpeg)
 
 </details>
 
 ## Drawing
 
-![img.png](drawing.png)
+![img.png](drawing.jpeg)
 
 ## Settings
 
