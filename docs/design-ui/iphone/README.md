@@ -27,15 +27,15 @@
 ![img_4.png](main-screen.png)
 ![img_5.png](main-screen-light.png)
 ![img_5.png](file-mods.png)
-![img_6.png](rename.png)
+![img_6.png](rename.jpeg)
 ![img_6.png](new-file.png)
 </details>
 
 ## Editor
 <details>
 
-![img_8.png](editor-dark.png)
-![img_7.png](editor-light.png)
+![img_8.png](editor-dark.jpeg)
+![img_7.png](editor-light.jpeg)
 </details>
 
 ## Drawing
