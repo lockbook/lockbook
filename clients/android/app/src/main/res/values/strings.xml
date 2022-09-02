@@ -75,8 +75,12 @@
     <string name="confirm">Confirm</string>
     <string name="move_file_move">Move</string>
     <string name="delete_file_delete">Delete</string>
+    <string name="delete_shared_reject">Reject</string>
     <string name="delete_1_file_message">Are you sure you want to delete \"%s\"?</string>
     <string name="delete_file_message">Are you sure you want to delete %d files?</string>
+
+    <string name="delete_shared_1_message">Are you sure you want to reject \"%1$s\" shared by \"%2$s\".?</string>
+    <string name="delete_shared_message">Are you sure you want to reject %d files?</string>
 
     <string name="text_editor_hint">Type here</string>
     <string name="rename_file_rename">Rename</string>

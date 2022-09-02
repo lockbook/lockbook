@@ -39,7 +39,7 @@ class ImageViewerFragment : Fragment() {
         imageViewerInfo: DetailsScreen.ImageViewer,
         savedInstanceState: Bundle?
     ) {
-        binding.imageViewToolbar.title = imageViewerInfo.fileMetadata.name
+        binding.imageViewToolbar.title = imageViewerInfo.file.name
         binding.imageViewToolbar.background.alpha = TOOLBAR_ALPHA
         binding.imageViewToolbar.setNavigationOnClickListener {
             activityModel.launchDetailsScreen(null)

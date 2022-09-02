@@ -10,10 +10,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentImageViewerBinding
 import app.lockbook.databinding.FragmentSharedFilesBinding
-import app.lockbook.model.CoreModel
-import app.lockbook.model.DetailsScreen
-import app.lockbook.model.ExtensionHelper
-import app.lockbook.model.StateViewModel
+import app.lockbook.model.*
 import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.DataSource
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
@@ -23,6 +20,8 @@ import com.afollestad.recyclical.withItem
 class SharedFilesFragment : Fragment() {
     private var _binding: FragmentSharedFilesBinding? = null
     private val binding get() = _binding!!
+
+    private val activityModel: StateViewModel by activityViewModels()
 
     val sharedFiles = emptyDataSourceTyped<File>()
 
@@ -60,7 +59,7 @@ class SharedFilesFragment : Fragment() {
                     }
 
                     deleteShared.setOnClickListener {
-
+                        activityModel.launchTransientScreen(TransientScreen.DeleteShared(listOf(item)))
                     }
 
                     icon.setImageResource(iconResource)

@@ -47,7 +47,7 @@ class PdfViewerFragment : Fragment() {
     ): View {
         _binding = FragmentPdfViewerBinding.inflate(inflater, container, false)
         val pdfViewerInfo = activityModel.detailsScreen as DetailsScreen.PdfViewer
-        fileName = pdfViewerInfo.fileMetadata.name
+        fileName = pdfViewerInfo.file.name
 
         initializePdfRenderer(savedInstanceState, pdfViewerInfo)
         setUpAfterConfigurationChange(savedInstanceState)

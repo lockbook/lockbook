@@ -13,7 +13,6 @@ import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.databinding.FragmentTextEditorBinding
 import app.lockbook.model.*
-import io.noties.markwon.editor.*
 import java.lang.ref.WeakReference
 
 class TextEditorFragment : Fragment() {
@@ -29,7 +28,7 @@ class TextEditorFragment : Fragment() {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     val detailsScreen = activityModel.detailsScreen as DetailsScreen.TextEditor
                     if (modelClass.isAssignableFrom(TextEditorViewModel::class.java))
-                        return TextEditorViewModel(requireActivity().application, detailsScreen.fileMetadata, detailsScreen.text, binding.textEditorTextField.textSize) as T
+                        return TextEditorViewModel(requireActivity().application, detailsScreen.file, detailsScreen.text, binding.textEditorTextField.textSize) as T
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }
             }
@@ -52,7 +51,7 @@ class TextEditorFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentTextEditorBinding.inflate(inflater, container, false)
-        val name = (activityModel.detailsScreen as DetailsScreen.TextEditor).fileMetadata.name
+        val name = (activityModel.detailsScreen as DetailsScreen.TextEditor).file.name
 
         textEditorToolbar.title = name
         textEditorToolbar.setOnMenuItemClickListener { item ->

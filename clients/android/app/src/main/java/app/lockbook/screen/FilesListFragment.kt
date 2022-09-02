@@ -230,7 +230,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                     )
                 )
                 R.id.menu_files_list_sharing -> {
-                    activityModel.launchDetailsScreen(DetailsScreen.SharedFiles)
+                    activityModel.launchDetailsScreen(DetailsScreen.ViewSharedFiles)
                 }
             }
 

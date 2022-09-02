@@ -16,7 +16,7 @@ import app.lockbook.databinding.DialogMoveFileBinding
 import app.lockbook.model.*
 import app.lockbook.util.File
 import app.lockbook.util.FileType
-import app.lockbook.util.MoveFileItemViewHolder
+import app.lockbook.util.BasicFileItemHolder
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -69,8 +69,8 @@ class MoveFileDialogFragment : DialogFragment() {
     private fun setUpView() {
         binding.moveFileList.setup {
             withDataSource(model.files)
-            withItem<File, MoveFileItemViewHolder>(R.layout.move_file_item) {
-                onBind(::MoveFileItemViewHolder) { _, item ->
+            withItem<File, BasicFileItemHolder>(R.layout.move_file_item) {
+                onBind(::BasicFileItemHolder) { _, item ->
                     name.text = item.name
                     val extensionHelper = ExtensionHelper(item.name)
 

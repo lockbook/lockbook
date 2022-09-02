@@ -144,6 +144,12 @@ class MainScreenActivity : AppCompatActivity() {
                         DeleteFilesDialogFragment.DELETE_FILEs_DIALOG_FRAGMENT
                     )
                 }
+                is TransientScreen.DeleteShared -> {
+                    DeleteFilesDialogFragment().show(
+                        supportFragmentManager,
+                        DeleteSharedDialogFragment.DELETE_SHARED_DIALOG_FRAGMENT
+                    )
+                }
             }.exhaustive
         }
 
@@ -232,7 +238,7 @@ class MainScreenActivity : AppCompatActivity() {
                 is DetailsScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
                 is DetailsScreen.ImageViewer -> replace<ImageViewerFragment>(R.id.detail_container)
                 is DetailsScreen.PdfViewer -> replace<PdfViewerFragment>(R.id.detail_container)
-                DetailsScreen.SharedFiles -> replace<SharedFilesFragment>(R.id.detail_container)
+                DetailsScreen.ViewSharedFiles -> replace<SharedFilesFragment>(R.id.detail_container)
                 null -> {
                     maybeGetFilesFragment()?.syncBasedOnPreferences()
                     supportFragmentManager.findFragmentById(R.id.detail_container)?.let {

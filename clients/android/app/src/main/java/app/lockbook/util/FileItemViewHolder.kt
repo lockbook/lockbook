@@ -28,7 +28,7 @@ class FolderViewHolder(itemView: View) : ViewHolder(itemView) {
     val actionIcon: ImageView = itemView.findViewById(R.id.folder_action_icon)
 }
 
-class MoveFileItemViewHolder(itemView: View) : ViewHolder(itemView) {
+class BasicFileItemHolder(itemView: View) : ViewHolder(itemView) {
     val name: TextView = itemView.findViewById(R.id.linear_move_file_name)
     val icon: ImageView = itemView.findViewById(R.id.linear_move_file_icon)
 }

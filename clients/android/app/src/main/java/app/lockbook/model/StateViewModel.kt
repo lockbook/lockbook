@@ -125,34 +125,37 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
 }
 
 sealed class DetailsScreen {
-    data class Loading(val fileMetadata: app.lockbook.util.File) : DetailsScreen()
-    data class TextEditor(val fileMetadata: app.lockbook.util.File, val text: String) :
+    data class Loading(val file: app.lockbook.util.File) : DetailsScreen()
+    data class TextEditor(val file: app.lockbook.util.File, val text: String) :
         DetailsScreen()
 
     data class Drawing(
-        val fileMetadata: app.lockbook.util.File,
+        val file: app.lockbook.util.File,
         val drawing: app.lockbook.util.Drawing
     ) : DetailsScreen()
 
     data class ImageViewer(
-        val fileMetadata: app.lockbook.util.File,
+        val file: app.lockbook.util.File,
         val bitmap: Bitmap
     ) : DetailsScreen()
 
     data class PdfViewer(
-        val fileMetadata: app.lockbook.util.File,
+        val file: app.lockbook.util.File,
         val location: File
     ) : DetailsScreen()
 
-    object SharedFiles : DetailsScreen()
+    object ViewSharedFiles : DetailsScreen()
+
+    data class CreateLinkFragment(val file: app.lockbook.util.File) : DetailsScreen()
 
     fun maybeGetFile(): app.lockbook.util.File? = when(this) {
-        is Drawing -> fileMetadata
-        is ImageViewer -> fileMetadata
-        is Loading -> fileMetadata
-        is PdfViewer -> fileMetadata
-        is TextEditor -> fileMetadata
-        SharedFiles -> null
+        is Drawing -> file
+        is ImageViewer -> file
+        is Loading -> file
+        is PdfViewer -> file
+        is TextEditor -> file
+        is CreateLinkFragment -> file
+        ViewSharedFiles -> null
     }
 }
 
@@ -163,6 +166,7 @@ sealed class TransientScreen {
     data class Info(val file: app.lockbook.util.File) : TransientScreen()
     data class Share(val files: List<File>) : TransientScreen()
     data class Delete(val files: List<app.lockbook.util.File>) : TransientScreen()
+    data class DeleteShared(val files: List<app.lockbook.util.File>) : TransientScreen()
 }
 
 sealed class UpdateMainScreenUI {

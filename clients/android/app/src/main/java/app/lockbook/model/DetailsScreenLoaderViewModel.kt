@@ -29,11 +29,11 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
     }
 
     private fun loadContent(loadingInfo: DetailsScreen.Loading) {
-        val extensionHelper = ExtensionHelper(loadingInfo.fileMetadata.name)
+        val extensionHelper = ExtensionHelper(loadingInfo.file.name)
 
         val updateUI = when {
             extensionHelper.isDrawing -> {
-                val json = when (val readDocumentResult = CoreModel.readDocument(loadingInfo.fileMetadata.id)) {
+                val json = when (val readDocumentResult = CoreModel.readDocument(loadingInfo.file.id)) {
                     is Ok -> readDocumentResult.value
                     is Err ->
                         return _updateDetailScreenLoaderUI.postValue(
@@ -46,7 +46,7 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
                 if (json.isEmpty()) {
                     UpdateDetailScreenLoaderUI.NotifyFinished(
                         DetailsScreen.Drawing(
-                            loadingInfo.fileMetadata,
+                            loadingInfo.file,
                             Drawing()
                         )
                     )
@@ -54,7 +54,7 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
                     try {
                         UpdateDetailScreenLoaderUI.NotifyFinished(
                             DetailsScreen.Drawing(
-                                loadingInfo.fileMetadata,
+                                loadingInfo.file,
                                 Json.decodeFromString(json)
                             )
                         )
@@ -68,14 +68,14 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
                 }
             }
             extensionHelper.isImage -> {
-                val bytes = CoreModel.readDocumentBytes(loadingInfo.fileMetadata.id)
+                val bytes = CoreModel.readDocumentBytes(loadingInfo.file.id)
 
                 if (bytes == null) {
                     UpdateDetailScreenLoaderUI.NotifyError(LbError.basicError(getRes()))
                 } else {
                     UpdateDetailScreenLoaderUI.NotifyFinished(
                         DetailsScreen.ImageViewer(
-                            loadingInfo.fileMetadata,
+                            loadingInfo.file,
                             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                         )
                     )
@@ -86,15 +86,15 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
                 child.deleteRecursively()
                 child.mkdir()
 
-                when (val exportFileResult = CoreModel.exportFile(loadingInfo.fileMetadata.id, child.toString(), true)) {
-                    is Ok -> UpdateDetailScreenLoaderUI.NotifyFinished(DetailsScreen.PdfViewer(loadingInfo.fileMetadata, child))
+                when (val exportFileResult = CoreModel.exportFile(loadingInfo.file.id, child.toString(), true)) {
+                    is Ok -> UpdateDetailScreenLoaderUI.NotifyFinished(DetailsScreen.PdfViewer(loadingInfo.file, child))
                     is Err -> {
                         UpdateDetailScreenLoaderUI.NotifyError(exportFileResult.error.toLbError(getRes()))
                     }
                 }
             }
             else -> {
-                val text = when (val readDocumentResult = CoreModel.readDocument(loadingInfo.fileMetadata.id)) {
+                val text = when (val readDocumentResult = CoreModel.readDocument(loadingInfo.file.id)) {
                     is Ok -> readDocumentResult.value
                     is Err ->
                         return _updateDetailScreenLoaderUI.postValue(
@@ -105,7 +105,7 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
                 }
 
                 UpdateDetailScreenLoaderUI.NotifyFinished(
-                    DetailsScreen.TextEditor(loadingInfo.fileMetadata, text)
+                    DetailsScreen.TextEditor(loadingInfo.file, text)
                 )
             }
         }
