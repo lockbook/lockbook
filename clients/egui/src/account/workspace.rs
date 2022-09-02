@@ -1,6 +1,9 @@
 use eframe::egui;
 use egui_extras::RetainedImage;
 
+use crate::theme::Icon;
+use crate::widgets::separator;
+
 use super::{Tab, TabContent};
 
 pub struct Workspace {
@@ -41,12 +44,16 @@ impl Workspace {
         self.tabs.get(self.active_tab)
     }
 
-    pub fn close_current_tab(&mut self) {
-        self.tabs.remove(self.active_tab);
+    pub fn close_tab(&mut self, i: usize) {
+        self.tabs.remove(i);
         let n_tabs = self.tabs.len();
         if self.active_tab >= n_tabs && n_tabs > 0 {
             self.active_tab = n_tabs - 1;
         }
+    }
+
+    pub fn close_current_tab(&mut self) {
+        self.close_tab(self.active_tab);
     }
 
     pub fn goto_tab_id(&mut self, id: lb::Uuid) -> bool {
@@ -68,6 +75,112 @@ impl Workspace {
     }
 }
 
+enum TabLabelResponse {
+    Clicked,
+    Closed,
+}
+
+fn tab_label(ui: &mut egui::Ui, t: &Tab, is_active: bool) -> Option<TabLabelResponse> {
+    let mut lbl_resp = None;
+
+    let padding = egui::vec2(15.0, 15.0);
+    let wrap_width = ui.available_width();
+
+    let text: egui::WidgetText = (&t.name).into();
+    let text = text.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
+
+    let x_icon = Icon::CLOSE.size(16.0);
+
+    let w = text.size().x + padding.x * 3.0 + x_icon.size + 1.0;
+    let h = text.size().y + padding.y * 2.0;
+
+    let (rect, resp) = ui.allocate_exact_size((w, h).into(), egui::Sense::hover());
+
+    if ui.is_rect_visible(rect) {
+        let visuals = &ui.style().interact(&resp).clone();
+
+        let close_btn_pos =
+            egui::pos2(rect.max.x - padding.x - x_icon.size, rect.center().y - x_icon.size / 2.0);
+
+        let close_btn_rect =
+            egui::Rect::from_min_size(close_btn_pos, egui::vec2(x_icon.size, x_icon.size))
+                .expand(2.0);
+
+        let mut close_hovered = false;
+        let pointer_pos = ui.input().pointer.hover_pos();
+        if let Some(pos) = pointer_pos {
+            if close_btn_rect.contains(pos) {
+                close_hovered = true;
+            }
+        }
+
+        let bg = if resp.hovered() && !close_hovered {
+            ui.visuals().widgets.hovered.bg_fill
+        } else {
+            ui.visuals().widgets.noninteractive.bg_fill
+        };
+        ui.painter().rect(rect, 0.0, bg, egui::Stroke::none());
+
+        let text_pos = egui::pos2(rect.min.x + padding.x, rect.center().y - 0.5 * text.size().y);
+
+        text.paint_with_visuals(ui.painter(), text_pos, visuals);
+
+        if close_hovered {
+            ui.painter().rect(
+                close_btn_rect,
+                0.0,
+                ui.visuals().widgets.hovered.bg_fill,
+                egui::Stroke::none(),
+            );
+        }
+
+        let icon_draw_pos = egui::pos2(
+            rect.max.x - padding.x - x_icon.size - 1.0,
+            rect.center().y - x_icon.size / 4.1 - 1.0,
+        );
+
+        let icon: egui::WidgetText = (&x_icon).into();
+        icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body)
+            .paint_with_visuals(ui.painter(), icon_draw_pos, visuals);
+
+        let close_resp = ui.interact(
+            close_btn_rect,
+            egui::Id::new(format!("close-btn-{}", t.id)),
+            egui::Sense::click(),
+        );
+        // First, we check if the close button was clicked.
+        if close_resp.clicked() {
+            lbl_resp = Some(TabLabelResponse::Closed);
+        } else {
+            // Then, we check if the tab label was clicked so that a close button click
+            // wouldn't also count here.
+            let resp = resp.interact(egui::Sense::click());
+            if resp.clicked() {
+                lbl_resp = Some(TabLabelResponse::Clicked);
+            } else if resp.middle_clicked() {
+                lbl_resp = Some(TabLabelResponse::Closed);
+            }
+        }
+
+        if is_active {
+            ui.painter().hline(
+                rect.min.x + 0.5..=rect.max.x - 1.0,
+                rect.max.y - 2.0,
+                egui::Stroke::new(4.0, ui.visuals().widgets.active.bg_fill),
+            );
+        }
+
+        let sep_stroke = if resp.hovered() && !close_hovered {
+            egui::Stroke::new(1.0, egui::Color32::TRANSPARENT)
+        } else {
+            ui.visuals().widgets.noninteractive.bg_stroke
+        };
+        ui.painter().vline(rect.max.x, rect.y_range(), sep_stroke);
+    }
+
+    lbl_resp
+}
+
 impl super::AccountScreen {
     pub fn show_workspace(&mut self, frame: &mut eframe::Frame, ui: &mut egui::Ui) {
         ui.set_enabled(!self.is_any_modal_open());
@@ -86,18 +199,37 @@ impl super::AccountScreen {
     fn show_tabs(&mut self, frame: &mut eframe::Frame, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
             if self.workspace.tabs.len() > 1 {
-                ui.horizontal(|ui| {
-                    for (i, t) in self.workspace.tabs.iter().enumerate() {
-                        if ui
-                            .selectable_label(self.workspace.active_tab == i, &t.name)
-                            .clicked()
+                ui.scope(|ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+
+                    ui.horizontal(|ui| {
+                        let ws = &mut self.workspace;
+
+                        for (i, maybe_resp) in ws
+                            .tabs
+                            .iter()
+                            .enumerate()
+                            .map(|(i, t)| tab_label(ui, t, ws.active_tab == i))
+                            .collect::<Vec<Option<TabLabelResponse>>>()
+                            .iter()
+                            .enumerate()
                         {
-                            self.workspace.active_tab = i;
-                            frame.set_window_title(&t.name);
+                            if let Some(resp) = maybe_resp {
+                                match resp {
+                                    TabLabelResponse::Clicked => {
+                                        ws.active_tab = i;
+                                        frame.set_window_title(&ws.tabs[i].name);
+                                    }
+                                    TabLabelResponse::Closed => ws.close_tab(i),
+                                }
+                                ui.ctx().request_repaint();
+                            }
                         }
-                    }
+                    });
+
+                    separator(ui);
                 });
-                ui.separator();
+            } else {
                 ui.add_space(5.0);
             }
 
