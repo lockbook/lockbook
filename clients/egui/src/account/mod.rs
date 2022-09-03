@@ -6,6 +6,7 @@ mod workspace;
 
 use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
+use std::time::Duration;
 
 use eframe::egui;
 
@@ -38,10 +39,13 @@ pub struct AccountScreen {
 impl AccountScreen {
     pub fn new(
         settings: Arc<RwLock<Settings>>, core: Arc<lb::Core>, acct_data: AccountScreenInitData,
+        ctx: &egui::Context,
     ) -> Self {
         let (update_tx, update_rx) = mpsc::channel();
 
         let AccountScreenInitData { files, sync_status, usage } = acct_data;
+
+        start_auto_syncing(&settings, &core, &update_tx, ctx);
 
         Self {
             settings,
@@ -96,6 +100,9 @@ impl AccountScreen {
     fn process_updates(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         while let Ok(update) = self.update_rx.try_recv() {
             match update {
+                AccountUpdate::BgUpdate(update) => match update {
+                    BgUpdate::AutoSync => self.perform_sync(ctx),
+                },
                 AccountUpdate::OpenModal(open_modal) => match open_modal {
                     OpenModal::NewFile(maybe_parent) => self.open_new_file_modal(maybe_parent),
                     OpenModal::Settings => {
@@ -385,6 +392,8 @@ impl AccountScreen {
 }
 
 enum AccountUpdate {
+    BgUpdate(BgUpdate),
+
     /// To open some modals, we queue an update for the next frame so that the actions used to open
     /// each modal (such as the release of a click that would then be in the "outside" area of the
     /// modal) don't automatically close the modal during the same frame.
@@ -400,10 +409,20 @@ enum AccountUpdate {
     DoneDeleting,
 }
 
+enum BgUpdate {
+    AutoSync,
+}
+
 enum OpenModal {
     NewFile(Option<lb::File>),
     Settings,
     ConfirmDelete(Vec<lb::File>),
+}
+
+impl From<BgUpdate> for AccountUpdate {
+    fn from(v: BgUpdate) -> Self {
+        Self::BgUpdate(v)
+    }
 }
 
 impl From<OpenModal> for AccountUpdate {
@@ -416,6 +435,31 @@ impl From<SyncUpdate> for AccountUpdate {
     fn from(v: SyncUpdate) -> Self {
         Self::SyncUpdate(v)
     }
+}
+
+fn start_auto_syncing(
+    settings: &Arc<RwLock<Settings>>, core: &Arc<lb::Core>,
+    update_tx: &mpsc::Sender<AccountUpdate>, ctx: &egui::Context,
+) {
+    let settings = settings.clone();
+    let core = core.clone();
+    let update_tx = update_tx.clone();
+    let ctx = ctx.clone();
+
+    thread::spawn(move || loop {
+        if settings.read().unwrap().auto_sync {
+            match core.calculate_work() {
+                Ok(work) => {
+                    if !work.work_units.is_empty() {
+                        update_tx.send(BgUpdate::AutoSync.into()).unwrap();
+                        ctx.request_repaint();
+                    }
+                }
+                Err(err) => println!("{:?}", err),
+            }
+        }
+        thread::sleep(Duration::from_secs(10));
+    });
 }
 
 fn is_supported_image_fmt(ext: &str) -> bool {
