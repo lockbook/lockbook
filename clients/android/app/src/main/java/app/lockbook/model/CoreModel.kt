@@ -264,6 +264,25 @@ object CoreModel {
             )
         )
 
+    private val createLinkParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), CreateFileError.serializer())
+        }
+    }
+
+    fun createLink(
+        name: String,
+        id: String,
+        parentId: String
+    ): Result<Unit, CoreError<CreateFileError>> =
+        createLinkParser.tryParse(
+            app.lockbook.core.createLink(
+                name,
+                id,
+                parentId
+            )
+        )
+
     private val deleteFileParser = Json {
         serializersModule = SerializersModule {
             createPolyRelation(Unit.serializer(), FileDeleteError.serializer())
@@ -434,9 +453,9 @@ object CoreModel {
         }
     }
 
-    fun shareFile(id: String, username: String, model: ShareMode): Result<Unit, CoreError<ShareFileError>> =
+    fun shareFile(id: String, username: String, mode: ShareMode): Result<Unit, CoreError<ShareFileError>> =
         shareFileParser.tryParse(
-            app.lockbook.core.shareFile()
+            app.lockbook.core.shareFile(id, username, shareFileParser.encodeToString(mode))
         )
 
     private val getPendingSharesParser = Json {

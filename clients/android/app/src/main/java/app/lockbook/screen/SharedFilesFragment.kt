@@ -6,13 +6,11 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
-import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.navigation.fragment.findNavController
 import app.lockbook.R
-import app.lockbook.databinding.FragmentImageViewerBinding
 import app.lockbook.databinding.FragmentSharedFilesBinding
 import app.lockbook.model.*
 import app.lockbook.util.*
-import com.afollestad.recyclical.datasource.DataSource
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
@@ -55,7 +53,9 @@ class SharedFilesFragment : Fragment() {
                     }
 
                     addShared.setOnClickListener {
-
+                        val bundle = Bundle()
+                        bundle.putParcelable(CreateLinkFragment.CREATE_LINK_FILE_KEY, item)
+                        findNavController().navigate(R.id.action_create_link, bundle)
                     }
 
                     deleteShared.setOnClickListener {
@@ -69,5 +69,6 @@ class SharedFilesFragment : Fragment() {
 
         return binding.root
     }
+
 
 }

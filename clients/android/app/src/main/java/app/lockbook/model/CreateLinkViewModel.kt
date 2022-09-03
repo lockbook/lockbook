@@ -14,23 +14,22 @@ import kotlinx.coroutines.launch
 
 class CreateLinkViewModel(application: Application) :
     AndroidViewModel(application) {
-    var currentParent: File? = null
-    lateinit var ids: List<String>
+    lateinit var currentParent: File
 
     var files = emptyDataSourceTyped<File>()
 
     private val _closeFragment = MutableLiveData<Unit>()
+    private val _updateSubTitle = MutableLiveData<String>()
     private val _notifyError = SingleMutableLiveData<LbError>()
 
     val closeFragment: LiveData<Unit>
         get() = _closeFragment
 
+    val updateSubTitle: LiveData<String>
+        get() = _updateSubTitle
+
     val notifyError: LiveData<LbError>
         get() = _notifyError
-
-    companion object {
-        const val PARENT_ID = "PARENT"
-    }
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -48,15 +47,13 @@ class CreateLinkViewModel(application: Application) :
         }.exhaustive
     }
 
-    fun moveFilesToCurrentFolder() {
+    fun createLinkFile(name: String, id: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            for (id in ids) {
-                val moveFileResult = CoreModel.moveFile(id, currentParent.id)
+            val createLinkResult = CoreModel.createLink(name, id, currentParent.id)
 
-                if (moveFileResult is Err) {
-                    _notifyError.postValue(moveFileResult.error.toLbError(getRes()))
-                    return@launch
-                }
+            if (createLinkResult is Err) {
+                _notifyError.postValue(createLinkResult.error.toLbError(getRes()))
+                return@launch
             }
 
             _closeFragment.postValue(Unit)
@@ -66,20 +63,7 @@ class CreateLinkViewModel(application: Application) :
     private fun refreshOverFolder() {
         when (val getChildrenResult = CoreModel.getChildren(currentParent.id)) {
             is Ok -> {
-                val tempFiles = getChildrenResult.value.filter { fileMetadata ->
-                    fileMetadata.fileType == FileType.Folder && !ids.contains(fileMetadata.id)
-                }.toMutableList()
-
-                if (!currentParent.isRoot()) {
-                    tempFiles.add(
-                        0,
-                        File(
-                            id = PARENT_ID,
-                            fileType = FileType.Folder,
-                            name = "...",
-                        )
-                    )
-                }
+                val tempFiles = getChildrenResult.value.filter { file -> file.isFolder()}.toMutableList()
 
                 viewModelScope.launch(Dispatchers.Main) {
                     files.set(FileModel.sortFiles(tempFiles))
@@ -89,25 +73,26 @@ class CreateLinkViewModel(application: Application) :
         }
     }
 
-    private fun setParentAsParent() {
-        when (val getFileById = CoreModel.getFileById(currentParent.parent)) {
-            is Ok -> currentParent = getFileById.value
-            is Err -> _notifyError.postValue(getFileById.error.toLbError(getRes()))
-        }.exhaustive
+    fun refreshOverParent() {
+        viewModelScope.launch(Dispatchers.IO) {
+            if(currentParent.isRoot()) {
+                _closeFragment.postValue(Unit)
+            } else {
+                when (val getFileById = CoreModel.getFileById(currentParent.parent)) {
+                    is Ok -> {
+                        currentParent = getFileById.value
+                        refreshOverFolder()
+                    }
+                    is Err -> _notifyError.postValue(getFileById.error.toLbError(getRes()))
+                }.exhaustive
+            }
+        }
     }
 
     fun onItemClick(item: File) {
         viewModelScope.launch(Dispatchers.IO) {
-            when (item.id) {
-                PARENT_ID -> {
-                    setParentAsParent()
-                    refreshOverFolder()
-                }
-                else -> {
-                    currentParent = item
-                    refreshOverFolder()
-                }
-            }
+            currentParent = item
+            refreshOverFolder()
         }
     }
 }

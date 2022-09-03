@@ -7,8 +7,10 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
+import androidx.navigation.fragment.findNavController
 import app.lockbook.R
 import app.lockbook.databinding.FragmentCreateLinkBinding
+import app.lockbook.model.AlertModel
 import app.lockbook.model.CreateLinkViewModel
 import app.lockbook.model.ExtensionHelper
 import app.lockbook.model.StateViewModel
@@ -17,6 +19,7 @@ import app.lockbook.util.FileType
 import app.lockbook.util.BasicFileItemHolder
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
+import java.lang.ref.WeakReference
 
 class CreateLinkFragment : Fragment() {
     private val activityModel: StateViewModel by activityViewModels()
@@ -24,12 +27,20 @@ class CreateLinkFragment : Fragment() {
 
     private lateinit var binding: FragmentCreateLinkBinding
 
+    private val alertModel by lazy {
+        AlertModel(WeakReference(requireActivity()), view)
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
         binding = FragmentCreateLinkBinding.inflate(inflater, container, false)
+
+        binding.createLinkToolbar.setNavigationOnClickListener {
+            model.refreshOverParent()
+        }
 
         binding.createLinkFiles.setup {
             withDataSource(model.files)
@@ -60,10 +71,32 @@ class CreateLinkFragment : Fragment() {
                 }
                 onClick {
                     model.onItemClick(item)
+                    binding.createLinkToolbar.subtitle = item.name
                 }
             }
         }
 
+        model.closeFragment.observe(
+            viewLifecycleOwner
+        ) {
+            findNavController().popBackStack()
+        }
+
+        model.notifyError.observe(
+            viewLifecycleOwner
+        ) { error ->
+            alertModel.notifyError(error) {
+                findNavController().popBackStack()
+            }
+        }
+
+        val file = requireArguments().getParcelable<File>(CREATE_LINK_FILE_KEY)!!
+        binding.createLinkName.setText(getString(R.string.create_link_file_for, file.name))
+
         return binding.root
+    }
+
+    companion object {
+        const val CREATE_LINK_FILE_KEY = "create_link_file_key"
     }
 }

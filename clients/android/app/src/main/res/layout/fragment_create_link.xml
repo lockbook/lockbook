@@ -14,7 +14,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:navigationIcon="@drawable/ic_baseline_arrow_back_24"
-        app:subtitle="Select your destination"
+        app:subtitle="Link destination"
         app:title="smail" />
 
     <androidx.recyclerview.widget.RecyclerView
@@ -24,7 +24,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/create_link_toolbar" />
 
-
     <LinearLayout
         android:id="@+id/linearLayout2"
         android:layout_width="match_parent"
@@ -33,7 +32,16 @@
         android:background="?attr/colorPrimaryContainer"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        android:padding="10dp"
         app:layout_constraintStart_toStartOf="parent">
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/create_link_file_for"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?attr/textAppearanceBody1"
+            android:layout_marginBottom="5dp"
+            android:text="@string/create_link_file_for"/>
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/create_link_name_holder"
@@ -41,7 +49,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="@string/dialog_file_name"
-            android:layout_margin="10dp"
             app:startIconDrawable="@drawable/ic_outline_insert_drive_file_24">
 
             <com.google.android.material.textfield.TextInputEditText
@@ -59,20 +66,19 @@
             android:orientation="horizontal"
             android:gravity="end">
 
-
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/create_link_create"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 style="@style/Widget.Material3.Button.TextButton"
-                android:text="@string/create_account" />
+                android:text="@string/cancel" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/create_link_cancel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 style="@style/Widget.Material3.Button.TextButton"
-                android:text="@string/create_account" />
+                android:text="@string/create" />
 
         </LinearLayout>
 

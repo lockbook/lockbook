@@ -19,7 +19,8 @@ external fun getFileById(id: String): String
 
 // file ops
 external fun renameFile(id: String, name: String): String
-external fun createFile(id: String, fileType: String, name: String): String
+external fun createFile(name: String, id: String, fileType: String): String
+external fun createLink(name: String, id: String, parentId: String): String
 external fun deleteFile(id: String): String
 external fun readDocument(id: String): String
 external fun readDocumentBytes(id: String): ByteArray?

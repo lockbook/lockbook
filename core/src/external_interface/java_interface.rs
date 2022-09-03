@@ -248,6 +248,34 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createFile(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_createLink(
+    env: JNIEnv, _: JClass, jname: JString, jid: JString, jparentId: JString,
+) -> jstring {
+    let id = match deserialize_id(&env, jid) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+    let parent = match deserialize_id(&env, jparentId) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+    let name = match jstring_to_string(&env, jname, "name") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => {
+                translate(core.create_file(name.as_str(), id, FileType::Link { target: id }))
+            }
+            e => translate(e.map(|_| ())),
+        },
+    )
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_convertToHumanDuration(
     env: JNIEnv, _: JClass, time_stamp: jlong,
 ) -> jstring {

@@ -78,7 +78,7 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
             setTitle(title)
             setView(binding.root)
         }
-        .setPositiveButton(R.string.create_file_create, null)
+        .setPositiveButton(R.string.create, null)
         .setNegativeButton(R.string.cancel, null)
         .create()
         .apply {

@@ -84,7 +84,7 @@
 
     <string name="text_editor_hint">Type here</string>
     <string name="rename_file_rename">Rename</string>
-    <string name="create_file_create">Create</string>
+    <string name="create">Create</string>
     <string name="dialog_file_extension">Ext.</string>
     <string name="empty_folder">No files</string>
     <string name="bread_crumb_folder">Folder</string>
@@ -268,4 +268,5 @@
     <string name="shared_files_title">Shared Files</string>
     <string name="shared_file_icon">Shared file icon</string>
     <string name="reject_all_shared">Reject all</string>
+    <string name="create_link_file_for">Creating link file for: %s</string>
 </resources>
