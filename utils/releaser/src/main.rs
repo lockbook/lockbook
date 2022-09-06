@@ -1,5 +1,6 @@
 mod android;
 mod apple;
+mod public_site;
 mod secrets;
 mod server;
 mod utils;
@@ -14,6 +15,7 @@ enum Releaser {
     ReleaseApple,
     ReleaseAndroid,
     ReleaseWindows,
+    ReleasePublicSite,
 }
 
 fn main() {
@@ -22,5 +24,6 @@ fn main() {
         Releaser::ReleaseApple => apple::release_apple(&Github::env(), &AppStore::env()),
         Releaser::ReleaseAndroid => android::release_android(&Github::env(), &PlayStore::env()),
         Releaser::ReleaseWindows => windows::release(&Github::env()),
+        Releaser::ReleasePublicSite => public_site::release(),
     }
 }

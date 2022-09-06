@@ -4193,6 +4193,7 @@ dependencies = [
  "hex",
  "sha2 0.10.2",
  "structopt",
+ "tempfile",
  "tokio",
  "toml",
  "zip",
