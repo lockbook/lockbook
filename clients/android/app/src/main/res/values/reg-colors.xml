@@ -61,4 +61,6 @@
 <!--    <color name="md_theme_dark_shadow">#000000</color>-->
 <!--    <color name="md_theme_dark_surfaceTint">#ACC7FF</color>-->
 <!--    <color name="md_theme_dark_surfaceTintColor">#ACC7FF</color>-->
+
+    <color name="transparent">#00000000</color>
 </resources>

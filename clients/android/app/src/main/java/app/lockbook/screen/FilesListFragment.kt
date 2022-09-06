@@ -48,40 +48,37 @@ class FilesListFragment : Fragment(), FilesFragment {
             override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean {
                 val selectedFiles = model.files.getSelectedItems()
 
-                return when (item?.itemId) {
+                when (item?.itemId) {
                     R.id.menu_list_files_rename -> {
                         if (selectedFiles.size == 1) {
                             activityModel.launchTransientScreen(TransientScreen.Rename(selectedFiles[0].fileMetadata))
                         }
-
-                        true
                     }
                     R.id.menu_list_files_delete -> {
                         activityModel.launchTransientScreen(TransientScreen.Delete(selectedFiles.intoFileMetadata()))
-
-                        true
                     }
                     R.id.menu_list_files_info -> {
                         if (model.files.getSelectionCount() == 1) {
                             activityModel.launchTransientScreen(TransientScreen.Info(selectedFiles[0].fileMetadata))
                         }
-
-                        true
                     }
                     R.id.menu_list_files_move -> {
                         activityModel.launchTransientScreen(
                             TransientScreen.Move(selectedFiles.intoFileMetadata())
                         )
-
-                        true
+                    }
+                    R.id.menu_list_files_export -> {
+                        (activity as MainScreenActivity).apply {
+                            model.shareSelectedFiles(selectedFiles.intoFileMetadata(), cacheDir)
+                        }
                     }
                     R.id.menu_list_files_share -> {
-                        (activity as MainScreenActivity).model.shareSelectedFiles(selectedFiles.intoFileMetadata(), requireActivity().cacheDir)
 
-                        true
                     }
-                    else -> false
+                    else -> return false
                 }
+
+                return true
             }
 
             override fun onDestroyActionMode(mode: ActionMode?) {
@@ -230,7 +227,12 @@ class FilesListFragment : Fragment(), FilesFragment {
                     )
                 )
                 R.id.menu_files_list_sharing -> {
-                    activityModel.launchDetailsScreen(DetailsScreen.ViewSharedFiles)
+                    startActivity(
+                        Intent(
+                            context,
+                            SharedFilesActivity::class.java
+                        )
+                    )
                 }
             }
 

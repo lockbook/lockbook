@@ -30,9 +30,16 @@
         app:showAsAction="ifRoom" />
 
     <item
-        android:id="@+id/menu_list_files_share"
+        android:id="@+id/menu_list_files_export"
         android:icon="@drawable/ic_baseline_share_24"
         android:orderInCategory="5"
+        android:title="@string/export"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/menu_list_files_share"
+        android:icon="@drawable/ic_outline_folder_shared_24"
+        android:orderInCategory="6"
         android:title="@string/menu_list_files_share"
         app:showAsAction="ifRoom" />
 </menu>

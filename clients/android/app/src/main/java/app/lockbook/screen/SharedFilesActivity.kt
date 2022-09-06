@@ -8,14 +8,7 @@ import com.google.android.material.appbar.MaterialToolbar
 class SharedFilesActivity: AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_settings)
+        setContentView(R.layout.activity_shared_files)
 
-        supportFragmentManager
-            .beginTransaction()
-            .replace(
-                R.id.shared_files_container,
-                SharedFilesFragment()
-            )
-            .commit()
     }
 }

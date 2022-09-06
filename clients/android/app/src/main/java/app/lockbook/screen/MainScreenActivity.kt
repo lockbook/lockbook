@@ -135,19 +135,13 @@ class MainScreenActivity : AppCompatActivity() {
                         RenameFileDialogFragment.RENAME_FILE_DIALOG_TAG
                     )
                 }
-                is TransientScreen.Share -> {
+                is TransientScreen.ShareExport -> {
                     finalizeShare(screen.files)
                 }
                 is TransientScreen.Delete -> {
                     DeleteFilesDialogFragment().show(
                         supportFragmentManager,
-                        DeleteFilesDialogFragment.DELETE_FILEs_DIALOG_FRAGMENT
-                    )
-                }
-                is TransientScreen.DeleteShared -> {
-                    DeleteFilesDialogFragment().show(
-                        supportFragmentManager,
-                        DeleteSharedDialogFragment.DELETE_SHARED_DIALOG_FRAGMENT
+                        DeleteFilesDialogFragment.DELETE_FILES_DIALOG_FRAGMENT
                     )
                 }
             }.exhaustive
@@ -214,7 +208,7 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     private fun onFileDeleted(filesFragment: FilesFragment) {
-        val openedFile = model.detailsScreen?.maybeGetFile()?.id
+        val openedFile = model.detailsScreen?.getUsedFile()?.id
         if (openedFile != null) {
             val isDeletedFileOpen = (model.transientScreen as TransientScreen.Delete).files.any { file -> file.id == openedFile }
 
@@ -238,7 +232,7 @@ class MainScreenActivity : AppCompatActivity() {
                 is DetailsScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
                 is DetailsScreen.ImageViewer -> replace<ImageViewerFragment>(R.id.detail_container)
                 is DetailsScreen.PdfViewer -> replace<PdfViewerFragment>(R.id.detail_container)
-                DetailsScreen.ViewSharedFiles -> replace<SharedFilesFragment>(R.id.detail_container)
+                is DetailsScreen.Share -> add<ShareFileFragment>(R.id.detail_container)
                 null -> {
                     maybeGetFilesFragment()?.syncBasedOnPreferences()
                     supportFragmentManager.findFragmentById(R.id.detail_container)?.let {

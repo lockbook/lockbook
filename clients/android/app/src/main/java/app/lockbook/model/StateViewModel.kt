@@ -144,18 +144,16 @@ sealed class DetailsScreen {
         val location: File
     ) : DetailsScreen()
 
-    object ViewSharedFiles : DetailsScreen()
+    data class Share(val file: app.lockbook.util.File) : DetailsScreen()
 
-    data class CreateLinkFragment(val file: app.lockbook.util.File) : DetailsScreen()
 
-    fun maybeGetFile(): app.lockbook.util.File? = when(this) {
+    fun getUsedFile(): app.lockbook.util.File = when(this) {
         is Drawing -> file
         is ImageViewer -> file
         is Loading -> file
         is PdfViewer -> file
         is TextEditor -> file
-        is CreateLinkFragment -> file
-        ViewSharedFiles -> null
+        is Share -> file
     }
 }
 
@@ -164,9 +162,9 @@ sealed class TransientScreen {
     data class Rename(val file: app.lockbook.util.File) : TransientScreen()
     data class Create(val parentId: String, val extendedFileType: ExtendedFileType) : TransientScreen()
     data class Info(val file: app.lockbook.util.File) : TransientScreen()
-    data class Share(val files: List<File>) : TransientScreen()
+    data class ShareExport(val files: List<File>) : TransientScreen()
     data class Delete(val files: List<app.lockbook.util.File>) : TransientScreen()
-    data class DeleteShared(val files: List<app.lockbook.util.File>) : TransientScreen()
+    data class Share(val file: app.lockbook.util.File) : TransientScreen()
 }
 
 sealed class UpdateMainScreenUI {

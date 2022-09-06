@@ -20,44 +20,54 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
 import java.lang.ref.WeakReference
 
-class DeleteSharedDialogFragment : AppCompatDialogFragment() {
-    private val activityModel: StateViewModel by activityViewModels()
+class DeleteSharedDialogFragment private constructor() : AppCompatDialogFragment() {
     private val uiScope = CoroutineScope(Dispatchers.Main + Job())
 
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
     }
 
-    val files by lazy {
-        (activityModel.transientScreen as TransientScreen.DeleteShared).files
-    }
-
     companion object {
         const val DELETE_SHARED_DIALOG_FRAGMENT = "DeleteSharedDialogFragment"
+
+        const val FILES_KEY = "files_key"
+
+        fun newInstance(files: ArrayList<File>): DeleteSharedDialogFragment {
+            val dialog = DeleteSharedDialogFragment()
+
+            val bundle = Bundle()
+            bundle.putParcelableArrayList(FILES_KEY, files)
+            dialog.arguments = bundle
+
+            return dialog
+        }
     }
 
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog = MaterialAlertDialogBuilder(requireContext())
-        .apply {
-            val msg = if (files.size == 1) {
-                getString(R.string.delete_shared_1_message, files[0].name, files[0].owner)
-            } else {
-                getString(R.string.delete_shared_message, files.size)
-            }
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+        val files = requireArguments().getParcelableArrayList<File>(FILES_KEY)!!
 
-            setMessage(msg)
-        }
-        .setNegativeButton(R.string.cancel, null)
-        .setPositiveButton(R.string.delete_shared_reject, null)
-        .create()
-        .apply {
-            setOnShowListener {
-                getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
-            }
-        }
+        return MaterialAlertDialogBuilder(requireContext())
+            .apply {
+                val msg = if (files.size == 1) {
+                    getString(R.string.delete_shared_1_message, files[0].name, files[0].owner)
+                } else {
+                    getString(R.string.delete_shared_message, files.size)
+                }
 
-    private fun onButtonPositive() {
+                setMessage(msg)
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.delete_shared_reject, null)
+            .create()
+            .apply {
+                setOnShowListener {
+                    getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive(files) }
+                }
+            }
+    }
+
+    private fun onButtonPositive(files: ArrayList<File>) {
         uiScope.launch(Dispatchers.IO) {
-
             for (file in files) {
                 val deleteFileResult = CoreModel.deletePendingShares(file.id)
 

@@ -48,7 +48,7 @@ class DrawingFragment : Fragment() {
                     if (modelClass.isAssignableFrom(DrawingViewModel::class.java))
                         return DrawingViewModel(
                             requireActivity().application,
-                            activityModel.detailsScreen!!.fileMetadata.id,
+                            activityModel.detailsScreen!!.getUsedFile().id,
                             PersistentDrawingInfo(
                                 drawing = (activityModel.detailsScreen as DetailsScreen.Drawing).drawing
                             )

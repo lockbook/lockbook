@@ -61,6 +61,7 @@
     <string name="menu_list_files_info">File info</string>
     <string name="menu_list_files_move">Move</string>
     <string name="menu_list_files_share">Share</string>
+    <string name="menu_list_files_export_and_share">Export and Share</string>
     <string name="default_value">Loading…</string>
     <string name="dialog_rename_file_title">Rename File</string>
     <string name="popup_info_title">File Info</string>
@@ -189,7 +190,6 @@
     <string name="insufficient_permissions">Error, you have insufficient permissions.</string>
     <string name="cannot_share_root">You cannot share root.</string>
     <string name="share_already_exists">Error, this file is already shared.</string>
-    <string name="link_in_shared_folder">You cannot have a link in a shared folder.</string>
 
     <string name="unexpected_error">An unexpected error has occurred!</string>
     <string name="basic_error">An error has occurred.</string>
@@ -269,4 +269,21 @@
     <string name="shared_file_icon">Shared file icon</string>
     <string name="reject_all_shared">Reject all</string>
     <string name="create_link_file_for">Creating link file for: %s</string>
+    <string name="no_shared_files">No shared files.</string>
+    <string name="export">Export</string>
+    <string name="shared_with">Shared with:</string>
+    <string name="write_access">Write access:</string>
+    <string name="read_access">Read access:</string>
+    <string name="username">Username</string>
+    <string name="add">Add</string>
+
+    <string name="share_mode_read">Read</string>
+    <string name="share_mode_write">Write</string>
+    <string name="access_mode">Access Mode</string>
+
+    <array name="share_mode">
+        <item>@string/share_mode_read</item>
+        <item>@string/share_mode_write</item>
+    </array>
+
 </resources>
