@@ -24,9 +24,9 @@ impl FileTree {
 
         let mut root = TreeNode::from((root_meta, 0));
         root.populate_from(&all_metas);
-        root.is_expanded = true;
 
-        let state = TreeState::default();
+        let mut state = TreeState::default();
+        state.expanded.insert(root.file.id);
 
         Self { root, state }
     }
