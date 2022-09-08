@@ -7,7 +7,7 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import app.lockbook.databinding.FragmentImageViewerBinding
-import app.lockbook.model.DetailsScreen
+import app.lockbook.model.DetailScreen
 import app.lockbook.model.StateViewModel
 import app.lockbook.util.Animate
 
@@ -28,7 +28,7 @@ class ImageViewerFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentImageViewerBinding.inflate(inflater, container, false)
-        val imageViewerInfo = activityModel.detailsScreen as DetailsScreen.ImageViewer
+        val imageViewerInfo = activityModel.detailsScreen as DetailScreen.ImageViewer
 
         setUpImageAndToolbar(imageViewerInfo, savedInstanceState)
 
@@ -36,7 +36,7 @@ class ImageViewerFragment : Fragment() {
     }
 
     private fun setUpImageAndToolbar(
-        imageViewerInfo: DetailsScreen.ImageViewer,
+        imageViewerInfo: DetailScreen.ImageViewer,
         savedInstanceState: Bundle?
     ) {
         binding.imageViewToolbar.title = imageViewerInfo.file.name

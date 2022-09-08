@@ -90,7 +90,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
             when (val createFileResult = CoreModel.createFile(fileModel.parent.id, fileName, FileType.Document)) {
                 is Ok -> {
                     withContext(Dispatchers.Main) {
-                        activityModel.launchDetailsScreen(DetailsScreen.Loading(createFileResult.value))
+                        activityModel.launchDetailsScreen(DetailScreen.Loading(createFileResult.value))
                     }
 
                     refreshFiles()

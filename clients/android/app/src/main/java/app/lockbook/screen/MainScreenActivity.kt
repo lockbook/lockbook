@@ -91,7 +91,7 @@ class MainScreenActivity : AppCompatActivity() {
                 override fun onPanelSlide(panel: View, slideOffset: Float) {}
 
                 override fun onPanelOpened(panel: View) {
-                    if (model.detailsScreen is DetailsScreen.Loading) {
+                    if (model.detailsScreen is DetailScreen.Loading) {
                         (supportFragmentManager.findFragmentById(R.id.detail_container) as DetailsScreenLoaderFragment).addChecker()
                     }
                 }
@@ -220,19 +220,19 @@ class MainScreenActivity : AppCompatActivity() {
         filesFragment.refreshFiles()
     }
 
-    private fun launchDetailsScreen(screen: DetailsScreen?) {
+    private fun launchDetailsScreen(screen: DetailScreen?) {
         supportFragmentManager.commit {
             setReorderingAllowed(true)
             doOnDetailsExit(screen)
             toggleTransparentLockbookLogo(screen)
 
             when (screen) {
-                is DetailsScreen.Loading -> replace<DetailsScreenLoaderFragment>(R.id.detail_container)
-                is DetailsScreen.TextEditor -> replace<TextEditorFragment>(R.id.detail_container)
-                is DetailsScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
-                is DetailsScreen.ImageViewer -> replace<ImageViewerFragment>(R.id.detail_container)
-                is DetailsScreen.PdfViewer -> replace<PdfViewerFragment>(R.id.detail_container)
-                is DetailsScreen.Share -> add<ShareFileFragment>(R.id.detail_container)
+                is DetailScreen.Loading -> replace<DetailsScreenLoaderFragment>(R.id.detail_container)
+                is DetailScreen.TextEditor -> replace<TextEditorFragment>(R.id.detail_container)
+                is DetailScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
+                is DetailScreen.ImageViewer -> replace<ImageViewerFragment>(R.id.detail_container)
+                is DetailScreen.PdfViewer -> replace<PdfViewerFragment>(R.id.detail_container)
+                is DetailScreen.Share -> add<ShareFileFragment>(R.id.detail_container)
                 null -> {
                     maybeGetFilesFragment()?.syncBasedOnPreferences()
                     supportFragmentManager.findFragmentById(R.id.detail_container)?.let {
@@ -254,7 +254,7 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 
-    private fun toggleTransparentLockbookLogo(screen: DetailsScreen?) {
+    private fun toggleTransparentLockbookLogo(screen: DetailScreen?) {
         if (screen != null && binding.lockbookBackdrop.visibility == View.VISIBLE) {
             binding.lockbookBackdrop.visibility = View.GONE
         } else if (screen == null && binding.lockbookBackdrop.visibility == View.GONE) {
@@ -262,7 +262,7 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 
-    private fun doOnDetailsExit(newScreen: DetailsScreen?) {
+    private fun doOnDetailsExit(newScreen: DetailScreen?) {
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? DrawingFragment)?.let { fragment ->
             fragment.binding.drawingView.stopThread()
             fragment.saveOnExit()
@@ -270,7 +270,7 @@ class MainScreenActivity : AppCompatActivity() {
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? TextEditorFragment)?.saveOnExit()
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? PdfViewerFragment)?.deleteLocalPdfInstance()
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? DetailsScreenLoaderFragment)?.let { fragment ->
-            if (newScreen !is DetailsScreen.PdfViewer) {
+            if (newScreen !is DetailScreen.PdfViewer) {
                 fragment.deleteDownloadedFileIfExists()
             }
         }

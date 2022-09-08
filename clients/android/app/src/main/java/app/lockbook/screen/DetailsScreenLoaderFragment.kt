@@ -26,7 +26,7 @@ class DetailsScreenLoaderFragment : Fragment() {
                     if (modelClass.isAssignableFrom(DetailsScreenLoaderViewModel::class.java))
                         return DetailsScreenLoaderViewModel(
                             requireActivity().application,
-                            activityModel.detailsScreen as DetailsScreen.Loading
+                            activityModel.detailsScreen as DetailScreen.Loading
                         ) as T
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }

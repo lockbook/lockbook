@@ -16,10 +16,8 @@ import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
+import timber.log.Timber
 import java.lang.ref.WeakReference
 
 class SharedFilesFragment : Fragment() {
@@ -40,15 +38,19 @@ class SharedFilesFragment : Fragment() {
     ): View {
         binding = FragmentSharedFilesBinding.inflate(inflater, container, false)
 
+        binding.sharedFilesToolbar.setNavigationOnClickListener {
+            requireActivity().finish()
+        }
+
         populatePendingShares()
 
         binding.sharedFiles.setup {
             withDataSource(sharedFilesDataSource)
 
-            withItem<File, SharedFileViewHolder>(R.layout.recent_file_item) {
+            withItem<File, SharedFileViewHolder>(R.layout.shared_file_item) {
                 onBind(::SharedFileViewHolder) { _, item ->
                     name.text = item.name
-                    owner.text = item.shares[0].sharedBy
+                    owner.text = item.lastModifiedBy
 
                     val iconResource = when(item.fileType) {
                         FileType.Document -> {
@@ -105,7 +107,9 @@ class SharedFilesFragment : Fragment() {
                     if(getPendingSharesResults.value.isEmpty()) {
                         binding.sharedFilesNone.visibility = View.VISIBLE
                     } else {
-                        sharedFilesDataSource.set(getPendingSharesResults.value)
+                        withContext(Dispatchers.Main) {
+                            sharedFilesDataSource.set(getPendingSharesResults.value)
+                        }
                     }
                 }
                 is Err -> alertModel.notifyError(getPendingSharesResults.error.toLbError(resources)) {

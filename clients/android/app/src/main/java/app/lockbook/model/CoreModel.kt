@@ -475,9 +475,9 @@ object CoreModel {
         }
     }
 
-    fun deletePendingShares(id: String): Result<List<File>, CoreError<DeletePendingShareError>> =
+    fun deletePendingShare(id: String): Result<List<File>, CoreError<DeletePendingShareError>> =
         deletePendingSharesParser.tryParse(
-            app.lockbook.core.deletePendingShares(id)
+            app.lockbook.core.deletePendingShare(id)
         )
 
 

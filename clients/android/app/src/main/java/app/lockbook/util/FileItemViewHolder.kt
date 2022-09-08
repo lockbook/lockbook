@@ -50,7 +50,7 @@ class RecentFileItemViewHolder(itemView: View) : ViewHolder(itemView) {
 }
 
 fun List<File>.intoRecentViewHolderInfo(files: List<File>): List<RecentFileViewHolderInfo> = this.map { fileMetadata ->
-    RecentFileViewHolderInfo(fileMetadata, files.filter { fileMetadata.parent == it.id }[0].name)
+    RecentFileViewHolderInfo(fileMetadata, files.filter { fileMetadata.parent == it.id }.getOrNull(0)?.name ?: "DETACHED")
 }
 
 fun List<FileViewHolderInfo>.intoFileMetadata(): List<File> = this.map { viewHolderInfo -> viewHolderInfo.fileMetadata }
@@ -73,8 +73,8 @@ class SearchedDocumentContentViewHolder(itemView: View) : ViewHolder(itemView) {
 
 class SharedFileViewHolder(itemView: View) : ViewHolder(itemView) {
     val name: TextView = itemView.findViewById(R.id.shared_file_name)
-    val icon: ImageView = itemView.findViewById(R.id.shared_file_icon)
     val owner: TextView = itemView.findViewById(R.id.shared_file_owner)
+    val icon: ImageView = itemView.findViewById(R.id.shared_file_icon)
     val addShared: ImageView = itemView.findViewById(R.id.add_shared)
     val deleteShared: ImageView = itemView.findViewById(R.id.delete_shared)
 }

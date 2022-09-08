@@ -10,7 +10,7 @@ import androidx.fragment.app.activityViewModels
 import app.lockbook.R
 import app.lockbook.databinding.FragmentPdfViewerBinding
 import app.lockbook.model.AlertModel
-import app.lockbook.model.DetailsScreen
+import app.lockbook.model.DetailScreen
 import app.lockbook.model.OPENED_FILE_FOLDER
 import app.lockbook.model.StateViewModel
 import app.lockbook.util.Animate
@@ -46,7 +46,7 @@ class PdfViewerFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentPdfViewerBinding.inflate(inflater, container, false)
-        val pdfViewerInfo = activityModel.detailsScreen as DetailsScreen.PdfViewer
+        val pdfViewerInfo = activityModel.detailsScreen as DetailScreen.PdfViewer
         fileName = pdfViewerInfo.file.name
 
         initializePdfRenderer(savedInstanceState, pdfViewerInfo)
@@ -58,7 +58,7 @@ class PdfViewerFragment : Fragment() {
 
     private fun initializePdfRenderer(
         savedInstanceState: Bundle?,
-        pdfViewerInfo: DetailsScreen.PdfViewer
+        pdfViewerInfo: DetailScreen.PdfViewer
     ) {
         oldPage = savedInstanceState?.getInt(PDF_PAGE_KEY)
 

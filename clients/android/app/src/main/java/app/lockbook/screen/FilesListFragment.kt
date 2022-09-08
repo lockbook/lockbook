@@ -393,7 +393,7 @@ class FilesListFragment : Fragment(), FilesFragment {
     private fun enterFile(item: File) {
         when (item.fileType) {
             FileType.Document -> {
-                activityModel.launchDetailsScreen(DetailsScreen.Loading(item))
+                activityModel.launchDetailsScreen(DetailScreen.Loading(item))
             }
             FileType.Folder -> {
                 model.enterFolder(item)

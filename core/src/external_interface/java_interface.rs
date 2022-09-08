@@ -268,7 +268,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createLink(
         &env,
         match static_state::get() {
             Ok(core) => {
-                translate(core.create_file(name.as_str(), id, FileType::Link { target: id }))
+                translate(core.create_file(name.as_str(), parent, FileType::Link { target: id }))
             }
             e => translate(e.map(|_| ())),
         },
@@ -371,7 +371,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_readDocumentBytes(
         None => std::ptr::null_mut() as jbyteArray,
         Some(document_bytes) => env
             .byte_array_from_slice(document_bytes.as_slice())
-            .unwrap_or(::std::ptr::null_mut() as jbyteArray),
+            .unwrap_or(std::ptr::null_mut() as jbyteArray),
     }
 }
 

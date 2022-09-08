@@ -20,7 +20,6 @@ data class File(
     val lastModified: Long = 0,
     @SerialName("last_modified_by")
     val lastModifiedBy: String = "",
-    val owner: String = "",
     val shares: List<Share> = listOf()
 ) : Parcelable {
     fun isRoot() = parent == id

@@ -50,7 +50,7 @@ class DrawingFragment : Fragment() {
                             requireActivity().application,
                             activityModel.detailsScreen!!.getUsedFile().id,
                             PersistentDrawingInfo(
-                                drawing = (activityModel.detailsScreen as DetailsScreen.Drawing).drawing
+                                drawing = (activityModel.detailsScreen as DetailScreen.Drawing).drawing
                             )
                         ) as T
                     throw IllegalArgumentException("Unknown ViewModel class")

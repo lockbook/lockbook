@@ -3,19 +3,12 @@ package app.lockbook.ui
 import android.app.AlertDialog
 import android.app.Dialog
 import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatDialogFragment
-import androidx.fragment.app.activityViewModels
 import app.lockbook.R
 import app.lockbook.model.AlertModel
 import app.lockbook.model.CoreModel
-import app.lockbook.model.StateViewModel
-import app.lockbook.model.TransientScreen
 import app.lockbook.util.File
 import com.github.michaelbull.result.Err
-import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
 import java.lang.ref.WeakReference
@@ -49,7 +42,7 @@ class DeleteSharedDialogFragment private constructor() : AppCompatDialogFragment
         return MaterialAlertDialogBuilder(requireContext())
             .apply {
                 val msg = if (files.size == 1) {
-                    getString(R.string.delete_shared_1_message, files[0].name, files[0].owner)
+                    getString(R.string.delete_shared_1_message, files[0].name)
                 } else {
                     getString(R.string.delete_shared_message, files.size)
                 }
@@ -69,7 +62,7 @@ class DeleteSharedDialogFragment private constructor() : AppCompatDialogFragment
     private fun onButtonPositive(files: ArrayList<File>) {
         uiScope.launch(Dispatchers.IO) {
             for (file in files) {
-                val deleteFileResult = CoreModel.deletePendingShares(file.id)
+                val deleteFileResult = CoreModel.deletePendingShare(file.id)
 
                 if (deleteFileResult is Err) {
                     alertModel.notifyError(deleteFileResult.error.toLbError(resources))

@@ -15,14 +15,14 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 class StateViewModel(application: Application) : AndroidViewModel(application) {
-    var detailsScreen: DetailsScreen? = null
+    var detailsScreen: DetailScreen? = null
     var transientScreen: TransientScreen? = null
 
-    private val _launchDetailsScreen = SingleMutableLiveData<DetailsScreen?>()
+    private val _launchDetailsScreen = SingleMutableLiveData<DetailScreen?>()
     private val _launchTransientScreen = SingleMutableLiveData<TransientScreen>()
     private val _updateMainScreenUI = SingleMutableLiveData<UpdateMainScreenUI>()
 
-    val launchDetailsScreen: LiveData<DetailsScreen?>
+    val launchDetailsScreen: LiveData<DetailScreen?>
         get() = _launchDetailsScreen
 
     val launchTransientScreen: LiveData<TransientScreen>
@@ -38,7 +38,7 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
         _launchTransientScreen.postValue(transientScreen)
     }
 
-    fun launchDetailsScreen(screen: DetailsScreen?) {
+    fun launchDetailsScreen(screen: DetailScreen?) {
         detailsScreen = screen
         _launchDetailsScreen.value = detailsScreen
     }
@@ -124,27 +124,27 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
     }
 }
 
-sealed class DetailsScreen {
-    data class Loading(val file: app.lockbook.util.File) : DetailsScreen()
+sealed class DetailScreen {
+    data class Loading(val file: app.lockbook.util.File) : DetailScreen()
     data class TextEditor(val file: app.lockbook.util.File, val text: String) :
-        DetailsScreen()
+        DetailScreen()
 
     data class Drawing(
         val file: app.lockbook.util.File,
         val drawing: app.lockbook.util.Drawing
-    ) : DetailsScreen()
+    ) : DetailScreen()
 
     data class ImageViewer(
         val file: app.lockbook.util.File,
         val bitmap: Bitmap
-    ) : DetailsScreen()
+    ) : DetailScreen()
 
     data class PdfViewer(
         val file: app.lockbook.util.File,
         val location: File
-    ) : DetailsScreen()
+    ) : DetailScreen()
 
-    data class Share(val file: app.lockbook.util.File) : DetailsScreen()
+    data class Share(val file: app.lockbook.util.File) : DetailScreen()
 
 
     fun getUsedFile(): app.lockbook.util.File = when(this) {
@@ -164,7 +164,6 @@ sealed class TransientScreen {
     data class Info(val file: app.lockbook.util.File) : TransientScreen()
     data class ShareExport(val files: List<File>) : TransientScreen()
     data class Delete(val files: List<app.lockbook.util.File>) : TransientScreen()
-    data class Share(val file: app.lockbook.util.File) : TransientScreen()
 }
 
 sealed class UpdateMainScreenUI {

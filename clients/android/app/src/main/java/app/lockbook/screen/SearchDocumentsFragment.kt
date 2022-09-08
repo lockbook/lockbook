@@ -100,7 +100,7 @@ class SearchDocumentsFragment : Fragment() {
             UpdateSearchUI.ToggleProgressSpinner -> binding.searchDocumentsLoader.visibility = if (model.isProgressSpinnerShown) View.VISIBLE else View.GONE
             UpdateSearchUI.ToggleNoSearchResults -> binding.searchDocumentsNone.visibility = if (model.isNoSearchResultsShown) View.VISIBLE else View.GONE
             is UpdateSearchUI.Error -> alertModel.notifyError(uiUpdate.error)
-            is UpdateSearchUI.OpenFile -> activityModel.launchDetailsScreen(DetailsScreen.Loading(uiUpdate.fileMetadata))
+            is UpdateSearchUI.OpenFile -> activityModel.launchDetailsScreen(DetailScreen.Loading(uiUpdate.fileMetadata))
         }
     }
 }

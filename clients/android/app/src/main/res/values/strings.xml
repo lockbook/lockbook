@@ -80,7 +80,7 @@
     <string name="delete_1_file_message">Are you sure you want to delete \"%s\"?</string>
     <string name="delete_file_message">Are you sure you want to delete %d files?</string>
 
-    <string name="delete_shared_1_message">Are you sure you want to reject \"%1$s\" shared by \"%2$s\".?</string>
+    <string name="delete_shared_1_message">Are you sure you want to reject \"%1$s\"?</string>
     <string name="delete_shared_message">Are you sure you want to reject %d files?</string>
 
     <string name="text_editor_hint">Type here</string>
@@ -268,7 +268,7 @@
     <string name="shared_files_title">Shared Files</string>
     <string name="shared_file_icon">Shared file icon</string>
     <string name="reject_all_shared">Reject all</string>
-    <string name="create_link_file_for">Creating link file for: %s</string>
+    <string name="create_link_file_for">Creating link for \"%s\".</string>
     <string name="no_shared_files">No shared files.</string>
     <string name="export">Export</string>
     <string name="shared_with">Shared with:</string>
@@ -280,6 +280,8 @@
     <string name="share_mode_read">Read</string>
     <string name="share_mode_write">Write</string>
     <string name="access_mode">Access Mode</string>
+    <string name="link_destination">Link destination</string>
+    <string name="created_link">Created link!</string>
 
     <array name="share_mode">
         <item>@string/share_mode_read</item>

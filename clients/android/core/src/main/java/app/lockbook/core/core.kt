@@ -51,7 +51,7 @@ external fun stopCurrentSearch(): String
 // sharing
 external fun shareFile(id: String, username: String, mode: String): String
 external fun getPendingShares(): String
-external fun deletePendingShares(id: String): String
+external fun deletePendingShare(id: String): String
 
 // tests
 external fun getAllErrorVariants(): String

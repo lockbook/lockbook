@@ -10,19 +10,17 @@ import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import app.lockbook.R
 import app.lockbook.databinding.FragmentCreateLinkBinding
-import app.lockbook.model.AlertModel
-import app.lockbook.model.CreateLinkViewModel
-import app.lockbook.model.ExtensionHelper
-import app.lockbook.model.StateViewModel
+import app.lockbook.model.*
 import app.lockbook.util.File
 import app.lockbook.util.FileType
 import app.lockbook.util.BasicFileItemHolder
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
 import java.lang.ref.WeakReference
 
 class CreateLinkFragment : Fragment() {
-    private val activityModel: StateViewModel by activityViewModels()
     private val model: CreateLinkViewModel by viewModels()
 
     private lateinit var binding: FragmentCreateLinkBinding
@@ -71,9 +69,14 @@ class CreateLinkFragment : Fragment() {
                 }
                 onClick {
                     model.onItemClick(item)
-                    binding.createLinkToolbar.subtitle = item.name
                 }
             }
+        }
+
+        model.updateTitle.observe(
+            viewLifecycleOwner
+        ) { title ->
+            binding.createLinkToolbar.title = title
         }
 
         model.closeFragment.observe(
@@ -91,9 +94,31 @@ class CreateLinkFragment : Fragment() {
         }
 
         val file = requireArguments().getParcelable<File>(CREATE_LINK_FILE_KEY)!!
-        binding.createLinkName.setText(getString(R.string.create_link_file_for, file.name))
+        binding.createLinkFileFor.setText(getString(R.string.create_link_file_for, file.name))
+        binding.createLinkName.setText(file.name)
+
+        binding.createLinkCreate.setOnClickListener {
+            val name = binding.createLinkName.text.toString()
+
+            when(val result = CoreModel.createLink(name, file.id, model.currentParent.id)) {
+                is Ok -> alertModel.notifyWithToast(getString(R.string.created_link))
+                is Err -> alertModel.notifyError(result.error.toLbError(resources))
+            }
+        }
+
+        binding.createLinkCancel.setOnClickListener {
+            findNavController().popBackStack()
+        }
 
         return binding.root
+    }
+
+    fun onBackPressed() {
+        if(model.currentParent.isRoot()) {
+            findNavController().popBackStack()
+        } else {
+            model.refreshOverParent()
+        }
     }
 
     companion object {

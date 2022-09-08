@@ -8,13 +8,11 @@ import androidx.core.view.isEmpty
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import app.lockbook.R
-import app.lockbook.databinding.DialogShareFileBinding
 import app.lockbook.databinding.FragmentShareFileBinding
+import app.lockbook.model.DetailScreen
 import app.lockbook.model.StateViewModel
-import app.lockbook.model.TransientScreen
 import app.lockbook.util.File
 import app.lockbook.util.ShareMode
-import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.chip.Chip
 
 class ShareFileFragment : Fragment() {
@@ -29,7 +27,7 @@ class ShareFileFragment : Fragment() {
     ): View {
         binding = FragmentShareFileBinding.inflate(inflater, container, false)
 
-        val file = (activityModel.transientScreen as TransientScreen.Share).file
+        val file = (activityModel.transientScreen as DetailScreen.Share).file
 
         populateShares(file)
 
@@ -43,7 +41,9 @@ class ShareFileFragment : Fragment() {
 
             }
 
-            if(binding.shareFileAccessMode.mode)
+            if(binding.shareFileAccessMode.text.isEmpty()) {
+
+            }
         }
 
 

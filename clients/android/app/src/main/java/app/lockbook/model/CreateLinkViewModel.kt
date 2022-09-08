@@ -19,14 +19,14 @@ class CreateLinkViewModel(application: Application) :
     var files = emptyDataSourceTyped<File>()
 
     private val _closeFragment = MutableLiveData<Unit>()
-    private val _updateSubTitle = MutableLiveData<String>()
+    private val _updateTitle = MutableLiveData<String>()
     private val _notifyError = SingleMutableLiveData<LbError>()
 
     val closeFragment: LiveData<Unit>
         get() = _closeFragment
 
-    val updateSubTitle: LiveData<String>
-        get() = _updateSubTitle
+    val updateTitle: LiveData<String>
+        get() = _updateTitle
 
     val notifyError: LiveData<LbError>
         get() = _notifyError
@@ -63,6 +63,7 @@ class CreateLinkViewModel(application: Application) :
     private fun refreshOverFolder() {
         when (val getChildrenResult = CoreModel.getChildren(currentParent.id)) {
             is Ok -> {
+                _updateTitle.postValue(currentParent.name)
                 val tempFiles = getChildrenResult.value.filter { file -> file.isFolder()}.toMutableList()
 
                 viewModelScope.launch(Dispatchers.Main) {
@@ -95,4 +96,5 @@ class CreateLinkViewModel(application: Application) :
             refreshOverFolder()
         }
     }
+
 }

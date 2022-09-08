@@ -15,7 +15,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import java.io.File
 
-class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: DetailsScreen.Loading) :
+class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: DetailScreen.Loading) :
     AndroidViewModel(application) {
     private val _updateDetailScreenLoaderUI = SingleMutableLiveData<UpdateDetailScreenLoaderUI>()
 
@@ -28,7 +28,7 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
         }
     }
 
-    private fun loadContent(loadingInfo: DetailsScreen.Loading) {
+    private fun loadContent(loadingInfo: DetailScreen.Loading) {
         val extensionHelper = ExtensionHelper(loadingInfo.file.name)
 
         val updateUI = when {
@@ -45,7 +45,7 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
 
                 if (json.isEmpty()) {
                     UpdateDetailScreenLoaderUI.NotifyFinished(
-                        DetailsScreen.Drawing(
+                        DetailScreen.Drawing(
                             loadingInfo.file,
                             Drawing()
                         )
@@ -53,7 +53,7 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
                 } else {
                     try {
                         UpdateDetailScreenLoaderUI.NotifyFinished(
-                            DetailsScreen.Drawing(
+                            DetailScreen.Drawing(
                                 loadingInfo.file,
                                 Json.decodeFromString(json)
                             )
@@ -74,7 +74,7 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
                     UpdateDetailScreenLoaderUI.NotifyError(LbError.basicError(getRes()))
                 } else {
                     UpdateDetailScreenLoaderUI.NotifyFinished(
-                        DetailsScreen.ImageViewer(
+                        DetailScreen.ImageViewer(
                             loadingInfo.file,
                             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                         )
@@ -87,7 +87,7 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
                 child.mkdir()
 
                 when (val exportFileResult = CoreModel.exportFile(loadingInfo.file.id, child.toString(), true)) {
-                    is Ok -> UpdateDetailScreenLoaderUI.NotifyFinished(DetailsScreen.PdfViewer(loadingInfo.file, child))
+                    is Ok -> UpdateDetailScreenLoaderUI.NotifyFinished(DetailScreen.PdfViewer(loadingInfo.file, child))
                     is Err -> {
                         UpdateDetailScreenLoaderUI.NotifyError(exportFileResult.error.toLbError(getRes()))
                     }
@@ -105,7 +105,7 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
                 }
 
                 UpdateDetailScreenLoaderUI.NotifyFinished(
-                    DetailsScreen.TextEditor(loadingInfo.file, text)
+                    DetailScreen.TextEditor(loadingInfo.file, text)
                 )
             }
         }
@@ -115,7 +115,7 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
 }
 
 sealed class UpdateDetailScreenLoaderUI {
-    data class NotifyFinished(val newScreen: DetailsScreen) : UpdateDetailScreenLoaderUI()
+    data class NotifyFinished(val newScreen: DetailScreen) : UpdateDetailScreenLoaderUI()
     data class NotifyError(val error: LbError) : UpdateDetailScreenLoaderUI()
 }
 

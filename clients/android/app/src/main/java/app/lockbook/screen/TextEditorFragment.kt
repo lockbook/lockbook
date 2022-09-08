@@ -26,7 +26,7 @@ class TextEditorFragment : Fragment() {
         factoryProducer = {
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    val detailsScreen = activityModel.detailsScreen as DetailsScreen.TextEditor
+                    val detailsScreen = activityModel.detailsScreen as DetailScreen.TextEditor
                     if (modelClass.isAssignableFrom(TextEditorViewModel::class.java))
                         return TextEditorViewModel(requireActivity().application, detailsScreen.file, detailsScreen.text, binding.textEditorTextField.textSize) as T
                     throw IllegalArgumentException("Unknown ViewModel class")
@@ -51,7 +51,7 @@ class TextEditorFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentTextEditorBinding.inflate(inflater, container, false)
-        val name = (activityModel.detailsScreen as DetailsScreen.TextEditor).file.name
+        val name = (activityModel.detailsScreen as DetailScreen.TextEditor).file.name
 
         textEditorToolbar.title = name
         textEditorToolbar.setOnMenuItemClickListener { item ->
