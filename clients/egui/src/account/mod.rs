@@ -18,7 +18,7 @@ use crate::widgets::{separator, sidebar_button};
 use self::modals::*;
 use self::syncing::{SyncPanel, SyncUpdate};
 use self::tabs::{Drawing, ImageViewer, Markdown, PlainText, Tab, TabContent, TabFailure};
-use self::tree::FileTree;
+use self::tree::{FileTree, TreeNode};
 use self::workspace::Workspace;
 
 pub struct AccountScreen {
@@ -93,9 +93,23 @@ impl AccountScreen {
         self.show_any_modals(ctx, 0.0 - (sidebar_width / 2.0));
     }
 
+    pub fn refresh_tree_and_workspace(&self, ctx: &egui::Context) {
+        let core = self.core.clone();
+        let update_tx = self.update_tx.clone();
+        let ctx = ctx.clone();
+
+        thread::spawn(move || {
+            let all_metas = core.list_metadatas().unwrap();
+            let root = tree::create_root_node(all_metas);
+            update_tx.send(AccountUpdate::NewTree(root)).unwrap();
+            ctx.request_repaint();
+        });
+    }
+
     fn process_updates(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         while let Ok(update) = self.update_rx.try_recv() {
             match update {
+                AccountUpdate::NewTree(root) => self.tree.root = root,
                 AccountUpdate::OpenModal(open_modal) => match open_modal {
                     OpenModal::NewFile(maybe_parent) => self.open_new_file_modal(maybe_parent),
                     OpenModal::Settings => {
@@ -398,6 +412,8 @@ enum AccountUpdate {
     SyncUpdate(SyncUpdate),
 
     DoneDeleting,
+
+    NewTree(TreeNode),
 }
 
 enum OpenModal {

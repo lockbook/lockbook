@@ -2,9 +2,10 @@ mod node;
 mod response;
 mod state;
 
+pub use self::node::TreeNode;
+
 use eframe::egui;
 
-use self::node::TreeNode;
 use self::response::NodeResponse;
 use self::state::*;
 
@@ -15,15 +16,7 @@ pub struct FileTree {
 
 impl FileTree {
     pub fn new(all_metas: Vec<lb::File>) -> Self {
-        let mut all_metas = all_metas;
-
-        let root_meta = match all_metas.iter().position(|fm| fm.parent == fm.id) {
-            Some(i) => all_metas.swap_remove(i),
-            None => panic!("unable to find root in metadata list"),
-        };
-
-        let mut root = TreeNode::from((root_meta, 0));
-        root.populate_from(&all_metas);
+        let root = create_root_node(all_metas);
 
         let mut state = TreeState::default();
         state.expanded.insert(root.file.id);
@@ -105,6 +98,19 @@ impl FileTree {
             .map(|id| self.root.find(*id).unwrap().file.clone())
             .collect()
     }
+}
+
+pub fn create_root_node(all_metas: Vec<lb::File>) -> TreeNode {
+    let mut all_metas = all_metas;
+
+    let root_meta = match all_metas.iter().position(|fm| fm.parent == fm.id) {
+        Some(i) => all_metas.swap_remove(i),
+        None => panic!("unable to find root in metadata list"),
+    };
+
+    let mut root = TreeNode::from((root_meta, 0));
+    root.populate_from(&all_metas);
+    root
 }
 
 fn clear_children(state: &mut TreeState, node: &mut TreeNode) {
