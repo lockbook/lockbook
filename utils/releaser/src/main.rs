@@ -21,7 +21,9 @@ enum Releaser {
 }
 
 fn main() {
+    // Fail fast if we're invoking from the wrong location
     root();
+
     match Releaser::from_args() {
         Releaser::DeployServer => server::deploy_server(),
         Releaser::ReleaseApple => apple::release_apple(&Github::env(), &AppStore::env()),
