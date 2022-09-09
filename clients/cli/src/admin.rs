@@ -94,13 +94,17 @@ fn list_premium_users(core: &Core) -> Result<(), CliError> {
         Error::Unexpected(msg) => CliError::unexpected(msg),
     })?;
 
-    for (user, platform) in premium_users {
-        let platform_str = match platform {
-            ShallowPaymentPlatform::GooglePlay => "Google Play",
-            ShallowPaymentPlatform::Stripe => "Stripe",
-        };
+    if premium_users.is_empty() {
+        println!("There are no premium users.");
+    } else {
+        for (user, platform) in premium_users {
+            let platform_str = match platform {
+                ShallowPaymentPlatform::GooglePlay => "Google Play",
+                ShallowPaymentPlatform::Stripe => "Stripe",
+            };
 
-        println!("{}: {}", user, platform_str);
+            println!("{}: {}", user, platform_str);
+        }
     }
 
     Ok(())
