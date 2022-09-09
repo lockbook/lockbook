@@ -146,7 +146,6 @@ sealed class DetailScreen {
 
     data class Share(val file: app.lockbook.util.File) : DetailScreen()
 
-
     fun getUsedFile(): app.lockbook.util.File = when(this) {
         is Drawing -> file
         is ImageViewer -> file

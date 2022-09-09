@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
     android:orientation="vertical">
 
     <com.google.android.material.appbar.MaterialToolbar
@@ -20,9 +21,9 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
         android:layout_marginHorizontal="20dp"
         android:layout_marginTop="80dp"
+        android:orientation="vertical"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/materialToolbar">
 
@@ -48,9 +49,9 @@
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense.ExposedDropdownMenu"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
             android:hint="@string/access_mode"
             android:minWidth="250dp"
-            android:layout_marginTop="10dp"
             app:startIconDrawable="@drawable/ic_outline_lock_person_24">
 
 
@@ -59,19 +60,18 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="none"
-                app:simpleItems="@array/share_mode"
                 android:labelFor="@+id/share_file_new"
-                />
+                app:simpleItems="@array/share_mode" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/share_file_add_user"
+            style="@style/Widget.Material3.Button.ElevatedButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/add"
             android:layout_marginTop="10dp"
-            style="@style/Widget.Material3.Button.ElevatedButton"
+            android:text="@string/add"
             app:layout_constraintBottom_toBottomOf="@+id/share_file_new"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toEndOf="@+id/share_file_new"
@@ -83,8 +83,8 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
         android:layout_margin="20dp"
+        android:orientation="vertical"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
@@ -93,72 +93,32 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            app:dividerInsetStart="8dp"
-            app:dividerInsetEnd="8dp"/>
+            app:dividerInsetEnd="8dp"
+            app:dividerInsetStart="8dp" />
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/share_file_read_access"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/read_access"
-            android:textAppearance="?attr/textAppearanceLabelLarge"/>
+            android:textAppearance="?attr/textAppearanceLabelLarge" />
 
-        <HorizontalScrollView
-            android:id="@+id/share_file_users_with_read_access"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="20dp">
+            <HorizontalScrollView
+                android:id="@+id/share_file_users_with_read_access"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginBottom="15dp">
 
-            <com.google.android.material.chip.ChipGroup
-                android:id="@+id/share_file_read_access_shares"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                app:singleLine="true">
-
-                <com.google.android.material.chip.Chip
-                    style="@style/Widget.Material3.Chip.Input"
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/share_file_read_access_shares"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="parth"
-                    app:closeIconEnabled="true" />
+                    app:singleLine="true">
 
-                <com.google.android.material.chip.Chip
-                    style="@style/Widget.Material3.Chip.Input"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="steve"
-                    app:closeIconEnabled="true" />
 
-                <com.google.android.material.chip.Chip
-                    style="@style/Widget.Material3.Chip.Input"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="travis"
-                    app:closeIconEnabled="true" />
 
-                <com.google.android.material.chip.Chip
-                    style="@style/Widget.Material3.Chip.Input"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="adam"
-                    app:closeIconEnabled="true" />
-
-                <com.google.android.material.chip.Chip
-                    style="@style/Widget.Material3.Chip.Input"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="hamza"
-                    app:closeIconEnabled="true" />
-
-                <com.google.android.material.chip.Chip
-                    style="@style/Widget.Material3.Chip.Input"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="younass"
-                    app:closeIconEnabled="true" />
-
-            </com.google.android.material.chip.ChipGroup>
-        </HorizontalScrollView>
+                </com.google.android.material.chip.ChipGroup>
+            </HorizontalScrollView>
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/share_file_write_access"
@@ -167,62 +127,18 @@
             android:text="@string/write_access"
             android:textAppearance="?attr/textAppearanceLabelLarge" />
 
-        <HorizontalScrollView
-            android:id="@+id/horizontalScrollView"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            <HorizontalScrollView
+                android:id="@+id/horizontalScrollView"
+                android:layout_width="match_parent"
+                android:layout_height="50dp">
 
-            <com.google.android.material.chip.ChipGroup
-                android:id="@+id/share_file_write_access_shares"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                app:singleLine="true">
-
-                <com.google.android.material.chip.Chip
-                    style="@style/Widget.Material3.Chip.Input"
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/share_file_write_access_shares"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="parth"
-                    app:closeIconEnabled="true" />
+                    app:singleLine="true" />
 
-                <com.google.android.material.chip.Chip
-                    style="@style/Widget.Material3.Chip.Input"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="steve"
-                    app:closeIconEnabled="true" />
-
-                <com.google.android.material.chip.Chip
-                    style="@style/Widget.Material3.Chip.Input"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="travis"
-                    app:closeIconEnabled="true" />
-
-                <com.google.android.material.chip.Chip
-                    style="@style/Widget.Material3.Chip.Input"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="adam"
-                    app:closeIconEnabled="true" />
-
-                <com.google.android.material.chip.Chip
-                    style="@style/Widget.Material3.Chip.Input"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="hamza"
-                    app:closeIconEnabled="true" />
-
-                <com.google.android.material.chip.Chip
-                    style="@style/Widget.Material3.Chip.Input"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="younass"
-                    app:closeIconEnabled="true" />
-
-            </com.google.android.material.chip.ChipGroup>
-
-        </HorizontalScrollView>
+            </HorizontalScrollView>
 
     </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

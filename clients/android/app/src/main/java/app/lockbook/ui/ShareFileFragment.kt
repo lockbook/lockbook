@@ -27,7 +27,7 @@ class ShareFileFragment : Fragment() {
     ): View {
         binding = FragmentShareFileBinding.inflate(inflater, container, false)
 
-        val file = (activityModel.transientScreen as DetailScreen.Share).file
+        val file = (activityModel.detailsScreen as DetailScreen.Share).file
 
         populateShares(file)
 

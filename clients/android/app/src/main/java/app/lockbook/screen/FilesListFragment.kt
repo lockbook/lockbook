@@ -73,7 +73,10 @@ class FilesListFragment : Fragment(), FilesFragment {
                         }
                     }
                     R.id.menu_list_files_share -> {
-
+                        if (model.files.getSelectionCount() == 1) {
+                            activityModel.launchDetailsScreen(DetailScreen.Share(selectedFiles[0].fileMetadata))
+                            unselectFiles()
+                        }
                     }
                     else -> return false
                 }
