@@ -442,5 +442,31 @@ impl Request for AdminDisappearFileRequest {
     const ROUTE: &'static str = "/admin-disappear-file";
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum ShallowPaymentPlatform {
+    GooglePlay,
+    Stripe,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminListPremiumUsersRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminListPremiumUsersResponse {
+    pub users: Vec<(Username, ShallowPaymentPlatform)>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminListPremiumUsersError {
+    NotPermissioned,
+}
+
+impl Request for AdminListPremiumUsersRequest {
+    type Response = AdminListPremiumUsersResponse;
+    type Error = AdminListPremiumUsersError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/admin-list-premium-users";
+}
+
 // number of milliseconds that have elapsed since the unix epoch
 pub type UnixTimeMillis = u64;

@@ -3,8 +3,8 @@ use dialoguer::theme::ColorfulTheme;
 use dialoguer::Confirm;
 use structopt::StructOpt;
 
-use lockbook_core::Uuid;
 use lockbook_core::{AdminDeleteAccountError, AdminDisappearFileError, Core, Error};
+use lockbook_core::{AdminListPremiumUsersError, ShallowPaymentPlatform, Uuid};
 
 #[derive(Debug, PartialEq, Eq, StructOpt)]
 pub enum Admin {
@@ -17,12 +17,16 @@ pub enum Admin {
     /// scenario, you may want to *disappear* a file so that it never existed. This is useful in a
     /// scenario where your server let in an invalid file.
     DisappearFile { id: Uuid },
+
+    /// List all the premium users and their payment platform
+    ListPremiumUsers,
 }
 
 pub fn admin(core: &Core, admin: Admin) -> Result<(), CliError> {
     match admin {
         Admin::DeleteAccount { username } => delete_account(core, username),
         Admin::DisappearFile { id } => disappear_file(core, id),
+        Admin::ListPremiumUsers => list_premium_users(core),
     }
 }
 
@@ -73,6 +77,30 @@ fn delete_account(core: &Core, username: String) -> Result<(), CliError> {
 
             println!("Account deleted!");
         }
+    }
+
+    Ok(())
+}
+
+fn list_premium_users(core: &Core) -> Result<(), CliError> {
+    let premium_users = core.admin_list_premium_users().map_err(|err| match err {
+        Error::UiError(err) => match err {
+            AdminListPremiumUsersError::InsufficientPermission => {
+                CliError::insufficient_permission()
+            }
+            AdminListPremiumUsersError::CouldNotReachServer => CliError::network_issue(),
+            AdminListPremiumUsersError::ClientUpdateRequired => CliError::update_required(),
+        },
+        Error::Unexpected(msg) => CliError::unexpected(msg),
+    })?;
+
+    for (user, platform) in premium_users {
+        let platform_str = match platform {
+            ShallowPaymentPlatform::GooglePlay => "Google Play",
+            ShallowPaymentPlatform::Stripe => "Stripe",
+        };
+
+        println!("{}: {}", user, platform_str);
     }
 
     Ok(())

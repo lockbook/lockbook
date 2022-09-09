@@ -1,3 +1,4 @@
+use crate::billing::billing_model::BillingPlatform;
 use crate::schema::Account;
 use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
@@ -7,9 +8,11 @@ use libsecp256k1::PublicKey;
 use lockbook_shared::account::Username;
 use lockbook_shared::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
 use lockbook_shared::api::{
-    AdminDeleteAccountError, AdminDeleteAccountRequest, DeleteAccountError, DeleteAccountRequest,
-    FileUsage, GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError,
-    GetUsageRequest, GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse,
+    AdminDeleteAccountError, AdminDeleteAccountRequest, AdminListPremiumUsersError,
+    AdminListPremiumUsersRequest, AdminListPremiumUsersResponse, DeleteAccountError,
+    DeleteAccountRequest, FileUsage, GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse,
+    GetUsageError, GetUsageRequest, GetUsageResponse, NewAccountError, NewAccountRequest,
+    NewAccountResponse, ShallowPaymentPlatform,
 };
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
@@ -155,6 +158,29 @@ pub async fn admin_delete_account(
     delete_account_helper(context.server_state, &owner.0).await?;
 
     Ok(())
+}
+
+pub async fn admin_list_premium_users(
+    context: RequestContext<'_, AdminListPremiumUsersRequest>,
+) -> Result<AdminListPremiumUsersResponse, ServerError<AdminListPremiumUsersError>> {
+    let index_db = &context.server_state.index_db;
+
+    let mut users = vec![];
+
+    for owner in index_db.google_play_ids.get_all()?.values() {
+        let account = &index_db
+            .accounts
+            .get(owner)?
+            .ok_or(internal!("cannot find premium user in accounts db"))?;
+
+        if let Some(BillingPlatform::GooglePlay(_)) = &account.billing_info.billing_platform {
+            users.push((account.username.clone(), ShallowPaymentPlatform::GooglePlay))
+        } else if let Some(BillingPlatform::Stripe(_)) = &account.billing_info.billing_platform {
+            users.push((account.username.clone(), ShallowPaymentPlatform::Stripe))
+        }
+    }
+
+    Ok(AdminListPremiumUsersResponse { users })
 }
 
 #[derive(Debug)]

@@ -12,6 +12,7 @@ mod external_interface;
 pub use uuid::Uuid;
 
 pub use lockbook_shared::account::Account;
+pub use lockbook_shared::api::ShallowPaymentPlatform;
 pub use lockbook_shared::api::{GooglePlayAccountState, StripeAccountTier, SubscriptionInfo};
 pub use lockbook_shared::api::{PaymentMethod, PaymentPlatform};
 pub use lockbook_shared::core_config::Config;
@@ -41,6 +42,7 @@ use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use libsecp256k1::PublicKey;
+use lockbook_shared::account::Username;
 use lockbook_shared::clock;
 use lockbook_shared::crypto::AESKey;
 use serde_json::{json, value::Value};
@@ -495,6 +497,16 @@ impl Core {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.disappear_file(id))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn admin_list_premium_users(
+        &self,
+    ) -> Result<Vec<(Username, ShallowPaymentPlatform)>, Error<AdminListPremiumUsersError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.list_premium_users())?;
         Ok(val?)
     }
 }

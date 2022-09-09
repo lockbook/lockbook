@@ -1047,6 +1047,30 @@ impl From<CoreError> for Error<AdminDisappearFileError> {
 }
 
 #[derive(Debug, Serialize, EnumIter)]
+pub enum AdminListPremiumUsersError {
+    InsufficientPermission,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<AdminListPremiumUsersError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::InsufficientPermission => {
+                UiError(AdminListPremiumUsersError::InsufficientPermission)
+            }
+            CoreError::ServerUnreachable => {
+                UiError(AdminListPremiumUsersError::CouldNotReachServer)
+            }
+            CoreError::ClientUpdateRequired => {
+                UiError(AdminListPremiumUsersError::ClientUpdateRequired)
+            }
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
 pub enum FeatureFlagError {
     InsufficientPermission,
     CouldNotReachServer,
