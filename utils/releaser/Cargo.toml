@@ -12,3 +12,5 @@ hex = "0.4.3"
 zip = "0.6.2"
 google-androidpublisher3 = "3.1.0"
 tokio = "1.20.1"
+tempfile = { version = "3.1.0" }
+fs_extra = "1.2.0"
