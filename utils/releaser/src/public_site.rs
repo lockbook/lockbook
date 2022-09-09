@@ -53,6 +53,7 @@ fn copy_public_site(tmp: &Path) {
 
     copy(pub_site, tmp, &cfg).unwrap();
 }
+
 fn push(tmp: &Path) {
     Command::new("git")
         .args(["add", "-A"])
