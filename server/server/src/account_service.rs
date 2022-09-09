@@ -171,11 +171,20 @@ pub async fn admin_list_premium_users(
         let account = &index_db
             .accounts
             .get(owner)?
-            .ok_or(internal!("cannot find premium user in accounts db"))?;
+            .ok_or(internal!("cannot find premium google play user in accounts db"))?;
 
         if let Some(BillingPlatform::GooglePlay(_)) = &account.billing_info.billing_platform {
             users.push((account.username.clone(), ShallowPaymentPlatform::GooglePlay))
-        } else if let Some(BillingPlatform::Stripe(_)) = &account.billing_info.billing_platform {
+        }
+    }
+
+    for owner in index_db.stripe_ids.get_all()?.values() {
+        let account = &index_db
+            .accounts
+            .get(owner)?
+            .ok_or(internal!("cannot find premium stripe user in accounts db"))?;
+
+        if let Some(BillingPlatform::Stripe(_)) = &account.billing_info.billing_platform {
             users.push((account.username.clone(), ShallowPaymentPlatform::Stripe))
         }
     }
