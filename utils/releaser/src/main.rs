@@ -6,9 +6,9 @@ mod server;
 mod utils;
 mod windows;
 
-use crate::secrets::{AppStore, Github, PlayStore};
-use std::env;
-use std::path::PathBuf;
+use crate::secrets::*;
+use crate::utils::root;
+
 use structopt::StructOpt;
 
 #[derive(StructOpt)]
@@ -29,12 +29,4 @@ fn main() {
         Releaser::ReleaseWindows => windows::release(&Github::env()),
         Releaser::ReleasePublicSite => public_site::release(),
     }
-}
-
-pub fn root() -> PathBuf {
-    let project_root = env::current_dir().unwrap();
-    if project_root.file_name().unwrap() != "lockbook" {
-        panic!("releaser not called from project root");
-    }
-    project_root
 }

@@ -1,8 +1,9 @@
 use gh_release::RepoInfo;
 use sha2::Digest;
 use sha2::Sha256;
-use std::fs;
+use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
+use std::{env, fs};
 use toml::Value;
 
 pub trait CommandRunner {
@@ -60,4 +61,12 @@ pub fn sha_file(file: &str) -> String {
     hasher.update(bytes);
     let result = hasher.finalize();
     hex::encode(result)
+}
+
+pub fn root() -> PathBuf {
+    let project_root = env::current_dir().unwrap();
+    if project_root.file_name().unwrap() != "lockbook" {
+        panic!("releaser not called from project root");
+    }
+    project_root
 }

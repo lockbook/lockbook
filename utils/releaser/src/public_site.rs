@@ -5,8 +5,7 @@ use std::process::Command;
 use fs_extra::dir::copy;
 use fs_extra::dir::CopyOptions;
 
-use crate::root;
-use crate::utils::CommandRunner;
+use crate::utils::{root, CommandRunner};
 
 pub fn release() {
     let mut path = work_dir();
