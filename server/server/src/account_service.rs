@@ -142,6 +142,7 @@ pub async fn admin_delete_account(
     context: RequestContext<'_, AdminDeleteAccountRequest>,
 ) -> Result<(), ServerError<AdminDeleteAccountError>> {
     let db = &context.server_state.index_db;
+
     if !is_admin::<AdminDeleteAccountError>(
         db,
         &context.public_key,
@@ -163,12 +164,20 @@ pub async fn admin_delete_account(
 pub async fn admin_list_premium_users(
     context: RequestContext<'_, AdminListPremiumUsersRequest>,
 ) -> Result<AdminListPremiumUsersResponse, ServerError<AdminListPremiumUsersError>> {
-    let index_db = &context.server_state.index_db;
+    let db = &context.server_state.index_db;
+
+    if !is_admin::<AdminListPremiumUsersError>(
+        db,
+        &context.public_key,
+        &context.server_state.config.admin.admins,
+    )? {
+        return Err(ClientError(AdminListPremiumUsersError::NotPermissioned));
+    }
 
     let mut users = vec![];
 
-    for owner in index_db.google_play_ids.get_all()?.values() {
-        let account = &index_db
+    for owner in db.google_play_ids.get_all()?.values() {
+        let account = &db
             .accounts
             .get(owner)?
             .ok_or(internal!("cannot find premium google play user in accounts db"))?;
@@ -178,8 +187,8 @@ pub async fn admin_list_premium_users(
         }
     }
 
-    for owner in index_db.stripe_ids.get_all()?.values() {
-        let account = &index_db
+    for owner in db.stripe_ids.get_all()?.values() {
+        let account = &db
             .accounts
             .get(owner)?
             .ok_or(internal!("cannot find premium stripe user in accounts db"))?;
