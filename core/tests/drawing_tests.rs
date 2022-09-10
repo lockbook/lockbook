@@ -1,10 +1,30 @@
 use lockbook_core::model::drawing;
 use lockbook_core::model::drawing::SupportedImageFormats;
 use lockbook_shared::drawing::{ColorAlias, Drawing, Stroke};
+use test_utils::test_core_with_account;
 
 #[test]
 fn parse_drawing_invalid() {
     assert!(drawing::parse_drawing(b"not a valid drawing").is_err());
+}
+
+#[test]
+fn parse_drawing_invalid_data() {
+    let drawing = Drawing {
+        scale: 0.0,
+        translation_x: 0.0,
+        translation_y: 0.0,
+        strokes: vec![Stroke {
+            points_x: vec![10f32, 50f32, 60f32],
+            points_y: vec![10f32, 50f32, 1000f32],
+            points_girth: vec![5f32, 7f32],
+            color: ColorAlias::Black,
+            alpha: 0.0,
+        }],
+        theme: None,
+    };
+    let drawing_bytes = serde_json::to_vec(&drawing).unwrap();
+    drawing::parse_drawing(&drawing_bytes).unwrap_err();
 }
 
 #[test]
@@ -16,7 +36,7 @@ fn parse_drawing_valid() {
         strokes: vec![Stroke {
             points_x: vec![10f32, 50f32, 60f32],
             points_y: vec![10f32, 50f32, 1000f32],
-            points_girth: vec![5f32, 7f32],
+            points_girth: vec![5f32, 7f32, 9f32],
             color: ColorAlias::Black,
             alpha: 0.0,
         }],
@@ -124,4 +144,83 @@ fn export_drawing_invalid() {
         None,
     );
     assert!(result.is_err());
+}
+
+#[test]
+fn get_drawing() {
+    let core = test_core_with_account();
+    let drawing = core.create_at_path("/drawing.draw").unwrap();
+    core.get_drawing(drawing.id).unwrap();
+}
+
+#[test]
+fn save_drawing() {
+    let core = test_core_with_account();
+    let drawing = core.create_at_path("/drawing.draw").unwrap();
+    core.save_drawing(
+        drawing.id,
+        &Drawing {
+            scale: 0.0,
+            translation_x: 0.0,
+            translation_y: 0.0,
+            strokes: vec![Stroke {
+                points_x: vec![10f32, 50f32, 60f32],
+                points_y: vec![10f32, 50f32, 1000f32],
+                points_girth: vec![5f32, 7f32, 9f32],
+                color: ColorAlias::Black,
+                alpha: 0.0,
+            }],
+            theme: None,
+        },
+    )
+    .unwrap();
+    core.get_drawing(drawing.id).unwrap();
+}
+
+#[test]
+fn save_drawing_invalid() {
+    let core = test_core_with_account();
+    let drawing = core.create_at_path("/drawing.draw").unwrap();
+    core.save_drawing(
+        drawing.id,
+        &Drawing {
+            scale: 0.0,
+            translation_x: 0.0,
+            translation_y: 0.0,
+            strokes: vec![Stroke {
+                points_x: vec![10f32, 50f32, 60f32],
+                points_y: vec![10f32, 50f32, 1000f32],
+                points_girth: vec![5f32, 7f32],
+                color: ColorAlias::Black,
+                alpha: 0.0,
+            }],
+            theme: None,
+        },
+    )
+    .unwrap_err();
+}
+
+#[test]
+fn export_drawing() {
+    let core = test_core_with_account();
+    let drawing = core.create_at_path("/drawing.draw").unwrap();
+    core.save_drawing(
+        drawing.id,
+        &Drawing {
+            scale: 0.0,
+            translation_x: 0.0,
+            translation_y: 0.0,
+            strokes: vec![Stroke {
+                points_x: vec![10f32, 50f32, 60f32],
+                points_y: vec![10f32, 50f32, 1000f32],
+                points_girth: vec![5f32, 7f32, 9f32],
+                color: ColorAlias::Black,
+                alpha: 0.0,
+            }],
+            theme: None,
+        },
+    )
+    .unwrap();
+    core.export_drawing(drawing.id, SupportedImageFormats::Png, None)
+        .unwrap();
 }

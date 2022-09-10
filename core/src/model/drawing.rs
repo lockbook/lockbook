@@ -19,15 +19,34 @@ use serde_json::error::Category;
 use crate::model::errors::core_err_unexpected;
 use crate::{CoreError, CoreResult};
 
+pub fn validate(drawing: &Drawing) -> CoreResult<()> {
+    for stroke in &drawing.strokes {
+        if stroke.points_x.len() != stroke.points_y.len()
+            || stroke.points_y.len() != stroke.points_girth.len()
+        {
+            return Err(CoreError::Unexpected(String::from("unequal points and girth metrics")));
+        }
+
+        if stroke.alpha > 1.0 || stroke.alpha < 0.0 {
+            return Err(CoreError::Unexpected(String::from("invalid alpha value")));
+        }
+    }
+
+    Ok(())
+}
+
 pub fn parse_drawing(drawing_bytes: &[u8]) -> CoreResult<Drawing> {
     // represent an empty string as an empty drawing, rather than returning an error
     if drawing_bytes.is_empty() {
         return Ok(Drawing::default());
     }
-    serde_json::from_slice::<Drawing>(drawing_bytes).map_err(|err| match err.classify() {
-        Category::Io => CoreError::Unexpected(String::from("json io")),
-        Category::Syntax | Category::Data | Category::Eof => CoreError::DrawingInvalid,
-    })
+    let drawing =
+        serde_json::from_slice::<Drawing>(drawing_bytes).map_err(|err| match err.classify() {
+            Category::Io => CoreError::Unexpected(String::from("json io")),
+            Category::Syntax | Category::Data | Category::Eof => CoreError::DrawingInvalid,
+        })?;
+    validate(&drawing)?;
+    Ok(drawing)
 }
 
 #[derive(Deserialize, Debug)]
@@ -88,45 +107,27 @@ pub fn export_drawing(
             .get(&stroke.color)
             .ok_or_else(|| CoreError::Unexpected(String::from("unable to get color from alias")))?;
 
-        if stroke.points_x.len() != stroke.points_y.len()
-            || stroke.points_y.len() != stroke.points_girth.len()
-        {
-            return Err(CoreError::Unexpected(String::from("unequal points and girth metrics")));
-        }
-
-        if stroke.alpha > 1.0 || stroke.alpha < 0.0 {
-            return Err(CoreError::Unexpected(String::from("invalid alpha value")));
-        }
-
         for point_index in 0..stroke.points_x.len() - 1 {
             let mut pb = PathBuilder::new();
             let x1 = stroke
                 .points_x
                 .get(point_index)
-                .ok_or_else(|| {
-                    CoreError::Unexpected(String::from("unable to get color from alias"))
-                })?
+                .ok_or_else(|| CoreError::Unexpected(String::from("unable to get stroke x1")))?
                 .to_owned();
             let y1 = stroke
                 .points_y
                 .get(point_index)
-                .ok_or_else(|| {
-                    CoreError::Unexpected(String::from("unable to get color from alias"))
-                })?
+                .ok_or_else(|| CoreError::Unexpected(String::from("unable to get stroke y1")))?
                 .to_owned();
             let x2 = stroke
                 .points_x
                 .get(point_index + 1)
-                .ok_or_else(|| {
-                    CoreError::Unexpected(String::from("unable to get color from alias"))
-                })?
+                .ok_or_else(|| CoreError::Unexpected(String::from("unable to get stroke x2")))?
                 .to_owned();
             let y2 = stroke
                 .points_y
                 .get(point_index + 1)
-                .ok_or_else(|| {
-                    CoreError::Unexpected(String::from("unable to get color from alias"))
-                })?
+                .ok_or_else(|| CoreError::Unexpected(String::from("unable to get stroke y2")))?
                 .to_owned();
 
             pb.move_to(x1, y1);
