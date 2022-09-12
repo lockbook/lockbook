@@ -68,9 +68,24 @@ lib_c_for_swift_ios:
 	cp lockbook_core.h ${swift_inc}
 	@echo "Building fat library"
 	@rm ${swift_lib_ios}liblockbook_core.a || true
-	cargo lipo --release
+	cargo build --release --target=aarch64-apple-ios
 	@mkdir -p ${swift_lib_ios}
 	cp ../target/universal/release/liblockbook_core.a ${swift_lib_ios}
+
+.PHONY: lib_c_for_swift_ios_sim
+lib_c_for_swift_ios_sim:
+	@{ command -v cargo || { echo "Y'ain't got cargo"; exit 1; } }
+	@echo "Creating header"
+	@rm ${swift_inc}lockbook_core.h || true
+	cbindgen src/external_interface/c_interface.rs -l c > lockbook_core.h
+	@mkdir -p ${swift_inc}
+	cp lockbook_core.h ${swift_inc}
+	@echo "Building fat library"
+	@rm ${swift_lib_ios_sim}liblockbook_core.a || true
+	cargo build --release --target=aarch64-apple-ios-sim
+	cargo build --release --target=x86_64-apple-ios
+	@mkdir -p ${swift_lib_ios_sim}
+	lipo -create -output ${swift_lib_ios_sim}liblockbook_core.a ../target/aarch64-apple-ios-sim/release/liblockbook_core.a ../target/x86_64-apple-ios/release/liblockbook_core.a
 
 # for non lipo builds (linux)
 .PHONY: lib_c_for_swift_native
@@ -106,7 +121,7 @@ lib_c_for_swift_universal:
 	cp ../target/xcode-lipo-universal/liblockbook_core.a ${swift_lib}
 
 .PHONY: swift_libs
-swift_libs: lib_c_for_swift_universal lib_c_for_swift_ios
+swift_libs: lib_c_for_swift_universal lib_c_for_swift_ios lib_c_for_swift_ios_sim
 
 .PHONY: lib_c_for_windows
 lib_c_for_windows:
@@ -127,6 +142,7 @@ windowsLibName = 'liblockbook_core.dll'
 swift_inc := ../clients/apple/CLockbookCore/Sources/CLockbookCore/include/
 swift_lib := ../clients/apple/CLockbookCore/Sources/CLockbookCore/lib/
 swift_lib_ios := ../clients/apple/CLockbookCore/Sources/CLockbookCore/lib_ios/
+swift_lib_ios_sim := ../clients/apple/CLockbookCore/Sources/CLockbookCore/lib_ios_sim/
 
 # Windows Library Location
 windows_lib := ../clients/windows/core/
