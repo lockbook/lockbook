@@ -136,7 +136,7 @@ impl RequestContext<'_, '_> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let ids = tree.children_using_links(&id)?.into_iter();
+        let ids = tree.children_using_links(id)?.into_iter();
         Ok(tree.resolve_and_finalize(account, ids)?)
     }
 
