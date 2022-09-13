@@ -55,7 +55,7 @@ impl Experiment {
                 state.running.insert(thread, (Instant::now(), found.id));
                 (Some(found), true)
             }
-            None => (None, !state.running.is_empty()),
+            None => (None, !state.running.is_empty() && !state.pending.is_empty()),
         }
     }
 
