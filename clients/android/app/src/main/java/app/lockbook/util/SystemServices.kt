@@ -66,5 +66,5 @@ fun MainScreenActivity.maybeGetFilesFragment(): FilesFragment? =
 fun MainScreenActivity.maybeGetSearchFilesFragment(): SearchDocumentsFragment? =
     (supportFragmentManager.findFragmentById(R.id.files_container) as? NavHostFragment)?.childFragmentManager?.fragments?.get(0) as? SearchDocumentsFragment
 
-fun SharedFilesActivity.maybeGetCreateLinkFragment(): CreateLinkFragment? =
+fun SharesActivity.maybeGetCreateLinkFragment(): CreateLinkFragment? =
     (supportFragmentManager.findFragmentById(R.id.shared_files_container) as? NavHostFragment)?.childFragmentManager?.fragments?.get(0) as? CreateLinkFragment

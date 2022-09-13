@@ -101,7 +101,10 @@ class CreateLinkFragment : Fragment() {
             val name = binding.createLinkName.text.toString()
 
             when(val result = CoreModel.createLink(name, file.id, model.currentParent.id)) {
-                is Ok -> alertModel.notifyWithToast(getString(R.string.created_link))
+                is Ok -> {
+                    alertModel.notifyWithToast(getString(R.string.created_link))
+                    findNavController().popBackStack()
+                }
                 is Err -> alertModel.notifyError(result.error.toLbError(resources))
             }
         }

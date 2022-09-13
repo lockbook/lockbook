@@ -267,9 +267,10 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createLink(
     string_to_jstring(
         &env,
         match static_state::get() {
-            Ok(core) => {
-                translate(core.create_file(name.as_str(), parent, FileType::Link { target: id }))
-            }
+            Ok(core) => translate(
+                core.create_file(name.as_str(), parent, FileType::Link { target: id })
+                    .map(|_| ()),
+            ),
             e => translate(e.map(|_| ())),
         },
     )

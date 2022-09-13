@@ -223,17 +223,15 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
         binding.navigationView.setNavigationItemSelectedListener { item ->
             when (item.itemId) {
-                R.id.menu_files_list_settings -> startActivity(
-                    Intent(
-                        context,
-                        SettingsActivity::class.java
-                    )
-                )
+                R.id.menu_files_list_settings -> {
+                    activityModel.launchActivityScreen(ActivityScreen.Settings())
+                }
                 R.id.menu_files_list_sharing -> {
+
                     startActivity(
                         Intent(
                             context,
-                            SharedFilesActivity::class.java
+                            SharesActivity::class.java
                         )
                     )
                 }
@@ -469,9 +467,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 beforeYouStartDialog.findViewById<MaterialButton>(R.id.backup_my_secret)!!.setOnClickListener {
                     beforeYouStartDialog.dismiss()
 
-                    val intent = Intent(requireContext(), SettingsActivity::class.java)
-                    intent.putExtra(SettingsFragment.SCROLL_TO_PREFERENCE_KEY, R.string.export_account_raw_key)
-                    startActivity(intent)
+                    activityModel.launchActivityScreen(ActivityScreen.Settings(R.string.export_account_raw_key))
                 }
 
                 beforeYouStartDialog.findViewById<MaterialTextView>(R.id.before_you_start_description)!!.movementMethod = LinkMovementMethod.getInstance()

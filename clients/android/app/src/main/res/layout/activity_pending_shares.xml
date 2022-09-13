@@ -10,7 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_gravity="start"
-        app:navGraph="@navigation/shared_files_navigation"
+        app:navGraph="@navigation/pending_shares_navigation"
         app:defaultNavHost="true" />
 
 </LinearLayout>

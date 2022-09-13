@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
+import app.lockbook.screen.SharesActivity
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -15,12 +16,17 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 class StateViewModel(application: Application) : AndroidViewModel(application) {
+    var activityScreen: ActivityScreen? = null
     var detailsScreen: DetailScreen? = null
     var transientScreen: TransientScreen? = null
 
+    private val _launchActivityScreen = SingleMutableLiveData<ActivityScreen>()
     private val _launchDetailsScreen = SingleMutableLiveData<DetailScreen?>()
     private val _launchTransientScreen = SingleMutableLiveData<TransientScreen>()
     private val _updateMainScreenUI = SingleMutableLiveData<UpdateMainScreenUI>()
+
+    val launchActivityScreen: LiveData<ActivityScreen?>
+        get() = _launchActivityScreen
 
     val launchDetailsScreen: LiveData<DetailScreen?>
         get() = _launchDetailsScreen
@@ -32,6 +38,11 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
         get() = _updateMainScreenUI
 
     val shareModel = ShareModel(_updateMainScreenUI)
+
+    fun launchActivityScreen(screen: ActivityScreen) {
+        activityScreen = screen
+        _launchActivityScreen.postValue(activityScreen)
+    }
 
     fun launchTransientScreen(screen: TransientScreen) {
         transientScreen = screen
@@ -122,6 +133,11 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+}
+
+sealed class ActivityScreen {
+    data class Settings(val scrollToPreference: Int? = null): ActivityScreen()
+    object Shares: ActivityScreen()
 }
 
 sealed class DetailScreen {

@@ -18,6 +18,7 @@ import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.model.*
 import app.lockbook.ui.*
 import app.lockbook.util.*
+import timber.log.Timber
 import java.io.File
 import java.lang.ref.WeakReference
 
@@ -48,6 +49,14 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     private val onShare =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            Timber.e("Sync ")
+
+            // Sync after share
+            maybeGetFilesFragment()?.syncBasedOnPreferences()
+        }
+
+    private val onExport =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             updateMainScreenUI(UpdateMainScreenUI.ShowHideProgressOverlay(false))
             model.shareModel.isLoadingOverlayVisible = false
@@ -100,6 +109,25 @@ class MainScreenActivity : AppCompatActivity() {
             })
 
         slidingPaneLayout.lockMode = SlidingPaneLayout.LOCK_MODE_LOCKED
+
+        model.launchActivityScreen.observe(
+            this
+        ) { screen ->
+            when(screen) {
+                is ActivityScreen.Settings -> {
+                    val intent = Intent(applicationContext, SettingsActivity::class.java)
+
+                    if(screen.scrollToPreference != null) {
+                        intent.putExtra(SettingsFragment.SCROLL_TO_PREFERENCE_KEY, screen.scrollToPreference)
+                    }
+
+                    startActivity(intent)
+                }
+                ActivityScreen.Shares -> {
+                    onShare.launch(Intent(applicationContext, SharesActivity::class.java))
+                }
+            }
+        }
 
         model.launchDetailsScreen.observe(
             this
@@ -199,7 +227,7 @@ class MainScreenActivity : AppCompatActivity() {
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
 
-        onShare.launch(Intent.createChooser(intent, "Send multiple files."))
+        onExport.launch(Intent.createChooser(intent, "Send multiple files."))
     }
 
     override fun onDestroy() {

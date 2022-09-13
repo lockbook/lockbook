@@ -6,7 +6,7 @@
 
     <fragment
         android:id="@+id/sharedFilesFragment"
-        android:name="app.lockbook.screen.SharedFilesFragment"
+        android:name="app.lockbook.screen.PendingSharesFragment"
         android:label="SharedFilesFragment" >
         <action
             android:id="@+id/action_create_link"

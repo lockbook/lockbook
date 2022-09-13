@@ -7,7 +7,7 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import app.lockbook.R
-import app.lockbook.databinding.FragmentSharedFilesBinding
+import app.lockbook.databinding.FragmentPendingSharesBinding
 import app.lockbook.model.*
 import app.lockbook.ui.DeleteSharedDialogFragment
 import app.lockbook.util.*
@@ -17,11 +17,10 @@ import com.afollestad.recyclical.withItem
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.*
-import timber.log.Timber
 import java.lang.ref.WeakReference
 
-class SharedFilesFragment : Fragment() {
-    lateinit var binding: FragmentSharedFilesBinding
+class PendingSharesFragment : Fragment() {
+    lateinit var binding: FragmentPendingSharesBinding
 
     private val uiScope = CoroutineScope(Dispatchers.Main + Job())
 
@@ -36,10 +35,10 @@ class SharedFilesFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        binding = FragmentSharedFilesBinding.inflate(inflater, container, false)
+        binding = FragmentPendingSharesBinding.inflate(inflater, container, false)
 
         binding.sharedFilesToolbar.setNavigationOnClickListener {
-            requireActivity().finish()
+            activity?.onBackPressed()
         }
 
         populatePendingShares()
@@ -47,7 +46,7 @@ class SharedFilesFragment : Fragment() {
         binding.sharedFiles.setup {
             withDataSource(sharedFilesDataSource)
 
-            withItem<File, SharedFileViewHolder>(R.layout.shared_file_item) {
+            withItem<File, SharedFileViewHolder>(R.layout.pending_shares_file_item) {
                 onBind(::SharedFileViewHolder) { _, item ->
                     name.text = item.name
                     owner.text = item.lastModifiedBy
@@ -100,6 +99,11 @@ class SharedFilesFragment : Fragment() {
         return binding.root
     }
 
+    override fun onResume() {
+        super.onResume()
+        populatePendingShares()
+    }
+
     private fun populatePendingShares() {
         uiScope.launch(Dispatchers.IO) {
             when (val getPendingSharesResults = CoreModel.getPendingShares()) {
@@ -113,7 +117,7 @@ class SharedFilesFragment : Fragment() {
                     }
                 }
                 is Err -> alertModel.notifyError(getPendingSharesResults.error.toLbError(resources)) {
-                    requireActivity().finish()
+                    activity?.onBackPressed()
                 }
             }
         }

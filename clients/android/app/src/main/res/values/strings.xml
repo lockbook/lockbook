@@ -282,6 +282,10 @@
     <string name="access_mode">Access Mode</string>
     <string name="link_destination">Link destination</string>
     <string name="created_link">Created link!</string>
+    <string name="please_sync">Please sync for effects to take place.</string>
+
+    <string name="no_username">Please enter a username.</string>
+    <string name="no_access_mode">Please choose an access mode.</string>
 
     <array name="share_mode">
         <item>@string/share_mode_read</item>

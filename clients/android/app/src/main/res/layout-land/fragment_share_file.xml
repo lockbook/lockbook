@@ -79,64 +79,64 @@
     </LinearLayout>
 
 
-    <LinearLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_margin="20dp"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
-
-        <com.google.android.material.divider.MaterialDivider
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:dividerInsetEnd="8dp"
-            app:dividerInsetStart="8dp" />
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/share_file_read_access"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/read_access"
-            android:textAppearance="?attr/textAppearanceLabelLarge" />
+            android:textAppearance="?attr/textAppearanceLabelLarge"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
-            <HorizontalScrollView
-                android:id="@+id/share_file_users_with_read_access"
-                android:layout_width="match_parent"
-                android:layout_height="50dp"
-                android:layout_marginBottom="15dp">
+        <HorizontalScrollView
+            android:id="@+id/share_file_users_with_read_access"
+            android:layout_width="200dp"
+            android:layout_height="50dp"
+            android:layout_marginBottom="15dp"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/share_file_read_access">
 
-                <com.google.android.material.chip.ChipGroup
-                    android:id="@+id/share_file_read_access_shares"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    app:singleLine="true">
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/share_file_read_access_shares"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:singleLine="true">
 
 
-                </com.google.android.material.chip.ChipGroup>
-            </HorizontalScrollView>
+            </com.google.android.material.chip.ChipGroup>
+        </HorizontalScrollView>
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/share_file_write_access"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/write_access"
-            android:textAppearance="?attr/textAppearanceLabelLarge" />
+            android:textAppearance="?attr/textAppearanceLabelLarge"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/share_file_users_with_read_access"/>
 
-            <HorizontalScrollView
-                android:id="@+id/horizontalScrollView"
-                android:layout_width="match_parent"
-                android:layout_height="50dp">
+        <HorizontalScrollView
+            android:layout_width="200dp"
+            android:layout_height="50dp"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/share_file_write_access">
 
-                <com.google.android.material.chip.ChipGroup
-                    android:id="@+id/share_file_write_access_shares"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    app:singleLine="true" />
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/share_file_write_access_shares"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:singleLine="true" />
 
-            </HorizontalScrollView>
+        </HorizontalScrollView>
 
-    </LinearLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>
