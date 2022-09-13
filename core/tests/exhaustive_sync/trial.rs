@@ -293,7 +293,7 @@ impl Trial {
     pub fn execute(&mut self, th_id: usize) -> Vec<Trial> {
         self.start_time = Instant::now();
         self.status = if let Err(err) = self.create_clients() { err } else { Running };
-        println!("Executing in {th_id}");
+        self.persist(th_id);
         let mut all_mutations = vec![];
 
         while self.status == Running {
