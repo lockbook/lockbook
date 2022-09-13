@@ -12,7 +12,7 @@ use lockbook_shared::api::{
     AdminListPremiumUsersRequest, AdminListPremiumUsersResponse, DeleteAccountError,
     DeleteAccountRequest, FileUsage, GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse,
     GetUsageError, GetUsageRequest, GetUsageResponse, NewAccountError, NewAccountRequest,
-    NewAccountResponse, ShallowPaymentPlatform,
+    NewAccountResponse, PaymentPlatform,
 };
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
@@ -182,8 +182,12 @@ pub async fn admin_list_premium_users(
             .get(owner)?
             .ok_or(internal!("cannot find premium google play user in accounts db"))?;
 
-        if let Some(BillingPlatform::GooglePlay(_)) = &account.billing_info.billing_platform {
-            users.push((account.username.clone(), ShallowPaymentPlatform::GooglePlay))
+        if let Some(BillingPlatform::GooglePlay(user_info)) = &account.billing_info.billing_platform
+        {
+            users.push((
+                account.username.clone(),
+                PaymentPlatform::GooglePlay { account_state: user_info.account_state.clone() },
+            ))
         }
     }
 
@@ -193,8 +197,11 @@ pub async fn admin_list_premium_users(
             .get(owner)?
             .ok_or(internal!("cannot find premium stripe user in accounts db"))?;
 
-        if let Some(BillingPlatform::Stripe(_)) = &account.billing_info.billing_platform {
-            users.push((account.username.clone(), ShallowPaymentPlatform::Stripe))
+        if let Some(BillingPlatform::Stripe(user_info)) = &account.billing_info.billing_platform {
+            users.push((
+                account.username.clone(),
+                PaymentPlatform::Stripe { card_last_4_digits: user_info.last_4.clone() },
+            ))
         }
     }
 

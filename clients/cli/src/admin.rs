@@ -3,8 +3,10 @@ use dialoguer::theme::ColorfulTheme;
 use dialoguer::Confirm;
 use structopt::StructOpt;
 
-use lockbook_core::{AdminDeleteAccountError, AdminDisappearFileError, Core, Error};
-use lockbook_core::{AdminListPremiumUsersError, ShallowPaymentPlatform, Uuid};
+use lockbook_core::{
+    AdminDeleteAccountError, AdminDisappearFileError, Core, Error, PaymentPlatform,
+};
+use lockbook_core::{AdminListPremiumUsersError, Uuid};
 
 #[derive(Debug, PartialEq, Eq, StructOpt)]
 pub enum Admin {
@@ -99,8 +101,8 @@ fn list_premium_users(core: &Core) -> Result<(), CliError> {
     } else {
         for (user, platform) in premium_users {
             let platform_str = match platform {
-                ShallowPaymentPlatform::GooglePlay => "Google Play",
-                ShallowPaymentPlatform::Stripe => "Stripe",
+                PaymentPlatform::GooglePlay { .. } => "Google Play",
+                PaymentPlatform::Stripe { .. } => "Stripe",
             };
 
             println!("{}: {}", user, platform_str);

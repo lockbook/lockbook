@@ -12,7 +12,6 @@ mod external_interface;
 pub use uuid::Uuid;
 
 pub use lockbook_shared::account::Account;
-pub use lockbook_shared::api::ShallowPaymentPlatform;
 pub use lockbook_shared::api::{GooglePlayAccountState, StripeAccountTier, SubscriptionInfo};
 pub use lockbook_shared::api::{PaymentMethod, PaymentPlatform};
 pub use lockbook_shared::core_config::Config;
@@ -503,7 +502,7 @@ impl Core {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn admin_list_premium_users(
         &self,
-    ) -> Result<Vec<(Username, ShallowPaymentPlatform)>, Error<AdminListPremiumUsersError>> {
+    ) -> Result<Vec<(Username, PaymentPlatform)>, Error<AdminListPremiumUsersError>> {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.list_premium_users())?;

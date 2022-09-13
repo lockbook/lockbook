@@ -443,17 +443,11 @@ impl Request for AdminDisappearFileRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum ShallowPaymentPlatform {
-    GooglePlay,
-    Stripe,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct AdminListPremiumUsersRequest {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct AdminListPremiumUsersResponse {
-    pub users: Vec<(Username, ShallowPaymentPlatform)>,
+    pub users: Vec<(Username, PaymentPlatform)>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]

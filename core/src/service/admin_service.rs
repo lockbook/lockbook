@@ -5,7 +5,7 @@ use lockbook_shared::account::Username;
 use lockbook_shared::api::{
     AdminDeleteAccountError, AdminDeleteAccountRequest, AdminDisappearFileError,
     AdminDisappearFileRequest, AdminListPremiumUsersError, AdminListPremiumUsersRequest,
-    ShallowPaymentPlatform,
+    PaymentPlatform,
 };
 use uuid::Uuid;
 
@@ -42,7 +42,7 @@ impl RequestContext<'_, '_> {
         })
     }
 
-    pub fn list_premium_users(&self) -> CoreResult<Vec<(Username, ShallowPaymentPlatform)>> {
+    pub fn list_premium_users(&self) -> CoreResult<Vec<(Username, PaymentPlatform)>> {
         let account = self.get_account()?;
 
         Ok(api_service::request(account, AdminListPremiumUsersRequest {})
