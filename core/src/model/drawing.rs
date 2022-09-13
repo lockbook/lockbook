@@ -24,11 +24,11 @@ pub fn validate(drawing: &Drawing) -> CoreResult<()> {
         if stroke.points_x.len() != stroke.points_y.len()
             || stroke.points_y.len() != stroke.points_girth.len()
         {
-            return Err(CoreError::Unexpected(String::from("unequal points and girth metrics")));
+            return Err(CoreError::DrawingInvalid);
         }
 
         if stroke.alpha > 1.0 || stroke.alpha < 0.0 {
-            return Err(CoreError::Unexpected(String::from("invalid alpha value")));
+            return Err(CoreError::DrawingInvalid);
         }
     }
 
@@ -112,22 +112,22 @@ pub fn export_drawing(
             let x1 = stroke
                 .points_x
                 .get(point_index)
-                .ok_or_else(|| CoreError::Unexpected(String::from("unable to get stroke x1")))?
+                .ok_or(CoreError::DrawingInvalid)?
                 .to_owned();
             let y1 = stroke
                 .points_y
                 .get(point_index)
-                .ok_or_else(|| CoreError::Unexpected(String::from("unable to get stroke y1")))?
+                .ok_or(CoreError::DrawingInvalid)?
                 .to_owned();
             let x2 = stroke
                 .points_x
                 .get(point_index + 1)
-                .ok_or_else(|| CoreError::Unexpected(String::from("unable to get stroke x2")))?
+                .ok_or(CoreError::DrawingInvalid)?
                 .to_owned();
             let y2 = stroke
                 .points_y
                 .get(point_index + 1)
-                .ok_or_else(|| CoreError::Unexpected(String::from("unable to get stroke y2")))?
+                .ok_or(CoreError::DrawingInvalid)?
                 .to_owned();
 
             pb.move_to(x1, y1);
@@ -150,9 +150,7 @@ pub fn export_drawing(
                     width: stroke
                         .points_girth
                         .get(point_index)
-                        .ok_or_else(|| {
-                            CoreError::Unexpected(String::from("unable to get stroke girth"))
-                        })?
+                        .ok_or(CoreError::DrawingInvalid)?
                         .to_owned(),
                     miter_limit: 10.0,
                     dash_array: Vec::new(),

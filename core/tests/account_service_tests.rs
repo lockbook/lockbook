@@ -154,12 +154,6 @@ fn export_account() {
     let core = test_core();
     core.create_account(&random_name(), &url()).unwrap();
     core.export_account().unwrap();
-}
-
-#[test]
-fn export_account_qr() {
-    let core = test_core();
-    core.create_account(&random_name(), &url()).unwrap();
     core.export_account_qr().unwrap();
 }
 
