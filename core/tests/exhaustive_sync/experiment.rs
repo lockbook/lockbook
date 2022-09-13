@@ -88,7 +88,7 @@ impl Experiment {
                 .spawn(move || loop {
                     match Self::grab_ready_trial_for_thread(thread_id, thread_state.clone()) {
                         (Some(mut work), _) => {
-                            let mutants = work.execute();
+                            let mutants = work.execute(thread_id);
                             Self::publish_results(thread_id, thread_state.clone(), work, &mutants);
                         }
                         (None, true) => {
