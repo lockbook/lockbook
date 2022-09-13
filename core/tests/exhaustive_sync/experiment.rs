@@ -107,7 +107,10 @@ impl Experiment {
         loop {
             {
                 let experiments = state.lock().unwrap();
-                if experiments.pending.is_empty() && experiments.done > 0 {
+                if experiments.pending.is_empty()
+                    && experiments.running.is_empty()
+                    && experiments.done > 0
+                {
                     println!("done printing info");
                     break;
                 }
