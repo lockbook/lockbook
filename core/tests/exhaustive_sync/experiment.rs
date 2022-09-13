@@ -92,7 +92,6 @@ impl Experiment {
                             Self::publish_results(thread_id, thread_state.clone(), work, &mutants);
                         }
                         (None, true) => {
-                            println!("no work found, sleeping");
                             thread::sleep(time::Duration::from_millis(100));
                         }
                         (None, false) => {
@@ -109,6 +108,7 @@ impl Experiment {
             {
                 let experiments = state.lock().unwrap();
                 if experiments.pending.is_empty() && experiments.done > 0 {
+                    println!("done printing info");
                     break;
                 }
                 println!(
