@@ -92,9 +92,13 @@ impl Experiment {
                             Self::publish_results(thread_id, thread_state.clone(), work, &mutants);
                         }
                         (None, true) => {
+                            println!("no work found, sleeping");
                             thread::sleep(time::Duration::from_millis(100));
                         }
-                        (None, false) => break,
+                        (None, false) => {
+                            println!("no work found, stopping");
+                            break;
+                        }
                     }
                 })
                 .unwrap();
