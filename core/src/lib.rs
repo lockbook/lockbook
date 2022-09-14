@@ -41,8 +41,9 @@ use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use libsecp256k1::PublicKey;
-use lockbook_shared::clock;
+use lockbook_shared::account::Username;
 use lockbook_shared::crypto::AESKey;
+use lockbook_shared::{clock, ValidationFailure};
 use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 
@@ -495,6 +496,16 @@ impl Core {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.disappear_file(id))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn admin_server_validate(
+        &self,
+    ) -> Result<HashMap<Username, ValidationFailure>, Error<AdminServerValidateError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.server_validate())?;
         Ok(val?)
     }
 }

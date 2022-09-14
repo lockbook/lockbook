@@ -22,6 +22,9 @@ pub enum Admin {
     /// scenario, you may want to *disappear* a file so that it never existed. This is useful in a
     /// scenario where your server let in an invalid file.
     DisappearFile { id: Uuid },
+
+    /// Validates file trees of all users on the server and prints any failures
+    ServerValidate,
 }
 
 type Res<T> = Result<T, Error>;
@@ -39,6 +42,7 @@ pub fn main() {
     let result = match Admin::from_args() {
         Admin::DeleteAccount { username } => delete_account(&core, username),
         Admin::DisappearFile { id } => disappear_file(&core, id),
+        Admin::ServerValidate => server_validate(&core),
     };
 
     result.unwrap_err();
@@ -66,6 +70,17 @@ fn delete_account(core: &Core, username: String) -> Res<()> {
 
             println!("Account deleted!");
         }
+    }
+
+    Ok(())
+}
+
+fn server_validate(core: &Core) -> Res<()> {
+    println!("Validating server...");
+
+    let validation_failures = core.admin_server_validate()?;
+    for (username, failure) in validation_failures {
+        println!("{}:\t{:?}", username, failure)
     }
 
     Ok(())

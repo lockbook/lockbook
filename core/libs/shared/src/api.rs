@@ -1,6 +1,7 @@
 use http::Method;
 use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::account::Account;
@@ -440,6 +441,26 @@ impl Request for AdminDisappearFileRequest {
     type Error = AdminDisappearFileError;
     const METHOD: Method = Method::DELETE;
     const ROUTE: &'static str = "/admin-disappear-file";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminServerValidateRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminServerValidateResponse {
+    pub failures: HashMap<Username, ValidationFailure>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminServerValidateError {
+    NotPermissioned,
+}
+
+impl Request for AdminServerValidateRequest {
+    type Response = AdminServerValidateResponse;
+    type Error = AdminServerValidateError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/admin-server-validate";
 }
 
 // number of milliseconds that have elapsed since the unix epoch

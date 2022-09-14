@@ -1,10 +1,13 @@
 use crate::service::api_service;
 use crate::service::api_service::ApiError;
 use crate::{core_err_unexpected, CoreError, CoreResult, RequestContext};
+use lockbook_shared::account::Username;
 use lockbook_shared::api::{
     AdminDeleteAccountError, AdminDeleteAccountRequest, AdminDisappearFileError,
-    AdminDisappearFileRequest,
+    AdminDisappearFileRequest, AdminServerValidateError, AdminServerValidateRequest,
 };
+use lockbook_shared::ValidationFailure;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
@@ -38,5 +41,20 @@ impl RequestContext<'_, '_> {
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
             _ => core_err_unexpected(err),
         })
+    }
+
+    pub fn server_validate(&self) -> CoreResult<HashMap<Username, ValidationFailure>> {
+        let account = self.get_account()?;
+        let response = api_service::request(account, AdminServerValidateRequest {}).map_err(
+            |err| match err {
+                ApiError::Endpoint(AdminServerValidateError::NotPermissioned) => {
+                    CoreError::InsufficientPermission
+                }
+                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                _ => core_err_unexpected(err),
+            },
+        )?;
+        Ok(response.failures)
     }
 }

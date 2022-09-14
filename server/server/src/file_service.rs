@@ -10,7 +10,8 @@ use lockbook_shared::file_metadata::{Diff, Owner};
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
-use std::collections::HashSet;
+use lockbook_shared::SharedError;
+use std::collections::{HashMap, HashSet};
 use tracing::error;
 
 pub async fn upsert_file_metadata(
@@ -367,4 +368,48 @@ pub async fn admin_disappear_file(
         })??;
 
     Ok(())
+}
+
+pub async fn admin_server_validate(
+    context: RequestContext<'_, AdminServerValidateRequest>,
+) -> Result<AdminServerValidateResponse, ServerError<AdminServerValidateError>> {
+    let server_state = &context.server_state;
+    let db = &server_state.index_db;
+    if !is_admin::<AdminServerValidateError>(
+        db,
+        &context.public_key,
+        &context.server_state.config.admin.admins,
+    )? {
+        return Err(ClientError(AdminServerValidateError::NotPermissioned));
+    }
+
+    let mut result = HashMap::new();
+    server_state.index_db.transaction::<_, Result<(), ServerError<_>>>(|tx| {
+        let owners = tx
+            .owned_files
+            .keys()
+            .iter()
+            .map(|owner| **owner)
+            .collect::<Vec<_>>();
+        for owner in owners {
+            let tree = Vec::new()
+                .stage(ServerTree::new(owner, &mut tx.owned_files, &mut tx.metas)?)
+                .to_lazy();
+            if let Err(SharedError::ValidationFailure(failure)) = tree.validate(owner) {
+                let account = tx
+                    .accounts
+                    .get(&owner)
+                    .ok_or_else(|| {
+                        internal!(
+                    "Attempted to validate file tree for an owner, the account was not present, owner: {:?}",
+                    owner)
+                    })?;
+                result.insert(account.username.clone(), failure);
+            }
+        }
+
+        Ok(())
+    })??;
+
+    Ok(AdminServerValidateResponse { failures: result })
 }
