@@ -322,14 +322,19 @@ fn restore_tab(core: &Arc<lb::Core>, tree: &mut FileTree, tab: &mut Tab) {
             core.save_drawing(file.id, &d.drawing)
                 .map_err(TabFailure::from)
         } else {
-            let bytes = match content {
-                TabContent::Image(img) => &img.bytes,
-                TabContent::Markdown(md) => md.content.as_bytes(),
-                TabContent::PlainText(txt) => txt.content.as_bytes(),
-                _ => &[],
+            let maybe_bytes = match content {
+                TabContent::Markdown(md) => Some(md.content.as_bytes()),
+                TabContent::PlainText(txt) => Some(txt.content.as_bytes()),
+                TabContent::Image(img) => Some(img.bytes.as_slice()),
+                _ => None,
             };
-            core.write_document(file.id, bytes)
-                .map_err(TabFailure::from)
+
+            if let Some(bytes) = maybe_bytes {
+                core.write_document(file.id, bytes)
+                    .map_err(TabFailure::from)
+            } else {
+                Ok(())
+            }
         };
 
         // Set a new TabFailure if the content couldn't successfully be saved.
