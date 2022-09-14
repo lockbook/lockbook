@@ -1,7 +1,6 @@
 use http::Method;
 use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::account::Account;
@@ -444,16 +443,21 @@ impl Request for AdminDisappearFileRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct AdminServerValidateRequest {}
+pub struct AdminServerValidateRequest {
+    pub username: String,
+}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct AdminServerValidateResponse {
-    pub failures: HashMap<Username, ValidationFailure>,
+    pub tree_validation_failures: Vec<ValidationFailure>,
+    pub documents_missing_size: Vec<Uuid>,
+    pub documents_missing_content: Vec<Uuid>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum AdminServerValidateError {
     NotPermissioned,
+    UserNotFound,
 }
 
 impl Request for AdminServerValidateRequest {

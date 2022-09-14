@@ -24,7 +24,7 @@ pub enum Admin {
     DisappearFile { id: Uuid },
 
     /// Validates file trees of all users on the server and prints any failures
-    ServerValidate,
+    ServerValidate { username: String },
 }
 
 type Res<T> = Result<T, Error>;
@@ -42,7 +42,7 @@ pub fn main() {
     let result = match Admin::from_args() {
         Admin::DeleteAccount { username } => delete_account(&core, username),
         Admin::DisappearFile { id } => disappear_file(&core, id),
-        Admin::ServerValidate => server_validate(&core),
+        Admin::ServerValidate { username } => server_validate(&core, username),
     };
 
     result.unwrap_err();
@@ -75,12 +75,18 @@ fn delete_account(core: &Core, username: String) -> Res<()> {
     Ok(())
 }
 
-fn server_validate(core: &Core) -> Res<()> {
+fn server_validate(core: &Core, username: String) -> Res<()> {
     println!("Validating server...");
 
-    let validation_failures = core.admin_server_validate()?;
-    for (username, failure) in validation_failures {
-        println!("{}:\t{:?}", username, failure)
+    let validation_failures = core.admin_server_validate(&username)?;
+    for failure in validation_failures.tree_validation_failures {
+        println!("tree validation failure: {:?}", failure);
+    }
+    for failure in validation_failures.documents_missing_content {
+        println!("document missing content: {:?}", failure);
+    }
+    for failure in validation_failures.documents_missing_size {
+        println!("document missing size: {:?}", failure);
     }
 
     Ok(())

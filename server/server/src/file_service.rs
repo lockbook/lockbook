@@ -10,8 +10,7 @@ use lockbook_shared::file_metadata::{Diff, Owner};
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
-use lockbook_shared::SharedError;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use tracing::error;
 
 pub async fn upsert_file_metadata(
@@ -373,7 +372,7 @@ pub async fn admin_disappear_file(
 pub async fn admin_server_validate(
     context: RequestContext<'_, AdminServerValidateRequest>,
 ) -> Result<AdminServerValidateResponse, ServerError<AdminServerValidateError>> {
-    let server_state = &context.server_state;
+    let (request, server_state) = (&context.request, context.server_state);
     let db = &server_state.index_db;
     if !is_admin::<AdminServerValidateError>(
         db,
@@ -383,33 +382,24 @@ pub async fn admin_server_validate(
         return Err(ClientError(AdminServerValidateError::NotPermissioned));
     }
 
-    let mut result = HashMap::new();
-    server_state.index_db.transaction::<_, Result<(), ServerError<_>>>(|tx| {
-        let owners = tx
-            .owned_files
-            .keys()
-            .iter()
-            .map(|owner| **owner)
-            .collect::<Vec<_>>();
-        for owner in owners {
-            let tree = Vec::new()
-                .stage(ServerTree::new(owner, &mut tx.owned_files, &mut tx.metas)?)
-                .to_lazy();
-            if let Err(SharedError::ValidationFailure(failure)) = tree.validate(owner) {
-                let account = tx
-                    .accounts
-                    .get(&owner)
-                    .ok_or_else(|| {
-                        internal!(
-                    "Attempted to validate file tree for an owner, the account was not present, owner: {:?}",
-                    owner)
-                    })?;
-                result.insert(account.username.clone(), failure);
-            }
-        }
+    let mut result = AdminServerValidateResponse {
+        tree_validation_failures: vec![],
+        documents_missing_size: vec![],
+        documents_missing_content: vec![],
+    };
+    server_state
+        .index_db
+        .transaction::<_, Result<(), ServerError<_>>>(|tx| {
+            let owner = db
+                .usernames
+                .get(&request.username)?
+                .ok_or(ClientError(AdminServerValidateError::UserNotFound))?;
+            let tree = ServerTree::new(owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
 
-        Ok(())
-    })??;
+            // todo: actual validation
 
-    Ok(AdminServerValidateResponse { failures: result })
+            Ok(())
+        })??;
+
+    Ok(result)
 }
