@@ -391,10 +391,11 @@ pub async fn admin_server_validate(
     server_state
         .index_db
         .transaction::<_, Result<(), ServerError<_>>>(|tx| {
-            let owner = db
+            let owner = *tx
                 .usernames
-                .get(&request.username)?
+                .get(&request.username)
                 .ok_or(ClientError(AdminServerValidateError::UserNotFound))?;
+
             let mut tree = ServerTree::new(owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
 
             for id in tree.owned_ids() {
