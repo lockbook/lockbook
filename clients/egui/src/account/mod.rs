@@ -439,6 +439,9 @@ impl AccountScreen {
                 let node = parent.remove(f.id).unwrap();
                 let target_node = self.tree.root.find_mut(target).unwrap();
                 target_node.insert_node(node);
+                if let Some(tab) = self.workspace.get_mut_tab_by_id(f.id) {
+                    tab.path = self.core.get_path_by_id(f.id).unwrap();
+                }
                 ctx.request_repaint();
             }
         }
