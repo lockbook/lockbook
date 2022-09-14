@@ -347,10 +347,7 @@ fn restore_tab(core: &Arc<lb::Core>, tree: &mut FileTree, tab: &mut Tab) {
                 }
                 tree.expand_to(file.id);
             }
-            Err(msg) => {
-                tab.failure = Some(TabFailure::Unexpected(msg));
-                return;
-            }
+            Err(msg) => tab.failure = Some(TabFailure::Unexpected(msg)),
         };
     }
 }
