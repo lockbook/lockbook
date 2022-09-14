@@ -24,7 +24,7 @@ pub enum Admin {
     DisappearFile { id: Uuid },
 
     /// Validates file trees of all users on the server and prints any failures
-    ServerValidate { username: String },
+    ValidateAccount { username: String },
 }
 
 type Res<T> = Result<T, Error>;
@@ -42,7 +42,7 @@ pub fn main() {
     let result = match Admin::from_args() {
         Admin::DeleteAccount { username } => delete_account(&core, username),
         Admin::DisappearFile { id } => disappear_file(&core, id),
-        Admin::ServerValidate { username } => server_validate(&core, username),
+        Admin::ValidateAccount { username } => server_validate(&core, username),
     };
 
     result.unwrap_err();
