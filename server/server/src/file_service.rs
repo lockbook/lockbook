@@ -10,6 +10,7 @@ use lockbook_shared::file_metadata::{Diff, Owner};
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::SharedError;
 use std::collections::HashSet;
 use tracing::error;
 
@@ -394,9 +395,38 @@ pub async fn admin_server_validate(
                 .usernames
                 .get(&request.username)?
                 .ok_or(ClientError(AdminServerValidateError::UserNotFound))?;
-            let tree = ServerTree::new(owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+            let mut tree = ServerTree::new(owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
 
-            // todo: actual validation
+            for id in tree.owned_ids() {
+                if !tree.calculate_deleted(&id)? {
+                    let file = tree.find(&id)?;
+                    if file.is_document() && file.document_hmac().is_some() {
+                        if tx.sizes.get(&id).is_none() {
+                            result.documents_missing_size.push(id);
+                        }
+
+                        if !document_service::exists(
+                            server_state,
+                            &id,
+                            file.document_hmac().unwrap(),
+                        ) {
+                            result.documents_missing_content.push(id);
+                        }
+                    }
+                }
+            }
+
+            let validation_res = tree.stage(None).validate(owner);
+            match validation_res {
+                Ok(_) => {}
+                Err(SharedError::ValidationFailure(validation)) => {
+                    result.tree_validation_failures.push(validation)
+                }
+                Err(err) => error!(
+                    "Unexpected error while validating {}'s tree: {:?}",
+                    request.username, err
+                ),
+            }
 
             Ok(())
         })??;
