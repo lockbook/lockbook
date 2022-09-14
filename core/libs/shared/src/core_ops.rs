@@ -56,29 +56,37 @@ where
         let mut parent_substitutions = HashMap::new();
 
         for id in ids {
-            if !self.calculate_deleted(&id)? {
-                let finalized = self.finalize(&id, account)?;
+            if self.calculate_deleted(&id)? {
+                continue;
+            }
+            if self.in_pending_share(&id)? {
+                continue;
+            }
+            if self.link(&id)?.is_some() {
+                continue;
+            }
 
-                match finalized.file_type {
-                    FileType::Document | FileType::Folder => files.push(finalized),
-                    FileType::Link { target } => {
-                        let mut target_file = self.finalize(&target, account)?;
-                        if target_file.is_folder() {
-                            parent_substitutions.insert(target, id);
-                        }
+            let finalized = self.finalize(&id, account)?;
 
-                        target_file.id = finalized.id;
-                        target_file.parent = finalized.parent;
-                        target_file.name = finalized.name;
-
-                        files.push(target_file);
+            match finalized.file_type {
+                FileType::Document | FileType::Folder => files.push(finalized),
+                FileType::Link { target } => {
+                    let mut target_file = self.finalize(&target, account)?;
+                    if target_file.is_folder() {
+                        parent_substitutions.insert(target, id);
                     }
+
+                    target_file.id = finalized.id;
+                    target_file.parent = finalized.parent;
+                    target_file.name = finalized.name;
+
+                    files.push(target_file);
                 }
             }
         }
 
         for item in &mut files {
-            if let Some(new_parent) = parent_substitutions.get(&item.id) {
+            if let Some(new_parent) = parent_substitutions.get(&item.parent) {
                 item.parent = *new_parent;
             }
         }

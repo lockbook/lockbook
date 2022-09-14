@@ -41,4 +41,34 @@ fn expired_request() {
     assert_matches!(result, Err(ApiError::<GetPublicKeyError>::ExpiredAuth));
 }
 
+#[test]
+fn invalid_url() {
+    let core = test_core_with_account();
+    let mut account = core.get_account().unwrap();
+    account.api_url = String::from("not a url");
+
+    let result = request_helper(
+        &account,
+        GetPublicKeyRequest { username: account.username.clone() },
+        get_code_version,
+        get_time,
+    );
+    assert_matches!(result, Err(ApiError::<GetPublicKeyError>::SendFailed(_)));
+}
+
+#[test]
+fn wrong_url() {
+    let core = test_core_with_account();
+    let mut account = core.get_account().unwrap();
+    account.api_url = String::from("http://google.com");
+
+    let result = request_helper(
+        &account,
+        GetPublicKeyRequest { username: account.username.clone() },
+        get_code_version,
+        get_time,
+    );
+    assert_matches!(result, Err(ApiError::<GetPublicKeyError>::Deserialize(_)));
+}
+
 // todo: test for invalid signature, signature mismatch during create account request
