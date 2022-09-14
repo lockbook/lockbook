@@ -4,6 +4,7 @@ mod tabs;
 mod tree;
 mod workspace;
 
+use std::collections::HashMap;
 use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 
@@ -94,6 +95,12 @@ impl AccountScreen {
     }
 
     pub fn refresh_tree_and_workspace(&self, ctx: &egui::Context) {
+        let opened_ids = self
+            .workspace
+            .tabs
+            .iter()
+            .map(|t| t.id)
+            .collect::<Vec<lb::Uuid>>();
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
@@ -101,7 +108,55 @@ impl AccountScreen {
         thread::spawn(move || {
             let all_metas = core.list_metadatas().unwrap();
             let root = tree::create_root_node(all_metas);
-            update_tx.send(AccountUpdate::NewTree(root)).unwrap();
+            update_tx.send(AccountUpdate::ReloadTree(root)).unwrap();
+            ctx.request_repaint();
+
+            let mut new_tabs = HashMap::new();
+
+            for id in opened_ids {
+                let name = match core.get_file_by_id(id) {
+                    Ok(file) => file.name,
+                    Err(err) => {
+                        new_tabs.insert(
+                            id,
+                            Err(match err {
+                                lb::Error::UiError(lb::GetFileByIdError::NoFileWithThatId) => {
+                                    TabFailure::DeletedFromSync
+                                }
+                                lb::Error::Unexpected(msg) => TabFailure::Unexpected(msg),
+                            }),
+                        );
+                        continue;
+                    }
+                };
+
+                let path = core.get_path_by_id(id).unwrap(); // TODO
+
+                let ext = name.split('.').last().unwrap_or_default();
+
+                let content = if ext == "draw" {
+                    core.get_drawing(id)
+                        .map_err(TabFailure::from)
+                        .map(|drawing| TabContent::Drawing(Drawing::boxed(drawing)))
+                } else {
+                    core.read_document(id)
+                        .map_err(TabFailure::from)
+                        .map(|bytes| {
+                            if ext == "md" {
+                                TabContent::Markdown(Markdown::boxed(&bytes))
+                            } else if is_supported_image_fmt(ext) {
+                                TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
+                            } else {
+                                TabContent::PlainText(PlainText::boxed(&bytes))
+                            }
+                        })
+                };
+
+                new_tabs
+                    .insert(id, Ok(Tab { id, name, path, content: content.ok(), failure: None }));
+            }
+
+            update_tx.send(AccountUpdate::ReloadTabs(new_tabs)).unwrap();
             ctx.request_repaint();
         });
     }
@@ -109,7 +164,6 @@ impl AccountScreen {
     fn process_updates(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         while let Ok(update) = self.update_rx.try_recv() {
             match update {
-                AccountUpdate::NewTree(root) => self.tree.root = root,
                 AccountUpdate::OpenModal(open_modal) => match open_modal {
                     OpenModal::NewFile(maybe_parent) => self.open_new_file_modal(maybe_parent),
                     OpenModal::Settings => {
@@ -151,6 +205,31 @@ impl AccountScreen {
                 AccountUpdate::FileDeleted(f) => self.tree.remove(&f),
                 AccountUpdate::SyncUpdate(update) => self.process_sync_update(ctx, update),
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
+                AccountUpdate::ReloadTree(root) => self.tree.root = root,
+                AccountUpdate::ReloadTabs(mut new_tabs) => {
+                    let ws = &mut self.workspace;
+                    let active_id = ws.current_tab().map(|t| t.id);
+                    for i in (0..ws.tabs.len()).rev() {
+                        let t = &mut ws.tabs[i];
+                        if let Some(new_tab_result) = new_tabs.remove(&t.id) {
+                            match new_tab_result {
+                                Ok(new_tab) => {
+                                    t.name = new_tab.name;
+                                    t.path = new_tab.path;
+                                    t.content = new_tab.content;
+                                    if Some(t.id) == active_id {
+                                        frame.set_window_title(&t.name);
+                                    }
+                                }
+                                Err(fail) => {
+                                    t.failure = Some(fail);
+                                }
+                            }
+                        } else {
+                            ws.close_tab(i);
+                        }
+                    }
+                }
             }
         }
     }
@@ -309,7 +388,9 @@ impl AccountScreen {
             .unwrap() // TODO
             .name;
 
-        self.workspace.open_tab(id, &fname);
+        let fpath = self.core.get_path_by_id(id).unwrap(); // TODO
+
+        self.workspace.open_tab(id, &fname, &fpath);
 
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
@@ -413,7 +494,8 @@ enum AccountUpdate {
 
     DoneDeleting,
 
-    NewTree(TreeNode),
+    ReloadTree(TreeNode),
+    ReloadTabs(HashMap<lb::Uuid, Result<Tab, TabFailure>>),
 }
 
 enum OpenModal {

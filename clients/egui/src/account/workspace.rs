@@ -1,10 +1,12 @@
+use std::sync::Arc;
+
 use eframe::egui;
 use egui_extras::RetainedImage;
 
 use crate::theme::Icon;
 use crate::widgets::separator;
 
-use super::{Tab, TabContent};
+use super::{FileTree, Tab, TabContent, TabFailure};
 
 pub struct Workspace {
     pub tabs: Vec<Tab>,
@@ -21,9 +23,14 @@ impl Workspace {
         }
     }
 
-    pub fn open_tab(&mut self, id: lb::Uuid, name: &str) {
-        self.tabs
-            .push(Tab { id, name: name.to_owned(), failure: None, content: None });
+    pub fn open_tab(&mut self, id: lb::Uuid, name: &str, path: &str) {
+        self.tabs.push(Tab {
+            id,
+            name: name.to_owned(),
+            path: path.to_owned(),
+            failure: None,
+            content: None,
+        });
         self.active_tab = self.tabs.len() - 1;
     }
 
@@ -236,7 +243,31 @@ impl super::AccountScreen {
             ui.centered_and_justified(|ui| {
                 if let Some(tab) = self.workspace.tabs.get_mut(self.workspace.active_tab) {
                     if let Some(fail) = &tab.failure {
-                        fail.show(ui);
+                        match fail {
+                            TabFailure::DeletedFromSync => {
+                                ui.vertical_centered(|ui| {
+                                    ui.add_space(50.0);
+                                    ui.label(&format!(
+                                        "This file ({}) was deleted after syncing.",
+                                        tab.path
+                                    ));
+
+                                    ui.add_space(10.0);
+                                    ui.label("Would you like to restore it?");
+
+                                    ui.add_space(15.0);
+                                    if ui.button("Yes, Restore Me").clicked() {
+                                        restore_tab(&self.core, &mut self.tree, tab);
+                                    }
+                                });
+                            }
+                            TabFailure::SimpleMisc(msg) => {
+                                ui.label(msg);
+                            }
+                            TabFailure::Unexpected(msg) => {
+                                ui.label(msg);
+                            }
+                        };
                     } else if let Some(content) = &mut tab.content {
                         match content {
                             TabContent::Drawing(draw) => draw.show(ui),
@@ -271,6 +302,74 @@ impl super::AccountScreen {
             }
         }
     }
+}
+
+fn restore_tab(core: &Arc<lb::Core>, tree: &mut FileTree, tab: &mut Tab) {
+    let file = match core.create_at_path(&tab.path) {
+        Ok(f) => f,
+        Err(err) => {
+            tab.failure = Some(TabFailure::Unexpected(format!("{:?}", err)));
+            return;
+        }
+    };
+
+    // We create a new file to restore a document, so the tab needs the new ID.
+    tab.id = file.id;
+
+    if let Some(content) = &tab.content {
+        // Save the document content.
+        let save_result = if let TabContent::Drawing(d) = content {
+            core.save_drawing(file.id, &d.drawing)
+                .map_err(TabFailure::from)
+        } else {
+            let bytes = match content {
+                TabContent::Image(img) => &img.bytes,
+                TabContent::Markdown(md) => md.content.as_bytes(),
+                TabContent::PlainText(txt) => txt.content.as_bytes(),
+                _ => &[],
+            };
+            core.write_document(file.id, bytes)
+                .map_err(TabFailure::from)
+        };
+
+        // Set a new TabFailure if the content couldn't successfully be saved.
+        tab.failure = save_result.err();
+
+        // Ensure each parent folder is in the tree and then expand to the file.
+        match get_parents(core, file.id) {
+            Ok(parents) => {
+                let mut node = &mut tree.root;
+                for p in parents {
+                    if node.find(p.id).is_none() {
+                        node.insert(p.clone());
+                    }
+                    node = node.find_mut(p.id).unwrap();
+                }
+                tree.expand_to(file.id);
+            }
+            Err(msg) => {
+                tab.failure = Some(TabFailure::Unexpected(msg));
+                return;
+            }
+        };
+    }
+}
+
+// Gets all parents except root in descending order.
+fn get_parents(core: &Arc<lb::Core>, id: lb::Uuid) -> Result<Vec<lb::File>, String> {
+    let mut parents = Vec::new();
+    let mut id = id;
+    loop {
+        let file = core
+            .get_file_by_id(id)
+            .map_err(|err| format!("{:?}", err))?;
+        if file.id == file.parent {
+            break;
+        }
+        id = file.parent;
+        parents.insert(0, file);
+    }
+    Ok(parents)
 }
 
 const LOGO_BACKDROP: &[u8] = include_bytes!("../../lockbook-backdrop.png");
