@@ -94,73 +94,6 @@ impl AccountScreen {
         self.show_any_modals(ctx, 0.0 - (sidebar_width / 2.0));
     }
 
-    pub fn refresh_tree_and_workspace(&self, ctx: &egui::Context) {
-        let opened_ids = self
-            .workspace
-            .tabs
-            .iter()
-            .map(|t| t.id)
-            .collect::<Vec<lb::Uuid>>();
-        let core = self.core.clone();
-        let update_tx = self.update_tx.clone();
-        let ctx = ctx.clone();
-
-        thread::spawn(move || {
-            let all_metas = core.list_metadatas().unwrap();
-            let root = tree::create_root_node(all_metas);
-            update_tx.send(AccountUpdate::ReloadTree(root)).unwrap();
-            ctx.request_repaint();
-
-            let mut new_tabs = HashMap::new();
-
-            for id in opened_ids {
-                let name = match core.get_file_by_id(id) {
-                    Ok(file) => file.name,
-                    Err(err) => {
-                        new_tabs.insert(
-                            id,
-                            Err(match err {
-                                lb::Error::UiError(lb::GetFileByIdError::NoFileWithThatId) => {
-                                    TabFailure::DeletedFromSync
-                                }
-                                lb::Error::Unexpected(msg) => TabFailure::Unexpected(msg),
-                            }),
-                        );
-                        continue;
-                    }
-                };
-
-                let path = core.get_path_by_id(id).unwrap(); // TODO
-
-                let ext = name.split('.').last().unwrap_or_default();
-
-                let content = if ext == "draw" {
-                    core.get_drawing(id)
-                        .map_err(TabFailure::from)
-                        .map(|drawing| TabContent::Drawing(Drawing::boxed(drawing)))
-                } else {
-                    core.read_document(id)
-                        .map_err(TabFailure::from)
-                        .map(|bytes| {
-                            if ext == "md" {
-                                TabContent::Markdown(Markdown::boxed(&bytes))
-                            } else if is_supported_image_fmt(ext) {
-                                TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
-                            } else {
-                                TabContent::PlainText(PlainText::boxed(&bytes))
-                            }
-                        })
-                };
-
-                new_tabs
-                    .insert(id, Ok(Tab { id, name, path, content: content.ok(), failure: None }));
-            }
-
-            update_tx.send(AccountUpdate::ReloadTabs(new_tabs)).unwrap();
-            ctx.request_repaint();
-        });
-    }
-
     fn process_updates(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         while let Ok(update) = self.update_rx.try_recv() {
             match update {
@@ -347,6 +280,73 @@ impl AccountScreen {
         if let Err(err) = self.settings.read().unwrap().to_file() {
             self.modals.error = ErrorModal::open(err);
         }
+    }
+
+    pub fn refresh_tree_and_workspace(&self, ctx: &egui::Context) {
+        let opened_ids = self
+            .workspace
+            .tabs
+            .iter()
+            .map(|t| t.id)
+            .collect::<Vec<lb::Uuid>>();
+        let core = self.core.clone();
+        let update_tx = self.update_tx.clone();
+        let ctx = ctx.clone();
+
+        thread::spawn(move || {
+            let all_metas = core.list_metadatas().unwrap();
+            let root = tree::create_root_node(all_metas);
+            update_tx.send(AccountUpdate::ReloadTree(root)).unwrap();
+            ctx.request_repaint();
+
+            let mut new_tabs = HashMap::new();
+
+            for id in opened_ids {
+                let name = match core.get_file_by_id(id) {
+                    Ok(file) => file.name,
+                    Err(err) => {
+                        new_tabs.insert(
+                            id,
+                            Err(match err {
+                                lb::Error::UiError(lb::GetFileByIdError::NoFileWithThatId) => {
+                                    TabFailure::DeletedFromSync
+                                }
+                                lb::Error::Unexpected(msg) => TabFailure::Unexpected(msg),
+                            }),
+                        );
+                        continue;
+                    }
+                };
+
+                let path = core.get_path_by_id(id).unwrap(); // TODO
+
+                let ext = name.split('.').last().unwrap_or_default();
+
+                let content = if ext == "draw" {
+                    core.get_drawing(id)
+                        .map_err(TabFailure::from)
+                        .map(|drawing| TabContent::Drawing(Drawing::boxed(drawing)))
+                } else {
+                    core.read_document(id)
+                        .map_err(TabFailure::from)
+                        .map(|bytes| {
+                            if ext == "md" {
+                                TabContent::Markdown(Markdown::boxed(&bytes))
+                            } else if is_supported_image_fmt(ext) {
+                                TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
+                            } else {
+                                TabContent::PlainText(PlainText::boxed(&bytes))
+                            }
+                        })
+                };
+
+                new_tabs
+                    .insert(id, Ok(Tab { id, name, path, content: content.ok(), failure: None }));
+            }
+
+            update_tx.send(AccountUpdate::ReloadTabs(new_tabs)).unwrap();
+            ctx.request_repaint();
+        });
     }
 
     fn open_new_file_modal(&mut self, maybe_parent: Option<lb::File>) {
