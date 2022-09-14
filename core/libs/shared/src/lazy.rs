@@ -220,6 +220,15 @@ impl<T: Stagable> LazyTree<T> {
         Ok(HashSet::new())
     }
 
+    // todo: cache?
+    pub fn children_using_links(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+        let id = match self.find(id)?.file_type() {
+            FileType::Document | FileType::Folder => *id,
+            FileType::Link { target } => target,
+        };
+        self.children(&id)
+    }
+
     /// Returns ids of files for which the argument is an ancestor—the files' children, recursively. Does not include the argument.
     /// This function tolerates cycles.
     pub fn descendants(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
@@ -230,6 +239,25 @@ impl<T: Stagable> LazyTree<T> {
         while i < to_process.len() {
             let new_descendents = self
                 .children(&to_process[i])?
+                .into_iter()
+                .filter(|f| !result.contains(f))
+                .collect::<Vec<Uuid>>();
+            // TODO could consider optimizing by not exploring documents
+            to_process.extend(new_descendents.iter());
+            result.extend(new_descendents.into_iter());
+            i += 1;
+        }
+        Ok(result)
+    }
+
+    pub fn descendants_using_links(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+        // todo: caching?
+        let mut result = HashSet::new();
+        let mut to_process = vec![*id];
+        let mut i = 0;
+        while i < to_process.len() {
+            let new_descendents = self
+                .children_using_links(&to_process[i])?
                 .into_iter()
                 .filter(|f| !result.contains(f))
                 .collect::<Vec<Uuid>>();

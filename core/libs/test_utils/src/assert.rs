@@ -6,6 +6,7 @@ use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::path_ops::Filter::DocumentsOnly;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
+use uuid::Uuid;
 
 #[macro_export]
 macro_rules! assert_matches (
@@ -36,6 +37,63 @@ pub fn new_synced_client_core_equal(core: &Core) {
     let new_client = test_core_from(core);
     new_client.validate().unwrap();
     cores_equal(core, &new_client);
+}
+
+pub fn all_ids(core: &Core, expected_ids: &[Uuid]) {
+    let mut expected_ids: Vec<Uuid> = expected_ids.to_vec();
+    let mut actual_ids: Vec<Uuid> = core
+        .list_metadatas()
+        .unwrap()
+        .iter()
+        .map(|f| f.id)
+        .collect();
+
+    actual_ids.sort();
+    expected_ids.sort();
+    if actual_ids != expected_ids {
+        panic!(
+            "ids did not match expectation. expected={:?}; actual={:?}",
+            expected_ids, actual_ids
+        );
+    }
+}
+
+pub fn all_children_ids(core: &Core, id: Uuid, expected_ids: &[Uuid]) {
+    let mut expected_ids: Vec<Uuid> = expected_ids.to_vec();
+    let mut actual_ids: Vec<Uuid> = core
+        .get_children(id)
+        .unwrap()
+        .iter()
+        .map(|f| f.id)
+        .collect();
+
+    actual_ids.sort();
+    expected_ids.sort();
+    if actual_ids != expected_ids {
+        panic!(
+            "ids did not match expectation. expected={:?}; actual={:?}",
+            expected_ids, actual_ids
+        );
+    }
+}
+
+pub fn all_recursive_children_ids(core: &Core, id: Uuid, expected_ids: &[Uuid]) {
+    let mut expected_ids: Vec<Uuid> = expected_ids.to_vec();
+    let mut actual_ids: Vec<Uuid> = core
+        .get_and_get_children_recursively(id)
+        .unwrap()
+        .iter()
+        .map(|f| f.id)
+        .collect();
+
+    actual_ids.sort();
+    expected_ids.sort();
+    if actual_ids != expected_ids {
+        panic!(
+            "ids did not match expectation. expected={:?}; actual={:?}",
+            expected_ids, actual_ids
+        );
+    }
 }
 
 pub fn all_paths(core: &Core, expected_paths: &[&str]) {

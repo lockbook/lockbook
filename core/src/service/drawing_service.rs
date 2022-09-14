@@ -33,6 +33,8 @@ impl RequestContext<'_, '_> {
     }
 
     pub fn save_drawing(&mut self, id: Uuid, d: &Drawing) -> CoreResult<()> {
+        drawing::validate(d)?;
+
         let tree = self
             .tx
             .base_metadata

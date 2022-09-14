@@ -100,6 +100,17 @@ fn import_account_corrupted() {
 }
 
 #[test]
+fn import_account_corrupted_base64() {
+    let core = test_core();
+
+    base64::decode("clearlyabadaccountstring").unwrap();
+    assert!(matches!(
+        core.import_account("clearlyabadaccountstring"),
+        Err(Error::UiError(ImportError::AccountStringCorrupted))
+    ));
+}
+
+#[test]
 fn import_account_nonexistent() {
     let core1 = test_core();
 
@@ -138,4 +149,17 @@ fn import_account_public_key_mismatch() {
     ));
 }
 
-// TODO add a test for asserting metadata version of root is non zero
+#[test]
+fn export_account() {
+    let core = test_core();
+    core.create_account(&random_name(), &url()).unwrap();
+    core.export_account().unwrap();
+    core.export_account_qr().unwrap();
+}
+
+#[test]
+fn nonzero_root_version() {
+    let core = test_core();
+    core.create_account(&random_name(), &url()).unwrap();
+    assert!(core.get_root().unwrap().last_modified > 0);
+}
