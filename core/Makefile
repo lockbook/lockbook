@@ -70,7 +70,7 @@ lib_c_for_swift_ios:
 	@rm ${swift_lib_ios}liblockbook_core.a || true
 	cargo build --release --target=aarch64-apple-ios
 	@mkdir -p ${swift_lib_ios}
-	cp ../target/universal/release/liblockbook_core.a ${swift_lib_ios}
+	cp ../target/aarch64-apple-ios/release/liblockbook_core.a ${swift_lib_ios}
 
 .PHONY: lib_c_for_swift_ios_sim
 lib_c_for_swift_ios_sim:
