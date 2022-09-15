@@ -64,12 +64,10 @@ fn delete_account(core: &Core, username: String) -> Res<()> {
         .with_prompt(format!("Are you sure you want to delete '{}'?", username))
         .interact_opt()?;
 
-    if let Some(confirm) = maybe_confirm {
-        if confirm {
-            core.admin_delete_account(&username)?;
+    if maybe_confirm.unwrap_or(false) {
+        core.admin_delete_account(&username)?;
 
-            println!("Account deleted!");
-        }
+        println!("Account deleted!");
     }
 
     Ok(())
