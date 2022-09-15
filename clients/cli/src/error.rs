@@ -244,10 +244,6 @@ impl CliError {
         Self::new(ErrCode::Billing, msg)
     }
 
-    pub fn username_not_found(uname: &str) -> Self {
-        Self::new(ErrCode::UsernameNotFound, format!("username '{}' was not found.", uname))
-    }
-
     pub fn insufficient_permission() -> Self {
         Self::new(ErrCode::InsufficientPermission, "your account is unauthorized.".to_string())
     }
@@ -331,9 +327,6 @@ make_errcode_enum!(
     55 => NameConflictDetected,
     56 => DocumentReadError,
     57 => WarningsFound,
-
-    // Admin errors (58 - 59)
-    58 => UsernameNotFound,
 
     // Sharing errors (60s)
     60 => SharingError,

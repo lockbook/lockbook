@@ -27,6 +27,10 @@ pub(crate) async fn get<T: Debug>(
     Ok(content)
 }
 
+pub(crate) fn exists(state: &ServerState, id: &Uuid, digest: &DocumentHmac) -> bool {
+    get_path(state, id, digest).exists()
+}
+
 pub(crate) async fn delete<T: Debug>(
     state: &ServerState, id: &Uuid, digest: &DocumentHmac,
 ) -> Result<(), ServerError<T>> {

@@ -3,7 +3,8 @@ use crate::service::api_service::ApiError;
 use crate::{core_err_unexpected, CoreError, CoreResult, RequestContext};
 use lockbook_shared::api::{
     AdminDeleteAccountError, AdminDeleteAccountRequest, AdminDisappearFileError,
-    AdminDisappearFileRequest,
+    AdminDisappearFileRequest, AdminServerValidateError, AdminServerValidateRequest,
+    AdminServerValidateResponse,
 };
 use uuid::Uuid;
 
@@ -38,5 +39,18 @@ impl RequestContext<'_, '_> {
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
             _ => core_err_unexpected(err),
         })
+    }
+
+    pub fn server_validate(&self, username: &str) -> CoreResult<AdminServerValidateResponse> {
+        let account = self.get_account()?;
+        api_service::request(account, AdminServerValidateRequest { username: username.to_string() })
+            .map_err(|err| match err {
+                ApiError::Endpoint(AdminServerValidateError::NotPermissioned) => {
+                    CoreError::InsufficientPermission
+                }
+                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                _ => core_err_unexpected(err),
+            })
     }
 }

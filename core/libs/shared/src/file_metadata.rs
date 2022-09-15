@@ -1,4 +1,4 @@
-use std::fmt;
+use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
@@ -98,7 +98,7 @@ impl fmt::Display for FileMetadata {
     }
 }
 
-#[derive(Serialize, Deserialize, Eq, Clone, Copy, Debug)]
+#[derive(Serialize, Deserialize, Eq, Clone, Copy)]
 pub struct Owner(pub PublicKey);
 
 impl Hash for Owner {
@@ -110,6 +110,12 @@ impl Hash for Owner {
 impl PartialEq for Owner {
     fn eq(&self, other: &Self) -> bool {
         self.0.serialize() == other.0.serialize()
+    }
+}
+
+impl Debug for Owner {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "pub_key:{}", base64::encode(self.0.serialize_compressed()))
     }
 }
 

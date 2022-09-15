@@ -1,0 +1,10 @@
+[package]
+name = "admin"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+structopt = "0.3.13"
+lockbook-core = { path = "../../core" }
+dialoguer = { version = "0.10.1", features = ["fuzzy-select"] }
+backtrace = "0.3"

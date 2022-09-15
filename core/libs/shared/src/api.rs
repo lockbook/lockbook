@@ -442,5 +442,30 @@ impl Request for AdminDisappearFileRequest {
     const ROUTE: &'static str = "/admin-disappear-file";
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminServerValidateRequest {
+    pub username: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminServerValidateResponse {
+    pub tree_validation_failures: Vec<ValidationFailure>,
+    pub documents_missing_size: Vec<Uuid>,
+    pub documents_missing_content: Vec<Uuid>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminServerValidateError {
+    NotPermissioned,
+    UserNotFound,
+}
+
+impl Request for AdminServerValidateRequest {
+    type Response = AdminServerValidateResponse;
+    type Error = AdminServerValidateError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/admin-server-validate";
+}
+
 // number of milliseconds that have elapsed since the unix epoch
 pub type UnixTimeMillis = u64;
