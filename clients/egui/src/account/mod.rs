@@ -142,6 +142,8 @@ impl AccountScreen {
                             frame.set_window_title(&tab.name);
                         }
                     }
+                    // If any of this file's children are open, we need to update their restore
+                    // paths in case a sync deletes them.
                     for tab in &mut self.workspace.tabs {
                         if let Some(new_path) = new_child_paths.get(&tab.id) {
                             tab.path = new_path.clone();
