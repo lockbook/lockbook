@@ -11,10 +11,6 @@ let package = Package(
         // Here we export the C static library that we've built with Rust
         // We use a relative path like this because other module (SwiftLockbookCore)
         // End up using the same relative path which I imagine is a bug at the moment
-        .target(
-            name: "CLockbookCore",
-            dependencies: [],
-            linkerSettings: [LinkerSetting.unsafeFlags(["-L../CLockbookCore/Sources/CLockbookCore/lib"])]
-        )
+        .target(name: "CLockbookCore")
     ]
 )

@@ -45,7 +45,6 @@ struct BookView: View {
 
     @ViewBuilder
     var iPad: some View {
-        let _ = print("Switching to iPad, \(DI.currentDoc.selectedItem)")
         NavigationView {
             FileTreeView(currentFolder: currentFolder, account: account)
         }

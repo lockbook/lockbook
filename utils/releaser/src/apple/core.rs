@@ -54,7 +54,7 @@ fn header() {
 fn build_libs() {
     // Build the iOS targets
     Command::new("cargo")
-        .args(["lipo", "--release"])
+        .args(["build", "--release", "--target=aarch64-apple-ios"])
         .current_dir("core")
         .assert_success();
 

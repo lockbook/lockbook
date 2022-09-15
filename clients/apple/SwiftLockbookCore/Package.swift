@@ -24,6 +24,7 @@ let package = Package(
             dependencies: ["CLockbookCore"]),
         .testTarget(
             name: "SwiftLockbookCoreTests",
-            dependencies: ["SwiftLockbookCore"]),
+            dependencies: ["SwiftLockbookCore"],
+            linkerSettings: [LinkerSetting.unsafeFlags(["-L", "../CLockbookCore/Sources/CLockbookCore/lib"])]),
     ]
 )
