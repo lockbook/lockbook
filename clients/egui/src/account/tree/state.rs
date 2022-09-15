@@ -6,6 +6,7 @@ pub struct TreeState {
     pub id: egui::Id,
     pub max_node_width: f32,
     pub selected: HashSet<lb::Uuid>,
+    pub expanded: HashSet<lb::Uuid>,
     pub renaming: NodeRenamingState,
     pub dnd: TreeDragAndDropState,
 }
@@ -16,6 +17,7 @@ impl Default for TreeState {
             id: egui::Id::new("filetree"),
             max_node_width: 0.0,
             selected: HashSet::new(),
+            expanded: HashSet::new(),
             dnd: TreeDragAndDropState::default(),
             renaming: NodeRenamingState::default(),
         }
