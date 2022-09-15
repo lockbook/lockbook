@@ -2,9 +2,10 @@ mod node;
 mod response;
 mod state;
 
+pub use self::node::TreeNode;
+
 use eframe::egui;
 
-use self::node::TreeNode;
 use self::response::NodeResponse;
 use self::state::*;
 
@@ -15,20 +16,32 @@ pub struct FileTree {
 
 impl FileTree {
     pub fn new(all_metas: Vec<lb::File>) -> Self {
-        let mut all_metas = all_metas;
+        let root = create_root_node(all_metas);
 
-        let root_meta = match all_metas.iter().position(|fm| fm.parent == fm.id) {
-            Some(i) => all_metas.swap_remove(i),
-            None => panic!("unable to find root in metadata list"),
-        };
-
-        let mut root = TreeNode::from((root_meta, 0));
-        root.populate_from(&all_metas);
-        root.is_expanded = true;
-
-        let state = TreeState::default();
+        let mut state = TreeState::default();
+        state.expanded.insert(root.file.id);
 
         Self { root, state }
+    }
+
+    pub fn expand_to(&mut self, id: lb::Uuid) {
+        if let Some(node) = self.root.find(id) {
+            // Select only the target file.
+            self.state.selected.clear();
+            self.state.selected.insert(id);
+
+            // Expand all target file parents.
+            let mut id = node.file.parent;
+            while let Some(node) = self.root.find(id) {
+                self.state.expanded.insert(id);
+                if node.file.id == self.root.file.id {
+                    break;
+                }
+                id = node.file.parent;
+            }
+        } else {
+            eprintln!("couldn't find node with id {}", id);
+        }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> NodeResponse {
@@ -105,6 +118,19 @@ impl FileTree {
             .map(|id| self.root.find(*id).unwrap().file.clone())
             .collect()
     }
+}
+
+pub fn create_root_node(all_metas: Vec<lb::File>) -> TreeNode {
+    let mut all_metas = all_metas;
+
+    let root_meta = match all_metas.iter().position(|fm| fm.parent == fm.id) {
+        Some(i) => all_metas.swap_remove(i),
+        None => panic!("unable to find root in metadata list"),
+    };
+
+    let mut root = TreeNode::from((root_meta, 0));
+    root.populate_from(&all_metas);
+    root
 }
 
 fn clear_children(state: &mut TreeState, node: &mut TreeNode) {
