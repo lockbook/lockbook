@@ -69,8 +69,6 @@ class SettingsService: ObservableObject {
                                 DI.errors.errorWithTitle("Update Required", "You need to update to view your usage")
                             case .CouldNotReachServer:
                                 DI.errors.errorWithTitle("Offline", "Could not reach server to calculate usage")
-                            default:
-                                DI.errors.handleError(err)
                             }
                         default:
                             DI.errors.handleError(err)
