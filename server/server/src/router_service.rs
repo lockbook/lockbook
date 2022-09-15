@@ -131,6 +131,7 @@ pub fn core_routes(
         .or(core_req!(DeleteAccountRequest, delete_account, server_state))
         .or(core_req!(AdminDeleteAccountRequest, admin_delete_account, server_state))
         .or(core_req!(AdminDisappearFileRequest, admin_disappear_file, server_state))
+        .or(core_req!(AdminServerValidateRequest, admin_server_validate, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
