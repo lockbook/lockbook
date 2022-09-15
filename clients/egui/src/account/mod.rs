@@ -130,9 +130,22 @@ impl AccountScreen {
                         }
                     }
                 }
-                AccountUpdate::FileRenamed(id, name) => {
+                AccountUpdate::FileRenamed { id, new_name, new_child_paths } => {
                     if let Some(node) = self.tree.root.find_mut(id) {
-                        node.file.name = name;
+                        node.file.name = new_name.clone();
+                    }
+                    if let Some(tab) = self.workspace.get_mut_tab_by_id(id) {
+                        tab.name = new_name.clone();
+                    }
+                    if let Some(tab) = self.workspace.current_tab() {
+                        if tab.id == id {
+                            frame.set_window_title(&tab.name);
+                        }
+                    }
+                    for tab in &mut self.workspace.tabs {
+                        if let Some(new_path) = new_child_paths.get(&tab.id) {
+                            tab.path = new_path.clone();
+                        }
                     }
                 }
                 AccountUpdate::FileDeleted(f) => self.tree.remove(&f),
@@ -457,8 +470,14 @@ impl AccountScreen {
         thread::spawn(move || {
             let (id, new_name) = req;
             core.rename_file(id, &new_name).unwrap(); // TODO
+
+            let mut new_child_paths = HashMap::new();
+            for f in core.get_and_get_children_recursively(id).unwrap() {
+                new_child_paths.insert(f.id, core.get_path_by_id(f.id).unwrap());
+            }
+
             update_tx
-                .send(AccountUpdate::FileRenamed(id, new_name))
+                .send(AccountUpdate::FileRenamed { id, new_name, new_child_paths })
                 .unwrap();
             ctx.request_repaint();
         });
@@ -490,7 +509,11 @@ enum AccountUpdate {
 
     FileCreated(Result<lb::File, String>),
     FileLoaded(lb::Uuid, Result<TabContent, TabFailure>),
-    FileRenamed(lb::Uuid, String),
+    FileRenamed {
+        id: lb::Uuid,
+        new_name: String,
+        new_child_paths: HashMap<lb::Uuid, String>,
+    },
     FileDeleted(lb::File),
 
     SyncUpdate(SyncUpdate),
