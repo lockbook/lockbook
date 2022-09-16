@@ -25,37 +25,39 @@ impl Drawing {
     }
 
     fn draw_canvas(&mut self, ui: &mut egui::Ui) {
-        egui::Frame::canvas(ui.style()).show(ui, |ui| {
-            let (response, painter) =
-                ui.allocate_painter(ui.available_size_before_wrap(), egui::Sense::drag());
+        egui::Frame::canvas(ui.style())
+            .stroke(egui::Stroke::none())
+            .show(ui, |ui| {
+                let (response, painter) =
+                    ui.allocate_painter(ui.available_size_before_wrap(), egui::Sense::drag());
 
-            let current_stroke = self.current_stroke_mut();
+                let current_stroke = self.current_stroke_mut();
 
-            if let Some(pointer_pos) = response.interact_pointer_pos() {
-                if last_pos2(current_stroke) != Some(pointer_pos) {
-                    append_pos2(current_stroke, pointer_pos);
-                }
-            } else if !current_stroke.is_empty() {
-                let color = self.current_stroke_mut().color;
-                self.drawing.strokes.push(lb::Stroke::new(color));
-            }
-
-            let mut shapes = Vec::new();
-            for s in &self.drawing.strokes {
-                if s.points_x.len() >= 2 {
-                    let mut points = Vec::new();
-                    for (i, x) in s.points_x.iter().enumerate() {
-                        let y = s.points_y[i];
-                        points.push(egui::pos2(*x, y));
+                if let Some(pointer_pos) = response.interact_pointer_pos() {
+                    if last_pos2(current_stroke) != Some(pointer_pos) {
+                        append_pos2(current_stroke, pointer_pos);
                     }
-                    shapes.push(egui::Shape::line(
-                        points,
-                        egui::Stroke::new(5.0, self.palette[s.color]),
-                    ));
+                } else if !current_stroke.is_empty() {
+                    let color = self.current_stroke_mut().color;
+                    self.drawing.strokes.push(lb::Stroke::new(color));
                 }
-            }
-            painter.extend(shapes);
-        });
+
+                let mut shapes = Vec::new();
+                for s in &self.drawing.strokes {
+                    if s.points_x.len() >= 2 {
+                        let mut points = Vec::new();
+                        for (i, x) in s.points_x.iter().enumerate() {
+                            let y = s.points_y[i];
+                            points.push(egui::pos2(*x, y));
+                        }
+                        shapes.push(egui::Shape::line(
+                            points,
+                            egui::Stroke::new(5.0, self.palette[s.color]),
+                        ));
+                    }
+                }
+                painter.extend(shapes);
+            });
     }
 
     fn current_stroke_mut(&mut self) -> &mut lb::Stroke {
@@ -68,6 +70,8 @@ impl Drawing {
 
     fn draw_toolbar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
+            ui.add_space(5.0);
+
             let current_color = self.current_stroke_mut().color;
             let mut grp = ButtonGroup::toggle(current_color);
 

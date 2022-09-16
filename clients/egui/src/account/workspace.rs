@@ -204,46 +204,42 @@ impl super::AccountScreen {
     }
 
     fn show_tabs(&mut self, frame: &mut eframe::Frame, ui: &mut egui::Ui) {
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+
         ui.vertical(|ui| {
             if self.workspace.tabs.len() > 1 {
-                ui.scope(|ui| {
-                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+                ui.horizontal(|ui| {
+                    let ws = &mut self.workspace;
 
-                    ui.horizontal(|ui| {
-                        let ws = &mut self.workspace;
-
-                        for (i, maybe_resp) in ws
-                            .tabs
-                            .iter()
-                            .enumerate()
-                            .map(|(i, t)| tab_label(ui, t, ws.active_tab == i))
-                            .collect::<Vec<Option<TabLabelResponse>>>()
-                            .iter()
-                            .enumerate()
-                        {
-                            if let Some(resp) = maybe_resp {
-                                match resp {
-                                    TabLabelResponse::Clicked => {
-                                        ws.active_tab = i;
-                                        frame.set_window_title(&ws.tabs[i].name);
-                                    }
-                                    TabLabelResponse::Closed => {
-                                        ws.close_tab(i);
-                                        frame.set_window_title(match ws.current_tab() {
-                                            Some(tab) => &tab.name,
-                                            None => "Lockbook",
-                                        });
-                                    }
+                    for (i, maybe_resp) in ws
+                        .tabs
+                        .iter()
+                        .enumerate()
+                        .map(|(i, t)| tab_label(ui, t, ws.active_tab == i))
+                        .collect::<Vec<Option<TabLabelResponse>>>()
+                        .iter()
+                        .enumerate()
+                    {
+                        if let Some(resp) = maybe_resp {
+                            match resp {
+                                TabLabelResponse::Clicked => {
+                                    ws.active_tab = i;
+                                    frame.set_window_title(&ws.tabs[i].name);
                                 }
-                                ui.ctx().request_repaint();
+                                TabLabelResponse::Closed => {
+                                    ws.close_tab(i);
+                                    frame.set_window_title(match ws.current_tab() {
+                                        Some(tab) => &tab.name,
+                                        None => "Lockbook",
+                                    });
+                                }
                             }
+                            ui.ctx().request_repaint();
                         }
-                    });
-
-                    separator(ui);
+                    }
                 });
-            } else {
-                ui.add_space(5.0);
+
+                separator(ui);
             }
 
             ui.centered_and_justified(|ui| {

@@ -33,19 +33,36 @@ impl Markdown {
             .size(Size::remainder())
             .size(Size::exact(50.0))
             .vertical(|mut strip| {
-                strip.cell(|ui| match &self.view_mode {
-                    ViewMode::Single => match &self.single_view {
-                        SingleView::Editor => self.draw_editor(ui),
-                        SingleView::Rendered => self.draw_rendered(ui),
-                    },
-                    ViewMode::Dual => {
-                        ui.columns(2, |uis| {
-                            self.draw_editor(&mut uis[0]);
-                            self.draw_rendered(&mut uis[1]);
+                strip.cell(|ui| {
+                    egui::Frame::none()
+                        .fill(ui.visuals().extreme_bg_color)
+                        .show(ui, |ui| match &self.view_mode {
+                            ViewMode::Single => match &self.single_view {
+                                SingleView::Editor => self.draw_editor(ui),
+                                SingleView::Rendered => self.draw_rendered(ui),
+                            },
+                            ViewMode::Dual => self.show_dual(ui),
                         });
-                    }
                 });
                 strip.cell(|ui| self.draw_toolbar(ui));
+            });
+    }
+
+    fn show_dual(&mut self, ui: &mut egui::Ui) {
+        StripBuilder::new(ui)
+            .size(Size::remainder())
+            .size(Size::exact(3.0))
+            .size(Size::remainder())
+            .horizontal(|mut strip| {
+                strip.cell(|ui| self.draw_editor(ui));
+                strip.cell(|ui| {
+                    let ln_size = 1.0;
+                    let size = egui::vec2(ln_size, ui.available_size_before_wrap().y);
+                    let (rect, _response) = ui.allocate_at_least(size, egui::Sense::hover());
+                    let stroke = ui.visuals().widgets.noninteractive.bg_stroke;
+                    ui.painter().vline(rect.center().x, rect.y_range(), stroke);
+                });
+                strip.cell(|ui| self.draw_rendered(ui));
             });
     }
 
@@ -56,6 +73,8 @@ impl Markdown {
                 ui.centered_and_justified(|ui| {
                     let out = egui::TextEdit::multiline(&mut self.content)
                         .desired_width(f32::INFINITY)
+                        .frame(false)
+                        .margin(egui::vec2(7.0, 7.0))
                         .code_editor()
                         .show(ui);
 
@@ -67,90 +86,95 @@ impl Markdown {
     }
 
     fn draw_rendered(&mut self, ui: &mut egui::Ui) {
-        egui::ScrollArea::vertical()
-            .id_source("render")
-            .show(ui, |ui| {
-                let initial_size = egui::vec2(ui.available_width(), ui.spacing().interact_size.y);
+        egui::Frame::none().inner_margin(7.0).show(ui, |ui| {
+            egui::ScrollArea::vertical()
+                .id_source("render")
+                .show(ui, |ui| self.draw_rendered_inner(ui));
+        });
+    }
 
-                let layout = egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true);
+    fn draw_rendered_inner(&mut self, ui: &mut egui::Ui) {
+        let initial_size = egui::vec2(ui.available_width(), ui.spacing().interact_size.y);
 
-                ui.allocate_ui_with_layout(initial_size, layout, |ui| {
-                    ui.spacing_mut().item_spacing.x = 0.0;
-                    ui.spacing_mut().item_spacing.y = 0.0;
-                    ui.set_row_height(17.0);
+        let layout = egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true);
 
-                    let mut s = Styling::default();
-                    let mut in_list = false;
+        ui.allocate_ui_with_layout(initial_size, layout, |ui| {
+            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+            ui.set_row_height(17.0);
 
-                    for el in &self.events {
-                        match el {
-                            MdEvent::Start(tag) => match tag {
-                                MdTag::Heading(lvl, _, _) => s.set_for_heading(lvl),
-                                MdTag::BlockQuote => s.set_for_blockquote(),
-                                MdTag::List(_) => in_list = true,
-                                MdTag::Item => {
-                                    ui.label(&Icon::CIRCLE.size(6.0));
-                                    ui.label("  ");
-                                }
-                                _ => {}
-                            },
-                            MdEvent::End(tag) => match tag {
-                                MdTag::Paragraph => {
-                                    if !in_list {
-                                        ui.end_row();
-                                        ui.end_row();
-                                    }
-                                }
-                                MdTag::Heading(_, _, _) => {
-                                    s.unset_heading();
-                                    ui.end_row();
-                                    ui.set_row_height(17.0);
-                                    ui.end_row();
-                                }
-                                MdTag::BlockQuote => {
-                                    s.unset_blockquote();
-                                }
-                                MdTag::List(_) => {
-                                    in_list = false;
-                                    ui.end_row();
-                                }
-                                MdTag::Item => {
-                                    ui.end_row();
-                                }
-                                _ => {}
-                            },
-                            MdEvent::Text(txt) => {
-                                ui.label(s.gen_rich_text(txt));
-                            }
-                            MdEvent::Code(txt) => {
-                                s.set_for_code();
-                                ui.label(s.gen_rich_text(txt));
-                                s.unset_code();
-                            }
-                            MdEvent::SoftBreak => {
-                                ui.label(" ");
-                            }
-                            MdEvent::HardBreak => {}
-                            MdEvent::Rule => {
-                                let initial_size = egui::vec2(ui.available_width(), 0.0);
-                                ui.allocate_ui_with_layout(
-                                    initial_size,
-                                    egui::Layout::top_down(egui::Align::Min),
-                                    |ui| {
-                                        ui.add(egui::Separator::default().horizontal());
-                                    },
-                                );
+            let mut s = Styling::default();
+            let mut in_list = false;
+
+            for el in &self.events {
+                match el {
+                    MdEvent::Start(tag) => match tag {
+                        MdTag::Heading(lvl, _, _) => s.set_for_heading(lvl),
+                        MdTag::BlockQuote => s.set_for_blockquote(),
+                        MdTag::List(_) => in_list = true,
+                        MdTag::Item => {
+                            ui.label(&Icon::CIRCLE.size(6.0));
+                            ui.label("  ");
+                        }
+                        _ => {}
+                    },
+                    MdEvent::End(tag) => match tag {
+                        MdTag::Paragraph => {
+                            if !in_list {
+                                ui.end_row();
                                 ui.end_row();
                             }
-                            _ => {}
                         }
+                        MdTag::Heading(_, _, _) => {
+                            s.unset_heading();
+                            ui.end_row();
+                            ui.set_row_height(17.0);
+                            ui.end_row();
+                        }
+                        MdTag::BlockQuote => {
+                            s.unset_blockquote();
+                        }
+                        MdTag::List(_) => {
+                            in_list = false;
+                            ui.end_row();
+                        }
+                        MdTag::Item => {
+                            ui.end_row();
+                        }
+                        _ => {}
+                    },
+                    MdEvent::Text(txt) => {
+                        ui.label(s.gen_rich_text(txt));
                     }
-                });
-            });
+                    MdEvent::Code(txt) => {
+                        s.set_for_code();
+                        ui.label(s.gen_rich_text(txt));
+                        s.unset_code();
+                    }
+                    MdEvent::SoftBreak => {
+                        ui.label(" ");
+                    }
+                    MdEvent::HardBreak => {}
+                    MdEvent::Rule => {
+                        let initial_size = egui::vec2(ui.available_width(), 0.0);
+                        ui.allocate_ui_with_layout(
+                            initial_size,
+                            egui::Layout::top_down(egui::Align::Min),
+                            |ui| {
+                                ui.add(egui::Separator::default().horizontal());
+                            },
+                        );
+                        ui.end_row();
+                    }
+                    _ => {}
+                }
+            }
+        });
     }
 
     fn draw_toolbar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
+            ui.add_space(5.0);
+
             ButtonGroup::toggle_mut(&mut self.view_mode)
                 .btn_icon(ViewMode::Single, &Icon::VIDEO_LABEL.size(24.0))
                 .btn_icon(ViewMode::Dual, &Icon::VERTICAL_SPLIT.size(24.0))
