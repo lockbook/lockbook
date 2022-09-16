@@ -227,7 +227,13 @@ impl super::AccountScreen {
                                         ws.active_tab = i;
                                         frame.set_window_title(&ws.tabs[i].name);
                                     }
-                                    TabLabelResponse::Closed => ws.close_tab(i),
+                                    TabLabelResponse::Closed => {
+                                        ws.close_tab(i);
+                                        frame.set_window_title(match ws.current_tab() {
+                                            Some(tab) => &tab.name,
+                                            None => "Lockbook",
+                                        });
+                                    }
                                 }
                                 ui.ctx().request_repaint();
                             }
