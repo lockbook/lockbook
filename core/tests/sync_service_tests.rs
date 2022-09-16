@@ -254,3 +254,24 @@ fn fuzzer_new_file_deleted() {
     core.delete_file(dir2.id).unwrap();
     core.sync(None).unwrap();
 }
+
+#[test]
+fn fuzzer_create_document_in_renamed_concurrently_deleted_folder() {
+    let core1 = test_core_with_account();
+    let core2 = test_core_from(&core1);
+
+    let folder = core1.create_at_path("folder/").unwrap();
+
+    core1.sync(None).unwrap();
+    core2.sync(None).unwrap();
+
+    core1.delete_file(folder.id).unwrap();
+    core1.sync(None).unwrap();
+
+    let document = core2.create_at_path("folder/document").unwrap();
+    core2
+        .write_document(document.id, b"document content")
+        .unwrap();
+    core2.rename_file(folder.id, "folder-renamed").unwrap();
+    core2.sync(None).unwrap();
+}
