@@ -589,6 +589,7 @@ where
                     if result.tree.base.base.base.maybe_find(&id).is_some() {
                         let (
                             base_file,
+                            remote_change,
                             remote_deleted,
                             local_change,
                             parent,
@@ -655,6 +656,7 @@ where
                             );
                             (
                                 base_file,
+                                remote_change,
                                 remote_deleted,
                                 local_change,
                                 parent,
@@ -667,7 +669,7 @@ where
 
                         if remote_deleted {
                             // discard changes to remote-deleted files
-                            result.insert(base_file);
+                            result.insert(remote_change);
                         } else {
                             result.insert(
                                 FileMetadata {
