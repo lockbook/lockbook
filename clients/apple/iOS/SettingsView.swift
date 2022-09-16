@@ -93,6 +93,27 @@ struct SettingsViewPreview: PreviewProvider {
         NavigationView {
             SettingsView()
                 .mockDI()
+                .onAppear {
+                    
+                    let info = PrerequisiteInformation(
+                        serverUsages: UsageMetrics(
+                            usages: [],
+                            serverUsage: UsageItemMetric(
+                                exact: 10,
+                                readable: "10 bytes"
+                            ),
+                            dataCap: UsageItemMetric(
+                                exact: 20,
+                                readable: "20 bytes"
+                            )
+                        ),
+                        uncompressedUsage: UsageItemMetric(
+                            exact: 30,
+                            readable: "30 bytes"
+                        )
+                    )
+                    Mock.settings.usages = info
+                }
         }
     }
 }
