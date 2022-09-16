@@ -89,7 +89,10 @@ impl Markdown {
         egui::Frame::none().inner_margin(7.0).show(ui, |ui| {
             egui::ScrollArea::vertical()
                 .id_source("render")
-                .show(ui, |ui| self.draw_rendered_inner(ui));
+                .show(ui, |ui| {
+                    ui.set_min_height(ui.available_size_before_wrap().y);
+                    self.draw_rendered_inner(ui);
+                });
         });
     }
 
