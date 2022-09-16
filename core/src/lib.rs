@@ -42,6 +42,7 @@ use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Username;
+use lockbook_shared::api::AdminServerValidateResponse;
 use lockbook_shared::clock;
 use lockbook_shared::crypto::AESKey;
 use serde_json::{json, value::Value};
@@ -506,6 +507,16 @@ impl Core {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.list_premium_users())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn admin_server_validate(
+        &self, username: &str,
+    ) -> Result<AdminServerValidateResponse, Error<AdminServerValidateError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.server_validate(username))?;
         Ok(val?)
     }
 }

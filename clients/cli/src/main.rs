@@ -1,7 +1,6 @@
 use std::env;
 use std::path::PathBuf;
 
-use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
 use lockbook_core::Core;
@@ -9,7 +8,6 @@ use lockbook_core::{Config, Uuid};
 
 use crate::error::CliError;
 
-mod admin;
 mod backup;
 mod billing;
 mod copy;
@@ -220,10 +218,6 @@ enum Lockbook {
 
     /// Subcommands that aid in extending Lockbook
     Debug(debug::Debug),
-
-    /// Subcommands for admin users
-    #[structopt(setting(AppSettings::Hidden))]
-    Admin(admin::Admin),
 }
 
 fn exit_with(err: CliError) -> ! {
@@ -261,7 +255,6 @@ fn parse_and_run() -> Result<(), CliError> {
         GetUsage { exact } => usage::usage(&core, exact),
         Drawing { path, id, format } => drawing::drawing(&core, path, id, &format),
         Debug(debug) => debug::debug(&core, debug),
-        Admin(admin) => admin::admin(&core, admin),
     }
 }
 
