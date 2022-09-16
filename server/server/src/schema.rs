@@ -13,6 +13,7 @@ hmdb::schema! {
         usernames: <String, Owner>,
         accounts: <Owner, Account>,
         owned_files: <Owner, HashSet<Uuid>>,
+        shared_files: <Owner, HashSet<Uuid>>,
         metas: <Uuid, ServerFile>,
         sizes: <Uuid, u64>,
         google_play_ids: <String, Owner>,

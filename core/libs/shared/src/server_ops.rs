@@ -12,16 +12,20 @@ use crate::signed_file::SignedFile;
 use crate::tree_like::TreeLike;
 use crate::{SharedError, SharedResult};
 
-impl<'a, 'b, Log1, Log2> LazyTree<ServerTree<'a, 'b, Log1, Log2>>
+impl<'a, 'b, OwnedFiles, SharedFiles, Files>
+    LazyTree<ServerTree<'a, 'b, OwnedFiles, SharedFiles, Files>>
 where
-    Log1: SchemaEvent<Owner, HashSet<Uuid>>,
-    Log2: SchemaEvent<Uuid, ServerFile>,
+    OwnedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
+    SharedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
+    Files: SchemaEvent<Uuid, ServerFile>,
 {
     /// Validates a diff prior to staging it. Performs individual validations, then validations that
     /// require a tree
     pub fn stage_diff(
         mut self, changes: Vec<FileDiff<SignedFile>>,
-    ) -> SharedResult<LazyStaged1<ServerTree<'a, 'b, Log1, Log2>, Vec<ServerFile>>> {
+    ) -> SharedResult<
+        LazyStaged1<ServerTree<'a, 'b, OwnedFiles, SharedFiles, Files>, Vec<ServerFile>>,
+    > {
         self.tree.ids.extend(changes.iter().map(|diff| *diff.id()));
 
         // Check new.id == old.id

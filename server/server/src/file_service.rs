@@ -27,8 +27,13 @@ pub async fn upsert_file_metadata(
         .server_state
         .index_db
         .transaction::<_, Result<(), ServerError<_>>>(|tx| {
-            let mut tree =
-                ServerTree::new(req_owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+            let mut tree = ServerTree::new(
+                req_owner,
+                &mut tx.owned_files,
+                &mut tx.shared_files,
+                &mut tx.metas,
+            )?
+            .to_lazy();
 
             for id in tree.owned_ids() {
                 if tree.find(&id)?.is_document() && tree.calculate_deleted(&id)? {
@@ -96,7 +101,9 @@ pub async fn change_doc(
 
         let direct_access = meta_owner.0 == req_pk;
 
-        let mut tree = ServerTree::new(meta_owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+        let mut tree =
+            ServerTree::new(meta_owner, &mut tx.owned_files, &mut tx.shared_files, &mut tx.metas)?
+                .to_lazy();
 
         let mut share_access = false;
 
@@ -162,7 +169,9 @@ pub async fn change_doc(
 
         let meta_owner = meta.owner();
 
-        let mut tree = ServerTree::new(meta_owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+        let mut tree =
+            ServerTree::new(meta_owner, &mut tx.owned_files, &mut tx.shared_files, &mut tx.metas)?
+                .to_lazy();
         let new_size = request.new_content.value.len() as u64;
 
         if tree.calculate_deleted(request.diff.new.id())? {
@@ -221,7 +230,9 @@ pub async fn get_document(
 
         let direct_access = meta_owner.0 == context.public_key;
 
-        let mut tree = ServerTree::new(meta_owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+        let mut tree =
+            ServerTree::new(meta_owner, &mut tx.owned_files, &mut tx.shared_files, &mut tx.metas)?
+                .to_lazy();
 
         let mut share_access = false;
 
@@ -281,7 +292,9 @@ pub async fn get_updates(
             .map(|owner| **owner)
             .collect::<Vec<_>>();
         for owner in owners {
-            let mut tree = ServerTree::new(owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+            let mut tree =
+                ServerTree::new(owner, &mut tx.owned_files, &mut tx.shared_files, &mut tx.metas)?
+                    .to_lazy();
 
             let mut result_ids = HashSet::new();
             if owner.0 == context.public_key {
@@ -396,7 +409,9 @@ pub async fn admin_server_validate(
                 .get(&request.username)
                 .ok_or(ClientError(AdminServerValidateError::UserNotFound))?;
 
-            let mut tree = ServerTree::new(owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+            let mut tree =
+                ServerTree::new(owner, &mut tx.owned_files, &mut tx.shared_files, &mut tx.metas)?
+                    .to_lazy();
 
             for id in tree.owned_ids() {
                 if !tree.calculate_deleted(&id)? {

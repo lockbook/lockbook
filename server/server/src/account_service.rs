@@ -167,8 +167,13 @@ pub async fn delete_account_helper(
 ) -> Result<(), ServerError<DeleteAccountHelperError>> {
     let all_files: Result<Vec<(Uuid, DocumentHmac)>, ServerError<DeleteAccountHelperError>> =
         server_state.index_db.transaction(|tx| {
-            let mut tree =
-                ServerTree::new(Owner(*public_key), &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+            let mut tree = ServerTree::new(
+                Owner(*public_key),
+                &mut tx.owned_files,
+                &mut tx.shared_files,
+                &mut tx.metas,
+            )?
+            .to_lazy();
             let mut docs_to_delete = vec![];
             let metas_to_delete = tree.owned_ids();
 

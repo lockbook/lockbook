@@ -9,25 +9,29 @@ use std::collections::HashSet;
 use tracing::*;
 use uuid::Uuid;
 
-pub struct ServerTree<'a, 'b, Log1, Log2>
+pub struct ServerTree<'a, 'b, OwnedFiles, SharedFiles, Files>
 where
-    Log1: SchemaEvent<Owner, HashSet<Uuid>>,
-    Log2: SchemaEvent<Uuid, ServerFile>,
+    OwnedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
+    SharedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
+    Files: SchemaEvent<Uuid, ServerFile>,
 {
     pub ids: HashSet<Uuid>,
-    pub owned: &'a mut TransactionTable<'b, Owner, HashSet<Uuid>, Log1>,
-    pub metas: &'a mut TransactionTable<'b, Uuid, ServerFile, Log2>,
+    pub owned: &'a mut TransactionTable<'b, Owner, HashSet<Uuid>, OwnedFiles>,
+    pub shared: &'a mut TransactionTable<'b, Owner, HashSet<Uuid>, SharedFiles>,
+    pub metas: &'a mut TransactionTable<'b, Uuid, ServerFile, Files>,
 }
 
-impl<'a, 'b, Log1, Log2> ServerTree<'a, 'b, Log1, Log2>
+impl<'a, 'b, OwnedFiles, SharedFiles, Files> ServerTree<'a, 'b, OwnedFiles, SharedFiles, Files>
 where
-    Log1: SchemaEvent<Owner, HashSet<Uuid>>,
-    Log2: SchemaEvent<Uuid, ServerFile>,
+    OwnedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
+    SharedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
+    Files: SchemaEvent<Uuid, ServerFile>,
 {
     // todo: optimize/cache
     pub fn new(
-        owner: Owner, owned: &'a mut TransactionTable<'b, Owner, HashSet<Uuid>, Log1>,
-        metas: &'a mut TransactionTable<'b, Uuid, ServerFile, Log2>,
+        owner: Owner, owned: &'a mut TransactionTable<'b, Owner, HashSet<Uuid>, OwnedFiles>,
+        shared: &'a mut TransactionTable<'b, Owner, HashSet<Uuid>, SharedFiles>,
+        metas: &'a mut TransactionTable<'b, Uuid, ServerFile, Files>,
     ) -> SharedResult<Self> {
         let shared_ids = metas
             .get_all()
@@ -44,14 +48,16 @@ where
         for id in shared_ids {
             descendants_of_shared_ids.extend(tree.descendants(&id)?);
         }
-        Ok(Self { ids: descendants_of_shared_ids, owned, metas })
+        Ok(Self { ids: descendants_of_shared_ids, owned, shared, metas })
     }
 }
 
-impl<'a, 'b, Log1, Log2> TreeLike for ServerTree<'a, 'b, Log1, Log2>
+impl<'a, 'b, OwnedFiles, SharedFiles, Files> TreeLike
+    for ServerTree<'a, 'b, OwnedFiles, SharedFiles, Files>
 where
-    Log1: SchemaEvent<Owner, HashSet<Uuid>>,
-    Log2: SchemaEvent<Uuid, ServerFile>,
+    OwnedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
+    SharedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
+    Files: SchemaEvent<Uuid, ServerFile>,
 {
     type F = ServerFile;
 
@@ -72,6 +78,7 @@ where
         let owner = f.owner();
         let prior = TransactionTable::insert(self.metas, id, f);
 
+        // maintain index: owned_files
         if prior == None {
             if let Some(mut owned) = self.owned.delete(owner) {
                 owned.insert(id);
@@ -80,6 +87,8 @@ where
                 error!("File inserted with unknown owner")
             }
         }
+
+        // todo: maintain index: shared_files
 
         prior
     }
@@ -105,9 +114,11 @@ where
     }
 }
 
-impl<'a, 'b, Log1, Log2> Stagable for ServerTree<'a, 'b, Log1, Log2>
+impl<'a, 'b, OwnedFiles, SharedFiles, Files> Stagable
+    for ServerTree<'a, 'b, OwnedFiles, SharedFiles, Files>
 where
-    Log1: SchemaEvent<Owner, HashSet<Uuid>>,
-    Log2: SchemaEvent<Uuid, ServerFile>,
+    OwnedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
+    SharedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
+    Files: SchemaEvent<Uuid, ServerFile>,
 {
 }
