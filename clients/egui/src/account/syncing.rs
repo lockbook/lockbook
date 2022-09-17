@@ -120,7 +120,7 @@ impl super::AccountScreen {
                 ui.add_space(6.0);
 
                 match &self.sync.status {
-                    Ok(s) => ui.label(s),
+                    Ok(s) => ui.label(&format!("Synced {s}")),
                     Err(msg) => ui.label(egui::RichText::new(msg).color(egui::Color32::RED)),
                 };
 
@@ -145,10 +145,10 @@ impl super::AccountScreen {
     }
 
     pub fn set_sync_status<T: ToString>(&mut self, res: Result<String, T>) {
-        match res {
-            Ok(s) => self.sync.status = Ok(format!("Last synced: {s}")),
-            Err(v) => self.sync.status = Err(v.to_string()),
-        }
+        self.sync.status = match res {
+            Ok(s) => Ok(s),
+            Err(v) => Err(v.to_string()),
+        };
     }
 
     pub fn refresh_sync_status(&self, ctx: &egui::Context) {
