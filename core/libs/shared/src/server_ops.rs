@@ -12,6 +12,9 @@ use crate::signed_file::SignedFile;
 use crate::tree_like::TreeLike;
 use crate::{SharedError, SharedResult};
 
+type LazyServerStaged1<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files> =
+    LazyStaged1<ServerTree<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files>, Vec<ServerFile>>;
+
 impl<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files>
     LazyTree<ServerTree<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files>>
 where
@@ -24,12 +27,7 @@ where
     /// require a tree
     pub fn stage_diff(
         mut self, changes: Vec<FileDiff<SignedFile>>,
-    ) -> SharedResult<
-        LazyStaged1<
-            ServerTree<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files>,
-            Vec<ServerFile>,
-        >,
-    > {
+    ) -> SharedResult<LazyServerStaged1<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files>> {
         self.tree.ids.extend(changes.iter().map(|diff| *diff.id()));
 
         // Check new.id == old.id
