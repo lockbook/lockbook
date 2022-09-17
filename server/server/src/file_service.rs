@@ -423,13 +423,13 @@ pub async fn admin_disappear_file(
                 internal!(
                     "Attempted to disappear a file, the parent was not present, id: {}, parent: {:?}",
                     context.request.id,
-                    parent
+                    meta.parent()
                 )
             })?;
             if !file_children.remove(&context.request.id) {
                 error!(
                     "attempted to disappear a file, the parent didn't have it as a child, id: {}, parent: {:?}",
-                    context.request.id, parent
+                    context.request.id, meta.parent()
                 );
             }
             tx.file_children.insert(*meta.parent(), file_children);
