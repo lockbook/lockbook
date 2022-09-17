@@ -33,22 +33,23 @@ where
         shared: &'a mut TransactionTable<'b, Owner, HashSet<Uuid>, SharedFiles>,
         metas: &'a mut TransactionTable<'b, Uuid, ServerFile, Files>,
     ) -> SharedResult<Self> {
-        let shared_ids = metas
-            .get_all()
-            .iter()
-            .filter(|(_, f)| {
-                f.user_access_keys()
-                    .iter()
-                    .any(|k| k.encrypted_for == owner.0)
-            })
-            .map(|(id, _)| *id)
-            .collect::<HashSet<_>>();
         let mut tree = metas.to_lazy();
-        let mut descendants_of_shared_ids = shared_ids.clone();
+        let (owned_ids, shared_ids) = match (owned.get(&owner), shared.get(&owner)) {
+            (Some(owned_ids), Some(shared_ids)) => (owned_ids.clone(), shared_ids.clone()),
+            _ => {
+                error!("Tree created for user without owned and shared files");
+                (HashSet::new(), HashSet::new())
+            }
+        };
+
+        let mut ids = HashSet::new();
+        ids.extend(owned_ids);
+        ids.extend(shared_ids.clone());
         for id in shared_ids {
-            descendants_of_shared_ids.extend(tree.descendants(&id)?);
+            ids.extend(tree.descendants(&id)?);
         }
-        Ok(Self { ids: descendants_of_shared_ids, owned, shared, metas })
+
+        Ok(Self { ids, owned, shared, metas })
     }
 }
 
@@ -76,10 +77,10 @@ where
     fn insert(&mut self, f: Self::F) -> Option<Self::F> {
         let id = *f.id();
         let owner = f.owner();
-        let prior = TransactionTable::insert(self.metas, id, f);
+        let maybe_prior = TransactionTable::insert(self.metas, id, f.clone());
 
         // maintain index: owned_files
-        if prior == None {
+        if maybe_prior.is_none() {
             if let Some(mut owned) = self.owned.delete(owner) {
                 owned.insert(id);
                 self.owned.insert(owner, owned);
@@ -88,9 +89,41 @@ where
             }
         }
 
-        // todo: maintain index: shared_files
+        // maintain index: shared_files
+        let prior_sharees = if let Some(prior) = maybe_prior.clone() {
+            prior
+                .user_access_keys()
+                .iter()
+                .filter(|k| !k.deleted)
+                .map(|k| Owner(k.encrypted_for))
+                .collect()
+        } else {
+            HashSet::new()
+        };
+        let sharees = f
+            .user_access_keys()
+            .iter()
+            .filter(|k| !k.deleted)
+            .map(|k| Owner(k.encrypted_for))
+            .collect::<HashSet<_>>();
+        for removed_sharee in prior_sharees.difference(&sharees) {
+            if let Some(mut shared) = self.shared.delete(*removed_sharee) {
+                shared.remove(&id);
+                self.shared.insert(*removed_sharee, shared);
+            } else {
+                error!("File inserted with unknown sharee")
+            }
+        }
+        for new_sharee in sharees.difference(&prior_sharees) {
+            if let Some(mut shared) = self.shared.delete(*new_sharee) {
+                shared.insert(id);
+                self.shared.insert(*new_sharee, shared);
+            } else {
+                error!("File inserted with unknown sharee")
+            }
+        }
 
-        prior
+        maybe_prior
     }
 
     fn remove(&mut self, id: Uuid) -> Option<Self::F> {
