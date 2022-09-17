@@ -101,16 +101,13 @@ fn list_premium_users(core: &Core, google_play: bool, stripe: bool) -> Res<()> {
         .collect();
 
     if premium_users.is_empty() {
-        println!(
-            "There are no premium {}users.",
-            if stripe {
-                "Stripe "
-            } else if google_play {
-                "Google Play "
-            } else {
-                ""
-            }
-        );
+        if google_play {
+            println!("There are no premium google play users.");
+        } else if stripe {
+            println!("There are no premium stripe users.");
+        } else {
+            println!("There are no premium users.");
+        }
     } else {
         for (user, platform) in premium_users {
             let platform_str = match platform {
