@@ -180,7 +180,7 @@ pub async fn admin_list_premium_users(
         let account = &db
             .accounts
             .get(owner)?
-            .ok_or(internal!("cannot find premium google play user in accounts db"))?;
+            .ok_or(internal!("Cannot find premium google play user in accounts db: {:?}", owner))?;
 
         if let Some(BillingPlatform::GooglePlay(user_info)) = &account.billing_info.billing_platform
         {
@@ -195,7 +195,7 @@ pub async fn admin_list_premium_users(
         let account = &db
             .accounts
             .get(owner)?
-            .ok_or(internal!("cannot find premium stripe user in accounts db"))?;
+            .ok_or(internal!("Cannot find premium stripe user in accounts db: {:?}", owner))?;
 
         if let Some(BillingPlatform::Stripe(user_info)) = &account.billing_info.billing_platform {
             users.push((

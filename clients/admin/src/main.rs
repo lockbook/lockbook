@@ -28,6 +28,7 @@ pub enum Admin {
 
     /// List all the premium users and their payment platform
     ListPremiumUsers {
+        ///
         #[structopt(short, long)]
         google_play: bool,
 
