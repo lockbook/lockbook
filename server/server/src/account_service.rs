@@ -1,7 +1,7 @@
 use crate::schema::Account;
 use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
-use crate::{document_service, RequestContext, ServerError, ServerState, ServerV1, Tx};
+use crate::{document_service, RequestContext, Server, ServerError, ServerState, Tx};
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Username;
@@ -216,7 +216,7 @@ pub async fn delete_account_helper(
 }
 
 pub fn is_admin<E: Debug>(
-    db: &ServerV1, public_key: &PublicKey, admins: &HashSet<Username>,
+    db: &Server, public_key: &PublicKey, admins: &HashSet<Username>,
 ) -> Result<bool, ServerError<E>> {
     let is_admin = match db.accounts.get(&Owner(*public_key))? {
         None => false,

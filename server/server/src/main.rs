@@ -2,12 +2,13 @@ extern crate chrono;
 extern crate tokio;
 
 use hmdb::log::Reader;
+use hmdb::transaction::Transaction;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::router_service::{
     build_info, core_routes, get_metrics, google_play_notification_webhooks, stripe_webhooks,
 };
-use lockbook_server_lib::schema::ServerV1;
+use lockbook_server_lib::schema::v2;
 use lockbook_server_lib::*;
 use std::sync::Arc;
 use tracing::*;
@@ -21,7 +22,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config = cfg.clone();
     let stripe_client = stripe::Client::new(&cfg.billing.stripe.stripe_secret);
     let google_play_client = get_google_play_client(&cfg.billing.google.service_account_key).await;
-    let index_db = ServerV1::init(&cfg.index_db.db_location).expect("Failed to load index_db");
+    let index_db = v2::Server::init(&cfg.index_db.db_location).expect("Failed to load index_db");
+
+    let migrate = true; // todo: environment variable? check if current version already populated?
+    if migrate {
+        let source_index_db =
+            lockbook_server_lib::schema::ServerV1::init(&cfg.index_db.db_location)
+                .expect("Failed to load index_db");
+        source_index_db
+            .transaction(|source_tx| index_db.transaction(|tx| v2::migrate(source_tx, tx)))
+            .expect("Failed to migrate index_db")
+            .expect("Failed to migrate index_db"); // todo: ???
+    }
 
     if index_db.incomplete_write() {
         error!("hmdb indicated that the last write to the log was unsuccessful")
