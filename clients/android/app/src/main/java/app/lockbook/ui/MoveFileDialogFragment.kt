@@ -14,9 +14,9 @@ import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.databinding.DialogMoveFileBinding
 import app.lockbook.model.*
+import app.lockbook.util.BasicFileItemHolder
 import app.lockbook.util.File
 import app.lockbook.util.FileType
-import app.lockbook.util.BasicFileItemHolder
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import com.google.android.material.dialog.MaterialAlertDialogBuilder

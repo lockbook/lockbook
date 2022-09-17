@@ -401,7 +401,7 @@ enum class ShareFileError : UiCoreError {
     LinkInSharedFolder,
     InsufficientPermission;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         CannotShareRoot -> LbError.newUserError(getString(res, R.string.cannot_share_root))
         FileNonexistent -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
         ShareAlreadyExists -> LbError.newUserError(getString(res, R.string.share_already_exists))
@@ -412,10 +412,12 @@ enum class ShareFileError : UiCoreError {
 
 @Serializable
 enum class DeletePendingShareError : UiCoreError {
-    FileNonexistent;
+    FileNonexistent,
+    ShareNonexistent;
 
-    override fun toLbError(res: Resources): LbError = when(this) {
+    override fun toLbError(res: Resources): LbError = when (this) {
         FileNonexistent -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
+        ShareNonexistent -> LbError.newUserError(getString(res, R.string.share_non_existant))
     }
 }
 

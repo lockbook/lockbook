@@ -49,13 +49,13 @@
 
     </LinearLayout>
 
-
     <ImageView
         android:id="@+id/add_shared"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:src="@drawable/ic_outline_note_add_24"
         android:layout_marginEnd="20dp"
+        android:contentDescription="@string/accept_pending_share"
         android:background="?android:selectableItemBackgroundBorderless"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@+id/delete_shared"
@@ -67,6 +67,7 @@
         android:layout_height="wrap_content"
         android:src="@drawable/ic_outline_delete_24"
         android:background="?android:selectableItemBackgroundBorderless"
+        android:contentDescription="@string/reject_pending_share"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />

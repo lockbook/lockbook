@@ -13,7 +13,6 @@ import app.lockbook.model.TransientScreen
 import com.github.michaelbull.result.Err
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
-import java.io.File
 import java.lang.ref.WeakReference
 
 class DeleteFilesDialogFragment : AppCompatDialogFragment() {

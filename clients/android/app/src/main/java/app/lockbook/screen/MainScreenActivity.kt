@@ -18,7 +18,6 @@ import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.model.*
 import app.lockbook.ui.*
 import app.lockbook.util.*
-import timber.log.Timber
 import java.io.File
 import java.lang.ref.WeakReference
 
@@ -50,10 +49,7 @@ class MainScreenActivity : AppCompatActivity() {
 
     private val onShare =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            Timber.e("Sync ")
-
-            // Sync after share
-            maybeGetFilesFragment()?.syncBasedOnPreferences()
+            maybeGetFilesFragment()?.refreshFiles()
         }
 
     private val onExport =
@@ -113,18 +109,18 @@ class MainScreenActivity : AppCompatActivity() {
         model.launchActivityScreen.observe(
             this
         ) { screen ->
-            when(screen) {
+            when (screen) {
                 is ActivityScreen.Settings -> {
                     val intent = Intent(applicationContext, SettingsActivity::class.java)
 
-                    if(screen.scrollToPreference != null) {
+                    if (screen.scrollToPreference != null) {
                         intent.putExtra(SettingsFragment.SCROLL_TO_PREFERENCE_KEY, screen.scrollToPreference)
                     }
 
                     startActivity(intent)
                 }
                 ActivityScreen.Shares -> {
-                    onShare.launch(Intent(applicationContext, SharesActivity::class.java))
+                    onShare.launch(Intent(baseContext, SharesActivity::class.java))
                 }
             }
         }
@@ -198,6 +194,7 @@ class MainScreenActivity : AppCompatActivity() {
             }
             UpdateMainScreenUI.ShowSearch -> navHost().navController.navigate(R.id.action_files_to_search)
             UpdateMainScreenUI.ShowFiles -> navHost().navController.popBackStack()
+            UpdateMainScreenUI.Sync -> maybeGetFilesFragment()?.sync(false)
         }
     }
 
@@ -262,7 +259,7 @@ class MainScreenActivity : AppCompatActivity() {
                 is DetailScreen.PdfViewer -> replace<PdfViewerFragment>(R.id.detail_container)
                 is DetailScreen.Share -> add<ShareFileFragment>(R.id.detail_container)
                 null -> {
-                    maybeGetFilesFragment()?.syncBasedOnPreferences()
+                    maybeGetFilesFragment()?.sync()
                     supportFragmentManager.findFragmentById(R.id.detail_container)?.let {
                         remove(it)
                     }

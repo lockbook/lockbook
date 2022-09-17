@@ -5,15 +5,14 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import app.lockbook.R
 import app.lockbook.databinding.FragmentCreateLinkBinding
 import app.lockbook.model.*
+import app.lockbook.util.BasicFileItemHolder
 import app.lockbook.util.File
 import app.lockbook.util.FileType
-import app.lockbook.util.BasicFileItemHolder
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import com.github.michaelbull.result.Err
@@ -100,7 +99,7 @@ class CreateLinkFragment : Fragment() {
         binding.createLinkCreate.setOnClickListener {
             val name = binding.createLinkName.text.toString()
 
-            when(val result = CoreModel.createLink(name, file.id, model.currentParent.id)) {
+            when (val result = CoreModel.createLink(name, file.id, model.currentParent.id)) {
                 is Ok -> {
                     alertModel.notifyWithToast(getString(R.string.created_link))
                     findNavController().popBackStack()
@@ -117,7 +116,7 @@ class CreateLinkFragment : Fragment() {
     }
 
     fun onBackPressed() {
-        if(model.currentParent.isRoot()) {
+        if (model.currentParent.isRoot()) {
             findNavController().popBackStack()
         } else {
             model.refreshOverParent()

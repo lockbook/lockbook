@@ -11,18 +11,14 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import app.lockbook.R
 import app.lockbook.databinding.FragmentShareFileBinding
-import app.lockbook.model.AlertModel
-import app.lockbook.model.CoreModel
-import app.lockbook.model.DetailScreen
-import app.lockbook.model.StateViewModel
+import app.lockbook.model.*
 import app.lockbook.util.File
 import app.lockbook.util.LbError
 import app.lockbook.util.ShareMode
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
-import timber.log.Timber
 import java.lang.ref.WeakReference
 
 class ShareFileFragment : Fragment() {
@@ -55,17 +51,17 @@ class ShareFileFragment : Fragment() {
             val username = binding.shareFileUsername.text.toString()
             val modeString = binding.shareFileAccessMode.text.toString()
 
-            if(username.isEmpty()) {
+            if (username.isEmpty()) {
                 alertModel.notifyError(LbError.newUserError(getString(R.string.no_username)))
                 return@setOnClickListener
             }
 
-            if(modeString.isEmpty()) {
+            if (modeString.isEmpty()) {
                 alertModel.notifyError(LbError.newUserError(getString(R.string.no_access_mode)))
                 return@setOnClickListener
             }
 
-            val mode = when(modeString) {
+            val mode = when (modeString) {
                 getString(R.string.share_mode_read) -> ShareMode.Read
                 getString(R.string.share_mode_write) -> ShareMode.Write
                 else -> {
@@ -74,15 +70,17 @@ class ShareFileFragment : Fragment() {
                 }
             }
 
-
-            CoreModel.shareFile(file.id, username, mode)
-            alertModel.notifyWithToast(getString(R.string.please_sync))
-            activityModel.launchDetailsScreen(null)
+            when (val result = CoreModel.shareFile(file.id, username, mode)) {
+                is Ok -> {
+                    activityModel.updateMainScreenUI(UpdateMainScreenUI.Sync)
+                    activityModel.launchDetailsScreen(null)
+                }
+                is Err -> alertModel.notifyError(result.error.toLbError(resources))
+            }
         }
 
-
-        for(share in file.shares) {
-            val chipGroup = when(share.mode) {
+        for (share in file.shares) {
+            val chipGroup = when (share.mode) {
                 ShareMode.Write -> binding.shareFileWriteAccessShares
                 ShareMode.Read -> binding.shareFileReadAccessShares
             }
@@ -93,11 +91,13 @@ class ShareFileFragment : Fragment() {
         }
     }
 
-    private fun createShareChip(chipGroup: ChipGroup, username: String): Chip = (LayoutInflater.from(requireActivity())
-        .inflate(R.layout.chip_share,binding.root) as Chip).apply {
+    private fun createShareChip(chipGroup: ChipGroup, username: String): Chip = (
+        LayoutInflater.from(requireActivity())
+            .inflate(R.layout.chip_share, binding.root) as Chip
+        ).apply {
         setOnClickListener {
 
-            val anim = AlphaAnimation(1f,0f)
+            val anim = AlphaAnimation(1f, 0f)
             anim.duration = 250
             anim.setAnimationListener(object : Animation.AnimationListener {
                 override fun onAnimationRepeat(animation: Animation?) {}
@@ -110,10 +110,8 @@ class ShareFileFragment : Fragment() {
             })
 
             it.startAnimation(anim)
-
         }
 
         text = username
     }
-
 }

@@ -1,7 +1,6 @@
 package app.lockbook.screen
 
 import android.annotation.SuppressLint
-import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -227,13 +226,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                     activityModel.launchActivityScreen(ActivityScreen.Settings())
                 }
                 R.id.menu_files_list_sharing -> {
-
-                    startActivity(
-                        Intent(
-                            context,
-                            SharesActivity::class.java
-                        )
-                    )
+                    activityModel.launchActivityScreen(ActivityScreen.Shares)
                 }
             }
 
@@ -553,8 +546,8 @@ class FilesListFragment : Fragment(), FilesFragment {
         else -> true
     }
 
-    override fun syncBasedOnPreferences() {
-        model.syncBasedOnPreferences()
+    override fun sync(usePreferences: Boolean) {
+        model.sync(usePreferences)
     }
 
     override fun refreshFiles() {

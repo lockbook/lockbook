@@ -9,7 +9,7 @@ use crate::account::Account;
 use crate::core_config::Config;
 use crate::crypto::{DecryptedDocument, EncryptedDocument};
 use crate::document_repo::RepoSource;
-use crate::file::{File, Share, ShareMode};
+use crate::file::File;
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileMetadata, FileType, Owner};
 use crate::filename::{DocumentType, NameComponents};

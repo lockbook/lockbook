@@ -5,11 +5,12 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.navigation.fragment.findNavController
 import app.lockbook.R
 import app.lockbook.databinding.FragmentPendingSharesBinding
 import app.lockbook.model.*
-import app.lockbook.ui.DeleteSharedDialogFragment
+import app.lockbook.ui.*
 import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.afollestad.recyclical.setup
@@ -29,6 +30,12 @@ class PendingSharesFragment : Fragment() {
     }
 
     private val sharedFilesDataSource = emptyDataSourceTyped<File>()
+
+    private val fragmentFinishedCallback = object : FragmentManager.FragmentLifecycleCallbacks() {
+        override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
+            populatePendingShares()
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -51,7 +58,7 @@ class PendingSharesFragment : Fragment() {
                     name.text = item.name
                     owner.text = item.lastModifiedBy
 
-                    val iconResource = when(item.fileType) {
+                    val iconResource = when (item.fileType) {
                         FileType.Document -> {
                             val extensionHelper = ExtensionHelper(item.name)
 
@@ -86,15 +93,24 @@ class PendingSharesFragment : Fragment() {
         binding.sharedFilesToolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.menu_shared_files_reject_all -> {
-                    DeleteSharedDialogFragment.newInstance(ArrayList(sharedFilesDataSource.toList())).show(
-                        requireActivity().supportFragmentManager,
-                        DeleteSharedDialogFragment.DELETE_SHARED_DIALOG_FRAGMENT
-                    )
+                    if (sharedFilesDataSource.isEmpty()) {
+                        alertModel.notify(getString(R.string.no_pending_shares))
+                    } else {
+                        DeleteSharedDialogFragment.newInstance(ArrayList(sharedFilesDataSource.toList())).show(
+                            requireActivity().supportFragmentManager,
+                            DeleteSharedDialogFragment.DELETE_SHARED_DIALOG_FRAGMENT
+                        )
+                    }
                 }
             }
 
             true
         }
+
+        requireActivity().supportFragmentManager.registerFragmentLifecycleCallbacks(
+            fragmentFinishedCallback,
+            false
+        )
 
         return binding.root
     }
@@ -104,15 +120,20 @@ class PendingSharesFragment : Fragment() {
         populatePendingShares()
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        requireActivity().supportFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
+    }
+
     private fun populatePendingShares() {
         uiScope.launch(Dispatchers.IO) {
             when (val getPendingSharesResults = CoreModel.getPendingShares()) {
                 is Ok -> {
-                    if(getPendingSharesResults.value.isEmpty()) {
-                        binding.sharedFilesNone.visibility = View.VISIBLE
-                    } else {
-                        withContext(Dispatchers.Main) {
-                            sharedFilesDataSource.set(getPendingSharesResults.value)
+                    withContext(Dispatchers.Main) {
+                        sharedFilesDataSource.set(FileModel.sortFiles(getPendingSharesResults.value))
+
+                        if (getPendingSharesResults.value.isEmpty()) {
+                            binding.sharedFilesNone.visibility = View.VISIBLE
                         }
                     }
                 }

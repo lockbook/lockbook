@@ -64,7 +64,7 @@ class CreateLinkViewModel(application: Application) :
         when (val getChildrenResult = CoreModel.getChildren(currentParent.id)) {
             is Ok -> {
                 _updateTitle.postValue(currentParent.name)
-                val tempFiles = getChildrenResult.value.filter { file -> file.isFolder()}.toMutableList()
+                val tempFiles = getChildrenResult.value.filter { file -> file.isFolder() }.toMutableList()
 
                 viewModelScope.launch(Dispatchers.Main) {
                     files.set(FileModel.sortFiles(tempFiles))
@@ -76,7 +76,7 @@ class CreateLinkViewModel(application: Application) :
 
     fun refreshOverParent() {
         viewModelScope.launch(Dispatchers.IO) {
-            if(currentParent.isRoot()) {
+            if (currentParent.isRoot()) {
                 _closeFragment.postValue(Unit)
             } else {
                 when (val getFileById = CoreModel.getFileById(currentParent.parent)) {
@@ -96,5 +96,4 @@ class CreateLinkViewModel(application: Application) :
             refreshOverFolder()
         }
     }
-
 }

@@ -5,7 +5,6 @@ import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
-import app.lockbook.screen.SharesActivity
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
@@ -136,8 +135,8 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
 }
 
 sealed class ActivityScreen {
-    data class Settings(val scrollToPreference: Int? = null): ActivityScreen()
-    object Shares: ActivityScreen()
+    data class Settings(val scrollToPreference: Int? = null) : ActivityScreen()
+    object Shares : ActivityScreen()
 }
 
 sealed class DetailScreen {
@@ -162,7 +161,7 @@ sealed class DetailScreen {
 
     data class Share(val file: app.lockbook.util.File) : DetailScreen()
 
-    fun getUsedFile(): app.lockbook.util.File = when(this) {
+    fun getUsedFile(): app.lockbook.util.File = when (this) {
         is Drawing -> file
         is ImageViewer -> file
         is Loading -> file
@@ -188,6 +187,7 @@ sealed class UpdateMainScreenUI {
     object ShowSubscriptionConfirmed : UpdateMainScreenUI()
     object ShowSearch : UpdateMainScreenUI()
     object ShowFiles : UpdateMainScreenUI()
+    object Sync : UpdateMainScreenUI()
 }
 
 sealed class ExtendedFileType {

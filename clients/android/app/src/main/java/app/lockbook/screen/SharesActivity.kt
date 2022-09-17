@@ -5,7 +5,7 @@ import androidx.appcompat.app.AppCompatActivity
 import app.lockbook.R
 import app.lockbook.util.maybeGetCreateLinkFragment
 
-class SharesActivity: AppCompatActivity() {
+class SharesActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_pending_shares)
@@ -14,10 +14,10 @@ class SharesActivity: AppCompatActivity() {
     override fun onBackPressed() {
         val maybeCreateLinkFragment = maybeGetCreateLinkFragment()
 
-        if(maybeCreateLinkFragment != null) {
+        if (maybeCreateLinkFragment != null) {
             maybeCreateLinkFragment.onBackPressed()
         } else {
-            setResult(1)
+            setResult(RESULT_OK)
             finish()
         }
     }

@@ -61,7 +61,6 @@
     <string name="menu_list_files_info">File info</string>
     <string name="menu_list_files_move">Move</string>
     <string name="menu_list_files_share">Share</string>
-    <string name="menu_list_files_export_and_share">Export and Share</string>
     <string name="default_value">Loading…</string>
     <string name="dialog_rename_file_title">Rename File</string>
     <string name="popup_info_title">File Info</string>
@@ -184,12 +183,13 @@
     <string name="already_canceled">You have already canceled your subscription.</string>
     <string name="usage_is_over_free_tier_data_cap">Your total data usage exceeds free tier. Please remove some data.</string>
     <string name="retry_sync">Please retry syncing.</string>
-    <string name="link_in_shared_folder">You cannot create a link in a shared folder.</string>
+    <string name="link_in_shared_folder">You cannot share a folder that contains a link.</string>
     <string name="link_target_is_owned">You cannot create a link to a file you own.</string>
     <string name="link_target_nonexistent">You cannot link to a file that does not exist.</string>
     <string name="insufficient_permissions">Error, you have insufficient permissions.</string>
     <string name="cannot_share_root">You cannot share root.</string>
     <string name="share_already_exists">Error, this file is already shared.</string>
+    <string name="share_non_existant">This pending share does not exist.</string>
 
     <string name="unexpected_error">An unexpected error has occurred!</string>
     <string name="basic_error">An error has occurred.</string>
@@ -265,13 +265,11 @@
     <string name="exit_app">Exit App</string>
     <string name="note">note</string>
     <string name="pending_shared">Pending Shared Files</string>
-    <string name="shared_files_title">Shared Files</string>
     <string name="shared_file_icon">Shared file icon</string>
     <string name="reject_all_shared">Reject all</string>
     <string name="create_link_file_for">Creating link for \"%s\".</string>
     <string name="no_shared_files">No shared files.</string>
     <string name="export">Export</string>
-    <string name="shared_with">Shared with:</string>
     <string name="write_access">Write access:</string>
     <string name="read_access">Read access:</string>
     <string name="username">Username</string>
@@ -282,10 +280,12 @@
     <string name="access_mode">Access Mode</string>
     <string name="link_destination">Link destination</string>
     <string name="created_link">Created link!</string>
-    <string name="please_sync">Please sync for effects to take place.</string>
+    <string name="no_pending_shares">You have no pending shares!</string>
 
     <string name="no_username">Please enter a username.</string>
     <string name="no_access_mode">Please choose an access mode.</string>
+    <string name="reject_pending_share">Reject pending share</string>
+    <string name="accept_pending_share">Accept pending share</string>
 
     <array name="share_mode">
         <item>@string/share_mode_read</item>

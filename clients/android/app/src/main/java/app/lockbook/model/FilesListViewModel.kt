@@ -155,9 +155,9 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun syncBasedOnPreferences() {
+    fun sync(usePreferences: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
-            if (PreferenceManager.getDefaultSharedPreferences(getContext())
+            if (!usePreferences || PreferenceManager.getDefaultSharedPreferences(getContext())
                 .getBoolean(
                         getString(
                                 getRes(),
@@ -173,20 +173,6 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun sync() {
-        when (val hasSyncWorkResult = syncModel.hasSyncWork()) {
-            is Ok -> if (!hasSyncWorkResult.value) {
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpToDateSyncSnackBar)
-                return
-            }
-            is Err -> return _notifyUpdateFilesUI.postValue(
-                UpdateFilesUI.NotifyError(
-                    hasSyncWorkResult.error.toLbError(
-                        getRes()
-                    )
-                )
-            )
-        }
-
         serverChanges = null
         when (val syncResult = syncModel.trySync()) {
             is Ok -> _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpToDateSyncSnackBar)

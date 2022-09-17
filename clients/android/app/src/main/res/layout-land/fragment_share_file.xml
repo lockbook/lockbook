@@ -53,13 +53,13 @@
             android:minWidth="250dp"
             app:startIconDrawable="@drawable/ic_outline_lock_person_24">
 
-
             <AutoCompleteTextView
                 android:id="@+id/share_file_access_mode"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="none"
-                android:labelFor="@+id/share_file_new"
+                android:hint="@null"
+                android:freezesText="false"
                 app:simpleItems="@array/share_mode" />
 
         </com.google.android.material.textfield.TextInputLayout>
