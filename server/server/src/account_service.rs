@@ -191,8 +191,10 @@ pub async fn delete_account_helper(
                 }
             }
             tx.owned_files.delete(Owner(*public_key));
+            tx.shared_files.delete(Owner(*public_key));
             for id in metas_to_delete {
                 tx.metas.delete(id);
+                tx.file_children.delete(id);
             }
 
             if !server_state.config.is_prod() {

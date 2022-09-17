@@ -155,36 +155,9 @@ where
         maybe_prior
     }
 
-    fn remove(&mut self, id: Uuid) -> Option<Self::F> {
+    fn remove(&mut self, _id: Uuid) -> Option<Self::F> {
         error!("remove metadata called in server!");
-        if let Some(deleted) = self.files.delete(id) {
-            // maintain index: owned_files
-            if let Some(owned) = self.owned_files.get(&deleted.owner()) {
-                let mut new_owned = owned.clone();
-                let removed = new_owned.remove(&id);
-                self.owned_files.insert(deleted.owner(), new_owned);
-                if removed {
-                    return self.files.delete(id);
-                }
-            } else {
-                error!("File removed with unknown owner")
-            }
-
-            // maintain index: shared_files
-            for user_access_key in deleted.user_access_keys() {
-                let sharee = Owner(user_access_key.encrypted_for);
-                if let Some(mut shared) = self.shared_files.delete(sharee) {
-                    shared.remove(&id);
-                    self.shared_files.insert(sharee, shared);
-                } else {
-                    error!("File removed with unknown sharee")
-                }
-            }
-
-            Some(deleted)
-        } else {
-            None
-        }
+        None
     }
 }
 
