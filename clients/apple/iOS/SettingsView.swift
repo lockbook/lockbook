@@ -36,10 +36,8 @@ struct SettingsView: View, Equatable {
                             Text(settingsState.copyToClipboardText)
                         }
                     }
-                    HStack {
-                        NavigationLink(destination: settingsState.accountCode()) {
-                            Text("Reveal QR")
-                        }
+                    NavigationLink(destination: settingsState.accountCode()) {
+                        Text("Reveal QR")
                     }
                 }
                 Section(header:  Text("Usage")) {
@@ -59,7 +57,6 @@ struct SettingsView: View, Equatable {
                                 ProgressView(value: settingsState.usageProgress)
                                     .accentColor(Color.red)
                             }
-                            
                         }
                         HStack {
                             Text("Uncompressed usage:")
@@ -70,9 +67,17 @@ struct SettingsView: View, Equatable {
                             Text("Compression ratio:")
                             Spacer()
                             Text(usage.compressionRatio)
-                                .frame(maxWidth: .infinity, alignment: .leading)
                             
                         }
+                        HStack {
+                            Text("Current tier")
+                            Spacer()
+                            Text("Trial")
+                        }
+                        NavigationLink(
+                            destination: Text(account.apiUrl)) {
+                                Text("Manage Subscription")
+                            }
                     } else {
                         Text("Calculating...")
                     }
@@ -94,13 +99,12 @@ struct SettingsViewPreview: PreviewProvider {
             SettingsView()
                 .mockDI()
                 .onAppear {
-                    
                     let info = PrerequisiteInformation(
                         serverUsages: UsageMetrics(
                             usages: [],
                             serverUsage: UsageItemMetric(
-                                exact: 10,
-                                readable: "10 bytes"
+                                exact: 17,
+                                readable: "17 bytes"
                             ),
                             dataCap: UsageItemMetric(
                                 exact: 20,
@@ -108,10 +112,11 @@ struct SettingsViewPreview: PreviewProvider {
                             )
                         ),
                         uncompressedUsage: UsageItemMetric(
-                            exact: 30,
-                            readable: "30 bytes"
+                            exact: 60,
+                            readable: "60 bytes"
                         )
                     )
+                    
                     Mock.settings.usages = info
                 }
         }

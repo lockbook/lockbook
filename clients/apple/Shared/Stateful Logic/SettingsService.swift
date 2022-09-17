@@ -1,10 +1,16 @@
 import SwiftLockbookCore
 import SwiftUI
 
+enum Tier {
+    case Unknown
+    case Free
+    case Premium
+}
+
 class SettingsService: ObservableObject {
     
     let core: LockbookApi
-    
+    @Published var offline: Bool = false
     @Published var usages: PrerequisiteInformation?
 
     var usageProgress: Double {
@@ -16,6 +22,19 @@ class SettingsService: ObservableObject {
         }
     }
     
+    var tier: Tier {
+        switch usages {
+        case .none:
+            return .Unknown
+        case .some(let wrapped):
+            if wrapped.serverUsages.dataCap.exact == 1000000 {
+                return .Free
+            } else {
+                return .Premium
+            }
+        }
+    }
+    
     @Published var copied: Bool = false {
         didSet {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
@@ -23,6 +42,7 @@ class SettingsService: ObservableObject {
             }
         }
     }
+    
     var copyToClipboardText: String {
         if copied {
             return "Copied"
@@ -67,8 +87,9 @@ class SettingsService: ObservableObject {
                             switch uiError {
                             case .ClientUpdateRequired:
                                 DI.errors.errorWithTitle("Update Required", "You need to update to view your usage")
+                                self.offline = false
                             case .CouldNotReachServer:
-                                DI.errors.errorWithTitle("Offline", "Could not reach server to calculate usage")
+                                self.offline = true
                             }
                         default:
                             DI.errors.handleError(err)
