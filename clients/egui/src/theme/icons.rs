@@ -4,7 +4,7 @@ pub const MATERIAL_ICON_FONT: &[u8] = include_bytes!("../../material-icons-outli
 
 pub struct Icon {
     icon: &'static str,
-    size: f32,
+    pub size: f32,
     color: Option<egui::Color32>,
     weak: bool,
 }
@@ -17,9 +17,10 @@ impl Icon {
     pub const ACCOUNT: Self = ic("\u{e7ff}"); // Person Outline
     pub const ARROW_CIRCLE_DOWN: Self = ic("\u{f181}"); // Arrow Circle Down
     pub const CHECK_CIRCLE: Self = ic("\u{e86c}"); // Check Circle
-    pub const CIRCLE: Self = ic("\u{ef4a}"); // Circle
     pub const CANCEL: Self = ic("\u{e5c9}"); // Cancel
     pub const CANCEL_PRESENTATION: Self = ic("\u{e0e9}"); // Cancel Presentation
+    pub const CIRCLE: Self = ic("\u{ef4a}"); // Circle
+    pub const CLOSE: Self = ic("\u{e5cd}"); // Close
     pub const CODE: Self = ic("\u{e86f}"); // Code
     pub const CONTENT_COPY: Self = ic("\u{e14d}"); // Content Copy
     pub const DOC_UNKNOWN: Self = ic("\u{e06f}"); // Note

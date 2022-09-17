@@ -11,7 +11,6 @@ use super::state::*;
 pub struct TreeNode {
     pub file: lb::File,
     pub doc_type: Option<DocType>,
-    pub is_expanded: bool,
     pub children: Vec<TreeNode>,
 
     depth: u8,
@@ -31,7 +30,6 @@ impl From<(lb::File, u8)> for TreeNode {
         Self {
             file,
             doc_type,
-            is_expanded: false,
             children: Vec::new(),
             depth,
             primary_press: None,
@@ -92,7 +90,7 @@ impl TreeNode {
         };
 
         // Draw any children, if expanded, and merge their responses.
-        if self.is_expanded {
+        if state.expanded.contains(&self.file.id) {
             for node in self.children.iter_mut() {
                 let child_resp = node.show(ui, state);
                 node_resp = node_resp.union(child_resp.inner);
@@ -137,7 +135,9 @@ impl TreeNode {
         resp = ui.interact(resp.rect, resp.id, egui::Sense::click());
         if resp.double_clicked() {
             if self.file.is_folder() {
-                self.is_expanded = !self.is_expanded; // Open this folder.
+                if !state.expanded.remove(&self.file.id) {
+                    state.expanded.insert(self.file.id);
+                }
             } else {
                 node_resp.open_requests.insert(self.file.id); // Signal that this document was opened this frame.
             }
@@ -147,7 +147,7 @@ impl TreeNode {
             if resp.rect.contains(pos) {
                 node_resp.dropped_on =
                     Some(if self.file.is_folder() { self.file.id } else { self.file.parent });
-                self.is_expanded = true;
+                state.expanded.insert(self.file.id);
                 state.dnd.dropped = None;
             }
         }
@@ -164,7 +164,9 @@ impl TreeNode {
         let depth_inset = self.depth_inset() + 5.0;
         let wrap_width = ui.available_width();
 
-        let icon = self.icon();
+        let icon =
+            if state.expanded.contains(&self.file.id) { Icon::FOLDER_OPEN } else { self.icon() };
+
         let icon: egui::WidgetText = (&icon).into();
         let icon = icon.into_galley(ui, Some(false), wrap_width, egui::TextStyle::Body);
 
@@ -237,8 +239,6 @@ impl TreeNode {
                 DocType::Code(_) => Icon::CODE,
                 _ => Icon::DOC_UNKNOWN,
             }
-        } else if self.is_expanded {
-            Icon::FOLDER_OPEN
         } else {
             Icon::FOLDER
         }

@@ -41,6 +41,7 @@ use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use libsecp256k1::PublicKey;
+use lockbook_shared::api::AdminServerValidateResponse;
 use lockbook_shared::clock;
 use lockbook_shared::crypto::AESKey;
 use serde_json::{json, value::Value};
@@ -116,6 +117,14 @@ impl Core {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.export_account())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn export_account_qr(&self) -> Result<Vec<u8>, Error<AccountExportError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.export_account_qr())?;
         Ok(val?)
     }
 
@@ -487,6 +496,16 @@ impl Core {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.disappear_file(id))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn admin_server_validate(
+        &self, username: &str,
+    ) -> Result<AdminServerValidateResponse, Error<AdminServerValidateError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.server_validate(username))?;
         Ok(val?)
     }
 }

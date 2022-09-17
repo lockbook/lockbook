@@ -154,6 +154,7 @@ pub enum CoreError {
     ServerDisabled,
     ServerUnreachable,
     ShareAlreadyExists,
+    ShareNonexistent,
     TryAgain,
     UsageIsOverFreeTierDataCap,
     UsernameInvalid,
@@ -185,6 +186,7 @@ impl From<SharedError> for CoreError {
             FileNotDocument => CoreError::FileNotDocument,
             InsufficientPermission => CoreError::InsufficientPermission,
             NotPermissioned => CoreError::InsufficientPermission,
+            ShareNonexistent => CoreError::ShareNonexistent,
             ValidationFailure(lockbook_shared::ValidationFailure::Cycle(_)) => {
                 CoreError::FolderMovedIntoSelf
             }
@@ -609,12 +611,14 @@ impl From<CoreError> for Error<ShareFileError> {
 #[derive(Debug, Serialize, EnumIter)]
 pub enum DeletePendingShareError {
     FileNonexistent,
+    ShareNonexistent,
 }
 
 impl From<CoreError> for Error<DeletePendingShareError> {
     fn from(e: CoreError) -> Self {
         match e {
             CoreError::FileNonexistent => UiError(DeletePendingShareError::FileNonexistent),
+            CoreError::ShareNonexistent => UiError(DeletePendingShareError::ShareNonexistent),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -1032,10 +1036,32 @@ impl From<CoreError> for Error<AdminDisappearFileError> {
             CoreError::InsufficientPermission => {
                 UiError(AdminDisappearFileError::InsufficientPermission)
             }
-            CoreError::UsernameNotFound => UiError(AdminDisappearFileError::FileNotFound),
+            CoreError::FileNonexistent => UiError(AdminDisappearFileError::FileNotFound),
             CoreError::ServerUnreachable => UiError(AdminDisappearFileError::CouldNotReachServer),
             CoreError::ClientUpdateRequired => {
                 UiError(AdminDisappearFileError::ClientUpdateRequired)
+            }
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum AdminServerValidateError {
+    InsufficientPermission,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<AdminServerValidateError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::InsufficientPermission => {
+                UiError(AdminServerValidateError::InsufficientPermission)
+            }
+            CoreError::ServerUnreachable => UiError(AdminServerValidateError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => {
+                UiError(AdminServerValidateError::ClientUpdateRequired)
             }
             _ => unexpected!("{:#?}", e),
         }

@@ -55,7 +55,7 @@ impl Experiment {
                 state.running.insert(thread, (Instant::now(), found.id));
                 (Some(found), true)
             }
-            None => (None, !state.running.is_empty()),
+            None => (None, !state.running.is_empty() || !state.pending.is_empty()),
         }
     }
 
@@ -88,13 +88,16 @@ impl Experiment {
                 .spawn(move || loop {
                     match Self::grab_ready_trial_for_thread(thread_id, thread_state.clone()) {
                         (Some(mut work), _) => {
-                            let mutants = work.execute();
+                            let mutants = work.execute(thread_id);
                             Self::publish_results(thread_id, thread_state.clone(), work, &mutants);
                         }
                         (None, true) => {
                             thread::sleep(time::Duration::from_millis(100));
                         }
-                        (None, false) => break,
+                        (None, false) => {
+                            println!("no work found, stopping");
+                            break;
+                        }
                     }
                 })
                 .unwrap();
@@ -104,7 +107,11 @@ impl Experiment {
         loop {
             {
                 let experiments = state.lock().unwrap();
-                if experiments.pending.is_empty() && experiments.done > 0 {
+                if experiments.pending.is_empty()
+                    && experiments.running.is_empty()
+                    && experiments.done > 0
+                {
+                    println!("done printing info");
                     break;
                 }
                 println!(

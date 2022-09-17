@@ -32,31 +32,34 @@ impl<T: Stagable> LazyTree<T> {
 }
 
 impl<T: Stagable> LazyTree<T> {
-    // todo: use greatest of all access modes instead of access mode of nearest keyed ancestor
     pub fn access_mode(&self, owner: Owner, id: &Uuid) -> SharedResult<Option<UserAccessMode>> {
         let mut file = self.find(id)?;
+        let mut max_access_mode = None;
         loop {
-            if let Some(access_mode) = file.access_mode(&owner) {
-                return Ok(Some(access_mode));
-            } else if file.parent() == file.id() {
-                return Ok(None); // root
+            let access_mode = file.access_mode(&owner);
+            if access_mode > max_access_mode {
+                max_access_mode = access_mode;
+            }
+            if file.parent() == file.id() {
+                break; // root
             } else if let Some(parent) = self.maybe_find(file.parent()) {
                 file = parent
             } else {
-                return Ok(None); // share root
+                break; // share root
             }
         }
+        Ok(max_access_mode)
     }
 
-    pub fn in_pending_share(&self, id: &Uuid) -> SharedResult<bool> {
-        let mut file = self.find(id)?;
+    pub fn in_pending_share(&mut self, id: &Uuid) -> SharedResult<bool> {
+        let mut id = *id;
         loop {
-            if file.parent() == file.id() {
+            if self.find(&id)?.parent() == self.find(&id)?.id() {
                 return Ok(false); // root
-            } else if let Some(link) = self.link(file.id())? {
-                file = self.find(&link)?
-            } else if let Some(parent) = self.maybe_find(file.parent()) {
-                file = parent
+            } else if let Some(link) = self.link(&id)? {
+                id = link;
+            } else if self.maybe_find(self.find(&id)?.parent()).is_some() {
+                id = *self.find(&id)?.parent();
             } else {
                 return Ok(true); // share root
             }
@@ -181,10 +184,10 @@ impl<T: Stagable> LazyTree<T> {
         Ok(name)
     }
 
-    pub fn link(&self, id: &Uuid) -> SharedResult<Option<Uuid>> {
+    pub fn link(&mut self, id: &Uuid) -> SharedResult<Option<Uuid>> {
         for link_id in self.owned_ids() {
             if let FileType::Link { target } = self.find(&link_id)?.file_type() {
-                if id == &target {
+                if id == &target && !self.calculate_deleted(&link_id)? {
                     return Ok(Some(link_id));
                 }
             }
@@ -217,6 +220,15 @@ impl<T: Stagable> LazyTree<T> {
         Ok(HashSet::new())
     }
 
+    // todo: cache?
+    pub fn children_using_links(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+        let id = match self.find(id)?.file_type() {
+            FileType::Document | FileType::Folder => *id,
+            FileType::Link { target } => target,
+        };
+        self.children(&id)
+    }
+
     /// Returns ids of files for which the argument is an ancestor—the files' children, recursively. Does not include the argument.
     /// This function tolerates cycles.
     pub fn descendants(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
@@ -227,6 +239,25 @@ impl<T: Stagable> LazyTree<T> {
         while i < to_process.len() {
             let new_descendents = self
                 .children(&to_process[i])?
+                .into_iter()
+                .filter(|f| !result.contains(f))
+                .collect::<Vec<Uuid>>();
+            // TODO could consider optimizing by not exploring documents
+            to_process.extend(new_descendents.iter());
+            result.extend(new_descendents.into_iter());
+            i += 1;
+        }
+        Ok(result)
+    }
+
+    pub fn descendants_using_links(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+        // todo: caching?
+        let mut result = HashSet::new();
+        let mut to_process = vec![*id];
+        let mut i = 0;
+        while i < to_process.len() {
+            let new_descendents = self
+                .children_using_links(&to_process[i])?
                 .into_iter()
                 .filter(|f| !result.contains(f))
                 .collect::<Vec<Uuid>>();

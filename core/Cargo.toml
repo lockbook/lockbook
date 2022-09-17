@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-core"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2018"
 description = "The functional components of the iOS and Android lockbook clients."
 license = "BSD-3-Clause"
@@ -45,6 +45,7 @@ lazy_static = "1.4.0"
 sublime_fuzzy = "0.7.0"
 crossbeam = "0.8.1"
 lockbook-shared = { path = "libs/shared" }
+qrcode-generator = "4.1.6"
 
 [profile.release]
 debug = true

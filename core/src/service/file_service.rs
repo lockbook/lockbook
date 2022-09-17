@@ -3,6 +3,7 @@ use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileType, Owner};
 use lockbook_shared::tree_like::{Stagable, TreeLike};
+use std::iter;
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
@@ -135,13 +136,7 @@ impl RequestContext<'_, '_> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let id = match tree.find(id)?.file_type() {
-            FileType::Document | FileType::Folder => *id,
-            FileType::Link { target } => target,
-        };
-
-        let ids = tree.children(&id)?.into_iter();
-
+        let ids = tree.children_using_links(id)?.into_iter();
         Ok(tree.resolve_and_finalize(account, ids)?)
     }
 
@@ -157,18 +152,8 @@ impl RequestContext<'_, '_> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let id = match tree.find(id)?.file_type() {
-            FileType::Document | FileType::Folder => *id,
-            FileType::Link { target } => target,
-        };
-
-        let mut files = vec![tree.finalize(&id, account)?];
-
-        for id in tree.descendants(&id)? {
-            files.push(tree.finalize(&id, account)?);
-        }
-
-        Ok(files)
+        let descendants = tree.descendants_using_links(id)?;
+        Ok(tree.resolve_and_finalize(account, descendants.into_iter().chain(iter::once(*id)))?)
     }
 
     pub fn get_file_by_id(&mut self, id: &Uuid) -> CoreResult<File> {
@@ -182,6 +167,9 @@ impl RequestContext<'_, '_> {
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
+        if tree.calculate_deleted(id)? {
+            return Err(CoreError::FileNonexistent);
+        }
 
         Ok(tree.finalize(id, account)?)
     }

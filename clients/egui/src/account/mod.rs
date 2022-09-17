@@ -4,6 +4,7 @@ mod tabs;
 mod tree;
 mod workspace;
 
+use std::collections::HashMap;
 use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 
@@ -18,7 +19,7 @@ use crate::widgets::{separator, sidebar_button};
 use self::modals::*;
 use self::syncing::{SyncPanel, SyncUpdate};
 use self::tabs::{Drawing, ImageViewer, Markdown, PlainText, Tab, TabContent, TabFailure};
-use self::tree::FileTree;
+use self::tree::{FileTree, TreeNode};
 use self::workspace::Workspace;
 
 pub struct AccountScreen {
@@ -88,7 +89,9 @@ impl AccountScreen {
             .max
             .x;
 
-        egui::CentralPanel::default().show(ctx, |ui| self.show_workspace(frame, ui));
+        egui::CentralPanel::default()
+            .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))
+            .show(ctx, |ui| self.show_workspace(frame, ui));
 
         self.show_any_modals(ctx, 0.0 - (sidebar_width / 2.0));
     }
@@ -129,14 +132,54 @@ impl AccountScreen {
                         }
                     }
                 }
-                AccountUpdate::FileRenamed(id, name) => {
+                AccountUpdate::FileRenamed { id, new_name, new_child_paths } => {
                     if let Some(node) = self.tree.root.find_mut(id) {
-                        node.file.name = name;
+                        node.file.name = new_name.clone();
+                    }
+                    if let Some(tab) = self.workspace.get_mut_tab_by_id(id) {
+                        tab.name = new_name.clone();
+                    }
+                    if let Some(tab) = self.workspace.current_tab() {
+                        if tab.id == id {
+                            frame.set_window_title(&tab.name);
+                        }
+                    }
+                    // If any of this file's children are open, we need to update their restore
+                    // paths in case a sync deletes them.
+                    for tab in &mut self.workspace.tabs {
+                        if let Some(new_path) = new_child_paths.get(&tab.id) {
+                            tab.path = new_path.clone();
+                        }
                     }
                 }
                 AccountUpdate::FileDeleted(f) => self.tree.remove(&f),
                 AccountUpdate::SyncUpdate(update) => self.process_sync_update(ctx, update),
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
+                AccountUpdate::ReloadTree(root) => self.tree.root = root,
+                AccountUpdate::ReloadTabs(mut new_tabs) => {
+                    let ws = &mut self.workspace;
+                    let active_id = ws.current_tab().map(|t| t.id);
+                    for i in (0..ws.tabs.len()).rev() {
+                        let t = &mut ws.tabs[i];
+                        if let Some(new_tab_result) = new_tabs.remove(&t.id) {
+                            match new_tab_result {
+                                Ok(new_tab) => {
+                                    t.name = new_tab.name;
+                                    t.path = new_tab.path;
+                                    t.content = new_tab.content;
+                                    if Some(t.id) == active_id {
+                                        frame.set_window_title(&t.name);
+                                    }
+                                }
+                                Err(fail) => {
+                                    t.failure = Some(fail);
+                                }
+                            }
+                        } else {
+                            ws.close_tab(i);
+                        }
+                    }
+                }
             }
         }
     }
@@ -256,6 +299,73 @@ impl AccountScreen {
         }
     }
 
+    pub fn refresh_tree_and_workspace(&self, ctx: &egui::Context) {
+        let opened_ids = self
+            .workspace
+            .tabs
+            .iter()
+            .map(|t| t.id)
+            .collect::<Vec<lb::Uuid>>();
+        let core = self.core.clone();
+        let update_tx = self.update_tx.clone();
+        let ctx = ctx.clone();
+
+        thread::spawn(move || {
+            let all_metas = core.list_metadatas().unwrap();
+            let root = tree::create_root_node(all_metas);
+            update_tx.send(AccountUpdate::ReloadTree(root)).unwrap();
+            ctx.request_repaint();
+
+            let mut new_tabs = HashMap::new();
+
+            for id in opened_ids {
+                let name = match core.get_file_by_id(id) {
+                    Ok(file) => file.name,
+                    Err(err) => {
+                        new_tabs.insert(
+                            id,
+                            Err(match err {
+                                lb::Error::UiError(lb::GetFileByIdError::NoFileWithThatId) => {
+                                    TabFailure::DeletedFromSync
+                                }
+                                lb::Error::Unexpected(msg) => TabFailure::Unexpected(msg),
+                            }),
+                        );
+                        continue;
+                    }
+                };
+
+                let path = core.get_path_by_id(id).unwrap(); // TODO
+
+                let ext = name.split('.').last().unwrap_or_default();
+
+                let content = if ext == "draw" {
+                    core.get_drawing(id)
+                        .map_err(TabFailure::from)
+                        .map(|drawing| TabContent::Drawing(Drawing::boxed(drawing)))
+                } else {
+                    core.read_document(id)
+                        .map_err(TabFailure::from)
+                        .map(|bytes| {
+                            if ext == "md" {
+                                TabContent::Markdown(Markdown::boxed(&bytes))
+                            } else if is_supported_image_fmt(ext) {
+                                TabContent::Image(ImageViewer::boxed(id.to_string(), &bytes))
+                            } else {
+                                TabContent::PlainText(PlainText::boxed(&bytes))
+                            }
+                        })
+                };
+
+                new_tabs
+                    .insert(id, Ok(Tab { id, name, path, content: content.ok(), failure: None }));
+            }
+
+            update_tx.send(AccountUpdate::ReloadTabs(new_tabs)).unwrap();
+            ctx.request_repaint();
+        });
+    }
+
     fn open_new_file_modal(&mut self, maybe_parent: Option<lb::File>) {
         let parent_id = match maybe_parent {
             Some(f) => match f.is_folder() {
@@ -295,7 +405,9 @@ impl AccountScreen {
             .unwrap() // TODO
             .name;
 
-        self.workspace.open_tab(id, &fname);
+        let fpath = self.core.get_path_by_id(id).unwrap(); // TODO
+
+        self.workspace.open_tab(id, &fname, &fpath);
 
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
@@ -344,6 +456,9 @@ impl AccountScreen {
                 let node = parent.remove(f.id).unwrap();
                 let target_node = self.tree.root.find_mut(target).unwrap();
                 target_node.insert_node(node);
+                if let Some(tab) = self.workspace.get_mut_tab_by_id(f.id) {
+                    tab.path = self.core.get_path_by_id(f.id).unwrap();
+                }
                 ctx.request_repaint();
             }
         }
@@ -359,8 +474,14 @@ impl AccountScreen {
         thread::spawn(move || {
             let (id, new_name) = req;
             core.rename_file(id, &new_name).unwrap(); // TODO
+
+            let mut new_child_paths = HashMap::new();
+            for f in core.get_and_get_children_recursively(id).unwrap() {
+                new_child_paths.insert(f.id, core.get_path_by_id(f.id).unwrap());
+            }
+
             update_tx
-                .send(AccountUpdate::FileRenamed(id, new_name))
+                .send(AccountUpdate::FileRenamed { id, new_name, new_child_paths })
                 .unwrap();
             ctx.request_repaint();
         });
@@ -392,12 +513,19 @@ enum AccountUpdate {
 
     FileCreated(Result<lb::File, String>),
     FileLoaded(lb::Uuid, Result<TabContent, TabFailure>),
-    FileRenamed(lb::Uuid, String),
+    FileRenamed {
+        id: lb::Uuid,
+        new_name: String,
+        new_child_paths: HashMap<lb::Uuid, String>,
+    },
     FileDeleted(lb::File),
 
     SyncUpdate(SyncUpdate),
 
     DoneDeleting,
+
+    ReloadTree(TreeNode),
+    ReloadTabs(HashMap<lb::Uuid, Result<Tab, TabFailure>>),
 }
 
 enum OpenModal {
