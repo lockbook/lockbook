@@ -6,6 +6,7 @@ use crate::SharedResult;
 use hmdb::log::SchemaEvent;
 use hmdb::transaction::TransactionTable;
 use std::collections::HashSet;
+use std::iter::FromIterator;
 use tracing::*;
 use uuid::Uuid;
 
@@ -31,14 +32,12 @@ where
     FileChildren: SchemaEvent<Uuid, HashSet<Uuid>>,
     Files: SchemaEvent<Uuid, ServerFile>,
 {
-    // todo: optimize/cache
     pub fn new(
         owner: Owner, owned_files: &'a mut TransactionTable<'b, Owner, HashSet<Uuid>, OwnedFiles>,
         shared_files: &'a mut TransactionTable<'b, Owner, HashSet<Uuid>, SharedFiles>,
         file_children: &'a mut TransactionTable<'b, Uuid, HashSet<Uuid>, FileChildren>,
         files: &'a mut TransactionTable<'b, Uuid, ServerFile, Files>,
     ) -> SharedResult<Self> {
-        let mut tree = files.to_lazy();
         let (owned_ids, shared_ids) = match (owned_files.get(&owner), shared_files.get(&owner)) {
             (Some(owned_ids), Some(shared_ids)) => (owned_ids.clone(), shared_ids.clone()),
             _ => {
@@ -50,8 +49,12 @@ where
         let mut ids = HashSet::new();
         ids.extend(owned_ids);
         ids.extend(shared_ids.clone());
-        for id in shared_ids {
-            ids.extend(tree.descendants(&id)?);
+
+        let mut to_get_descendants = Vec::from_iter(shared_ids);
+        while let Some(id) = to_get_descendants.pop() {
+            let children = file_children.get(&id).cloned().unwrap_or_default();
+            ids.extend(children.clone());
+            to_get_descendants.extend(children);
         }
 
         Ok(Self { ids, owned_files, shared_files, file_children, files })
@@ -96,7 +99,7 @@ where
         }
 
         // maintain index: shared_files
-        let prior_sharees = if let Some(prior) = maybe_prior.clone() {
+        let prior_sharees = if let Some(ref prior) = maybe_prior {
             prior
                 .user_access_keys()
                 .iter()
@@ -117,7 +120,7 @@ where
                 shared.remove(&id);
                 self.shared_files.insert(*removed_sharee, shared);
             } else {
-                error!("File inserted with unknown sharee")
+                error!("File inserted with unknown prior sharee")
             }
         }
         for new_sharee in sharees.difference(&prior_sharees) {
@@ -129,13 +132,33 @@ where
             }
         }
 
+        // maintain index: file_children
+        if self.file_children.get(&id).is_none() {
+            self.file_children.insert(id, HashSet::new());
+        }
+        if self.file_children.get(f.parent()).is_none() {
+            self.file_children.insert(*f.parent(), HashSet::new());
+        }
+        if maybe_prior.as_ref().map(|f| *f.parent()) != Some(id) {
+            if let Some(ref prior) = maybe_prior {
+                if let Some(mut children) = self.file_children.delete(*prior.parent()) {
+                    children.remove(&id);
+                    self.file_children.insert(*prior.parent(), children);
+                }
+            }
+            if let Some(mut children) = self.file_children.delete(*f.parent()) {
+                children.insert(id);
+                self.file_children.insert(*f.parent(), children);
+            }
+        }
+
         maybe_prior
     }
 
     fn remove(&mut self, id: Uuid) -> Option<Self::F> {
         error!("remove metadata called in server!");
-        let result = self.files.delete(id);
-        if let Some(deleted) = result {
+        if let Some(deleted) = self.files.delete(id) {
+            // maintain index: owned_files
             if let Some(owned) = self.owned_files.get(&deleted.owner()) {
                 let mut new_owned = owned.clone();
                 let removed = new_owned.remove(&id);
@@ -146,6 +169,18 @@ where
             } else {
                 error!("File removed with unknown owner")
             }
+
+            // maintain index: shared_files
+            for user_access_key in deleted.user_access_keys() {
+                let sharee = Owner(user_access_key.encrypted_for);
+                if let Some(mut shared) = self.shared_files.delete(sharee) {
+                    shared.remove(&id);
+                    self.shared_files.insert(sharee, shared);
+                } else {
+                    error!("File removed with unknown sharee")
+                }
+            }
+
             Some(deleted)
         } else {
             None
