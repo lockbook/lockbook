@@ -15,6 +15,7 @@ hmdb::schema! {
         owned_files: <Owner, HashSet<Uuid>>,
         shared_files: <Owner, HashSet<Uuid>>,
         metas: <Uuid, ServerFile>,
+        file_children: <Uuid, HashSet<Uuid>>,
         sizes: <Uuid, u64>,
         google_play_ids: <String, Owner>,
         stripe_ids: <String, Owner>

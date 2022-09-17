@@ -172,6 +172,7 @@ pub async fn delete_account_helper(
                 Owner(*public_key),
                 &mut tx.owned_files,
                 &mut tx.shared_files,
+                &mut tx.file_children,
                 &mut tx.metas,
             )?
             .to_lazy();
