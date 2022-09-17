@@ -89,7 +89,9 @@ impl AccountScreen {
             .max
             .x;
 
-        egui::CentralPanel::default().show(ctx, |ui| self.show_workspace(frame, ui));
+        egui::CentralPanel::default()
+            .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))
+            .show(ctx, |ui| self.show_workspace(frame, ui));
 
         self.show_any_modals(ctx, 0.0 - (sidebar_width / 2.0));
     }
