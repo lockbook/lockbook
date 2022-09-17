@@ -6,4 +6,6 @@ fn main() -> std::io::Result<()> {
 }
 
 #[cfg(not(windows))]
-fn main() {}
+fn main() {
+    println!("cargo:rerun-if-changed=lockbook.ico");
+}
