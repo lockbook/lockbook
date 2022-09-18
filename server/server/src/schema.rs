@@ -82,8 +82,14 @@ pub mod v2 {
         }
         for (id, file) in source.metas.get_all() {
             file_children.insert(*id, HashSet::new());
-            if let Some(shared_files) = shared_files.get_mut(&file.owner()) {
-                shared_files.insert(*id);
+            for user_access_key in file.user_access_keys() {
+                if user_access_key.encrypted_for != user_access_key.encrypted_by {
+                    if let Some(shared_files) =
+                        shared_files.get_mut(&Owner(user_access_key.encrypted_for))
+                    {
+                        shared_files.insert(*id);
+                    }
+                }
             }
         }
         for (id, file) in source.metas.get_all() {
