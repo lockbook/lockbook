@@ -17,7 +17,7 @@ import kotlinx.serialization.modules.subclass
 import timber.log.Timber
 
 object CoreModel {
-    private const val PROD_API_URL = "https://8dc3-128-6-37-54.ngrok.io"
+    private const val PROD_API_URL = "https://api.prod.lockbook.net"
     private fun getAPIURL(): String = System.getenv("API_URL") ?: PROD_API_URL
 
     private fun <O, E : Enum<E>> SerializersModuleBuilder.createPolyRelation(
@@ -54,10 +54,8 @@ object CoreModel {
         isNullable: Boolean = false
     ): Result<C, CoreError<E>>
             where E : Enum<E>, E : UiCoreError = try {
-        Timber.e("Called: ${Thread.currentThread().stackTrace[2]}")
         decodeFromString<IntermCoreResult<C, E>>(json).toResult(isNullable)
     } catch (e: Exception) {
-        Timber.e("Cannot parse: ${Thread.currentThread().stackTrace[2]} $json ")
         Err(CoreError.Unexpected("Cannot parse json: ${e.message}"))
     }
 

@@ -47,19 +47,6 @@ class CreateLinkViewModel(application: Application) :
         }.exhaustive
     }
 
-    fun createLinkFile(name: String, id: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val createLinkResult = CoreModel.createLink(name, id, currentParent.id)
-
-            if (createLinkResult is Err) {
-                _notifyError.postValue(createLinkResult.error.toLbError(getRes()))
-                return@launch
-            }
-
-            _closeFragment.postValue(Unit)
-        }
-    }
-
     private fun refreshOverFolder() {
         when (val getChildrenResult = CoreModel.getChildren(currentParent.id)) {
             is Ok -> {

@@ -11,13 +11,12 @@ external fun getAccount(): String
 // android only
 external fun convertToHumanDuration(timeStamp: Long): String
 
-// file loc
+// file ops
 external fun getRoot(): String
 external fun listMetadatas(): String
 external fun getChildren(id: String): String
 external fun getFileById(id: String): String
 
-// file ops
 external fun renameFile(id: String, name: String): String
 external fun createFile(name: String, id: String, fileType: String): String
 external fun createLink(name: String, id: String, parentId: String): String
@@ -37,7 +36,7 @@ external fun getLocalChanges(): String
 external fun getUsage(): String
 external fun getUncompressedUsage(): String
 
-// subscriptions
+// subscription
 external fun upgradeAccountGooglePlay(purchaseToken: String, accountId: String): String
 external fun cancelSubscription(): String
 external fun getSubscriptionInfo(): String
@@ -48,10 +47,10 @@ external fun search(query: String): String
 external fun endSearch(): String
 external fun stopCurrentSearch(): String
 
-// sharing
+// share
 external fun shareFile(id: String, username: String, mode: String): String
 external fun getPendingShares(): String
 external fun deletePendingShare(id: String): String
 
-// tests
+// test
 external fun getAllErrorVariants(): String

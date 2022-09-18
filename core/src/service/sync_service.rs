@@ -452,15 +452,11 @@ impl RequestContext<'_, '_> {
             .ok_or(CoreError::AccountNonexistent)?;
         let mut work_units: Vec<WorkUnit> = Vec::new();
         {
-            let mut remote = self.tx.base_metadata.stage(remote_changes).to_lazy();
-            let ids = remote.tree.staged.owned_ids().into_iter();
-            let mut server_work_units: Vec<WorkUnit> = remote
-                .resolve_and_finalize(account, ids)?
-                .into_iter()
-                .map(|file| WorkUnit::ServerChange { metadata: file })
-                .collect();
-
-            work_units.append(&mut server_work_units);
+            let mut remote = self.tx.base_metadata.to_lazy().stage(remote_changes);
+            for id in remote.tree.staged.owned_ids() {
+                work_units
+                    .push(WorkUnit::ServerChange { metadata: remote.finalize(&id, account)? });
+            }
         }
         {
             let mut local = self
@@ -468,15 +464,9 @@ impl RequestContext<'_, '_> {
                 .base_metadata
                 .stage(&mut self.tx.local_metadata)
                 .to_lazy();
-
-            let ids = local.tree.staged.owned_ids().into_iter();
-            let mut local_work_units: Vec<WorkUnit> = local
-                .resolve_and_finalize(account, ids)?
-                .into_iter()
-                .map(|file| WorkUnit::LocalChange { metadata: file })
-                .collect();
-
-            work_units.append(&mut local_work_units);
+            for id in local.tree.staged.owned_ids() {
+                work_units.push(WorkUnit::LocalChange { metadata: local.finalize(&id, account)? });
+            }
         }
 
         Ok(WorkCalculated { work_units, most_recent_update_from_server })
