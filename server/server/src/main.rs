@@ -29,6 +29,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let source_index_db =
             lockbook_server_lib::schema::ServerV1::init(&cfg.index_db.db_location)
                 .expect("Failed to load index_db");
+
+        for (owner, ids) in source_index_db.owned_files.get_all().unwrap() {
+            for id in ids {
+                if source_index_db.metas.get(&id).unwrap().is_none() {
+                    let username = source_index_db
+                        .accounts
+                        .get(&owner)
+                        .unwrap()
+                        .unwrap()
+                        .username;
+                    println!("USER {:?} MISSING OWNED FILE {:?}", username, id);
+                }
+            }
+        }
+
         source_index_db
             .transaction(|source_tx| index_db.transaction(|tx| v2::migrate(source_tx, tx)))
             .expect("Failed to migrate index_db")
