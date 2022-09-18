@@ -14,7 +14,6 @@ import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.SerializersModuleBuilder
 import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
-import timber.log.Timber
 
 object CoreModel {
     private const val PROD_API_URL = "https://api.prod.lockbook.net"
