@@ -46,7 +46,7 @@ class PdfViewerFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentPdfViewerBinding.inflate(inflater, container, false)
-        val pdfViewerInfo = activityModel.detailsScreen as DetailScreen.PdfViewer
+        val pdfViewerInfo = activityModel.detailScreen as DetailScreen.PdfViewer
         fileName = pdfViewerInfo.file.name
 
         initializePdfRenderer(savedInstanceState, pdfViewerInfo)
@@ -65,7 +65,7 @@ class PdfViewerFragment : Fragment() {
         try {
             binding.pdfViewToolbar.title = fileName
             binding.pdfViewToolbar.setNavigationOnClickListener {
-                activityModel.launchDetailsScreen(null)
+                activityModel.launchDetailScreen(null)
             }
             binding.pdfViewToolbar.background.alpha = TOOLBAR_ALPHA
             binding.pdfViewer.fromFile(File(pdfViewerInfo.location, fileName))
@@ -102,13 +102,13 @@ class PdfViewerFragment : Fragment() {
                 }
                 .onError {
                     alertModel.notify(getString(R.string.could_not_load_pdf)) {
-                        activityModel.launchDetailsScreen(null)
+                        activityModel.launchDetailScreen(null)
                     }
                 }
                 .load()
         } catch (e: Exception) {
             alertModel.notify(getString(R.string.could_not_load_pdf)) {
-                activityModel.launchDetailsScreen(null)
+                activityModel.launchDetailScreen(null)
             }
         }
     }

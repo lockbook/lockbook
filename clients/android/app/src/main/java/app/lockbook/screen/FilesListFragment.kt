@@ -73,7 +73,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                     }
                     R.id.menu_list_files_share -> {
                         if (model.files.getSelectionCount() == 1) {
-                            activityModel.launchDetailsScreen(DetailScreen.Share(selectedFiles[0].fileMetadata))
+                            activityModel.launchDetailScreen(DetailScreen.Share(selectedFiles[0].fileMetadata))
                             unselectFiles()
                         }
                     }
@@ -387,7 +387,7 @@ class FilesListFragment : Fragment(), FilesFragment {
     private fun enterFile(item: File) {
         when (item.fileType) {
             FileType.Document -> {
-                activityModel.launchDetailsScreen(DetailScreen.Loading(item))
+                activityModel.launchDetailScreen(DetailScreen.Loading(item))
             }
             FileType.Folder -> {
                 model.enterFolder(item)

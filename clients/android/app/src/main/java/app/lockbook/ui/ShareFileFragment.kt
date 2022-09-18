@@ -6,7 +6,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AlphaAnimation
 import android.view.animation.Animation
-import androidx.core.view.isEmpty
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import app.lockbook.R
@@ -37,16 +36,19 @@ class ShareFileFragment : Fragment() {
     ): View {
         binding = FragmentShareFileBinding.inflate(inflater, container, false)
 
-        val file = (activityModel.detailsScreen as DetailScreen.Share).file
+        val file = (activityModel.detailScreen as DetailScreen.Share).file
 
         binding.materialToolbar.subtitle = file.name
         populateShares(file)
+
+        binding.materialToolbar.setNavigationOnClickListener {
+            activityModel.launchDetailScreen(null)
+        }
 
         return binding.root
     }
 
     private fun populateShares(file: File) {
-
         binding.shareFileAddUser.setOnClickListener {
             val username = binding.shareFileUsername.text.toString()
             val modeString = binding.shareFileAccessMode.text.toString()
@@ -73,7 +75,7 @@ class ShareFileFragment : Fragment() {
             when (val result = CoreModel.shareFile(file.id, username, mode)) {
                 is Ok -> {
                     activityModel.updateMainScreenUI(UpdateMainScreenUI.Sync)
-                    activityModel.launchDetailsScreen(null)
+                    activityModel.launchDetailScreen(null)
                 }
                 is Err -> alertModel.notifyError(result.error.toLbError(resources))
             }

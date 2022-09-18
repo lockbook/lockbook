@@ -16,19 +16,19 @@ import java.io.File
 
 class StateViewModel(application: Application) : AndroidViewModel(application) {
     var activityScreen: ActivityScreen? = null
-    var detailsScreen: DetailScreen? = null
+    var detailScreen: DetailScreen? = null
     var transientScreen: TransientScreen? = null
 
     private val _launchActivityScreen = SingleMutableLiveData<ActivityScreen>()
-    private val _launchDetailsScreen = SingleMutableLiveData<DetailScreen?>()
+    private val _launchDetailScreen = SingleMutableLiveData<DetailScreen?>()
     private val _launchTransientScreen = SingleMutableLiveData<TransientScreen>()
     private val _updateMainScreenUI = SingleMutableLiveData<UpdateMainScreenUI>()
 
     val launchActivityScreen: LiveData<ActivityScreen?>
         get() = _launchActivityScreen
 
-    val launchDetailsScreen: LiveData<DetailScreen?>
-        get() = _launchDetailsScreen
+    val launchDetailScreen: LiveData<DetailScreen?>
+        get() = _launchDetailScreen
 
     val launchTransientScreen: LiveData<TransientScreen>
         get() = _launchTransientScreen
@@ -48,9 +48,9 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
         _launchTransientScreen.postValue(transientScreen)
     }
 
-    fun launchDetailsScreen(screen: DetailScreen?) {
-        detailsScreen = screen
-        _launchDetailsScreen.value = detailsScreen
+    fun launchDetailScreen(screen: DetailScreen?) {
+        detailScreen = screen
+        _launchDetailScreen.value = detailScreen
     }
 
     fun updateMainScreenUI(uiUpdate: UpdateMainScreenUI) {

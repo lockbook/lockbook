@@ -28,7 +28,7 @@ class ImageViewerFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentImageViewerBinding.inflate(inflater, container, false)
-        val imageViewerInfo = activityModel.detailsScreen as DetailScreen.ImageViewer
+        val imageViewerInfo = activityModel.detailScreen as DetailScreen.ImageViewer
 
         setUpImageAndToolbar(imageViewerInfo, savedInstanceState)
 
@@ -42,7 +42,7 @@ class ImageViewerFragment : Fragment() {
         binding.imageViewToolbar.title = imageViewerInfo.file.name
         binding.imageViewToolbar.background.alpha = TOOLBAR_ALPHA
         binding.imageViewToolbar.setNavigationOnClickListener {
-            activityModel.launchDetailsScreen(null)
+            activityModel.launchDetailScreen(null)
         }
         binding.imageViewer.setImageBitmap(imageViewerInfo.bitmap)
         binding.imageViewer.maxZoom = 7f

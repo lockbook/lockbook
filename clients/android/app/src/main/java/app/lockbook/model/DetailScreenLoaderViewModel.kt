@@ -15,7 +15,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import java.io.File
 
-class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: DetailScreen.Loading) :
+class DetailScreenLoaderViewModel(application: Application, val loadingInfo: DetailScreen.Loading) :
     AndroidViewModel(application) {
     private val _updateDetailScreenLoaderUI = SingleMutableLiveData<UpdateDetailScreenLoaderUI>()
 

@@ -67,7 +67,7 @@ class MainScreenActivity : AppCompatActivity() {
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        toggleTransparentLockbookLogo(model.detailsScreen)
+        toggleTransparentLockbookLogo(model.detailScreen)
 
         supportFragmentManager.registerFragmentLifecycleCallbacks(
             fragmentFinishedCallback,
@@ -96,8 +96,8 @@ class MainScreenActivity : AppCompatActivity() {
                 override fun onPanelSlide(panel: View, slideOffset: Float) {}
 
                 override fun onPanelOpened(panel: View) {
-                    if (model.detailsScreen is DetailScreen.Loading) {
-                        (supportFragmentManager.findFragmentById(R.id.detail_container) as DetailsScreenLoaderFragment).addChecker()
+                    if (model.detailScreen is DetailScreen.Loading) {
+                        (supportFragmentManager.findFragmentById(R.id.detail_container) as DetailScreenLoaderFragment).addChecker()
                     }
                 }
 
@@ -125,10 +125,10 @@ class MainScreenActivity : AppCompatActivity() {
             }
         }
 
-        model.launchDetailsScreen.observe(
+        model.launchDetailScreen.observe(
             this
         ) { screen ->
-            launchDetailsScreen(screen)
+            launchDetailScreen(screen)
         }
 
         model.launchTransientScreen.observe(
@@ -233,26 +233,26 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     private fun onFileDeleted(filesFragment: FilesFragment) {
-        val openedFile = model.detailsScreen?.getUsedFile()?.id
+        val openedFile = model.detailScreen?.getUsedFile()?.id
         if (openedFile != null) {
             val isDeletedFileOpen = (model.transientScreen as TransientScreen.Delete).files.any { file -> file.id == openedFile }
 
             if (isDeletedFileOpen) {
-                launchDetailsScreen(null)
+                launchDetailScreen(null)
             }
         }
 
         filesFragment.refreshFiles()
     }
 
-    private fun launchDetailsScreen(screen: DetailScreen?) {
+    private fun launchDetailScreen(screen: DetailScreen?) {
         supportFragmentManager.commit {
             setReorderingAllowed(true)
-            doOnDetailsExit(screen)
+            doOnDetailExit(screen)
             toggleTransparentLockbookLogo(screen)
 
             when (screen) {
-                is DetailScreen.Loading -> replace<DetailsScreenLoaderFragment>(R.id.detail_container)
+                is DetailScreen.Loading -> replace<DetailScreenLoaderFragment>(R.id.detail_container)
                 is DetailScreen.TextEditor -> replace<TextEditorFragment>(R.id.detail_container)
                 is DetailScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
                 is DetailScreen.ImageViewer -> replace<ImageViewerFragment>(R.id.detail_container)
@@ -287,14 +287,14 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 
-    private fun doOnDetailsExit(newScreen: DetailScreen?) {
+    private fun doOnDetailExit(newScreen: DetailScreen?) {
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? DrawingFragment)?.let { fragment ->
             fragment.binding.drawingView.stopThread()
             fragment.saveOnExit()
         }
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? TextEditorFragment)?.saveOnExit()
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? PdfViewerFragment)?.deleteLocalPdfInstance()
-        (supportFragmentManager.findFragmentById(R.id.detail_container) as? DetailsScreenLoaderFragment)?.let { fragment ->
+        (supportFragmentManager.findFragmentById(R.id.detail_container) as? DetailScreenLoaderFragment)?.let { fragment ->
             if (newScreen !is DetailScreen.PdfViewer) {
                 fragment.deleteDownloadedFileIfExists()
             }
@@ -303,7 +303,7 @@ class MainScreenActivity : AppCompatActivity() {
 
     override fun onBackPressed() {
         if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
-            launchDetailsScreen(null)
+            launchDetailScreen(null)
         } else if (maybeGetSearchFilesFragment() != null) {
             updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
         } else if (maybeGetFilesFragment()?.onBackPressed() == true) {
