@@ -760,6 +760,10 @@ where
         // merge documents
         {
             for (id, remote_document_change) in remote_document_changes {
+                if result.calculate_deleted(id)? {
+                    // cannot modify locally deleted documents; local changes to deleted documents are reset anyway
+                    continue;
+                }
                 // todo: use merged document type
                 let local_document_type =
                     DocumentType::from_file_name_using_extension(&result.name(id, account)?);
