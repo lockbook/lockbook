@@ -82,6 +82,7 @@ fn build_libs() {
 }
 
 fn move_libs() {
-    fs::copy(format!("target/universal/release/{LIB}"), format!("{IOS_LIB_DIR}{LIB}")).unwrap();
+    fs::copy(format!("target/aarch64-apple-ios/release/{LIB}"), format!("{IOS_LIB_DIR}{LIB}"))
+        .unwrap();
     fs::copy(format!("target/universal-macos/{LIB}"), format!("{MAC_LIB_DIR}{LIB}")).unwrap();
 }
