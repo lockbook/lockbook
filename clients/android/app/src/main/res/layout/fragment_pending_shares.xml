@@ -18,7 +18,7 @@
             app:layout_scrollFlags="scroll|enterAlways|snap"
             app:menu="@menu/menu_shared_files"
             app:navigationIcon="@drawable/ic_baseline_arrow_back_24"
-            app:title="@string/pending_shared" />
+            app:title="@string/pending_shares" />
 
     </com.google.android.material.appbar.AppBarLayout>
 

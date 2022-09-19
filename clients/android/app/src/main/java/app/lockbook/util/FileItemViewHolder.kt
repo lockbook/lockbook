@@ -50,7 +50,11 @@ class RecentFileItemViewHolder(itemView: View) : ViewHolder(itemView) {
 }
 
 fun List<File>.intoRecentViewHolderInfo(files: List<File>): List<RecentFileViewHolderInfo> = this.map { fileMetadata ->
-    RecentFileViewHolderInfo(fileMetadata, files.filter { fileMetadata.parent == it.id }.getOrNull(0)?.name ?: "DETACHED")
+    RecentFileViewHolderInfo(
+        fileMetadata,
+        files.filter { fileMetadata.parent == it.id }
+            .getOrNull(0)?.name ?: "DETACHED" // TODO: remove once listMetadatas stops returning pending shares
+    )
 }
 
 fun List<FileViewHolderInfo>.intoFileMetadata(): List<File> = this.map { viewHolderInfo -> viewHolderInfo.fileMetadata }
