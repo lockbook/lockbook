@@ -41,7 +41,7 @@ checksum = "aae1277d39aeec15cb388266ecc24b11c80469deae6067e17a1a7aa9e5c1f234"
 
 [[package]]
 name = "admin"
-version = "0.1.0"
+version = "0.5.4"
 dependencies = [
  "backtrace",
  "dialoguer",
@@ -2894,7 +2894,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "atty",
  "chrono",
@@ -2908,7 +2908,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-core"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "backtrace",
  "base64",
@@ -2950,7 +2950,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-desktop"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "gdk-pixbuf",
  "gio",
@@ -2977,7 +2977,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "dark-light",
  "eframe",
@@ -2993,7 +2993,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "async-stripe",
  "atomic-counter",
