@@ -27,8 +27,14 @@ pub async fn upsert_file_metadata(
         .server_state
         .index_db
         .transaction::<_, Result<(), ServerError<_>>>(|tx| {
-            let mut tree =
-                ServerTree::new(req_owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+            let mut tree = ServerTree::new(
+                req_owner,
+                &mut tx.owned_files,
+                &mut tx.shared_files,
+                &mut tx.file_children,
+                &mut tx.metas,
+            )?
+            .to_lazy();
 
             for id in tree.owned_ids() {
                 if tree.find(&id)?.is_document() && tree.calculate_deleted(&id)? {
@@ -96,7 +102,14 @@ pub async fn change_doc(
 
         let direct_access = meta_owner.0 == req_pk;
 
-        let mut tree = ServerTree::new(meta_owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+        let mut tree = ServerTree::new(
+            meta_owner,
+            &mut tx.owned_files,
+            &mut tx.shared_files,
+            &mut tx.file_children,
+            &mut tx.metas,
+        )?
+        .to_lazy();
 
         let mut share_access = false;
 
@@ -162,7 +175,14 @@ pub async fn change_doc(
 
         let meta_owner = meta.owner();
 
-        let mut tree = ServerTree::new(meta_owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+        let mut tree = ServerTree::new(
+            meta_owner,
+            &mut tx.owned_files,
+            &mut tx.shared_files,
+            &mut tx.file_children,
+            &mut tx.metas,
+        )?
+        .to_lazy();
         let new_size = request.new_content.value.len() as u64;
 
         if tree.calculate_deleted(request.diff.new.id())? {
@@ -221,7 +241,14 @@ pub async fn get_document(
 
         let direct_access = meta_owner.0 == context.public_key;
 
-        let mut tree = ServerTree::new(meta_owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+        let mut tree = ServerTree::new(
+            meta_owner,
+            &mut tx.owned_files,
+            &mut tx.shared_files,
+            &mut tx.file_children,
+            &mut tx.metas,
+        )?
+        .to_lazy();
 
         let mut share_access = false;
 
@@ -281,7 +308,14 @@ pub async fn get_updates(
             .map(|owner| **owner)
             .collect::<Vec<_>>();
         for owner in owners {
-            let mut tree = ServerTree::new(owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+            let mut tree = ServerTree::new(
+                owner,
+                &mut tx.owned_files,
+                &mut tx.shared_files,
+                &mut tx.file_children,
+                &mut tx.metas,
+            )?
+            .to_lazy();
 
             let mut result_ids = HashSet::new();
             if owner.0 == context.public_key {
@@ -348,6 +382,7 @@ pub async fn admin_disappear_file(
                 .delete(context.request.id)
                 .ok_or(ClientError(AdminDisappearFileError::FileNonexistent))?;
 
+            // maintain index: owned_files
             let owner = meta.owner();
             let mut owned_files = tx.owned_files.delete(owner).ok_or_else(|| {
                 internal!(
@@ -358,11 +393,46 @@ pub async fn admin_disappear_file(
             })?;
             if !owned_files.remove(&context.request.id) {
                 error!(
-                    "attempted to disappear a file, the owner didn't own it id: {}, owner: {:?}",
+                    "attempted to disappear a file, the owner didn't own it, id: {}, owner: {:?}",
                     context.request.id, owner
                 );
             }
             tx.owned_files.insert(owner, owned_files);
+
+            // maintain index: shared_files
+            for user_access_key in meta.user_access_keys() {
+                let sharee = Owner(user_access_key.encrypted_for);
+                let mut shared_files = tx.shared_files.delete(sharee).ok_or_else(|| {
+                    internal!(
+                        "Attempted to disappear a file, the sharee was not present, id: {}, sharee: {:?}",
+                        context.request.id,
+                        sharee
+                    )
+                })?;
+                if !shared_files.remove(&context.request.id) {
+                    error!(
+                        "attempted to disappear a file, a sharee didn't have it shared, id: {}, sharee: {:?}",
+                        context.request.id, sharee
+                    );
+                }
+                tx.shared_files.insert(sharee, shared_files);
+            }
+
+            // maintain index: file_children
+            let mut file_children = tx.file_children.delete(*meta.parent()).ok_or_else(|| {
+                internal!(
+                    "Attempted to disappear a file, the parent was not present, id: {}, parent: {:?}",
+                    context.request.id,
+                    meta.parent()
+                )
+            })?;
+            if !file_children.remove(&context.request.id) {
+                error!(
+                    "attempted to disappear a file, the parent didn't have it as a child, id: {}, parent: {:?}",
+                    context.request.id, meta.parent()
+                );
+            }
+            tx.file_children.insert(*meta.parent(), file_children);
 
             Ok(())
         })??;
@@ -396,7 +466,14 @@ pub async fn admin_server_validate(
                 .get(&request.username)
                 .ok_or(ClientError(AdminServerValidateError::UserNotFound))?;
 
-            let mut tree = ServerTree::new(owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+            let mut tree = ServerTree::new(
+                owner,
+                &mut tx.owned_files,
+                &mut tx.shared_files,
+                &mut tx.file_children,
+                &mut tx.metas,
+            )?
+            .to_lazy();
 
             for id in tree.owned_ids() {
                 if !tree.calculate_deleted(&id)? {
