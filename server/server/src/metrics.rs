@@ -1,4 +1,4 @@
-use crate::{ServerError, ServerState, ServerV1};
+use crate::{Server, ServerError, ServerState};
 use lazy_static::lazy_static;
 
 use hmdb::transaction::Transaction;
@@ -10,7 +10,7 @@ use tracing::*;
 use uuid::Uuid;
 
 use crate::billing::billing_model::BillingPlatform;
-use crate::transaction::ServerV1 as TransactionalServerV1;
+use crate::transaction::Server as TransactionalServer;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::server_tree::ServerTree;
@@ -134,7 +134,7 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
 }
 
 pub async fn get_user_billing_platform(
-    db: &ServerV1, owner: &Owner,
+    db: &Server, owner: &Owner,
 ) -> Result<Option<BillingPlatform>, ServerError<MetricsError>> {
     let account = db
         .accounts
@@ -148,7 +148,14 @@ pub async fn get_user_info(
     state: &ServerState, owner: Owner,
 ) -> Result<(i64, i64, bool), ServerError<MetricsError>> {
     state.index_db.transaction(|tx| {
-        let mut tree = ServerTree::new(owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+        let mut tree = ServerTree::new(
+            owner,
+            &mut tx.owned_files,
+            &mut tx.shared_files,
+            &mut tx.file_children,
+            &mut tx.metas,
+        )?
+        .to_lazy();
 
         let metadatas = tree.all_files()?;
         let mut ids = Vec::new();
@@ -171,7 +178,7 @@ pub async fn get_user_info(
 }
 
 fn get_bytes_and_documents_count(
-    db: &mut TransactionalServerV1, owner: Owner, ids: Vec<Uuid>,
+    db: &mut TransactionalServer, owner: Owner, ids: Vec<Uuid>,
 ) -> Result<(i64, u64), ServerError<MetricsError>> {
     let mut total_documents = 0;
     let mut total_bytes = 0;
