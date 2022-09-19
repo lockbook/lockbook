@@ -33,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         source_index_db
             .transaction(|source_tx| index_db.transaction(|tx| v2::migrate(source_tx, tx)))
             .expect("Failed to migrate index_db")
-            .expect("Failed to migrate index_db"); // todo: ???
+            .expect("Failed to migrate index_db");
         info!("migration complete");
     }
 

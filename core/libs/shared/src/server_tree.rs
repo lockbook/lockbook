@@ -139,7 +139,7 @@ where
         if self.file_children.get(f.parent()).is_none() {
             self.file_children.insert(*f.parent(), HashSet::new());
         }
-        if maybe_prior.as_ref().map(|f| *f.parent()) != Some(id) {
+        if maybe_prior.as_ref().map(|f| *f.parent()) != Some(*f.parent()) {
             if let Some(ref prior) = maybe_prior {
                 if let Some(mut children) = self.file_children.delete(*prior.parent()) {
                     children.remove(&id);
