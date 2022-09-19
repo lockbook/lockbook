@@ -1,7 +1,7 @@
 use crate::schema::Account;
 use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
-use crate::{document_service, RequestContext, ServerError, ServerState, ServerV1, Tx};
+use crate::{document_service, RequestContext, Server, ServerError, ServerState, Tx};
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Username;
@@ -67,6 +67,7 @@ pub async fn new_account(
         tx.accounts.insert(owner, account);
         tx.usernames.insert(username, owner);
         tx.owned_files.insert(owner, owned_files);
+        tx.shared_files.insert(owner, HashSet::new());
         tx.metas.insert(*root.id(), root.clone());
 
         Ok(NewAccountResponse { last_synced: root.version })
@@ -167,8 +168,14 @@ pub async fn delete_account_helper(
 ) -> Result<(), ServerError<DeleteAccountHelperError>> {
     let all_files: Result<Vec<(Uuid, DocumentHmac)>, ServerError<DeleteAccountHelperError>> =
         server_state.index_db.transaction(|tx| {
-            let mut tree =
-                ServerTree::new(Owner(*public_key), &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+            let mut tree = ServerTree::new(
+                Owner(*public_key),
+                &mut tx.owned_files,
+                &mut tx.shared_files,
+                &mut tx.file_children,
+                &mut tx.metas,
+            )?
+            .to_lazy();
             let mut docs_to_delete = vec![];
             let metas_to_delete = tree.owned_ids();
 
@@ -184,8 +191,10 @@ pub async fn delete_account_helper(
                 }
             }
             tx.owned_files.delete(Owner(*public_key));
+            tx.shared_files.delete(Owner(*public_key));
             for id in metas_to_delete {
                 tx.metas.delete(id);
+                tx.file_children.delete(id);
             }
 
             if !server_state.config.is_prod() {
@@ -207,7 +216,7 @@ pub async fn delete_account_helper(
 }
 
 pub fn is_admin<E: Debug>(
-    db: &ServerV1, public_key: &PublicKey, admins: &HashSet<Username>,
+    db: &Server, public_key: &PublicKey, admins: &HashSet<Username>,
 ) -> Result<bool, ServerError<E>> {
     let is_admin = match db.accounts.get(&Owner(*public_key))? {
         None => false,
