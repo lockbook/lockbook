@@ -8,8 +8,8 @@ use dialoguer::theme::ColorfulTheme;
 use dialoguer::Confirm;
 
 use crate::error::Error;
-use lockbook_core::{Config, Uuid};
-use lockbook_core::{Core, PaymentPlatform};
+use lockbook_core::Core;
+use lockbook_core::{AccountFilter, AccountIdentifier, Config, PublicKey, Uuid};
 
 #[derive(Debug, PartialEq, Eq, StructOpt)]
 pub enum Admin {
@@ -26,13 +26,25 @@ pub enum Admin {
     /// Validates file trees of all users on the server and prints any failures
     ValidateAccount { username: String },
 
-    /// List all the premium users and their payment platform
-    ListPremiumUsers {
+    /// List all users
+    ListUsers {
+        #[structopt(short, long)]
+        premium: bool,
+
         #[structopt(short, long)]
         google_play: bool,
 
         #[structopt(short, long)]
         stripe: bool,
+    },
+
+    /// Get a user's info. This includes their username, public key, and payment platform.
+    AccountInfo {
+        #[structopt(short, long)]
+        username: Option<String>,
+
+        #[structopt(short, long)]
+        public_key: Option<String>,
     },
 }
 
@@ -52,9 +64,10 @@ pub fn main() {
         Admin::DeleteAccount { username } => delete_account(&core, username),
         Admin::DisappearFile { id } => disappear_file(&core, id),
         Admin::ValidateAccount { username } => server_validate(&core, username),
-        Admin::ListPremiumUsers { google_play, stripe } => {
-            list_premium_users(&core, google_play, stripe)
+        Admin::ListUsers { premium, google_play, stripe } => {
+            list_users(&core, premium, google_play, stripe)
         }
+        Admin::AccountInfo { username, public_key } => user_info(&core, username, public_key),
     };
 
     result.unwrap_err();
@@ -85,39 +98,39 @@ fn delete_account(core: &Core, username: String) -> Res<()> {
     Ok(())
 }
 
-fn list_premium_users(core: &Core, google_play: bool, stripe: bool) -> Res<()> {
-    let premium_users: Vec<(String, PaymentPlatform)> = core
-        .admin_list_premium_users()?
-        .into_iter()
-        .filter(|(_, platform)| {
-            if google_play {
-                matches!(platform, PaymentPlatform::GooglePlay { .. })
-            } else if stripe {
-                matches!(platform, PaymentPlatform::Stripe { .. })
-            } else {
-                true
-            }
-        })
-        .collect();
-
-    if premium_users.is_empty() {
-        if google_play {
-            println!("There are no premium google play users.");
-        } else if stripe {
-            println!("There are no premium stripe users.");
-        } else {
-            println!("There are no premium users.");
-        }
+fn list_users(core: &Core, premium: bool, google_play: bool, stripe: bool) -> Res<()> {
+    let filter = if premium {
+        Some(AccountFilter::Premium)
+    } else if google_play {
+        Some(AccountFilter::GooglePlayPremium)
+    } else if stripe {
+        Some(AccountFilter::StripePremium)
     } else {
-        for (user, platform) in premium_users {
-            let platform_str = match platform {
-                PaymentPlatform::GooglePlay { .. } => "Google Play",
-                PaymentPlatform::Stripe { .. } => "Stripe",
-            };
+        None
+    };
 
-            println!("{}: {}", user, platform_str);
-        }
-    }
+    core.admin_list_users(filter)?
+        .iter()
+        .for_each(|user| println!("{}", user));
+
+    Ok(())
+}
+
+fn user_info(core: &Core, username: Option<String>, public_key: Option<String>) -> Res<()> {
+    let identifier = if let Some(username) = username {
+        AccountIdentifier::Username(username)
+    } else if let Some(public_key) = public_key {
+        AccountIdentifier::PublicKey(PublicKey::parse_compressed(<&[u8; 33]>::try_from(
+            public_key.as_bytes(),
+        )?)?)
+    } else {
+        println!("Please specify a username or public key.");
+        return Ok(());
+    };
+
+    let account_info = core.admin_get_account_info(identifier)?;
+
+    println!("{:?}", account_info);
 
     Ok(())
 }

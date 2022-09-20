@@ -443,26 +443,6 @@ impl Request for AdminDisappearFileRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct AdminListPremiumUsersRequest {}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct AdminListPremiumUsersResponse {
-    pub users: Vec<(Username, PaymentPlatform)>,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum AdminListPremiumUsersError {
-    NotPermissioned,
-}
-
-impl Request for AdminListPremiumUsersRequest {
-    type Response = AdminListPremiumUsersResponse;
-    type Error = AdminListPremiumUsersError;
-    const METHOD: Method = Method::GET;
-    const ROUTE: &'static str = "/admin-list-premium-users";
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct AdminServerValidateRequest {
     pub username: String,
 }
@@ -485,6 +465,70 @@ impl Request for AdminServerValidateRequest {
     type Error = AdminServerValidateError;
     const METHOD: Method = Method::GET;
     const ROUTE: &'static str = "/admin-server-validate";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminListUsersRequest {
+    pub filter: Option<AccountFilter>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AccountFilter {
+    Premium,
+    StripePremium,
+    GooglePlayPremium,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminListUsersResponse {
+    pub users: Vec<Username>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminListUsersError {
+    NotPermissioned,
+}
+
+impl Request for AdminListUsersRequest {
+    type Response = AdminListUsersResponse;
+    type Error = AdminListUsersError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/admin-list-users";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminGetAccountInfoRequest {
+    pub identifier: AccountIdentifier,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AccountIdentifier {
+    PublicKey(PublicKey),
+    Username(Username),
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminGetAccountInfoResponse {
+    pub account: AccountInfo,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AccountInfo {
+    pub username: String,
+    pub payment_platform: Option<PaymentPlatform>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminGetAccountInfoError {
+    UserNotFound,
+    NotPermissioned,
+}
+
+impl Request for AdminGetAccountInfoRequest {
+    type Response = AdminGetAccountInfoResponse;
+    type Error = AdminGetAccountInfoError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/admin-get-account-info";
 }
 
 // number of milliseconds that have elapsed since the unix epoch

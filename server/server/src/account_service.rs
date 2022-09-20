@@ -8,11 +8,12 @@ use libsecp256k1::PublicKey;
 use lockbook_shared::account::Username;
 use lockbook_shared::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
 use lockbook_shared::api::{
-    AdminDeleteAccountError, AdminDeleteAccountRequest, AdminListPremiumUsersError,
-    AdminListPremiumUsersRequest, AdminListPremiumUsersResponse, DeleteAccountError,
-    DeleteAccountRequest, FileUsage, GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse,
-    GetUsageError, GetUsageRequest, GetUsageResponse, NewAccountError, NewAccountRequest,
-    NewAccountResponse, PaymentPlatform,
+    AccountFilter, AccountIdentifier, AccountInfo, AdminDeleteAccountError,
+    AdminDeleteAccountRequest, AdminGetAccountInfoError, AdminGetAccountInfoRequest,
+    AdminGetAccountInfoResponse, AdminListUsersError, AdminListUsersRequest,
+    AdminListUsersResponse, DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError,
+    GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
+    NewAccountError, NewAccountRequest, NewAccountResponse, PaymentPlatform,
 };
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
@@ -161,51 +162,91 @@ pub async fn admin_delete_account(
     Ok(())
 }
 
-pub async fn admin_list_premium_users(
-    context: RequestContext<'_, AdminListPremiumUsersRequest>,
-) -> Result<AdminListPremiumUsersResponse, ServerError<AdminListPremiumUsersError>> {
-    let db = &context.server_state.index_db;
+pub async fn admin_list_users(
+    context: RequestContext<'_, AdminListUsersRequest>,
+) -> Result<AdminListUsersResponse, ServerError<AdminListUsersError>> {
+    let (db, request) = (&context.server_state.index_db, &context.request);
 
-    if !is_admin::<AdminListPremiumUsersError>(
+    if !is_admin::<AdminListUsersError>(
         db,
         &context.public_key,
         &context.server_state.config.admin.admins,
     )? {
-        return Err(ClientError(AdminListPremiumUsersError::NotPermissioned));
+        return Err(ClientError(AdminListUsersError::NotPermissioned));
     }
 
-    let mut users = vec![];
+    let mut users: Vec<String> = vec![];
 
-    for owner in db.google_play_ids.get_all()?.values() {
-        let account = &db
-            .accounts
-            .get(owner)?
-            .ok_or(internal!("Cannot find premium google play user in accounts db: {:?}", owner))?;
-
-        if let Some(BillingPlatform::GooglePlay(user_info)) = &account.billing_info.billing_platform
-        {
-            users.push((
-                account.username.clone(),
-                PaymentPlatform::GooglePlay { account_state: user_info.account_state.clone() },
-            ))
+    for account in db.accounts.get_all()?.values() {
+        match &request.filter {
+            Some(filter) => match filter {
+                AccountFilter::Premium => {
+                    if account.billing_info.billing_platform.is_some() {
+                        users.push(account.username.clone());
+                    }
+                }
+                AccountFilter::StripePremium => {
+                    if let Some(BillingPlatform::Stripe(_)) = account.billing_info.billing_platform
+                    {
+                        users.push(account.username.clone());
+                    }
+                }
+                AccountFilter::GooglePlayPremium => {
+                    if let Some(BillingPlatform::GooglePlay(_)) =
+                        account.billing_info.billing_platform
+                    {
+                        users.push(account.username.clone());
+                    }
+                }
+            },
+            None => users.push(account.username.clone()),
         }
     }
 
-    for owner in db.stripe_ids.get_all()?.values() {
-        let account = &db
-            .accounts
-            .get(owner)?
-            .ok_or(internal!("Cannot find premium stripe user in accounts db: {:?}", owner))?;
+    Ok(AdminListUsersResponse { users })
+}
 
-        if let Some(BillingPlatform::Stripe(user_info)) = &account.billing_info.billing_platform {
-            users.push((
-                account.username.clone(),
-                PaymentPlatform::Stripe { card_last_4_digits: user_info.last_4.clone() },
-            ))
-        }
+pub async fn admin_get_account_info(
+    context: RequestContext<'_, AdminGetAccountInfoRequest>,
+) -> Result<AdminGetAccountInfoResponse, ServerError<AdminGetAccountInfoError>> {
+    let (db, request) = (&context.server_state.index_db, &context.request);
+
+    if !is_admin::<AdminGetAccountInfoError>(
+        db,
+        &context.public_key,
+        &context.server_state.config.admin.admins,
+    )? {
+        return Err(ClientError(AdminGetAccountInfoError::NotPermissioned));
     }
 
-    Ok(AdminListPremiumUsersResponse { users })
+    let owner = match &request.identifier {
+        AccountIdentifier::PublicKey(public_key) => Owner(*public_key),
+        AccountIdentifier::Username(user) => db
+            .usernames
+            .get(user)?
+            .ok_or(ClientError(AdminGetAccountInfoError::UserNotFound))?,
+    };
+
+    let account = db
+        .accounts
+        .get(&owner)?
+        .ok_or(ClientError(AdminGetAccountInfoError::UserNotFound))?;
+
+    let payment_platform = account
+        .billing_info
+        .billing_platform
+        .and_then(|billing_platform| match billing_platform {
+            BillingPlatform::Stripe(user_info) => {
+                Some(PaymentPlatform::Stripe { card_last_4_digits: user_info.last_4.clone() })
+            }
+            BillingPlatform::GooglePlay(user_info) => {
+                Some(PaymentPlatform::GooglePlay { account_state: user_info.account_state.clone() })
+            }
+        });
+
+    Ok(AdminGetAccountInfoResponse {
+        account: AccountInfo { username: account.username, payment_platform },
+    })
 }
 
 #[derive(Debug)]
