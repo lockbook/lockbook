@@ -32,6 +32,7 @@ pub use crate::model::errors::*;
 pub use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
 pub use crate::service::sync_service::{SyncProgress, WorkCalculated};
 pub use crate::service::usage_service::{bytes_to_human, UsageItemMetric, UsageMetrics};
+pub use base64;
 pub use libsecp256k1::PublicKey;
 
 use std::collections::HashMap;

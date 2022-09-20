@@ -8,7 +8,7 @@ use dialoguer::theme::ColorfulTheme;
 use dialoguer::Confirm;
 
 use crate::error::Error;
-use lockbook_core::Core;
+use lockbook_core::{base64, Core};
 use lockbook_core::{AccountFilter, AccountIdentifier, Config, PublicKey, Uuid};
 
 #[derive(Debug, PartialEq, Eq, StructOpt)]
@@ -32,10 +32,10 @@ pub enum Admin {
         premium: bool,
 
         #[structopt(short, long)]
-        google_play: bool,
+        google_play_premium: bool,
 
         #[structopt(short, long)]
-        stripe: bool,
+        stripe_premium: bool,
     },
 
     /// Get a user's info. This includes their username, public key, and payment platform.
@@ -43,6 +43,7 @@ pub enum Admin {
         #[structopt(short, long)]
         username: Option<String>,
 
+        // a base 64 encoded and compressed public key
         #[structopt(short, long)]
         public_key: Option<String>,
     },
@@ -64,8 +65,8 @@ pub fn main() {
         Admin::DeleteAccount { username } => delete_account(&core, username),
         Admin::DisappearFile { id } => disappear_file(&core, id),
         Admin::ValidateAccount { username } => server_validate(&core, username),
-        Admin::ListUsers { premium, google_play, stripe } => {
-            list_users(&core, premium, google_play, stripe)
+        Admin::ListUsers { premium, google_play_premium, stripe_premium } => {
+            list_users(&core, premium, google_play_premium, stripe_premium)
         }
         Admin::AccountInfo { username, public_key } => user_info(&core, username, public_key),
     };
@@ -98,12 +99,14 @@ fn delete_account(core: &Core, username: String) -> Res<()> {
     Ok(())
 }
 
-fn list_users(core: &Core, premium: bool, google_play: bool, stripe: bool) -> Res<()> {
+fn list_users(
+    core: &Core, premium: bool, google_play_premium: bool, stripe_premium: bool,
+) -> Res<()> {
     let filter = if premium {
         Some(AccountFilter::Premium)
-    } else if google_play {
+    } else if google_play_premium {
         Some(AccountFilter::GooglePlayPremium)
-    } else if stripe {
+    } else if stripe_premium {
         Some(AccountFilter::StripePremium)
     } else {
         None
@@ -121,7 +124,7 @@ fn user_info(core: &Core, username: Option<String>, public_key: Option<String>) 
         AccountIdentifier::Username(username)
     } else if let Some(public_key) = public_key {
         AccountIdentifier::PublicKey(PublicKey::parse_compressed(<&[u8; 33]>::try_from(
-            public_key.as_bytes(),
+            base64::decode(public_key)?.as_slice(),
         )?)?)
     } else {
         println!("Please specify a username or public key.");
@@ -130,7 +133,7 @@ fn user_info(core: &Core, username: Option<String>, public_key: Option<String>) 
 
     let account_info = core.admin_get_account_info(identifier)?;
 
-    println!("{:?}", account_info);
+    println!("{:#?}", account_info);
 
     Ok(())
 }

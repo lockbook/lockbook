@@ -235,12 +235,12 @@ pub async fn admin_get_account_info(
     let payment_platform = account
         .billing_info
         .billing_platform
-        .and_then(|billing_platform| match billing_platform {
+        .map(|billing_platform| match billing_platform {
             BillingPlatform::Stripe(user_info) => {
-                Some(PaymentPlatform::Stripe { card_last_4_digits: user_info.last_4.clone() })
+                PaymentPlatform::Stripe { card_last_4_digits: user_info.last_4 }
             }
             BillingPlatform::GooglePlay(user_info) => {
-                Some(PaymentPlatform::GooglePlay { account_state: user_info.account_state.clone() })
+                PaymentPlatform::GooglePlay { account_state: user_info.account_state }
             }
         });
 
