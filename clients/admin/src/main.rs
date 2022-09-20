@@ -68,7 +68,7 @@ pub fn main() {
         Admin::ListUsers { premium, google_play_premium, stripe_premium } => {
             list_users(&core, premium, google_play_premium, stripe_premium)
         }
-        Admin::AccountInfo { username, public_key } => user_info(&core, username, public_key),
+        Admin::AccountInfo { username, public_key } => account_info(&core, username, public_key),
     };
 
     result.unwrap_err();
@@ -112,14 +112,27 @@ fn list_users(
         None
     };
 
-    core.admin_list_users(filter)?
-        .iter()
-        .for_each(|user| println!("{}", user));
+    let users = core.admin_list_users(filter.clone())?;
+
+    if users.is_empty() {
+        let msg = match filter {
+            None => "There are no users.",
+            Some(AccountFilter::Premium) => "There are no premium users.",
+            Some(AccountFilter::GooglePlayPremium) => "There are no premium google play users.",
+            Some(AccountFilter::StripePremium) => "There are no premium stripe users.",
+        };
+
+        println!("{}", msg);
+    } else {
+        for user in users {
+            println!("{}", user);
+        }
+    }
 
     Ok(())
 }
 
-fn user_info(core: &Core, username: Option<String>, public_key: Option<String>) -> Res<()> {
+fn account_info(core: &Core, username: Option<String>, public_key: Option<String>) -> Res<()> {
     let identifier = if let Some(username) = username {
         AccountIdentifier::Username(username)
     } else if let Some(public_key) = public_key {
