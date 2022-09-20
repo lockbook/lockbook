@@ -43,7 +43,7 @@ pub enum Admin {
         #[structopt(short, long)]
         username: Option<String>,
 
-        // a base 64 encoded and compressed public key
+        // A base 64 encoded and compressed public key
         #[structopt(short, long)]
         public_key: Option<String>,
     },
