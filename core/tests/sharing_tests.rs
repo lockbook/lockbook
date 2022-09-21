@@ -1468,3 +1468,36 @@ fn delete_write_shared_folder() {
     let result = cores[1].delete_file(folder.id);
     assert_matches!(result, Err(UiError(FileDeleteError::InsufficientPermission)));
 }
+
+#[test]
+fn create_write_rename_move_into_shared_move_within_shared_sync() {
+    let c1 = test_core_with_account();
+    let c2 = test_core_with_account();
+
+    let top_dir = c1.create_at_path("/shared/").unwrap();
+    let _ = c1.create_at_path("/shared/user1/").unwrap();
+    let _ = c1.create_at_path("/shared/user2/").unwrap();
+
+    let acct2 = c2.get_account().unwrap();
+    c1.share_file(top_dir.id, &acct2.username, ShareMode::Write).unwrap();
+    c1.sync(None).unwrap();
+
+    let root2 = c2.get_root().unwrap();
+    c2.sync(None).unwrap();
+    c2.create_file("shared", root2.id, FileType::Link { target: top_dir.id }).unwrap();
+
+    c2.sync(None).unwrap();
+    c1.sync(None).unwrap();
+
+    let doc = c2.create_at_path("/myfolder/doc.md").unwrap();
+    c2.write_document(doc.id, b"content").unwrap();
+    c2.rename_file(doc.id, "doc-renamed.md").unwrap();
+
+    let user1_dir = c2.get_by_path("/shared/user1/").unwrap();
+    let user2_dir = c2.get_by_path("/shared/user2/").unwrap();
+    c2.move_file(doc.id, user1_dir.id).unwrap();
+    c2.move_file(doc.id, user2_dir.id).unwrap();
+
+    c2.sync(None).unwrap();
+    c1.sync(None).unwrap();
+}
