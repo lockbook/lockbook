@@ -38,11 +38,20 @@ impl Config {
 #[derive(Clone)]
 pub struct IndexDbConf {
     pub db_location: String,
+    pub time_between_compacts: Duration,
 }
 
 impl IndexDbConf {
     pub fn from_env_vars() -> Self {
-        Self { db_location: env_or_panic("INDEX_DB_LOCATION") }
+        Self {
+            db_location: env_or_panic("INDEX_DB_LOCATION"),
+            time_between_compacts: Duration::from_secs(
+                env_or_panic("MINUTES_BETWEEN_BACKGROUND_COMPACTS")
+                    .parse::<u64>()
+                    .unwrap()
+                    * 60,
+            ),
+        }
     }
 }
 
