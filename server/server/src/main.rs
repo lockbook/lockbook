@@ -41,6 +41,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         error!("hmdb indicated that the last write to the log was unsuccessful")
     }
 
+    index_db
+        .start_background_compacter(cfg.index_db.time_between_compacts)
+        .unwrap();
+
     let server_state =
         Arc::new(ServerState { config, index_db, stripe_client, google_play_client });
 
