@@ -1479,12 +1479,14 @@ fn create_write_rename_move_into_shared_move_within_shared_sync() {
     let _ = c1.create_at_path("/shared/user2/").unwrap();
 
     let acct2 = c2.get_account().unwrap();
-    c1.share_file(top_dir.id, &acct2.username, ShareMode::Write).unwrap();
+    c1.share_file(top_dir.id, &acct2.username, ShareMode::Write)
+        .unwrap();
     c1.sync(None).unwrap();
 
     let root2 = c2.get_root().unwrap();
     c2.sync(None).unwrap();
-    c2.create_file("shared", root2.id, FileType::Link { target: top_dir.id }).unwrap();
+    c2.create_file("shared", root2.id, FileType::Link { target: top_dir.id })
+        .unwrap();
 
     c2.sync(None).unwrap();
     c1.sync(None).unwrap();
