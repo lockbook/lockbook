@@ -74,6 +74,7 @@ pub async fn change_doc(
     use ChangeDocError::*;
 
     let (request, server_state) = (context.request, context.server_state);
+    let owner = Owner(context.public_key);
 
     // Validate Diff
     if request.diff.diff() != vec![Diff::Hmac] {
@@ -103,7 +104,7 @@ pub async fn change_doc(
         let direct_access = meta_owner.0 == req_pk;
 
         let mut tree = ServerTree::new(
-            meta_owner,
+            owner,
             &mut tx.owned_files,
             &mut tx.shared_files,
             &mut tx.file_children,
@@ -168,15 +169,8 @@ pub async fn change_doc(
     .await?;
 
     let result = server_state.index_db.transaction(|tx| {
-        let meta = tx
-            .metas
-            .get(request.diff.new.id())
-            .ok_or(ClientError(DocumentNotFound))?;
-
-        let meta_owner = meta.owner();
-
         let mut tree = ServerTree::new(
-            meta_owner,
+            owner,
             &mut tx.owned_files,
             &mut tx.shared_files,
             &mut tx.file_children,
@@ -242,7 +236,7 @@ pub async fn get_document(
         let direct_access = meta_owner.0 == context.public_key;
 
         let mut tree = ServerTree::new(
-            meta_owner,
+            Owner(context.public_key),
             &mut tx.owned_files,
             &mut tx.shared_files,
             &mut tx.file_children,
