@@ -22,6 +22,15 @@ class SettingsService: ObservableObject {
         }
     }
     
+    var premiumProgress: Double {
+        switch usages {
+        case .some(let usage):
+            return min(1.0, Double(usage.serverUsages.serverUsage.exact) / Double(30000000))
+        case .none:
+            return 0
+        }
+    }
+    
     var tier: Tier {
         switch usages {
         case .none:
