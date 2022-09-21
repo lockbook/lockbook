@@ -13,15 +13,7 @@ struct UsageSettingsView: View {
                     .frame(maxWidth: 175, alignment: .trailing)
                 if let usage = settingsState.usages {
                     VStack {
-                        if settingsState.usageProgress < 0.8 {
-                            ProgressView(value: settingsState.usageProgress)
-                        } else if settingsState.usageProgress < 0.9 {
-                            ProgressView(value: settingsState.usageProgress)
-                                .accentColor(Color.orange)
-                        } else {
-                            ProgressView(value: settingsState.usageProgress)
-                                .accentColor(Color.red)
-                        }
+                        ColorProgressBar(value: settingsState.usageProgress)
                         Text("\(usage.serverUsages.serverUsage.readable) / \(usage.serverUsages.dataCap.readable)")
                     }
                 } else {

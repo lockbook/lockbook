@@ -3,7 +3,7 @@ import SwiftUI
 
 enum Tier {
     case Unknown
-    case Free
+    case Trial
     case Premium
 }
 
@@ -28,7 +28,7 @@ class SettingsService: ObservableObject {
             return .Unknown
         case .some(let wrapped):
             if wrapped.serverUsages.dataCap.exact == 1000000 {
-                return .Free
+                return .Trial
             } else {
                 return .Premium
             }

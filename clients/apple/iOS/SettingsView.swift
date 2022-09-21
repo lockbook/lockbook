@@ -48,15 +48,7 @@ struct SettingsView: View, Equatable {
                                 Spacer()
                                 Text("\(usage.serverUsages.serverUsage.readable) / \(usage.serverUsages.dataCap.readable)")
                             }
-                            if settingsState.usageProgress < 0.8 {
-                                ProgressView(value: settingsState.usageProgress)
-                            } else if settingsState.usageProgress < 0.9 {
-                                ProgressView(value: settingsState.usageProgress)
-                                    .accentColor(Color.orange)
-                            } else {
-                                ProgressView(value: settingsState.usageProgress)
-                                    .accentColor(Color.red)
-                            }
+                            ColorProgressBar(value: settingsState.usageProgress)
                         }
                         HStack {
                             Text("Uncompressed usage:")
@@ -72,11 +64,18 @@ struct SettingsView: View, Equatable {
                         HStack {
                             Text("Current tier")
                             Spacer()
-                            Text("Trial")
+                            switch settingsState.tier {
+                            case .Premium: Text("Premium")
+                            case .Trial: Text("Trial")
+                            case .Unknown: Text("Unknown")
+                            }
                         }
                         NavigationLink(
-                            destination: Text(account.apiUrl)) {
-                                Text("Manage Subscription")
+                            destination: ManageSubscription()) {
+                                switch settingsState.tier {
+                                case .Premium: Text("Manage Subscription")
+                                default: Text("Upgrade to premium")
+                                }
                             }
                     } else {
                         Text("Calculating...")
@@ -92,7 +91,80 @@ struct SettingsView: View, Equatable {
     
 }
 
-struct SettingsViewPreview: PreviewProvider {
+struct Loading: PreviewProvider {
+    
+    static var previews: some View {
+        NavigationView {
+            SettingsView()
+                .mockDI()
+        }
+    }
+}
+
+
+struct FreeUser: PreviewProvider {
+    
+    static var previews: some View {
+        NavigationView {
+            SettingsView()
+                .mockDI()
+                .onAppear {
+                    let info = PrerequisiteInformation(
+                        serverUsages: UsageMetrics(
+                            usages: [],
+                            serverUsage: UsageItemMetric(
+                                exact: 3,
+                                readable: "3 bytes"
+                            ),
+                            dataCap: UsageItemMetric(
+                                exact: 1000000,
+                                readable: "10 Mb"
+                            )
+                        ),
+                        uncompressedUsage: UsageItemMetric(
+                            exact: 60,
+                            readable: "60 bytes"
+                        )
+                    )
+                    
+                    Mock.settings.usages = info
+                }
+        }
+    }
+}
+
+struct FreeUserRunningOutOfSpace: PreviewProvider {
+    
+    static var previews: some View {
+        NavigationView {
+            SettingsView()
+                .mockDI()
+                .onAppear {
+                    let info = PrerequisiteInformation(
+                        serverUsages: UsageMetrics(
+                            usages: [],
+                            serverUsage: UsageItemMetric(
+                                exact: 850000,
+                                readable: "8.5 Mb"
+                            ),
+                            dataCap: UsageItemMetric(
+                                exact: 1000000,
+                                readable: "10 Mb"
+                            )
+                        ),
+                        uncompressedUsage: UsageItemMetric(
+                            exact: 60,
+                            readable: "60 bytes"
+                        )
+                    )
+                    
+                    Mock.settings.usages = info
+                }
+        }
+    }
+}
+
+struct PremiumUser: PreviewProvider {
     
     static var previews: some View {
         NavigationView {
@@ -107,8 +179,8 @@ struct SettingsViewPreview: PreviewProvider {
                                 readable: "17 bytes"
                             ),
                             dataCap: UsageItemMetric(
-                                exact: 20,
-                                readable: "20 bytes"
+                                exact: 3000000000,
+                                readable: "30 Gb"
                             )
                         ),
                         uncompressedUsage: UsageItemMetric(
