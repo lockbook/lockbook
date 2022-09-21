@@ -1,7 +1,7 @@
 extern crate chrono;
 extern crate tokio;
 
-use hmdb::log::Reader;
+use hmdb::log::{LogCompacter, Reader};
 use hmdb::transaction::Transaction;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::config::Config;
@@ -40,6 +40,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     if index_db.incomplete_write() {
         error!("hmdb indicated that the last write to the log was unsuccessful")
     }
+
+    index_db
+        .start_background_compacter(cfg.index_db.time_between_compacts)
+        .unwrap();
 
     let server_state =
         Arc::new(ServerState { config, index_db, stripe_client, google_play_client });
