@@ -2,13 +2,19 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Drawing {
     pub scale: f32,
     pub translation_x: f32,
     pub translation_y: f32,
     pub strokes: Vec<Stroke>,
     pub theme: Option<HashMap<ColorAlias, ColorRGB>>,
+}
+
+impl Default for Drawing {
+    fn default() -> Self {
+        Drawing { scale: 1.0, translation_x: 0.0, translation_y: 0.0, strokes: vec![], theme: None }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
