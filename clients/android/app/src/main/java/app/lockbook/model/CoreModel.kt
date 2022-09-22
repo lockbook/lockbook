@@ -445,8 +445,8 @@ object CoreModel {
         }
     }
 
-    fun saveDrawing(id: String, drawing: Drawing): Result<Unit, CoreError<GetDrawingError>> =
-        getDrawingParser.tryParse(
+    fun saveDrawing(id: String, drawing: Drawing): Result<Unit, CoreError<SaveDrawingError>> =
+        saveDrawingParser.tryParse(
             app.lockbook.core.saveDrawing(id, saveDrawingParser.encodeToString(drawing))
         )
 }
