@@ -15,7 +15,6 @@ import app.lockbook.screen.MainScreenActivity
 import app.lockbook.util.ColorAlias
 import app.lockbook.util.Drawing
 import app.lockbook.util.Stroke
-import timber.log.Timber
 import java.lang.ref.WeakReference
 import java.util.*
 import kotlin.math.pow

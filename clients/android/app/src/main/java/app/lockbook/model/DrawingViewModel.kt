@@ -61,7 +61,8 @@ class DrawingViewModel(
         lastEdit = System.currentTimeMillis() // the newest edit
         val currentEdit = lastEdit // the current edit for when the coroutine is launched
 
-        handler.postDelayed({
+        handler.postDelayed(
+            {
                 viewModelScope.launch(Dispatchers.IO) {
                     if (currentEdit == lastEdit && persistentDrawingInfo.drawing.isDirty) {
                         when (
