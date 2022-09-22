@@ -112,7 +112,7 @@ pub async fn change_doc(
         )?
         .to_lazy();
 
-        if tree.maybe_find(&request.diff.new.id()).is_none() {
+        if tree.maybe_find(request.diff.new.id()).is_none() {
             return Err(ClientError(NotPermissioned));
         }
 
