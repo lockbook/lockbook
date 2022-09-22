@@ -16,6 +16,7 @@ use crate::{
     get_all_error_variants, unexpected_only, Config, Error, SupportedImageFormats, UnexpectedError,
 };
 use lockbook_shared::clock;
+use lockbook_shared::drawing::Drawing;
 use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::work_unit::ClientWorkUnit;
 
@@ -723,6 +724,47 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_stopCurrentSearch(
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_endSearch(env: JNIEnv, _: JClass) -> jstring {
     send_search_request(env, SearchRequest::EndSearch)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_getDrawing(
+    env: JNIEnv, _: JClass, jid: JString,
+) -> jstring {
+    let id = match deserialize_id(&env, jid) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.get_drawing(id)),
+            e => translate(e.map(|_| ())),
+        },
+    )
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_core_CoreKt_saveDrawing(
+    env: JNIEnv, _: JClass, jid: JString, jdrawing: JString,
+) -> jstring {
+    let id = match deserialize_id(&env, jid) {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    let drawing = match deserialize::<Drawing>(&env, jdrawing, "drawing") {
+        Ok(ok) => ok,
+        Err(err) => return err,
+    };
+
+    string_to_jstring(
+        &env,
+        match static_state::get() {
+            Ok(core) => translate(core.save_drawing(id, &drawing)),
+            e => translate(e.map(|_| ())),
+        },
+    )
 }
 
 #[no_mangle]

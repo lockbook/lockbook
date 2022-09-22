@@ -11,7 +11,7 @@ fn parse_drawing_invalid() {
 #[test]
 fn parse_drawing_invalid_data() {
     let drawing = Drawing {
-        scale: 0.0,
+        scale: 1.0,
         translation_x: 0.0,
         translation_y: 0.0,
         strokes: vec![Stroke {
@@ -30,7 +30,7 @@ fn parse_drawing_invalid_data() {
 #[test]
 fn parse_drawing_valid() {
     let drawing = Drawing {
-        scale: 0.0,
+        scale: 1.0,
         translation_x: 0.0,
         translation_y: 0.0,
         strokes: vec![Stroke {
@@ -50,7 +50,7 @@ fn parse_drawing_valid() {
 #[test]
 fn get_drawing_bounds_empty() {
     let drawing = Drawing {
-        scale: 0.0,
+        scale: 1.0,
         translation_x: 0.0,
         translation_y: 0.0,
         strokes: vec![],
@@ -63,7 +63,7 @@ fn get_drawing_bounds_empty() {
 #[test]
 fn get_drawing_bounds_small() {
     let drawing = Drawing {
-        scale: 0.0,
+        scale: 1.0,
         translation_x: 0.0,
         translation_y: 0.0,
         strokes: vec![Stroke {
@@ -82,7 +82,7 @@ fn get_drawing_bounds_small() {
 #[test]
 fn get_drawing_bounds_large() {
     let drawing = Drawing {
-        scale: 0.0,
+        scale: 1.0,
         translation_x: 0.0,
         translation_y: 0.0,
         strokes: vec![Stroke {
@@ -101,7 +101,7 @@ fn get_drawing_bounds_large() {
 #[test]
 fn export_drawing_valid() {
     let drawing = Drawing {
-        scale: 0.0,
+        scale: 1.0,
         translation_x: 0.0,
         translation_y: 0.0,
         strokes: vec![Stroke {
@@ -125,7 +125,7 @@ fn export_drawing_valid() {
 #[test]
 fn export_drawing_invalid() {
     let drawing = Drawing {
-        scale: 0.0,
+        scale: 1.0,
         translation_x: 0.0,
         translation_y: 0.0,
         strokes: vec![Stroke {
@@ -160,7 +160,7 @@ fn save_drawing() {
     core.save_drawing(
         drawing.id,
         &Drawing {
-            scale: 0.0,
+            scale: 1.0,
             translation_x: 0.0,
             translation_y: 0.0,
             strokes: vec![Stroke {
@@ -184,7 +184,7 @@ fn save_drawing_invalid() {
     core.save_drawing(
         drawing.id,
         &Drawing {
-            scale: 0.0,
+            scale: 1.0,
             translation_x: 0.0,
             translation_y: 0.0,
             strokes: vec![Stroke {
@@ -207,7 +207,7 @@ fn export_drawing() {
     core.save_drawing(
         drawing.id,
         &Drawing {
-            scale: 0.0,
+            scale: 1.0,
             translation_x: 0.0,
             translation_y: 0.0,
             strokes: vec![Stroke {

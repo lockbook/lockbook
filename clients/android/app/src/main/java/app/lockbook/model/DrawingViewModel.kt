@@ -18,8 +18,6 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
 class DrawingViewModel(
     application: Application,
@@ -68,10 +66,10 @@ class DrawingViewModel(
                 viewModelScope.launch(Dispatchers.IO) {
                     if (currentEdit == lastEdit && persistentDrawingInfo.drawing.isDirty) {
                         when (
-                            val writeToDocumentResult =
-                                CoreModel.writeToDocument(
+                            val saveDrawingResult =
+                                CoreModel.saveDrawing(
                                     id,
-                                    Json.encodeToString(persistentDrawingInfo.drawing.clone()).replace(" ", "")
+                                    persistentDrawingInfo.drawing.clone()
                                 )
                         ) {
                             is Ok -> {
@@ -79,7 +77,7 @@ class DrawingViewModel(
                             }
                             is Err -> {
                                 _notifyError.postValue(
-                                    writeToDocumentResult.error.toLbError(
+                                    saveDrawingResult.error.toLbError(
                                         getRes()
                                     )
                                 )

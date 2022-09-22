@@ -20,6 +20,10 @@ use crate::model::errors::core_err_unexpected;
 use crate::{CoreError, CoreResult};
 
 pub fn validate(drawing: &Drawing) -> CoreResult<()> {
+    if drawing.scale <= 0.0 {
+        return Err(CoreError::DrawingInvalid);
+    }
+
     for stroke in &drawing.strokes {
         if stroke.points_x.len() != stroke.points_y.len()
             || stroke.points_y.len() != stroke.points_girth.len()
