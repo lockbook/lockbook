@@ -1,3 +1,4 @@
+use crate::billing::billing_model::BillingPlatform;
 use crate::schema::Account;
 use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
@@ -7,9 +8,12 @@ use libsecp256k1::PublicKey;
 use lockbook_shared::account::Username;
 use lockbook_shared::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
 use lockbook_shared::api::{
-    AdminDeleteAccountError, AdminDeleteAccountRequest, DeleteAccountError, DeleteAccountRequest,
-    FileUsage, GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError,
-    GetUsageRequest, GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse,
+    AccountFilter, AccountIdentifier, AccountInfo, AdminDeleteAccountError,
+    AdminDeleteAccountRequest, AdminGetAccountInfoError, AdminGetAccountInfoRequest,
+    AdminGetAccountInfoResponse, AdminListUsersError, AdminListUsersRequest,
+    AdminListUsersResponse, DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError,
+    GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
+    NewAccountError, NewAccountRequest, NewAccountResponse, PaymentPlatform,
 };
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
@@ -140,6 +144,7 @@ pub async fn admin_delete_account(
     context: RequestContext<'_, AdminDeleteAccountRequest>,
 ) -> Result<(), ServerError<AdminDeleteAccountError>> {
     let db = &context.server_state.index_db;
+
     if !is_admin::<AdminDeleteAccountError>(
         db,
         &context.public_key,
@@ -156,6 +161,93 @@ pub async fn admin_delete_account(
     delete_account_helper(context.server_state, &owner.0).await?;
 
     Ok(())
+}
+
+pub async fn admin_list_users(
+    context: RequestContext<'_, AdminListUsersRequest>,
+) -> Result<AdminListUsersResponse, ServerError<AdminListUsersError>> {
+    let (db, request) = (&context.server_state.index_db, &context.request);
+
+    if !is_admin::<AdminListUsersError>(
+        db,
+        &context.public_key,
+        &context.server_state.config.admin.admins,
+    )? {
+        return Err(ClientError(AdminListUsersError::NotPermissioned));
+    }
+
+    let mut users: Vec<String> = vec![];
+
+    for account in db.accounts.get_all()?.values() {
+        match &request.filter {
+            Some(filter) => match filter {
+                AccountFilter::Premium => {
+                    if account.billing_info.billing_platform.is_some() {
+                        users.push(account.username.clone());
+                    }
+                }
+                AccountFilter::StripePremium => {
+                    if let Some(BillingPlatform::Stripe(_)) = account.billing_info.billing_platform
+                    {
+                        users.push(account.username.clone());
+                    }
+                }
+                AccountFilter::GooglePlayPremium => {
+                    if let Some(BillingPlatform::GooglePlay(_)) =
+                        account.billing_info.billing_platform
+                    {
+                        users.push(account.username.clone());
+                    }
+                }
+            },
+            None => users.push(account.username.clone()),
+        }
+    }
+
+    Ok(AdminListUsersResponse { users })
+}
+
+pub async fn admin_get_account_info(
+    context: RequestContext<'_, AdminGetAccountInfoRequest>,
+) -> Result<AdminGetAccountInfoResponse, ServerError<AdminGetAccountInfoError>> {
+    let (db, request) = (&context.server_state.index_db, &context.request);
+
+    if !is_admin::<AdminGetAccountInfoError>(
+        db,
+        &context.public_key,
+        &context.server_state.config.admin.admins,
+    )? {
+        return Err(ClientError(AdminGetAccountInfoError::NotPermissioned));
+    }
+
+    let owner = match &request.identifier {
+        AccountIdentifier::PublicKey(public_key) => Owner(*public_key),
+        AccountIdentifier::Username(user) => db
+            .usernames
+            .get(user)?
+            .ok_or(ClientError(AdminGetAccountInfoError::UserNotFound))?,
+    };
+
+    let account = db
+        .accounts
+        .get(&owner)?
+        .ok_or(ClientError(AdminGetAccountInfoError::UserNotFound))?;
+
+    let payment_platform = account
+        .billing_info
+        .billing_platform
+        .map(|billing_platform| match billing_platform {
+            BillingPlatform::Stripe(user_info) => {
+                PaymentPlatform::Stripe { card_last_4_digits: user_info.last_4 }
+            }
+            BillingPlatform::GooglePlay(user_info) => {
+                PaymentPlatform::GooglePlay { account_state: user_info.account_state }
+            }
+        });
+
+    Ok(AdminGetAccountInfoResponse {
+        account: AccountInfo { username: account.username, payment_platform },
+    })
 }
 
 #[derive(Debug)]
