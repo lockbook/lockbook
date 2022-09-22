@@ -427,4 +427,26 @@ object CoreModel {
         stopCurrentSearchParser.tryParse(
             app.lockbook.core.stopCurrentSearch()
         )
+
+    private val getDrawingParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Drawing.serializer(), GetDrawingError.serializer())
+        }
+    }
+
+    fun getDrawing(id: String): Result<Drawing, CoreError<GetDrawingError>> =
+        getDrawingParser.tryParse(
+            app.lockbook.core.getDrawing(id)
+        )
+
+    private val saveDrawingParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), SaveDrawingError.serializer())
+        }
+    }
+
+    fun saveDrawing(id: String, drawing: Drawing): Result<Unit, CoreError<SaveDrawingError>> =
+        saveDrawingParser.tryParse(
+            app.lockbook.core.saveDrawing(id, saveDrawingParser.encodeToString(drawing))
+        )
 }
