@@ -141,7 +141,7 @@ fn account_info(core: &Core, username: Option<String>, public_key: Option<String
         )?)?)
     } else {
         println!("Please specify a username or public key.");
-        return Ok(());
+        return Err(Error);
     };
 
     let account_info = core.admin_get_account_info(identifier)?;
