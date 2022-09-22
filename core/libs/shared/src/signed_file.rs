@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 pub type SignedFile = ECSigned<FileMetadata>;
 
+// Impl'd to avoid comparing encrypted
 impl PartialEq for SignedFile {
     fn eq(&self, other: &Self) -> bool {
         self.timestamped_value.value == other.timestamped_value.value

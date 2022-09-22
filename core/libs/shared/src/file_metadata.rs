@@ -79,6 +79,7 @@ impl FileMetadata {
     }
 }
 
+// This is impl'd to avoid comparing encrypted values
 impl PartialEq for FileMetadata {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
