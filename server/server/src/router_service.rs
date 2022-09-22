@@ -131,6 +131,8 @@ pub fn core_routes(
         .or(core_req!(DeleteAccountRequest, delete_account, server_state))
         .or(core_req!(AdminDeleteAccountRequest, admin_delete_account, server_state))
         .or(core_req!(AdminDisappearFileRequest, admin_disappear_file, server_state))
+        .or(core_req!(AdminListUsersRequest, admin_list_users, server_state))
+        .or(core_req!(AdminGetAccountInfoRequest, admin_get_account_info, server_state))
         .or(core_req!(AdminServerValidateRequest, admin_server_validate, server_state))
 }
 
