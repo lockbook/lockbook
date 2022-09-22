@@ -112,8 +112,11 @@ pub async fn change_doc(
         )?
         .to_lazy();
 
-        let mut share_access = false;
+        if tree.maybe_find(&request.diff.new.id()).is_none() {
+            return Err(ClientError(NotPermissioned));
+        }
 
+        let mut share_access = false;
         if !direct_access {
             for ancestor in tree
                 .ancestors(request.diff.id())?
@@ -226,14 +229,7 @@ pub async fn get_document(
     let (request, server_state) = (&context.request, context.server_state);
 
     server_state.index_db.transaction(|tx| {
-        let meta = tx
-            .metas
-            .get(&request.id)
-            .ok_or(ClientError(GetDocumentError::DocumentNotFound))?;
-
-        let meta_owner = meta.owner();
-
-        let direct_access = meta_owner.0 == context.public_key;
+        let meta_exists = tx.metas.get(&request.id).is_some();
 
         let mut tree = ServerTree::new(
             Owner(context.public_key),
@@ -244,30 +240,14 @@ pub async fn get_document(
         )?
         .to_lazy();
 
-        let mut share_access = false;
-
-        if !direct_access {
-            for ancestor in tree.ancestors(&request.id)?.iter().chain(vec![&request.id]) {
-                let meta = tree.find(ancestor)?;
-
-                if meta
-                    .user_access_keys()
-                    .iter()
-                    .any(|access| access.encrypted_for == context.public_key)
-                {
-                    share_access = true;
-                    break;
-                }
-            }
-        }
-
-        if !direct_access && !share_access {
-            return Err(ClientError(GetDocumentError::NotPermissioned));
-        }
-
-        let meta = tree
-            .maybe_find(&request.id)
-            .ok_or(ClientError(GetDocumentError::DocumentNotFound))?;
+        let meta = match tree.maybe_find(&request.id) {
+            Some(meta) => Ok(meta),
+            None => Err(if meta_exists {
+                ClientError(GetDocumentError::NotPermissioned)
+            } else {
+                ClientError(GetDocumentError::DocumentNotFound)
+            }),
+        }?;
 
         let hmac = meta
             .document_hmac()
