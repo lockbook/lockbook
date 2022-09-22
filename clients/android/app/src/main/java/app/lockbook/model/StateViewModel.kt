@@ -10,8 +10,6 @@ import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import java.io.File
 
 class StateViewModel(application: Application) : AndroidViewModel(application) {
@@ -66,16 +64,13 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
     // You can save on exit here since this scope will exist after the editors don't, thus long saves won't be problematic
     fun saveDrawingOnExit(id: String, drawing: Drawing) {
         viewModelScope.launch(Dispatchers.IO) {
-            val writeToDocumentResult =
-                CoreModel.writeToDocument(
-                    id,
-                    Json.encodeToString(drawing).replace(" ", "")
-                )
+            val saveDrawingResult =
+                CoreModel.saveDrawing(id, drawing)
 
-            if (writeToDocumentResult is Err) {
+            if (saveDrawingResult is Err) {
                 _updateMainScreenUI.postValue(
                     UpdateMainScreenUI.NotifyError(
-                        writeToDocumentResult.error.toLbError(
+                        saveDrawingResult.error.toLbError(
                             getRes()
                         )
                     )

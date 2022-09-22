@@ -5,14 +5,11 @@ import android.graphics.BitmapFactory
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
-import app.lockbook.R
 import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
 import java.io.File
 
 class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: DetailsScreen.Loading) :
@@ -33,38 +30,21 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
 
         val updateUI = when {
             extensionHelper.isDrawing -> {
-                val json = when (val readDocumentResult = CoreModel.readDocument(loadingInfo.fileMetadata.id)) {
-                    is Ok -> readDocumentResult.value
-                    is Err ->
-                        return _updateDetailScreenLoaderUI.postValue(
-                            UpdateDetailScreenLoaderUI.NotifyError(
-                                readDocumentResult.error.toLbError(getRes())
-                            )
-                        )
-                }
-
-                if (json.isEmpty()) {
-                    UpdateDetailScreenLoaderUI.NotifyFinished(
-                        DetailsScreen.Drawing(
-                            loadingInfo.fileMetadata,
-                            Drawing()
-                        )
-                    )
-                } else {
-                    try {
+                when (val getDrawingResult = CoreModel.getDrawing(loadingInfo.fileMetadata.id)) {
+                    is Ok -> {
                         UpdateDetailScreenLoaderUI.NotifyFinished(
                             DetailsScreen.Drawing(
                                 loadingInfo.fileMetadata,
-                                Json.decodeFromString(json)
-                            )
-                        )
-                    } catch (e: Exception) {
-                        UpdateDetailScreenLoaderUI.NotifyError(
-                            LbError.newUserError(
-                                getString(R.string.drawing_parse_error)
+                                getDrawingResult.value
                             )
                         )
                     }
+                    is Err ->
+                        return _updateDetailScreenLoaderUI.postValue(
+                            UpdateDetailScreenLoaderUI.NotifyError(
+                                getDrawingResult.error.toLbError(getRes())
+                            )
+                        )
                 }
             }
             extensionHelper.isImage -> {
