@@ -33,3 +33,5 @@ external fun startSearch(searchFilesViewModel: Any): String
 external fun search(query: String): String
 external fun endSearch(): String
 external fun stopCurrentSearch(): String
+external fun getDrawing(id: String): String
+external fun saveDrawing(id: String, drawing: String): String
