@@ -89,7 +89,15 @@ where
         let maybe_prior = TransactionTable::insert(self.files, id, f.clone());
 
         // maintain index: owned_files
-        if maybe_prior.is_none() {
+        if maybe_prior.as_ref().map(|f| f.owner()) != Some(f.owner()) {
+            if let Some(ref prior) = maybe_prior {
+                if let Some(mut owned) = self.owned_files.delete(prior.owner()) {
+                    owned.remove(&id);
+                    self.owned_files.insert(prior.owner(), owned);
+                } else {
+                    error!("File inserted with unknown prior owner")
+                }
+            }
             if let Some(mut owned) = self.owned_files.delete(owner) {
                 owned.insert(id);
                 self.owned_files.insert(owner, owned);
@@ -103,7 +111,6 @@ where
             prior
                 .user_access_keys()
                 .iter()
-                .filter(|k| !k.deleted)
                 .map(|k| Owner(k.encrypted_for))
                 .collect()
         } else {
@@ -112,7 +119,6 @@ where
         let sharees = f
             .user_access_keys()
             .iter()
-            .filter(|k| !k.deleted)
             .map(|k| Owner(k.encrypted_for))
             .collect::<HashSet<_>>();
         for removed_sharee in prior_sharees.difference(&sharees) {
