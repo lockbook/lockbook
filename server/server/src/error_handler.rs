@@ -7,7 +7,7 @@ use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
 use lockbook_shared::api::{
-    AdminDeleteAccountError, AdminServerValidateError, CancelSubscriptionError, ChangeDocError,
+    AdminDisappearAccountError, AdminServerValidateError, CancelSubscriptionError, ChangeDocError,
     DeleteAccountError, GetDocumentError, GetUpdatesError, GetUsageError,
     UpgradeAccountGooglePlayError, UpgradeAccountStripeError, UpsertError,
 };
@@ -181,11 +181,11 @@ impl From<ServerError<DeleteAccountHelperError>> for ServerError<DeleteAccountEr
     }
 }
 
-impl From<ServerError<DeleteAccountHelperError>> for ServerError<AdminDeleteAccountError> {
+impl From<ServerError<DeleteAccountHelperError>> for ServerError<AdminDisappearAccountError> {
     fn from(err: ServerError<DeleteAccountHelperError>) -> Self {
         match err {
             ClientError(DeleteAccountHelperError::UserNotFound) => {
-                ClientError(AdminDeleteAccountError::UserNotFound)
+                ClientError(AdminDisappearAccountError::UserNotFound)
             }
             InternalError(msg) => InternalError(msg),
         }

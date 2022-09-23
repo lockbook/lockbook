@@ -8,8 +8,8 @@ use libsecp256k1::PublicKey;
 use lockbook_shared::account::Username;
 use lockbook_shared::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
 use lockbook_shared::api::{
-    AccountFilter, AccountIdentifier, AccountInfo, AdminDeleteAccountError,
-    AdminDeleteAccountRequest, AdminGetAccountInfoError, AdminGetAccountInfoRequest,
+    AccountFilter, AccountIdentifier, AccountInfo, AdminDisappearAccountError,
+    AdminDisappearAccountRequest, AdminGetAccountInfoError, AdminGetAccountInfoRequest,
     AdminGetAccountInfoResponse, AdminListUsersError, AdminListUsersRequest,
     AdminListUsersResponse, DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError,
     GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
@@ -23,6 +23,7 @@ use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use std::collections::HashSet;
 use std::fmt::Debug;
+use tracing::warn;
 use uuid::Uuid;
 
 /// Create a new account given a username, public_key, and root folder.
@@ -135,30 +136,38 @@ pub fn get_usage_helper(
 pub async fn delete_account(
     context: RequestContext<'_, DeleteAccountRequest>,
 ) -> Result<(), ServerError<DeleteAccountError>> {
-    delete_account_helper(context.server_state, &context.public_key).await?;
+    delete_account_helper(context.server_state, &context.public_key, false).await?;
 
     Ok(())
 }
 
-pub async fn admin_delete_account(
-    context: RequestContext<'_, AdminDeleteAccountRequest>,
-) -> Result<(), ServerError<AdminDeleteAccountError>> {
+pub async fn admin_disappear_account(
+    context: RequestContext<'_, AdminDisappearAccountRequest>,
+) -> Result<(), ServerError<AdminDisappearAccountError>> {
     let db = &context.server_state.index_db;
 
-    if !is_admin::<AdminDeleteAccountError>(
+    if !is_admin::<AdminDisappearAccountError>(
         db,
         &context.public_key,
         &context.server_state.config.admin.admins,
     )? {
-        return Err(ClientError(AdminDeleteAccountError::NotPermissioned));
+        return Err(ClientError(AdminDisappearAccountError::NotPermissioned));
     }
+
+    let admin_username = db
+        .accounts
+        .get(&Owner(context.public_key))?
+        .map(|account| account.username)
+        .unwrap_or_else(|| "~unknown~".to_string());
+
+    warn!("admin {} is disappearing account {}", admin_username, context.request.username);
 
     let owner = db
         .usernames
         .get(&context.request.username)?
-        .ok_or(ClientError(AdminDeleteAccountError::UserNotFound))?;
+        .ok_or(ClientError(AdminDisappearAccountError::UserNotFound))?;
 
-    delete_account_helper(context.server_state, &owner.0).await?;
+    delete_account_helper(context.server_state, &owner.0, true).await?;
 
     Ok(())
 }
@@ -256,7 +265,7 @@ pub enum DeleteAccountHelperError {
 }
 
 pub async fn delete_account_helper(
-    server_state: &ServerState, public_key: &PublicKey,
+    server_state: &ServerState, public_key: &PublicKey, free_username: bool,
 ) -> Result<(), ServerError<DeleteAccountHelperError>> {
     let all_files: Result<Vec<(Uuid, DocumentHmac)>, ServerError<DeleteAccountHelperError>> =
         server_state.index_db.transaction(|tx| {
@@ -289,7 +298,7 @@ pub async fn delete_account_helper(
                 tx.file_children.delete(id);
             }
 
-            if !server_state.config.is_prod() {
+            if free_username {
                 let username = tx
                     .accounts
                     .delete(Owner(*public_key))
