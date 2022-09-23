@@ -999,24 +999,22 @@ impl From<CoreError> for Error<GetSubscriptionInfoError> {
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum AdminDeleteAccountError {
+pub enum AdminDisappearAccount {
     InsufficientPermission,
     UsernameNotFound,
     CouldNotReachServer,
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<AdminDeleteAccountError> {
+impl From<CoreError> for Error<AdminDisappearAccount> {
     fn from(e: CoreError) -> Self {
         match e {
             CoreError::InsufficientPermission => {
-                UiError(AdminDeleteAccountError::InsufficientPermission)
+                UiError(AdminDisappearAccount::InsufficientPermission)
             }
-            CoreError::UsernameNotFound => UiError(AdminDeleteAccountError::UsernameNotFound),
-            CoreError::ServerUnreachable => UiError(AdminDeleteAccountError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => {
-                UiError(AdminDeleteAccountError::ClientUpdateRequired)
-            }
+            CoreError::UsernameNotFound => UiError(AdminDisappearAccount::UsernameNotFound),
+            CoreError::ServerUnreachable => UiError(AdminDisappearAccount::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(AdminDisappearAccount::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
         }
     }
