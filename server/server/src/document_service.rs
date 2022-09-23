@@ -6,6 +6,7 @@ use std::fmt::Debug;
 use std::path::PathBuf;
 use tokio::fs::{remove_file, File};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tracing::debug;
 use uuid::Uuid;
 
 pub(crate) async fn insert<T: Debug>(
