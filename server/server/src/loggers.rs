@@ -57,7 +57,9 @@ fn file_logger(config: &Config) -> RollingFileAppender {
 }
 
 fn server_logs() -> FilterFn {
-    filter::filter_fn(|metadata| metadata.target().starts_with("lockbook"))
+    filter::filter_fn(|metadata| {
+        metadata.target().starts_with("lockbook") || metadata.target().starts_with("hmdb")
+    })
 }
 
 struct PDLogger {
