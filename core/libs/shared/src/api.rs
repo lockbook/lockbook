@@ -407,21 +407,21 @@ impl Request for GetSubscriptionInfoRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct AdminDeleteAccountRequest {
+pub struct AdminDisappearAccountRequest {
     pub username: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum AdminDeleteAccountError {
+pub enum AdminDisappearAccountError {
     NotPermissioned,
     UserNotFound,
 }
 
-impl Request for AdminDeleteAccountRequest {
+impl Request for AdminDisappearAccountRequest {
     type Response = ();
-    type Error = AdminDeleteAccountError;
+    type Error = AdminDisappearAccountError;
     const METHOD: Method = Method::DELETE;
-    const ROUTE: &'static str = "/admin-delete-account";
+    const ROUTE: &'static str = "/admin-disappear-account";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]

@@ -3,8 +3,8 @@ use crate::service::api_service::ApiError;
 use crate::{core_err_unexpected, CoreError, CoreResult, RequestContext};
 use lockbook_shared::account::Username;
 use lockbook_shared::api::{
-    AccountFilter, AccountIdentifier, AccountInfo, AdminDeleteAccountError,
-    AdminDeleteAccountRequest, AdminDisappearFileError, AdminDisappearFileRequest,
+    AccountFilter, AccountIdentifier, AccountInfo, AdminDisappearAccountError,
+    AdminDisappearAccountRequest, AdminDisappearFileError, AdminDisappearFileRequest,
     AdminGetAccountInfoError, AdminGetAccountInfoRequest, AdminListUsersError,
     AdminListUsersRequest, AdminServerValidateError, AdminServerValidateRequest,
     AdminServerValidateResponse,
@@ -12,21 +12,24 @@ use lockbook_shared::api::{
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
-    pub fn delete_account(&self, username: &str) -> CoreResult<()> {
+    pub fn disappear_account(&self, username: &str) -> CoreResult<()> {
         let account = self.get_account()?;
 
-        api_service::request(account, AdminDeleteAccountRequest { username: username.to_string() })
-            .map_err(|err| match err {
-                ApiError::Endpoint(AdminDeleteAccountError::UserNotFound) => {
-                    CoreError::UsernameNotFound
-                }
-                ApiError::Endpoint(AdminDeleteAccountError::NotPermissioned) => {
-                    CoreError::InsufficientPermission
-                }
-                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-                _ => core_err_unexpected(err),
-            })
+        api_service::request(
+            account,
+            AdminDisappearAccountRequest { username: username.to_string() },
+        )
+        .map_err(|err| match err {
+            ApiError::Endpoint(AdminDisappearAccountError::UserNotFound) => {
+                CoreError::UsernameNotFound
+            }
+            ApiError::Endpoint(AdminDisappearAccountError::NotPermissioned) => {
+                CoreError::InsufficientPermission
+            }
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            _ => core_err_unexpected(err),
+        })
     }
 
     pub fn disappear_file(&self, id: Uuid) -> CoreResult<()> {
