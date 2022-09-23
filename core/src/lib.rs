@@ -486,12 +486,12 @@ impl Core {
     }
 
     #[instrument(level = "debug", skip(self, username), err(Debug))]
-    pub fn admin_delete_account(
+    pub fn admin_disappear_account(
         &self, username: &str,
-    ) -> Result<(), Error<AdminDeleteAccountError>> {
+    ) -> Result<(), Error<AdminDisappearAccount>> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.delete_account(username))?;
+            .transaction(|tx| self.context(tx)?.disappear_account(username))?;
         Ok(val?)
     }
 

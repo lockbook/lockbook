@@ -12,7 +12,7 @@ use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::SharedError;
 use std::collections::HashSet;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, UpsertRequest>,
@@ -320,6 +320,14 @@ pub async fn admin_disappear_file(
     )? {
         return Err(ClientError(AdminDisappearFileError::NotPermissioned));
     }
+
+    let username = db
+        .accounts
+        .get(&Owner(context.public_key))?
+        .map(|account| account.username)
+        .unwrap_or_else(|| "~unknown~".to_string());
+
+    warn!("admin: {} disappeared file {}", username, context.request.id);
 
     context
         .server_state

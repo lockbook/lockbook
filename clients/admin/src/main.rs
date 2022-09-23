@@ -13,8 +13,10 @@ use lockbook_core::{AccountFilter, AccountIdentifier, Config, PublicKey, Uuid};
 
 #[derive(Debug, PartialEq, Eq, StructOpt)]
 pub enum Admin {
-    /// Delete a user
-    DeleteAccount { username: String },
+    /// Disappear a user
+    ///
+    /// Frees up their username
+    DisappearAccount { username: String },
 
     /// Disappear a file
     ///
@@ -62,7 +64,7 @@ pub fn main() {
     let core = Core::init(&Config { writeable_path, logs: true, colored_logs: true }).unwrap();
 
     let result = match Admin::from_args() {
-        Admin::DeleteAccount { username } => delete_account(&core, username),
+        Admin::DisappearAccount { username } => disappear_account(&core, username),
         Admin::DisappearFile { id } => disappear_file(&core, id),
         Admin::ValidateAccount { username } => server_validate(&core, username),
         Admin::ListUsers { premium, google_play_premium, stripe_premium } => {
@@ -87,13 +89,13 @@ fn disappear_file(core: &Core, id: Uuid) -> Res<()> {
     Ok(())
 }
 
-fn delete_account(core: &Core, username: String) -> Res<()> {
+fn disappear_account(core: &Core, username: String) -> Res<()> {
     let maybe_confirm = Confirm::with_theme(&ColorfulTheme::default())
         .with_prompt(format!("Are you sure you want to delete '{}'?", username))
         .interact_opt()?;
 
     if maybe_confirm.unwrap_or(false) {
-        core.admin_delete_account(&username)?;
+        core.admin_disappear_account(&username)?;
 
         println!("Account deleted!");
     }
