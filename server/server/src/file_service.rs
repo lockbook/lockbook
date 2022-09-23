@@ -12,7 +12,7 @@ use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::SharedError;
 use std::collections::HashSet;
-use tracing::error;
+use tracing::{debug, error, warn};
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, UpsertRequest>,
@@ -56,6 +56,7 @@ pub async fn upsert_file_metadata(
                     if let Some(digest) = meta.file.timestamped_value.value.document_hmac {
                         tx.sizes.delete(*meta.id());
                         new_deleted.push((*meta.id(), digest));
+                        debug!("deleting id: {}", *meta.id());
                     }
                 }
             }
@@ -79,12 +80,6 @@ pub async fn change_doc(
     // Validate Diff
     if request.diff.diff() != vec![Diff::Hmac] {
         return Err(ClientError(DiffMalformed));
-    }
-
-    if let Some(old) = &request.diff.old {
-        if old.id() != request.diff.new.id() {
-            return Err(ClientError(DiffMalformed));
-        }
     }
 
     if request.diff.new.document_hmac().is_none() {
@@ -163,6 +158,7 @@ pub async fn change_doc(
 
     let new_version = get_time().0 as u64;
     let new = request.diff.new.clone().add_time(new_version);
+    debug!("Updating document: {}", request.diff.new.id());
     document_service::insert(
         server_state,
         request.diff.new.id(),
@@ -324,6 +320,14 @@ pub async fn admin_disappear_file(
     )? {
         return Err(ClientError(AdminDisappearFileError::NotPermissioned));
     }
+
+    let username = db
+        .accounts
+        .get(&Owner(context.public_key))?
+        .map(|account| account.username)
+        .unwrap_or_else(|| "~unknown~".to_string());
+
+    warn!("admin: {} disappeared file {}", username, context.request.id);
 
     context
         .server_state
