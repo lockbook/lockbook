@@ -71,7 +71,9 @@ pub fn main() {
         Admin::AccountInfo { username, public_key } => account_info(&core, username, public_key),
     };
 
-    result.unwrap_err();
+    if result.is_err() {
+        panic!("unsuccessful completion")
+    }
 }
 
 fn disappear_file(core: &Core, id: Uuid) -> Res<()> {

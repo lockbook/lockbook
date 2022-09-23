@@ -40,7 +40,7 @@ impl RequestContext<'_, '_> {
         let account = self
             .tx
             .account
-            .get(&OneKey { id })
+            .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
         tree.rename(id, new_name, account)?;
