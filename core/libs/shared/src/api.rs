@@ -1,6 +1,7 @@
 use http::Method;
 use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::account::Account;
@@ -447,11 +448,19 @@ pub struct AdminValidateAccountRequest {
     pub username: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Default)]
 pub struct AdminValidateAccount {
     pub tree_validation_failures: Vec<ValidationFailure>,
     pub documents_missing_size: Vec<Uuid>,
     pub documents_missing_content: Vec<Uuid>,
+}
+
+impl AdminValidateAccount {
+    pub fn is_empty(&self) -> bool {
+        self.tree_validation_failures.is_empty()
+            && self.documents_missing_content.is_empty()
+            && self.documents_missing_size.is_empty()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -470,8 +479,13 @@ impl Request for AdminValidateAccountRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct AdminValidateServerRequest {}
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct AdminValidateServer {}
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Default)]
+pub struct AdminValidateServer {
+    pub users_with_validation_failures: HashMap<Username, AdminValidateAccount>,
+    // TODO check indexes
+    // TODO check documents without metas
+    // TODO check metas without documents
+}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum AdminValidateServerError {

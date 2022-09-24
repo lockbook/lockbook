@@ -1,7 +1,7 @@
 use crate::account_service::is_admin;
-use crate::ServerError;
 use crate::ServerError::ClientError;
-use crate::{document_service, RequestContext};
+use crate::{document_service, RequestContext, ServerState};
+use crate::{ServerError, Tx};
 use hmdb::transaction::Transaction;
 use lockbook_shared::api::*;
 use lockbook_shared::clock::get_time;
@@ -10,7 +10,7 @@ use lockbook_shared::file_metadata::{Diff, Owner};
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
-use lockbook_shared::SharedError;
+use lockbook_shared::{SharedError, SharedResult};
 use std::collections::HashSet;
 use tracing::{debug, error, warn};
 
@@ -409,67 +409,85 @@ pub async fn admin_validate_account(
         return Err(ClientError(AdminValidateAccountError::NotPermissioned));
     }
 
-    let mut result = AdminValidateAccount {
-        tree_validation_failures: vec![],
-        documents_missing_size: vec![],
-        documents_missing_content: vec![],
-    };
-    server_state
-        .index_db
-        .transaction::<_, Result<(), ServerError<_>>>(|tx| {
+    let result: Result<AdminValidateAccount, ServerError<AdminValidateAccountError>> =
+        server_state.index_db.transaction(|tx| {
             let owner = *tx
                 .usernames
                 .get(&request.username)
                 .ok_or(ClientError(AdminValidateAccountError::UserNotFound))?;
 
-            let mut tree = ServerTree::new(
-                owner,
-                &mut tx.owned_files,
-                &mut tx.shared_files,
-                &mut tx.file_children,
-                &mut tx.metas,
-            )?
-            .to_lazy();
+            Ok(validate_account_helper(tx, owner, server_state)?)
+        })?;
 
-            for id in tree.owned_ids() {
-                if !tree.calculate_deleted(&id)? {
-                    let file = tree.find(&id)?;
-                    if file.is_document() && file.document_hmac().is_some() {
-                        if tx.sizes.get(&id).is_none() {
-                            result.documents_missing_size.push(id);
-                        }
+    result
+}
 
-                        if !document_service::exists(
-                            server_state,
-                            &id,
-                            file.document_hmac().unwrap(),
-                        ) {
-                            result.documents_missing_content.push(id);
-                        }
-                    }
+pub fn validate_account_helper(
+    tx: &mut Tx<'_>, owner: Owner, server_state: &ServerState,
+) -> SharedResult<AdminValidateAccount> {
+    let mut result = AdminValidateAccount::default();
+
+    let mut tree = ServerTree::new(
+        owner,
+        &mut tx.owned_files,
+        &mut tx.shared_files,
+        &mut tx.file_children,
+        &mut tx.metas,
+    )?
+    .to_lazy();
+
+    for id in tree.owned_ids() {
+        if !tree.calculate_deleted(&id)? {
+            let file = tree.find(&id)?;
+            if file.is_document() && file.document_hmac().is_some() {
+                if tx.sizes.get(&id).is_none() {
+                    result.documents_missing_size.push(id);
+                }
+
+                if !document_service::exists(server_state, &id, file.document_hmac().unwrap()) {
+                    result.documents_missing_content.push(id);
                 }
             }
+        }
+    }
 
-            let validation_res = tree.stage(None).validate(owner);
-            match validation_res {
-                Ok(_) => {}
-                Err(SharedError::ValidationFailure(validation)) => {
-                    result.tree_validation_failures.push(validation)
-                }
-                Err(err) => error!(
-                    "Unexpected error while validating {}'s tree: {:?}",
-                    request.username, err
-                ),
-            }
-
-            Ok(())
-        })??;
+    let validation_res = tree.stage(None).validate(owner);
+    match validation_res {
+        Ok(_) => {}
+        Err(SharedError::ValidationFailure(validation)) => {
+            result.tree_validation_failures.push(validation)
+        }
+        Err(err) => {
+            error!("Unexpected error while validating {:?}'s tree: {:?}", owner, err)
+        }
+    }
 
     Ok(result)
 }
 
 pub async fn admin_validate_server(
     context: RequestContext<'_, AdminValidateServerRequest>,
-) -> Result<AdminValidateAccount, ServerError<AdminValidateServerError>> {
-    todo!()
+) -> Result<AdminValidateServer, ServerError<AdminValidateServerError>> {
+    if !is_admin::<AdminValidateServerError>(
+        &context.server_state.index_db,
+        &context.public_key,
+        &context.server_state.config.admin.admins,
+    )? {
+        return Err(ClientError(AdminValidateServerError::NotPermissioned));
+    }
+
+    let result: Result<AdminValidateServer, ServerError<AdminValidateServerError>> =
+        context.server_state.index_db.transaction(|tx| {
+            let mut result = AdminValidateServer::default();
+            for (owner, account) in tx.accounts.get_all().clone() {
+                let validation = validate_account_helper(tx, owner, context.server_state)?;
+                if !validation.is_empty() {
+                    result
+                        .users_with_validation_failures
+                        .insert(account.username, validation);
+                }
+            }
+            Ok(result)
+        })?;
+    result
 }
