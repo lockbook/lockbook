@@ -1,6 +1,7 @@
 use http::Method;
 use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::account::Account;
@@ -443,28 +444,59 @@ impl Request for AdminDisappearFileRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct AdminServerValidateRequest {
+pub struct AdminValidateAccountRequest {
     pub username: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct AdminServerValidateResponse {
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Default)]
+pub struct AdminValidateAccount {
     pub tree_validation_failures: Vec<ValidationFailure>,
     pub documents_missing_size: Vec<Uuid>,
     pub documents_missing_content: Vec<Uuid>,
 }
 
+impl AdminValidateAccount {
+    pub fn is_empty(&self) -> bool {
+        self.tree_validation_failures.is_empty()
+            && self.documents_missing_content.is_empty()
+            && self.documents_missing_size.is_empty()
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum AdminServerValidateError {
+pub enum AdminValidateAccountError {
     NotPermissioned,
     UserNotFound,
 }
 
-impl Request for AdminServerValidateRequest {
-    type Response = AdminServerValidateResponse;
-    type Error = AdminServerValidateError;
+impl Request for AdminValidateAccountRequest {
+    type Response = AdminValidateAccount;
+    type Error = AdminValidateAccountError;
     const METHOD: Method = Method::GET;
-    const ROUTE: &'static str = "/admin-server-validate";
+    const ROUTE: &'static str = "/admin-validate-account";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminValidateServerRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Default)]
+pub struct AdminValidateServer {
+    pub users_with_validation_failures: HashMap<Username, AdminValidateAccount>,
+    // TODO check indexes
+    // TODO check documents without metas
+    // TODO check metas without documents
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminValidateServerError {
+    NotPermissioned,
+}
+
+impl Request for AdminValidateServerRequest {
+    type Response = AdminValidateServer;
+    type Error = AdminValidateServerError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/admin-validate-server";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]

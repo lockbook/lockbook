@@ -1049,6 +1049,7 @@ pub enum AdminServerValidateError {
     InsufficientPermission,
     CouldNotReachServer,
     ClientUpdateRequired,
+    UserNotFound,
 }
 
 impl From<CoreError> for Error<AdminServerValidateError> {
