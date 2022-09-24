@@ -45,7 +45,7 @@ use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use lockbook_shared::account::Username;
-use lockbook_shared::api::{AccountInfo, AdminServerValidateResponse};
+use lockbook_shared::api::{AccountInfo, AdminValidateAccount};
 use lockbook_shared::clock;
 use lockbook_shared::crypto::AESKey;
 use serde_json::{json, value::Value};
@@ -524,9 +524,9 @@ impl Core {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn admin_server_validate(
+    pub fn admin_validate_account(
         &self, username: &str,
-    ) -> Result<AdminServerValidateResponse, Error<AdminServerValidateError>> {
+    ) -> Result<AdminValidateAccount, Error<AdminServerValidateError>> {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.server_validate(username))?;

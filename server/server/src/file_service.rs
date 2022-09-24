@@ -397,19 +397,19 @@ pub async fn admin_disappear_file(
 }
 
 pub async fn admin_server_validate(
-    context: RequestContext<'_, AdminServerValidateRequest>,
-) -> Result<AdminServerValidateResponse, ServerError<AdminServerValidateError>> {
+    context: RequestContext<'_, AdminValidateAccountRequest>,
+) -> Result<AdminValidateAccount, ServerError<AdminValidateAccountError>> {
     let (request, server_state) = (&context.request, context.server_state);
     let db = &server_state.index_db;
-    if !is_admin::<AdminServerValidateError>(
+    if !is_admin::<AdminValidateAccountError>(
         db,
         &context.public_key,
         &context.server_state.config.admin.admins,
     )? {
-        return Err(ClientError(AdminServerValidateError::NotPermissioned));
+        return Err(ClientError(AdminValidateAccountError::NotPermissioned));
     }
 
-    let mut result = AdminServerValidateResponse {
+    let mut result = AdminValidateAccount {
         tree_validation_failures: vec![],
         documents_missing_size: vec![],
         documents_missing_content: vec![],
@@ -420,7 +420,7 @@ pub async fn admin_server_validate(
             let owner = *tx
                 .usernames
                 .get(&request.username)
-                .ok_or(ClientError(AdminServerValidateError::UserNotFound))?;
+                .ok_or(ClientError(AdminValidateAccountError::UserNotFound))?;
 
             let mut tree = ServerTree::new(
                 owner,

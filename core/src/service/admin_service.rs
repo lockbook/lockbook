@@ -6,8 +6,8 @@ use lockbook_shared::api::{
     AccountFilter, AccountIdentifier, AccountInfo, AdminDisappearAccountError,
     AdminDisappearAccountRequest, AdminDisappearFileError, AdminDisappearFileRequest,
     AdminGetAccountInfoError, AdminGetAccountInfoRequest, AdminListUsersError,
-    AdminListUsersRequest, AdminServerValidateError, AdminServerValidateRequest,
-    AdminServerValidateResponse,
+    AdminListUsersRequest, AdminValidateAccount, AdminValidateAccountError,
+    AdminValidateAccountRequest,
 };
 use uuid::Uuid;
 
@@ -80,16 +80,19 @@ impl RequestContext<'_, '_> {
             .account)
     }
 
-    pub fn server_validate(&self, username: &str) -> CoreResult<AdminServerValidateResponse> {
+    pub fn server_validate(&self, username: &str) -> CoreResult<AdminValidateAccount> {
         let account = self.get_account()?;
-        api_service::request(account, AdminServerValidateRequest { username: username.to_string() })
-            .map_err(|err| match err {
-                ApiError::Endpoint(AdminServerValidateError::NotPermissioned) => {
-                    CoreError::InsufficientPermission
-                }
-                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-                _ => core_err_unexpected(err),
-            })
+        api_service::request(
+            account,
+            AdminValidateAccountRequest { username: username.to_string() },
+        )
+        .map_err(|err| match err {
+            ApiError::Endpoint(AdminValidateAccountError::NotPermissioned) => {
+                CoreError::InsufficientPermission
+            }
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            _ => core_err_unexpected(err),
+        })
     }
 }

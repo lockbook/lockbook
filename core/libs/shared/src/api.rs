@@ -443,28 +443,28 @@ impl Request for AdminDisappearFileRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct AdminServerValidateRequest {
+pub struct AdminValidateAccountRequest {
     pub username: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct AdminServerValidateResponse {
+pub struct AdminValidateAccount {
     pub tree_validation_failures: Vec<ValidationFailure>,
     pub documents_missing_size: Vec<Uuid>,
     pub documents_missing_content: Vec<Uuid>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum AdminServerValidateError {
+pub enum AdminValidateAccountError {
     NotPermissioned,
     UserNotFound,
 }
 
-impl Request for AdminServerValidateRequest {
-    type Response = AdminServerValidateResponse;
-    type Error = AdminServerValidateError;
+impl Request for AdminValidateAccountRequest {
+    type Response = AdminValidateAccount;
+    type Error = AdminValidateAccountError;
     const METHOD: Method = Method::GET;
-    const ROUTE: &'static str = "/admin-server-validate";
+    const ROUTE: &'static str = "/admin-validate-account";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]

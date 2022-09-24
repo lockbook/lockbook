@@ -1,7 +1,9 @@
 use crate::{Error, Res};
 use lockbook_core::{base64, AccountFilter, AccountIdentifier, Core, PublicKey};
 
-pub fn list(core: &Core, premium: bool, google_play_premium: bool, stripe_premium: bool) -> Res<()> {
+pub fn list(
+    core: &Core, premium: bool, google_play_premium: bool, stripe_premium: bool,
+) -> Res<()> {
     let filter = if premium {
         Some(AccountFilter::Premium)
     } else if google_play_premium {

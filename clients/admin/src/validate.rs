@@ -2,9 +2,9 @@ use crate::Res;
 use lockbook_core::Core;
 
 pub fn account(core: &Core, username: String) -> Res<()> {
-    println!("Validating server...");
+    println!("Validating {username}...");
 
-    let validation_failures = core.admin_server_validate(&username)?;
+    let validation_failures = core.admin_validate_account(&username)?;
     for failure in validation_failures.tree_validation_failures {
         println!("tree validation failure: {:?}", failure);
     }
@@ -16,4 +16,8 @@ pub fn account(core: &Core, username: String) -> Res<()> {
     }
 
     Ok(())
+}
+
+pub fn server(core: &Core) -> Res<()> {
+    todo!()
 }

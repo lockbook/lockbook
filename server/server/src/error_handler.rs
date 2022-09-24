@@ -7,7 +7,7 @@ use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
 use lockbook_shared::api::{
-    AdminDisappearAccountError, AdminServerValidateError, CancelSubscriptionError, ChangeDocError,
+    AdminDisappearAccountError, AdminValidateAccountError, CancelSubscriptionError, ChangeDocError,
     DeleteAccountError, GetDocumentError, GetUpdatesError, GetUsageError,
     UpgradeAccountGooglePlayError, UpgradeAccountStripeError, UpsertError,
 };
@@ -192,7 +192,7 @@ impl From<ServerError<DeleteAccountHelperError>> for ServerError<AdminDisappearA
     }
 }
 
-impl From<SharedError> for ServerError<AdminServerValidateError> {
+impl From<SharedError> for ServerError<AdminValidateAccountError> {
     fn from(err: SharedError) -> Self {
         internal!("{:?}", err)
     }

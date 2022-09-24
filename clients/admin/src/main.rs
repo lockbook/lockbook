@@ -73,7 +73,7 @@ pub fn main() {
         Admin::AccountInfo { username, public_key } => account::info(&core, username, public_key),
         Admin::DisappearFile { id } => disappear::file(&core, id),
         Admin::ValidateAccount { username } => validate::account(&core, username),
-        Admin::ValidateServer => todo!(),
+        Admin::ValidateServer => validate::server(&core),
     };
 
     if result.is_err() {
