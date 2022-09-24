@@ -2,13 +2,7 @@ use crate::service::api_service;
 use crate::service::api_service::ApiError;
 use crate::{core_err_unexpected, CoreError, CoreResult, RequestContext};
 use lockbook_shared::account::Username;
-use lockbook_shared::api::{
-    AccountFilter, AccountIdentifier, AccountInfo, AdminDisappearAccountError,
-    AdminDisappearAccountRequest, AdminDisappearFileError, AdminDisappearFileRequest,
-    AdminGetAccountInfoError, AdminGetAccountInfoRequest, AdminListUsersError,
-    AdminListUsersRequest, AdminValidateAccount, AdminValidateAccountError,
-    AdminValidateAccountRequest,
-};
+use lockbook_shared::api::*;
 use uuid::Uuid;
 
 impl RequestContext<'_, '_> {
@@ -80,7 +74,7 @@ impl RequestContext<'_, '_> {
             .account)
     }
 
-    pub fn server_validate(&self, username: &str) -> CoreResult<AdminValidateAccount> {
+    pub fn validate_account(&self, username: &str) -> CoreResult<AdminValidateAccount> {
         let account = self.get_account()?;
         api_service::request(
             account,
@@ -88,6 +82,21 @@ impl RequestContext<'_, '_> {
         )
         .map_err(|err| match err {
             ApiError::Endpoint(AdminValidateAccountError::NotPermissioned) => {
+                CoreError::InsufficientPermission
+            }
+            ApiError::Endpoint(AdminValidateAccountError::UserNotFound) => {
+                CoreError::UsernameNotFound
+            }
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            _ => core_err_unexpected(err),
+        })
+    }
+
+    pub fn validate_server(&self) -> CoreResult<AdminValidateServer> {
+        let account = self.get_account()?;
+        api_service::request(account, AdminValidateServerRequest {}).map_err(|err| match err {
+            ApiError::Endpoint(AdminValidateServerError::NotPermissioned) => {
                 CoreError::InsufficientPermission
             }
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,

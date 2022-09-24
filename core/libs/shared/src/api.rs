@@ -468,6 +468,24 @@ impl Request for AdminValidateAccountRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminValidateServerRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminValidateServer {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminValidateServerError {
+    NotPermissioned,
+}
+
+impl Request for AdminValidateServerRequest {
+    type Response = AdminValidateServer;
+    type Error = AdminValidateServerError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/admin-validate-server";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct AdminListUsersRequest {
     pub filter: Option<AccountFilter>,
 }

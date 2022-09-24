@@ -396,7 +396,7 @@ pub async fn admin_disappear_file(
     Ok(())
 }
 
-pub async fn admin_server_validate(
+pub async fn admin_validate_account(
     context: RequestContext<'_, AdminValidateAccountRequest>,
 ) -> Result<AdminValidateAccount, ServerError<AdminValidateAccountError>> {
     let (request, server_state) = (&context.request, context.server_state);
@@ -466,4 +466,10 @@ pub async fn admin_server_validate(
         })??;
 
     Ok(result)
+}
+
+pub async fn admin_validate_server(
+    context: RequestContext<'_, AdminValidateServerRequest>,
+) -> Result<AdminValidateAccount, ServerError<AdminValidateServerError>> {
+    todo!()
 }
