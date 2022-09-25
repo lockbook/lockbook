@@ -569,6 +569,7 @@ pub struct AdminGetAccountInfoResponse {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct AccountInfo {
     pub username: String,
+    pub root: Uuid,
     pub payment_platform: Option<PaymentPlatform>,
 }
 
