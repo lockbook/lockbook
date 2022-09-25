@@ -1112,6 +1112,28 @@ impl From<CoreError> for Error<AdminGetAccountInfoError> {
 }
 
 #[derive(Debug, Serialize, EnumIter)]
+pub enum AdminFileInfoError {
+    InsufficientPermission,
+    FileNotFound,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<AdminFileInfoError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::InsufficientPermission => {
+                UiError(AdminFileInfoError::InsufficientPermission)
+            }
+            CoreError::FileNonexistent => UiError(AdminFileInfoError::FileNotFound),
+            CoreError::ServerUnreachable => UiError(AdminFileInfoError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(AdminFileInfoError::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
 pub enum FeatureFlagError {
     InsufficientPermission,
     CouldNotReachServer,

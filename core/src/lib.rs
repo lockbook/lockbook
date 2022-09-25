@@ -26,7 +26,12 @@ pub use lockbook_shared::file::ShareMode;
 pub use lockbook_shared::file_like::FileLike;
 pub use lockbook_shared::file_metadata::FileType;
 pub use lockbook_shared::filename::NameComponents;
+pub use lockbook_shared::lazy;
+pub use lockbook_shared::lazy::LazyTree;
 pub use lockbook_shared::path_ops::Filter;
+pub use lockbook_shared::server_file::ServerFile;
+pub use lockbook_shared::tree_like::Stagable;
+pub use lockbook_shared::tree_like::TreeLike;
 pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 
 pub use crate::model::drawing::SupportedImageFormats;
@@ -39,13 +44,15 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use basic_human_duration::ChronoHumanDuration;
-use chrono::Duration;
+pub use basic_human_duration::ChronoHumanDuration;
+pub use chrono::Duration;
 use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use lockbook_shared::account::Username;
-use lockbook_shared::api::{AccountInfo, AdminValidateAccount, AdminValidateServer};
+use lockbook_shared::api::{
+    AccountInfo, AdminFileInfoResponse, AdminValidateAccount, AdminValidateServer,
+};
 use lockbook_shared::clock;
 use lockbook_shared::crypto::AESKey;
 use serde_json::{json, value::Value};
@@ -549,6 +556,14 @@ impl Core {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.validate_server())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn admin_file_info(
+        &self, id: Uuid,
+    ) -> Result<AdminFileInfoResponse, Error<AdminFileInfoError>> {
+        let val = self.db.transaction(|tx| self.context(tx)?.file_info(id))?;
         Ok(val?)
     }
 }

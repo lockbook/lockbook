@@ -665,3 +665,51 @@ pub async fn admin_validate_server(
 fn insert<K: Hash + Eq, V: Hash + Eq>(map: &mut HashMap<K, HashSet<V>>, k: K, v: V) {
     map.entry(k).or_insert_with(Default::default).insert(v);
 }
+
+pub async fn admin_file_info(
+    context: RequestContext<'_, AdminFileInfoRequest>,
+) -> Result<AdminFileInfoResponse, ServerError<AdminFileInfoError>> {
+    let (request, server_state) = (&context.request, context.server_state);
+    let db = &server_state.index_db;
+    if !is_admin::<AdminFileInfoError>(
+        db,
+        &context.public_key,
+        &context.server_state.config.admin.admins,
+    )? {
+        return Err(ClientError(AdminFileInfoError::NotPermissioned));
+    }
+
+    server_state
+        .index_db
+        .transaction::<_, Result<AdminFileInfoResponse, ServerError<_>>>(|tx| {
+            let file = tx
+                .metas
+                .get(&request.id)
+                .ok_or(ClientError(AdminFileInfoError::FileNonexistent))?
+                .clone();
+
+            let mut tree = ServerTree::new(
+                file.owner(),
+                &mut tx.owned_files,
+                &mut tx.shared_files,
+                &mut tx.file_children,
+                &mut tx.metas,
+            )?
+            .to_lazy();
+
+            let ancestors = tree
+                .ancestors(&request.id)?
+                .into_iter()
+                .filter_map(|id| tree.maybe_find(&id))
+                .cloned()
+                .collect();
+            let descendants = tree
+                .descendants(&request.id)?
+                .into_iter()
+                .filter_map(|id| tree.maybe_find(&id))
+                .cloned()
+                .collect();
+
+            Ok(AdminFileInfoResponse { file, ancestors, descendants })
+        })?
+}

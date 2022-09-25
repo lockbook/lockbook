@@ -107,4 +107,21 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 _ => core_err_unexpected(err),
             })
     }
+
+    pub fn file_info(&self, id: Uuid) -> CoreResult<AdminFileInfoResponse> {
+        let account = self.get_account()?;
+        self.client
+            .request(account, AdminFileInfoRequest { id })
+            .map_err(|err| match err {
+                ApiError::Endpoint(AdminFileInfoError::FileNonexistent) => {
+                    CoreError::FileNonexistent
+                }
+                ApiError::Endpoint(AdminFileInfoError::NotPermissioned) => {
+                    CoreError::InsufficientPermission
+                }
+                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                _ => core_err_unexpected(err),
+            })
+    }
 }
