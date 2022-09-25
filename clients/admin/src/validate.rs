@@ -20,6 +20,6 @@ pub fn account(core: &Core, username: String) -> Res<()> {
 
 pub fn server(core: &Core) -> Res<()> {
     let validation_failures = core.admin_validate_server()?;
-    println!("{:?}", validation_failures);
+    println!("{:#?}", validation_failures);
     Ok(())
 }
