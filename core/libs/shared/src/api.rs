@@ -8,6 +8,7 @@ use crate::account::Account;
 use crate::account::Username;
 use crate::crypto::*;
 use crate::file_metadata::{DocumentHmac, FileDiff, FileMetadata, Owner};
+use crate::server_file::ServerFile;
 use crate::signed_file::SignedFile;
 use crate::ValidationFailure;
 
@@ -582,6 +583,31 @@ impl Request for AdminGetAccountInfoRequest {
     type Error = AdminGetAccountInfoError;
     const METHOD: Method = Method::GET;
     const ROUTE: &'static str = "/admin-get-account-info";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminFileInfoRequest {
+    pub id: Uuid,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AdminFileInfoResponse {
+    pub file: ServerFile,
+    pub ancestors: Vec<ServerFile>,
+    pub descendants: Vec<ServerFile>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminFileInfoError {
+    NotPermissioned,
+    FileNonexistent,
+}
+
+impl Request for AdminFileInfoRequest {
+    type Response = AdminFileInfoResponse;
+    type Error = AdminFileInfoError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/admin-file-info";
 }
 
 // number of milliseconds that have elapsed since the unix epoch
