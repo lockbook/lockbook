@@ -484,9 +484,9 @@ pub struct AdminValidateServer {
     // accounts
     pub users_with_validation_failures: HashMap<Username, AdminValidateAccount>,
     // index integrity
-    pub usernames_mapped_to_wrong_accounts: HashMap<String, String>, // (mapped username, account username)
+    pub usernames_mapped_to_wrong_accounts: HashMap<String, String>, // mapped username -> account username
     pub usernames_mapped_to_nonexistent_accounts: HashMap<String, Owner>,
-    pub usernames_unmapped_to_accounts: HashMap<String, Owner>,
+    pub usernames_unmapped_to_accounts: HashSet<String>,
     pub owners_mapped_to_unowned_files: HashMap<Owner, HashSet<Uuid>>,
     pub owners_mapped_to_nonexistent_files: HashMap<Owner, HashSet<Uuid>>,
     pub owners_unmapped_to_owned_files: HashMap<Owner, HashSet<Uuid>>,

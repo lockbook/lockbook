@@ -11,7 +11,8 @@ use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::{SharedError, SharedResult};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 use tracing::{debug, error, warn};
 
 pub async fn upsert_file_metadata(
@@ -495,16 +496,22 @@ pub async fn admin_validate_server(
             // validate index: usernames
             for (username, owner) in tx.usernames.get_all().clone() {
                 if let Some(account) = tx.accounts.get(&owner) {
-                    if account.username != username {
-                        // todo: username indexed to wrong account
+                    if username != account.username {
+                        result
+                            .usernames_mapped_to_wrong_accounts
+                            .insert(username, account.username.clone());
                     }
                 } else {
-                    // todo: username indexed to nonexistent account
+                    result
+                        .usernames_mapped_to_nonexistent_accounts
+                        .insert(username, owner);
                 }
             }
             for (_, account) in tx.accounts.get_all().clone() {
                 if tx.usernames.get(&account.username).is_none() {
-                    // todo: account not indexed by username
+                    result
+                        .usernames_unmapped_to_accounts
+                        .insert(account.username.clone());
                 }
             }
 
@@ -513,20 +520,24 @@ pub async fn admin_validate_server(
                 for id in ids {
                     if let Some(meta) = tx.metas.get(&id) {
                         if meta.owner() != owner {
-                            // todo: file indexed to wrong owner
+                            insert(&mut result.owners_mapped_to_unowned_files, owner, id);
                         }
                     } else {
-                        // todo: nonexistent file indexed to owner
+                        insert(&mut result.owners_mapped_to_nonexistent_files, owner, id);
                     }
                 }
             }
             for (id, meta) in tx.metas.get_all().clone() {
                 if let Some(ids) = tx.owned_files.get(&meta.owner()) {
                     if !ids.contains(&id) {
-                        // todo: file not indexed by owner
+                        insert(
+                            &mut result.owners_unmapped_to_owned_files,
+                            meta.owner(),
+                            *meta.id(),
+                        );
                     }
                 } else {
-                    // todo: file owner missing from owner index
+                    result.owners_unmapped.insert(meta.owner());
                 }
             }
 
@@ -539,21 +550,22 @@ pub async fn admin_validate_server(
                             .iter()
                             .any(|k| k.encrypted_for == sharee.0)
                         {
-                            // todo: file indexed as shared with user it is not shared with
+                            insert(&mut result.sharees_mapped_to_unshared_files, sharee, id);
                         }
                     } else {
-                        // todo: nonexistent file indexed as shared
+                        insert(&mut result.sharees_mapped_to_nonexistent_files, sharee, id);
                     }
                 }
             }
             for (id, meta) in tx.metas.get_all().clone() {
                 for k in meta.user_access_keys() {
-                    if let Some(ids) = tx.shared_files.get(&Owner(k.encrypted_for)) {
+                    let sharee = Owner(k.encrypted_for);
+                    if let Some(ids) = tx.shared_files.get(&sharee) {
                         if !ids.contains(&id) {
-                            // todo: file not indexed by sharee
+                            insert(&mut result.sharees_unmapped_to_shared_files, sharee, id);
                         }
                     } else {
-                        // todo: file sharee missing from sharee index
+                        result.sharees_unmapped.insert(meta.owner());
                     }
                 }
             }
@@ -563,20 +575,32 @@ pub async fn admin_validate_server(
                 for child_id in child_ids {
                     if let Some(meta) = tx.metas.get(&child_id) {
                         if meta.parent() != &parent_id {
-                            // todo: file indexed as child to wrong parent
+                            insert(
+                                &mut result.files_mapped_as_parent_to_non_children,
+                                parent_id,
+                                child_id,
+                            );
                         }
                     } else {
-                        // todo: nonexistent file indexed as child
+                        insert(
+                            &mut result.files_mapped_as_parent_to_nonexistent_children,
+                            parent_id,
+                            child_id,
+                        );
                     }
                 }
             }
             for (id, meta) in tx.metas.get_all().clone() {
                 if let Some(child_ids) = tx.file_children.get(meta.parent()) {
                     if !child_ids.contains(&id) {
-                        // todo: file not indexed as child of its parent
+                        insert(
+                            &mut result.files_unmapped_as_parent_to_children,
+                            *meta.parent(),
+                            id,
+                        );
                     }
                 } else {
-                    // todo: file missing as parent in index
+                    result.files_unmapped_as_parent.insert(*meta.parent());
                 }
             }
 
@@ -584,15 +608,15 @@ pub async fn admin_validate_server(
             for (id, _) in tx.sizes.get_all().clone() {
                 if let Some(meta) = tx.metas.get(&id) {
                     if meta.document_hmac().is_none() {
-                        // todo: file with no hmac has size indexed
+                        result.sizes_mapped_for_files_without_hmac.insert(id);
                     }
                 } else {
-                    // todo: nonexistent file has size indexed
+                    result.sizes_mapped_for_nonexistent_files.insert(id);
                 }
             }
             for (id, meta) in tx.metas.get_all().clone() {
                 if meta.document_hmac().is_some() && tx.sizes.get(&id).is_none() {
-                    // todo: file with hmac has no size indexed
+                    result.sizes_unmapped_for_files_with_hmac.insert(id);
                 }
             }
 
@@ -600,7 +624,7 @@ pub async fn admin_validate_server(
             for (id, meta) in tx.metas.get_all().clone() {
                 if let Some(hmac) = meta.document_hmac() {
                     if !document_service::exists(context.server_state, &id, hmac) {
-                        // todo: file with hmac has no contents
+                        result.files_with_hmacs_and_no_contents.insert(id);
                     }
                 }
             }
@@ -609,4 +633,8 @@ pub async fn admin_validate_server(
         })??;
 
     Ok(result)
+}
+
+fn insert<K: Hash + Eq, V: Hash + Eq>(map: &mut HashMap<K, HashSet<V>>, k: K, v: V) {
+    map.entry(k).or_insert_with(Default::default).insert(v);
 }
