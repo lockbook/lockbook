@@ -11,7 +11,7 @@ use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::{SharedError, SharedResult};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use tracing::{debug, error, warn};
 
 pub async fn upsert_file_metadata(
@@ -476,9 +476,13 @@ pub async fn admin_validate_server(
         return Err(ClientError(AdminValidateServerError::NotPermissioned));
     }
 
-    let result: Result<AdminValidateServer, ServerError<AdminValidateServerError>> =
-        context.server_state.index_db.transaction(|tx| {
-            let mut result = AdminValidateServer::default();
+    let mut result = AdminValidateServer { users_with_validation_failures: HashMap::new() };
+
+    context
+        .server_state
+        .index_db
+        .transaction::<_, Result<(), ServerError<_>>>(|tx| {
+            // validate accounts
             for (owner, account) in tx.accounts.get_all().clone() {
                 let validation = validate_account_helper(tx, owner, context.server_state)?;
                 if !validation.is_empty() {
@@ -487,7 +491,122 @@ pub async fn admin_validate_server(
                         .insert(account.username, validation);
                 }
             }
-            Ok(result)
-        })?;
-    result
+
+            // validate index: usernames
+            for (username, owner) in tx.usernames.get_all().clone() {
+                if let Some(account) = tx.accounts.get(&owner) {
+                    if account.username != username {
+                        // todo
+                    }
+                } else {
+                    // todo
+                }
+            }
+            for (_, account) in tx.accounts.get_all().clone() {
+                if tx.usernames.get(&account.username).is_none() {
+                    // todo
+                }
+            }
+
+            // validate index: owned_files
+            for (owner, ids) in tx.owned_files.get_all().clone() {
+                for id in ids {
+                    if let Some(meta) = tx.metas.get(&id) {
+                        if meta.owner() != owner {
+                            // todo
+                        }
+                    } else {
+                        // todo
+                    }
+                }
+            }
+            for (id, meta) in tx.metas.get_all().clone() {
+                if let Some(ids) = tx.owned_files.get(&meta.owner()) {
+                    if !ids.contains(&id) {
+                        // todo
+                    }
+                } else {
+                    // todo
+                }
+            }
+
+            // validate index: shared_files
+            for (sharee, ids) in tx.shared_files.get_all().clone() {
+                for id in ids {
+                    if let Some(meta) = tx.metas.get(&id) {
+                        if !meta
+                            .user_access_keys()
+                            .iter()
+                            .any(|k| k.encrypted_for == sharee.0)
+                        {
+                            // todo
+                        }
+                    } else {
+                        // todo
+                    }
+                }
+            }
+            for (id, meta) in tx.metas.get_all().clone() {
+                for k in meta.user_access_keys() {
+                    if let Some(ids) = tx.shared_files.get(&Owner(k.encrypted_for)) {
+                        if !ids.contains(&id) {
+                            // todo
+                        }
+                    } else {
+                        // todo
+                    }
+                }
+            }
+
+            // validate index: file_children
+            for (parent_id, child_ids) in tx.file_children.get_all().clone() {
+                for child_id in child_ids {
+                    if let Some(meta) = tx.metas.get(&child_id) {
+                        if meta.parent() != &parent_id {
+                            // todo
+                        }
+                    } else {
+                        // todo
+                    }
+                }
+            }
+            for (id, meta) in tx.metas.get_all().clone() {
+                if let Some(child_ids) = tx.file_children.get(meta.parent()) {
+                    if !child_ids.contains(&id) {
+                        // todo
+                    }
+                } else {
+                    // todo
+                }
+            }
+
+            // validate index: sizes (todo: validate size values)
+            for (id, _) in tx.sizes.get_all().clone() {
+                if let Some(meta) = tx.metas.get(&id) {
+                    if meta.document_hmac().is_none() {
+                        // todo
+                    }
+                } else {
+                    // todo
+                }
+            }
+            for (id, meta) in tx.metas.get_all().clone() {
+                if meta.document_hmac().is_some() && tx.sizes.get(&id).is_none() {
+                    // todo
+                }
+            }
+
+            // validate presence of documents
+            for (id, meta) in tx.metas.get_all().clone() {
+                if let Some(hmac) = meta.document_hmac() {
+                    if !document_service::exists(context.server_state, &id, hmac) {
+                        // todo
+                    }
+                }
+            }
+
+            Ok(())
+        })??;
+
+    Ok(result)
 }
