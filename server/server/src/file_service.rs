@@ -580,7 +580,7 @@ pub async fn admin_validate_server(
                         let self_share = k.encrypted_for == k.encrypted_by;
                         let indexed_share = ids.contains(&id);
                         if self_share && indexed_share {
-                            // todo: indexed self share
+                            insert(&mut result.sharees_mapped_for_owned_files, sharee, id);
                         } else if !self_share && !indexed_share {
                             insert(&mut result.sharees_unmapped_to_shared_files, sharee, id);
                         }
@@ -613,7 +613,7 @@ pub async fn admin_validate_server(
             for (id, meta) in tx.metas.get_all().clone() {
                 if let Some(child_ids) = tx.file_children.get(meta.parent()) {
                     if meta.is_root() && child_ids.contains(&id) {
-                        // todo: root indexed as own child
+                        result.files_mapped_as_parent_to_self.insert(id);
                     } else if !meta.is_root() && !child_ids.contains(&id) {
                         insert(
                             &mut result.files_unmapped_as_parent_to_children,
