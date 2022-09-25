@@ -1,4 +1,4 @@
-use lockbook_core::Duration;
+use lockbook_core::{AccountIdentifier, Duration};
 use std::iter;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -9,6 +9,32 @@ use lockbook_core::{
 
 pub fn file(core: &Core, id: Uuid) -> Res<()> {
     let info = core.admin_file_info(id)?;
+    println!("id:\t\t\t{}", info.file.id());
+    println!("file_type:\t\t{:?}", info.file.file_type());
+    println!("parent:\t\t\t{}", info.file.parent());
+    println!(
+        "owner:\t\t\t{}",
+        core.admin_get_account_info(AccountIdentifier::PublicKey(info.file.owner().0))?
+            .username
+    );
+    println!("explicitly_deleted:\t{}", info.file.explicitly_deleted());
+    println!("document_hmac:\t\t{}", info.file.document_hmac().is_some());
+    println!("user_access_keys:");
+    for k in info.file.user_access_keys() {
+        println!(
+            "->\tencrypted_by: {}",
+            core.admin_get_account_info(AccountIdentifier::PublicKey(k.encrypted_by))?
+                .username
+        );
+        println!(
+            "\tencrypted_for: {}",
+            core.admin_get_account_info(AccountIdentifier::PublicKey(k.encrypted_for))?
+                .username
+        );
+        println!("\tmode: {:?}", k.mode);
+        println!("\tdeleted: {:?}", k.deleted);
+    }
+    println!();
     let mut tree = iter::once(info.file)
         .chain(info.ancestors.into_iter())
         .chain(info.descendants.into_iter())
