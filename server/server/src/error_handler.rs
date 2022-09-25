@@ -200,6 +200,12 @@ impl From<SharedError> for ServerError<AdminValidateServerError> {
     }
 }
 
+impl From<SharedError> for ServerError<AdminFileInfoError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+
 impl From<SharedError> for ServerError<UpsertError> {
     fn from(err: SharedError) -> Self {
         // panic!("{err}");

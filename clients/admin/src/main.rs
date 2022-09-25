@@ -1,6 +1,9 @@
+extern crate core;
+
 mod account;
 mod disappear;
 mod error;
+mod info;
 mod validate;
 
 use std::env;
@@ -51,6 +54,9 @@ pub enum Admin {
         #[structopt(short, long)]
         public_key: Option<String>,
     },
+
+    /// Prints information about a file as it appears on the server
+    FileInfo { id: Uuid },
 }
 
 type Res<T> = Result<T, Error>;
@@ -74,6 +80,7 @@ pub fn main() {
         Admin::DisappearFile { id } => disappear::file(&core, id),
         Admin::ValidateAccount { username } => validate::account(&core, username),
         Admin::ValidateServer => validate::server(&core),
+        Admin::FileInfo { id } => info::file(&core, id),
     };
 
     if result.is_err() {
