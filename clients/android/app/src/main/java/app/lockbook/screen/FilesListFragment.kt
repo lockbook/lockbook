@@ -137,9 +137,16 @@ class FilesListFragment : Fragment(), FilesFragment {
         })
 
         binding.outOfSpace.apply {
-            root.setOnClickListener {  }
+            root.setOnClickListener {
+                startActivity(
+                    Intent(
+                        context,
+                        SettingsActivity::class.java
+                    )
+                )
+            }
             outOfSpaceExit.setOnClickListener {
-                root.visibility = View.GONE
+                Animate.animateVisibility(root, View.GONE, 0, 200)
             }
         }
 
@@ -517,7 +524,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 binding.recentFilesLayout.root.visibility = if (uiUpdates.show) View.VISIBLE else View.GONE
             }
             is UpdateFilesUI.OutOfSpace -> {
-                val usageBarColor = if(uiUpdates.isRunningOutOfSpace) {
+                val usageBarColor = if (uiUpdates.isRunningOutOfSpace) {
                     binding.outOfSpace.outOfSpaceMsg.setText(R.string.running_out_of_space)
                     ContextCompat.getColor(requireContext(), R.color.md_theme_progressWarning)
                 } else {
@@ -529,7 +536,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                     outOfSpaceProgressBar.setIndicatorColor(usageBarColor)
                     outOfSpaceProgressBar.progress = uiUpdates.progress
                     outOfSpaceProgressBar.max = uiUpdates.max
-                    root.visibility = View.VISIBLE
+                    Animate.animateVisibility(root, View.VISIBLE, 255, 200)
                 }
             }
         }
