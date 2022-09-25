@@ -250,18 +250,20 @@ pub async fn admin_get_account_info(
                     maybe_root = Some(*meta.id());
                 }
             } else {
-                return Err(ServerError::InternalError(String::from(
-                    "nonexistent file indexed as owned",
-                )));
+                return Err(internal!(
+                    "Nonexistent file indexed as owned, id: {}, owner: {:?}",
+                    id,
+                    owner
+                ));
             }
         }
     } else {
-        return Err(ServerError::InternalError(String::from("owned files not indexed for user")));
+        return Err(internal!("Owned files not indexed for user, owner: {:?}", owner));
     }
     let root = if let Some(root) = maybe_root {
         root
     } else {
-        return Err(ServerError::InternalError(String::from("user root not found")));
+        return Err(internal!("User root not found, owner: {:?}", owner));
     };
 
     let payment_platform = account
