@@ -30,7 +30,7 @@ class DetailScreenLoaderViewModel(application: Application, val loadingInfo: Det
 
         val updateUI = when {
             extensionHelper.isDrawing -> {
-                when (val getDrawingResult = CoreModel.getDrawing(loadingInfo.fileMetadata.id)) {
+                when (val getDrawingResult = CoreModel.getDrawing(loadingInfo.file.id)) {
                     is Ok -> {
                         UpdateDetailScreenLoaderUI.NotifyFinished(
                             DetailScreen.Drawing(
