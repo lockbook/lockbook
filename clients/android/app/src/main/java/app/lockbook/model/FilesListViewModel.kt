@@ -8,6 +8,7 @@ import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.ui.BreadCrumbItem
+import app.lockbook.ui.UsageBarPreference
 import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.afollestad.recyclical.datasource.emptySelectableDataSourceTyped
@@ -41,6 +42,29 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         startUpInRoot()
+        checkUsage()
+    }
+
+    private fun checkUsage() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val usage = CoreModel.getUsage().getOrElse { error ->
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError((error.toLbError(getRes()))))
+                return@launch
+            }
+
+            val roundedDataCap = usage.dataCap.exact / UsageBarPreference.ROUND_DECIMAL_PLACES
+            val roundedProgress = usage.serverUsage.exact / UsageBarPreference.ROUND_DECIMAL_PLACES
+
+            val usageRatio = roundedProgress.toFloat() / roundedDataCap
+
+            val isRunningOutOfSpace = when {
+                usageRatio > 0.9 -> false
+                usageRatio > 0.8 -> true
+                else -> return@launch
+            }
+
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.OutOfSpace(isRunningOutOfSpace, roundedProgress.toInt(), roundedDataCap.toInt()))
+        }
     }
 
     private fun startUpInRoot() {

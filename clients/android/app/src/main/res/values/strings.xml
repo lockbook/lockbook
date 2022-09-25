@@ -256,4 +256,8 @@
     <string name="no_search_results">No search results</string>
     <string name="exit_app">Exit App</string>
     <string name="note">note</string>
+
+    <string name="running_out_of_space">You are running out of space!</string>
+    <string name="out_of_space">You are out of space!</string>
+
 </resources>

@@ -4,7 +4,9 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/drawerLayout"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:clickable="true"
+    android:focusable="true">
 
     <androidx.coordinatorlayout.widget.CoordinatorLayout
         android:id="@+id/fragment_list_files"
@@ -157,6 +159,11 @@
             </LinearLayout>
 
         </com.google.android.material.card.MaterialCardView>
+
+        <include
+            android:id="@+id/out_of_space"
+            layout="@layout/out_of_space"
+            android:visibility="gone"/>
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 

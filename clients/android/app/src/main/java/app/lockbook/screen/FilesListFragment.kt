@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.text.method.LinkMovementMethod
 import android.view.*
+import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
@@ -134,6 +135,13 @@ class FilesListFragment : Fragment(), FilesFragment {
                 unselectFiles()
             }
         })
+
+        binding.outOfSpace.apply {
+            root.setOnClickListener {  }
+            outOfSpaceExit.setOnClickListener {
+                root.visibility = View.GONE
+            }
+        }
 
         binding.fabSpeedDial.inflate(R.menu.menu_files_list_speed_dial)
         binding.fabSpeedDial.setOnActionSelectedListener {
@@ -508,6 +516,22 @@ class FilesListFragment : Fragment(), FilesFragment {
             is UpdateFilesUI.ToggleRecentFilesVisibility -> {
                 binding.recentFilesLayout.root.visibility = if (uiUpdates.show) View.VISIBLE else View.GONE
             }
+            is UpdateFilesUI.OutOfSpace -> {
+                val usageBarColor = if(uiUpdates.isRunningOutOfSpace) {
+                    binding.outOfSpace.outOfSpaceMsg.setText(R.string.running_out_of_space)
+                    ContextCompat.getColor(requireContext(), R.color.md_theme_progressWarning)
+                } else {
+                    binding.outOfSpace.outOfSpaceMsg.setText(R.string.out_of_space)
+                    ContextCompat.getColor(requireContext(), R.color.md_theme_error)
+                }
+
+                binding.outOfSpace.apply {
+                    outOfSpaceProgressBar.setIndicatorColor(usageBarColor)
+                    outOfSpaceProgressBar.progress = uiUpdates.progress
+                    outOfSpaceProgressBar.max = uiUpdates.max
+                    root.visibility = View.VISIBLE
+                }
+            }
         }
     }
 
@@ -584,5 +608,6 @@ sealed class UpdateFilesUI {
     object ToggleMenuBar : UpdateFilesUI()
     object ShowBeforeWeStart : UpdateFilesUI()
     object SyncImport : UpdateFilesUI()
+    data class OutOfSpace(val isRunningOutOfSpace: Boolean, val progress: Int, val max: Int) : UpdateFilesUI()
     data class NotifyWithSnackbar(val msg: String) : UpdateFilesUI()
 }
