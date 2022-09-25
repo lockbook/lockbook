@@ -1,13 +1,13 @@
 use http::Method;
 use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use crate::account::Account;
 use crate::account::Username;
 use crate::crypto::*;
-use crate::file_metadata::{DocumentHmac, FileDiff, FileMetadata};
+use crate::file_metadata::{DocumentHmac, FileDiff, FileMetadata, Owner};
 use crate::signed_file::SignedFile;
 use crate::ValidationFailure;
 
@@ -481,10 +481,29 @@ pub struct AdminValidateServerRequest {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Default)]
 pub struct AdminValidateServer {
+    // accounts
     pub users_with_validation_failures: HashMap<Username, AdminValidateAccount>,
-    // TODO check indexes
-    // TODO check documents without metas
-    // TODO check metas without documents
+    // index integrity
+    pub usernames_mapped_to_wrong_accounts: HashMap<String, String>, // (mapped username, account username)
+    pub usernames_mapped_to_nonexistent_accounts: HashMap<String, Owner>,
+    pub usernames_unmapped_to_accounts: HashMap<String, Owner>,
+    pub owners_mapped_to_unowned_files: HashMap<Owner, HashSet<Uuid>>,
+    pub owners_mapped_to_nonexistent_files: HashMap<Owner, HashSet<Uuid>>,
+    pub owners_unmapped_to_owned_files: HashMap<Owner, HashSet<Uuid>>,
+    pub owners_unmapped: HashSet<Owner>,
+    pub sharees_mapped_to_unshared_files: HashMap<Owner, HashSet<Uuid>>,
+    pub sharees_mapped_to_nonexistent_files: HashMap<Owner, HashSet<Uuid>>,
+    pub sharees_unmapped_to_shared_files: HashMap<Owner, HashSet<Uuid>>,
+    pub sharees_unmapped: HashSet<Owner>,
+    pub files_mapped_as_parent_to_non_children: HashMap<Uuid, HashSet<Uuid>>,
+    pub files_mapped_as_parent_to_nonexistent_children: HashMap<Uuid, HashSet<Uuid>>,
+    pub files_unmapped_as_parent_to_children: HashMap<Uuid, HashSet<Uuid>>,
+    pub files_unmapped_as_parent: HashSet<Uuid>,
+    pub sizes_mapped_for_files_without_hmac: HashSet<Uuid>,
+    pub sizes_mapped_for_nonexistent_files: HashSet<Uuid>,
+    pub sizes_unmapped_for_files_with_hmac: HashSet<Uuid>,
+    // document presence
+    pub files_with_hmacs_and_no_contents: HashSet<Uuid>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]

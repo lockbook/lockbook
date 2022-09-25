@@ -11,7 +11,7 @@ use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::{SharedError, SharedResult};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use tracing::{debug, error, warn};
 
 pub async fn upsert_file_metadata(
@@ -476,7 +476,7 @@ pub async fn admin_validate_server(
         return Err(ClientError(AdminValidateServerError::NotPermissioned));
     }
 
-    let mut result = AdminValidateServer { users_with_validation_failures: HashMap::new() };
+    let mut result: AdminValidateServer = Default::default();
 
     context
         .server_state
@@ -496,15 +496,15 @@ pub async fn admin_validate_server(
             for (username, owner) in tx.usernames.get_all().clone() {
                 if let Some(account) = tx.accounts.get(&owner) {
                     if account.username != username {
-                        // todo
+                        // todo: username indexed to wrong account
                     }
                 } else {
-                    // todo
+                    // todo: username indexed to nonexistent account
                 }
             }
             for (_, account) in tx.accounts.get_all().clone() {
                 if tx.usernames.get(&account.username).is_none() {
-                    // todo
+                    // todo: account not indexed by username
                 }
             }
 
@@ -513,20 +513,20 @@ pub async fn admin_validate_server(
                 for id in ids {
                     if let Some(meta) = tx.metas.get(&id) {
                         if meta.owner() != owner {
-                            // todo
+                            // todo: file indexed to wrong owner
                         }
                     } else {
-                        // todo
+                        // todo: nonexistent file indexed to owner
                     }
                 }
             }
             for (id, meta) in tx.metas.get_all().clone() {
                 if let Some(ids) = tx.owned_files.get(&meta.owner()) {
                     if !ids.contains(&id) {
-                        // todo
+                        // todo: file not indexed by owner
                     }
                 } else {
-                    // todo
+                    // todo: file owner missing from owner index
                 }
             }
 
@@ -539,10 +539,10 @@ pub async fn admin_validate_server(
                             .iter()
                             .any(|k| k.encrypted_for == sharee.0)
                         {
-                            // todo
+                            // todo: file indexed as shared with user it is not shared with
                         }
                     } else {
-                        // todo
+                        // todo: nonexistent file indexed as shared
                     }
                 }
             }
@@ -550,10 +550,10 @@ pub async fn admin_validate_server(
                 for k in meta.user_access_keys() {
                     if let Some(ids) = tx.shared_files.get(&Owner(k.encrypted_for)) {
                         if !ids.contains(&id) {
-                            // todo
+                            // todo: file not indexed by sharee
                         }
                     } else {
-                        // todo
+                        // todo: file sharee missing from sharee index
                     }
                 }
             }
@@ -563,20 +563,20 @@ pub async fn admin_validate_server(
                 for child_id in child_ids {
                     if let Some(meta) = tx.metas.get(&child_id) {
                         if meta.parent() != &parent_id {
-                            // todo
+                            // todo: file indexed as child to wrong parent
                         }
                     } else {
-                        // todo
+                        // todo: nonexistent file indexed as child
                     }
                 }
             }
             for (id, meta) in tx.metas.get_all().clone() {
                 if let Some(child_ids) = tx.file_children.get(meta.parent()) {
                     if !child_ids.contains(&id) {
-                        // todo
+                        // todo: file not indexed as child of its parent
                     }
                 } else {
-                    // todo
+                    // todo: file missing as parent in index
                 }
             }
 
@@ -584,15 +584,15 @@ pub async fn admin_validate_server(
             for (id, _) in tx.sizes.get_all().clone() {
                 if let Some(meta) = tx.metas.get(&id) {
                     if meta.document_hmac().is_none() {
-                        // todo
+                        // todo: file with no hmac has size indexed
                     }
                 } else {
-                    // todo
+                    // todo: nonexistent file has size indexed
                 }
             }
             for (id, meta) in tx.metas.get_all().clone() {
                 if meta.document_hmac().is_some() && tx.sizes.get(&id).is_none() {
-                    // todo
+                    // todo: file with hmac has no size indexed
                 }
             }
 
@@ -600,7 +600,7 @@ pub async fn admin_validate_server(
             for (id, meta) in tx.metas.get_all().clone() {
                 if let Some(hmac) = meta.document_hmac() {
                     if !document_service::exists(context.server_state, &id, hmac) {
-                        // todo
+                        // todo: file with hmac has no contents
                     }
                 }
             }
