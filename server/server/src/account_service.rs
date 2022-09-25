@@ -1,15 +1,19 @@
+use crate::billing::billing_model::BillingPlatform;
 use crate::schema::Account;
 use crate::utils::username_is_valid;
 use crate::ServerError::ClientError;
-use crate::{document_service, RequestContext, ServerError, ServerState, ServerV1, Tx};
+use crate::{document_service, RequestContext, Server, ServerError, ServerState, Tx};
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Username;
 use lockbook_shared::api::NewAccountError::{FileIdTaken, PublicKeyTaken, UsernameTaken};
 use lockbook_shared::api::{
-    AdminDeleteAccountError, AdminDeleteAccountRequest, DeleteAccountError, DeleteAccountRequest,
-    FileUsage, GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError,
-    GetUsageRequest, GetUsageResponse, NewAccountError, NewAccountRequest, NewAccountResponse,
+    AccountFilter, AccountIdentifier, AccountInfo, AdminDisappearAccountError,
+    AdminDisappearAccountRequest, AdminGetAccountInfoError, AdminGetAccountInfoRequest,
+    AdminGetAccountInfoResponse, AdminListUsersError, AdminListUsersRequest,
+    AdminListUsersResponse, DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError,
+    GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
+    NewAccountError, NewAccountRequest, NewAccountResponse, PaymentPlatform,
 };
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
@@ -19,6 +23,7 @@ use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use std::collections::HashSet;
 use std::fmt::Debug;
+use tracing::warn;
 use uuid::Uuid;
 
 /// Create a new account given a username, public_key, and root folder.
@@ -67,6 +72,7 @@ pub async fn new_account(
         tx.accounts.insert(owner, account);
         tx.usernames.insert(username, owner);
         tx.owned_files.insert(owner, owned_files);
+        tx.shared_files.insert(owner, HashSet::new());
         tx.metas.insert(*root.id(), root.clone());
 
         Ok(NewAccountResponse { last_synced: root.version })
@@ -130,31 +136,127 @@ pub fn get_usage_helper(
 pub async fn delete_account(
     context: RequestContext<'_, DeleteAccountRequest>,
 ) -> Result<(), ServerError<DeleteAccountError>> {
-    delete_account_helper(context.server_state, &context.public_key).await?;
+    delete_account_helper(context.server_state, &context.public_key, false).await?;
 
     Ok(())
 }
 
-pub async fn admin_delete_account(
-    context: RequestContext<'_, AdminDeleteAccountRequest>,
-) -> Result<(), ServerError<AdminDeleteAccountError>> {
+pub async fn admin_disappear_account(
+    context: RequestContext<'_, AdminDisappearAccountRequest>,
+) -> Result<(), ServerError<AdminDisappearAccountError>> {
     let db = &context.server_state.index_db;
-    if !is_admin::<AdminDeleteAccountError>(
+
+    if !is_admin::<AdminDisappearAccountError>(
         db,
         &context.public_key,
         &context.server_state.config.admin.admins,
     )? {
-        return Err(ClientError(AdminDeleteAccountError::NotPermissioned));
+        return Err(ClientError(AdminDisappearAccountError::NotPermissioned));
     }
+
+    let admin_username = db
+        .accounts
+        .get(&Owner(context.public_key))?
+        .map(|account| account.username)
+        .unwrap_or_else(|| "~unknown~".to_string());
+
+    warn!("admin {} is disappearing account {}", admin_username, context.request.username);
 
     let owner = db
         .usernames
         .get(&context.request.username)?
-        .ok_or(ClientError(AdminDeleteAccountError::UserNotFound))?;
+        .ok_or(ClientError(AdminDisappearAccountError::UserNotFound))?;
 
-    delete_account_helper(context.server_state, &owner.0).await?;
+    delete_account_helper(context.server_state, &owner.0, true).await?;
 
     Ok(())
+}
+
+pub async fn admin_list_users(
+    context: RequestContext<'_, AdminListUsersRequest>,
+) -> Result<AdminListUsersResponse, ServerError<AdminListUsersError>> {
+    let (db, request) = (&context.server_state.index_db, &context.request);
+
+    if !is_admin::<AdminListUsersError>(
+        db,
+        &context.public_key,
+        &context.server_state.config.admin.admins,
+    )? {
+        return Err(ClientError(AdminListUsersError::NotPermissioned));
+    }
+
+    let mut users: Vec<String> = vec![];
+
+    for account in db.accounts.get_all()?.values() {
+        match &request.filter {
+            Some(filter) => match filter {
+                AccountFilter::Premium => {
+                    if account.billing_info.billing_platform.is_some() {
+                        users.push(account.username.clone());
+                    }
+                }
+                AccountFilter::StripePremium => {
+                    if let Some(BillingPlatform::Stripe(_)) = account.billing_info.billing_platform
+                    {
+                        users.push(account.username.clone());
+                    }
+                }
+                AccountFilter::GooglePlayPremium => {
+                    if let Some(BillingPlatform::GooglePlay(_)) =
+                        account.billing_info.billing_platform
+                    {
+                        users.push(account.username.clone());
+                    }
+                }
+            },
+            None => users.push(account.username.clone()),
+        }
+    }
+
+    Ok(AdminListUsersResponse { users })
+}
+
+pub async fn admin_get_account_info(
+    context: RequestContext<'_, AdminGetAccountInfoRequest>,
+) -> Result<AdminGetAccountInfoResponse, ServerError<AdminGetAccountInfoError>> {
+    let (db, request) = (&context.server_state.index_db, &context.request);
+
+    if !is_admin::<AdminGetAccountInfoError>(
+        db,
+        &context.public_key,
+        &context.server_state.config.admin.admins,
+    )? {
+        return Err(ClientError(AdminGetAccountInfoError::NotPermissioned));
+    }
+
+    let owner = match &request.identifier {
+        AccountIdentifier::PublicKey(public_key) => Owner(*public_key),
+        AccountIdentifier::Username(user) => db
+            .usernames
+            .get(user)?
+            .ok_or(ClientError(AdminGetAccountInfoError::UserNotFound))?,
+    };
+
+    let account = db
+        .accounts
+        .get(&owner)?
+        .ok_or(ClientError(AdminGetAccountInfoError::UserNotFound))?;
+
+    let payment_platform = account
+        .billing_info
+        .billing_platform
+        .map(|billing_platform| match billing_platform {
+            BillingPlatform::Stripe(user_info) => {
+                PaymentPlatform::Stripe { card_last_4_digits: user_info.last_4 }
+            }
+            BillingPlatform::GooglePlay(user_info) => {
+                PaymentPlatform::GooglePlay { account_state: user_info.account_state }
+            }
+        });
+
+    Ok(AdminGetAccountInfoResponse {
+        account: AccountInfo { username: account.username, payment_platform },
+    })
 }
 
 #[derive(Debug)]
@@ -163,12 +265,18 @@ pub enum DeleteAccountHelperError {
 }
 
 pub async fn delete_account_helper(
-    server_state: &ServerState, public_key: &PublicKey,
+    server_state: &ServerState, public_key: &PublicKey, free_username: bool,
 ) -> Result<(), ServerError<DeleteAccountHelperError>> {
     let all_files: Result<Vec<(Uuid, DocumentHmac)>, ServerError<DeleteAccountHelperError>> =
         server_state.index_db.transaction(|tx| {
-            let mut tree =
-                ServerTree::new(Owner(*public_key), &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+            let mut tree = ServerTree::new(
+                Owner(*public_key),
+                &mut tx.owned_files,
+                &mut tx.shared_files,
+                &mut tx.file_children,
+                &mut tx.metas,
+            )?
+            .to_lazy();
             let mut docs_to_delete = vec![];
             let metas_to_delete = tree.owned_ids();
 
@@ -184,11 +292,13 @@ pub async fn delete_account_helper(
                 }
             }
             tx.owned_files.delete(Owner(*public_key));
+            tx.shared_files.delete(Owner(*public_key));
             for id in metas_to_delete {
                 tx.metas.delete(id);
+                tx.file_children.delete(id);
             }
 
-            if !server_state.config.is_prod() {
+            if free_username {
                 let username = tx
                     .accounts
                     .delete(Owner(*public_key))
@@ -207,7 +317,7 @@ pub async fn delete_account_helper(
 }
 
 pub fn is_admin<E: Debug>(
-    db: &ServerV1, public_key: &PublicKey, admins: &HashSet<Username>,
+    db: &Server, public_key: &PublicKey, admins: &HashSet<Username>,
 ) -> Result<bool, ServerError<E>> {
     let is_admin = match db.accounts.get(&Owner(*public_key))? {
         None => false,

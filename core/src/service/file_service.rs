@@ -26,6 +26,8 @@ impl RequestContext<'_, '_> {
 
         let ui_file = tree.finalize(&id, account)?;
 
+        info!("created {:?} with id {id}", file_type);
+
         Ok(ui_file)
     }
 

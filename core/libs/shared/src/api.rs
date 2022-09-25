@@ -1,6 +1,7 @@
 use http::Method;
 use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::account::Account;
@@ -407,21 +408,21 @@ impl Request for GetSubscriptionInfoRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct AdminDeleteAccountRequest {
+pub struct AdminDisappearAccountRequest {
     pub username: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum AdminDeleteAccountError {
+pub enum AdminDisappearAccountError {
     NotPermissioned,
     UserNotFound,
 }
 
-impl Request for AdminDeleteAccountRequest {
+impl Request for AdminDisappearAccountRequest {
     type Response = ();
-    type Error = AdminDeleteAccountError;
+    type Error = AdminDisappearAccountError;
     const METHOD: Method = Method::DELETE;
-    const ROUTE: &'static str = "/admin-delete-account";
+    const ROUTE: &'static str = "/admin-disappear-account";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -443,28 +444,123 @@ impl Request for AdminDisappearFileRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct AdminServerValidateRequest {
+pub struct AdminValidateAccountRequest {
     pub username: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct AdminServerValidateResponse {
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Default)]
+pub struct AdminValidateAccount {
     pub tree_validation_failures: Vec<ValidationFailure>,
     pub documents_missing_size: Vec<Uuid>,
     pub documents_missing_content: Vec<Uuid>,
 }
 
+impl AdminValidateAccount {
+    pub fn is_empty(&self) -> bool {
+        self.tree_validation_failures.is_empty()
+            && self.documents_missing_content.is_empty()
+            && self.documents_missing_size.is_empty()
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum AdminServerValidateError {
+pub enum AdminValidateAccountError {
     NotPermissioned,
     UserNotFound,
 }
 
-impl Request for AdminServerValidateRequest {
-    type Response = AdminServerValidateResponse;
-    type Error = AdminServerValidateError;
+impl Request for AdminValidateAccountRequest {
+    type Response = AdminValidateAccount;
+    type Error = AdminValidateAccountError;
     const METHOD: Method = Method::GET;
-    const ROUTE: &'static str = "/admin-server-validate";
+    const ROUTE: &'static str = "/admin-validate-account";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminValidateServerRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Default)]
+pub struct AdminValidateServer {
+    pub users_with_validation_failures: HashMap<Username, AdminValidateAccount>,
+    // TODO check indexes
+    // TODO check documents without metas
+    // TODO check metas without documents
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminValidateServerError {
+    NotPermissioned,
+}
+
+impl Request for AdminValidateServerRequest {
+    type Response = AdminValidateServer;
+    type Error = AdminValidateServerError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/admin-validate-server";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminListUsersRequest {
+    pub filter: Option<AccountFilter>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AccountFilter {
+    Premium,
+    StripePremium,
+    GooglePlayPremium,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminListUsersResponse {
+    pub users: Vec<Username>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminListUsersError {
+    NotPermissioned,
+}
+
+impl Request for AdminListUsersRequest {
+    type Response = AdminListUsersResponse;
+    type Error = AdminListUsersError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/admin-list-users";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminGetAccountInfoRequest {
+    pub identifier: AccountIdentifier,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AccountIdentifier {
+    PublicKey(PublicKey),
+    Username(Username),
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminGetAccountInfoResponse {
+    pub account: AccountInfo,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AccountInfo {
+    pub username: String,
+    pub payment_platform: Option<PaymentPlatform>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminGetAccountInfoError {
+    UserNotFound,
+    NotPermissioned,
+}
+
+impl Request for AdminGetAccountInfoRequest {
+    type Response = AdminGetAccountInfoResponse;
+    type Error = AdminGetAccountInfoError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/admin-get-account-info";
 }
 
 // number of milliseconds that have elapsed since the unix epoch

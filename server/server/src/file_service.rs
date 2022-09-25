@@ -1,7 +1,7 @@
 use crate::account_service::is_admin;
-use crate::ServerError;
 use crate::ServerError::ClientError;
-use crate::{document_service, RequestContext};
+use crate::{document_service, RequestContext, ServerState};
+use crate::{ServerError, Tx};
 use hmdb::transaction::Transaction;
 use lockbook_shared::api::*;
 use lockbook_shared::clock::get_time;
@@ -10,9 +10,9 @@ use lockbook_shared::file_metadata::{Diff, Owner};
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
-use lockbook_shared::SharedError;
+use lockbook_shared::{SharedError, SharedResult};
 use std::collections::HashSet;
-use tracing::error;
+use tracing::{debug, error, warn};
 
 pub async fn upsert_file_metadata(
     context: RequestContext<'_, UpsertRequest>,
@@ -27,8 +27,14 @@ pub async fn upsert_file_metadata(
         .server_state
         .index_db
         .transaction::<_, Result<(), ServerError<_>>>(|tx| {
-            let mut tree =
-                ServerTree::new(req_owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+            let mut tree = ServerTree::new(
+                req_owner,
+                &mut tx.owned_files,
+                &mut tx.shared_files,
+                &mut tx.file_children,
+                &mut tx.metas,
+            )?
+            .to_lazy();
 
             for id in tree.owned_ids() {
                 if tree.find(&id)?.is_document() && tree.calculate_deleted(&id)? {
@@ -50,6 +56,7 @@ pub async fn upsert_file_metadata(
                     if let Some(digest) = meta.file.timestamped_value.value.document_hmac {
                         tx.sizes.delete(*meta.id());
                         new_deleted.push((*meta.id(), digest));
+                        debug!("deleting id: {}", *meta.id());
                     }
                 }
             }
@@ -68,16 +75,11 @@ pub async fn change_doc(
     use ChangeDocError::*;
 
     let (request, server_state) = (context.request, context.server_state);
+    let owner = Owner(context.public_key);
 
     // Validate Diff
     if request.diff.diff() != vec![Diff::Hmac] {
         return Err(ClientError(DiffMalformed));
-    }
-
-    if let Some(old) = &request.diff.old {
-        if old.id() != request.diff.new.id() {
-            return Err(ClientError(DiffMalformed));
-        }
     }
 
     if request.diff.new.document_hmac().is_none() {
@@ -96,10 +98,20 @@ pub async fn change_doc(
 
         let direct_access = meta_owner.0 == req_pk;
 
-        let mut tree = ServerTree::new(meta_owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+        let mut tree = ServerTree::new(
+            owner,
+            &mut tx.owned_files,
+            &mut tx.shared_files,
+            &mut tx.file_children,
+            &mut tx.metas,
+        )?
+        .to_lazy();
+
+        if tree.maybe_find(request.diff.new.id()).is_none() {
+            return Err(ClientError(NotPermissioned));
+        }
 
         let mut share_access = false;
-
         if !direct_access {
             for ancestor in tree
                 .ancestors(request.diff.id())?
@@ -146,6 +158,7 @@ pub async fn change_doc(
 
     let new_version = get_time().0 as u64;
     let new = request.diff.new.clone().add_time(new_version);
+    debug!("Updating document: {}", request.diff.new.id());
     document_service::insert(
         server_state,
         request.diff.new.id(),
@@ -155,14 +168,14 @@ pub async fn change_doc(
     .await?;
 
     let result = server_state.index_db.transaction(|tx| {
-        let meta = tx
-            .metas
-            .get(request.diff.new.id())
-            .ok_or(ClientError(DocumentNotFound))?;
-
-        let meta_owner = meta.owner();
-
-        let mut tree = ServerTree::new(meta_owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+        let mut tree = ServerTree::new(
+            owner,
+            &mut tx.owned_files,
+            &mut tx.shared_files,
+            &mut tx.file_children,
+            &mut tx.metas,
+        )?
+        .to_lazy();
         let new_size = request.new_content.value.len() as u64;
 
         if tree.calculate_deleted(request.diff.new.id())? {
@@ -212,41 +225,25 @@ pub async fn get_document(
     let (request, server_state) = (&context.request, context.server_state);
 
     server_state.index_db.transaction(|tx| {
-        let meta = tx
-            .metas
-            .get(&request.id)
-            .ok_or(ClientError(GetDocumentError::DocumentNotFound))?;
+        let meta_exists = tx.metas.get(&request.id).is_some();
 
-        let meta_owner = meta.owner();
+        let mut tree = ServerTree::new(
+            Owner(context.public_key),
+            &mut tx.owned_files,
+            &mut tx.shared_files,
+            &mut tx.file_children,
+            &mut tx.metas,
+        )?
+        .to_lazy();
 
-        let direct_access = meta_owner.0 == context.public_key;
-
-        let mut tree = ServerTree::new(meta_owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
-
-        let mut share_access = false;
-
-        if !direct_access {
-            for ancestor in tree.ancestors(&request.id)?.iter().chain(vec![&request.id]) {
-                let meta = tree.find(ancestor)?;
-
-                if meta
-                    .user_access_keys()
-                    .iter()
-                    .any(|access| access.encrypted_for == context.public_key)
-                {
-                    share_access = true;
-                    break;
-                }
-            }
-        }
-
-        if !direct_access && !share_access {
-            return Err(ClientError(GetDocumentError::NotPermissioned));
-        }
-
-        let meta = tree
-            .maybe_find(&request.id)
-            .ok_or(ClientError(GetDocumentError::DocumentNotFound))?;
+        let meta = match tree.maybe_find(&request.id) {
+            Some(meta) => Ok(meta),
+            None => Err(if meta_exists {
+                ClientError(GetDocumentError::NotPermissioned)
+            } else {
+                ClientError(GetDocumentError::DocumentNotFound)
+            }),
+        }?;
 
         let hmac = meta
             .document_hmac()
@@ -272,57 +269,42 @@ pub async fn get_updates(
     context: RequestContext<'_, GetUpdatesRequest>,
 ) -> Result<GetUpdatesResponse, ServerError<GetUpdatesError>> {
     let (request, server_state) = (&context.request, context.server_state);
-    let mut result = Vec::new();
+    let owner = Owner(context.public_key);
     server_state.index_db.transaction(|tx| {
-        let owners = tx
-            .owned_files
-            .keys()
-            .iter()
-            .map(|owner| **owner)
-            .collect::<Vec<_>>();
-        for owner in owners {
-            let mut tree = ServerTree::new(owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+        let mut tree = ServerTree::new(
+            owner,
+            &mut tx.owned_files,
+            &mut tx.shared_files,
+            &mut tx.file_children,
+            &mut tx.metas,
+        )?
+        .to_lazy();
 
-            let mut result_ids = HashSet::new();
-            if owner.0 == context.public_key {
-                for id in tree.owned_ids() {
-                    if tree.find(&id)?.version > request.since_metadata_version {
-                        result_ids.insert(id);
-                    }
-                }
-            } else {
-                for id in tree.owned_ids() {
-                    let file = tree.find(&id)?;
-                    if file
+        let mut result_ids = HashSet::new();
+        for id in tree.owned_ids() {
+            let file = tree.find(&id)?;
+            if file.version > request.since_metadata_version {
+                result_ids.insert(id);
+                if file.owner() != owner
+                    && file
                         .user_access_keys()
                         .iter()
                         .any(|k| k.encrypted_for == context.public_key)
-                    {
-                        if file.version > request.since_metadata_version {
-                            result_ids.insert(id);
-                            result_ids.extend(tree.descendants(&id)?);
-                        } else {
-                            for id in tree.descendants(&id)? {
-                                if tree.find(&id)?.version > request.since_metadata_version {
-                                    result_ids.insert(id);
-                                }
-                            }
-                        }
-                    }
+                {
+                    result_ids.insert(id);
+                    result_ids.extend(tree.descendants(&id)?);
                 }
             }
-
-            result.extend(
-                tree.all_files()?
-                    .iter()
-                    .filter(|meta| result_ids.contains(meta.id()))
-                    .map(|meta| meta.file.clone()),
-            );
         }
 
         Ok(GetUpdatesResponse {
             as_of_metadata_version: get_time().0 as u64,
-            file_metadata: result,
+            file_metadata: tree
+                .all_files()?
+                .iter()
+                .filter(|meta| result_ids.contains(meta.id()))
+                .map(|meta| meta.file.clone())
+                .collect(),
         })
     })?
 }
@@ -339,6 +321,14 @@ pub async fn admin_disappear_file(
         return Err(ClientError(AdminDisappearFileError::NotPermissioned));
     }
 
+    let username = db
+        .accounts
+        .get(&Owner(context.public_key))?
+        .map(|account| account.username)
+        .unwrap_or_else(|| "~unknown~".to_string());
+
+    warn!("admin: {} disappeared file {}", username, context.request.id);
+
     context
         .server_state
         .index_db
@@ -348,6 +338,7 @@ pub async fn admin_disappear_file(
                 .delete(context.request.id)
                 .ok_or(ClientError(AdminDisappearFileError::FileNonexistent))?;
 
+            // maintain index: owned_files
             let owner = meta.owner();
             let mut owned_files = tx.owned_files.delete(owner).ok_or_else(|| {
                 internal!(
@@ -358,11 +349,46 @@ pub async fn admin_disappear_file(
             })?;
             if !owned_files.remove(&context.request.id) {
                 error!(
-                    "attempted to disappear a file, the owner didn't own it id: {}, owner: {:?}",
+                    "attempted to disappear a file, the owner didn't own it, id: {}, owner: {:?}",
                     context.request.id, owner
                 );
             }
             tx.owned_files.insert(owner, owned_files);
+
+            // maintain index: shared_files
+            for user_access_key in meta.user_access_keys() {
+                let sharee = Owner(user_access_key.encrypted_for);
+                let mut shared_files = tx.shared_files.delete(sharee).ok_or_else(|| {
+                    internal!(
+                        "Attempted to disappear a file, the sharee was not present, id: {}, sharee: {:?}",
+                        context.request.id,
+                        sharee
+                    )
+                })?;
+                if !shared_files.remove(&context.request.id) {
+                    error!(
+                        "attempted to disappear a file, a sharee didn't have it shared, id: {}, sharee: {:?}",
+                        context.request.id, sharee
+                    );
+                }
+                tx.shared_files.insert(sharee, shared_files);
+            }
+
+            // maintain index: file_children
+            let mut file_children = tx.file_children.delete(*meta.parent()).ok_or_else(|| {
+                internal!(
+                    "Attempted to disappear a file, the parent was not present, id: {}, parent: {:?}",
+                    context.request.id,
+                    meta.parent()
+                )
+            })?;
+            if !file_children.remove(&context.request.id) {
+                error!(
+                    "attempted to disappear a file, the parent didn't have it as a child, id: {}, parent: {:?}",
+                    context.request.id, meta.parent()
+                );
+            }
+            tx.file_children.insert(*meta.parent(), file_children);
 
             Ok(())
         })??;
@@ -370,67 +396,98 @@ pub async fn admin_disappear_file(
     Ok(())
 }
 
-pub async fn admin_server_validate(
-    context: RequestContext<'_, AdminServerValidateRequest>,
-) -> Result<AdminServerValidateResponse, ServerError<AdminServerValidateError>> {
+pub async fn admin_validate_account(
+    context: RequestContext<'_, AdminValidateAccountRequest>,
+) -> Result<AdminValidateAccount, ServerError<AdminValidateAccountError>> {
     let (request, server_state) = (&context.request, context.server_state);
     let db = &server_state.index_db;
-    if !is_admin::<AdminServerValidateError>(
+    if !is_admin::<AdminValidateAccountError>(
         db,
         &context.public_key,
         &context.server_state.config.admin.admins,
     )? {
-        return Err(ClientError(AdminServerValidateError::NotPermissioned));
+        return Err(ClientError(AdminValidateAccountError::NotPermissioned));
     }
 
-    let mut result = AdminServerValidateResponse {
-        tree_validation_failures: vec![],
-        documents_missing_size: vec![],
-        documents_missing_content: vec![],
-    };
-    server_state
-        .index_db
-        .transaction::<_, Result<(), ServerError<_>>>(|tx| {
+    let result: Result<AdminValidateAccount, ServerError<AdminValidateAccountError>> =
+        server_state.index_db.transaction(|tx| {
             let owner = *tx
                 .usernames
                 .get(&request.username)
-                .ok_or(ClientError(AdminServerValidateError::UserNotFound))?;
+                .ok_or(ClientError(AdminValidateAccountError::UserNotFound))?;
 
-            let mut tree = ServerTree::new(owner, &mut tx.owned_files, &mut tx.metas)?.to_lazy();
+            Ok(validate_account_helper(tx, owner, server_state)?)
+        })?;
 
-            for id in tree.owned_ids() {
-                if !tree.calculate_deleted(&id)? {
-                    let file = tree.find(&id)?;
-                    if file.is_document() && file.document_hmac().is_some() {
-                        if tx.sizes.get(&id).is_none() {
-                            result.documents_missing_size.push(id);
-                        }
+    result
+}
 
-                        if !document_service::exists(
-                            server_state,
-                            &id,
-                            file.document_hmac().unwrap(),
-                        ) {
-                            result.documents_missing_content.push(id);
-                        }
-                    }
+pub fn validate_account_helper(
+    tx: &mut Tx<'_>, owner: Owner, server_state: &ServerState,
+) -> SharedResult<AdminValidateAccount> {
+    let mut result = AdminValidateAccount::default();
+
+    let mut tree = ServerTree::new(
+        owner,
+        &mut tx.owned_files,
+        &mut tx.shared_files,
+        &mut tx.file_children,
+        &mut tx.metas,
+    )?
+    .to_lazy();
+
+    for id in tree.owned_ids() {
+        if !tree.calculate_deleted(&id)? {
+            let file = tree.find(&id)?;
+            if file.is_document() && file.document_hmac().is_some() {
+                if tx.sizes.get(&id).is_none() {
+                    result.documents_missing_size.push(id);
+                }
+
+                if !document_service::exists(server_state, &id, file.document_hmac().unwrap()) {
+                    result.documents_missing_content.push(id);
                 }
             }
+        }
+    }
 
-            let validation_res = tree.stage(None).validate(owner);
-            match validation_res {
-                Ok(_) => {}
-                Err(SharedError::ValidationFailure(validation)) => {
-                    result.tree_validation_failures.push(validation)
-                }
-                Err(err) => error!(
-                    "Unexpected error while validating {}'s tree: {:?}",
-                    request.username, err
-                ),
-            }
-
-            Ok(())
-        })??;
+    let validation_res = tree.stage(None).validate(owner);
+    match validation_res {
+        Ok(_) => {}
+        Err(SharedError::ValidationFailure(validation)) => {
+            result.tree_validation_failures.push(validation)
+        }
+        Err(err) => {
+            error!("Unexpected error while validating {:?}'s tree: {:?}", owner, err)
+        }
+    }
 
     Ok(result)
+}
+
+pub async fn admin_validate_server(
+    context: RequestContext<'_, AdminValidateServerRequest>,
+) -> Result<AdminValidateServer, ServerError<AdminValidateServerError>> {
+    if !is_admin::<AdminValidateServerError>(
+        &context.server_state.index_db,
+        &context.public_key,
+        &context.server_state.config.admin.admins,
+    )? {
+        return Err(ClientError(AdminValidateServerError::NotPermissioned));
+    }
+
+    let result: Result<AdminValidateServer, ServerError<AdminValidateServerError>> =
+        context.server_state.index_db.transaction(|tx| {
+            let mut result = AdminValidateServer::default();
+            for (owner, account) in tx.accounts.get_all().clone() {
+                let validation = validate_account_helper(tx, owner, context.server_state)?;
+                if !validation.is_empty() {
+                    result
+                        .users_with_validation_failures
+                        .insert(account.username, validation);
+                }
+            }
+            Ok(result)
+        })?;
+    result
 }

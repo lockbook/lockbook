@@ -132,7 +132,6 @@
     <string name="import_account_starting_import">Starting import…</string>
     <string name="before_you_start">Before you start…</string>
     <string name="before_you_start_description">Lockbook <a href="https://en.wikipedia.org/wiki/End-to-end_encryption">encrypts</a> your notes with a key that stays on your Lockbook devices. This makes your notes unreadable to anyone but you. If you lose the key, your notes are not recoverable, so we recommend you make a backup in case something happens to this device.</string>
-    <string name="drawing_parse_error">Could not open drawing.</string>
 
     <string name="free_space">%1$s used out of %2$s</string>
     <string name="last_sync">Synced %s</string>

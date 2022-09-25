@@ -999,24 +999,22 @@ impl From<CoreError> for Error<GetSubscriptionInfoError> {
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum AdminDeleteAccountError {
+pub enum AdminDisappearAccount {
     InsufficientPermission,
     UsernameNotFound,
     CouldNotReachServer,
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<AdminDeleteAccountError> {
+impl From<CoreError> for Error<AdminDisappearAccount> {
     fn from(e: CoreError) -> Self {
         match e {
             CoreError::InsufficientPermission => {
-                UiError(AdminDeleteAccountError::InsufficientPermission)
+                UiError(AdminDisappearAccount::InsufficientPermission)
             }
-            CoreError::UsernameNotFound => UiError(AdminDeleteAccountError::UsernameNotFound),
-            CoreError::ServerUnreachable => UiError(AdminDeleteAccountError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => {
-                UiError(AdminDeleteAccountError::ClientUpdateRequired)
-            }
+            CoreError::UsernameNotFound => UiError(AdminDisappearAccount::UsernameNotFound),
+            CoreError::ServerUnreachable => UiError(AdminDisappearAccount::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(AdminDisappearAccount::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -1051,6 +1049,7 @@ pub enum AdminServerValidateError {
     InsufficientPermission,
     CouldNotReachServer,
     ClientUpdateRequired,
+    UserNotFound,
 }
 
 impl From<CoreError> for Error<AdminServerValidateError> {
@@ -1062,6 +1061,50 @@ impl From<CoreError> for Error<AdminServerValidateError> {
             CoreError::ServerUnreachable => UiError(AdminServerValidateError::CouldNotReachServer),
             CoreError::ClientUpdateRequired => {
                 UiError(AdminServerValidateError::ClientUpdateRequired)
+            }
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum AdminListUsersError {
+    InsufficientPermission,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<AdminListUsersError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::InsufficientPermission => {
+                UiError(AdminListUsersError::InsufficientPermission)
+            }
+            CoreError::ServerUnreachable => UiError(AdminListUsersError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(AdminListUsersError::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum AdminGetAccountInfoError {
+    InsufficientPermission,
+    UsernameNotFound,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<AdminGetAccountInfoError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::InsufficientPermission => {
+                UiError(AdminGetAccountInfoError::InsufficientPermission)
+            }
+            CoreError::UsernameNotFound => UiError(AdminGetAccountInfoError::UsernameNotFound),
+            CoreError::ServerUnreachable => UiError(AdminGetAccountInfoError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => {
+                UiError(AdminGetAccountInfoError::ClientUpdateRequired)
             }
             _ => unexpected!("{:#?}", e),
         }

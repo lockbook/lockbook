@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use hmac::{Mac, NewMac};
 use libsecp256k1::PublicKey;
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::access_info::UserAccessInfo;
@@ -118,6 +119,8 @@ where
         let new_file = FileMetadata::create(&parent_owner, *parent, &parent_key, name, file_type)?
             .sign(account)?;
         let id = *new_file.id();
+
+        debug!("new {:?} with id: {}", file_type, id);
         Ok((self.stage(Some(new_file)), id))
     }
 
@@ -760,6 +763,10 @@ where
         // merge documents
         {
             for (id, remote_document_change) in remote_document_changes {
+                if result.calculate_deleted(id)? {
+                    // cannot modify locally deleted documents; local changes to deleted documents are reset anyway
+                    continue;
+                }
                 // todo: use merged document type
                 let local_document_type =
                     DocumentType::from_file_name_using_extension(&result.name(id, account)?);

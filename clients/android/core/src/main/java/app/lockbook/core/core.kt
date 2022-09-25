@@ -25,8 +25,11 @@ external fun readDocument(id: String): String
 external fun readDocumentBytes(id: String): ByteArray?
 external fun writeDocument(id: String, content: String): String
 external fun moveFile(id: String, parentId: String): String
-external fun exportDrawingToDisk(id: String, format: String, location: String): String
 external fun exportFile(id: String, destination: String, edit: Boolean): String
+
+external fun exportDrawingToDisk(id: String, format: String, location: String): String
+external fun getDrawing(id: String): String
+external fun saveDrawing(id: String, drawing: String): String
 
 // sync
 external fun syncAll(syncModel: Any): String

@@ -9,11 +9,15 @@ pub mod service;
 
 mod external_interface;
 
+pub use base64;
+pub use libsecp256k1::PublicKey;
 pub use uuid::Uuid;
 
 pub use lockbook_shared::account::Account;
-pub use lockbook_shared::api::{GooglePlayAccountState, StripeAccountTier, SubscriptionInfo};
-pub use lockbook_shared::api::{PaymentMethod, PaymentPlatform};
+pub use lockbook_shared::api::{
+    AccountFilter, AccountIdentifier, GooglePlayAccountState, PaymentMethod, PaymentPlatform,
+    StripeAccountTier, SubscriptionInfo,
+};
 pub use lockbook_shared::core_config::Config;
 pub use lockbook_shared::crypto::DecryptedDocument;
 pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
@@ -40,8 +44,8 @@ use chrono::Duration;
 use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
-use libsecp256k1::PublicKey;
-use lockbook_shared::api::AdminServerValidateResponse;
+use lockbook_shared::account::Username;
+use lockbook_shared::api::{AccountInfo, AdminValidateAccount, AdminValidateServer};
 use lockbook_shared::clock;
 use lockbook_shared::crypto::AESKey;
 use serde_json::{json, value::Value};
@@ -482,12 +486,12 @@ impl Core {
     }
 
     #[instrument(level = "debug", skip(self, username), err(Debug))]
-    pub fn admin_delete_account(
+    pub fn admin_disappear_account(
         &self, username: &str,
-    ) -> Result<(), Error<AdminDeleteAccountError>> {
+    ) -> Result<(), Error<AdminDisappearAccount>> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.delete_account(username))?;
+            .transaction(|tx| self.context(tx)?.disappear_account(username))?;
         Ok(val?)
     }
 
@@ -499,13 +503,43 @@ impl Core {
         Ok(val?)
     }
 
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn admin_server_validate(
-        &self, username: &str,
-    ) -> Result<AdminServerValidateResponse, Error<AdminServerValidateError>> {
+    #[instrument(level = "debug", skip(self, filter), err(Debug))]
+    pub fn admin_list_users(
+        &self, filter: Option<AccountFilter>,
+    ) -> Result<Vec<Username>, Error<AdminListUsersError>> {
         let val = self
             .db
-            .transaction(|tx| self.context(tx)?.server_validate(username))?;
+            .transaction(|tx| self.context(tx)?.list_users(filter))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self, identifier), err(Debug))]
+    pub fn admin_get_account_info(
+        &self, identifier: AccountIdentifier,
+    ) -> Result<AccountInfo, Error<AdminGetAccountInfoError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.get_account_info(identifier))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn admin_validate_account(
+        &self, username: &str,
+    ) -> Result<AdminValidateAccount, Error<AdminServerValidateError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.validate_account(username))?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn admin_validate_server(
+        &self,
+    ) -> Result<AdminValidateServer, Error<AdminServerValidateError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.validate_server())?;
         Ok(val?)
     }
 }

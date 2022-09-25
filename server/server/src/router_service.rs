@@ -129,9 +129,12 @@ pub fn core_routes(
         .or(core_req!(CancelSubscriptionRequest, cancel_subscription, server_state))
         .or(core_req!(GetSubscriptionInfoRequest, get_subscription_info, server_state))
         .or(core_req!(DeleteAccountRequest, delete_account, server_state))
-        .or(core_req!(AdminDeleteAccountRequest, admin_delete_account, server_state))
+        .or(core_req!(AdminDisappearAccountRequest, admin_disappear_account, server_state))
         .or(core_req!(AdminDisappearFileRequest, admin_disappear_file, server_state))
-        .or(core_req!(AdminServerValidateRequest, admin_server_validate, server_state))
+        .or(core_req!(AdminListUsersRequest, admin_list_users, server_state))
+        .or(core_req!(AdminGetAccountInfoRequest, admin_get_account_info, server_state))
+        .or(core_req!(AdminValidateAccountRequest, admin_validate_account, server_state))
+        .or(core_req!(AdminValidateServerRequest, admin_validate_server, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {

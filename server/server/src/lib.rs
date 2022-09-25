@@ -12,7 +12,7 @@ use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_service::StripeWebhookError;
 use crate::billing::stripe_client::SimplifiedStripeError;
 use crate::billing::stripe_model::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
-use crate::schema::{transaction, ServerV1};
+use crate::schema::v2::{transaction, Server};
 use crate::ServerError::ClientError;
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -20,7 +20,7 @@ static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[derive(Clone)]
 pub struct ServerState {
     pub config: config::Config,
-    pub index_db: ServerV1,
+    pub index_db: Server,
     pub stripe_client: stripe::Client,
     pub google_play_client: AndroidPublisher,
 }
@@ -44,7 +44,7 @@ impl<E: Debug> From<Error> for ServerError<E> {
     }
 }
 
-type Tx<'a> = transaction::ServerV1<'a>;
+type Tx<'a> = transaction::Server<'a>;
 
 #[macro_export]
 macro_rules! internal {
@@ -61,6 +61,7 @@ pub fn verify_client_version<Req: Request>(
     match &request.client_version as &str {
         "0.5.2" => Ok(()),
         "0.5.3" => Ok(()),
+        "0.5.4" => Ok(()),
         _ => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
     }
 }
