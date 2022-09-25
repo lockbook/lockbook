@@ -485,6 +485,7 @@ pub async fn admin_validate_server(
         .transaction::<_, Result<(), ServerError<_>>>(|tx| {
             let mut deleted_ids = HashSet::new();
             for (id, meta) in tx.metas.get_all().clone() {
+                // todo: optimize
                 let mut tree = ServerTree::new(
                     meta.owner(),
                     &mut tx.owned_files,
