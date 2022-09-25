@@ -483,6 +483,21 @@ pub async fn admin_validate_server(
         .server_state
         .index_db
         .transaction::<_, Result<(), ServerError<_>>>(|tx| {
+            let mut deleted_ids = HashSet::new();
+            for (id, meta) in tx.metas.get_all().clone() {
+                let mut tree = ServerTree::new(
+                    meta.owner(),
+                    &mut tx.owned_files,
+                    &mut tx.shared_files,
+                    &mut tx.file_children,
+                    &mut tx.metas,
+                )?
+                .to_lazy();
+                if tree.calculate_deleted(&id)? {
+                    deleted_ids.insert(id);
+                }
+            }
+
             // validate accounts
             for (owner, account) in tx.accounts.get_all().clone() {
                 let validation = validate_account_helper(tx, owner, context.server_state)?;
@@ -548,7 +563,7 @@ pub async fn admin_validate_server(
                         if !meta
                             .user_access_keys()
                             .iter()
-                            .any(|k| k.encrypted_for == sharee.0)
+                            .any(|k| k.encrypted_for == sharee.0 && k.encrypted_by != sharee.0)
                         {
                             insert(&mut result.sharees_mapped_to_unshared_files, sharee, id);
                         }
@@ -561,7 +576,11 @@ pub async fn admin_validate_server(
                 for k in meta.user_access_keys() {
                     let sharee = Owner(k.encrypted_for);
                     if let Some(ids) = tx.shared_files.get(&sharee) {
-                        if !ids.contains(&id) {
+                        let self_share = k.encrypted_for == k.encrypted_by;
+                        let indexed_share = ids.contains(&id);
+                        if self_share && indexed_share {
+                            // todo: indexed self share
+                        } else if !self_share && !indexed_share {
                             insert(&mut result.sharees_unmapped_to_shared_files, sharee, id);
                         }
                     } else {
@@ -592,7 +611,9 @@ pub async fn admin_validate_server(
             }
             for (id, meta) in tx.metas.get_all().clone() {
                 if let Some(child_ids) = tx.file_children.get(meta.parent()) {
-                    if !child_ids.contains(&id) {
+                    if meta.is_root() && child_ids.contains(&id) {
+                        // todo: root indexed as own child
+                    } else if !meta.is_root() && !child_ids.contains(&id) {
                         insert(
                             &mut result.files_unmapped_as_parent_to_children,
                             *meta.parent(),
@@ -615,7 +636,10 @@ pub async fn admin_validate_server(
                 }
             }
             for (id, meta) in tx.metas.get_all().clone() {
-                if meta.document_hmac().is_some() && tx.sizes.get(&id).is_none() {
+                if !deleted_ids.contains(&id)
+                    && meta.document_hmac().is_some()
+                    && tx.sizes.get(&id).is_none()
+                {
                     result.sizes_unmapped_for_files_with_hmac.insert(id);
                 }
             }
@@ -623,7 +647,9 @@ pub async fn admin_validate_server(
             // validate presence of documents
             for (id, meta) in tx.metas.get_all().clone() {
                 if let Some(hmac) = meta.document_hmac() {
-                    if !document_service::exists(context.server_state, &id, hmac) {
+                    if !deleted_ids.contains(&id)
+                        && !document_service::exists(context.server_state, &id, hmac)
+                    {
                         result.files_with_hmacs_and_no_contents.insert(id);
                     }
                 }
