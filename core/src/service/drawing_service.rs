@@ -11,10 +11,10 @@ use lockbook_shared::tree_like::Stagable;
 use crate::model::drawing;
 use crate::model::drawing::SupportedImageFormats;
 use crate::model::errors::CoreError;
-use crate::RequestContext;
 use crate::{CoreResult, OneKey};
+use crate::{RequestContext, Requester};
 
-impl RequestContext<'_, '_> {
+impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn get_drawing(&mut self, id: Uuid) -> CoreResult<Drawing> {
         let tree = self
             .tx

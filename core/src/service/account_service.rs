@@ -1,7 +1,6 @@
 use crate::model::errors::core_err_unexpected;
 use crate::repo::schema::OneKey;
-use crate::service::api_service;
-use crate::{CoreError, CoreResult, RequestContext};
+use crate::{CoreError, CoreResult, RequestContext, Requester};
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Account;
 use lockbook_shared::api::{GetPublicKeyRequest, NewAccountRequest};
@@ -9,7 +8,7 @@ use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileMetadata;
 use qrcode_generator::QrCodeEcc;
 
-impl RequestContext<'_, '_> {
+impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn create_account(&mut self, username: &str, api_url: &str) -> CoreResult<Account> {
         let username = String::from(username).to_lowercase();
 
@@ -23,8 +22,10 @@ impl RequestContext<'_, '_> {
 
         let root = FileMetadata::create_root(&account)?.sign(&account)?;
 
-        let last_synced =
-            api_service::request(&account, NewAccountRequest::new(&account, &root))?.last_synced;
+        let last_synced = self
+            .client
+            .request(&account, NewAccountRequest::new(&account, &root))?
+            .last_synced;
 
         let root_id = *root.id();
 
@@ -55,11 +56,10 @@ impl RequestContext<'_, '_> {
             }
         };
 
-        let server_public_key = api_service::request(
-            &account,
-            GetPublicKeyRequest { username: account.username.clone() },
-        )?
-        .key;
+        let server_public_key = self
+            .client
+            .request(&account, GetPublicKeyRequest { username: account.username.clone() })?
+            .key;
 
         let account_public_key = account.public_key();
 
