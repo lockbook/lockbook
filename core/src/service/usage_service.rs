@@ -4,8 +4,7 @@ use lockbook_shared::api::{FileUsage, GetUsageRequest, GetUsageResponse};
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 
-use crate::service::api_service;
-use crate::{CoreError, RequestContext};
+use crate::{CoreError, RequestContext, Requester};
 use crate::{CoreResult, OneKey};
 
 const BYTE: u64 = 1;
@@ -32,11 +31,11 @@ pub struct UsageItemMetric {
     pub readable: String,
 }
 
-impl RequestContext<'_, '_> {
+impl<Client: Requester> RequestContext<'_, '_, Client> {
     fn server_usage(&self) -> CoreResult<GetUsageResponse> {
         let acc = &self.get_account()?;
 
-        Ok(api_service::request(acc, GetUsageRequest {})?)
+        Ok(self.client.request(acc, GetUsageRequest {})?)
     }
 
     pub fn get_usage(&self) -> CoreResult<UsageMetrics> {
