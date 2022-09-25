@@ -257,7 +257,7 @@ class MainScreenActivity : AppCompatActivity() {
                 is DetailScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
                 is DetailScreen.ImageViewer -> replace<ImageViewerFragment>(R.id.detail_container)
                 is DetailScreen.PdfViewer -> replace<PdfViewerFragment>(R.id.detail_container)
-                is DetailScreen.Share -> add<ShareFileFragment>(R.id.detail_container)
+                is DetailScreen.Share -> replace<ShareFileFragment>(R.id.detail_container)
                 null -> {
                     maybeGetFilesFragment()?.sync()
                     supportFragmentManager.findFragmentById(R.id.detail_container)?.let {
