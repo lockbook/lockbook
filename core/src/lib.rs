@@ -24,7 +24,7 @@ pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 pub use lockbook_shared::file::File;
 pub use lockbook_shared::file::ShareMode;
 pub use lockbook_shared::file_like::FileLike;
-pub use lockbook_shared::file_metadata::FileType;
+pub use lockbook_shared::file_metadata::{FileType, Owner};
 pub use lockbook_shared::filename::NameComponents;
 pub use lockbook_shared::lazy;
 pub use lockbook_shared::lazy::LazyTree;
