@@ -1,5 +1,4 @@
-use lockbook_core::service::api_service;
-use lockbook_core::service::api_service::ApiError;
+use lockbook_core::service::api_service::{ApiError, Requester};
 use lockbook_shared::api::*;
 use lockbook_shared::file_metadata::FileDiff;
 use test_utils::*;
@@ -15,7 +14,8 @@ fn delete_document() {
     // delete document
     let mut doc2 = doc1.clone();
     doc2.timestamped_value.value.is_deleted = true;
-    api_service::request(&account, UpsertRequest { updates: vec![FileDiff::edit(&doc1, &doc2)] })
+    core.client
+        .request(&account, UpsertRequest { updates: vec![FileDiff::edit(&doc1, &doc2)] })
         .unwrap();
 }
 
@@ -30,7 +30,7 @@ fn delete_document_not_found() {
     // delete document
     let mut doc2 = doc1.clone();
     doc2.timestamped_value.value.is_deleted = true;
-    let result = api_service::request(
+    let result = core.client.request(
         &account,
         UpsertRequest {
             // create document as if deleting an existing document
@@ -49,8 +49,9 @@ fn delete_document_new_document() {
     let mut doc = core.db.local_metadata.get(&doc).unwrap().unwrap();
     doc.timestamped_value.value.is_deleted = true;
 
-    let result =
-        api_service::request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] });
+    let result = core
+        .client
+        .request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] });
     assert_matches!(result, Ok(_));
 }
 
@@ -66,7 +67,8 @@ fn delete_document_deleted() {
     // delete document
     let mut doc2 = doc.clone();
     doc2.timestamped_value.value.is_deleted = true;
-    api_service::request(&account, UpsertRequest { updates: vec![FileDiff::edit(&doc, &doc2)] })
+    core.client
+        .request(&account, UpsertRequest { updates: vec![FileDiff::edit(&doc, &doc2)] })
         .unwrap();
 }
 
@@ -79,10 +81,9 @@ fn delete_cannot_delete_root() {
 
     let mut root2 = root1.clone();
     root2.timestamped_value.value.is_deleted = true;
-    let result = api_service::request(
-        &account,
-        UpsertRequest { updates: vec![FileDiff::edit(&root1, &root2)] },
-    );
+    let result = core
+        .client
+        .request(&account, UpsertRequest { updates: vec![FileDiff::edit(&root1, &root2)] });
     assert_matches!(
         result,
         Err(ApiError::<UpsertError>::Endpoint(UpsertError::RootModificationInvalid))
