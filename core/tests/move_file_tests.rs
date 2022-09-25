@@ -1,5 +1,4 @@
-use lockbook_core::service::api_service;
-use lockbook_core::service::api_service::ApiError;
+use lockbook_core::service::api_service::{ApiError, Requester};
 use test_utils::*;
 use uuid::Uuid;
 
@@ -21,7 +20,8 @@ fn move_document() {
     // move document
     let mut doc2 = doc1.clone();
     doc2.timestamped_value.value.parent = folder;
-    api_service::request(&account, UpsertRequest { updates: vec![FileDiff::edit(&doc1, &doc2)] })
+    core.client
+        .request(&account, UpsertRequest { updates: vec![FileDiff::edit(&doc1, &doc2)] })
         .unwrap();
 }
 
@@ -39,10 +39,9 @@ fn move_document_parent_not_found() {
     let mut doc2 = doc1.clone();
     doc2.timestamped_value.value.parent = Uuid::new_v4();
 
-    let result = api_service::request(
-        &account,
-        UpsertRequest { updates: vec![FileDiff::edit(&doc1, &doc2)] },
-    );
+    let result = core
+        .client
+        .request(&account, UpsertRequest { updates: vec![FileDiff::edit(&doc1, &doc2)] });
     assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(_))));
 }
 
@@ -57,20 +56,20 @@ fn move_document_deleted() {
     let folder = core.create_at_path("folder/").unwrap().id;
     let folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
 
-    api_service::request(
-        &account,
-        UpsertRequest { updates: vec![FileDiff::new(&doc1), FileDiff::new(&folder)] },
-    )
-    .unwrap();
+    core.client
+        .request(
+            &account,
+            UpsertRequest { updates: vec![FileDiff::new(&doc1), FileDiff::new(&folder)] },
+        )
+        .unwrap();
 
     // move & delete document
     let mut doc2 = doc1.clone();
     doc2.timestamped_value.value.is_deleted = true;
     doc2.timestamped_value.value.parent = *folder.id();
-    let result = api_service::request(
-        &account,
-        UpsertRequest { updates: vec![FileDiff::edit(&doc1, &doc2)] },
-    );
+    let result = core
+        .client
+        .request(&account, UpsertRequest { updates: vec![FileDiff::edit(&doc1, &doc2)] });
     assert_matches!(
         result,
         Err(ApiError::<UpsertError>::Endpoint(UpsertError::DeletedFileUpdated))
@@ -92,22 +91,22 @@ fn move_document_path_taken() {
     let doc2 = core.create_at_path("folder/doc.md").unwrap().id;
     let doc2 = core.db.local_metadata.get(&doc2).unwrap().unwrap();
 
-    api_service::request(
-        &account,
-        UpsertRequest {
-            updates: vec![FileDiff::new(&doc), FileDiff::new(&doc2), FileDiff::new(&folder)],
-        },
-    )
-    .unwrap();
+    core.client
+        .request(
+            &account,
+            UpsertRequest {
+                updates: vec![FileDiff::new(&doc), FileDiff::new(&doc2), FileDiff::new(&folder)],
+            },
+        )
+        .unwrap();
 
     let mut new = doc2.clone();
     new.timestamped_value.value.parent = root.id;
     new.timestamped_value.value.name = doc.timestamped_value.value.name;
 
-    let result = api_service::request(
-        &account,
-        UpsertRequest { updates: vec![FileDiff::edit(&doc2, &new)] },
-    );
+    let result = core
+        .client
+        .request(&account, UpsertRequest { updates: vec![FileDiff::edit(&doc2, &new)] });
 
     assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(_))));
 }
@@ -120,16 +119,16 @@ fn move_folder_into_itself() {
     let folder = core.create_at_path("folder/").unwrap().id;
     let folder = core.db.local_metadata.get(&folder).unwrap().unwrap();
 
-    api_service::request(&account, UpsertRequest { updates: vec![FileDiff::new(&folder)] })
+    core.client
+        .request(&account, UpsertRequest { updates: vec![FileDiff::new(&folder)] })
         .unwrap();
 
     let mut new = folder.clone();
     new.timestamped_value.value.parent = *new.id();
 
-    let result = api_service::request(
-        &account,
-        UpsertRequest { updates: vec![FileDiff::edit(&folder, &new)] },
-    );
+    let result = core
+        .client
+        .request(&account, UpsertRequest { updates: vec![FileDiff::edit(&folder, &new)] });
     assert_matches!(
         result,
         Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(ValidationFailure::Cycle(
@@ -149,18 +148,18 @@ fn move_folder_into_descendants() {
     let folder2 = core.create_at_path("folder1/folder2/").unwrap().id;
     let folder2 = core.db.local_metadata.get(&folder2).unwrap().unwrap();
 
-    api_service::request(
-        &account,
-        UpsertRequest { updates: vec![FileDiff::new(&folder), FileDiff::new(&folder2)] },
-    )
-    .unwrap();
+    core.client
+        .request(
+            &account,
+            UpsertRequest { updates: vec![FileDiff::new(&folder), FileDiff::new(&folder2)] },
+        )
+        .unwrap();
 
     let mut folder_new = folder.clone();
     folder_new.timestamped_value.value.parent = *folder2.id();
-    let result = api_service::request(
-        &account,
-        UpsertRequest { updates: vec![FileDiff::edit(&folder, &folder_new)] },
-    );
+    let result = core
+        .client
+        .request(&account, UpsertRequest { updates: vec![FileDiff::edit(&folder, &folder_new)] });
     assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(_))));
 }
 
@@ -176,16 +175,18 @@ fn move_document_into_document() {
     let doc2 = core.create_at_path("doc2.md").unwrap().id;
     let doc2 = core.db.local_metadata.get(&doc2).unwrap().unwrap();
 
-    api_service::request(
-        &account,
-        UpsertRequest { updates: vec![FileDiff::new(&doc), FileDiff::new(&doc2)] },
-    )
-    .unwrap();
+    core.client
+        .request(
+            &account,
+            UpsertRequest { updates: vec![FileDiff::new(&doc), FileDiff::new(&doc2)] },
+        )
+        .unwrap();
 
     // move folder into itself
     let mut new = doc.clone();
     new.timestamped_value.value.parent = *doc2.id();
-    let result =
-        api_service::request(&account, UpsertRequest { updates: vec![FileDiff::edit(&doc, &new)] });
+    let result = core
+        .client
+        .request(&account, UpsertRequest { updates: vec![FileDiff::edit(&doc, &new)] });
     assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(_))));
 }

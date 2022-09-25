@@ -1,10 +1,10 @@
-use crate::{CoreError, RequestContext};
+use crate::{CoreError, RequestContext, Requester};
 use crate::{CoreResult, OneKey};
 use lockbook_shared::crypto::DecryptedDocument;
 use lockbook_shared::tree_like::Stagable;
 use uuid::Uuid;
 
-impl RequestContext<'_, '_> {
+impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn read_document(&mut self, id: Uuid) -> CoreResult<DecryptedDocument> {
         let tree = self
             .tx
