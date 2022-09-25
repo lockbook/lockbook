@@ -1,7 +1,7 @@
 use libsecp256k1::PublicKey;
 
 use lockbook_core::get_code_version;
-use lockbook_core::service::api_service::{request_helper, ApiError};
+use lockbook_core::service::api_service::{ApiError, Network, Requester};
 use lockbook_shared::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
 use lockbook_shared::clock::{get_time, Timestamp};
 use test_utils::assert_matches;
@@ -14,13 +14,11 @@ fn forced_upgrade() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 
-    let result: Result<PublicKey, ApiError<GetPublicKeyError>> = request_helper(
-        &account,
-        GetPublicKeyRequest { username: account.username.clone() },
-        CODE_VERSION,
-        get_time,
-    )
-    .map(|r: GetPublicKeyResponse| r.key);
+    let client = Network { client: Default::default(), get_code_version: CODE_VERSION, get_time };
+
+    let result: Result<PublicKey, ApiError<GetPublicKeyError>> = client
+        .request(&account, GetPublicKeyRequest { username: account.username.clone() })
+        .map(|r: GetPublicKeyResponse| r.key);
 
     assert_matches!(result, Err(ApiError::<GetPublicKeyError>::ClientUpdateRequired));
 }
@@ -32,12 +30,10 @@ fn expired_request() {
     let core = test_core_with_account();
     let account = core.get_account().unwrap();
 
-    let result = request_helper(
-        &account,
-        GetPublicKeyRequest { username: account.username.clone() },
-        get_code_version,
-        EARLY_CLOCK,
-    );
+    let client = Network { client: Default::default(), get_code_version, get_time: EARLY_CLOCK };
+
+    let result =
+        client.request(&account, GetPublicKeyRequest { username: account.username.clone() });
     assert_matches!(result, Err(ApiError::<GetPublicKeyError>::ExpiredAuth));
 }
 
@@ -47,12 +43,9 @@ fn invalid_url() {
     let mut account = core.get_account().unwrap();
     account.api_url = String::from("not a url");
 
-    let result = request_helper(
-        &account,
-        GetPublicKeyRequest { username: account.username.clone() },
-        get_code_version,
-        get_time,
-    );
+    let result = core
+        .client
+        .request(&account, GetPublicKeyRequest { username: account.username.clone() });
     assert_matches!(result, Err(ApiError::<GetPublicKeyError>::SendFailed(_)));
 }
 
@@ -62,12 +55,9 @@ fn wrong_url() {
     let mut account = core.get_account().unwrap();
     account.api_url = String::from("http://google.com");
 
-    let result = request_helper(
-        &account,
-        GetPublicKeyRequest { username: account.username.clone() },
-        get_code_version,
-        get_time,
-    );
+    let result = core
+        .client
+        .request(&account, GetPublicKeyRequest { username: account.username.clone() });
     assert_matches!(result, Err(ApiError::<GetPublicKeyError>::Deserialize(_)));
 }
 

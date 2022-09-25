@@ -1,50 +1,51 @@
-use crate::service::api_service;
 use crate::service::api_service::ApiError;
-use crate::{core_err_unexpected, CoreError, CoreResult, RequestContext};
+use crate::{core_err_unexpected, CoreError, CoreResult, RequestContext, Requester};
 use lockbook_shared::account::Username;
 use lockbook_shared::api::*;
 use uuid::Uuid;
 
-impl RequestContext<'_, '_> {
+impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn disappear_account(&self, username: &str) -> CoreResult<()> {
         let account = self.get_account()?;
 
-        api_service::request(
-            account,
-            AdminDisappearAccountRequest { username: username.to_string() },
-        )
-        .map_err(|err| match err {
-            ApiError::Endpoint(AdminDisappearAccountError::UserNotFound) => {
-                CoreError::UsernameNotFound
-            }
-            ApiError::Endpoint(AdminDisappearAccountError::NotPermissioned) => {
-                CoreError::InsufficientPermission
-            }
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            _ => core_err_unexpected(err),
-        })
+        self.client
+            .request(account, AdminDisappearAccountRequest { username: username.to_string() })
+            .map_err(|err| match err {
+                ApiError::Endpoint(AdminDisappearAccountError::UserNotFound) => {
+                    CoreError::UsernameNotFound
+                }
+                ApiError::Endpoint(AdminDisappearAccountError::NotPermissioned) => {
+                    CoreError::InsufficientPermission
+                }
+                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                _ => core_err_unexpected(err),
+            })
     }
 
     pub fn disappear_file(&self, id: Uuid) -> CoreResult<()> {
         let account = self.get_account()?;
-        api_service::request(account, AdminDisappearFileRequest { id }).map_err(|err| match err {
-            ApiError::Endpoint(AdminDisappearFileError::FileNonexistent) => {
-                CoreError::FileNonexistent
-            }
-            ApiError::Endpoint(AdminDisappearFileError::NotPermissioned) => {
-                CoreError::InsufficientPermission
-            }
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            _ => core_err_unexpected(err),
-        })
+        self.client
+            .request(account, AdminDisappearFileRequest { id })
+            .map_err(|err| match err {
+                ApiError::Endpoint(AdminDisappearFileError::FileNonexistent) => {
+                    CoreError::FileNonexistent
+                }
+                ApiError::Endpoint(AdminDisappearFileError::NotPermissioned) => {
+                    CoreError::InsufficientPermission
+                }
+                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                _ => core_err_unexpected(err),
+            })
     }
 
     pub fn list_users(&self, filter: Option<AccountFilter>) -> CoreResult<Vec<Username>> {
         let account = self.get_account()?;
 
-        Ok(api_service::request(account, AdminListUsersRequest { filter })
+        Ok(self
+            .client
+            .request(account, AdminListUsersRequest { filter })
             .map_err(|err| match err {
                 ApiError::Endpoint(AdminListUsersError::NotPermissioned) => {
                     CoreError::InsufficientPermission
@@ -59,7 +60,9 @@ impl RequestContext<'_, '_> {
     pub fn get_account_info(&self, identifier: AccountIdentifier) -> CoreResult<AccountInfo> {
         let account = self.get_account()?;
 
-        Ok(api_service::request(account, AdminGetAccountInfoRequest { identifier })
+        Ok(self
+            .client
+            .request(account, AdminGetAccountInfoRequest { identifier })
             .map_err(|err| match err {
                 ApiError::Endpoint(AdminGetAccountInfoError::NotPermissioned) => {
                     CoreError::InsufficientPermission
@@ -76,32 +79,32 @@ impl RequestContext<'_, '_> {
 
     pub fn validate_account(&self, username: &str) -> CoreResult<AdminValidateAccount> {
         let account = self.get_account()?;
-        api_service::request(
-            account,
-            AdminValidateAccountRequest { username: username.to_string() },
-        )
-        .map_err(|err| match err {
-            ApiError::Endpoint(AdminValidateAccountError::NotPermissioned) => {
-                CoreError::InsufficientPermission
-            }
-            ApiError::Endpoint(AdminValidateAccountError::UserNotFound) => {
-                CoreError::UsernameNotFound
-            }
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            _ => core_err_unexpected(err),
-        })
+        self.client
+            .request(account, AdminValidateAccountRequest { username: username.to_string() })
+            .map_err(|err| match err {
+                ApiError::Endpoint(AdminValidateAccountError::NotPermissioned) => {
+                    CoreError::InsufficientPermission
+                }
+                ApiError::Endpoint(AdminValidateAccountError::UserNotFound) => {
+                    CoreError::UsernameNotFound
+                }
+                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                _ => core_err_unexpected(err),
+            })
     }
 
     pub fn validate_server(&self) -> CoreResult<AdminValidateServer> {
         let account = self.get_account()?;
-        api_service::request(account, AdminValidateServerRequest {}).map_err(|err| match err {
-            ApiError::Endpoint(AdminValidateServerError::NotPermissioned) => {
-                CoreError::InsufficientPermission
-            }
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            _ => core_err_unexpected(err),
-        })
+        self.client
+            .request(account, AdminValidateServerRequest {})
+            .map_err(|err| match err {
+                ApiError::Endpoint(AdminValidateServerError::NotPermissioned) => {
+                    CoreError::InsufficientPermission
+                }
+                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                _ => core_err_unexpected(err),
+            })
     }
 }

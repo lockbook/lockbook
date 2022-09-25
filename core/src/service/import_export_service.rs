@@ -1,4 +1,4 @@
-use crate::{CoreError, RequestContext};
+use crate::{CoreError, RequestContext, Requester};
 use crate::{CoreResult, OneKey};
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Account;
@@ -25,7 +25,7 @@ pub enum ImportStatus {
     FinishedItem(File),
 }
 
-impl RequestContext<'_, '_> {
+impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn import_files<F: Fn(ImportStatus)>(
         &mut self, sources: &[PathBuf], dest: Uuid, update_status: &F,
     ) -> CoreResult<()> {
@@ -126,7 +126,7 @@ impl RequestContext<'_, '_> {
                 for id in children {
                     if !tree.calculate_deleted(&id)? {
                         let file = tree.find(&id)?.clone();
-                        tree = RequestContext::export_file_recursively(
+                        tree = RequestContext::<Client>::export_file_recursively(
                             config,
                             account,
                             tree,
@@ -161,7 +161,7 @@ impl RequestContext<'_, '_> {
             FileType::Link { target } => {
                 if !tree.calculate_deleted(&target)? {
                     let file = tree.find(&target)?.clone();
-                    tree = RequestContext::export_file_recursively(
+                    tree = RequestContext::<Client>::export_file_recursively(
                         config,
                         account,
                         tree,
@@ -201,7 +201,7 @@ impl RequestContext<'_, '_> {
             false => FileType::Folder,
         };
 
-        let file_name = RequestContext::generate_non_conflicting_name(
+        let file_name = RequestContext::<Client>::generate_non_conflicting_name(
             &mut tree,
             account,
             dest,
@@ -222,7 +222,7 @@ impl RequestContext<'_, '_> {
 
             for entry in entries {
                 let child_path = entry.map_err(CoreError::from)?.path();
-                tree = RequestContext::import_file_recursively(
+                tree = RequestContext::<Client>::import_file_recursively(
                     account,
                     config,
                     public_key,

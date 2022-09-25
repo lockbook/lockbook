@@ -3,7 +3,7 @@ use crate::exhaustive_sync::trial::Action::*;
 use crate::exhaustive_sync::trial::Status::{Failed, Ready, Running, Succeeded};
 use crate::exhaustive_sync::utils::{find_by_name, random_filename, random_utf8};
 use lockbook_core::model::errors::MoveFileError;
-use lockbook_core::service::api_service;
+use lockbook_core::service::api_service::Requester;
 use lockbook_core::Core;
 use lockbook_core::Error::UiError;
 use lockbook_shared::api::DeleteAccountRequest;
@@ -314,9 +314,12 @@ impl Trial {
     fn cleanup(&self) {
         if let Ok(account) = &self.clients[0].get_account() {
             // Delete account in server
-            api_service::request(account, DeleteAccountRequest {}).unwrap_or_else(|err| {
-                println!("Failed to delete account: {} error : {:?}", account.username, err)
-            });
+            self.clients[0]
+                .client
+                .request(account, DeleteAccountRequest {})
+                .unwrap_or_else(|err| {
+                    println!("Failed to delete account: {} error : {:?}", account.username, err)
+                });
 
             // Delete account locally
             for client in &self.clients {

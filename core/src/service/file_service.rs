@@ -1,4 +1,4 @@
-use crate::{CoreError, CoreResult, OneKey, RequestContext};
+use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
 use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileType, Owner};
@@ -6,7 +6,7 @@ use lockbook_shared::tree_like::{Stagable, TreeLike};
 use std::iter;
 use uuid::Uuid;
 
-impl RequestContext<'_, '_> {
+impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn create_file(
         &mut self, name: &str, parent: &Uuid, file_type: FileType,
     ) -> CoreResult<File> {

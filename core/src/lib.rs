@@ -53,6 +53,7 @@ use strum::IntoEnumIterator;
 
 use crate::model::errors::Error::UiError;
 use crate::repo::schema::{transaction, CoreV1, OneKey, Tx};
+use crate::service::api_service::{Network, Requester};
 use crate::service::log_service;
 use crate::service::search_service::{SearchResultItem, StartSearchInfo};
 
@@ -63,27 +64,34 @@ pub struct DataCache {
 }
 
 #[derive(Clone, Debug)]
-pub struct Core {
+pub struct CoreLib<Client: Requester> {
     // TODO not pub?
     pub config: Config,
     pub data_cache: Arc<Mutex<DataCache>>, // Or Rc<RefCell>>
     pub db: CoreV1,
+    pub client: Client,
 }
 
-impl Core {
-    pub fn context<'a, 'b>(&'a self, tx: &'a mut Tx<'b>) -> CoreResult<RequestContext<'a, 'b>> {
+pub type Core = CoreLib<Network>;
+
+impl<Client: Requester> CoreLib<Client> {
+    pub fn context<'a, 'b>(
+        &'a self, tx: &'a mut Tx<'b>,
+    ) -> CoreResult<RequestContext<'a, 'b, Client>> {
         let config = &self.config;
         let data_cache = self.data_cache.lock().map_err(|err| {
             CoreError::Unexpected(format!("Could not get key_cache mutex: {:?}", err))
         })?;
-        Ok(RequestContext { config, data_cache, tx })
+        let client = &self.client;
+        Ok(RequestContext { config, data_cache, tx, client })
     }
 }
 
-pub struct RequestContext<'a, 'b> {
+pub struct RequestContext<'a, 'b, Client: Requester> {
     pub config: &'a Config,
     pub data_cache: MutexGuard<'a, DataCache>,
     pub tx: &'a mut transaction::CoreV1<'b>,
+    pub client: &'a Client,
 }
 
 impl Core {
@@ -94,8 +102,9 @@ impl Core {
             CoreV1::init(&config.writeable_path).map_err(|err| unexpected_only!("{:#?}", err))?;
         let data_cache = Arc::new(Mutex::new(DataCache::default()));
         let config = config.clone();
+        let client = Network::default();
 
-        Ok(Self { config, data_cache, db })
+        Ok(Self { config, data_cache, db, client })
     }
 
     #[instrument(level = "info", skip_all, err(Debug))]
@@ -233,7 +242,7 @@ impl Core {
         Ok(val?)
     }
 
-    #[instrument(level = "debug", err(Debug))]
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn share_file(
         &self, id: Uuid, username: &str, mode: ShareMode,
     ) -> Result<(), Error<ShareFileError>> {
@@ -251,7 +260,7 @@ impl Core {
         Ok(val?)
     }
 
-    #[instrument(level = "debug", err(Debug))]
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn delete_pending_share(&self, id: Uuid) -> Result<(), Error<DeletePendingShareError>> {
         let val = self.db.transaction(|tx| {
             let mut context = self.context(tx)?;
@@ -446,7 +455,7 @@ impl Core {
             .map_err(TestRepoError::Core)?
     }
 
-    #[instrument(level = "debug", err(Debug))]
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn upgrade_account_stripe(
         &self, account_tier: StripeAccountTier,
     ) -> Result<(), Error<UpgradeAccountStripeError>> {
@@ -456,7 +465,7 @@ impl Core {
         Ok(val?)
     }
 
-    #[instrument(level = "debug", skip(purchase_token), err(Debug))]
+    #[instrument(level = "debug", skip(self, purchase_token), err(Debug))]
     pub fn upgrade_account_google_play(
         &self, purchase_token: &str, account_id: &str,
     ) -> Result<(), Error<UpgradeAccountGooglePlayError>> {

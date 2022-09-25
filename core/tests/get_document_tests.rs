@@ -1,5 +1,4 @@
-use lockbook_core::service::api_service;
-use lockbook_core::service::api_service::ApiError;
+use lockbook_core::service::api_service::{ApiError, Requester};
 use lockbook_shared::api::*;
 use lockbook_shared::crypto::AESEncrypted;
 
@@ -19,19 +18,25 @@ fn get_document() {
     new.timestamped_value.value.document_hmac = Some([0; 32]);
 
     // update document content
-    api_service::request(
-        &account,
-        ChangeDocRequest {
-            diff: FileDiff::edit(&old, &new),
-            new_content: AESEncrypted { value: vec![69], nonce: vec![69], _t: Default::default() },
-        },
-    )
-    .unwrap();
+    core.client
+        .request(
+            &account,
+            ChangeDocRequest {
+                diff: FileDiff::edit(&old, &new),
+                new_content: AESEncrypted {
+                    value: vec![69],
+                    nonce: vec![69],
+                    _t: Default::default(),
+                },
+            },
+        )
+        .unwrap();
 
     // get document
-    let result =
-        &api_service::request(&account, GetDocRequest { id, hmac: *new.document_hmac().unwrap() })
-            .unwrap();
+    let result = &core
+        .client
+        .request(&account, GetDocRequest { id, hmac: *new.document_hmac().unwrap() })
+        .unwrap();
     assert_eq!(
         result.content,
         AESEncrypted { value: vec!(69), nonce: vec!(69), _t: Default::default() }
@@ -50,10 +55,9 @@ fn get_document_not_found() {
     new.timestamped_value.value.document_hmac = Some([0; 32]);
 
     // get document we never created
-    let result = api_service::request(
-        &account,
-        GetDocRequest { id: *new.id(), hmac: *new.document_hmac().unwrap() },
-    );
+    let result = core
+        .client
+        .request(&account, GetDocRequest { id: *new.id(), hmac: *new.document_hmac().unwrap() });
     assert_matches!(
         result,
         Err(ApiError::<GetDocumentError>::Endpoint(GetDocumentError::DocumentNotFound))

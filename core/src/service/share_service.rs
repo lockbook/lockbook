@@ -1,5 +1,4 @@
-use crate::service::api_service;
-use crate::{CoreError, CoreResult, OneKey, RequestContext};
+use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
 use libsecp256k1::PublicKey;
 use lockbook_shared::access_info::{UserAccessInfo, UserAccessMode};
 use lockbook_shared::api::GetPublicKeyRequest;
@@ -10,7 +9,7 @@ use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::validate;
 use uuid::Uuid;
 
-impl RequestContext<'_, '_> {
+impl<Client: Requester> RequestContext<'_, '_, Client> {
     // todo: move to tree, split non-validating version
     pub fn share_file(&mut self, id: Uuid, username: &str, mode: ShareMode) -> CoreResult<()> {
         let account = &self.get_account()?.clone(); // todo: don't clone
@@ -34,10 +33,11 @@ impl RequestContext<'_, '_> {
         }
         // check for and remove duplicate shares
         let mut found = false;
-        let sharee_public_key =
-            api_service::request(account, GetPublicKeyRequest { username: String::from(username) })
-                .map_err(CoreError::from)?
-                .key;
+        let sharee_public_key = self
+            .client
+            .request(account, GetPublicKeyRequest { username: String::from(username) })
+            .map_err(CoreError::from)?
+            .key;
         for user_access in &mut file.user_access_keys {
             if user_access.encrypted_for == sharee_public_key {
                 found = true;

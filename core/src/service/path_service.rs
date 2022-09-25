@@ -1,11 +1,11 @@
-use crate::OneKey;
 use crate::{CoreError, CoreResult, RequestContext};
+use crate::{OneKey, Requester};
 use lockbook_shared::file::File;
 use lockbook_shared::path_ops::Filter;
 use lockbook_shared::tree_like::Stagable;
 use uuid::Uuid;
 
-impl RequestContext<'_, '_> {
+impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn create_link_at_path(&mut self, path: &str, target_id: Uuid) -> CoreResult<File> {
         let pub_key = self.get_public_key()?;
         let tree = self

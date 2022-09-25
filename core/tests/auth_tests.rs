@@ -1,5 +1,4 @@
-use lockbook_core::service::api_service;
-use lockbook_core::service::api_service::ApiError;
+use lockbook_core::service::api_service::{ApiError, Requester};
 use lockbook_shared::api::*;
 use lockbook_shared::crypto::AESEncrypted;
 use lockbook_shared::file_like::FileLike;
@@ -14,22 +13,21 @@ fn upsert_id_takeover() {
     let mut file1 = {
         let id = core1.create_at_path("/test.md").unwrap().id;
         core1.sync(None).unwrap();
-        api_service::request(
-            &core1.get_account().unwrap(),
-            GetUpdatesRequest { since_metadata_version: 0 },
-        )
-        .unwrap()
-        .file_metadata
-        .iter()
-        .find(|&f| f.id() == &id)
-        .unwrap()
-        .clone()
+        core1
+            .client
+            .request(&core1.get_account().unwrap(), GetUpdatesRequest { since_metadata_version: 0 })
+            .unwrap()
+            .file_metadata
+            .iter()
+            .find(|&f| f.id() == &id)
+            .unwrap()
+            .clone()
     };
 
     file1.timestamped_value.value.parent = core2.get_root().unwrap().id;
 
     // If this succeeded account2 would be able to control file1
-    let result = api_service::request(
+    let result = core2.client.request(
         &core2.get_account().unwrap(),
         UpsertRequest { updates: vec![FileDiff::new(&file1)] },
     );
@@ -49,7 +47,9 @@ fn upsert_id_takeover_change_parent() {
     let file1 = {
         let id = core1.create_at_path("/test.md").unwrap().id;
         core1.sync(None).unwrap();
-        api_service::request(&account1, GetUpdatesRequest { since_metadata_version: 0 })
+        core1
+            .client
+            .request(&account1, GetUpdatesRequest { since_metadata_version: 0 })
             .unwrap()
             .file_metadata
             .iter()
@@ -59,8 +59,9 @@ fn upsert_id_takeover_change_parent() {
     };
 
     // If this succeeded account2 would be able to control file1
-    let result =
-        api_service::request(&account2, UpsertRequest { updates: vec![FileDiff::new(&file1)] });
+    let result = core2
+        .client
+        .request(&account2, UpsertRequest { updates: vec![FileDiff::new(&file1)] });
     assert_matches!(
         result,
         Err(ApiError::<UpsertError>::Endpoint(UpsertError::OldVersionRequired))
@@ -81,7 +82,7 @@ fn change_document_content() {
     let mut file2 = file1.clone();
     file2.timestamped_value.value.document_hmac = Some([0; 32]);
 
-    let result = api_service::request(
+    let result = core2.client.request(
         &core2.get_account().unwrap(),
         ChangeDocRequest {
             diff: FileDiff::edit(&file1, &file2),
@@ -108,7 +109,7 @@ fn get_someone_else_document() {
 
     let req = GetDocRequest { id: *file.id(), hmac: *file.document_hmac().unwrap() };
 
-    let result = api_service::request(&core2.get_account().unwrap(), req);
+    let result = core2.client.request(&core2.get_account().unwrap(), req);
     assert_matches!(
         result,
         Err(ApiError::<GetDocumentError>::Endpoint(GetDocumentError::NotPermissioned))
