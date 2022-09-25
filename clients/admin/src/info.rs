@@ -1,10 +1,10 @@
-use lockbook_core::Duration;
+use lockbook_core::{AccountIdentifier, Duration};
 use std::iter;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::Res;
 use lockbook_core::{
-    ChronoHumanDuration, Core, FileLike, LazyTree, Owner, ServerFile, Stagable, TreeLike, Uuid,
+    ChronoHumanDuration, Core, FileLike, LazyTree, ServerFile, Stagable, TreeLike, Uuid,
 };
 
 pub fn file(core: &Core, id: Uuid) -> Res<()> {
@@ -12,13 +12,25 @@ pub fn file(core: &Core, id: Uuid) -> Res<()> {
     println!("id:\t\t\t{}", info.file.id());
     println!("file_type:\t\t{:?}", info.file.file_type());
     println!("parent:\t\t\t{}", info.file.parent());
-    println!("owner:\t\t\t{:?}", info.file.owner());
+    println!(
+        "owner:\t\t\t{}",
+        core.admin_get_account_info(AccountIdentifier::PublicKey(info.file.owner().0))?
+            .username
+    );
     println!("explicitly_deleted:\t{}", info.file.explicitly_deleted());
     println!("document_hmac:\t\t{}", info.file.document_hmac().is_some());
     println!("user_access_keys:");
     for k in info.file.user_access_keys() {
-        println!("->\tencrypted_by: {:?}", Owner(k.encrypted_by));
-        println!("\tencrypted_for: {:?}", Owner(k.encrypted_for));
+        println!(
+            "->\tencrypted_by: {}",
+            core.admin_get_account_info(AccountIdentifier::PublicKey(k.encrypted_by))?
+                .username
+        );
+        println!(
+            "\tencrypted_for: {}",
+            core.admin_get_account_info(AccountIdentifier::PublicKey(k.encrypted_for))?
+                .username
+        );
         println!("\tmode: {:?}", k.mode);
         println!("\tdeleted: {:?}", k.deleted);
     }
