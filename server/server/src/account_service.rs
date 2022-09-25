@@ -242,6 +242,28 @@ pub async fn admin_get_account_info(
         .get(&owner)?
         .ok_or(ClientError(AdminGetAccountInfoError::UserNotFound))?;
 
+    let mut maybe_root = None;
+    if let Some(owned_ids) = db.owned_files.get(&owner)? {
+        for id in owned_ids {
+            if let Some(meta) = db.metas.get(&id)? {
+                if meta.is_root() {
+                    maybe_root = Some(*meta.id());
+                }
+            } else {
+                return Err(ServerError::InternalError(String::from(
+                    "nonexistent file indexed as owned",
+                )));
+            }
+        }
+    } else {
+        return Err(ServerError::InternalError(String::from("owned files not indexed for user")));
+    }
+    let root = if let Some(root) = maybe_root {
+        root
+    } else {
+        return Err(ServerError::InternalError(String::from("user root not found")));
+    };
+
     let payment_platform = account
         .billing_info
         .billing_platform
@@ -255,7 +277,7 @@ pub async fn admin_get_account_info(
         });
 
     Ok(AdminGetAccountInfoResponse {
-        account: AccountInfo { username: account.username, payment_platform },
+        account: AccountInfo { username: account.username, root, payment_platform },
     })
 }
 
