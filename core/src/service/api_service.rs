@@ -1,6 +1,4 @@
 use reqwest::blocking::Client as RequestClient;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 
 use crate::get_code_version;
 use lockbook_shared::account::Account;
@@ -87,15 +85,13 @@ impl Requester for Network {
 // #[cfg(feature = "no-network")]
 mod no_network {
 
+    use crate::call;
     use crate::service::api_service::ApiError;
     use crate::Requester;
-    use lockbook_server_lib::routes::HandledRequest;
     use lockbook_server_lib::{file_service, ServerError, ServerState};
     use lockbook_shared::account::Account;
-    use lockbook_shared::api::{ChangeDocRequest, Request, UpsertError, UpsertRequest};
-    use sha2::digest::Output;
+    use lockbook_shared::api::*;
     use std::any::Any;
-    use std::future::Future;
     use tokio::runtime::Runtime;
 
     pub struct InProcess {
@@ -104,7 +100,7 @@ mod no_network {
     }
 
     impl InProcess {
-        fn context<T: Request + Clone>(
+        fn context<T: Request + Clone + 'static>(
             &self, account: &Account, untyped: &dyn Any,
         ) -> lockbook_server_lib::RequestContext<T> {
             let request: &T = untyped.downcast_ref().unwrap();
@@ -118,26 +114,48 @@ mod no_network {
         }
     }
 
+    // There are 2 instances of a type cast going on here, this is the cleanest solution, without
+    // larger scale refactoring:
+    // 1. force any request to be specifically the one that the server function we're calling expects
+    // 2. force any arbitary match arm result to be the one core is expecting
+    // It's the same level of unsafety-ness as above, serialization errors there are downcast errors here
+    // With a larger scale refactor there could be no unsafety, if each request was aware of it's handler
+    // Could be fine now that the server imports are laregly the same as the core imports. But for now,
+    // this lowers the surface area of the change considerably, and all this is behind a fuzzer-only
+    // compile time featuer flag
     impl Requester for InProcess {
         fn request<T: Request>(
             &self, account: &Account, request: T,
         ) -> Result<T::Response, ApiError<T::Error>> {
-            let fut = async {
-                let result: Box<dyn Any> = match T::ROUTE {
-                    UpsertRequest::ROUTE => Box::new(
-                        file_service::upsert_file_metadata(self.context(account, &request)).await,
-                    ),
-
-                    ChangeDocRequest::ROUTE => {
-                        Box::new(file_service::change_doc(self.context(account, &request)).await)
-                    }
-                    _ => panic!("unsupported route"),
-                };
+            let resp: Box<dyn Any> = match T::ROUTE {
+                UpsertRequest::ROUTE => call!(upsert_file_metadata, self, account, request),
+                ChangeDocRequest::ROUTE => call!(change_doc, self, account, request),
+                _ => panic!("unhandled InProcess type"),
             };
 
-            // let outcome: Result<T::Response, ServerError<T::Error>> = self.runtime.block_on(fut);
+            let resp: Result<T::Response, ServerError<T::Error>> = *resp.downcast().unwrap();
 
-            todo!()
+            // TODO logs can probably be re-enabled, globally, on fuzzer now, this is probably where
+            // we want to capture some failures
+            let resp = match resp {
+                Ok(resp) => Ok(resp),
+                Err(ServerError::ClientError(e)) => Err(ErrorWrapper::Endpoint(e)),
+                Err(ServerError::InternalError(_e)) => Err(ErrorWrapper::InternalError),
+            };
+
+            resp.map_err(ApiError::from)
         }
+    }
+
+    #[macro_export]
+    macro_rules! call {
+        ($handler:path, $data:ident, $account:ident, $request:ident) => {{
+            let context = $data.context($account, &$request);
+            Box::new(
+                $data
+                    .runtime
+                    .block_on(file_service::upsert_file_metadata(context)),
+            )
+        }};
     }
 }

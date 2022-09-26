@@ -14,9 +14,9 @@ use crate::server_file::ServerFile;
 use crate::signed_file::SignedFile;
 use crate::ValidationFailure;
 
-pub trait Request: Serialize {
-    type Response: Debug + DeserializeOwned;
-    type Error: Debug + DeserializeOwned;
+pub trait Request: Serialize + 'static {
+    type Response: Debug + DeserializeOwned + Clone;
+    type Error: Debug + DeserializeOwned + Clone;
     const METHOD: Method;
     const ROUTE: &'static str;
 }

@@ -2999,7 +2999,6 @@ name = "lockbook-server"
 version = "0.5.4"
 dependencies = [
  "async-stripe",
- "async-trait",
  "atomic-counter",
  "base64",
  "bincode",
