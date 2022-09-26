@@ -37,9 +37,7 @@ pub enum ApiError<E> {
 }
 
 pub trait Requester {
-    fn request<
-        T: Request<Response = impl DeserializeOwned, Error = impl DeserializeOwned> + Serialize,
-    >(
+    fn request<T: Request>(
         &self, account: &Account, request: T,
     ) -> Result<T::Response, ApiError<T::Error>>;
 }
@@ -58,9 +56,7 @@ impl Default for Network {
 }
 
 impl Requester for Network {
-    fn request<
-        T: Request<Response = impl DeserializeOwned, Error = impl DeserializeOwned> + Serialize,
-    >(
+    fn request<T: Request>(
         &self, account: &Account, request: T,
     ) -> Result<T::Response, ApiError<T::Error>> {
         let signed_request =
@@ -85,5 +81,63 @@ impl Requester for Network {
             serde_json::from_slice(&serialized_response)
                 .map_err(|err| ApiError::Deserialize(err.to_string()))?;
         response.map_err(ApiError::from)
+    }
+}
+
+// #[cfg(feature = "no-network")]
+mod no_network {
+
+    use crate::service::api_service::ApiError;
+    use crate::Requester;
+    use lockbook_server_lib::routes::HandledRequest;
+    use lockbook_server_lib::{file_service, ServerError, ServerState};
+    use lockbook_shared::account::Account;
+    use lockbook_shared::api::{ChangeDocRequest, Request, UpsertError, UpsertRequest};
+    use sha2::digest::Output;
+    use std::any::Any;
+    use std::future::Future;
+    use tokio::runtime::Runtime;
+
+    pub struct InProcess {
+        pub server_state: ServerState,
+        pub runtime: Runtime,
+    }
+
+    impl InProcess {
+        fn context<T: Request + Clone>(
+            &self, account: &Account, untyped: &dyn Any,
+        ) -> lockbook_server_lib::RequestContext<T> {
+            let request: &T = untyped.downcast_ref().unwrap();
+            let request: T = request.clone();
+
+            lockbook_server_lib::RequestContext {
+                server_state: &self.server_state,
+                request,
+                public_key: account.public_key(),
+            }
+        }
+    }
+
+    impl Requester for InProcess {
+        fn request<T: Request>(
+            &self, account: &Account, request: T,
+        ) -> Result<T::Response, ApiError<T::Error>> {
+            let fut = async {
+                let result: Box<dyn Any> = match T::ROUTE {
+                    UpsertRequest::ROUTE => Box::new(
+                        file_service::upsert_file_metadata(self.context(account, &request)).await,
+                    ),
+
+                    ChangeDocRequest::ROUTE => {
+                        Box::new(file_service::change_doc(self.context(account, &request)).await)
+                    }
+                    _ => panic!("unsupported route"),
+                };
+            };
+
+            // let outcome: Result<T::Response, ServerError<T::Error>> = self.runtime.block_on(fut);
+
+            todo!()
+        }
     }
 }

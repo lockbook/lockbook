@@ -2928,6 +2928,7 @@ dependencies = [
  "jni 0.13.1",
  "lazy_static",
  "libsecp256k1",
+ "lockbook-server",
  "lockbook-shared",
  "num_cpus",
  "qrcode-generator",
@@ -2942,6 +2943,7 @@ dependencies = [
  "sublime_fuzzy",
  "tempfile",
  "test_utils",
+ "tokio",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -2997,6 +2999,7 @@ name = "lockbook-server"
 version = "0.5.4"
 dependencies = [
  "async-stripe",
+ "async-trait",
  "atomic-counter",
  "base64",
  "bincode",
