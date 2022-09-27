@@ -83,19 +83,29 @@ impl Requester for Network {
 }
 
 // #[cfg(feature = "no-network")]
-mod no_network {
+pub mod no_network {
 
-    use crate::call;
     use crate::service::api_service::ApiError;
-    use crate::Requester;
-    use lockbook_server_lib::{file_service, ServerError, ServerState};
+    use crate::{call, CoreLib};
+    use crate::{CoreV1, DataCache, Requester};
+    use hmdb::log::Reader;
+    use lockbook_server_lib::account_service::*;
+    use lockbook_server_lib::billing::google_play_client::get_google_play_client;
+    use lockbook_server_lib::config::*;
+    use lockbook_server_lib::file_service::*;
+    use lockbook_server_lib::schema::v2;
+    use lockbook_server_lib::{stripe, ServerError, ServerState};
     use lockbook_shared::account::Account;
     use lockbook_shared::api::*;
+    use lockbook_shared::core_config::Config;
     use std::any::Any;
+    use std::path::PathBuf;
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
     use tokio::runtime::Runtime;
 
     pub struct InProcess {
-        pub server_state: ServerState,
+        pub server_state: Arc<Mutex<ServerState>>,
         pub runtime: Runtime,
     }
 
@@ -106,8 +116,10 @@ mod no_network {
             let request: &T = untyped.downcast_ref().unwrap();
             let request: T = request.clone();
 
+            let server_state = self.server_state.lock().unwrap();
+
             lockbook_server_lib::RequestContext {
-                server_state: &self.server_state,
+                server_state: &server_state,
                 request,
                 public_key: account.public_key(),
             }
@@ -130,6 +142,7 @@ mod no_network {
             let resp: Box<dyn Any> = match T::ROUTE {
                 UpsertRequest::ROUTE => call!(upsert_file_metadata, self, account, request),
                 ChangeDocRequest::ROUTE => call!(change_doc, self, account, request),
+                NewAccountRequest::ROUTE => call!(new_account, self, account, request),
                 _ => panic!("unhandled InProcess type"),
             };
 
@@ -151,11 +164,52 @@ mod no_network {
     macro_rules! call {
         ($handler:path, $data:ident, $account:ident, $request:ident) => {{
             let context = $data.context($account, &$request);
-            Box::new(
-                $data
-                    .runtime
-                    .block_on(file_service::upsert_file_metadata(context)),
-            )
+            Box::new($data.runtime.block_on($handler(context)))
         }};
+    }
+
+    impl CoreLib<InProcess> {
+        pub fn init_in_process(core_config: &Config) -> Self {
+            let client = {
+                let server_config = lockbook_server_lib::config::Config {
+                    server: ServerConfig::from_env_vars(),
+                    index_db: IndexDbConf {
+                        db_location: core_config.writeable_path.clone(),
+                        time_between_compacts: Duration::from_secs(100000000),
+                    },
+                    files: FilesConfig { path: PathBuf::from(&core_config.writeable_path) },
+                    metrics: MetricsConfig::from_env_vars(),
+                    billing: BillingConfig::from_env_vars(),
+                    admin: AdminConfig::from_env_vars(),
+                    features: FeatureFlags::from_env_vars(),
+                };
+
+                let stripe_client =
+                    stripe::Client::new(&server_config.billing.stripe.stripe_secret);
+                let runtime = Runtime::new().unwrap();
+                let google_play_client = runtime.block_on(get_google_play_client(
+                    &server_config.billing.google.service_account_key,
+                ));
+
+                let index_db = v2::Server::init(&server_config.index_db.db_location)
+                    .expect("Failed to load index_db");
+
+                InProcess {
+                    server_state: Arc::new(Mutex::new(ServerState {
+                        config: server_config,
+                        index_db,
+                        stripe_client,
+                        google_play_client,
+                    })),
+                    runtime,
+                }
+            };
+
+            let db = CoreV1::init(&core_config.writeable_path).unwrap();
+            let data_cache = Arc::new(Mutex::new(DataCache::default()));
+            let config = core_config.clone();
+
+            Self { config, data_cache, db, client }
+        }
     }
 }
