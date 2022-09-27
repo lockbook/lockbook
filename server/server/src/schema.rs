@@ -102,15 +102,24 @@ pub mod v2 {
                 file_children.insert(*id);
             }
         }
-        info!("migration: indexed owned files of {} users", owned_files.len());
+        {
+            let num_users = owned_files.len();
+            info!(?num_users, "migration: indexed owned files");
+        }
         for (k, v) in owned_files {
             destination.owned_files.insert(k, v);
         }
-        info!("migration: indexed shared files of {} users", shared_files.len());
+        {
+            let num_users = shared_files.len();
+            info!(?num_users, "migration: indexed shared files");
+        }
         for (k, v) in shared_files {
             destination.shared_files.insert(k, v);
         }
-        info!("migration: indexed children of {} files", file_children.len());
+        {
+            let num_files = file_children.len();
+            info!(?num_files, "migration: indexed children of files");
+        }
         for (k, v) in file_children {
             destination.file_children.insert(k, v);
         }
