@@ -31,7 +31,7 @@ make_static_metric! {
 lazy_static! {
     pub static ref METRICS_COUNTERS_VEC: IntGaugeVec = register_int_gauge_vec!(
         "lockbook_metrics_counters",
-        "Lockbook's basic metrics of users and files derived from redis.",
+        "Lockbook's basic metrics of users and files derived from redis",
         &["type"]
     )
     .unwrap();
@@ -39,14 +39,14 @@ lazy_static! {
         MetricsStatistics::from(&METRICS_COUNTERS_VEC);
     pub static ref METRICS_USAGE_BY_USER_VEC: IntGaugeVec = register_int_gauge_vec!(
         "lockbook_metrics_usage_by_user",
-        "Lockbook's total usage by user.",
+        "Lockbook's total usage by user",
         &["username"]
     )
     .unwrap();
     pub static ref METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC: IntGaugeVec =
         register_int_gauge_vec!(
             "lockbook_premium_users_by_payment_platform",
-            "Lockbook's total number of premium users by payment platform.",
+            "Lockbook's total number of premium users by payment platform",
             &["platform"]
         )
         .unwrap();
@@ -64,7 +64,7 @@ pub fn start_metrics_worker(server_state: &ServerState) {
     let state_clone = server_state.clone();
 
     tokio::spawn(async move {
-        info!("Started capturing metrics.");
+        info!("Started capturing metrics");
 
         if let Err(e) = start(state_clone).await {
             error!("interrupting metrics loop due to error: {:?}", e)
@@ -74,7 +74,7 @@ pub fn start_metrics_worker(server_state: &ServerState) {
 
 pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> {
     loop {
-        info!("Metrics refresh started.");
+        info!("Metrics refresh started");
 
         let public_keys_and_usernames = state.index_db.usernames.get_all()?;
         METRICS_STATISTICS

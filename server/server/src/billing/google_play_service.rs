@@ -22,7 +22,11 @@ pub fn get_public_key(
             internal!("There should be an account id attached to a purchase: {:?}", sub_notif)
         })?;
 
-    info!("Retrieved full subscription info for notification event {:?} with an obfuscated id of {:?}", notification_type, account_id);
+    info!(
+        ?notification_type,
+        ?account_id,
+        "Retrieved full subscription info for notification event",
+    );
 
     let public_key: PublicKey = state
         .index_db
@@ -59,7 +63,7 @@ pub async fn verify_request_and_get_notification(
         return Err(ClientError(GooglePlayWebhookError::InvalidToken));
     }
 
-    info!("Parsing pubsub notification and extracting the developer notification.");
+    info!("Parsing pubsub notification and extracting the developer notification");
 
     let pubsub_notif = serde_json::from_slice::<PubSubNotification>(&request_body)?;
     let data = base64::decode(pubsub_notif.message.data)

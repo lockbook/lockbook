@@ -54,18 +54,81 @@ pub async fn upsert_file_metadata(
                     && !prior_deleted_docs.contains(&id)
                 {
                     let meta = tree.find(&id)?;
-                    if let Some(digest) = meta.file.timestamped_value.value.document_hmac {
+                    if let Some(hmac) = meta.file.timestamped_value.value.document_hmac {
                         tx.sizes.delete(*meta.id());
-                        new_deleted.push((*meta.id(), digest));
-                        debug!("deleting id: {}", *meta.id());
+                        new_deleted.push((*meta.id(), hmac));
                     }
                 }
             }
             Ok(())
         })??;
 
-    for (id, digest) in new_deleted {
-        document_service::delete(server_state, &id, &digest).await?;
+    for update in request.updates {
+        let new = update.new;
+        let id = *new.id();
+        match update.old {
+            None => {
+                debug!(?id, "Created file");
+            }
+            Some(old) => {
+                let old_parent = *old.parent();
+                let new_parent = *new.parent();
+                if old.parent() != new.parent() {
+                    debug!(?id, ?old_parent, ?new_parent, "Moved file");
+                }
+                if old.secret_name() != new.secret_name() {
+                    debug!(?id, "Renamed file");
+                }
+                if old.owner() != new.owner() {
+                    debug!(?id, ?old_parent, ?new_parent, "Changed owner for file");
+                }
+                if old.explicitly_deleted() != new.explicitly_deleted() {
+                    debug!(?id, "Deleted file");
+                }
+                if old.user_access_keys() != new.user_access_keys() {
+                    let all_sharees: Vec<_> = old
+                        .user_access_keys()
+                        .iter()
+                        .chain(new.user_access_keys().iter())
+                        .map(|k| Owner(k.encrypted_for))
+                        .collect();
+                    for sharee in all_sharees {
+                        let new = if let Some(k) = new
+                            .user_access_keys()
+                            .iter()
+                            .find(|k| k.encrypted_for == sharee.0)
+                        {
+                            k
+                        } else {
+                            debug!(?id, ?sharee, "Disappeared user access key");
+                            continue;
+                        };
+                        let old = if let Some(k) = old
+                            .user_access_keys()
+                            .iter()
+                            .find(|k| k.encrypted_for == sharee.0)
+                        {
+                            k
+                        } else {
+                            debug!(?id, ?sharee, ?new.mode, "Added user access key");
+                            continue;
+                        };
+                        if old.mode != new.mode {
+                            debug!(?id, ?sharee, ?old.mode, ?new.mode, "Modified user access mode");
+                        }
+                        if old.deleted != new.deleted {
+                            debug!(?id, ?sharee, ?old.deleted, ?new.deleted, "Deleted user access key");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for (id, hmac) in new_deleted {
+        document_service::delete(server_state, &id, &hmac).await?;
+        let hmac = base64::encode_config(hmac, base64::URL_SAFE);
+        debug!(?id, ?hmac, "Deleted document contents");
     }
     Ok(())
 }
@@ -77,15 +140,18 @@ pub async fn change_doc(
 
     let (request, server_state) = (context.request, context.server_state);
     let owner = Owner(context.public_key);
+    let id = *request.diff.id();
 
     // Validate Diff
     if request.diff.diff() != vec![Diff::Hmac] {
         return Err(ClientError(DiffMalformed));
     }
 
-    if request.diff.new.document_hmac().is_none() {
+    let hmac = if let Some(hmac) = request.diff.new.document_hmac() {
+        base64::encode_config(hmac, base64::URL_SAFE)
+    } else {
         return Err(ClientError(HmacMissing));
-    }
+    };
 
     let req_pk = context.public_key;
 
@@ -159,7 +225,6 @@ pub async fn change_doc(
 
     let new_version = get_time().0 as u64;
     let new = request.diff.new.clone().add_time(new_version);
-    debug!("Updating document: {}", request.diff.new.id());
     document_service::insert(
         server_state,
         request.diff.new.id(),
@@ -167,6 +232,7 @@ pub async fn change_doc(
         &request.new_content,
     )
     .await?;
+    debug!(?id, ?hmac, "Inserted document contents");
 
     let result = server_state.index_db.transaction(|tx| {
         let mut tree = ServerTree::new(
@@ -208,6 +274,7 @@ pub async fn change_doc(
             request.diff.new.document_hmac().unwrap(),
         )
         .await?;
+        debug!(?id, ?hmac, "Cleaned up new document contents after failed metadata update");
     }
 
     result?;
@@ -215,6 +282,8 @@ pub async fn change_doc(
     // New
     if let Some(hmac) = request.diff.old.unwrap().document_hmac() {
         document_service::delete(server_state, request.diff.new.id(), hmac).await?;
+        let old_hmac = base64::encode_config(hmac, base64::URL_SAFE);
+        debug!(?id, ?old_hmac, "Cleaned up old document contents after successful metadata update");
     }
 
     Ok(())
@@ -322,13 +391,12 @@ pub async fn admin_disappear_file(
         return Err(ClientError(AdminDisappearFileError::NotPermissioned));
     }
 
+    let id = context.request.id;
     let username = db
         .accounts
         .get(&Owner(context.public_key))?
         .map(|account| account.username)
         .unwrap_or_else(|| "~unknown~".to_string());
-
-    warn!("admin: {} disappeared file {}", username, context.request.id);
 
     context
         .server_state
@@ -349,10 +417,7 @@ pub async fn admin_disappear_file(
                 )
             })?;
             if !owned_files.remove(&context.request.id) {
-                error!(
-                    "attempted to disappear a file, the owner didn't own it, id: {}, owner: {:?}",
-                    context.request.id, owner
-                );
+                error!(?id, ?owner, "attempted to disappear a file, the owner didn't own it");
             }
             tx.owned_files.insert(owner, owned_files);
 
@@ -367,15 +432,13 @@ pub async fn admin_disappear_file(
                     )
                 })?;
                 if !shared_files.remove(&context.request.id) {
-                    error!(
-                        "attempted to disappear a file, a sharee didn't have it shared, id: {}, sharee: {:?}",
-                        context.request.id, sharee
-                    );
+                    error!(?id, ?sharee, "attempted to disappear a file, a sharee didn't have it shared");
                 }
                 tx.shared_files.insert(sharee, shared_files);
             }
 
             // maintain index: file_children
+            let parent = *meta.parent();
             let mut file_children = tx.file_children.delete(*meta.parent()).ok_or_else(|| {
                 internal!(
                     "Attempted to disappear a file, the parent was not present, id: {}, parent: {:?}",
@@ -384,15 +447,13 @@ pub async fn admin_disappear_file(
                 )
             })?;
             if !file_children.remove(&context.request.id) {
-                error!(
-                    "attempted to disappear a file, the parent didn't have it as a child, id: {}, parent: {:?}",
-                    context.request.id, meta.parent()
-                );
+                error!(?id, ?parent, "attempted to disappear a file, the parent didn't have it as a child");
             }
             tx.file_children.insert(*meta.parent(), file_children);
 
             Ok(())
         })??;
+    warn!(?username, ?id, "Disappeared file");
 
     Ok(())
 }
@@ -459,7 +520,7 @@ pub fn validate_account_helper(
             result.tree_validation_failures.push(validation)
         }
         Err(err) => {
-            error!("Unexpected error while validating {:?}'s tree: {:?}", owner, err)
+            error!(?owner, ?err, "Unexpected error while validating tree")
         }
     }
 

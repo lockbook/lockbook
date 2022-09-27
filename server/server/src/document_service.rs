@@ -9,32 +9,32 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
 pub(crate) async fn insert<T: Debug>(
-    state: &ServerState, id: &Uuid, digest: &DocumentHmac, content: &EncryptedDocument,
+    state: &ServerState, id: &Uuid, hmac: &DocumentHmac, content: &EncryptedDocument,
 ) -> Result<(), ServerError<T>> {
     let content = bincode::serialize(content)?;
-    let mut file = File::create(get_path(state, id, digest)).await?;
+    let mut file = File::create(get_path(state, id, hmac)).await?;
     file.write_all(&content).await.unwrap();
     Ok(())
 }
 
 pub(crate) async fn get<T: Debug>(
-    state: &ServerState, id: &Uuid, digest: &DocumentHmac,
+    state: &ServerState, id: &Uuid, hmac: &DocumentHmac,
 ) -> Result<EncryptedDocument, ServerError<T>> {
-    let mut file = File::open(get_path(state, id, digest)).await?;
+    let mut file = File::open(get_path(state, id, hmac)).await?;
     let mut content = vec![];
     file.read_to_end(&mut content).await?;
     let content = bincode::deserialize(&content)?;
     Ok(content)
 }
 
-pub(crate) fn exists(state: &ServerState, id: &Uuid, digest: &DocumentHmac) -> bool {
-    get_path(state, id, digest).exists()
+pub(crate) fn exists(state: &ServerState, id: &Uuid, hmac: &DocumentHmac) -> bool {
+    get_path(state, id, hmac).exists()
 }
 
 pub(crate) async fn delete<T: Debug>(
-    state: &ServerState, id: &Uuid, digest: &DocumentHmac,
+    state: &ServerState, id: &Uuid, hmac: &DocumentHmac,
 ) -> Result<(), ServerError<T>> {
-    let path = get_path(state, id, digest);
+    let path = get_path(state, id, hmac);
     // I'm not sure this check should exist, the two situations it gets utilized is when we re-delete
     // an already deleted file and when we move a file from version 0 -> N. Maybe it would be more
     // efficient for the caller to look at the metadata and make a more informed decision about
@@ -46,10 +46,10 @@ pub(crate) async fn delete<T: Debug>(
     Ok(())
 }
 
-fn get_path(state: &ServerState, id: &Uuid, digest: &DocumentHmac) -> PathBuf {
+fn get_path(state: &ServerState, id: &Uuid, hmac: &DocumentHmac) -> PathBuf {
     let mut path = state.config.files.path.clone();
     // we may need to truncate this
-    let digest = base64::encode_config(digest, base64::URL_SAFE);
-    path.push(format!("{}-{}", id, digest));
+    let hmac = base64::encode_config(hmac, base64::URL_SAFE);
+    path.push(format!("{}-{}", id, hmac));
     path
 }

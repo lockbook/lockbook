@@ -1,5 +1,4 @@
 use crate::billing::billing_model::StripeUserInfo;
-use crate::billing::billing_service::stringify_public_key;
 use crate::billing::stripe_client;
 use crate::StripeWebhookError;
 use crate::{ClientError, ServerError, ServerState};
@@ -18,6 +17,7 @@ pub async fn create_subscription(
     server_state: &ServerState, public_key: &PublicKey, account_tier: &StripeAccountTier,
     maybe_user_info: Option<StripeUserInfo>,
 ) -> Result<StripeUserInfo, ServerError<UpgradeAccountStripeError>> {
+    let owner = Owner(*public_key);
     let (payment_method, price_id) = match account_tier {
         StripeAccountTier::Premium(payment_method) => {
             (payment_method, &server_state.config.billing.stripe.premium_price_id)
@@ -26,7 +26,7 @@ pub async fn create_subscription(
 
     let (customer_id, customer_name, payment_method_id, last_4) = match payment_method {
         PaymentMethod::NewCard { number, exp_year, exp_month, cvc } => {
-            info!("Creating a new card for public_key: {:?}", public_key);
+            info!(?owner, "Creating a new card");
             let payment_method_resp = stripe_client::create_payment_method(
                 &server_state.stripe_client,
                 number,
@@ -48,14 +48,11 @@ pub async fn create_subscription(
                 .last4
                 .clone();
 
-            info!("Created a new payment method. last_4: {}, public_key: {:?}", last_4, public_key);
+            info!(?owner, ?last_4, "Created a new payment method");
 
             let (customer_id, customer_name) = match &maybe_user_info {
                 None => {
-                    info!(
-                        "User has no customer_id. Creating one with stripe now. public_key: {}",
-                        stringify_public_key(public_key)
-                    );
+                    info!(?owner, "User has no customer_id; creating one with stripe now");
 
                     let customer_name = Uuid::new_v4();
                     let customer_resp = stripe_client::create_customer(
@@ -66,7 +63,7 @@ pub async fn create_subscription(
                     .await?;
                     let customer_id = customer_resp.id.to_string();
 
-                    info!("Created customer_id: {}. public_key: {:?}", customer_id, public_key);
+                    info!(?owner, ?customer_id, "Created customer_id");
 
                     server_state
                         .index_db
@@ -76,17 +73,13 @@ pub async fn create_subscription(
                     (customer_resp.id, customer_name)
                 }
                 Some(user_info) => {
-                    info!(
-                        "User already has customer_id: {} public_key: {:?}",
-                        user_info.customer_id, public_key
-                    );
+                    let customer_id = &user_info.customer_id;
 
-                    let customer_id = user_info.customer_id.parse()?;
+                    info!(?owner, ?customer_id, "User already has customer_id");
 
-                    info!(
-                        "Disabling old card since a new card has just been added. public_key: {:?}",
-                        public_key
-                    );
+                    let customer_id = customer_id.parse()?;
+
+                    info!(?owner, "Disabling old card since a new card has just been added");
 
                     stripe_client::detach_payment_method_from_customer(
                         &server_state.stripe_client,
@@ -99,8 +92,8 @@ pub async fn create_subscription(
             };
 
             info!(
-                "Creating a setup intent to confirm a users payment method for their subscription. public_key: {:?}",
-                public_key
+                ?owner,
+                "Creating a setup intent to confirm a users payment method for their subscription"
             );
 
             let setup_intent_resp = stripe_client::create_setup_intent(
@@ -110,16 +103,13 @@ pub async fn create_subscription(
             )
             .await?;
 
-            info!(
-                "Created a setup intent: {}, public_key: {:?}",
-                setup_intent_resp.id.to_string(),
-                public_key
-            );
+            let setup_intent = setup_intent_resp.id.to_string();
+            info!(?owner, ?setup_intent, "Created a setup intent");
 
             (customer_id, customer_name, payment_method_resp.id.to_string(), last_4)
         }
         PaymentMethod::OldCard => {
-            info!("Using an old card stored on redis for public_key: {:?}", public_key);
+            info!(?owner, "Using an old card stored on redis");
 
             let user_info = maybe_user_info
                 .ok_or(ClientError(UpgradeAccountStripeError::OldCardDoesNotExist))?;
@@ -133,7 +123,7 @@ pub async fn create_subscription(
         }
     };
 
-    info!("Successfully retrieved card for public_key: {:?}", public_key);
+    info!(?owner, "Successfully retrieved card");
 
     let subscription_resp = stripe_client::create_subscription(
         &server_state.stripe_client,
@@ -143,10 +133,8 @@ pub async fn create_subscription(
     )
     .await?;
 
-    info!(
-        "Successfully create subscription: {}, public_key: {:?}",
-        subscription_resp.id, public_key
-    );
+    let subscription_id = subscription_resp.id;
+    info!(?owner, ?subscription_id, "Successfully created subscription");
 
     Ok(StripeUserInfo {
         customer_id: customer_id.to_string(),
@@ -154,7 +142,7 @@ pub async fn create_subscription(
         price_id: price_id.to_string(),
         payment_method_id: payment_method_id.to_string(),
         last_4,
-        subscription_id: subscription_resp.id.to_string(),
+        subscription_id: subscription_id.to_string(),
         expiration_time: subscription_resp.current_period_end as u64,
     })
 }
@@ -167,7 +155,7 @@ pub fn get_public_key(
         .as_ref()
         .ok_or_else(|| {
             ClientError(StripeWebhookError::InvalidBody(
-                "Cannot retrieve the customer_id.".to_string(),
+                "Cannot retrieve the customer_id".to_string(),
             ))
         })?
         .deref()
@@ -198,7 +186,7 @@ pub fn verify_request_and_get_event(
         ClientError(StripeWebhookError::InvalidHeader(format!("Cannot get header as str: {:?}", e)))
     })?;
 
-    info!("Verifying a stripe webhook request.");
+    info!("Verifying a stripe webhook request");
 
     Ok(stripe::Webhook::construct_event(
         payload,

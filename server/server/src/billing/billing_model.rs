@@ -43,7 +43,7 @@ impl BillingPlatform {
         let expiration_time = expiry_information
             .expiry_time_millis
             .ok_or_else::<ServerError<UpgradeAccountGooglePlayError>, _>(|| {
-                internal!("Cannot get expiration time of a recovered subscription.")
+                internal!("Cannot get expiration time of a recovered subscription")
             })?
             .parse()
             .map_err::<ServerError<UpgradeAccountGooglePlayError>, _>(|e| {

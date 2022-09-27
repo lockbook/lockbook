@@ -1,3 +1,4 @@
+use std::env;
 use std::fmt::{Debug, Write};
 use std::time::SystemTime;
 
@@ -25,13 +26,17 @@ use crate::CARGO_PKG_VERSION;
 static LOG_FILE: &str = "lockbook_server.log";
 
 pub fn init(config: &Config) {
+    let log_level = env::var("LOG_LEVEL")
+        .ok()
+        .and_then(|s| s.as_str().parse().ok())
+        .unwrap_or(LevelFilter::DEBUG);
     let subscriber = tracing_subscriber::Registry::default()
         // Logger for stdout (local development)
         .with(
             fmt::Layer::new()
                 .pretty()
                 .with_target(false)
-                .with_filter(LevelFilter::INFO)
+                .with_filter(log_level)
                 .with_filter(server_logs()),
         )
         // Logger for file (verbose and sent to loki)

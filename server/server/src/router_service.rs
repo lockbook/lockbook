@@ -21,7 +21,7 @@ use warp::{reject, Filter, Rejection};
 lazy_static! {
     pub static ref HTTP_REQUEST_DURATION_HISTOGRAM: HistogramVec = register_histogram_vec!(
         "lockbook_server_request_duration_seconds",
-        "Lockbook server's HTTP request duration in seconds.",
+        "Lockbook server's HTTP request duration in seconds",
         &["request"]
     )
     .unwrap();
@@ -69,8 +69,8 @@ macro_rules! core_req {
                     let username = match state.index_db.accounts.get(&Owner(req_pk)) {
                         Ok(Some(account)) => account.username,
                         Ok(None) => "~unknown~".to_string(),
-                        Err(err) => {
-                            error!("hmdb error! {:?}", err);
+                        Err(error) => {
+                            error!(?error, "hmdb error");
                             "~error~".to_string()
                         }
                     };
