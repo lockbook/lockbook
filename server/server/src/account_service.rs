@@ -308,8 +308,8 @@ pub async fn delete_account_helper(
                 if !tree.calculate_deleted(&id)? {
                     let meta = tree.find(&id)?;
                     if meta.is_document() {
-                        if let Some(digest) = meta.document_hmac() {
-                            docs_to_delete.push((*meta.id(), *digest));
+                        if let Some(hmac) = meta.document_hmac() {
+                            docs_to_delete.push((*meta.id(), *hmac));
                             tx.sizes.delete(id);
                         }
                     }
