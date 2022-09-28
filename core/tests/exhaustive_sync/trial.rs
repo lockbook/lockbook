@@ -123,7 +123,7 @@ impl Trial {
                 }
                 NewFolder { client, parent, name } => {
                     let db = &self.clients[client];
-                    let parent = find_by_name(&db, &parent).id;
+                    let parent = find_by_name(db, &parent).id;
                     if let Err(err) = db.create_file(&name, parent, Folder) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
@@ -131,7 +131,7 @@ impl Trial {
                 }
                 UpdateDocument { client, name, new_content } => {
                     let db = &self.clients[client];
-                    let doc = find_by_name(&db, &name).id;
+                    let doc = find_by_name(db, &name).id;
                     if let Err(err) = db.write_document(doc, new_content.as_bytes()) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
@@ -139,7 +139,7 @@ impl Trial {
                 }
                 RenameFile { client, name, new_name } => {
                     let db = &self.clients[client];
-                    let doc = find_by_name(&db, &name).id;
+                    let doc = find_by_name(db, &name).id;
                     if let Err(err) = db.rename_file(doc, &new_name) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
@@ -147,8 +147,8 @@ impl Trial {
                 }
                 MoveDocument { client, doc_name, destination_name } => {
                     let db = &self.clients[client];
-                    let doc = find_by_name(&db, &doc_name).id;
-                    let dest = find_by_name(&db, &destination_name).id;
+                    let doc = find_by_name(db, &doc_name).id;
+                    let dest = find_by_name(db, &destination_name).id;
 
                     if let Err(err) = db.move_file(doc, dest) {
                         self.status = Failed(format!("{:#?}", err));
@@ -157,8 +157,8 @@ impl Trial {
                 }
                 AttemptFolderMove { client, folder_name, destination_name } => {
                     let db = &self.clients[client];
-                    let folder = find_by_name(&db, &folder_name).id;
-                    let destination_folder = find_by_name(&db, &destination_name).id;
+                    let folder = find_by_name(db, &folder_name).id;
+                    let destination_folder = find_by_name(db, &destination_name).id;
 
                     let move_file_result = db.move_file(folder, destination_folder);
                     match move_file_result {
@@ -171,7 +171,7 @@ impl Trial {
                 }
                 DeleteFile { client, name } => {
                     let db = &self.clients[client];
-                    let file = find_by_name(&db, &name).id;
+                    let file = find_by_name(db, &name).id;
                     if let Err(err) = db.delete_file(file) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;

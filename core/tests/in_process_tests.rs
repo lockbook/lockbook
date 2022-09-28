@@ -23,7 +23,7 @@ fn with_init_username_taken() {
 fn create_sync_compare() {
     let server = InProcess::init(test_config());
     let core1 = CoreIP::init_in_process(&test_config(), server.clone());
-    let core2 = CoreIP::init_in_process(&test_config(), server.clone());
+    let core2 = CoreIP::init_in_process(&test_config(), server);
     core1.create_account(&random_name(), "unused af").unwrap();
     core2
         .import_account(&core1.export_account().unwrap())
