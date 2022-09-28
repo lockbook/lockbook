@@ -284,7 +284,7 @@ pub async fn get_updates(
         let mut result_ids = HashSet::new();
         for id in tree.owned_ids() {
             let file = tree.find(&id)?;
-            if file.version > request.since_metadata_version {
+            if file.version >= request.since_metadata_version {
                 result_ids.insert(id);
                 if file.owner() != owner
                     && file

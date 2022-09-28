@@ -104,6 +104,16 @@ pub fn dbs_equal<Client: Requester>(left: &CoreLib<Client>, right: &CoreLib<Clie
         && left.db.base_metadata.get_all().unwrap() == right.db.base_metadata.get_all().unwrap()
 }
 
+pub fn assert_dbs_equal<Client: Requester>(left: &CoreLib<Client>, right: &CoreLib<Client>) {
+    assert_eq!(left.db.account.get_all().unwrap(), right.db.account.get_all().unwrap());
+    assert_eq!(left.db.root.get_all().unwrap(), right.db.root.get_all().unwrap());
+    assert_eq!(
+        left.db.local_metadata.get_all().unwrap(),
+        right.db.local_metadata.get_all().unwrap()
+    );
+    assert_eq!(left.db.base_metadata.get_all().unwrap(), right.db.base_metadata.get_all().unwrap());
+}
+
 pub fn doc_repo_get_all(config: &Config, source: RepoSource) -> Vec<EncryptedDocument> {
     let mut docs = vec![];
     for file in list_files(config, &source) {

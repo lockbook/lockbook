@@ -189,6 +189,7 @@ impl Trial {
 
                     for row in &self.clients {
                         for col in &self.clients {
+                            assert_dbs_equal(row, col);
                             if !dbs_equal(row, col) {
                                 self.status = Failed(format!(
                                     "db {} is not equal to {} after a sync. Server is {} & {}",
