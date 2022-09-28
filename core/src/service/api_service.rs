@@ -104,12 +104,52 @@ pub mod no_network {
     use std::time::Duration;
     use tokio::runtime::Runtime;
 
+    #[derive(Clone)]
     pub struct InProcess {
-        pub server_state: Arc<Mutex<ServerState>>,
+        pub internals: Arc<Mutex<InProcessInternals>>,
+    }
+
+    pub struct InProcessInternals {
+        pub server_state: ServerState,
         pub runtime: Runtime,
     }
 
     impl InProcess {
+        pub fn init(config: Config) -> Self {
+            let runtime = Runtime::new().unwrap();
+            let server_config = lockbook_server_lib::config::Config {
+                server: ServerConfig::from_env_vars(),
+                index_db: IndexDbConf {
+                    db_location: config.writeable_path.clone(),
+                    time_between_compacts: Duration::from_secs(100000000),
+                },
+                files: FilesConfig { path: PathBuf::from(&config.writeable_path) },
+                metrics: MetricsConfig::from_env_vars(),
+                billing: BillingConfig::from_env_vars(),
+                admin: AdminConfig::from_env_vars(),
+                features: FeatureFlags::from_env_vars(),
+            };
+
+            let stripe_client = stripe::Client::new(&server_config.billing.stripe.stripe_secret);
+            let google_play_client = runtime.block_on(get_google_play_client(
+                &server_config.billing.google.service_account_key,
+            ));
+
+            let index_db = v2::Server::init(&server_config.index_db.db_location)
+                .expect("Failed to load index_db");
+
+            let internals = InProcessInternals {
+                server_state: ServerState {
+                    config: server_config,
+                    index_db,
+                    stripe_client,
+                    google_play_client,
+                },
+                runtime,
+            };
+
+            Self { internals: Arc::new(Mutex::new(internals)) }
+        }
         fn type_request<T: Request + Clone + 'static>(&self, untyped: &dyn Any) -> T {
             let request: &T = untyped.downcast_ref().unwrap();
             request.clone() // Is there a way to not clone here?
@@ -154,54 +194,22 @@ pub mod no_network {
     macro_rules! call {
         ($handler:path, $data:ident, $account:ident, $request:ident) => {{
             let request = $data.type_request(&$request);
-            let server_state = $data.server_state.lock().unwrap();
+            let data_internals = $data.internals.lock().unwrap();
+            let server_state = &data_internals.server_state;
             let request_context = lockbook_server_lib::RequestContext {
-                server_state: &server_state,
+                server_state,
                 request,
                 public_key: $account.public_key(),
             };
             let fut = $handler(request_context);
-            Box::new($data.runtime.block_on(fut))
+            Box::new(data_internals.runtime.block_on(fut))
         }};
     }
 
+    pub type CoreIP = CoreLib<InProcess>;
+
     impl CoreLib<InProcess> {
-        pub fn init_in_process(core_config: &Config) -> Self {
-            let client = {
-                let server_config = lockbook_server_lib::config::Config {
-                    server: ServerConfig::from_env_vars(),
-                    index_db: IndexDbConf {
-                        db_location: core_config.writeable_path.clone(),
-                        time_between_compacts: Duration::from_secs(100000000),
-                    },
-                    files: FilesConfig { path: PathBuf::from(&core_config.writeable_path) },
-                    metrics: MetricsConfig::from_env_vars(),
-                    billing: BillingConfig::from_env_vars(),
-                    admin: AdminConfig::from_env_vars(),
-                    features: FeatureFlags::from_env_vars(),
-                };
-
-                let stripe_client =
-                    stripe::Client::new(&server_config.billing.stripe.stripe_secret);
-                let runtime = Runtime::new().unwrap();
-                let google_play_client = runtime.block_on(get_google_play_client(
-                    &server_config.billing.google.service_account_key,
-                ));
-
-                let index_db = v2::Server::init(&server_config.index_db.db_location)
-                    .expect("Failed to load index_db");
-
-                InProcess {
-                    server_state: Arc::new(Mutex::new(ServerState {
-                        config: server_config,
-                        index_db,
-                        stripe_client,
-                        google_play_client,
-                    })),
-                    runtime,
-                }
-            };
-
+        pub fn init_in_process(core_config: &Config, client: InProcess) -> Self {
             let db = CoreV1::init(&core_config.writeable_path).unwrap();
             let data_cache = Arc::new(Mutex::new(DataCache::default()));
             let config = core_config.clone();
