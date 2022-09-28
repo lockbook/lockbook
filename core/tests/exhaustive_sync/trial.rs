@@ -31,7 +31,7 @@ pub enum Status {
     Ready,
     Running,
     Succeeded,
-    Failed(String), // Add support for re-attempts here?
+    Failed(String),
 }
 
 impl Status {
@@ -106,23 +106,23 @@ impl Trial {
             additional_completed_steps += 1;
             match step {
                 NewDocument { client, parent, name } => {
-                    let db = self.clients[client].clone();
-                    let parent = find_by_name(&db, &parent).id;
+                    let db = &self.clients[client];
+                    let parent = find_by_name(db, &parent).id;
                     if let Err(err) = db.create_file(&name, parent, Document) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
                 }
                 NewMarkdownDocument { client, parent, name } => {
-                    let db = self.clients[client].clone();
-                    let parent = find_by_name(&db, &parent).id;
+                    let db = &self.clients[client];
+                    let parent = find_by_name(db, &parent).id;
                     if let Err(err) = db.create_file(&name, parent, Document) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
                 }
                 NewFolder { client, parent, name } => {
-                    let db = self.clients[client].clone();
+                    let db = &self.clients[client];
                     let parent = find_by_name(&db, &parent).id;
                     if let Err(err) = db.create_file(&name, parent, Folder) {
                         self.status = Failed(format!("{:#?}", err));
@@ -130,7 +130,7 @@ impl Trial {
                     }
                 }
                 UpdateDocument { client, name, new_content } => {
-                    let db = self.clients[client].clone();
+                    let db = &self.clients[client];
                     let doc = find_by_name(&db, &name).id;
                     if let Err(err) = db.write_document(doc, new_content.as_bytes()) {
                         self.status = Failed(format!("{:#?}", err));
@@ -138,7 +138,7 @@ impl Trial {
                     }
                 }
                 RenameFile { client, name, new_name } => {
-                    let db = self.clients[client].clone();
+                    let db = &self.clients[client];
                     let doc = find_by_name(&db, &name).id;
                     if let Err(err) = db.rename_file(doc, &new_name) {
                         self.status = Failed(format!("{:#?}", err));
@@ -146,7 +146,7 @@ impl Trial {
                     }
                 }
                 MoveDocument { client, doc_name, destination_name } => {
-                    let db = self.clients[client].clone();
+                    let db = &self.clients[client];
                     let doc = find_by_name(&db, &doc_name).id;
                     let dest = find_by_name(&db, &destination_name).id;
 
@@ -156,7 +156,7 @@ impl Trial {
                     }
                 }
                 AttemptFolderMove { client, folder_name, destination_name } => {
-                    let db = self.clients[client].clone();
+                    let db = &self.clients[client];
                     let folder = find_by_name(&db, &folder_name).id;
                     let destination_folder = find_by_name(&db, &destination_name).id;
 
@@ -170,7 +170,7 @@ impl Trial {
                     }
                 }
                 DeleteFile { client, name } => {
-                    let db = self.clients[client].clone();
+                    let db = &self.clients[client];
                     let file = find_by_name(&db, &name).id;
                     if let Err(err) = db.delete_file(file) {
                         self.status = Failed(format!("{:#?}", err));
@@ -191,8 +191,11 @@ impl Trial {
                         for col in &self.clients {
                             if !dbs_equal(row, col) {
                                 self.status = Failed(format!(
-                                    "db {} is not equal to {} after a sync",
-                                    row.config.writeable_path, col.config.writeable_path
+                                    "db {} is not equal to {} after a sync. Server is {} & {}",
+                                    row.config.writeable_path,
+                                    col.config.writeable_path,
+                                    row.client.config.writeable_path,
+                                    col.client.config.writeable_path
                                 ));
                                 break 'steps;
                             }
@@ -227,7 +230,7 @@ impl Trial {
         }
 
         for client_index in 0..self.clients.len() {
-            let client = self.clients[client_index].clone();
+            let client = &self.clients[client_index];
             let all_files = client.list_metadatas().unwrap();
 
             let mut folders = all_files.clone();

@@ -122,7 +122,7 @@ pub mod no_network {
                 server: ServerConfig::from_env_vars(),
                 index_db: IndexDbConf {
                     db_location: config.writeable_path.clone(),
-                    time_between_compacts: Duration::from_secs(100000000),
+                    time_between_compacts: Duration::from_secs(0),
                 },
                 files: FilesConfig { path: PathBuf::from(&config.writeable_path) },
                 metrics: MetricsConfig::from_env_vars(),
