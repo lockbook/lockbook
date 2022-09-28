@@ -2,7 +2,8 @@ pub mod assert;
 
 use chrono::Datelike;
 use itertools::Itertools;
-use lockbook_core::Core;
+use lockbook_core::service::api_service::Requester;
+use lockbook_core::{Core, CoreLib};
 use lockbook_shared::api::{PaymentMethod, StripeAccountTier};
 use lockbook_shared::core_config::Config;
 use lockbook_shared::crypto::EncryptedDocument;
@@ -96,7 +97,7 @@ pub fn get_dirty_ids(db: &Core, server: bool) -> Vec<Uuid> {
         .collect()
 }
 
-pub fn dbs_equal(left: &Core, right: &Core) -> bool {
+pub fn dbs_equal<Client: Requester>(left: &CoreLib<Client>, right: &CoreLib<Client>) -> bool {
     left.db.account.get_all().unwrap() == right.db.account.get_all().unwrap()
         && left.db.root.get_all().unwrap() == right.db.root.get_all().unwrap()
         && left.db.local_metadata.get_all().unwrap() == right.db.local_metadata.get_all().unwrap()

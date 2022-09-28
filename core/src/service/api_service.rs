@@ -106,6 +106,7 @@ pub mod no_network {
 
     #[derive(Clone)]
     pub struct InProcess {
+        pub config: Config,
         pub internals: Arc<Mutex<InProcessInternals>>,
     }
 
@@ -148,7 +149,7 @@ pub mod no_network {
                 runtime,
             };
 
-            Self { internals: Arc::new(Mutex::new(internals)) }
+            Self { config, internals: Arc::new(Mutex::new(internals)) }
         }
         fn type_request<T: Request + Clone + 'static>(&self, untyped: &dyn Any) -> T {
             let request: &T = untyped.downcast_ref().unwrap();
@@ -172,8 +173,11 @@ pub mod no_network {
             let resp: Box<dyn Any> = match T::ROUTE {
                 UpsertRequest::ROUTE => call!(upsert_file_metadata, self, account, request),
                 ChangeDocRequest::ROUTE => call!(change_doc, self, account, request),
+                GetDocRequest::ROUTE => call!(get_document, self, account, request),
+                GetPublicKeyRequest::ROUTE => call!(get_public_key, self, account, request),
+                GetUpdatesRequest::ROUTE => call!(get_updates, self, account, request),
                 NewAccountRequest::ROUTE => call!(new_account, self, account, request),
-                _ => panic!("unhandled InProcess type"),
+                unknown => panic!("unhandled InProcess type: {}", unknown),
             };
 
             let resp: Result<T::Response, ServerError<T::Error>> = *resp.downcast().unwrap();
