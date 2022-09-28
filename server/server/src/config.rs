@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use std::{env, fmt, fs};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Config {
     pub server: ServerConfig,
     pub index_db: IndexDbConf,
@@ -35,7 +35,7 @@ impl Config {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct IndexDbConf {
     pub db_location: String,
     pub time_between_compacts: Duration,
@@ -55,7 +55,7 @@ impl IndexDbConf {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AdminConfig {
     pub admins: HashSet<Username>,
 }
@@ -72,7 +72,7 @@ impl AdminConfig {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FeatureFlags {
     pub new_accounts: bool,
 }
@@ -88,7 +88,7 @@ impl FeatureFlags {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FilesConfig {
     pub path: PathBuf,
 }
@@ -128,7 +128,7 @@ impl Display for Environment {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ServerConfig {
     pub env: Environment,
     pub port: u16,
@@ -168,7 +168,7 @@ impl ServerConfig {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MetricsConfig {
     pub time_between_metrics_refresh: Duration,
     pub time_between_metrics: Duration,
@@ -192,7 +192,7 @@ impl MetricsConfig {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BillingConfig {
     pub millis_between_user_payment_flows: u64,
     pub time_between_lock_attempts: Duration,
@@ -217,7 +217,7 @@ impl BillingConfig {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GoogleConfig {
     pub service_account_key: Option<String>,
     pub premium_subscription_product_id: String,
@@ -240,7 +240,7 @@ impl GoogleConfig {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StripeConfig {
     pub stripe_secret: String,
     pub signing_secret: String,

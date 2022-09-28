@@ -187,7 +187,10 @@ pub mod no_network {
             let resp = match resp {
                 Ok(resp) => Ok(resp),
                 Err(ServerError::ClientError(e)) => Err(ErrorWrapper::Endpoint(e)),
-                Err(ServerError::InternalError(_e)) => Err(ErrorWrapper::InternalError),
+                Err(ServerError::InternalError(e)) => {
+                    eprint!("internal server error {} {e}", T::ROUTE);
+                    Err(ErrorWrapper::InternalError)
+                }
             };
 
             resp.map_err(ApiError::from)
