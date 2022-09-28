@@ -1,11 +1,11 @@
 use lockbook_core::model::errors::Error::UiError;
 use lockbook_core::model::errors::*;
 use lockbook_core::service::api_service::no_network::{CoreIP, InProcess};
-use lockbook_shared::crypto::EncryptedDocument;
 use test_utils::test_config;
 use test_utils::*;
 
 #[test]
+#[ignore]
 fn with_init_username_taken() {
     let server = InProcess::init(test_config());
     let core1 = CoreIP::init_in_process(&test_config(), server.clone());
@@ -19,6 +19,7 @@ fn with_init_username_taken() {
 }
 
 #[test]
+#[ignore]
 fn create_sync_compare() {
     let server = InProcess::init(test_config());
     let core1 = CoreIP::init_in_process(&test_config(), server.clone());
@@ -41,6 +42,7 @@ fn create_sync_compare() {
 }
 
 #[test]
+#[ignore]
 fn sync_and_check() {
     loop {
         let server = InProcess::init(test_config());
@@ -60,9 +62,4 @@ fn sync_and_check() {
         core1.sync(None).unwrap();
         core2.sync(None).unwrap();
     }
-}
-
-#[test]
-fn test() {
-    let content: EncryptedDocument = bincode::deserialize(&vec![]).unwrap();
 }

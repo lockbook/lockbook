@@ -102,6 +102,7 @@ pub mod no_network {
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
+    use tokio::runtime;
     use tokio::runtime::Runtime;
 
     #[derive(Clone)]
@@ -117,7 +118,7 @@ pub mod no_network {
 
     impl InProcess {
         pub fn init(config: Config) -> Self {
-            let runtime = Runtime::new().unwrap();
+            let runtime = runtime::Builder::new_current_thread().build().unwrap();
             let server_config = lockbook_server_lib::config::Config {
                 server: ServerConfig::from_env_vars(),
                 index_db: IndexDbConf {
