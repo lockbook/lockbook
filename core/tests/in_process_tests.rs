@@ -10,6 +10,7 @@ use lockbook_shared::api::*;
 use lockbook_shared::file_metadata::FileMetadata;
 use lockbook_shared::pubkey;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use test_utils::test_config;
 use test_utils::*;
@@ -40,12 +41,12 @@ fn new_account_test() {
         v2::Server::init(&server_config.index_db.db_location).expect("Failed to load index_db");
 
     let client = InProcess {
-        server_state: ServerState {
+        server_state: Arc::new(Mutex::new(ServerState {
             config: server_config,
             index_db,
             stripe_client,
             google_play_client,
-        },
+        })),
         runtime,
     };
 

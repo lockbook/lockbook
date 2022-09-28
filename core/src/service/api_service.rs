@@ -110,19 +110,9 @@ pub mod no_network {
     }
 
     impl InProcess {
-        fn context<T: Request + Clone + 'static>(
-            &self, account: &Account, untyped: &dyn Any,
-        ) -> lockbook_server_lib::RequestContext<T> {
+        fn type_request<T: Request + Clone + 'static>(&self, untyped: &dyn Any) -> T {
             let request: &T = untyped.downcast_ref().unwrap();
-            let request: T = request.clone();
-
-            let server_state = self.server_state.lock().unwrap();
-
-            lockbook_server_lib::RequestContext {
-                server_state: &server_state,
-                request,
-                public_key: account.public_key(),
-            }
+            request.clone() // Is there a way to not clone here?
         }
     }
 
@@ -163,8 +153,15 @@ pub mod no_network {
     #[macro_export]
     macro_rules! call {
         ($handler:path, $data:ident, $account:ident, $request:ident) => {{
-            let context = $data.context($account, &$request);
-            Box::new($data.runtime.block_on($handler(context)))
+            let request = $data.type_request(&$request);
+            let server_state = $data.server_state.lock().unwrap();
+            let request_context = lockbook_server_lib::RequestContext {
+                server_state: &server_state,
+                request,
+                public_key: $account.public_key(),
+            };
+            let fut = $handler(request_context);
+            Box::new($data.runtime.block_on(fut))
         }};
     }
 
