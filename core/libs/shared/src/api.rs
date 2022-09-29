@@ -1,7 +1,9 @@
 use http::Method;
 use libsecp256k1::PublicKey;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
 use uuid::Uuid;
 
 use crate::account::Account;
@@ -12,9 +14,9 @@ use crate::server_file::ServerFile;
 use crate::signed_file::SignedFile;
 use crate::ValidationFailure;
 
-pub trait Request {
-    type Response;
-    type Error;
+pub trait Request: Serialize + 'static {
+    type Response: Debug + DeserializeOwned + Clone;
+    type Error: Debug + DeserializeOwned + Clone;
     const METHOD: Method;
     const ROUTE: &'static str;
 }
@@ -252,8 +254,8 @@ pub enum GetBuildInfoError {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetBuildInfoResponse {
-    pub build_version: &'static str,
-    pub git_commit_hash: &'static str,
+    pub build_version: String,
+    pub git_commit_hash: String,
 }
 
 impl Request for GetBuildInfoRequest {

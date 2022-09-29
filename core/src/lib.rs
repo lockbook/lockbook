@@ -113,7 +113,9 @@ impl Core {
 
         Ok(Self { config, data_cache, db, client })
     }
+}
 
+impl<Client: Requester> CoreLib<Client> {
     #[instrument(level = "info", skip_all, err(Debug))]
     pub fn create_account(
         &self, username: &str, api_url: &str,

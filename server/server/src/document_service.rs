@@ -12,15 +12,18 @@ pub(crate) async fn insert<T: Debug>(
     state: &ServerState, id: &Uuid, hmac: &DocumentHmac, content: &EncryptedDocument,
 ) -> Result<(), ServerError<T>> {
     let content = bincode::serialize(content)?;
-    let mut file = File::create(get_path(state, id, hmac)).await?;
-    file.write_all(&content).await.unwrap();
+    let path = get_path(state, id, hmac);
+    let mut file = File::create(path.clone()).await?;
+    file.write_all(&content).await.unwrap(); // TODO address
+    file.flush().await.unwrap(); // TODO address
     Ok(())
 }
 
 pub(crate) async fn get<T: Debug>(
     state: &ServerState, id: &Uuid, hmac: &DocumentHmac,
 ) -> Result<EncryptedDocument, ServerError<T>> {
-    let mut file = File::open(get_path(state, id, hmac)).await?;
+    let path = get_path(state, id, hmac);
+    let mut file = File::open(path.clone()).await?;
     let mut content = vec![];
     file.read_to_end(&mut content).await?;
     let content = bincode::deserialize(&content)?;

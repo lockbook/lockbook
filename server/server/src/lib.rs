@@ -14,6 +14,7 @@ use crate::billing::stripe_client::SimplifiedStripeError;
 use crate::billing::stripe_model::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
 use crate::schema::v2::{transaction, Server};
 use crate::ServerError::ClientError;
+pub use stripe;
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
