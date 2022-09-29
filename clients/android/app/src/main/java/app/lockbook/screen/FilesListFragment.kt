@@ -136,20 +136,6 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
         })
 
-        binding.outOfSpace.apply {
-            root.setOnClickListener {
-                startActivity(
-                    Intent(
-                        context,
-                        SettingsActivity::class.java
-                    )
-                )
-            }
-            outOfSpaceExit.setOnClickListener {
-                Animate.animateVisibility(root, View.GONE, 0, 200)
-            }
-        }
-
         binding.fabSpeedDial.inflate(R.menu.menu_files_list_speed_dial)
         binding.fabSpeedDial.setOnActionSelectedListener {
             val extendedFileType = when (it.id) {
@@ -524,12 +510,19 @@ class FilesListFragment : Fragment(), FilesFragment {
                 binding.recentFilesLayout.root.visibility = if (uiUpdates.show) View.VISIBLE else View.GONE
             }
             is UpdateFilesUI.OutOfSpace -> {
-                val usageBarColor = if (uiUpdates.isRunningOutOfSpace) {
-                    binding.outOfSpace.outOfSpaceMsg.setText(R.string.running_out_of_space)
-                    ContextCompat.getColor(requireContext(), R.color.md_theme_progressWarning)
-                } else {
+                val usageRatio = uiUpdates.progress / uiUpdates.max
+
+                val usageBarColor = if (usageRatio >= 1.0) {
                     binding.outOfSpace.outOfSpaceMsg.setText(R.string.out_of_space)
                     ContextCompat.getColor(requireContext(), R.color.md_theme_error)
+                } else {
+                    binding.outOfSpace.outOfSpaceMsg.setText(R.string.running_out_of_space)
+
+                    if(usageRatio > 0.9) {
+                        ContextCompat.getColor(requireContext(), R.color.md_theme_error)
+                    } else {
+                        ContextCompat.getColor(requireContext(), R.color.md_theme_progressWarning)
+                    }
                 }
 
                 binding.outOfSpace.apply {
@@ -537,7 +530,31 @@ class FilesListFragment : Fragment(), FilesFragment {
                     outOfSpaceProgressBar.progress = uiUpdates.progress
                     outOfSpaceProgressBar.max = uiUpdates.max
                     Animate.animateVisibility(root, View.VISIBLE, 255, 200)
+
+                    root.setOnClickListener {
+                        startActivity(
+                            Intent(
+                                context,
+                                SettingsActivity::class.java
+                            )
+                        )
+                    }
+
+                    outOfSpaceExit.setOnClickListener {
+                        Animate.animateVisibility(root, View.GONE, 0, 200)
+
+                        val pref = PreferenceManager
+                            .getDefaultSharedPreferences(requireContext())
+                            .edit()
+
+                        if(usageRatio > 0.9 && usageRatio < 1.0) {
+                            pref.putBoolean(getString(R.string.show_running_out_of_space_0_9_key), false)
+                        } else if(usageRatio > 0.8 && usageRatio <= 0.9) {
+                            pref.putBoolean(getString(R.string.show_running_out_of_space_0_9_key), false)
+                        }
+                    }
                 }
+
             }
         }
     }
@@ -615,6 +632,6 @@ sealed class UpdateFilesUI {
     object ToggleMenuBar : UpdateFilesUI()
     object ShowBeforeWeStart : UpdateFilesUI()
     object SyncImport : UpdateFilesUI()
-    data class OutOfSpace(val isRunningOutOfSpace: Boolean, val progress: Int, val max: Int) : UpdateFilesUI()
+    data class OutOfSpace(val progress: Int, val max: Int) : UpdateFilesUI()
     data class NotifyWithSnackbar(val msg: String) : UpdateFilesUI()
 }

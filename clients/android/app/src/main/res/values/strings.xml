@@ -217,6 +217,8 @@
 
     <string name="subscription_info_key">subscription_info</string>
     <string name="premium_key">premium</string>
+    <string name="show_running_out_of_space_0.9_key">running_out_of_space_0.9_key</string>
+    <string name="show_running_out_of_space_0.8_key">running_out_of_space_0.8_key</string>
 
     <!--    Billing-->
 

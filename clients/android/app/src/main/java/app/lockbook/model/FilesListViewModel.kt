@@ -55,15 +55,40 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
             val roundedDataCap = usage.dataCap.exact / UsageBarPreference.ROUND_DECIMAL_PLACES
             val roundedProgress = usage.serverUsage.exact / UsageBarPreference.ROUND_DECIMAL_PLACES
 
+            val pref = PreferenceManager.getDefaultSharedPreferences(getContext())
+
             val usageRatio = roundedProgress.toFloat() / roundedDataCap
 
-            val isRunningOutOfSpace = when {
-                usageRatio > 0.9 -> false
-                usageRatio > 0.8 -> true
-                else -> return@launch
+            val runningOutOfSpace0_9 = pref.getBoolean(getString(R.string.show_running_out_of_space_0_9_key), true)
+            val runningOutOfSpace0_8 = pref.getBoolean(getString(R.string.show_running_out_of_space_0_8_key), true)
+
+            when {
+                usageRatio > 0.9 -> {
+                    if(!runningOutOfSpace0_9) {
+                        return@launch;
+                    }
+                }
+                usageRatio > 0.8 -> {
+                    if(!runningOutOfSpace0_8) {
+                        return@launch;
+                    }
+                }
+                else -> {
+                    if(!runningOutOfSpace0_9) {
+                        pref.edit()
+                            .putBoolean(getString(R.string.show_running_out_of_space_0_9_key, true), true)
+                    }
+
+                    if(!runningOutOfSpace0_8) {
+                        pref.edit()
+                            .putBoolean(getString(R.string.show_running_out_of_space_0_8_key, true), true)
+                    }
+
+                    return@launch
+                }
             }
 
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.OutOfSpace(isRunningOutOfSpace, roundedProgress.toInt(), roundedDataCap.toInt()))
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.OutOfSpace(roundedProgress.toInt(), roundedDataCap.toInt()))
         }
     }
 
