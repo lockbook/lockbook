@@ -82,7 +82,7 @@ impl Requester for Network {
     }
 }
 
-// #[cfg(feature = "no-network")]
+#[cfg(feature = "no-network")]
 pub mod no_network {
 
     use crate::service::api_service::ApiError;
