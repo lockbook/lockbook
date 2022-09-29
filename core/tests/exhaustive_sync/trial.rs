@@ -3,11 +3,10 @@ use crate::exhaustive_sync::trial::Action::*;
 use crate::exhaustive_sync::trial::Status::{Failed, Ready, Running, Succeeded};
 use crate::exhaustive_sync::utils::{find_by_name, random_filename, random_utf8};
 use lockbook_core::model::errors::MoveFileError;
-use lockbook_core::service::api_service::Requester;
-use lockbook_core::Core;
+use lockbook_core::service::api_service::no_network::{CoreIP, InProcess};
 use lockbook_core::Error::UiError;
-use lockbook_shared::api::DeleteAccountRequest;
 use lockbook_shared::file_metadata::FileType::{Document, Folder};
+use std::fmt::{Debug, Formatter};
 use std::time::Instant;
 use std::{fs, thread};
 use test_utils::*;
@@ -32,7 +31,7 @@ pub enum Status {
     Ready,
     Running,
     Succeeded,
-    Failed(String), // Add support for re-attempts here?
+    Failed(String),
 }
 
 impl Status {
@@ -44,10 +43,10 @@ impl Status {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Trial {
     pub id: Uuid,
-    pub clients: Vec<Core>,
+    pub clients: Vec<CoreIP>,
     pub target_clients: usize,
     pub target_steps: usize,
     pub steps: Vec<Action>,
@@ -57,10 +56,30 @@ pub struct Trial {
     pub end_time: Instant,
 }
 
+impl Debug for Trial {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut result = &mut f.debug_struct("Trial");
+
+        result = result.field("id", &self.id);
+        result = result.field("target_clients", &self.target_clients);
+        result = result.field("target_steps", &self.target_steps);
+        result = result.field("steps", &self.steps);
+        result = result.field("completed_steps", &self.completed_steps);
+        result = result.field("status", &self.status);
+        result = result.field("start_time", &self.start_time);
+        result = result.field("end_time", &self.end_time);
+
+        result.finish()
+    }
+}
+
 impl Trial {
     fn create_clients(&mut self) -> Result<(), Status> {
+        let server = InProcess::init(test_config());
+
         for _ in 0..self.target_clients {
-            self.clients.push(test_core());
+            self.clients
+                .push(CoreIP::init_in_process(&test_config(), server.clone()));
         }
 
         self.clients[0]
@@ -86,60 +105,60 @@ impl Trial {
             let step = self.steps[index].clone();
             additional_completed_steps += 1;
             match step {
-                Action::NewDocument { client, parent, name } => {
-                    let db = self.clients[client].clone();
-                    let parent = find_by_name(&db, &parent).id;
+                NewDocument { client, parent, name } => {
+                    let db = &self.clients[client];
+                    let parent = find_by_name(db, &parent).id;
                     if let Err(err) = db.create_file(&name, parent, Document) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
                 }
-                Action::NewMarkdownDocument { client, parent, name } => {
-                    let db = self.clients[client].clone();
-                    let parent = find_by_name(&db, &parent).id;
+                NewMarkdownDocument { client, parent, name } => {
+                    let db = &self.clients[client];
+                    let parent = find_by_name(db, &parent).id;
                     if let Err(err) = db.create_file(&name, parent, Document) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
                 }
-                Action::NewFolder { client, parent, name } => {
-                    let db = self.clients[client].clone();
-                    let parent = find_by_name(&db, &parent).id;
+                NewFolder { client, parent, name } => {
+                    let db = &self.clients[client];
+                    let parent = find_by_name(db, &parent).id;
                     if let Err(err) = db.create_file(&name, parent, Folder) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
                 }
-                Action::UpdateDocument { client, name, new_content } => {
-                    let db = self.clients[client].clone();
-                    let doc = find_by_name(&db, &name).id;
+                UpdateDocument { client, name, new_content } => {
+                    let db = &self.clients[client];
+                    let doc = find_by_name(db, &name).id;
                     if let Err(err) = db.write_document(doc, new_content.as_bytes()) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
                 }
-                Action::RenameFile { client, name, new_name } => {
-                    let db = self.clients[client].clone();
-                    let doc = find_by_name(&db, &name).id;
+                RenameFile { client, name, new_name } => {
+                    let db = &self.clients[client];
+                    let doc = find_by_name(db, &name).id;
                     if let Err(err) = db.rename_file(doc, &new_name) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
                 }
-                Action::MoveDocument { client, doc_name, destination_name } => {
-                    let db = self.clients[client].clone();
-                    let doc = find_by_name(&db, &doc_name).id;
-                    let dest = find_by_name(&db, &destination_name).id;
+                MoveDocument { client, doc_name, destination_name } => {
+                    let db = &self.clients[client];
+                    let doc = find_by_name(db, &doc_name).id;
+                    let dest = find_by_name(db, &destination_name).id;
 
                     if let Err(err) = db.move_file(doc, dest) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
                 }
-                Action::AttemptFolderMove { client, folder_name, destination_name } => {
-                    let db = self.clients[client].clone();
-                    let folder = find_by_name(&db, &folder_name).id;
-                    let destination_folder = find_by_name(&db, &destination_name).id;
+                AttemptFolderMove { client, folder_name, destination_name } => {
+                    let db = &self.clients[client];
+                    let folder = find_by_name(db, &folder_name).id;
+                    let destination_folder = find_by_name(db, &destination_name).id;
 
                     let move_file_result = db.move_file(folder, destination_folder);
                     match move_file_result {
@@ -150,15 +169,15 @@ impl Trial {
                         }
                     }
                 }
-                Action::DeleteFile { client, name } => {
-                    let db = self.clients[client].clone();
-                    let file = find_by_name(&db, &name).id;
+                DeleteFile { client, name } => {
+                    let db = &self.clients[client];
+                    let file = find_by_name(db, &name).id;
                     if let Err(err) = db.delete_file(file) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
                 }
-                Action::SyncAndCheck => {
+                SyncAndCheck => {
                     for _ in 0..2 {
                         for client in &self.clients {
                             if let Err(err) = client.sync(None) {
@@ -170,10 +189,14 @@ impl Trial {
 
                     for row in &self.clients {
                         for col in &self.clients {
+                            assert_dbs_equal(row, col);
                             if !dbs_equal(row, col) {
                                 self.status = Failed(format!(
-                                    "db {} is not equal to {} after a sync",
-                                    row.config.writeable_path, col.config.writeable_path
+                                    "db {} is not equal to {} after a sync. Server is {} & {}",
+                                    row.config.writeable_path,
+                                    col.config.writeable_path,
+                                    row.client.config.writeable_path,
+                                    col.client.config.writeable_path
                                 ));
                                 break 'steps;
                             }
@@ -208,7 +231,7 @@ impl Trial {
         }
 
         for client_index in 0..self.clients.len() {
-            let client = self.clients[client_index].clone();
+            let client = &self.clients[client_index];
             let all_files = client.list_metadatas().unwrap();
 
             let mut folders = all_files.clone();
@@ -312,26 +335,19 @@ impl Trial {
     }
 
     fn cleanup(&self) {
-        if let Ok(account) = &self.clients[0].get_account() {
-            // Delete account in server
-            self.clients[0]
-                .client
-                .request(account, DeleteAccountRequest {})
-                .unwrap_or_else(|err| {
-                    println!("Failed to delete account: {} error : {:?}", account.username, err)
-                });
+        // Delete server
+        fs::remove_dir_all(&self.clients[0].client.config.writeable_path).unwrap_or_else(|err| {
+            println!(
+                "failed to cleanup file: {}, error: {}",
+                &self.clients[0].client.config.writeable_path, err
+            )
+        });
 
-            // Delete account locally
-            for client in &self.clients {
-                fs::remove_dir_all(&client.config.writeable_path).unwrap_or_else(|err| {
-                    println!(
-                        "failed to cleanup file: {}, error: {}",
-                        client.config.writeable_path, err
-                    )
-                });
-            }
-        } else {
-            eprintln!("no account to cleanup!");
+        // Delete account locally
+        for client in &self.clients {
+            fs::remove_dir_all(&client.config.writeable_path).unwrap_or_else(|err| {
+                println!("failed to cleanup file: {}, error: {}", client.config.writeable_path, err)
+            });
         }
     }
 
@@ -378,10 +394,10 @@ impl Default for Trial {
             id: Uuid::new_v4(),
             clients: vec![],
             target_clients: 2,
-            target_steps: 7,
+            target_steps: 10,
             steps: vec![],
             completed_steps: 0,
-            status: Status::Ready,
+            status: Ready,
             start_time: Instant::now(),
             end_time: Instant::now(),
         }
