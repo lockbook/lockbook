@@ -335,6 +335,24 @@ pub async fn get_document(
     Ok(GetDocumentResponse { content })
 }
 
+pub async fn get_file_ids(
+    context: RequestContext<'_, GetFileIdsRequest>,
+) -> Result<GetFileIdsResponse, ServerError<GetFileIdsError>> {
+    let owner = Owner(context.public_key);
+    context.server_state.index_db.transaction(|tx| {
+        Ok(GetFileIdsResponse {
+            ids: ServerTree::new(
+                owner,
+                &mut tx.owned_files,
+                &mut tx.shared_files,
+                &mut tx.file_children,
+                &mut tx.metas,
+            )?
+            .owned_ids(),
+        })
+    })?
+}
+
 pub async fn get_updates(
     context: RequestContext<'_, GetUpdatesRequest>,
 ) -> Result<GetUpdatesResponse, ServerError<GetUpdatesError>> {
