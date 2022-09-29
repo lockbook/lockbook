@@ -1,3 +1,3 @@
 pub mod experiment;
-pub mod trial;
+mod trial;
 mod utils;
