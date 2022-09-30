@@ -198,7 +198,7 @@ enum class CreateFileError : UiCoreError {
     LinkInSharedFolder,
     LinkTargetIsOwned,
     LinkTargetNonexistent,
-    MultipleLinksToSameTarget,
+    MultipleLinksToSameFile,
     InsufficientPermission;
 
     override fun toLbError(res: Resources): LbError = when (this) {
@@ -210,7 +210,7 @@ enum class CreateFileError : UiCoreError {
         LinkInSharedFolder -> LbError.newUserError(getString(res, R.string.link_in_shared_folder))
         LinkTargetIsOwned -> LbError.newUserError(getString(res, R.string.link_target_is_owned))
         LinkTargetNonexistent -> LbError.newUserError(getString(res, R.string.link_target_nonexistent))
-        MultipleLinksToSameTarget -> LbError.newUserError(getString(res, R.string.multiple_links_to_same_target))
+        MultipleLinksToSameFile -> LbError.newUserError(getString(res, R.string.multiple_links_to_same_file))
         InsufficientPermission -> LbError.newUserError(getString(res, R.string.insufficient_permissions))
     }
 }
