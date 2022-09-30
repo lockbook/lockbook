@@ -4,7 +4,7 @@ use lockbook_shared::access_info::{UserAccessInfo, UserAccessMode};
 use lockbook_shared::api::GetPublicKeyRequest;
 use lockbook_shared::file::{File, ShareMode};
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{FileType, Owner};
+use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::validate;
 use uuid::Uuid;
@@ -79,7 +79,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .to_lazy();
 
         let mut result = Vec::new();
-        'outer: for id in tree.owned_ids() {
+        for id in tree.owned_ids() {
             // file must not be deleted
             if tree.calculate_deleted(&id)? {
                 continue;
@@ -93,12 +93,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 continue;
             }
             // file must not have any links pointing to it
-            for link_id in tree.owned_ids() {
-                if let FileType::Link { target } = tree.find(&link_id)?.file_type() {
-                    if target == id {
-                        continue 'outer;
-                    }
-                }
+            if tree.link(&id)?.is_some() {
+                continue;
             }
 
             result.push(tree.finalize(&id, account)?);
