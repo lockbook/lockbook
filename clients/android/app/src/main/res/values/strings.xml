@@ -181,6 +181,7 @@
     <string name="link_in_shared_folder">You cannot create a link in a shared folder.</string>
     <string name="link_target_is_owned">You cannot create a link to a file you own.</string>
     <string name="link_target_nonexistent">You cannot link to a file that does not exist.</string>
+    <string name="multiple_links_to_same_target">You cannot link to a file that is already linked to.</string>
     <string name="insufficient_permissions">Error, you have insufficient permissions.</string>
 
     <string name="unexpected_error">An unexpected error has occurred!</string>
