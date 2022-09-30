@@ -185,7 +185,7 @@ impl Request for GetUsageRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetFileIdsRequest {}
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetFileIdsResponse {
     pub ids: HashSet<Uuid>,
 }
