@@ -111,6 +111,7 @@ where
             prior
                 .user_access_keys()
                 .iter()
+                .filter(|k| !k.deleted)
                 .map(|k| Owner(k.encrypted_for))
                 .collect()
         } else {
@@ -119,6 +120,7 @@ where
         let sharees = f
             .user_access_keys()
             .iter()
+            .filter(|k| !k.deleted)
             .map(|k| Owner(k.encrypted_for))
             .collect::<HashSet<_>>();
         for removed_sharee in prior_sharees.difference(&sharees) {
