@@ -675,6 +675,39 @@ fn delete_pending_share() {
 }
 
 #[test]
+fn delete_link_to_share() {
+    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0]
+        .create_file("folder", roots[0].id, FileType::Folder)
+        .unwrap();
+    cores[0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+
+    assert::all_pending_shares(&cores[1], &["folder"]);
+
+    let link = cores[1].create_link_at_path("link/", folder.id).unwrap();
+
+    assert::all_pending_shares(&cores[1], &[]);
+
+    cores[1].delete_file(link.id).unwrap();
+
+    assert::all_pending_shares(&cores[1], &["folder"]);
+}
+
+#[test]
 fn delete_pending_share_root() {
     let core = test_core_with_account();
     let root = core.get_root().unwrap();
