@@ -185,6 +185,26 @@ impl Request for GetUsageRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct GetFileIdsRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct GetFileIdsResponse {
+    pub ids: HashSet<Uuid>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum GetFileIdsError {
+    UserNotFound,
+}
+
+impl Request for GetFileIdsRequest {
+    type Response = GetFileIdsResponse;
+    type Error = GetFileIdsError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/get-file-ids";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetUpdatesRequest {
     pub since_metadata_version: u64,
 }
