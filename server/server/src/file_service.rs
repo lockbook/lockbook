@@ -377,7 +377,7 @@ pub async fn get_updates(
                     && file
                         .user_access_keys()
                         .iter()
-                        .any(|k| k.encrypted_for == context.public_key)
+                        .any(|k| !k.deleted && k.encrypted_for == context.public_key)
                 {
                     result_ids.insert(id);
                     result_ids.extend(tree.descendants(&id)?);
@@ -640,11 +640,9 @@ pub async fn admin_validate_server(
             for (sharee, ids) in tx.shared_files.get_all().clone() {
                 for id in ids {
                     if let Some(meta) = tx.metas.get(&id) {
-                        if !meta
-                            .user_access_keys()
-                            .iter()
-                            .any(|k| k.encrypted_for == sharee.0 && k.encrypted_by != sharee.0)
-                        {
+                        if !meta.user_access_keys().iter().any(|k| {
+                            !k.deleted && k.encrypted_for == sharee.0 && k.encrypted_by != sharee.0
+                        }) {
                             insert(&mut result.sharees_mapped_to_unshared_files, sharee, id);
                         }
                     } else {
@@ -654,6 +652,9 @@ pub async fn admin_validate_server(
             }
             for (id, meta) in tx.metas.get_all().clone() {
                 for k in meta.user_access_keys() {
+                    if k.deleted {
+                        continue;
+                    }
                     let sharee = Owner(k.encrypted_for);
                     if let Some(ids) = tx.shared_files.get(&sharee) {
                         let self_share = k.encrypted_for == k.encrypted_by;

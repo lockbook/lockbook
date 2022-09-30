@@ -399,13 +399,12 @@ fn move_file_out_of_shared_folder_and_delete() {
     cores[0].sync(None).unwrap();
 
     cores[0].delete_file(document.id).unwrap();
-    cores[0].create_at_path("/folder/document").unwrap(); // this will conflict with the now-moved document whose move isn't synced to the other client
 
     cores[0].sync(None).unwrap();
     cores[1].sync(None).unwrap();
 
     assert_stuff(&cores[0], &cores[1]);
-    assert::all_paths(&cores[1], &["/", "/link/"]); // NOTE: fails here; deletion isn't synced because file is no longer in user's tree
+    assert::all_paths(&cores[1], &["/", "/link/"]); // originally, failed here; deletion wasn't synced because file was no longer in user's tree
 }
 
 #[test]
@@ -440,16 +439,19 @@ fn move_file_out_of_shared_folder_and_create_path_conflict() {
     cores[0].sync(None).unwrap();
 
     cores[0].delete_file(document.id).unwrap();
-    cores[0].create_at_path("/folder/document").unwrap(); // this will conflict with the now-moved document whose move isn't synced to the other client
+    cores[0].create_at_path("/folder/document").unwrap(); // originally, this would conflict with the now-moved document whose move wasn't synced to the other client
 
     cores[0].sync(None).unwrap();
     cores[1].sync(None).unwrap();
 
-    cores[1]
-        .write_document(document.id, b"document content")
-        .unwrap(); // NOTE: fails with Unexpected("PathTaken")
+    // this call now returns an error, but the code is preserved for the original reproduction of the bug
+    if cores[1].get_file_by_id(document.id).is_ok() {
+        cores[1]
+            .write_document(document.id, b"document content")
+            .unwrap(); // originally, this would fail with Unexpected("PathTaken")
 
-    cores[1].sync(None).unwrap();
+        cores[1].sync(None).unwrap();
 
-    assert_stuff(&cores[0], &cores[1]); // NOTE: if the test did make it here, validation would fail with a path conflict
+        assert_stuff(&cores[0], &cores[1]); // originally, if the test did make it here, validation would fail with a path conflict
+    }
 }
