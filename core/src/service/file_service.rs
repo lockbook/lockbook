@@ -76,12 +76,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let tree = tree.delete(id, account)?;
-
-        let (mut tree, prunable_ids) = tree.prunable_ids()?;
-        for id in prunable_ids {
-            tree.remove(id);
-        }
+        tree.delete(id, account)?;
 
         Ok(())
     }

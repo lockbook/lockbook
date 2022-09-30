@@ -7,7 +7,9 @@ use serde::{Serialize, Serializer};
 use strum_macros::EnumIter;
 use uuid::Uuid;
 
-use lockbook_shared::api::{self, GetPublicKeyError, GetUpdatesError, NewAccountError};
+use lockbook_shared::api::{
+    self, GetFileIdsError, GetPublicKeyError, GetUpdatesError, NewAccountError,
+};
 use lockbook_shared::{SharedError, ValidationFailure};
 
 use crate::service::api_service::ApiError;
@@ -670,6 +672,16 @@ impl From<CoreError> for Error<SyncAllError> {
             CoreError::ServerUnreachable => UiError(SyncAllError::CouldNotReachServer),
             CoreError::ClientUpdateRequired => UiError(SyncAllError::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+impl From<ApiError<GetFileIdsError>> for CoreError {
+    fn from(e: ApiError<GetFileIdsError>) -> Self {
+        match e {
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            e => core_err_unexpected(e),
         }
     }
 }

@@ -2,7 +2,8 @@ use crate::repo::schema::OneKey;
 use crate::{CoreError, RequestContext};
 use crate::{CoreResult, Requester};
 use lockbook_shared::api::{
-    ChangeDocRequest, GetDocRequest, GetUpdatesRequest, GetUpdatesResponse, UpsertRequest,
+    ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
+    UpsertRequest,
 };
 use lockbook_shared::document_repo::{self, RepoSource};
 use lockbook_shared::file_like::FileLike;
@@ -75,6 +76,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         self.pull(&mut update_sync_progress)?;
         self.push_metadata(&mut update_sync_progress)?;
+        self.prune()?;
         self.push_documents(&mut update_sync_progress)?;
         let update_as_of = self.pull(&mut update_sync_progress)?;
 
@@ -203,7 +205,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             tree.write_document_content(self.config, RepoSource::Local, &id, &document)?;
         }
         self.reset_deleted_files()?;
-        self.prune()?;
 
         Ok(update_as_of as i64)
     }
@@ -309,14 +310,25 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     fn prune(&mut self) -> CoreResult<()> {
-        let local = self
+        let account = self.get_account()?.clone();
+        let mut local = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
-        let (mut local, prunable_ids) = local.prunable_ids()?;
+        let base_ids = local.tree.base.owned_ids();
+        let server_ids = self.client.request(&account, GetFileIdsRequest {})?.ids;
+
+        let mut prunable_ids = base_ids;
+        prunable_ids.retain(|id| !server_ids.contains(id));
+        for id in prunable_ids.clone() {
+            prunable_ids.extend(local.descendants(&id)?.into_iter());
+        }
+
         for id in prunable_ids {
             local.remove(id);
+            document_repo::delete(self.config, RepoSource::Base, &id)?;
+            document_repo::delete(self.config, RepoSource::Local, &id)?;
         }
         Ok(())
     }

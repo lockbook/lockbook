@@ -244,6 +244,12 @@ impl From<SharedError> for ServerError<GetDocumentError> {
     }
 }
 
+impl From<SharedError> for ServerError<GetFileIdsError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+
 impl From<SharedError> for ServerError<GetUpdatesError> {
     fn from(err: SharedError) -> Self {
         internal!("{:?}", err)
