@@ -94,6 +94,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:layout_gravity="fill"
+            android:translationZ="-5dp"
             android:fitsSystemWindows="true" />
 
         <com.leinardi.android.speeddial.SpeedDialView
@@ -101,7 +102,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|end"
-            android:translationZ="-5dp"
+            android:translationZ="-4dp"
             app:sdExpansionMode="top"
             app:sdMainFabAnimationRotateAngle="90"
             app:sdMainFabClosedBackgroundColor="?attr/colorPrimary"

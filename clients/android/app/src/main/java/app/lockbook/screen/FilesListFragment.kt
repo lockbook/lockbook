@@ -510,23 +510,23 @@ class FilesListFragment : Fragment(), FilesFragment {
                 binding.recentFilesLayout.root.visibility = if (uiUpdates.show) View.VISIBLE else View.GONE
             }
             is UpdateFilesUI.OutOfSpace -> {
-                val usageRatio = uiUpdates.progress / uiUpdates.max
+                val usageRatio = uiUpdates.progress.toFloat() / uiUpdates.max
 
-                val usageBarColor = if (usageRatio >= 1.0) {
-                    binding.outOfSpace.outOfSpaceMsg.setText(R.string.out_of_space)
-                    ContextCompat.getColor(requireContext(), R.color.md_theme_error)
+                val (usageBarColor, msgId) = if (usageRatio >= 1.0) {
+                    listOf(R.color.md_theme_error, R.string.out_of_space)
                 } else {
-                    binding.outOfSpace.outOfSpaceMsg.setText(R.string.running_out_of_space)
-
-                    if(usageRatio > 0.9) {
-                        ContextCompat.getColor(requireContext(), R.color.md_theme_error)
+                    val usageBarColor = if (usageRatio > 0.9) {
+                        R.color.md_theme_error
                     } else {
-                        ContextCompat.getColor(requireContext(), R.color.md_theme_progressWarning)
+                        R.color.md_theme_progressWarning
                     }
+
+                    listOf(usageBarColor, R.string.running_out_of_space)
                 }
 
                 binding.outOfSpace.apply {
-                    outOfSpaceProgressBar.setIndicatorColor(usageBarColor)
+                    outOfSpaceMsg.setText(msgId)
+                    outOfSpaceProgressBar.setIndicatorColor(ContextCompat.getColor(requireContext(), usageBarColor))
                     outOfSpaceProgressBar.progress = uiUpdates.progress
                     outOfSpaceProgressBar.max = uiUpdates.max
                     Animate.animateVisibility(root, View.VISIBLE, 255, 200)
@@ -547,14 +547,15 @@ class FilesListFragment : Fragment(), FilesFragment {
                             .getDefaultSharedPreferences(requireContext())
                             .edit()
 
-                        if(usageRatio > 0.9 && usageRatio < 1.0) {
+                        if (usageRatio > 0.9 && usageRatio < 1.0) {
                             pref.putBoolean(getString(R.string.show_running_out_of_space_0_9_key), false)
-                        } else if(usageRatio > 0.8 && usageRatio <= 0.9) {
-                            pref.putBoolean(getString(R.string.show_running_out_of_space_0_9_key), false)
+                            pref.apply()
+                        } else if (usageRatio > 0.8 && usageRatio <= 0.9) {
+                            pref.putBoolean(getString(R.string.show_running_out_of_space_0_8_key), false)
+                            pref.apply()
                         }
                     }
                 }
-
             }
         }
     }
