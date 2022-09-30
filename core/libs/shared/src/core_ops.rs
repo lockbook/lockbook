@@ -355,15 +355,6 @@ where
         Ok((self.stage(Some(file)), document))
     }
 
-    /// Returns ids of files which can be safely forgotten - files which are deleted on remote (including implicitly
-    /// deleted), new local deleted files, and local files which would be orphaned. If you prune any of these files,
-    /// you must prune all of them, and you must prune them from base and from local.
-    // todo: incrementalism
-    pub fn prunable_ids(self) -> SharedResult<(Self, HashSet<Uuid>)> {
-        // todo: prune things
-        Ok((self, HashSet::new()))
-    }
-
     // assumptions: no orphans
     // changes: moves files
     // invalidated by: moved files
