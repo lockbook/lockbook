@@ -1,5 +1,6 @@
 use crossbeam::channel::{Receiver, Sender};
 use lockbook_core::service::search_service::{SearchRequest, SearchResult, SearchResultItem};
+use lockbook_shared::file::ShareMode;
 use std::collections::HashSet;
 use test_utils::*;
 
@@ -173,4 +174,39 @@ fn test_async_content_matches() {
         .search_tx
         .send(SearchRequest::EndSearch)
         .unwrap();
+}
+
+#[test]
+fn test_async_share_search() {
+    let core1 = test_core_with_account();
+
+    let core2 = test_core_with_account();
+
+    let file1 = core1.create_at_path("/aaaaaaa.md").unwrap();
+    core1.write_document(file1.id, CONTENT.as_bytes()).unwrap();
+    core1
+        .share_file(file1.id, &core2.get_account().unwrap().username, ShareMode::Read)
+        .unwrap();
+
+    core1.sync(None).unwrap();
+    core2.sync(None).unwrap();
+
+    core2.create_at_path("/bbbbbbb.md").unwrap();
+
+    let start_search = core2.start_search().unwrap();
+
+    start_search
+        .search_tx
+        .send(SearchRequest::Search { input: "bbbb".to_string() })
+        .unwrap();
+    let results = vec![start_search.results_rx.recv().unwrap()];
+    assert_async_results_path(results, vec!["/bbbbbbb.md"]);
+
+    start_search
+        .search_tx
+        .send(SearchRequest::EndSearch)
+        .unwrap();
+
+    let search_results = core2.search_file_paths("bbb").unwrap();
+    assert_result_paths(&search_results, &["/bbbbbbb.md"]);
 }
