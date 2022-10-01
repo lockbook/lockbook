@@ -177,7 +177,7 @@ fn test_async_content_matches() {
 }
 
 #[test]
-fn test_async_share_search() {
+fn test_pending_share_search() {
     let core1 = test_core_with_account();
 
     let core2 = test_core_with_account();
