@@ -29,6 +29,7 @@ import com.afollestad.recyclical.withItem
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textview.MaterialTextView
+import timber.log.Timber
 import java.lang.ref.WeakReference
 import java.util.*
 
@@ -135,6 +136,20 @@ class FilesListFragment : Fragment(), FilesFragment {
                 unselectFiles()
             }
         })
+
+        binding.outOfSpace.apply {
+            outOfSpaceMoreInfo.setOnClickListener {
+                val intent = Intent(requireContext(), SettingsActivity::class.java)
+                intent.putExtra(SettingsFragment.SCROLL_TO_PREFERENCE_KEY, R.string.usage_bar_key)
+                startActivity(intent)
+            }
+
+            outOfSpaceUpgradeNow.setOnClickListener {
+                val intent = Intent(requireContext(), SettingsActivity::class.java)
+                intent.putExtra(SettingsFragment.UPGRADE_NOW, true)
+                startActivity(intent)
+            }
+        }
 
         binding.fabSpeedDial.inflate(R.menu.menu_files_list_speed_dial)
         binding.fabSpeedDial.setOnActionSelectedListener {
@@ -531,14 +546,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                     outOfSpaceProgressBar.max = uiUpdates.max
                     Animate.animateVisibility(root, View.VISIBLE, 255, 200)
 
-                    root.setOnClickListener {
-                        startActivity(
-                            Intent(
-                                context,
-                                SettingsActivity::class.java
-                            )
-                        )
-                    }
+                    Timber.e("USAGE: ${uiUpdates.progress} ${uiUpdates.max}")
 
                     outOfSpaceExit.setOnClickListener {
                         Animate.animateVisibility(root, View.GONE, 0, 200)

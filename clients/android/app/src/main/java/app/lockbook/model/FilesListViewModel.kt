@@ -8,7 +8,6 @@ import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.ui.BreadCrumbItem
-import app.lockbook.ui.UsageBarPreference
 import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.afollestad.recyclical.datasource.emptySelectableDataSourceTyped
@@ -52,12 +51,9 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                 return@launch
             }
 
-            val roundedDataCap = usage.dataCap.exact / UsageBarPreference.ROUND_DECIMAL_PLACES
-            val roundedProgress = usage.serverUsage.exact / UsageBarPreference.ROUND_DECIMAL_PLACES
+            val usageRatio = usage.serverUsage.exact.toFloat() / usage.dataCap.exact
 
             val pref = PreferenceManager.getDefaultSharedPreferences(getContext())
-
-            val usageRatio = roundedProgress.toFloat() / roundedDataCap
 
             val showOutOfSpace0_9 = pref.getBoolean(getString(R.string.show_running_out_of_space_0_9_key), true)
             val showOutOfSpace0_8 = pref.getBoolean(getString(R.string.show_running_out_of_space_0_8_key), true)
@@ -91,7 +87,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                 }
             }
 
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.OutOfSpace(roundedProgress.toInt(), roundedDataCap.toInt()))
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.OutOfSpace((usageRatio * 100).toInt(), 100))
         }
     }
 

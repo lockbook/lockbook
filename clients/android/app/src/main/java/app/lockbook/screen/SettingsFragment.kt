@@ -23,6 +23,7 @@ import app.lockbook.ui.UsageBarPreference
 import app.lockbook.util.GooglePlayAccountState
 import app.lockbook.util.PaymentPlatform
 import app.lockbook.util.exhaustive
+import app.lockbook.util.getSettingsActivity
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -35,6 +36,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     companion object {
         const val SCROLL_TO_PREFERENCE_KEY = "scroll_to_item_key"
+        const val UPGRADE_NOW = "upgrade_now"
     }
 
     val onUpgrade =
@@ -68,8 +70,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        (context as SettingsActivity).scrollToPreference()?.let { preference ->
+        getSettingsActivity().scrollToPreference()?.let { preference ->
             scrollToPreference(getString(preference))
+        }
+
+        if (getSettingsActivity().upgradeNow() == true) {
+            onUpgrade.launch(Intent(context, UpgradeAccountActivity::class.java))
         }
 
         model.canceledSubscription.observe(
