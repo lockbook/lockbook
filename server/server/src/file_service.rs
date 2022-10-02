@@ -28,6 +28,12 @@ pub async fn upsert_file_metadata(
         .server_state
         .index_db
         .transaction::<_, Result<(), ServerError<_>>>(|tx| {
+            let prior_index_validation_errors = if cfg!(debug_assertions) {
+                Some(get_index_validation_errors(tx, server_state)?)
+            } else {
+                None
+            };
+
             let mut tree = ServerTree::new(
                 req_owner,
                 &mut tx.owned_files,
@@ -60,6 +66,22 @@ pub async fn upsert_file_metadata(
                     }
                 }
             }
+
+            let index_validation_errors = if cfg!(debug_assertions) {
+                Some(get_index_validation_errors(tx, server_state)?)
+            } else {
+                None
+            };
+            if index_validation_errors == prior_index_validation_errors {
+                Ok(())
+            } else {
+                Err(internal!(
+                    "Server indexes corrupt! prior: {:#?}; new: {:#?}",
+                    prior_index_validation_errors,
+                    index_validation_errors
+                ))
+            }?;
+
             Ok(())
         })??;
 
@@ -556,27 +578,12 @@ pub async fn admin_validate_server(
         return Err(ClientError(AdminValidateServerError::NotPermissioned));
     }
 
-    let mut result: AdminValidateServer = Default::default();
-
     context
         .server_state
         .index_db
-        .transaction::<_, Result<(), ServerError<_>>>(|tx| {
-            let mut deleted_ids = HashSet::new();
-            for (id, meta) in tx.metas.get_all().clone() {
-                // todo: optimize
-                let mut tree = ServerTree::new(
-                    meta.owner(),
-                    &mut tx.owned_files,
-                    &mut tx.shared_files,
-                    &mut tx.file_children,
-                    &mut tx.metas,
-                )?
-                .to_lazy();
-                if tree.calculate_deleted(&id)? {
-                    deleted_ids.insert(id);
-                }
-            }
+        .transaction::<_, Result<AdminValidateServer, ServerError<_>>>(|tx| {
+            // validate indexes
+            let mut result = get_index_validation_errors(tx, context.server_state)?;
 
             // validate accounts
             for (owner, account) in tx.accounts.get_all().clone() {
@@ -588,156 +595,165 @@ pub async fn admin_validate_server(
                 }
             }
 
-            // validate index: usernames
-            for (username, owner) in tx.usernames.get_all().clone() {
-                if let Some(account) = tx.accounts.get(&owner) {
-                    if username != account.username {
-                        result
-                            .usernames_mapped_to_wrong_accounts
-                            .insert(username, account.username.clone());
-                    }
-                } else {
-                    result
-                        .usernames_mapped_to_nonexistent_accounts
-                        .insert(username, owner);
-                }
-            }
-            for (_, account) in tx.accounts.get_all().clone() {
-                if tx.usernames.get(&account.username).is_none() {
-                    result
-                        .usernames_unmapped_to_accounts
-                        .insert(account.username.clone());
-                }
-            }
+            Ok(result)
+        })?
+}
 
-            // validate index: owned_files
-            for (owner, ids) in tx.owned_files.get_all().clone() {
-                for id in ids {
-                    if let Some(meta) = tx.metas.get(&id) {
-                        if meta.owner() != owner {
-                            insert(&mut result.owners_mapped_to_unowned_files, owner, id);
-                        }
-                    } else {
-                        insert(&mut result.owners_mapped_to_nonexistent_files, owner, id);
-                    }
-                }
-            }
-            for (id, meta) in tx.metas.get_all().clone() {
-                if let Some(ids) = tx.owned_files.get(&meta.owner()) {
-                    if !ids.contains(&id) {
-                        insert(
-                            &mut result.owners_unmapped_to_owned_files,
-                            meta.owner(),
-                            *meta.id(),
-                        );
-                    }
-                } else {
-                    result.owners_unmapped.insert(meta.owner());
-                }
-            }
+fn get_index_validation_errors(
+    tx: &mut Tx<'_>, server_state: &ServerState,
+) -> SharedResult<AdminValidateServer> {
+    let mut result: AdminValidateServer = Default::default();
 
-            // validate index: shared_files
-            for (sharee, ids) in tx.shared_files.get_all().clone() {
-                for id in ids {
-                    if let Some(meta) = tx.metas.get(&id) {
-                        if !meta.user_access_keys().iter().any(|k| {
-                            !k.deleted && k.encrypted_for == sharee.0 && k.encrypted_by != sharee.0
-                        }) {
-                            insert(&mut result.sharees_mapped_to_unshared_files, sharee, id);
-                        }
-                    } else {
-                        insert(&mut result.sharees_mapped_to_nonexistent_files, sharee, id);
-                    }
-                }
-            }
-            for (id, meta) in tx.metas.get_all().clone() {
-                for k in meta.user_access_keys() {
-                    if k.deleted {
-                        continue;
-                    }
-                    let sharee = Owner(k.encrypted_for);
-                    if let Some(ids) = tx.shared_files.get(&sharee) {
-                        let self_share = k.encrypted_for == k.encrypted_by;
-                        let indexed_share = ids.contains(&id);
-                        if self_share && indexed_share {
-                            insert(&mut result.sharees_mapped_for_owned_files, sharee, id);
-                        } else if !self_share && !indexed_share {
-                            insert(&mut result.sharees_unmapped_to_shared_files, sharee, id);
-                        }
-                    } else {
-                        result.sharees_unmapped.insert(meta.owner());
-                    }
-                }
-            }
+    // compute deleted ids
+    // todo: optimize
+    let mut deleted_ids = HashSet::new();
+    for (id, meta) in tx.metas.get_all().clone() {
+        let mut tree = ServerTree::new(
+            meta.owner(),
+            &mut tx.owned_files,
+            &mut tx.shared_files,
+            &mut tx.file_children,
+            &mut tx.metas,
+        )?
+        .to_lazy();
+        if tree.calculate_deleted(&id)? {
+            deleted_ids.insert(id);
+        }
+    }
 
-            // validate index: file_children
-            for (parent_id, child_ids) in tx.file_children.get_all().clone() {
-                for child_id in child_ids {
-                    if let Some(meta) = tx.metas.get(&child_id) {
-                        if meta.parent() != &parent_id {
-                            insert(
-                                &mut result.files_mapped_as_parent_to_non_children,
-                                parent_id,
-                                child_id,
-                            );
-                        }
-                    } else {
-                        insert(
-                            &mut result.files_mapped_as_parent_to_nonexistent_children,
-                            parent_id,
-                            child_id,
-                        );
-                    }
-                }
+    // validate index: usernames
+    for (username, owner) in tx.usernames.get_all().clone() {
+        if let Some(account) = tx.accounts.get(&owner) {
+            if username != account.username {
+                result
+                    .usernames_mapped_to_wrong_accounts
+                    .insert(username, account.username.clone());
             }
-            for (id, meta) in tx.metas.get_all().clone() {
-                if let Some(child_ids) = tx.file_children.get(meta.parent()) {
-                    if meta.is_root() && child_ids.contains(&id) {
-                        result.files_mapped_as_parent_to_self.insert(id);
-                    } else if !meta.is_root() && !child_ids.contains(&id) {
-                        insert(
-                            &mut result.files_unmapped_as_parent_to_children,
-                            *meta.parent(),
-                            id,
-                        );
-                    }
-                } else {
-                    result.files_unmapped_as_parent.insert(*meta.parent());
-                }
-            }
+        } else {
+            result
+                .usernames_mapped_to_nonexistent_accounts
+                .insert(username, owner);
+        }
+    }
+    for (_, account) in tx.accounts.get_all().clone() {
+        if tx.usernames.get(&account.username).is_none() {
+            result
+                .usernames_unmapped_to_accounts
+                .insert(account.username.clone());
+        }
+    }
 
-            // validate index: sizes (todo: validate size values)
-            for (id, _) in tx.sizes.get_all().clone() {
-                if let Some(meta) = tx.metas.get(&id) {
-                    if meta.document_hmac().is_none() {
-                        result.sizes_mapped_for_files_without_hmac.insert(id);
-                    }
-                } else {
-                    result.sizes_mapped_for_nonexistent_files.insert(id);
+    // validate index: owned_files
+    for (owner, ids) in tx.owned_files.get_all().clone() {
+        for id in ids {
+            if let Some(meta) = tx.metas.get(&id) {
+                if meta.owner() != owner {
+                    insert(&mut result.owners_mapped_to_unowned_files, owner, id);
                 }
+            } else {
+                insert(&mut result.owners_mapped_to_nonexistent_files, owner, id);
             }
-            for (id, meta) in tx.metas.get_all().clone() {
-                if !deleted_ids.contains(&id)
-                    && meta.document_hmac().is_some()
-                    && tx.sizes.get(&id).is_none()
-                {
-                    result.sizes_unmapped_for_files_with_hmac.insert(id);
-                }
+        }
+    }
+    for (id, meta) in tx.metas.get_all().clone() {
+        if let Some(ids) = tx.owned_files.get(&meta.owner()) {
+            if !ids.contains(&id) {
+                insert(&mut result.owners_unmapped_to_owned_files, meta.owner(), *meta.id());
             }
+        } else {
+            result.owners_unmapped.insert(meta.owner());
+        }
+    }
 
-            // validate presence of documents
-            for (id, meta) in tx.metas.get_all().clone() {
-                if let Some(hmac) = meta.document_hmac() {
-                    if !deleted_ids.contains(&id)
-                        && !document_service::exists(context.server_state, &id, hmac)
-                    {
-                        result.files_with_hmacs_and_no_contents.insert(id);
-                    }
+    // validate index: shared_files
+    for (sharee, ids) in tx.shared_files.get_all().clone() {
+        for id in ids {
+            if let Some(meta) = tx.metas.get(&id) {
+                if !meta.user_access_keys().iter().any(|k| {
+                    !k.deleted && k.encrypted_for == sharee.0 && k.encrypted_by != sharee.0
+                }) {
+                    insert(&mut result.sharees_mapped_to_unshared_files, sharee, id);
                 }
+            } else {
+                insert(&mut result.sharees_mapped_to_nonexistent_files, sharee, id);
             }
+        }
+    }
+    for (id, meta) in tx.metas.get_all().clone() {
+        for k in meta.user_access_keys() {
+            if k.deleted {
+                continue;
+            }
+            let sharee = Owner(k.encrypted_for);
+            if let Some(ids) = tx.shared_files.get(&sharee) {
+                let self_share = k.encrypted_for == k.encrypted_by;
+                let indexed_share = ids.contains(&id);
+                if self_share && indexed_share {
+                    insert(&mut result.sharees_mapped_for_owned_files, sharee, id);
+                } else if !self_share && !indexed_share {
+                    insert(&mut result.sharees_unmapped_to_shared_files, sharee, id);
+                }
+            } else {
+                result.sharees_unmapped.insert(meta.owner());
+            }
+        }
+    }
 
-            Ok(())
-        })??;
+    // validate index: file_children
+    for (parent_id, child_ids) in tx.file_children.get_all().clone() {
+        for child_id in child_ids {
+            if let Some(meta) = tx.metas.get(&child_id) {
+                if meta.parent() != &parent_id {
+                    insert(&mut result.files_mapped_as_parent_to_non_children, parent_id, child_id);
+                }
+            } else {
+                insert(
+                    &mut result.files_mapped_as_parent_to_nonexistent_children,
+                    parent_id,
+                    child_id,
+                );
+            }
+        }
+    }
+    for (id, meta) in tx.metas.get_all().clone() {
+        if let Some(child_ids) = tx.file_children.get(meta.parent()) {
+            if meta.is_root() && child_ids.contains(&id) {
+                result.files_mapped_as_parent_to_self.insert(id);
+            } else if !meta.is_root() && !child_ids.contains(&id) {
+                insert(&mut result.files_unmapped_as_parent_to_children, *meta.parent(), id);
+            }
+        } else {
+            result.files_unmapped_as_parent.insert(*meta.parent());
+        }
+    }
+
+    // validate index: sizes (todo: validate size values)
+    for (id, _) in tx.sizes.get_all().clone() {
+        if let Some(meta) = tx.metas.get(&id) {
+            if meta.document_hmac().is_none() {
+                result.sizes_mapped_for_files_without_hmac.insert(id);
+            }
+        } else {
+            result.sizes_mapped_for_nonexistent_files.insert(id);
+        }
+    }
+    for (id, meta) in tx.metas.get_all().clone() {
+        if !deleted_ids.contains(&id)
+            && meta.document_hmac().is_some()
+            && tx.sizes.get(&id).is_none()
+        {
+            result.sizes_unmapped_for_files_with_hmac.insert(id);
+        }
+    }
+
+    // validate presence of documents
+    for (id, meta) in tx.metas.get_all().clone() {
+        if let Some(hmac) = meta.document_hmac() {
+            if !deleted_ids.contains(&id) && !document_service::exists(server_state, &id, hmac) {
+                result.files_with_hmacs_and_no_contents.insert(id);
+            }
+        }
+    }
 
     Ok(result)
 }
