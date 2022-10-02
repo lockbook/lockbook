@@ -116,6 +116,7 @@ public enum CreateFileError: String, UiError {
     case LinkInSharedFolder
     case LinkTargetIsOwned
     case LinkTargetNonexistent
+    case MultipleLinksToSameFile
     case InsufficientPermission
 }
 

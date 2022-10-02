@@ -151,7 +151,8 @@ fn create_file(core: &Core, name: &str, parent: Uuid) -> Result<File, CliError> 
             LbError::Unexpected(msg) => CliError::unexpected(msg),
             LbError::UiError(CreateFileError::LinkInSharedFolder)
             | LbError::UiError(CreateFileError::LinkTargetIsOwned)
-            | LbError::UiError(CreateFileError::LinkTargetNonexistent) => CliError::unexpected(
+            | LbError::UiError(CreateFileError::LinkTargetNonexistent)
+            | LbError::UiError(CreateFileError::MultipleLinksToSameFile) => CliError::unexpected(
                 "We did not try to create a link, but we are receiving link related errors",
             ),
         })

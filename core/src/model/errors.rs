@@ -396,7 +396,7 @@ pub enum CreateFileError {
     LinkTargetIsOwned,
     LinkTargetNonexistent,
     InsufficientPermission,
-    // MultipleLinksToSameFile,
+    MultipleLinksToSameFile,
 }
 
 impl From<CoreError> for Error<CreateFileError> {
@@ -412,7 +412,7 @@ impl From<CoreError> for Error<CreateFileError> {
             CoreError::LinkTargetIsOwned => UiError(CreateFileError::LinkTargetIsOwned),
             CoreError::LinkTargetNonexistent => UiError(CreateFileError::LinkTargetNonexistent),
             CoreError::InsufficientPermission => UiError(CreateFileError::InsufficientPermission),
-            // CoreError::MultipleLinksToSameFile => UiError(CreateFileError::MultipleLinksToSameFile),
+            CoreError::MultipleLinksToSameFile => UiError(CreateFileError::MultipleLinksToSameFile),
             _ => unexpected!("{:#?}", e),
         }
     }
