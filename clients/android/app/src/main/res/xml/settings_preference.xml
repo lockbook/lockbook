@@ -3,21 +3,6 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
-
-    <PreferenceCategory
-        android:icon="@drawable/ic_baseline_bug_report_24"
-        android:title="@string/settings_preference_debug">
-        <Preference
-            android:id="@+id/view_logs"
-            android:key="@string/view_logs_key"
-            android:title="@string/settings_preference_logs"
-            app:iconSpaceReserved="false" />
-        <Preference
-            android:key="@string/clear_logs_key"
-            android:title="@string/settings_preference_clear_logs"
-            app:iconSpaceReserved="false" />
-    </PreferenceCategory>
-
     <PreferenceCategory
         android:icon="@drawable/ic_baseline_data_usage_24"
         android:title="@string/settings_preference_usage">
@@ -106,6 +91,20 @@
 
         <app.lockbook.ui.SubscriptionInfoPreference
             android:key="@string/subscription_info_key"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:icon="@drawable/ic_baseline_bug_report_24"
+        android:title="@string/settings_preference_debug">
+        <Preference
+            android:id="@+id/view_logs"
+            android:key="@string/view_logs_key"
+            android:title="@string/settings_preference_logs"
+            app:iconSpaceReserved="false" />
+        <Preference
+            android:key="@string/clear_logs_key"
+            android:title="@string/settings_preference_clear_logs"
             app:iconSpaceReserved="false" />
     </PreferenceCategory>
 </PreferenceScreen>

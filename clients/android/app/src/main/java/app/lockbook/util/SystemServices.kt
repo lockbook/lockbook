@@ -45,6 +45,10 @@ fun Preference.getSettingsFragment(): SettingsFragment {
     return (context as SettingsActivity).supportFragmentManager.fragments[0] as SettingsFragment
 }
 
+fun Fragment.getSettingsActivity(): SettingsActivity {
+    return (context as SettingsActivity)
+}
+
 fun AndroidViewModel.getApp(): App {
     return getApplication()
 }
