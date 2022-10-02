@@ -23,6 +23,14 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     fun scrollToPreference(): Int? {
-        return intent.extras?.getInt(SettingsFragment.SCROLL_TO_PREFERENCE_KEY)
+        return intent.extras?.getInt(SettingsFragment.SCROLL_TO_PREFERENCE_KEY)?.apply {
+            if (this == 0) {
+                return null
+            }
+        }
+    }
+
+    fun upgradeNow(): Boolean? {
+        return intent.extras?.getBoolean(SettingsFragment.UPGRADE_NOW)
     }
 }

@@ -6,17 +6,18 @@ import android.util.AttributeSet
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
-import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import app.lockbook.R
 import app.lockbook.screen.UpgradeAccountActivity
 import app.lockbook.util.*
+import com.google.android.material.progressindicator.LinearProgressIndicator
 
 class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Preference(context, attributeSet) {
-    lateinit var usageBar: ProgressBar
-    lateinit var premiumUsageBar: ProgressBar
+    lateinit var usageBar: LinearProgressIndicator
+    lateinit var premiumUsageBar: LinearProgressIndicator
     lateinit var premiumInfoForFree: LinearLayout
     lateinit var upgradeAccount: Button
     lateinit var usageInfo: TextView
@@ -45,8 +46,21 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
     }
 
     private fun setUpUsagePreference(usage: UsageMetrics, uncompressedUsage: UsageItemMetric) {
-        usageBar.max = (usage.dataCap.exact / ROUND_DECIMAL_PLACES).toInt()
-        usageBar.progress = (usage.serverUsage.exact / ROUND_DECIMAL_PLACES).toInt()
+        val roundedDataCap = usage.dataCap.exact / ROUND_DECIMAL_PLACES
+        val roundedProgress = usage.serverUsage.exact / ROUND_DECIMAL_PLACES
+
+        usageBar.max = roundedDataCap.toInt()
+        usageBar.progress = roundedProgress.toInt()
+
+        val usageRatio = roundedProgress.toFloat() / roundedDataCap
+        val barColorId = when {
+            usageRatio < 0.8 -> R.color.md_theme_primary
+            usageRatio < 0.9 -> R.color.md_theme_progressWarning
+            else -> R.color.md_theme_error
+        }
+
+        val usageBarColor = ContextCompat.getColor(context, barColorId)
+        usageBar.setIndicatorColor(usageBarColor)
 
         // necessary to reset it for rendering successful billings
         premiumInfoForFree.visibility = if (usage.dataCap.exact != PAID_TIER_USAGE_BYTES) {
