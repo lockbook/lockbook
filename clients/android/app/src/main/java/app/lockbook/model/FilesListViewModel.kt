@@ -41,6 +41,54 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         startUpInRoot()
+        checkUsage()
+    }
+
+    private fun checkUsage() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val usage = CoreModel.getUsage().getOrElse { error ->
+                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError((error.toLbError(getRes()))))
+                return@launch
+            }
+
+            val usageRatio = usage.serverUsage.exact.toFloat() / usage.dataCap.exact
+
+            val pref = PreferenceManager.getDefaultSharedPreferences(getContext())
+
+            val showOutOfSpace0_9 = pref.getBoolean(getString(R.string.show_running_out_of_space_0_9_key), true)
+            val showOutOfSpace0_8 = pref.getBoolean(getString(R.string.show_running_out_of_space_0_8_key), true)
+
+            when {
+                usageRatio >= 1.0 -> {}
+                usageRatio > 0.9 -> {
+                    if (!showOutOfSpace0_9) {
+                        return@launch
+                    }
+                }
+                usageRatio > 0.8 -> {
+                    if (!showOutOfSpace0_8) {
+                        return@launch
+                    }
+                }
+                else -> {
+                    if (!showOutOfSpace0_9) {
+                        pref.edit()
+                            .putBoolean(getString(R.string.show_running_out_of_space_0_9_key, true), true)
+                            .apply()
+                    }
+
+                    if (!showOutOfSpace0_8) {
+                        pref.edit()
+                            .putBoolean(getString(R.string.show_running_out_of_space_0_8_key, true), true)
+                            .apply()
+                    }
+
+                    return@launch
+                }
+            }
+
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.OutOfSpace((usageRatio * 100).toInt(), 100))
+        }
     }
 
     private fun startUpInRoot() {
