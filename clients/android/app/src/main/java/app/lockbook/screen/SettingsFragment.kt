@@ -36,7 +36,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     companion object {
         const val SCROLL_TO_PREFERENCE_KEY = "scroll_to_item_key"
-        const val UPGRADE_NOW = "upgrade_now"
+        const val UPGRADE_NOW = "upgrade_now_key"
     }
 
     val onUpgrade =
