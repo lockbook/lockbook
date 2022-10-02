@@ -979,8 +979,37 @@ fn create_file_duplicate_link() {
 
     let result =
         cores[1].create_file("link_2", roots[1].id, FileType::Link { target: document.id });
-    // assert_matches!(result, Err(UiError(CreateFileError::MultipleLinksToSameFile)));
-    assert_matches!(result, Err(_));
+    assert_matches!(result, Err(UiError(CreateFileError::MultipleLinksToSameFile)));
+}
+
+#[test]
+fn create_file_duplicate_link_deleted() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+    let roots = cores
+        .iter()
+        .map(|core| core.get_root().unwrap())
+        .collect::<Vec<_>>();
+
+    let document = cores[0]
+        .create_file("document", roots[0].id, FileType::Document)
+        .unwrap();
+    cores[0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    let link = cores[1]
+        .create_file("link_1", roots[1].id, FileType::Link { target: document.id })
+        .unwrap();
+    cores[1].delete_file(link.id).unwrap();
+    cores[1]
+        .create_file("link_2", roots[1].id, FileType::Link { target: document.id })
+        .unwrap();
 }
 
 #[test]
