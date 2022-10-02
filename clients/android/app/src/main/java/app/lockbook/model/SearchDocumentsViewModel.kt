@@ -39,7 +39,7 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
             val startSearchResult = CoreModel.startSearch(this@SearchDocumentsViewModel)
 
             if (startSearchResult is Err) {
-                _updateSearchUI.value = UpdateSearchUI.Error(startSearchResult.error.toLbError(getRes()))
+                _updateSearchUI.postValue(UpdateSearchUI.Error(startSearchResult.error.toLbError(getRes())))
             }
         }
     }
