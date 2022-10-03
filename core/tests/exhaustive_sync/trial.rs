@@ -5,10 +5,13 @@ use crate::exhaustive_sync::utils::{find_by_name, random_filename, random_utf8};
 use lockbook_core::model::errors::MoveFileError;
 use lockbook_core::service::api_service::no_network::{CoreIP, InProcess};
 use lockbook_core::Error::UiError;
+use lockbook_core::{AdminServerValidateError, Error};
+use lockbook_server_lib::config::AdminConfig;
+use lockbook_shared::api::AdminValidateServer;
 use lockbook_shared::file_metadata::FileType::{Document, Folder};
 use std::fmt::{Debug, Formatter};
 use std::time::Instant;
-use std::{fs, thread};
+use std::{fs, iter, thread};
 use test_utils::*;
 use uuid::Uuid;
 use variant_count::VariantCount;
@@ -75,7 +78,11 @@ impl Debug for Trial {
 
 impl Trial {
     fn create_clients(&mut self) -> Result<(), Status> {
-        let server = InProcess::init(test_config());
+        let username = random_name();
+        let server = InProcess::init(
+            test_config(),
+            AdminConfig { admins: iter::once(username.clone()).collect() },
+        );
 
         for _ in 0..self.target_clients {
             self.clients
@@ -83,7 +90,7 @@ impl Trial {
         }
 
         self.clients[0]
-            .create_account(&random_name(), &url())
+            .create_account(&username, &url())
             .map_err(|err| Failed(format!("failed to create account: {:#?}", err)))?;
         let account_string = &self.clients[0].export_account().unwrap();
 
@@ -211,6 +218,22 @@ impl Trial {
                                 "work units not empty, client: {}",
                                 row.config.writeable_path
                             ));
+                            break 'steps;
+                        }
+                    }
+
+                    match self.clients[0].admin_validate_server() {
+                        Ok(validations) => {
+                            if validations != Default::default() {
+                                self.status = Failed(format!(
+                                    "Server reported validation failures: {:#?}",
+                                    validations
+                                ));
+                                break 'steps;
+                            }
+                        }
+                        Err(err) => {
+                            self.status = Failed(format!("{:#?}", err));
                             break 'steps;
                         }
                     }
