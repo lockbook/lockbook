@@ -1,6 +1,7 @@
 use crossbeam::channel::{Receiver, Sender};
 use lockbook_core::service::search_service::{SearchRequest, SearchResult, SearchResultItem};
 use lockbook_shared::file::ShareMode;
+use lockbook_shared::file_metadata::FileType;
 use std::collections::HashSet;
 use test_utils::*;
 
@@ -192,6 +193,9 @@ fn test_pending_share_search() {
     core2.sync(None).unwrap();
 
     core2.create_at_path("/bbbbbbb.md").unwrap();
+    core2
+        .create_file(&file1.name, core2.get_root().unwrap().id, FileType::Link { target: file1.id })
+        .unwrap();
 
     let start_search = core2.start_search().unwrap();
 
