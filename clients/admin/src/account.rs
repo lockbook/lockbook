@@ -1,5 +1,5 @@
 use crate::{Error, Res};
-use lockbook_core::{base64, AccountFilter, AccountIdentifier, Core, PublicKey};
+use lockbook_core::{base64, AccountFilter, AccountIdentifier, Core, Duration, PublicKey};
 
 pub fn list(
     core: &Core, premium: bool, google_play_premium: bool, stripe_premium: bool,
@@ -48,7 +48,14 @@ pub fn info(core: &Core, username: Option<String>, public_key: Option<String>) -
 
     let account_info = core.admin_get_account_info(identifier)?;
 
-    println!("{:#?}", account_info);
+    println!("{}", account_info.username);
+    println!("root: {}", account_info.root);
+    println!("payment_platform: {:?}", account_info.payment_platform);
+    println!(
+        "last_active: {}",
+        Duration::milliseconds(account_info.last_active as i64).to_string()
+    );
+    println!("usage: {}B", account_info.usage);
 
     Ok(())
 }

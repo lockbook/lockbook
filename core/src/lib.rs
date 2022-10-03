@@ -10,6 +10,8 @@ pub mod service;
 mod external_interface;
 
 pub use base64;
+pub use basic_human_duration::ChronoHumanDuration;
+pub use chrono::Duration;
 pub use libsecp256k1::PublicKey;
 pub use uuid::Uuid;
 
@@ -44,8 +46,6 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-pub use basic_human_duration::ChronoHumanDuration;
-pub use chrono::Duration;
 use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use itertools::Itertools;

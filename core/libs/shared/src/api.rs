@@ -593,6 +593,8 @@ pub struct AccountInfo {
     pub username: String,
     pub root: Uuid,
     pub payment_platform: Option<PaymentPlatform>,
+    pub last_active: UnixTimeMillis,
+    pub usage: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
