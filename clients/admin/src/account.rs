@@ -1,5 +1,8 @@
 use crate::{Error, Res};
-use lockbook_core::{base64, AccountFilter, AccountIdentifier, Core, Duration, PublicKey};
+use lockbook_core::{
+    base64, AccountFilter, AccountIdentifier, ChronoHumanDuration, Core, Duration, PublicKey,
+};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub fn list(
     core: &Core, premium: bool, google_play_premium: bool, stripe_premium: bool,
@@ -50,11 +53,18 @@ pub fn info(core: &Core, username: Option<String>, public_key: Option<String>) -
 
     println!("{}", account_info.username);
     println!("root: {}", account_info.root);
-    println!("payment_platform: {:?}", account_info.payment_platform);
-    println!(
-        "last_active: {}",
-        Duration::milliseconds(account_info.last_active as i64).to_string()
-    );
+    println!("payment_platform: {:#?}", account_info.payment_platform);
+
+    let last_active = Duration::milliseconds(
+        (SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64
+            - account_info.last_active) as i64,
+    )
+    .format_human()
+    .to_string();
+    println!("last_active: {}", last_active);
     println!("usage: {}B", account_info.usage);
 
     Ok(())
