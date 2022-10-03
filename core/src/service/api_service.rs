@@ -178,6 +178,10 @@ pub mod no_network {
                 GetPublicKeyRequest::ROUTE => call!(get_public_key, self, account, request),
                 GetUpdatesRequest::ROUTE => call!(get_updates, self, account, request),
                 NewAccountRequest::ROUTE => call!(new_account, self, account, request),
+                GetFileIdsRequest::ROUTE => call!(get_file_ids, self, account, request),
+                AdminValidateServerRequest::ROUTE => {
+                    call!(admin_validate_server, self, account, request)
+                }
                 unknown => panic!("unhandled InProcess type: {}", unknown),
             };
 
