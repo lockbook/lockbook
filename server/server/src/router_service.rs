@@ -111,6 +111,7 @@ macro_rules! core_req {
                 }
                 .instrument(span1)
             })
+            .boxed()
     }};
 }
 
