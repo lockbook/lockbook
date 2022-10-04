@@ -55,7 +55,7 @@ impl IndexDbConf {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct AdminConfig {
     pub admins: HashSet<Username>,
 }

@@ -117,7 +117,7 @@ pub mod no_network {
     }
 
     impl InProcess {
-        pub fn init(config: Config) -> Self {
+        pub fn init(config: Config, admin: AdminConfig) -> Self {
             let runtime = runtime::Builder::new_current_thread().build().unwrap();
             let server_config = lockbook_server_lib::config::Config {
                 server: ServerConfig::from_env_vars(),
@@ -128,7 +128,7 @@ pub mod no_network {
                 files: FilesConfig { path: PathBuf::from(&config.writeable_path) },
                 metrics: MetricsConfig::from_env_vars(),
                 billing: BillingConfig::from_env_vars(),
-                admin: AdminConfig::from_env_vars(),
+                admin,
                 features: FeatureFlags::from_env_vars(),
             };
 
@@ -178,6 +178,10 @@ pub mod no_network {
                 GetPublicKeyRequest::ROUTE => call!(get_public_key, self, account, request),
                 GetUpdatesRequest::ROUTE => call!(get_updates, self, account, request),
                 NewAccountRequest::ROUTE => call!(new_account, self, account, request),
+                GetFileIdsRequest::ROUTE => call!(get_file_ids, self, account, request),
+                AdminValidateServerRequest::ROUTE => {
+                    call!(admin_validate_server, self, account, request)
+                }
                 unknown => panic!("unhandled InProcess type: {}", unknown),
             };
 

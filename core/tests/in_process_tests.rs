@@ -4,12 +4,13 @@ mod ip_tests {
     use lockbook_core::model::errors::Error::UiError;
     use lockbook_core::model::errors::*;
     use lockbook_core::service::api_service::no_network::{CoreIP, InProcess};
+    use std::default::Default;
     use test_utils::test_config;
     use test_utils::*;
 
     #[test]
     fn with_init_username_taken() {
-        let server = InProcess::init(test_config());
+        let server = InProcess::init(test_config(), Default::default());
         let core1 = CoreIP::init_in_process(&test_config(), server.clone());
         let core2 = CoreIP::init_in_process(&test_config(), server);
         let name = random_name();
@@ -22,7 +23,7 @@ mod ip_tests {
 
     #[test]
     fn create_sync_compare() {
-        let server = InProcess::init(test_config());
+        let server = InProcess::init(test_config(), Default::default());
         let core1 = CoreIP::init_in_process(&test_config(), server.clone());
         let core2 = CoreIP::init_in_process(&test_config(), server);
         core1.create_account(&random_name(), "unused af").unwrap();
@@ -45,7 +46,7 @@ mod ip_tests {
     #[test]
     fn sync_and_check() {
         loop {
-            let server = InProcess::init(test_config());
+            let server = InProcess::init(test_config(), Default::default());
             let core1 = CoreIP::init_in_process(&test_config(), server.clone());
             let core2 = CoreIP::init_in_process(&test_config(), server.clone());
 
