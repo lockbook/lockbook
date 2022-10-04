@@ -87,10 +87,10 @@ impl Trial {
             test_config(),
             AdminConfig { admins: usernames.iter().cloned().collect() },
         );
-        for user_index in 0..self.target_devices_by_user.len() {
+        for (user_index, target_devices) in self.target_devices_by_user.iter().enumerate() {
             let mut devices_by_user = Vec::new();
             let mut maybe_account_string: Option<String> = None;
-            for _device_index in 0..self.target_devices_by_user[user_index] {
+            for _device_index in 0..*target_devices {
                 let device = CoreIP::init_in_process(&test_config(), server.clone());
                 if let Some(ref account_string) = maybe_account_string {
                     device
