@@ -521,7 +521,7 @@ impl Default for Trial {
         Self {
             id: Uuid::new_v4(),
             devices_by_user: vec![],
-            target_devices_by_user: vec![2, 2],
+            target_devices_by_user: vec![1, 2, 3],
             target_steps: 10,
             steps: vec![],
             completed_steps: 0,
