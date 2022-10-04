@@ -5,12 +5,12 @@ use libsecp256k1::PublicKey;
 use tracing::debug;
 use uuid::Uuid;
 
-use crate::access_info::UserAccessInfo;
+use crate::access_info::{UserAccessInfo, UserAccessMode};
 use crate::account::Account;
 use crate::core_config::Config;
 use crate::crypto::{DecryptedDocument, EncryptedDocument};
 use crate::document_repo::RepoSource;
-use crate::file::File;
+use crate::file::{File, Share, ShareMode};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileMetadata, FileType, Owner};
 use crate::filename::{DocumentType, NameComponents};
@@ -30,13 +30,31 @@ where
     Local: Stagable<F = Base::F>,
 {
     pub fn finalize(&mut self, id: &Uuid, account: &Account) -> SharedResult<File> {
-        let meta = self.find(id)?;
+        let meta = self.find(id)?.clone();
         let file_type = meta.file_type();
         let parent = *meta.parent();
         let last_modified = meta.timestamped_value.timestamp as u64;
         let name = self.name(id, account)?;
         let id = *id;
         let last_modified_by = account.username.clone();
+
+        // todo: this is a hack to get fuzzer running on sharing
+        let mut shares = Vec::new();
+        for user_access_key in meta.user_access_keys() {
+            if user_access_key.encrypted_by == user_access_key.encrypted_for {
+                continue
+            }
+            let mode = match user_access_key.mode {
+                UserAccessMode::Read => ShareMode::Read,
+                UserAccessMode::Write => ShareMode::Write,
+                UserAccessMode::Owner => { continue },
+            };
+            shares.push(Share{
+                mode,
+                shared_by: if user_access_key.encrypted_by == account.public_key() { account.username.clone() } else { String::from("<unknown>") },
+                shared_with: if user_access_key.encrypted_for == account.public_key() { account.username.clone() } else { String::from("<unknown>") }
+            });
+        }
 
         Ok(File {
             id,
@@ -45,7 +63,7 @@ where
             file_type,
             last_modified,
             last_modified_by,
-            shares: Vec::new(), // todo
+            shares,
         })
     }
 
