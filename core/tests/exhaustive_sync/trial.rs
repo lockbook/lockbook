@@ -6,13 +6,14 @@ use lockbook_core::model::errors::MoveFileError;
 use lockbook_core::service::api_service::no_network::{CoreIP, InProcess};
 use lockbook_core::Error::UiError;
 use lockbook_server_lib::config::AdminConfig;
-use lockbook_shared::file_metadata::FileType::{Document, Folder};
+use lockbook_shared::file_metadata::FileType::{Document, Folder, Link};
 use std::fmt::{Debug, Formatter};
 use std::time::Instant;
 use std::{fs, thread};
 use test_utils::*;
 use uuid::Uuid;
 use variant_count::VariantCount;
+use lockbook_shared::file::ShareMode;
 
 #[derive(VariantCount, Debug, Clone)]
 pub enum Action {
@@ -21,9 +22,11 @@ pub enum Action {
     NewFolder { user_index: usize, device_index: usize, parent: String, name: String },
     UpdateDocument { user_index: usize, device_index: usize, name: String, new_content: String },
     RenameFile { user_index: usize, device_index: usize, name: String, new_name: String },
-    MoveDocument { user_index: usize, device_index: usize, doc_name: String, destination_name: String },
-    AttemptFolderMove { user_index: usize, device_index: usize, folder_name: String, destination_name: String },
+    MoveFile { user_index: usize, device_index: usize, doc_name: String, destination_name: String },
     DeleteFile { user_index: usize, device_index: usize, name: String },
+    ShareFile { user_index: usize, device_index: usize, target_user_index: usize, name: String },
+    NewLink { user_index: usize, device_index: usize, parent: String, name: String, id: Uuid },
+    DeleteShare { user_index: usize, device_index: usize, id: Uuid },
     SyncAndCheck,
 }
 
@@ -154,24 +157,14 @@ impl Trial {
                         break 'steps;
                     }
                 }
-                MoveDocument { user_index, device_index, doc_name, destination_name } => {
+                MoveFile { user_index, device_index, doc_name: non_folder_name, destination_name } => {
                     let db = &self.devices_by_user[user_index][device_index];
-                    let doc = find_by_name(db, &doc_name).id;
+                    let non_folder = find_by_name(db, &non_folder_name).id;
                     let dest = find_by_name(db, &destination_name).id;
 
-                    if let Err(err) = db.move_file(doc, dest) {
-                        self.status = Failed(format!("{:#?}", err));
-                        break 'steps;
-                    }
-                }
-                AttemptFolderMove { user_index, device_index, folder_name, destination_name } => {
-                    let db = &self.devices_by_user[user_index][device_index];
-                    let folder = find_by_name(db, &folder_name).id;
-                    let destination_folder = find_by_name(db, &destination_name).id;
-
-                    let move_file_result = db.move_file(folder, destination_folder);
+                    let move_file_result = db.move_file(non_folder, dest);
                     match move_file_result {
-                        Ok(()) | Err(UiError(MoveFileError::FolderMovedIntoItself)) => {}
+                        Ok(()) | Err(UiError(MoveFileError::LinkInSharedFolder)) | Err(UiError(MoveFileError::FolderMovedIntoItself)) => {}
                         Err(err) => {
                             self.status = Failed(format!("{:#?}", err));
                             break 'steps;
@@ -182,6 +175,36 @@ impl Trial {
                     let db = &self.devices_by_user[user_index][device_index];
                     let file = find_by_name(db, &name).id;
                     if let Err(err) = db.delete_file(file) {
+                        self.status = Failed(format!("{:#?}", err));
+                        break 'steps;
+                    }
+                }
+                ShareFile { user_index, device_index, target_user_index, name } => {
+                    let db = &self.devices_by_user[user_index][device_index];
+                    let file = find_by_name(db, &name).id;
+                    let target_username = match &self.devices_by_user[target_user_index][0].get_account() {
+                        Ok(account) => account.username.clone(),
+                        Err(err) => {
+                            self.status = Failed(format!("{:#?}", err));
+                            break 'steps;
+                        }
+                    };
+                    if let Err(err) = db.share_file(file, &target_username, ShareMode::Write) {
+                        self.status = Failed(format!("{:#?}", err));
+                        break 'steps;
+                    }
+                }
+                NewLink { user_index, device_index, parent, name, id: target } => {
+                    let db = &self.devices_by_user[user_index][device_index];
+                    let parent = find_by_name(db, &parent).id;
+                    if let Err(err) = db.create_file(&name, parent, Link {target}) {
+                        self.status = Failed(format!("{:#?}", err));
+                        break 'steps;
+                    }
+                }
+                DeleteShare { user_index, device_index, id } => {
+                    let db = &self.devices_by_user[user_index][device_index];
+                    if let Err(err) = db.delete_pending_share(id) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
@@ -266,8 +289,8 @@ impl Trial {
 
         for user_index in 0..self.target_devices_by_user.len() {
             for device_index in 0..self.target_devices_by_user[user_index] {
-                let client = &self.devices_by_user[user_index][device_index];
-                let all_files = client.list_metadatas().unwrap();
+                let device = &self.devices_by_user[user_index][device_index];
+                let all_files = device.list_metadatas().unwrap();
 
                 let mut folders = all_files.clone();
                 folders.retain(|f| f.is_folder());
@@ -275,7 +298,15 @@ impl Trial {
                 let mut docs = all_files.clone();
                 docs.retain(|f| f.is_document());
 
-                for file in all_files {
+                let mut not_shared_by_me_files = all_files.clone();
+                not_shared_by_me_files.retain(|f| !f.shares.iter().all(|s| s.shared_by == device.get_account().unwrap().username));
+
+                let pending_shares = device.get_pending_shares().unwrap();
+
+                let mut shared_with_me_files = all_files.clone().into_iter().chain(pending_shares.clone()).collect::<Vec<_>>();
+                shared_with_me_files.retain(|f| f.shares.iter().any(|s| s.shared_with == device.get_account().unwrap().username));
+
+                for file in all_files.clone() {
                     if file.id != file.parent {
                         mutants.push(self.create_mutation(RenameFile {
                             user_index,
@@ -287,8 +318,26 @@ impl Trial {
                         mutants.push(
                             self.create_mutation(DeleteFile {
                                 user_index,
-                                device_index, name: file.name }),
+                                device_index, name: file.name.clone() }),
                         );
+                    }
+                }
+
+                for not_shared_by_me_file  in not_shared_by_me_files.clone() {
+                    if not_shared_by_me_file.id != not_shared_by_me_file.parent {
+                        for sharee_index in 0..self.target_devices_by_user.len() {
+                            if user_index == sharee_index {
+                                continue
+                            }
+                            mutants.push(
+                                self.create_mutation(ShareFile {
+                                    user_index,
+                                    device_index,
+                                    target_user_index: sharee_index,
+                                    name: not_shared_by_me_file.name.clone()
+                                })
+                            );
+                        }
                     }
                 }
 
@@ -317,38 +366,42 @@ impl Trial {
                         name: random_filename(),
                     }));
 
-                    for doc in docs.clone() {
-                        mutants.push(self.create_mutation(MoveDocument {
-                            user_index,
-                            device_index,
-                            doc_name: doc.name.clone(),
-                            destination_name: parent_name.clone(),
-                        }))
-                    }
-
-                    for folder2 in folders.clone() {
-                        if folder.id != folder.parent {
-                            let folder2_name = if folder2.id == folder2.parent {
-                                "root".to_string()
-                            } else {
-                                folder2.name
-                            };
-                            mutants.push(self.create_mutation(AttemptFolderMove {
+                    for file in all_files.clone() {
+                        if file.id != file.parent {
+                            mutants.push(self.create_mutation(MoveFile {
                                 user_index,
                                 device_index,
-                                folder_name: parent_name.clone(),
-                                destination_name: folder2_name,
+                                doc_name: file.name.clone(),
+                                destination_name: parent_name.clone(),
                             }))
                         }
                     }
+
+                    for pending_share in pending_shares.clone() {
+                        mutants.push(self.create_mutation( NewLink{
+                            user_index,
+                            device_index,
+                            parent: parent_name.clone(),
+                            name: random_filename(),
+                            id: pending_share.id,
+                        }));
+                    }
                 }
 
-                for doc in docs.clone() {
+                for doc in docs {
                     mutants.push(self.create_mutation(UpdateDocument {
                         user_index,
                         device_index,
                         name: doc.name.clone(),
                         new_content: random_utf8(),
+                    }));
+                }
+
+                for shared_file in shared_with_me_files {
+                    mutants.push(self.create_mutation(DeleteShare {
+                        user_index,
+                        device_index,
+                        id: shared_file.id,
                     }));
                 }
             }
