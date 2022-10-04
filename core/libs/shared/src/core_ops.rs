@@ -483,12 +483,18 @@ where
 
         let mut base_link_targets = HashSet::new();
         for id in result.tree.base.base.owned_ids() {
+            if result.calculate_deleted(&id)? {
+                continue;
+            }
             if let FileType::Link { target } = result.find(&id)?.file_type() {
                 base_link_targets.insert(target);
             }
         }
 
         for id in result.tree.base.staged.owned_ids() {
+            if result.calculate_deleted(&id)? {
+                continue;
+            }
             if let FileType::Link { target } = result.find(&id)?.file_type() {
                 if base_link_targets.contains(&target) {
                     result = result.stage_delete(&id, account)?.promote();
