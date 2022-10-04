@@ -66,10 +66,14 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         for id in tree.owned_ids() {
             if !tree.calculate_deleted(&id)? && !tree.in_pending_share(&id)? {
-                let path = tree.id_to_path(&id, account)?;
+                let file = tree.find(&id)?;
 
-                if let Some(score) = matcher.fuzzy_match(&path, input) {
-                    results.push(SearchResultItem { id, path, score });
+                if file.is_document() {
+                    let path = tree.id_to_path(&id, account)?;
+
+                    if let Some(score) = matcher.fuzzy_match(&path, input) {
+                        results.push(SearchResultItem { id, path, score });
+                    }
                 }
             }
         }
