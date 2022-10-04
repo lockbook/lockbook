@@ -6,6 +6,7 @@ use lockbook_core::model::errors::MoveFileError;
 use lockbook_core::service::api_service::no_network::{CoreIP, InProcess};
 use lockbook_core::Error::UiError;
 use lockbook_server_lib::config::AdminConfig;
+use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_metadata::FileType::{Document, Folder, Link};
 use std::fmt::{Debug, Formatter};
 use std::time::Instant;
@@ -13,7 +14,6 @@ use std::{fs, thread};
 use test_utils::*;
 use uuid::Uuid;
 use variant_count::VariantCount;
-use lockbook_shared::file::ShareMode;
 
 #[derive(VariantCount, Debug, Clone)]
 pub enum Action {
@@ -100,7 +100,9 @@ impl Trial {
                         .sync(None)
                         .map_err(|err| Failed(format!("{:#?}", err)))?;
                 } else {
-                    device.create_account(&usernames[user_index], &url()).map_err(|err| Failed(format!("failed to create account: {:#?}", err)))?;
+                    device
+                        .create_account(&usernames[user_index], &url())
+                        .map_err(|err| Failed(format!("failed to create account: {:#?}", err)))?;
                     maybe_account_string = Some(device.export_account().unwrap());
                 }
                 devices_by_user.push(device);
@@ -157,14 +159,21 @@ impl Trial {
                         break 'steps;
                     }
                 }
-                MoveFile { user_index, device_index, doc_name: non_folder_name, destination_name } => {
+                MoveFile {
+                    user_index,
+                    device_index,
+                    doc_name: non_folder_name,
+                    destination_name,
+                } => {
                     let db = &self.devices_by_user[user_index][device_index];
                     let non_folder = find_by_name(db, &non_folder_name).id;
                     let dest = find_by_name(db, &destination_name).id;
 
                     let move_file_result = db.move_file(non_folder, dest);
                     match move_file_result {
-                        Ok(()) | Err(UiError(MoveFileError::LinkInSharedFolder)) | Err(UiError(MoveFileError::FolderMovedIntoItself)) => {}
+                        Ok(())
+                        | Err(UiError(MoveFileError::LinkInSharedFolder))
+                        | Err(UiError(MoveFileError::FolderMovedIntoItself)) => {}
                         Err(err) => {
                             self.status = Failed(format!("{:#?}", err));
                             break 'steps;
@@ -182,13 +191,14 @@ impl Trial {
                 ShareFile { user_index, device_index, target_user_index, name } => {
                     let db = &self.devices_by_user[user_index][device_index];
                     let file = find_by_name(db, &name).id;
-                    let target_username = match &self.devices_by_user[target_user_index][0].get_account() {
-                        Ok(account) => account.username.clone(),
-                        Err(err) => {
-                            self.status = Failed(format!("{:#?}", err));
-                            break 'steps;
-                        }
-                    };
+                    let target_username =
+                        match &self.devices_by_user[target_user_index][0].get_account() {
+                            Ok(account) => account.username.clone(),
+                            Err(err) => {
+                                self.status = Failed(format!("{:#?}", err));
+                                break 'steps;
+                            }
+                        };
                     if let Err(err) = db.share_file(file, &target_username, ShareMode::Write) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
@@ -197,7 +207,7 @@ impl Trial {
                 NewLink { user_index, device_index, parent, name, id: target } => {
                     let db = &self.devices_by_user[user_index][device_index];
                     let parent = find_by_name(db, &parent).id;
-                    if let Err(err) = db.create_file(&name, parent, Link {target}) {
+                    if let Err(err) = db.create_file(&name, parent, Link { target }) {
                         self.status = Failed(format!("{:#?}", err));
                         break 'steps;
                     }
@@ -226,7 +236,8 @@ impl Trial {
                         for device_index in 0..self.target_devices_by_user[user_index] {
                             let device = &self.devices_by_user[user_index][device_index];
                             if let Err(err) = device.validate() {
-                                self.status = Failed(format!("Repo integrity compromised: {:#?}", err));
+                                self.status =
+                                    Failed(format!("Repo integrity compromised: {:#?}", err));
                                 break 'steps;
                             }
 
@@ -239,7 +250,8 @@ impl Trial {
                             }
 
                             for compare_device_index in 0..self.target_devices_by_user[user_index] {
-                                let compare_device = &self.devices_by_user[user_index][compare_device_index];
+                                let compare_device =
+                                    &self.devices_by_user[user_index][compare_device_index];
                                 assert_dbs_equal(device, compare_device);
                                 if !dbs_equal(device, compare_device) {
                                     self.status = Failed(format!(
@@ -299,12 +311,24 @@ impl Trial {
                 docs.retain(|f| f.is_document());
 
                 let mut not_shared_by_me_files = all_files.clone();
-                not_shared_by_me_files.retain(|f| !f.shares.iter().all(|s| s.shared_by == device.get_account().unwrap().username));
+                not_shared_by_me_files.retain(|f| {
+                    !f.shares
+                        .iter()
+                        .all(|s| s.shared_by == device.get_account().unwrap().username)
+                });
 
                 let pending_shares = device.get_pending_shares().unwrap();
 
-                let mut shared_with_me_files = all_files.clone().into_iter().chain(pending_shares.clone()).collect::<Vec<_>>();
-                shared_with_me_files.retain(|f| f.shares.iter().any(|s| s.shared_with == device.get_account().unwrap().username));
+                let mut shared_with_me_files = all_files
+                    .clone()
+                    .into_iter()
+                    .chain(pending_shares.clone())
+                    .collect::<Vec<_>>();
+                shared_with_me_files.retain(|f| {
+                    f.shares
+                        .iter()
+                        .any(|s| s.shared_with == device.get_account().unwrap().username)
+                });
 
                 for file in all_files.clone() {
                     if file.id != file.parent {
@@ -315,28 +339,26 @@ impl Trial {
                             new_name: random_filename(),
                         }));
 
-                        mutants.push(
-                            self.create_mutation(DeleteFile {
-                                user_index,
-                                device_index, name: file.name.clone() }),
-                        );
+                        mutants.push(self.create_mutation(DeleteFile {
+                            user_index,
+                            device_index,
+                            name: file.name.clone(),
+                        }));
                     }
                 }
 
-                for not_shared_by_me_file  in not_shared_by_me_files.clone() {
+                for not_shared_by_me_file in not_shared_by_me_files.clone() {
                     if not_shared_by_me_file.id != not_shared_by_me_file.parent {
                         for sharee_index in 0..self.target_devices_by_user.len() {
                             if user_index == sharee_index {
-                                continue
+                                continue;
                             }
-                            mutants.push(
-                                self.create_mutation(ShareFile {
-                                    user_index,
-                                    device_index,
-                                    target_user_index: sharee_index,
-                                    name: not_shared_by_me_file.name.clone()
-                                })
-                            );
+                            mutants.push(self.create_mutation(ShareFile {
+                                user_index,
+                                device_index,
+                                target_user_index: sharee_index,
+                                name: not_shared_by_me_file.name.clone(),
+                            }));
                         }
                     }
                 }
@@ -378,7 +400,7 @@ impl Trial {
                     }
 
                     for pending_share in pending_shares.clone() {
-                        mutants.push(self.create_mutation( NewLink{
+                        mutants.push(self.create_mutation(NewLink {
                             user_index,
                             device_index,
                             parent: parent_name.clone(),
@@ -435,19 +457,23 @@ impl Trial {
 
     fn cleanup(&self) {
         // Delete server
-        fs::remove_dir_all(&self.devices_by_user[0][0].client.config.writeable_path).unwrap_or_else(|err| {
-            println!(
-                "failed to cleanup file: {}, error: {}",
-                &self.devices_by_user[0][0].client.config.writeable_path, err
-            )
-        });
+        fs::remove_dir_all(&self.devices_by_user[0][0].client.config.writeable_path)
+            .unwrap_or_else(|err| {
+                println!(
+                    "failed to cleanup file: {}, error: {}",
+                    &self.devices_by_user[0][0].client.config.writeable_path, err
+                )
+            });
 
         // Delete account locally
         for user_index in 0..self.target_devices_by_user.len() {
             for device_index in 0..self.target_devices_by_user[user_index] {
                 let client = &self.devices_by_user[user_index][device_index];
                 fs::remove_dir_all(&client.config.writeable_path).unwrap_or_else(|err| {
-                    println!("failed to cleanup file: {}, error: {}", client.config.writeable_path, err)
+                    println!(
+                        "failed to cleanup file: {}, error: {}",
+                        client.config.writeable_path, err
+                    )
                 });
             }
         }

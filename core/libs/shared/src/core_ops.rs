@@ -42,29 +42,29 @@ where
         let mut shares = Vec::new();
         for user_access_key in meta.user_access_keys() {
             if user_access_key.encrypted_by == user_access_key.encrypted_for {
-                continue
+                continue;
             }
             let mode = match user_access_key.mode {
                 UserAccessMode::Read => ShareMode::Read,
                 UserAccessMode::Write => ShareMode::Write,
-                UserAccessMode::Owner => { continue },
+                UserAccessMode::Owner => continue,
             };
-            shares.push(Share{
+            shares.push(Share {
                 mode,
-                shared_by: if user_access_key.encrypted_by == account.public_key() { account.username.clone() } else { String::from("<unknown>") },
-                shared_with: if user_access_key.encrypted_for == account.public_key() { account.username.clone() } else { String::from("<unknown>") }
+                shared_by: if user_access_key.encrypted_by == account.public_key() {
+                    account.username.clone()
+                } else {
+                    String::from("<unknown>")
+                },
+                shared_with: if user_access_key.encrypted_for == account.public_key() {
+                    account.username.clone()
+                } else {
+                    String::from("<unknown>")
+                },
             });
         }
 
-        Ok(File {
-            id,
-            parent,
-            name,
-            file_type,
-            last_modified,
-            last_modified_by,
-            shares,
-        })
+        Ok(File { id, parent, name, file_type, last_modified, last_modified_by, shares })
     }
 
     pub fn resolve_and_finalize<I>(&mut self, account: &Account, ids: I) -> SharedResult<Vec<File>>
