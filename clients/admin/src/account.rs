@@ -1,7 +1,5 @@
 use crate::{Error, Res};
-use lockbook_core::{
-    base64, AccountFilter, AccountIdentifier, Core, DateTime, NaiveDateTime, PublicKey, Utc,
-};
+use lockbook_core::{base64, AccountFilter, AccountIdentifier, Core, NaiveDateTime, PublicKey};
 
 pub fn list(
     core: &Core, premium: bool, google_play_premium: bool, stripe_premium: bool,

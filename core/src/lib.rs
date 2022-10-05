@@ -11,7 +11,7 @@ mod external_interface;
 
 pub use base64;
 pub use basic_human_duration::ChronoHumanDuration;
-pub use chrono::{DateTime, Duration, NaiveDateTime, Utc};
+pub use chrono::{Duration, NaiveDateTime};
 pub use libsecp256k1::PublicKey;
 pub use uuid::Uuid;
 
