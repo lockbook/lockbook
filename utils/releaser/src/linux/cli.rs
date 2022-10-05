@@ -30,7 +30,7 @@ groups=('lockbook')
 
 pkgver() {{
   cd $srcdir/lockbook/clients/cli
-  echo "$(grep '^version =' Cargo.toml|head -n1|cut -d\" -f2|cut -d\- -f1)"
+  echo "{version}"
 }}
 
 build() {{
