@@ -21,6 +21,7 @@ use lockbook_shared::file_metadata::{DocumentHmac, Owner};
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::usage::bytes_to_human;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use tracing::warn;
@@ -279,11 +280,13 @@ pub async fn admin_get_account_info(
         });
 
     let usage: u64 = db
-        .transaction(|tx| get_usage_helper(tx, &context.public_key))?
+        .transaction(|tx| get_usage_helper(tx, &owner.0))?
         .map_err(|err| internal!("Cannot find user's usage, owner: {:?}, err: {:?}", owner, err))?
         .iter()
         .map(|a| a.size_bytes)
         .sum();
+
+    let usage_str = bytes_to_human(usage);
 
     let mut last_active = 0;
 
@@ -305,7 +308,7 @@ pub async fn admin_get_account_info(
             root,
             payment_platform,
             last_active,
-            usage,
+            usage: usage_str,
         },
     })
 }
