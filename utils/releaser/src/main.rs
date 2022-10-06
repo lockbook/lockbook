@@ -32,6 +32,6 @@ fn main() {
         Releaser::ReleaseAndroid => android::release_android(&Github::env(), &PlayStore::env()),
         Releaser::ReleaseWindows => windows::release(&Github::env()),
         Releaser::ReleasePublicSite => public_site::release(),
-        Releaser::ReleaseLinux => linux::release(),
+        Releaser::ReleaseLinux => linux::release_linux(),
     }
 }

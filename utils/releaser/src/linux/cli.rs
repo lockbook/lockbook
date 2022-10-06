@@ -1,7 +1,50 @@
-use crate::utils::{core_version, CommandRunner};
-use std::fs::OpenOptions;
+use crate::utils::{core_version, lb_repo, CommandRunner};
+use crate::Github;
+use gh_release::ReleaseClient;
+use std::fs::{File, OpenOptions};
 use std::io::Write;
-use std::process::Command;
+use std::process::{Command, Stdio};
+
+pub fn release(gh: &Github) {
+    update_aur();
+    update_snap();
+    upload(gh);
+}
+
+pub fn update_snap() {
+    let version = core_version();
+    let snap_name = format!("lockbook_{version}_amd64.snap");
+
+    Command::new("snapcraft")
+        .current_dir("../utils/dev/snap-packages/lockbook-desktop/snap")
+        .assert_success();
+    Command::new("snapcraft")
+        .args(["upload", "--release=stable", &snap_name])
+        .current_dir("../utils/dev/snap-packages/lockbook-desktop/snap")
+        .assert_success();
+    Command::new("snapcraft")
+        .args(["sign-build", &snap_name])
+        .current_dir("../utils/dev/snap-packages/lockbook-desktop/snap")
+        .assert_success();
+}
+
+pub fn upload(gh: &Github) {
+    let client = ReleaseClient::new(gh.0.clone()).unwrap();
+    let release = client
+        .get_release_by_tag_name(&lb_repo(), &core_version())
+        .unwrap();
+    let file = File::open("target/release/lockbook").unwrap();
+    client
+        .upload_release_asset(
+            &lb_repo(),
+            release.id as u64,
+            "lockbook-cli",
+            "application/octet-stream",
+            file,
+            None,
+        )
+        .unwrap();
+}
 
 pub fn update_aur() {
     overwrite_lockbook_pkg();
@@ -52,6 +95,22 @@ package_lockbook() {{
         .open("../aur-lockbook/PKGBUILD")
         .unwrap();
     file.write_all(new_content.as_bytes()).unwrap();
+
+    let src_info = Command::new("makepkg")
+        .args(["--printsrcinfo"])
+        .current_dir("../aur-lockbook/")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .success_output()
+        .stdout;
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(false)
+        .truncate(true)
+        .open("../aur-lockbook/.SRCINFO")
+        .unwrap();
+    file.write_all(src_info.as_slice()).unwrap();
 }
 
 pub fn push_aur() {
