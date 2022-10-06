@@ -1,4 +1,5 @@
 mod android;
+#[cfg(target_os = "macos")]
 mod apple;
 mod linux;
 mod public_site;
