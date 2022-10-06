@@ -74,6 +74,7 @@ pub async fn new_account(
         tx.usernames.insert(username, owner);
         tx.owned_files.insert(owner, owned_files);
         tx.shared_files.insert(owner, HashSet::new());
+        tx.file_children.insert(*root.id(), HashSet::new());
         tx.metas.insert(*root.id(), root.clone());
 
         Ok(NewAccountResponse { last_synced: root.version })

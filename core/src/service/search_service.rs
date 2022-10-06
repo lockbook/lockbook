@@ -65,11 +65,15 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         let matcher = SkimMatcherV2::default();
 
         for id in tree.owned_ids() {
-            if !tree.calculate_deleted(&id)? {
-                let path = tree.id_to_path(&id, account)?;
+            if !tree.calculate_deleted(&id)? && !tree.in_pending_share(&id)? {
+                let file = tree.find(&id)?;
 
-                if let Some(score) = matcher.fuzzy_match(&path, input) {
-                    results.push(SearchResultItem { id, path, score });
+                if file.is_document() {
+                    let path = tree.id_to_path(&id, account)?;
+
+                    if let Some(score) = matcher.fuzzy_match(&path, input) {
+                        results.push(SearchResultItem { id, path, score });
+                    }
                 }
             }
         }
@@ -93,7 +97,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         let mut files_info = Vec::new();
 
         for id in tree.owned_ids() {
-            if !tree.calculate_deleted(&id)? {
+            if !tree.calculate_deleted(&id)? && !tree.in_pending_share(&id)? {
                 let file = tree.find(&id)?;
 
                 if file.is_document() {
