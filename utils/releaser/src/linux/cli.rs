@@ -16,15 +16,15 @@ pub fn update_snap() {
     let snap_name = format!("lockbook_{version}_amd64.snap");
 
     Command::new("snapcraft")
-        .current_dir("../utils/dev/snap-packages/lockbook-desktop/snap")
+        .current_dir("utils/dev/snap-packages/lockbook-desktop/snap")
         .assert_success();
     Command::new("snapcraft")
         .args(["upload", "--release=stable", &snap_name])
-        .current_dir("../utils/dev/snap-packages/lockbook-desktop/snap")
+        .current_dir("utils/dev/snap-packages/lockbook-desktop/snap")
         .assert_success();
     Command::new("snapcraft")
         .args(["sign-build", &snap_name])
-        .current_dir("../utils/dev/snap-packages/lockbook-desktop/snap")
+        .current_dir("utils/dev/snap-packages/lockbook-desktop/snap")
         .assert_success();
 }
 
