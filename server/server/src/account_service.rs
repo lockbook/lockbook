@@ -294,7 +294,7 @@ pub async fn admin_get_account_info(
     if let Some(ids) = db.owned_files.get(&owner)? {
         for id in ids {
             let metadata = db.metas.get(&id)?.ok_or_else(|| {
-                internal!("Metadata for existant id should exist, id: {:?}, owner: {:?}", id, owner)
+                internal!("Metadata for id should exist, id: {:?}, owner: {:?}", id, owner)
             })?;
 
             if metadata.version > last_active {
