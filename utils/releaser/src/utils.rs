@@ -1,5 +1,4 @@
 use gh_release::RepoInfo;
-#[cfg(target_os = "macos")]
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
@@ -55,7 +54,6 @@ pub fn android_version_code() -> String {
         .to_string()
 }
 
-#[cfg(target_os = "macos")]
 pub fn sha_file(file: &str) -> String {
     let bytes = fs::read(file).unwrap();
     let mut hasher = Sha256::new();

@@ -1,7 +1,6 @@
 use std::env;
 
 pub struct Github(pub String);
-#[cfg(target_os = "macos")]
 pub struct AppStore(pub String);
 pub struct PlayStore {
     pub service_account_key: String,
@@ -17,7 +16,6 @@ impl Github {
     }
 }
 
-#[cfg(target_os = "macos")]
 impl AppStore {
     pub fn env() -> Self {
         Self(env::var("APPLE_ID_PASSWORD").unwrap())

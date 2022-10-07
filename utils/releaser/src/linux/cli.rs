@@ -100,7 +100,7 @@ license=('BSD-3-Clause')
 makedepends=('rust' 'cargo' 'git')
 provides=('lockbook')
 conflicts=('lockbook')
-source=("git+https://github.com/lockbook/lockbook.git")
+source=("git+https://github.com/lockbook/lockbook.git#tag=v$pkgver")
 sha256sums=('SKIP')
 groups=('lockbook')
 
