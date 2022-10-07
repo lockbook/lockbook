@@ -15,16 +15,49 @@ pub fn update_snap() {
     let version = core_version();
     let snap_name = format!("lockbook_{version}_amd64.snap");
 
+    let new_content = format!(
+        r#"
+name: lockbook
+base: core20
+version: '{version}'
+summary: The CLI version of Lockbook
+description: |
+  The private, polished note-taking platform.
+grade: stable
+confinement: strict
+
+parts:
+  lockbook:
+    plugin: rust
+    source: https://github.com/lockbook/lockbook.git
+    source-tag: {version}
+    build-packages:
+      - git
+    rust-path: ["clients/cli"]
+
+apps:
+  lockbook:
+    command: bin/lockbook
+    plugs:
+      - network
+      - home
+    "#
+    );
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(false)
+        .truncate(true)
+        .open("utils/dev/snap-packages/lockbook/snap/snapcraft.yaml")
+        .unwrap();
+    file.write_all(new_content.as_bytes()).unwrap();
+
     Command::new("snapcraft")
-        .current_dir("utils/dev/snap-packages/lockbook-desktop/snap")
+        .current_dir("utils/dev/snap-packages/lockbook/snap")
         .assert_success();
     Command::new("snapcraft")
         .args(["upload", "--release=stable", &snap_name])
-        .current_dir("utils/dev/snap-packages/lockbook-desktop/snap")
-        .assert_success();
-    Command::new("snapcraft")
-        .args(["sign-build", &snap_name])
-        .current_dir("utils/dev/snap-packages/lockbook-desktop/snap")
+        .current_dir("utils/dev/snap-packages/lockbook/snap")
         .assert_success();
 }
 
