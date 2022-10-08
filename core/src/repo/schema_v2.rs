@@ -1,3 +1,5 @@
+use crate::repo::schema_v1::CoreV1;
+use hmdb::transaction::Transaction;
 use lockbook_shared::account::Account;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::signed_file::SignedFile;
@@ -22,8 +24,32 @@ hmdb::schema! {
 }
 
 impl CoreV2 {
-    pub fn init_with_migration(&self, writeable_path: &str) -> Result<CoreV2, hmdb::errors::Error> {
-        // todo: if this fails, try V1
-        CoreV2::init(writeable_path)
+    pub fn init_with_migration(writeable_path: &str) -> Result<CoreV2, hmdb::errors::Error> {
+        let db = CoreV2::init(writeable_path)?;
+        if db.account.get_all()?.is_empty() {
+            let source = CoreV1::init(writeable_path)?;
+            db.transaction(|tx| {
+                // copy existing tables (new tables populated on next sync)
+                for v in source.account.get_all()?.into_values() {
+                    tx.account.insert(OneKey {}, v);
+                }
+                for v in source.last_synced.get_all()?.into_values() {
+                    tx.last_synced.insert(OneKey {}, v);
+                }
+                for v in source.root.get_all()?.into_values() {
+                    tx.root.insert(OneKey {}, v);
+                }
+                for (k, v) in source.local_metadata.get_all()? {
+                    tx.local_metadata.insert(k.clone(), v);
+                }
+                for (k, v) in source.base_metadata.get_all()? {
+                    tx.base_metadata.insert(k.clone(), v);
+                }
+
+                Ok(())
+            })
+            .expect("failed to migrate local database from v1 to v2")?;
+        }
+        Ok(db)
     }
 }
