@@ -65,6 +65,13 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         tree = tree.validate(Owner(account.public_key()))?;
         tree.promote();
 
+        self.tx
+            .public_key_by_username
+            .insert(String::from(username), Owner(sharee_public_key));
+        self.tx
+            .username_by_public_key
+            .insert(Owner(sharee_public_key), String::from(username));
+
         Ok(())
     }
 
