@@ -1,4 +1,4 @@
-use crate::repo::schema::OneKey;
+use crate::OneKey;
 use crate::{CoreError, RequestContext};
 use crate::{CoreResult, Requester};
 use lockbook_shared::api::{

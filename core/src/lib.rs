@@ -47,7 +47,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 pub use basic_human_duration::ChronoHumanDuration;
 pub use chrono::Duration;
 use hmdb::log::Reader;
-use hmdb::transaction::Transaction;
+use hmdb::transaction::Transaction as _;
 use itertools::Itertools;
 use lockbook_shared::account::Username;
 use lockbook_shared::api::{
@@ -59,10 +59,14 @@ use serde_json::{json, value::Value};
 use strum::IntoEnumIterator;
 
 use crate::model::errors::Error::UiError;
-use crate::repo::schema::{transaction, CoreV1, OneKey, Tx};
 use crate::service::api_service::{Network, Requester};
 use crate::service::log_service;
 use crate::service::search_service::{SearchResultItem, StartSearchInfo};
+
+type CoreDb = repo::schema_v2::CoreV2;
+type OneKey = repo::schema_v2::OneKey;
+type Tx<'a> = repo::schema_v2::Tx<'a>;
+type Transaction<'a> = repo::schema_v2::transaction::CoreV2<'a>;
 
 #[derive(Clone, Debug, Default)]
 pub struct DataCache {
@@ -75,7 +79,7 @@ pub struct CoreLib<Client: Requester> {
     // TODO not pub?
     pub config: Config,
     pub data_cache: Arc<Mutex<DataCache>>, // Or Rc<RefCell>>
-    pub db: CoreV1,
+    pub db: CoreDb,
     pub client: Client,
 }
 
@@ -97,7 +101,7 @@ impl<Client: Requester> CoreLib<Client> {
 pub struct RequestContext<'a, 'b, Client: Requester> {
     pub config: &'a Config,
     pub data_cache: MutexGuard<'a, DataCache>,
-    pub tx: &'a mut transaction::CoreV1<'b>,
+    pub tx: &'a mut Transaction<'b>,
     pub client: &'a Client,
 }
 
@@ -106,7 +110,7 @@ impl Core {
     pub fn init(config: &Config) -> Result<Self, UnexpectedError> {
         log_service::init(config)?;
         let db =
-            CoreV1::init(&config.writeable_path).map_err(|err| unexpected_only!("{:#?}", err))?;
+            CoreDb::init(&config.writeable_path).map_err(|err| unexpected_only!("{:#?}", err))?;
         let data_cache = Arc::new(Mutex::new(DataCache::default()));
         let config = config.clone();
         let client = Network::default();

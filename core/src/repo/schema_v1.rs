@@ -3,6 +3,7 @@ use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::signed_file::SignedFile;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
 pub type Tx<'a> = transaction::CoreV1<'a>;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -15,7 +16,6 @@ hmdb::schema! {
         root: <OneKey, Uuid>,
         local_metadata: <Uuid, SignedFile>,
         base_metadata: <Uuid, SignedFile>,
-        public_key_by_username: <String, Owner>,
-        username_by_public_key: <Owner, String>
+        usernames: <String, Owner>
     }
 }
