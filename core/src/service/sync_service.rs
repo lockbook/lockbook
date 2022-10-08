@@ -3,7 +3,7 @@ use crate::{CoreError, RequestContext};
 use crate::{CoreResult, Requester};
 use lockbook_shared::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
-    UpsertRequest,
+    GetUsernameRequest, UpsertRequest,
 };
 use lockbook_shared::document_repo::{self, RepoSource};
 use lockbook_shared::file_like::FileLike;
@@ -79,8 +79,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         self.prune()?;
         self.push_documents(&mut update_sync_progress)?;
         let update_as_of = self.pull(&mut update_sync_progress)?;
-
         self.tx.last_synced.insert(OneKey {}, update_as_of);
+        self.populate_public_key_cache()?;
         Ok(())
     }
 
@@ -424,15 +424,13 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             document_repo::delete(self.config, RepoSource::Local, &id)?;
 
             // remote = local
-            self.client
-                .request(
-                    account,
-                    ChangeDocRequest {
-                        diff: FileDiff { old: Some(base_file), new: local_change.clone() },
-                        new_content: local_document_change,
-                    },
-                )
-                .map_err(CoreError::from)?;
+            self.client.request(
+                account,
+                ChangeDocRequest {
+                    diff: FileDiff { old: Some(base_file), new: local_change.clone() },
+                    new_content: local_document_change,
+                },
+            )?;
 
             local_changes_digests_only.push(local_change);
         }
@@ -466,8 +464,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         {
             let mut remote = self.tx.base_metadata.to_lazy().stage(remote_changes);
             for id in remote.tree.staged.owned_ids() {
-                work_units
-                    .push(WorkUnit::ServerChange { metadata: remote.finalize(&id, account)? });
+                work_units.push(WorkUnit::ServerChange {
+                    metadata: remote.finalize(&id, account, &mut self.tx.username_by_public_key)?,
+                });
             }
         }
         {
@@ -477,10 +476,49 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 .stage(&mut self.tx.local_metadata)
                 .to_lazy();
             for id in local.tree.staged.owned_ids() {
-                work_units.push(WorkUnit::LocalChange { metadata: local.finalize(&id, account)? });
+                work_units.push(WorkUnit::LocalChange {
+                    metadata: local.finalize(&id, account, &mut self.tx.username_by_public_key)?,
+                });
             }
         }
 
         Ok(WorkCalculated { work_units, most_recent_update_from_server })
+    }
+
+    fn populate_public_key_cache(&mut self) -> CoreResult<()> {
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
+
+        let mut all_owners = HashSet::new();
+        for (_, file) in self.tx.base_metadata.get_all() {
+            for user_access_key in file.user_access_keys() {
+                all_owners.insert(Owner(user_access_key.encrypted_by));
+                all_owners.insert(Owner(user_access_key.encrypted_for));
+            }
+        }
+        for (_, file) in self.tx.local_metadata.get_all() {
+            for user_access_key in file.user_access_keys() {
+                all_owners.insert(Owner(user_access_key.encrypted_by));
+                all_owners.insert(Owner(user_access_key.encrypted_for));
+            }
+        }
+
+        for owner in all_owners {
+            if !self.tx.username_by_public_key.exists(&owner) {
+                let username = self
+                    .client
+                    .request(account, GetUsernameRequest { key: owner.0 })?
+                    .username;
+                self.tx
+                    .username_by_public_key
+                    .insert(owner, username.clone());
+                self.tx.public_key_by_username.insert(username, owner);
+            }
+        }
+
+        Ok(())
     }
 }

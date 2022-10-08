@@ -15,6 +15,7 @@ hmdb::schema! {
         root: <OneKey, Uuid>,
         local_metadata: <Uuid, SignedFile>,
         base_metadata: <Uuid, SignedFile>,
-        usernames: <String, Owner>
+        public_key_by_username: <String, Owner>,
+        username_by_public_key: <Owner, String>
     }
 }

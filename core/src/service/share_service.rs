@@ -97,7 +97,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 continue;
             }
 
-            result.push(tree.finalize(&id, account)?);
+            result.push(tree.finalize(&id, account, &mut self.tx.username_by_public_key)?);
         }
         Ok(result)
     }

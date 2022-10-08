@@ -152,6 +152,28 @@ impl Request for GetPublicKeyRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct GetUsernameRequest {
+    pub key: PublicKey,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct GetUsernameResponse {
+    pub username: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum GetUsernameError {
+    UserNotFound,
+}
+
+impl Request for GetUsernameRequest {
+    type Response = GetUsernameResponse;
+    type Error = GetUsernameError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/get-username";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetUsageRequest {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
