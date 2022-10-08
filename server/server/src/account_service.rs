@@ -73,6 +73,7 @@ pub async fn new_account(
         tx.usernames.insert(username, owner);
         tx.owned_files.insert(owner, owned_files);
         tx.shared_files.insert(owner, HashSet::new());
+        tx.file_children.insert(*root.id(), HashSet::new());
         tx.metas.insert(*root.id(), root.clone());
 
         Ok(NewAccountResponse { last_synced: root.version })
@@ -242,6 +243,30 @@ pub async fn admin_get_account_info(
         .get(&owner)?
         .ok_or(ClientError(AdminGetAccountInfoError::UserNotFound))?;
 
+    let mut maybe_root = None;
+    if let Some(owned_ids) = db.owned_files.get(&owner)? {
+        for id in owned_ids {
+            if let Some(meta) = db.metas.get(&id)? {
+                if meta.is_root() {
+                    maybe_root = Some(*meta.id());
+                }
+            } else {
+                return Err(internal!(
+                    "Nonexistent file indexed as owned, id: {}, owner: {:?}",
+                    id,
+                    owner
+                ));
+            }
+        }
+    } else {
+        return Err(internal!("Owned files not indexed for user, owner: {:?}", owner));
+    }
+    let root = if let Some(root) = maybe_root {
+        root
+    } else {
+        return Err(internal!("User root not found, owner: {:?}", owner));
+    };
+
     let payment_platform = account
         .billing_info
         .billing_platform
@@ -255,7 +280,7 @@ pub async fn admin_get_account_info(
         });
 
     Ok(AdminGetAccountInfoResponse {
-        account: AccountInfo { username: account.username, payment_platform },
+        account: AccountInfo { username: account.username, root, payment_platform },
     })
 }
 
@@ -284,8 +309,8 @@ pub async fn delete_account_helper(
                 if !tree.calculate_deleted(&id)? {
                     let meta = tree.find(&id)?;
                     if meta.is_document() {
-                        if let Some(digest) = meta.document_hmac() {
-                            docs_to_delete.push((*meta.id(), *digest));
+                        if let Some(hmac) = meta.document_hmac() {
+                            docs_to_delete.push((*meta.id(), *hmac));
                             tx.sizes.delete(id);
                         }
                     }

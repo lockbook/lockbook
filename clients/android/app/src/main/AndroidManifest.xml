@@ -40,9 +40,7 @@
         <activity android:name=".screen.SettingsActivity" />
         <activity android:name=".screen.LogActivity" />
         <activity android:name=".screen.SharesActivity" />
-        <activity android:name=".screen.UpgradeAccountActivity"
-            android:screenOrientation="portrait"
-            tools:ignore="LockedOrientationActivity" />
+        <activity android:name=".screen.UpgradeAccountActivity" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="app.lockbook.fileprovider"

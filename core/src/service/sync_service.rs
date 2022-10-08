@@ -1,9 +1,9 @@
 use crate::repo::schema::OneKey;
-use crate::service::api_service;
-use crate::CoreResult;
 use crate::{CoreError, RequestContext};
+use crate::{CoreResult, Requester};
 use lockbook_shared::api::{
-    ChangeDocRequest, GetDocRequest, GetUpdatesRequest, GetUpdatesResponse, UpsertRequest,
+    ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
+    UpsertRequest,
 };
 use lockbook_shared::document_repo::{self, RepoSource};
 use lockbook_shared::file_like::FileLike;
@@ -41,7 +41,7 @@ enum SyncProgressOperation {
     StartWorkUnit(ClientWorkUnit),
 }
 
-impl RequestContext<'_, '_> {
+impl<Client: Requester> RequestContext<'_, '_, Client> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync<F: Fn(SyncProgress)>(
         &mut self, maybe_update_sync_progress: Option<F>,
@@ -76,6 +76,7 @@ impl RequestContext<'_, '_> {
 
         self.pull(&mut update_sync_progress)?;
         self.push_metadata(&mut update_sync_progress)?;
+        self.prune()?;
         self.push_documents(&mut update_sync_progress)?;
         let update_as_of = self.pull(&mut update_sync_progress)?;
 
@@ -155,9 +156,10 @@ impl RequestContext<'_, '_> {
                     update_sync_progress(SyncProgressOperation::StartWorkUnit(
                         ClientWorkUnit::PullDocument(remote.name(&id, account)?),
                     ));
-                    let remote_document_change =
-                        api_service::request(account, GetDocRequest { id, hmac: remote_hmac })?
-                            .content;
+                    let remote_document_change = self
+                        .client
+                        .request(account, GetDocRequest { id, hmac: remote_hmac })?
+                        .content;
                     document_repo::maybe_get(self.config, RepoSource::Base, &id)?
                         .map(|d| base_documents.insert(id, d));
                     remote_document_changes.insert(id, remote_document_change);
@@ -203,7 +205,6 @@ impl RequestContext<'_, '_> {
             tree.write_document_content(self.config, RepoSource::Local, &id, &document)?;
         }
         self.reset_deleted_files()?;
-        self.prune()?;
 
         Ok(update_as_of as i64)
     }
@@ -220,10 +221,9 @@ impl RequestContext<'_, '_> {
             .get(&OneKey {})
             .copied()
             .unwrap_or_default() as u64;
-        let remote_changes = api_service::request(
-            account,
-            GetUpdatesRequest { since_metadata_version: last_synced },
-        )?;
+        let remote_changes = self
+            .client
+            .request(account, GetUpdatesRequest { since_metadata_version: last_synced })?;
         Ok(remote_changes)
     }
 
@@ -310,14 +310,25 @@ impl RequestContext<'_, '_> {
     }
 
     fn prune(&mut self) -> CoreResult<()> {
-        let local = self
+        let account = self.get_account()?.clone();
+        let mut local = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
-        let (mut local, prunable_ids) = local.prunable_ids()?;
+        let base_ids = local.tree.base.owned_ids();
+        let server_ids = self.client.request(&account, GetFileIdsRequest {})?.ids;
+
+        let mut prunable_ids = base_ids;
+        prunable_ids.retain(|id| !server_ids.contains(id));
+        for id in prunable_ids.clone() {
+            prunable_ids.extend(local.descendants(&id)?.into_iter());
+        }
+
         for id in prunable_ids {
             local.remove(id);
+            document_repo::delete(self.config, RepoSource::Base, &id)?;
+            document_repo::delete(self.config, RepoSource::Local, &id)?;
         }
         Ok(())
     }
@@ -357,7 +368,7 @@ impl RequestContext<'_, '_> {
             updates.push(file_diff);
         }
         if !updates.is_empty() {
-            api_service::request(account, UpsertRequest { updates })?;
+            self.client.request(account, UpsertRequest { updates })?;
         }
 
         // base = local
@@ -413,14 +424,15 @@ impl RequestContext<'_, '_> {
             document_repo::delete(self.config, RepoSource::Local, &id)?;
 
             // remote = local
-            api_service::request(
-                account,
-                ChangeDocRequest {
-                    diff: FileDiff { old: Some(base_file), new: local_change.clone() },
-                    new_content: local_document_change,
-                },
-            )
-            .map_err(CoreError::from)?;
+            self.client
+                .request(
+                    account,
+                    ChangeDocRequest {
+                        diff: FileDiff { old: Some(base_file), new: local_change.clone() },
+                        new_content: local_document_change,
+                    },
+                )
+                .map_err(CoreError::from)?;
 
             local_changes_digests_only.push(local_change);
         }

@@ -41,7 +41,7 @@ checksum = "aae1277d39aeec15cb388266ecc24b11c80469deae6067e17a1a7aa9e5c1f234"
 
 [[package]]
 name = "admin"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "backtrace",
  "dialoguer",
@@ -2895,7 +2895,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-cli"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "atty",
  "chrono",
@@ -2909,7 +2909,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-core"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "backtrace",
  "base64",
@@ -2928,6 +2928,7 @@ dependencies = [
  "jni 0.13.1",
  "lazy_static",
  "libsecp256k1",
+ "lockbook-server",
  "lockbook-shared",
  "num_cpus",
  "qrcode-generator",
@@ -2942,6 +2943,7 @@ dependencies = [
  "sublime_fuzzy",
  "tempfile",
  "test_utils",
+ "tokio",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -2951,7 +2953,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-desktop"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "gdk-pixbuf",
  "gio",
@@ -2978,7 +2980,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "dark-light",
  "eframe",
@@ -2994,7 +2996,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "async-stripe",
  "atomic-counter",

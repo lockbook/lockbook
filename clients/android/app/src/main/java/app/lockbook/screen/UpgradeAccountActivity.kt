@@ -1,5 +1,8 @@
 package app.lockbook.screen
 
+import android.annotation.SuppressLint
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
@@ -31,10 +34,22 @@ class UpgradeAccountActivity : AppCompatActivity() {
 
     private var selectedTier = AccountTier.Free
 
+    private fun screenIsLarge(): Boolean {
+        val screenSize = resources.configuration.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK
+
+        return screenSize == Configuration.SCREENLAYOUT_SIZE_LARGE ||
+            screenSize == Configuration.SCREENLAYOUT_SIZE_XLARGE
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityUpgradeAccountBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        @SuppressLint("SourceLockedOrientationActivity")
+        if (!screenIsLarge()) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
 
         if (savedInstanceState != null) {
             selectedTier = AccountTier.valueOf(savedInstanceState.getString(SELECTED_TIER_KEY, AccountTier.Free.name))

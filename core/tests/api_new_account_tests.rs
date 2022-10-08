@@ -1,5 +1,4 @@
-use lockbook_core::service::api_service;
-use lockbook_core::service::api_service::ApiError;
+use lockbook_core::service::api_service::{ApiError, Network, Requester};
 use lockbook_shared::account::Account;
 use lockbook_shared::api::*;
 use lockbook_shared::file_metadata::FileMetadata;
@@ -15,7 +14,7 @@ fn test_account(account: &Account) -> Result<NewAccountResponse, ApiError<NewAcc
         .unwrap()
         .sign(account)
         .unwrap();
-    api_service::request(account, NewAccountRequest::new(account, &root))
+    Network::default().request(account, NewAccountRequest::new(account, &root))
 }
 #[test]
 fn new_account() {

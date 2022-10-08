@@ -11,7 +11,8 @@ use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::{SharedError, SharedResult};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 use tracing::{debug, error, warn};
 
 pub async fn upsert_file_metadata(
@@ -53,18 +54,81 @@ pub async fn upsert_file_metadata(
                     && !prior_deleted_docs.contains(&id)
                 {
                     let meta = tree.find(&id)?;
-                    if let Some(digest) = meta.file.timestamped_value.value.document_hmac {
+                    if let Some(hmac) = meta.file.timestamped_value.value.document_hmac {
                         tx.sizes.delete(*meta.id());
-                        new_deleted.push((*meta.id(), digest));
-                        debug!("deleting id: {}", *meta.id());
+                        new_deleted.push((*meta.id(), hmac));
                     }
                 }
             }
             Ok(())
         })??;
 
-    for (id, digest) in new_deleted {
-        document_service::delete(server_state, &id, &digest).await?;
+    for update in request.updates {
+        let new = update.new;
+        let id = *new.id();
+        match update.old {
+            None => {
+                debug!(?id, "Created file");
+            }
+            Some(old) => {
+                let old_parent = *old.parent();
+                let new_parent = *new.parent();
+                if old.parent() != new.parent() {
+                    debug!(?id, ?old_parent, ?new_parent, "Moved file");
+                }
+                if old.secret_name() != new.secret_name() {
+                    debug!(?id, "Renamed file");
+                }
+                if old.owner() != new.owner() {
+                    debug!(?id, ?old_parent, ?new_parent, "Changed owner for file");
+                }
+                if old.explicitly_deleted() != new.explicitly_deleted() {
+                    debug!(?id, "Deleted file");
+                }
+                if old.user_access_keys() != new.user_access_keys() {
+                    let all_sharees: Vec<_> = old
+                        .user_access_keys()
+                        .iter()
+                        .chain(new.user_access_keys().iter())
+                        .map(|k| Owner(k.encrypted_for))
+                        .collect();
+                    for sharee in all_sharees {
+                        let new = if let Some(k) = new
+                            .user_access_keys()
+                            .iter()
+                            .find(|k| k.encrypted_for == sharee.0)
+                        {
+                            k
+                        } else {
+                            debug!(?id, ?sharee, "Disappeared user access key");
+                            continue;
+                        };
+                        let old = if let Some(k) = old
+                            .user_access_keys()
+                            .iter()
+                            .find(|k| k.encrypted_for == sharee.0)
+                        {
+                            k
+                        } else {
+                            debug!(?id, ?sharee, ?new.mode, "Added user access key");
+                            continue;
+                        };
+                        if old.mode != new.mode {
+                            debug!(?id, ?sharee, ?old.mode, ?new.mode, "Modified user access mode");
+                        }
+                        if old.deleted != new.deleted {
+                            debug!(?id, ?sharee, ?old.deleted, ?new.deleted, "Deleted user access key");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for (id, hmac) in new_deleted {
+        document_service::delete(server_state, &id, &hmac).await?;
+        let hmac = base64::encode_config(hmac, base64::URL_SAFE);
+        debug!(?id, ?hmac, "Deleted document contents");
     }
     Ok(())
 }
@@ -76,15 +140,18 @@ pub async fn change_doc(
 
     let (request, server_state) = (context.request, context.server_state);
     let owner = Owner(context.public_key);
+    let id = *request.diff.id();
 
     // Validate Diff
     if request.diff.diff() != vec![Diff::Hmac] {
         return Err(ClientError(DiffMalformed));
     }
 
-    if request.diff.new.document_hmac().is_none() {
+    let hmac = if let Some(hmac) = request.diff.new.document_hmac() {
+        base64::encode_config(hmac, base64::URL_SAFE)
+    } else {
         return Err(ClientError(HmacMissing));
-    }
+    };
 
     let req_pk = context.public_key;
 
@@ -158,7 +225,6 @@ pub async fn change_doc(
 
     let new_version = get_time().0 as u64;
     let new = request.diff.new.clone().add_time(new_version);
-    debug!("Updating document: {}", request.diff.new.id());
     document_service::insert(
         server_state,
         request.diff.new.id(),
@@ -166,6 +232,7 @@ pub async fn change_doc(
         &request.new_content,
     )
     .await?;
+    debug!(?id, ?hmac, "Inserted document contents");
 
     let result = server_state.index_db.transaction(|tx| {
         let mut tree = ServerTree::new(
@@ -207,6 +274,7 @@ pub async fn change_doc(
             request.diff.new.document_hmac().unwrap(),
         )
         .await?;
+        debug!(?id, ?hmac, "Cleaned up new document contents after failed metadata update");
     }
 
     result?;
@@ -214,6 +282,8 @@ pub async fn change_doc(
     // New
     if let Some(hmac) = request.diff.old.unwrap().document_hmac() {
         document_service::delete(server_state, request.diff.new.id(), hmac).await?;
+        let old_hmac = base64::encode_config(hmac, base64::URL_SAFE);
+        debug!(?id, ?old_hmac, "Cleaned up old document contents after successful metadata update");
     }
 
     Ok(())
@@ -265,6 +335,24 @@ pub async fn get_document(
     Ok(GetDocumentResponse { content })
 }
 
+pub async fn get_file_ids(
+    context: RequestContext<'_, GetFileIdsRequest>,
+) -> Result<GetFileIdsResponse, ServerError<GetFileIdsError>> {
+    let owner = Owner(context.public_key);
+    context.server_state.index_db.transaction(|tx| {
+        Ok(GetFileIdsResponse {
+            ids: ServerTree::new(
+                owner,
+                &mut tx.owned_files,
+                &mut tx.shared_files,
+                &mut tx.file_children,
+                &mut tx.metas,
+            )?
+            .owned_ids(),
+        })
+    })?
+}
+
 pub async fn get_updates(
     context: RequestContext<'_, GetUpdatesRequest>,
 ) -> Result<GetUpdatesResponse, ServerError<GetUpdatesError>> {
@@ -283,13 +371,13 @@ pub async fn get_updates(
         let mut result_ids = HashSet::new();
         for id in tree.owned_ids() {
             let file = tree.find(&id)?;
-            if file.version > request.since_metadata_version {
+            if file.version >= request.since_metadata_version {
                 result_ids.insert(id);
                 if file.owner() != owner
                     && file
                         .user_access_keys()
                         .iter()
-                        .any(|k| k.encrypted_for == context.public_key)
+                        .any(|k| !k.deleted && k.encrypted_for == context.public_key)
                 {
                     result_ids.insert(id);
                     result_ids.extend(tree.descendants(&id)?);
@@ -321,13 +409,12 @@ pub async fn admin_disappear_file(
         return Err(ClientError(AdminDisappearFileError::NotPermissioned));
     }
 
+    let id = context.request.id;
     let username = db
         .accounts
         .get(&Owner(context.public_key))?
         .map(|account| account.username)
         .unwrap_or_else(|| "~unknown~".to_string());
-
-    warn!("admin: {} disappeared file {}", username, context.request.id);
 
     context
         .server_state
@@ -348,10 +435,7 @@ pub async fn admin_disappear_file(
                 )
             })?;
             if !owned_files.remove(&context.request.id) {
-                error!(
-                    "attempted to disappear a file, the owner didn't own it, id: {}, owner: {:?}",
-                    context.request.id, owner
-                );
+                error!(?id, ?owner, "attempted to disappear a file, the owner didn't own it");
             }
             tx.owned_files.insert(owner, owned_files);
 
@@ -366,15 +450,13 @@ pub async fn admin_disappear_file(
                     )
                 })?;
                 if !shared_files.remove(&context.request.id) {
-                    error!(
-                        "attempted to disappear a file, a sharee didn't have it shared, id: {}, sharee: {:?}",
-                        context.request.id, sharee
-                    );
+                    error!(?id, ?sharee, "attempted to disappear a file, a sharee didn't have it shared");
                 }
                 tx.shared_files.insert(sharee, shared_files);
             }
 
             // maintain index: file_children
+            let parent = *meta.parent();
             let mut file_children = tx.file_children.delete(*meta.parent()).ok_or_else(|| {
                 internal!(
                     "Attempted to disappear a file, the parent was not present, id: {}, parent: {:?}",
@@ -383,15 +465,13 @@ pub async fn admin_disappear_file(
                 )
             })?;
             if !file_children.remove(&context.request.id) {
-                error!(
-                    "attempted to disappear a file, the parent didn't have it as a child, id: {}, parent: {:?}",
-                    context.request.id, meta.parent()
-                );
+                error!(?id, ?parent, "attempted to disappear a file, the parent didn't have it as a child");
             }
             tx.file_children.insert(*meta.parent(), file_children);
 
             Ok(())
         })??;
+    warn!(?username, ?id, "Disappeared file");
 
     Ok(())
 }
@@ -458,7 +538,7 @@ pub fn validate_account_helper(
             result.tree_validation_failures.push(validation)
         }
         Err(err) => {
-            error!("Unexpected error while validating {:?}'s tree: {:?}", owner, err)
+            error!(?owner, ?err, "Unexpected error while validating tree")
         }
     }
 
@@ -476,9 +556,29 @@ pub async fn admin_validate_server(
         return Err(ClientError(AdminValidateServerError::NotPermissioned));
     }
 
-    let result: Result<AdminValidateServer, ServerError<AdminValidateServerError>> =
-        context.server_state.index_db.transaction(|tx| {
-            let mut result = AdminValidateServer::default();
+    let mut result: AdminValidateServer = Default::default();
+
+    context
+        .server_state
+        .index_db
+        .transaction::<_, Result<(), ServerError<_>>>(|tx| {
+            let mut deleted_ids = HashSet::new();
+            for (id, meta) in tx.metas.get_all().clone() {
+                // todo: optimize
+                let mut tree = ServerTree::new(
+                    meta.owner(),
+                    &mut tx.owned_files,
+                    &mut tx.shared_files,
+                    &mut tx.file_children,
+                    &mut tx.metas,
+                )?
+                .to_lazy();
+                if tree.calculate_deleted(&id)? {
+                    deleted_ids.insert(id);
+                }
+            }
+
+            // validate accounts
             for (owner, account) in tx.accounts.get_all().clone() {
                 let validation = validate_account_helper(tx, owner, context.server_state)?;
                 if !validation.is_empty() {
@@ -487,7 +587,209 @@ pub async fn admin_validate_server(
                         .insert(account.username, validation);
                 }
             }
-            Ok(result)
-        })?;
-    result
+
+            // validate index: usernames
+            for (username, owner) in tx.usernames.get_all().clone() {
+                if let Some(account) = tx.accounts.get(&owner) {
+                    if username != account.username {
+                        result
+                            .usernames_mapped_to_wrong_accounts
+                            .insert(username, account.username.clone());
+                    }
+                } else {
+                    result
+                        .usernames_mapped_to_nonexistent_accounts
+                        .insert(username, owner);
+                }
+            }
+            for (_, account) in tx.accounts.get_all().clone() {
+                if tx.usernames.get(&account.username).is_none() {
+                    result
+                        .usernames_unmapped_to_accounts
+                        .insert(account.username.clone());
+                }
+            }
+
+            // validate index: owned_files
+            for (owner, ids) in tx.owned_files.get_all().clone() {
+                for id in ids {
+                    if let Some(meta) = tx.metas.get(&id) {
+                        if meta.owner() != owner {
+                            insert(&mut result.owners_mapped_to_unowned_files, owner, id);
+                        }
+                    } else {
+                        insert(&mut result.owners_mapped_to_nonexistent_files, owner, id);
+                    }
+                }
+            }
+            for (id, meta) in tx.metas.get_all().clone() {
+                if let Some(ids) = tx.owned_files.get(&meta.owner()) {
+                    if !ids.contains(&id) {
+                        insert(
+                            &mut result.owners_unmapped_to_owned_files,
+                            meta.owner(),
+                            *meta.id(),
+                        );
+                    }
+                } else {
+                    result.owners_unmapped.insert(meta.owner());
+                }
+            }
+
+            // validate index: shared_files
+            for (sharee, ids) in tx.shared_files.get_all().clone() {
+                for id in ids {
+                    if let Some(meta) = tx.metas.get(&id) {
+                        if !meta.user_access_keys().iter().any(|k| {
+                            !k.deleted && k.encrypted_for == sharee.0 && k.encrypted_by != sharee.0
+                        }) {
+                            insert(&mut result.sharees_mapped_to_unshared_files, sharee, id);
+                        }
+                    } else {
+                        insert(&mut result.sharees_mapped_to_nonexistent_files, sharee, id);
+                    }
+                }
+            }
+            for (id, meta) in tx.metas.get_all().clone() {
+                for k in meta.user_access_keys() {
+                    if k.deleted {
+                        continue;
+                    }
+                    let sharee = Owner(k.encrypted_for);
+                    if let Some(ids) = tx.shared_files.get(&sharee) {
+                        let self_share = k.encrypted_for == k.encrypted_by;
+                        let indexed_share = ids.contains(&id);
+                        if self_share && indexed_share {
+                            insert(&mut result.sharees_mapped_for_owned_files, sharee, id);
+                        } else if !self_share && !indexed_share {
+                            insert(&mut result.sharees_unmapped_to_shared_files, sharee, id);
+                        }
+                    } else {
+                        result.sharees_unmapped.insert(meta.owner());
+                    }
+                }
+            }
+
+            // validate index: file_children
+            for (parent_id, child_ids) in tx.file_children.get_all().clone() {
+                for child_id in child_ids {
+                    if let Some(meta) = tx.metas.get(&child_id) {
+                        if meta.parent() != &parent_id {
+                            insert(
+                                &mut result.files_mapped_as_parent_to_non_children,
+                                parent_id,
+                                child_id,
+                            );
+                        }
+                    } else {
+                        insert(
+                            &mut result.files_mapped_as_parent_to_nonexistent_children,
+                            parent_id,
+                            child_id,
+                        );
+                    }
+                }
+            }
+            for (id, meta) in tx.metas.get_all().clone() {
+                if let Some(child_ids) = tx.file_children.get(meta.parent()) {
+                    if meta.is_root() && child_ids.contains(&id) {
+                        result.files_mapped_as_parent_to_self.insert(id);
+                    } else if !meta.is_root() && !child_ids.contains(&id) {
+                        insert(
+                            &mut result.files_unmapped_as_parent_to_children,
+                            *meta.parent(),
+                            id,
+                        );
+                    }
+                } else {
+                    result.files_unmapped_as_parent.insert(*meta.parent());
+                }
+            }
+
+            // validate index: sizes (todo: validate size values)
+            for (id, _) in tx.sizes.get_all().clone() {
+                if let Some(meta) = tx.metas.get(&id) {
+                    if meta.document_hmac().is_none() {
+                        result.sizes_mapped_for_files_without_hmac.insert(id);
+                    }
+                } else {
+                    result.sizes_mapped_for_nonexistent_files.insert(id);
+                }
+            }
+            for (id, meta) in tx.metas.get_all().clone() {
+                if !deleted_ids.contains(&id)
+                    && meta.document_hmac().is_some()
+                    && tx.sizes.get(&id).is_none()
+                {
+                    result.sizes_unmapped_for_files_with_hmac.insert(id);
+                }
+            }
+
+            // validate presence of documents
+            for (id, meta) in tx.metas.get_all().clone() {
+                if let Some(hmac) = meta.document_hmac() {
+                    if !deleted_ids.contains(&id)
+                        && !document_service::exists(context.server_state, &id, hmac)
+                    {
+                        result.files_with_hmacs_and_no_contents.insert(id);
+                    }
+                }
+            }
+
+            Ok(())
+        })??;
+
+    Ok(result)
+}
+
+fn insert<K: Hash + Eq, V: Hash + Eq>(map: &mut HashMap<K, HashSet<V>>, k: K, v: V) {
+    map.entry(k).or_insert_with(Default::default).insert(v);
+}
+
+pub async fn admin_file_info(
+    context: RequestContext<'_, AdminFileInfoRequest>,
+) -> Result<AdminFileInfoResponse, ServerError<AdminFileInfoError>> {
+    let (request, server_state) = (&context.request, context.server_state);
+    let db = &server_state.index_db;
+    if !is_admin::<AdminFileInfoError>(
+        db,
+        &context.public_key,
+        &context.server_state.config.admin.admins,
+    )? {
+        return Err(ClientError(AdminFileInfoError::NotPermissioned));
+    }
+
+    server_state
+        .index_db
+        .transaction::<_, Result<AdminFileInfoResponse, ServerError<_>>>(|tx| {
+            let file = tx
+                .metas
+                .get(&request.id)
+                .ok_or(ClientError(AdminFileInfoError::FileNonexistent))?
+                .clone();
+
+            let mut tree = ServerTree::new(
+                file.owner(),
+                &mut tx.owned_files,
+                &mut tx.shared_files,
+                &mut tx.file_children,
+                &mut tx.metas,
+            )?
+            .to_lazy();
+
+            let ancestors = tree
+                .ancestors(&request.id)?
+                .into_iter()
+                .filter_map(|id| tree.maybe_find(&id))
+                .cloned()
+                .collect();
+            let descendants = tree
+                .descendants(&request.id)?
+                .into_iter()
+                .filter_map(|id| tree.maybe_find(&id))
+                .cloned()
+                .collect();
+
+            Ok(AdminFileInfoResponse { file, ancestors, descendants })
+        })?
 }

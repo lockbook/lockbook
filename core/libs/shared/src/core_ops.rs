@@ -5,12 +5,12 @@ use libsecp256k1::PublicKey;
 use tracing::debug;
 use uuid::Uuid;
 
-use crate::access_info::UserAccessInfo;
+use crate::access_info::{UserAccessInfo, UserAccessMode};
 use crate::account::Account;
 use crate::core_config::Config;
 use crate::crypto::{DecryptedDocument, EncryptedDocument};
 use crate::document_repo::RepoSource;
-use crate::file::File;
+use crate::file::{File, Share, ShareMode};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileMetadata, FileType, Owner};
 use crate::filename::{DocumentType, NameComponents};
@@ -30,7 +30,7 @@ where
     Local: Stagable<F = Base::F>,
 {
     pub fn finalize(&mut self, id: &Uuid, account: &Account) -> SharedResult<File> {
-        let meta = self.find(id)?;
+        let meta = self.find(id)?.clone();
         let file_type = meta.file_type();
         let parent = *meta.parent();
         let last_modified = meta.timestamped_value.timestamp as u64;
@@ -38,15 +38,33 @@ where
         let id = *id;
         let last_modified_by = account.username.clone();
 
-        Ok(File {
-            id,
-            parent,
-            name,
-            file_type,
-            last_modified,
-            last_modified_by,
-            shares: Vec::new(), // todo
-        })
+        // todo: this is a hack to get fuzzer running on sharing
+        let mut shares = Vec::new();
+        for user_access_key in meta.user_access_keys() {
+            if user_access_key.encrypted_by == user_access_key.encrypted_for {
+                continue;
+            }
+            let mode = match user_access_key.mode {
+                UserAccessMode::Read => ShareMode::Read,
+                UserAccessMode::Write => ShareMode::Write,
+                UserAccessMode::Owner => continue,
+            };
+            shares.push(Share {
+                mode,
+                shared_by: if user_access_key.encrypted_by == account.public_key() {
+                    account.username.clone()
+                } else {
+                    String::from("<unknown>")
+                },
+                shared_with: if user_access_key.encrypted_for == account.public_key() {
+                    account.username.clone()
+                } else {
+                    String::from("<unknown>")
+                },
+            });
+        }
+
+        Ok(File { id, parent, name, file_type, last_modified, last_modified_by, shares })
     }
 
     pub fn resolve_and_finalize<I>(&mut self, account: &Account, ids: I) -> SharedResult<Vec<File>>
@@ -355,15 +373,6 @@ where
         Ok((self.stage(Some(file)), document))
     }
 
-    /// Returns ids of files which can be safely forgotten - files which are deleted on remote (including implicitly
-    /// deleted), new local deleted files, and local files which would be orphaned. If you prune any of these files,
-    /// you must prune all of them, and you must prune them from base and from local.
-    // todo: incrementalism
-    pub fn prunable_ids(self) -> SharedResult<(Self, HashSet<Uuid>)> {
-        // todo: prune things
-        Ok((self, HashSet::new()))
-    }
-
     // assumptions: no orphans
     // changes: moves files
     // invalidated by: moved files
@@ -492,12 +501,18 @@ where
 
         let mut base_link_targets = HashSet::new();
         for id in result.tree.base.base.owned_ids() {
+            if result.calculate_deleted(&id)? {
+                continue;
+            }
             if let FileType::Link { target } = result.find(&id)?.file_type() {
                 base_link_targets.insert(target);
             }
         }
 
         for id in result.tree.base.staged.owned_ids() {
+            if result.calculate_deleted(&id)? {
+                continue;
+            }
             if let FileType::Link { target } = result.find(&id)?.file_type() {
                 if base_link_targets.contains(&target) {
                     result = result.stage_delete(&id, account)?.promote();
@@ -558,6 +573,26 @@ where
                 // unmove newly owned file with a link targeting it
                 let old_parent = *result.tree.base.base.find(&id)?.parent();
                 result = result.stage_move(&id, &old_parent, account)?.promote();
+            }
+        }
+        Ok(result)
+    }
+
+    pub fn delete_links_to_deleted_files(
+        self, account: &Account,
+    ) -> SharedResult<TreeWithOps<Base, Local>> {
+        let mut result = self.stage(Vec::new());
+
+        for id in result.owned_ids() {
+            if result.calculate_deleted(&id)? {
+                continue;
+            }
+            let file = result.find(&id)?;
+            if let FileType::Link { target } = file.file_type() {
+                if result.calculate_deleted(&target)? {
+                    // delete link to deleted file file
+                    result = result.stage_delete(&id, account)?.promote();
+                }
             }
         }
         Ok(result)
@@ -873,6 +908,7 @@ where
         result = result.deduplicate_links(account)?.promote();
         result = result.resolve_shared_links(account)?.promote();
         result = result.resolve_owned_links(account)?.promote();
+        result = result.delete_links_to_deleted_files(account)?.promote();
 
         Ok((result, merge_document_changes))
     }

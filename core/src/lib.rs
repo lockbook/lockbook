@@ -24,9 +24,14 @@ pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
 pub use lockbook_shared::file::File;
 pub use lockbook_shared::file::ShareMode;
 pub use lockbook_shared::file_like::FileLike;
-pub use lockbook_shared::file_metadata::FileType;
+pub use lockbook_shared::file_metadata::{FileType, Owner};
 pub use lockbook_shared::filename::NameComponents;
+pub use lockbook_shared::lazy;
+pub use lockbook_shared::lazy::LazyTree;
 pub use lockbook_shared::path_ops::Filter;
+pub use lockbook_shared::server_file::ServerFile;
+pub use lockbook_shared::tree_like::Stagable;
+pub use lockbook_shared::tree_like::TreeLike;
 pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 
 pub use crate::model::drawing::SupportedImageFormats;
@@ -39,13 +44,15 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use basic_human_duration::ChronoHumanDuration;
-use chrono::Duration;
+pub use basic_human_duration::ChronoHumanDuration;
+pub use chrono::Duration;
 use hmdb::log::Reader;
 use hmdb::transaction::Transaction;
 use itertools::Itertools;
 use lockbook_shared::account::Username;
-use lockbook_shared::api::{AccountInfo, AdminValidateAccount, AdminValidateServer};
+use lockbook_shared::api::{
+    AccountInfo, AdminFileInfoResponse, AdminValidateAccount, AdminValidateServer,
+};
 use lockbook_shared::clock;
 use lockbook_shared::crypto::AESKey;
 use serde_json::{json, value::Value};
@@ -53,6 +60,7 @@ use strum::IntoEnumIterator;
 
 use crate::model::errors::Error::UiError;
 use crate::repo::schema::{transaction, CoreV1, OneKey, Tx};
+use crate::service::api_service::{Network, Requester};
 use crate::service::log_service;
 use crate::service::search_service::{SearchResultItem, StartSearchInfo};
 
@@ -63,27 +71,34 @@ pub struct DataCache {
 }
 
 #[derive(Clone, Debug)]
-pub struct Core {
+pub struct CoreLib<Client: Requester> {
     // TODO not pub?
     pub config: Config,
     pub data_cache: Arc<Mutex<DataCache>>, // Or Rc<RefCell>>
     pub db: CoreV1,
+    pub client: Client,
 }
 
-impl Core {
-    pub fn context<'a, 'b>(&'a self, tx: &'a mut Tx<'b>) -> CoreResult<RequestContext<'a, 'b>> {
+pub type Core = CoreLib<Network>;
+
+impl<Client: Requester> CoreLib<Client> {
+    pub fn context<'a, 'b>(
+        &'a self, tx: &'a mut Tx<'b>,
+    ) -> CoreResult<RequestContext<'a, 'b, Client>> {
         let config = &self.config;
         let data_cache = self.data_cache.lock().map_err(|err| {
             CoreError::Unexpected(format!("Could not get key_cache mutex: {:?}", err))
         })?;
-        Ok(RequestContext { config, data_cache, tx })
+        let client = &self.client;
+        Ok(RequestContext { config, data_cache, tx, client })
     }
 }
 
-pub struct RequestContext<'a, 'b> {
+pub struct RequestContext<'a, 'b, Client: Requester> {
     pub config: &'a Config,
     pub data_cache: MutexGuard<'a, DataCache>,
     pub tx: &'a mut transaction::CoreV1<'b>,
+    pub client: &'a Client,
 }
 
 impl Core {
@@ -94,10 +109,13 @@ impl Core {
             CoreV1::init(&config.writeable_path).map_err(|err| unexpected_only!("{:#?}", err))?;
         let data_cache = Arc::new(Mutex::new(DataCache::default()));
         let config = config.clone();
+        let client = Network::default();
 
-        Ok(Self { config, data_cache, db })
+        Ok(Self { config, data_cache, db, client })
     }
+}
 
+impl<Client: Requester> CoreLib<Client> {
     #[instrument(level = "info", skip_all, err(Debug))]
     pub fn create_account(
         &self, username: &str, api_url: &str,
@@ -233,7 +251,7 @@ impl Core {
         Ok(val?)
     }
 
-    #[instrument(level = "debug", err(Debug))]
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn share_file(
         &self, id: Uuid, username: &str, mode: ShareMode,
     ) -> Result<(), Error<ShareFileError>> {
@@ -251,7 +269,7 @@ impl Core {
         Ok(val?)
     }
 
-    #[instrument(level = "debug", err(Debug))]
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn delete_pending_share(&self, id: Uuid) -> Result<(), Error<DeletePendingShareError>> {
         let val = self.db.transaction(|tx| {
             let mut context = self.context(tx)?;
@@ -446,7 +464,7 @@ impl Core {
             .map_err(TestRepoError::Core)?
     }
 
-    #[instrument(level = "debug", err(Debug))]
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn upgrade_account_stripe(
         &self, account_tier: StripeAccountTier,
     ) -> Result<(), Error<UpgradeAccountStripeError>> {
@@ -456,7 +474,7 @@ impl Core {
         Ok(val?)
     }
 
-    #[instrument(level = "debug", skip(purchase_token), err(Debug))]
+    #[instrument(level = "debug", skip(self, purchase_token), err(Debug))]
     pub fn upgrade_account_google_play(
         &self, purchase_token: &str, account_id: &str,
     ) -> Result<(), Error<UpgradeAccountGooglePlayError>> {
@@ -540,6 +558,14 @@ impl Core {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.validate_server())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn admin_file_info(
+        &self, id: Uuid,
+    ) -> Result<AdminFileInfoResponse, Error<AdminFileInfoError>> {
+        let val = self.db.transaction(|tx| self.context(tx)?.file_info(id))?;
         Ok(val?)
     }
 }

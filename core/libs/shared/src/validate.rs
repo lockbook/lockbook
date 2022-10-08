@@ -192,9 +192,12 @@ where
         Ok(())
     }
 
-    pub fn assert_no_duplicate_links(&self) -> SharedResult<()> {
+    pub fn assert_no_duplicate_links(&mut self) -> SharedResult<()> {
         let mut linked_targets = HashSet::new();
         for link in self.owned_ids() {
+            if self.calculate_deleted(&link)? {
+                continue;
+            }
             if let FileType::Link { target } = self.find(&link)?.file_type() {
                 if !linked_targets.insert(target) {
                     return Err(SharedError::ValidationFailure(ValidationFailure::DuplicateLink {
@@ -207,8 +210,7 @@ where
     }
 
     // note: a link to a deleted file is not considered broken, because then you would not be able
-    // to delete a folder linked to by another user. todo: make sure links to deleted folders are
-    // deleted on pull/merge
+    // to delete a file linked to by another user.
     pub fn assert_no_broken_links(&self) -> SharedResult<()> {
         for link in self.owned_ids() {
             if let FileType::Link { target } = self.find(&link)?.file_type() {

@@ -97,13 +97,13 @@ impl From<stripe::WebhookError> for ServerError<StripeWebhookError> {
     fn from(e: stripe::WebhookError) -> Self {
         match e {
             stripe::WebhookError::BadKey => {
-                internal!("Cannot verify stripe webhook request because server is using a bad signing key.")
+                internal!("Cannot verify stripe webhook request because server is using a bad signing key")
             }
             stripe::WebhookError::BadHeader(bad_header_err) => {
                 ClientError(StripeWebhookError::InvalidHeader(format!("{:?}", bad_header_err)))
             }
             stripe::WebhookError::BadSignature => {
-                ClientError(StripeWebhookError::InvalidHeader("Bad signature.".to_string()))
+                ClientError(StripeWebhookError::InvalidHeader("Bad signature".to_string()))
             }
             stripe::WebhookError::BadTimestamp(bad_timestamp_err) => {
                 ClientError(StripeWebhookError::InvalidHeader(format!(
@@ -200,6 +200,12 @@ impl From<SharedError> for ServerError<AdminValidateServerError> {
     }
 }
 
+impl From<SharedError> for ServerError<AdminFileInfoError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+
 impl From<SharedError> for ServerError<UpsertError> {
     fn from(err: SharedError) -> Self {
         // panic!("{err}");
@@ -233,6 +239,12 @@ impl From<SharedError> for ServerError<MetricsError> {
 }
 
 impl From<SharedError> for ServerError<GetDocumentError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+
+impl From<SharedError> for ServerError<GetFileIdsError> {
     fn from(err: SharedError) -> Self {
         internal!("{:?}", err)
     }

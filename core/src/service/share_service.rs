@@ -1,16 +1,15 @@
-use crate::service::api_service;
-use crate::{CoreError, CoreResult, OneKey, RequestContext};
+use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
 use libsecp256k1::PublicKey;
 use lockbook_shared::access_info::{UserAccessInfo, UserAccessMode};
 use lockbook_shared::api::GetPublicKeyRequest;
 use lockbook_shared::file::{File, ShareMode};
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{FileType, Owner};
+use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::validate;
 use uuid::Uuid;
 
-impl RequestContext<'_, '_> {
+impl<Client: Requester> RequestContext<'_, '_, Client> {
     // todo: move to tree, split non-validating version
     pub fn share_file(&mut self, id: Uuid, username: &str, mode: ShareMode) -> CoreResult<()> {
         let account = &self.get_account()?.clone(); // todo: don't clone
@@ -34,10 +33,11 @@ impl RequestContext<'_, '_> {
         }
         // check for and remove duplicate shares
         let mut found = false;
-        let sharee_public_key =
-            api_service::request(account, GetPublicKeyRequest { username: String::from(username) })
-                .map_err(CoreError::from)?
-                .key;
+        let sharee_public_key = self
+            .client
+            .request(account, GetPublicKeyRequest { username: String::from(username) })
+            .map_err(CoreError::from)?
+            .key;
         for user_access in &mut file.user_access_keys {
             if user_access.encrypted_for == sharee_public_key {
                 found = true;
@@ -79,7 +79,7 @@ impl RequestContext<'_, '_> {
             .to_lazy();
 
         let mut result = Vec::new();
-        'outer: for id in tree.owned_ids() {
+        for id in tree.owned_ids() {
             // file must not be deleted
             if tree.calculate_deleted(&id)? {
                 continue;
@@ -93,12 +93,8 @@ impl RequestContext<'_, '_> {
                 continue;
             }
             // file must not have any links pointing to it
-            for link_id in tree.owned_ids() {
-                if let FileType::Link { target } = tree.find(&link_id)?.file_type() {
-                    if target == id {
-                        continue 'outer;
-                    }
-                }
+            if tree.link(&id)?.is_some() {
+                continue;
             }
 
             result.push(tree.finalize(&id, account)?);

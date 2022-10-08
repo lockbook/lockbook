@@ -5,15 +5,16 @@ use lockbook_shared::api::{
 };
 
 use crate::model::errors::core_err_unexpected;
-use crate::service::api_service::{self, ApiError};
-use crate::{CoreError, CoreResult, RequestContext};
+use crate::service::api_service::ApiError;
+use crate::{CoreError, CoreResult, RequestContext, Requester};
 
-impl RequestContext<'_, '_> {
+impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> CoreResult<()> {
         let account = self.get_account()?;
 
-        api_service::request(account, UpgradeAccountStripeRequest { account_tier }).map_err(
-            |err| match err {
+        self.client
+            .request(account, UpgradeAccountStripeRequest { account_tier })
+            .map_err(|err| match err {
                 ApiError::Endpoint(err) => match err {
                     UpgradeAccountStripeError::OldCardDoesNotExist => {
                         CoreError::OldCardDoesNotExist
@@ -40,8 +41,7 @@ impl RequestContext<'_, '_> {
                 ApiError::SendFailed(_) => CoreError::ServerUnreachable,
                 ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
-            },
-        )?;
+            })?;
 
         Ok(())
     }
@@ -51,27 +51,28 @@ impl RequestContext<'_, '_> {
     ) -> CoreResult<()> {
         let account = self.get_account()?;
 
-        api_service::request(
-            account,
-            UpgradeAccountGooglePlayRequest {
-                purchase_token: purchase_token.to_string(),
-                account_id: account_id.to_string(),
-            },
-        )
-        .map_err(|err| match err {
-            ApiError::Endpoint(UpgradeAccountGooglePlayError::AlreadyPremium) => {
-                CoreError::AlreadyPremium
-            }
-            ApiError::Endpoint(UpgradeAccountGooglePlayError::InvalidPurchaseToken) => {
-                CoreError::InvalidPurchaseToken
-            }
-            ApiError::Endpoint(UpgradeAccountGooglePlayError::ExistingRequestPending) => {
-                CoreError::ExistingRequestPending
-            }
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            _ => core_err_unexpected(err),
-        })?;
+        self.client
+            .request(
+                account,
+                UpgradeAccountGooglePlayRequest {
+                    purchase_token: purchase_token.to_string(),
+                    account_id: account_id.to_string(),
+                },
+            )
+            .map_err(|err| match err {
+                ApiError::Endpoint(UpgradeAccountGooglePlayError::AlreadyPremium) => {
+                    CoreError::AlreadyPremium
+                }
+                ApiError::Endpoint(UpgradeAccountGooglePlayError::InvalidPurchaseToken) => {
+                    CoreError::InvalidPurchaseToken
+                }
+                ApiError::Endpoint(UpgradeAccountGooglePlayError::ExistingRequestPending) => {
+                    CoreError::ExistingRequestPending
+                }
+                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                _ => core_err_unexpected(err),
+            })?;
 
         Ok(())
     }
@@ -79,21 +80,23 @@ impl RequestContext<'_, '_> {
     pub fn cancel_subscription(&self) -> CoreResult<()> {
         let account = self.get_account()?;
 
-        api_service::request(account, CancelSubscriptionRequest {}).map_err(|err| match err {
-            ApiError::Endpoint(CancelSubscriptionError::NotPremium) => CoreError::NotPremium,
-            ApiError::Endpoint(CancelSubscriptionError::AlreadyCanceled) => {
-                CoreError::AlreadyCanceled
-            }
-            ApiError::Endpoint(CancelSubscriptionError::UsageIsOverFreeTierDataCap) => {
-                CoreError::UsageIsOverFreeTierDataCap
-            }
-            ApiError::Endpoint(CancelSubscriptionError::ExistingRequestPending) => {
-                CoreError::ExistingRequestPending
-            }
-            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
-            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
-            _ => core_err_unexpected(err),
-        })?;
+        self.client
+            .request(account, CancelSubscriptionRequest {})
+            .map_err(|err| match err {
+                ApiError::Endpoint(CancelSubscriptionError::NotPremium) => CoreError::NotPremium,
+                ApiError::Endpoint(CancelSubscriptionError::AlreadyCanceled) => {
+                    CoreError::AlreadyCanceled
+                }
+                ApiError::Endpoint(CancelSubscriptionError::UsageIsOverFreeTierDataCap) => {
+                    CoreError::UsageIsOverFreeTierDataCap
+                }
+                ApiError::Endpoint(CancelSubscriptionError::ExistingRequestPending) => {
+                    CoreError::ExistingRequestPending
+                }
+                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                _ => core_err_unexpected(err),
+            })?;
 
         Ok(())
     }
@@ -101,7 +104,9 @@ impl RequestContext<'_, '_> {
     pub fn get_subscription_info(&self) -> CoreResult<Option<SubscriptionInfo>> {
         let account = self.get_account()?;
 
-        Ok(api_service::request(account, GetSubscriptionInfoRequest {})
+        Ok(self
+            .client
+            .request(account, GetSubscriptionInfoRequest {})
             .map_err(|err| match err {
                 ApiError::SendFailed(_) => CoreError::ServerUnreachable,
                 ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,

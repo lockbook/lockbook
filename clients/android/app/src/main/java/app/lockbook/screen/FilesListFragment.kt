@@ -1,11 +1,13 @@
 package app.lockbook.screen
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.method.LinkMovementMethod
 import android.view.*
+import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
@@ -27,6 +29,7 @@ import com.afollestad.recyclical.withItem
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textview.MaterialTextView
+import timber.log.Timber
 import java.lang.ref.WeakReference
 import java.util.*
 
@@ -133,6 +136,20 @@ class FilesListFragment : Fragment(), FilesFragment {
                 unselectFiles()
             }
         })
+
+        binding.outOfSpace.apply {
+            outOfSpaceMoreInfo.setOnClickListener {
+                val intent = Intent(requireContext(), SettingsActivity::class.java)
+                intent.putExtra(SettingsFragment.SCROLL_TO_PREFERENCE_KEY, R.string.usage_bar_key)
+                startActivity(intent)
+            }
+
+            outOfSpaceUpgradeNow.setOnClickListener {
+                val intent = Intent(requireContext(), SettingsActivity::class.java)
+                intent.putExtra(SettingsFragment.UPGRADE_NOW, true)
+                startActivity(intent)
+            }
+        }
 
         binding.fabSpeedDial.inflate(R.menu.menu_files_list_speed_dial)
         binding.fabSpeedDial.setOnActionSelectedListener {
@@ -505,6 +522,47 @@ class FilesListFragment : Fragment(), FilesFragment {
             is UpdateFilesUI.ToggleRecentFilesVisibility -> {
                 binding.recentFilesLayout.root.visibility = if (uiUpdates.show) View.VISIBLE else View.GONE
             }
+            is UpdateFilesUI.OutOfSpace -> {
+                val usageRatio = uiUpdates.progress.toFloat() / uiUpdates.max
+
+                val (usageBarColor, msgId) = if (usageRatio >= 1.0) {
+                    listOf(R.color.md_theme_error, R.string.out_of_space)
+                } else {
+                    val usageBarColor = if (usageRatio > 0.9) {
+                        R.color.md_theme_error
+                    } else {
+                        R.color.md_theme_progressWarning
+                    }
+
+                    listOf(usageBarColor, R.string.running_out_of_space)
+                }
+
+                binding.outOfSpace.apply {
+                    outOfSpaceMsg.setText(msgId)
+                    outOfSpaceProgressBar.setIndicatorColor(ContextCompat.getColor(requireContext(), usageBarColor))
+                    outOfSpaceProgressBar.progress = uiUpdates.progress
+                    outOfSpaceProgressBar.max = uiUpdates.max
+                    Animate.animateVisibility(root, View.VISIBLE, 255, 200)
+
+                    Timber.e("USAGE: ${uiUpdates.progress} ${uiUpdates.max}")
+
+                    outOfSpaceExit.setOnClickListener {
+                        Animate.animateVisibility(root, View.GONE, 0, 200)
+
+                        val pref = PreferenceManager
+                            .getDefaultSharedPreferences(requireContext())
+                            .edit()
+
+                        if (usageRatio > 0.9 && usageRatio < 1.0) {
+                            pref.putBoolean(getString(R.string.show_running_out_of_space_0_9_key), false)
+                            pref.apply()
+                        } else if (usageRatio > 0.8 && usageRatio <= 0.9) {
+                            pref.putBoolean(getString(R.string.show_running_out_of_space_0_8_key), false)
+                            pref.apply()
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -581,5 +639,6 @@ sealed class UpdateFilesUI {
     object ToggleMenuBar : UpdateFilesUI()
     object ShowBeforeWeStart : UpdateFilesUI()
     object SyncImport : UpdateFilesUI()
+    data class OutOfSpace(val progress: Int, val max: Int) : UpdateFilesUI()
     data class NotifyWithSnackbar(val msg: String) : UpdateFilesUI()
 }
