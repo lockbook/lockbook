@@ -180,6 +180,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         Ok(tree)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn import_file_recursively<F: Fn(ImportStatus), Base, Local, PublicKeyCache>(
         account: &Account, config: &Config,
         public_key_cache: &mut TransactionTable<Owner, String, PublicKeyCache>,
