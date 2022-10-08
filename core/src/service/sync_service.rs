@@ -493,13 +493,13 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .ok_or(CoreError::AccountNonexistent)?;
 
         let mut all_owners = HashSet::new();
-        for (_, file) in self.tx.base_metadata.get_all() {
+        for file in self.tx.base_metadata.get_all().values() {
             for user_access_key in file.user_access_keys() {
                 all_owners.insert(Owner(user_access_key.encrypted_by));
                 all_owners.insert(Owner(user_access_key.encrypted_for));
             }
         }
-        for (_, file) in self.tx.local_metadata.get_all() {
+        for file in self.tx.local_metadata.get_all().values() {
             for user_access_key in file.user_access_keys() {
                 all_owners.insert(Owner(user_access_key.encrypted_by));
                 all_owners.insert(Owner(user_access_key.encrypted_for));
