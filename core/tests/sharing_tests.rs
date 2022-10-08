@@ -846,8 +846,7 @@ fn get_path_by_id_link() {
         .create_link_at_path("received-folder", folder.id)
         .unwrap();
 
-    let result = core1.get_path_by_id(link.id);
-    assert_matches!(result, Err(_));
+    assert_eq!(core1.get_path_by_id(link.id).unwrap(), "/received-folder/");
 }
 
 #[test]
