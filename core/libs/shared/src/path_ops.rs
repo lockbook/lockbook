@@ -80,21 +80,21 @@ where
     }
 
     pub fn path_to_id(&mut self, path: &str, root: &Uuid, account: &Account) -> SharedResult<Uuid> {
-        let paths = split_path(path);
-
         let mut current = *root;
-        'path: for path in paths {
-            'child: for child in self.children(&current)? {
+        'path: for name in split_path(path) {
+            'child: for child in self.children(&if let FileType::Link { target } =
+                self.find(&current)?.file_type()
+            {
+                target
+            } else {
+                current
+            })? {
                 if self.calculate_deleted(&child)? {
                     continue 'child;
                 }
 
-                if self.name(&child, account)? == path {
-                    if let FileType::Link { target } = self.find(&child)?.file_type() {
-                        current = target;
-                    } else {
-                        current = child;
-                    }
+                if self.name(&child, account)? == name {
+                    current = child;
                     continue 'path;
                 }
             }
@@ -115,11 +115,10 @@ where
         let mut path = match meta.file_type() {
             FileType::Document => "",
             FileType::Folder => "/",
-            FileType::Link { target: _ } => {
-                return Err(SharedError::Unexpected(
-                    "cannot get path for link because links do not have paths",
-                ))
-            }
+            FileType::Link { target } => match self.find(&target)?.file_type() {
+                FileType::Document | FileType::Link { .. } => "",
+                FileType::Folder => "/",
+            },
         }
         .to_string();
 
@@ -176,13 +175,20 @@ where
             None => self.owned_ids(),
         };
 
-        // remove deleted
+        // remove deleted; include links not linked files
         let mut paths = vec![];
-        for id in filtered {
-            if !self.calculate_deleted(&id)?
-                && !self.in_pending_share(&id)?
-                && !matches!(self.find(&id)?.file_type(), FileType::Link { .. })
-            {
+        for id in filtered.clone() {
+            let id = match self.link(&id)? {
+                None => id,
+                Some(link) => {
+                    if filtered.contains(&link) {
+                        continue;
+                    }
+                    link
+                }
+            };
+
+            if !self.calculate_deleted(&id)? && !self.in_pending_share(&id)? {
                 paths.push(self.id_to_path(&id, account)?);
             }
         }

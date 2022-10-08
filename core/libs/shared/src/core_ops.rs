@@ -577,6 +577,26 @@ where
         }
         Ok(result)
     }
+
+    pub fn delete_links_to_deleted_files(
+        self, account: &Account,
+    ) -> SharedResult<TreeWithOps<Base, Local>> {
+        let mut result = self.stage(Vec::new());
+
+        for id in result.owned_ids() {
+            if result.calculate_deleted(&id)? {
+                continue;
+            }
+            let file = result.find(&id)?;
+            if let FileType::Link { target } = file.file_type() {
+                if result.calculate_deleted(&target)? {
+                    // delete link to deleted file file
+                    result = result.stage_delete(&id, account)?.promote();
+                }
+            }
+        }
+        Ok(result)
+    }
 }
 
 impl<Base, Remote, Local> LazyStage2<Base, Remote, Local>
@@ -888,6 +908,7 @@ where
         result = result.deduplicate_links(account)?.promote();
         result = result.resolve_shared_links(account)?.promote();
         result = result.resolve_owned_links(account)?.promote();
+        result = result.delete_links_to_deleted_files(account)?.promote();
 
         Ok((result, merge_document_changes))
     }

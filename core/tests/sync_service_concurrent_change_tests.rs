@@ -1083,7 +1083,7 @@ fn delete_then_create_link() {
     cores[1][1].sync(None).unwrap();
     cores[1][1].delete_file(document.id).unwrap();
 
-    sync_and_assert(&cores[1][0], &cores[1][1]);
+    sync_and_assert(&cores[1][1], &cores[1][0]); // note: order reversed from above test
 
     assert::all_paths(&cores[1][0], &["/"]);
 }
