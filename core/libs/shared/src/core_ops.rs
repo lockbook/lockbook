@@ -61,7 +61,7 @@ where
                     public_key_cache
                         .get(&Owner(user_access_key.encrypted_by))
                         .cloned()
-                        .unwrap_or(String::from("<unknown>"))
+                        .unwrap_or_else(|| String::from("<unknown>"))
                 },
                 shared_with: if user_access_key.encrypted_for == account.public_key() {
                     account.username.clone()
@@ -69,7 +69,7 @@ where
                     public_key_cache
                         .get(&Owner(user_access_key.encrypted_for))
                         .cloned()
-                        .unwrap_or(String::from("<unknown>"))
+                        .unwrap_or_else(|| String::from("<unknown>"))
                 },
             });
         }
