@@ -1,5 +1,5 @@
 use hmdb::transaction::{Transaction, TransactionTable};
-use lockbook_core::repo::schema::helper_log::{base_metadata, local_metadata};
+use lockbook_core::repo::schema_v2::helper_log::{base_metadata, local_metadata};
 use lockbook_shared::account::Account;
 use lockbook_shared::file::File;
 use lockbook_shared::file_metadata::{FileType, Owner};
