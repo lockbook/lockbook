@@ -1,4 +1,4 @@
-use crate::repo::schema_v1::CoreV1;
+use crate::repo::schema::CoreV1;
 use hmdb::transaction::Transaction;
 use lockbook_shared::account::Account;
 use lockbook_shared::file_metadata::Owner;

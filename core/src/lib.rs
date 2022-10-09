@@ -46,7 +46,6 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 pub use basic_human_duration::ChronoHumanDuration;
 pub use chrono::Duration;
-use hmdb::log::Reader;
 use hmdb::transaction::Transaction as _;
 use itertools::Itertools;
 use lockbook_shared::account::Username;
@@ -109,8 +108,8 @@ impl Core {
     #[instrument(level = "info", skip_all, err(Debug))]
     pub fn init(config: &Config) -> Result<Self, UnexpectedError> {
         log_service::init(config)?;
-        let db =
-            CoreDb::init(&config.writeable_path).map_err(|err| unexpected_only!("{:#?}", err))?;
+        let db = CoreDb::init_with_migration(&config.writeable_path)
+            .map_err(|err| unexpected_only!("{:#?}", err))?;
         let data_cache = Arc::new(Mutex::new(DataCache::default()));
         let config = config.clone();
         let client = Network::default();
