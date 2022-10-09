@@ -1,6 +1,6 @@
 use lockbook_core::model::errors::{CreateAccountError, ImportError};
-use lockbook_core::repo::schema::OneKey;
 use lockbook_core::Error;
+use lockbook_core::OneKey;
 use lockbook_shared::account::Account;
 use lockbook_shared::pubkey;
 use test_utils::*;

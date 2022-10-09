@@ -24,7 +24,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         let (mut tree, id) = tree.create(parent, name, file_type, account, &pub_key)?;
 
-        let ui_file = tree.finalize(&id, account)?;
+        let ui_file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
 
         info!("created {:?} with id {id}", file_type);
 
@@ -99,7 +99,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .get(&OneKey {})
             .ok_or(CoreError::RootNonexistent)?;
 
-        let root = tree.finalize(root_id, account)?;
+        let root = tree.finalize(root_id, account, &mut self.tx.username_by_public_key)?;
 
         Ok(root)
     }
@@ -118,7 +118,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         let ids = tree.owned_ids().into_iter();
 
-        Ok(tree.resolve_and_finalize(account, ids)?)
+        Ok(tree.resolve_and_finalize(account, ids, &mut self.tx.username_by_public_key)?)
     }
 
     pub fn get_children(&mut self, id: &Uuid) -> CoreResult<Vec<File>> {
@@ -134,7 +134,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .ok_or(CoreError::AccountNonexistent)?;
 
         let ids = tree.children_using_links(id)?.into_iter();
-        Ok(tree.resolve_and_finalize(account, ids)?)
+        Ok(tree.resolve_and_finalize(account, ids, &mut self.tx.username_by_public_key)?)
     }
 
     pub fn get_and_get_children_recursively(&mut self, id: &Uuid) -> CoreResult<Vec<File>> {
@@ -150,7 +150,11 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .ok_or(CoreError::AccountNonexistent)?;
 
         let descendants = tree.descendants_using_links(id)?;
-        Ok(tree.resolve_and_finalize(account, descendants.into_iter().chain(iter::once(*id)))?)
+        Ok(tree.resolve_and_finalize(
+            account,
+            descendants.into_iter().chain(iter::once(*id)),
+            &mut self.tx.username_by_public_key,
+        )?)
     }
 
     pub fn get_file_by_id(&mut self, id: &Uuid) -> CoreResult<File> {
@@ -168,7 +172,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             return Err(CoreError::FileNonexistent);
         }
 
-        Ok(tree.finalize(id, account)?)
+        Ok(tree.finalize(id, account, &mut self.tx.username_by_public_key)?)
     }
 
     pub fn find_owner(&self, id: &Uuid) -> CoreResult<Owner> {

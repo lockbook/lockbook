@@ -25,7 +25,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .ok_or(TestRepoError::NoAccount)?;
 
         if self.tx.last_synced.get(&OneKey {}).unwrap_or(&0) != &0
-            && self.tx.root.get(&OneKey).is_none()
+            && self.tx.root.get(&OneKey {}).is_none()
         {
             return Err(TestRepoError::NoRootFolder);
         }

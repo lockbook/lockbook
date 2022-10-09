@@ -1,5 +1,5 @@
 use crate::model::errors::core_err_unexpected;
-use crate::repo::schema::OneKey;
+use crate::OneKey;
 use crate::{CoreError, CoreResult, RequestContext, Requester};
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Account;

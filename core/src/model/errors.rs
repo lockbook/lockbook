@@ -8,7 +8,7 @@ use strum_macros::EnumIter;
 use uuid::Uuid;
 
 use lockbook_shared::api::{
-    self, GetFileIdsError, GetPublicKeyError, GetUpdatesError, NewAccountError,
+    self, GetFileIdsError, GetPublicKeyError, GetUpdatesError, GetUsernameError, NewAccountError,
 };
 use lockbook_shared::{SharedError, ValidationFailure};
 
@@ -298,6 +298,17 @@ impl From<ApiError<GetPublicKeyError>> for CoreError {
             ApiError::SendFailed(_) => CoreError::ServerUnreachable,
             ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
             ApiError::Endpoint(GetPublicKeyError::UserNotFound) => CoreError::AccountNonexistent,
+            e => core_err_unexpected(e),
+        }
+    }
+}
+
+impl From<ApiError<GetUsernameError>> for CoreError {
+    fn from(err: ApiError<GetUsernameError>) -> Self {
+        match err {
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            ApiError::Endpoint(GetUsernameError::UserNotFound) => CoreError::AccountNonexistent,
             e => core_err_unexpected(e),
         }
     }

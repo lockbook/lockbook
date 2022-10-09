@@ -27,7 +27,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         let (mut tree, id) = tree.create_link_at_path(path, target_id, root, account, &pub_key)?;
 
-        let ui_file = tree.finalize(&id, account)?;
+        let ui_file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
 
         Ok(ui_file)
     }
@@ -53,7 +53,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         let (mut tree, id) = tree.create_at_path(path, root, account, &pub_key)?;
 
-        let ui_file = tree.finalize(&id, account)?;
+        let ui_file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
 
         Ok(ui_file)
     }
@@ -78,7 +78,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         let id = tree.path_to_id(path, root, account)?;
 
-        let ui_file = tree.finalize(&id, account)?;
+        let ui_file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
 
         Ok(ui_file)
     }
