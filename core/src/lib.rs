@@ -64,7 +64,7 @@ use crate::service::log_service;
 use crate::service::search_service::{SearchResultItem, StartSearchInfo};
 
 type CoreDb = repo::schema_v2::CoreV2;
-type OneKey = repo::schema_v2::OneKey;
+pub type OneKey = repo::schema_v2::OneKey;
 type Tx<'a> = repo::schema_v2::Tx<'a>;
 type Transaction<'a> = repo::schema_v2::transaction::CoreV2<'a>;
 
