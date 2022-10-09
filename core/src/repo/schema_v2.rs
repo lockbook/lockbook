@@ -40,10 +40,10 @@ impl CoreV2 {
                     tx.root.insert(OneKey {}, v);
                 }
                 for (k, v) in source.local_metadata.get_all()? {
-                    tx.local_metadata.insert(k.clone(), v);
+                    tx.local_metadata.insert(k, v);
                 }
                 for (k, v) in source.base_metadata.get_all()? {
-                    tx.base_metadata.insert(k.clone(), v);
+                    tx.base_metadata.insert(k, v);
                 }
 
                 Ok(())
