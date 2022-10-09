@@ -87,7 +87,7 @@ pub mod no_network {
 
     use crate::service::api_service::ApiError;
     use crate::{call, CoreLib};
-    use crate::{CoreV1, DataCache, Requester};
+    use crate::{CoreDb, DataCache, Requester};
     use hmdb::log::Reader;
     use lockbook_server_lib::account_service::*;
     use lockbook_server_lib::billing::google_play_client::get_google_play_client;
@@ -222,7 +222,7 @@ pub mod no_network {
 
     impl CoreLib<InProcess> {
         pub fn init_in_process(core_config: &Config, client: InProcess) -> Self {
-            let db = CoreV1::init(&core_config.writeable_path).unwrap();
+            let db = CoreDb::init(&core_config.writeable_path).unwrap();
             let data_cache = Arc::new(Mutex::new(DataCache::default()));
             let config = core_config.clone();
 
