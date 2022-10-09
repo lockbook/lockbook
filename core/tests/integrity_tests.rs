@@ -1,6 +1,6 @@
 use hmdb::transaction::Transaction;
 use lockbook_core::model::errors::TestRepoError::*;
-use lockbook_core::repo::schema::OneKey;
+use lockbook_core::OneKey;
 use lockbook_core::Warning::*;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType::Document;
