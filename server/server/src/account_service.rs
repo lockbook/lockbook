@@ -13,7 +13,8 @@ use lockbook_shared::api::{
     AdminGetAccountInfoResponse, AdminListUsersError, AdminListUsersRequest,
     AdminListUsersResponse, DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError,
     GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
-    NewAccountError, NewAccountRequest, NewAccountResponse, PaymentPlatform,
+    GetUsernameError, GetUsernameRequest, GetUsernameResponse, NewAccountError, NewAccountRequest,
+    NewAccountResponse, PaymentPlatform,
 };
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_like::FileLike;
@@ -96,6 +97,24 @@ pub fn public_key_from_username(
         .get(&username.to_string())?
         .map(|owner| Ok(GetPublicKeyResponse { key: owner.0 }))
         .unwrap_or(Err(ClientError(GetPublicKeyError::UserNotFound)))
+}
+
+pub async fn get_username(
+    context: RequestContext<'_, GetUsernameRequest>,
+) -> Result<GetUsernameResponse, ServerError<GetUsernameError>> {
+    let (request, server_state) = (&context.request, context.server_state);
+    username_from_public_key(request.key, server_state)
+}
+
+pub fn username_from_public_key(
+    key: PublicKey, server_state: &ServerState,
+) -> Result<GetUsernameResponse, ServerError<GetUsernameError>> {
+    server_state
+        .index_db
+        .accounts
+        .get(&Owner(key))?
+        .map(|account| Ok(GetUsernameResponse { username: account.username }))
+        .unwrap_or(Err(ClientError(GetUsernameError::UserNotFound)))
 }
 
 pub async fn get_usage(
