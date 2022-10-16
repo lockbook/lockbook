@@ -47,11 +47,7 @@ pub fn info(core: &Core, username: Option<String>, public_key: Option<String>) -
     };
 
     let account_info = core.admin_get_account_info(identifier)?;
-
-    println!("{}", account_info.username);
-    println!("root: {}", account_info.root);
-    println!("payment_platform: {:#?}", account_info.payment_platform);
-    println!("usage: {}", account_info.usage);
+    println!("{:#?}", account_info);
 
     Ok(())
 }
