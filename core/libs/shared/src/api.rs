@@ -615,6 +615,7 @@ pub struct AccountInfo {
     pub username: String,
     pub root: Uuid,
     pub payment_platform: Option<PaymentPlatform>,
+    pub usage: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]

@@ -47,7 +47,6 @@ pub fn info(core: &Core, username: Option<String>, public_key: Option<String>) -
     };
 
     let account_info = core.admin_get_account_info(identifier)?;
-
     println!("{:#?}", account_info);
 
     Ok(())
