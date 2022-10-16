@@ -9,6 +9,45 @@ use test_utils::*;
 use uuid::Uuid;
 
 #[test]
+fn shares_finalized() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let document = cores[0].create_at_path("/document").unwrap();
+    cores[0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    assert_eq!(
+        cores[0].get_file_by_id(document.id).unwrap().shares[0].shared_with,
+        accounts[1].username
+    );
+}
+
+#[test]
+fn shares_finalized_unsynced_share() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let document = cores[0].create_at_path("/document").unwrap();
+    cores[0]
+        .share_file(document.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+
+    assert_eq!(
+        cores[0].get_file_by_id(document.id).unwrap().shares[0].shared_with,
+        accounts[1].username
+    );
+}
+
+#[test]
 fn write_document_read_share() {
     let cores = vec![test_core_with_account(), test_core_with_account()];
     let accounts = cores
@@ -846,8 +885,7 @@ fn get_path_by_id_link() {
         .create_link_at_path("received-folder", folder.id)
         .unwrap();
 
-    let result = core1.get_path_by_id(link.id);
-    assert_matches!(result, Err(_));
+    assert_eq!(core1.get_path_by_id(link.id).unwrap(), "/received-folder/");
 }
 
 #[test]

@@ -122,6 +122,7 @@ pub fn core_routes(
         .or(core_req!(UpsertRequest, upsert_file_metadata, server_state))
         .or(core_req!(GetDocRequest, get_document, server_state))
         .or(core_req!(GetPublicKeyRequest, get_public_key, server_state))
+        .or(core_req!(GetUsernameRequest, get_username, server_state))
         .or(core_req!(GetUsageRequest, get_usage, server_state))
         .or(core_req!(GetFileIdsRequest, get_file_ids, server_state))
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))

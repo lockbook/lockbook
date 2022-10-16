@@ -1,16 +1,18 @@
 use std::collections::{HashMap, HashSet};
 
 use hmac::{Mac, NewMac};
+use hmdb::log::SchemaEvent;
+use hmdb::transaction::TransactionTable;
 use libsecp256k1::PublicKey;
 use tracing::debug;
 use uuid::Uuid;
 
-use crate::access_info::UserAccessInfo;
+use crate::access_info::{UserAccessInfo, UserAccessMode};
 use crate::account::Account;
 use crate::core_config::Config;
 use crate::crypto::{DecryptedDocument, EncryptedDocument};
 use crate::document_repo::RepoSource;
-use crate::file::File;
+use crate::file::{File, Share, ShareMode};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileMetadata, FileType, Owner};
 use crate::filename::{DocumentType, NameComponents};
@@ -29,8 +31,11 @@ where
     Base: Stagable<F = SignedFile>,
     Local: Stagable<F = Base::F>,
 {
-    pub fn finalize(&mut self, id: &Uuid, account: &Account) -> SharedResult<File> {
-        let meta = self.find(id)?;
+    pub fn finalize<PublicKeyCache: SchemaEvent<Owner, String>>(
+        &mut self, id: &Uuid, account: &Account,
+        public_key_cache: &mut TransactionTable<Owner, String, PublicKeyCache>,
+    ) -> SharedResult<File> {
+        let meta = self.find(id)?.clone();
         let file_type = meta.file_type();
         let parent = *meta.parent();
         let last_modified = meta.timestamped_value.timestamp as u64;
@@ -38,20 +43,47 @@ where
         let id = *id;
         let last_modified_by = account.username.clone();
 
-        Ok(File {
-            id,
-            parent,
-            name,
-            file_type,
-            last_modified,
-            last_modified_by,
-            shares: Vec::new(), // todo
-        })
+        let mut shares = Vec::new();
+        for user_access_key in meta.user_access_keys() {
+            if user_access_key.encrypted_by == user_access_key.encrypted_for {
+                continue;
+            }
+            let mode = match user_access_key.mode {
+                UserAccessMode::Read => ShareMode::Read,
+                UserAccessMode::Write => ShareMode::Write,
+                UserAccessMode::Owner => continue,
+            };
+            shares.push(Share {
+                mode,
+                shared_by: if user_access_key.encrypted_by == account.public_key() {
+                    account.username.clone()
+                } else {
+                    public_key_cache
+                        .get(&Owner(user_access_key.encrypted_by))
+                        .cloned()
+                        .unwrap_or_else(|| String::from("<unknown>"))
+                },
+                shared_with: if user_access_key.encrypted_for == account.public_key() {
+                    account.username.clone()
+                } else {
+                    public_key_cache
+                        .get(&Owner(user_access_key.encrypted_for))
+                        .cloned()
+                        .unwrap_or_else(|| String::from("<unknown>"))
+                },
+            });
+        }
+
+        Ok(File { id, parent, name, file_type, last_modified, last_modified_by, shares })
     }
 
-    pub fn resolve_and_finalize<I>(&mut self, account: &Account, ids: I) -> SharedResult<Vec<File>>
+    pub fn resolve_and_finalize<I, PublicKeyCache>(
+        &mut self, account: &Account, ids: I,
+        public_key_cache: &mut TransactionTable<Owner, String, PublicKeyCache>,
+    ) -> SharedResult<Vec<File>>
     where
         I: Iterator<Item = Uuid>,
+        PublicKeyCache: SchemaEvent<Owner, String>,
     {
         let mut files = Vec::new();
         let mut parent_substitutions = HashMap::new();
@@ -67,12 +99,12 @@ where
                 continue;
             }
 
-            let finalized = self.finalize(&id, account)?;
+            let finalized = self.finalize(&id, account, public_key_cache)?;
 
             match finalized.file_type {
                 FileType::Document | FileType::Folder => files.push(finalized),
                 FileType::Link { target } => {
-                    let mut target_file = self.finalize(&target, account)?;
+                    let mut target_file = self.finalize(&target, account, public_key_cache)?;
                     if target_file.is_folder() {
                         parent_substitutions.insert(target, id);
                     }
@@ -559,6 +591,26 @@ where
         }
         Ok(result)
     }
+
+    pub fn delete_links_to_deleted_files(
+        self, account: &Account,
+    ) -> SharedResult<TreeWithOps<Base, Local>> {
+        let mut result = self.stage(Vec::new());
+
+        for id in result.owned_ids() {
+            if result.calculate_deleted(&id)? {
+                continue;
+            }
+            let file = result.find(&id)?;
+            if let FileType::Link { target } = file.file_type() {
+                if result.calculate_deleted(&target)? {
+                    // delete link to deleted file file
+                    result = result.stage_delete(&id, account)?.promote();
+                }
+            }
+        }
+        Ok(result)
+    }
 }
 
 impl<Base, Remote, Local> LazyStage2<Base, Remote, Local>
@@ -870,6 +922,7 @@ where
         result = result.deduplicate_links(account)?.promote();
         result = result.resolve_shared_links(account)?.promote();
         result = result.resolve_owned_links(account)?.promote();
+        result = result.delete_links_to_deleted_files(account)?.promote();
 
         Ok((result, merge_document_changes))
     }
