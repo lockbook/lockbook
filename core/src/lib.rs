@@ -47,8 +47,6 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-pub use basic_human_duration::ChronoHumanDuration;
-pub use chrono::Duration;
 use hmdb::transaction::Transaction as _;
 use itertools::Itertools;
 use lockbook_shared::account::Username;
