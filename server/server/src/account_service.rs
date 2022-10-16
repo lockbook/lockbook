@@ -289,26 +289,11 @@ pub async fn admin_get_account_info(
 
     let usage_str = bytes_to_human(usage);
 
-    let mut last_active = 0;
-
-    if let Some(ids) = db.owned_files.get(&owner)? {
-        for id in ids {
-            let metadata = db.metas.get(&id)?.ok_or_else(|| {
-                internal!("Metadata for id should exist, id: {:?}, owner: {:?}", id, owner)
-            })?;
-
-            if metadata.version > last_active {
-                last_active = metadata.version
-            }
-        }
-    }
-
     Ok(AdminGetAccountInfoResponse {
         account: AccountInfo {
             username: account.username,
             root,
             payment_platform,
-            last_active,
             usage: usage_str,
         },
     })

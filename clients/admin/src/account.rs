@@ -1,5 +1,5 @@
 use crate::{Error, Res};
-use lockbook_core::{base64, AccountFilter, AccountIdentifier, Core, NaiveDateTime, PublicKey};
+use lockbook_core::{base64, AccountFilter, AccountIdentifier, Core, PublicKey};
 
 pub fn list(
     core: &Core, premium: bool, google_play_premium: bool, stripe_premium: bool,
@@ -51,9 +51,6 @@ pub fn info(core: &Core, username: Option<String>, public_key: Option<String>) -
     println!("{}", account_info.username);
     println!("root: {}", account_info.root);
     println!("payment_platform: {:#?}", account_info.payment_platform);
-    let timestamp_str = NaiveDateTime::from_timestamp((account_info.last_active / 1000) as i64, 0);
-
-    println!("last_active: {} ({})", timestamp_str, account_info.last_active);
     println!("usage: {}", account_info.usage);
 
     Ok(())
