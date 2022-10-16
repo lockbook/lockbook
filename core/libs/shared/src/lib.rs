@@ -24,6 +24,7 @@ pub mod signed_file;
 pub mod staged;
 pub mod symkey;
 pub mod tree_like;
+pub mod usage;
 pub mod validate;
 pub mod work_unit;
 

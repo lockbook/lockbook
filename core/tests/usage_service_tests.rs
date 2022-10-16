@@ -1,20 +1,5 @@
-use lockbook_core::service::usage_service::{self, UsageItemMetric};
+use lockbook_core::service::usage_service::UsageItemMetric;
 use test_utils::*;
-
-#[test]
-fn bytes_to_human_kb() {
-    assert_eq!(usage_service::bytes_to_human(2000), "2 KB".to_string());
-}
-
-#[test]
-fn bytes_to_human_mb() {
-    assert_eq!(usage_service::bytes_to_human(2000000), "2 MB".to_string());
-}
-
-#[test]
-fn bytes_to_human_gb() {
-    assert_eq!(usage_service::bytes_to_human(2000000000), "2 GB".to_string());
-}
 
 #[test]
 fn get_uncompressed_usage_no_documents() {

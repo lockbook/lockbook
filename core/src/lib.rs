@@ -10,6 +10,8 @@ pub mod service;
 mod external_interface;
 
 pub use base64;
+pub use basic_human_duration::ChronoHumanDuration;
+pub use chrono::Duration;
 pub use libsecp256k1::PublicKey;
 pub use uuid::Uuid;
 
@@ -32,20 +34,19 @@ pub use lockbook_shared::path_ops::Filter;
 pub use lockbook_shared::server_file::ServerFile;
 pub use lockbook_shared::tree_like::Stagable;
 pub use lockbook_shared::tree_like::TreeLike;
+pub use lockbook_shared::usage::bytes_to_human;
 pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 
 pub use crate::model::drawing::SupportedImageFormats;
 pub use crate::model::errors::*;
 pub use crate::service::import_export_service::{ImportExportFileInfo, ImportStatus};
 pub use crate::service::sync_service::{SyncProgress, WorkCalculated};
-pub use crate::service::usage_service::{bytes_to_human, UsageItemMetric, UsageMetrics};
+pub use crate::service::usage_service::{UsageItemMetric, UsageMetrics};
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-pub use basic_human_duration::ChronoHumanDuration;
-pub use chrono::Duration;
 use hmdb::transaction::Transaction as _;
 use itertools::Itertools;
 use lockbook_shared::account::Username;
