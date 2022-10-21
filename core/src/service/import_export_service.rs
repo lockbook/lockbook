@@ -160,7 +160,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         Ok(tree)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn import_file_recursively<F: Fn(ImportStatus)>(
         &mut self, disk_path: &Path, dest: &Uuid, update_status: &F,
     ) -> CoreResult<()> {
