@@ -41,11 +41,7 @@ fn from_args(releaser: Releaser) {
         Releaser::All => {
             let releases = if cfg!(target_os = "apple") {
                 vec![
-                    Releaser::DeployServer,
                     Releaser::ReleaseApple,
-                    Releaser::ReleaseAndroid,
-                    Releaser::ReleaseWindows,
-                    Releaser::ReleasePublicSite,
                 ]
             } else if cfg!(target_os = "linux") {
                 vec![
