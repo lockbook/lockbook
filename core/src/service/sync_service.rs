@@ -5,14 +5,14 @@ use lockbook_shared::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
     GetUsernameRequest, UpsertRequest,
 };
-use lockbook_shared::document_repo::{self, RepoSource};
+use lockbook_shared::document_repo;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{DocumentHmac, FileDiff, Owner};
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct WorkCalculated {
@@ -81,6 +81,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         let update_as_of = self.pull(&mut update_sync_progress)?;
         self.tx.last_synced.insert(OneKey {}, update_as_of);
         self.populate_public_key_cache()?;
+
         Ok(())
     }
 
@@ -133,38 +134,34 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
-        let mut base_documents = HashMap::new();
-        let mut remote_document_changes = HashMap::new();
-        let mut local_document_changes = HashMap::new();
+        let mut remote_document_changes = HashSet::new();
         remote_changes = {
             let mut remote = self.tx.base_metadata.to_lazy().stage(remote_changes);
             for id in remote.tree.staged.owned_ids() {
                 if remote.calculate_deleted(&id)? {
                     continue;
                 }
-                if let Some(&remote_hmac) = remote.find(&id)?.document_hmac() {
-                    let base_hmac = {
-                        if let Some(base_file) = remote.tree.base.maybe_find(&id) {
-                            base_file.document_hmac()
-                        } else {
-                            None
-                        }
-                    };
-                    if base_hmac == Some(&remote_hmac) {
-                        continue;
-                    }
+                let remote_hmac = remote.find(&id)?.document_hmac().cloned();
+                let base_hmac = remote
+                    .tree
+                    .base
+                    .maybe_find(&id)
+                    .and_then(|f| f.document_hmac())
+                    .cloned();
+                if base_hmac == remote_hmac {
+                    continue;
+                }
+
+                if let Some(remote_hmac) = remote_hmac {
                     update_sync_progress(SyncProgressOperation::StartWorkUnit(
                         ClientWorkUnit::PullDocument(remote.name(&id, account)?),
                     ));
-                    let remote_document_change = self
+                    let remote_document = self
                         .client
                         .request(account, GetDocRequest { id, hmac: remote_hmac })?
                         .content;
-                    document_repo::maybe_get(self.config, RepoSource::Base, &id)?
-                        .map(|d| base_documents.insert(id, d));
-                    remote_document_changes.insert(id, remote_document_change);
-                    document_repo::maybe_get(self.config, RepoSource::Local, &id)?
-                        .map(|d| local_document_changes.insert(id, d));
+                    document_repo::insert(self.config, &id, Some(&remote_hmac), &remote_document)?;
+                    remote_document_changes.insert(id);
                 }
             }
             let (_, remote_changes) = remote.unstage();
@@ -172,7 +169,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         };
 
         // base = remote; local = merge
-        let (remote_changes, merge_document_changes) = {
+        let remote_changes = {
             let local = self
                 .tx
                 .base_metadata
@@ -180,31 +177,21 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 .stage(&mut self.tx.local_metadata)
                 .to_lazy();
 
-            let (local, merge_document_changes) = local.merge(
-                account,
-                &base_documents,
-                &local_document_changes,
-                &remote_document_changes,
-            )?;
+            let local = local.merge(self.config, account, &remote_document_changes)?;
             let (remote, _) = local.unstage();
             let (_, remote_changes) = remote.unstage();
-            (remote_changes, merge_document_changes)
+            remote_changes
         };
 
-        let tree = self
-            .tx
+        self.tx
             .base_metadata
             .stage(remote_changes)
             .to_lazy()
-            .promote()
-            .stage(&mut self.tx.local_metadata);
-        for (id, document) in remote_document_changes {
-            tree.write_document_content(self.config, RepoSource::Base, &id, &document)?;
-        }
-        for (id, document) in merge_document_changes {
-            tree.write_document_content(self.config, RepoSource::Local, &id, &document)?;
-        }
+            .promote();
+
         self.reset_deleted_files()?;
+        // todo: cleanup unused versions of documents?
+        // todo: download instant-deleted documents
 
         Ok(update_as_of as i64)
     }
@@ -251,7 +238,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         // resets all changes to files that are implicitly deleted, then explicitly deletes them
         // we don't want to push updates to deleted documents and we might as well not push updates to deleted metadata
         // we must explicitly delete a file which is moved into a deleted folder because otherwise resetting it makes it no longer deleted
-        // todo: document repo deletions are not atomic and an interruption during sync can cause digests to become out of date
         let account = self.get_account()?.clone();
 
         let mut tree = self.tx.base_metadata.to_lazy();
@@ -271,32 +257,18 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         let mut local_change_resets = Vec::new();
 
         for id in tree.tree.staged.owned_ids() {
-            let local_file = tree.find(&id)?.timestamped_value.value.clone();
             if let Some(base_file) = tree.tree.base.maybe_find(&id) {
                 let mut base_file = base_file.timestamped_value.value.clone();
                 if already_deleted.contains(&id) {
                     // reset file
-                    if base_file.document_hmac != local_file.document_hmac
-                        && local_file.document_hmac.is_some()
-                    {
-                        document_repo::delete(self.config, RepoSource::Local, &id)?;
-                    }
                     local_change_resets.push(base_file.sign(&account)?);
                 } else if tree.calculate_deleted(&id)? {
                     // reset everything but set deleted=true
                     base_file.is_deleted = true;
-                    if base_file.document_hmac != local_file.document_hmac
-                        && local_file.document_hmac.is_some()
-                    {
-                        document_repo::delete(self.config, RepoSource::Local, &id)?;
-                    }
                     local_change_resets.push(base_file.sign(&account)?);
                 }
             } else if tree.calculate_deleted(&id)? {
                 // delete
-                if local_file.document_hmac.is_some() {
-                    document_repo::delete(self.config, RepoSource::Local, &id)?;
-                }
                 local_change_removals.insert(id);
             }
         }
@@ -327,8 +299,12 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         for id in prunable_ids {
             local.remove(id);
-            document_repo::delete(self.config, RepoSource::Base, &id)?;
-            document_repo::delete(self.config, RepoSource::Local, &id)?;
+            if let Some(base_file) = local.tree.base.maybe_find(&id) {
+                document_repo::delete(self.config, &id, base_file.document_hmac())?;
+            }
+            if let Some(local_file) = local.maybe_find(&id) {
+                document_repo::delete(self.config, &id, local_file.document_hmac())?;
+            }
         }
         Ok(())
     }
@@ -413,15 +389,20 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             }
 
             let local_change = local_change.sign(account)?;
-            let local_document_change = document_repo::get(self.config, RepoSource::Local, &id)?;
+            let local_document_change =
+                document_repo::get(self.config, &id, local_change.document_hmac())?;
 
             update_sync_progress(SyncProgressOperation::StartWorkUnit(
                 ClientWorkUnit::PushDocument(local.name(&id, account)?),
             ));
 
             // base = local (document)
-            document_repo::insert(self.config, RepoSource::Base, &id, &local_document_change)?;
-            document_repo::delete(self.config, RepoSource::Local, &id)?;
+            document_repo::insert(
+                self.config,
+                &id,
+                local_change.document_hmac(),
+                &local_document_change,
+            )?;
 
             // remote = local
             self.client.request(

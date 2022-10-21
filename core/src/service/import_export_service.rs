@@ -1,18 +1,15 @@
 use crate::{CoreError, RequestContext, Requester};
 use crate::{CoreResult, OneKey};
-use hmdb::log::SchemaEvent;
-use hmdb::transaction::TransactionTable;
-use libsecp256k1::PublicKey;
 use lockbook_shared::account::Account;
 use lockbook_shared::core_config::Config;
 use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{FileType, Owner};
+use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::filename::NameComponents;
 use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
-use lockbook_shared::SharedError;
+use lockbook_shared::{document_repo, SharedError};
 use std::collections::HashSet;
 use std::fs;
 use std::fs::OpenOptions;
@@ -31,11 +28,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn import_files<F: Fn(ImportStatus)>(
         &mut self, sources: &[PathBuf], dest: Uuid, update_status: &F,
     ) -> CoreResult<()> {
-        let n_files = get_total_child_count(sources)?;
-        update_status(ImportStatus::CalculatedTotal(n_files));
+        update_status(ImportStatus::CalculatedTotal(get_total_child_count(sources)?));
 
-        let public_key = self.get_public_key()?;
-        let mut tree = self
+        let tree = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)
@@ -46,23 +41,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             return Err(CoreError::FileNotFolder);
         }
 
-        let account = self
-            .tx
-            .account
-            .get(&OneKey {})
-            .ok_or(CoreError::AccountNonexistent)?;
-
         for disk_path in sources {
-            tree = Self::import_file_recursively(
-                account,
-                self.config,
-                &mut self.tx.username_by_public_key,
-                &public_key,
-                tree,
-                disk_path,
-                &dest,
-                update_status,
-            )?;
+            self.import_file_recursively(disk_path, &dest, update_status)?;
         }
 
         Ok(())
@@ -181,70 +161,79 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn import_file_recursively<F: Fn(ImportStatus), Base, Local, PublicKeyCache>(
-        account: &Account, config: &Config,
-        public_key_cache: &mut TransactionTable<Owner, String, PublicKeyCache>,
-        public_key: &PublicKey, mut tree: LazyStaged1<Base, Local>, disk_path: &Path, dest: &Uuid,
-        update_status: &F,
-    ) -> CoreResult<LazyStaged1<Base, Local>>
-    where
-        Base: Stagable<F = SignedFile>,
-        Local: Stagable<F = Base::F>,
-        PublicKeyCache: SchemaEvent<Owner, String>,
-    {
+    fn import_file_recursively<F: Fn(ImportStatus)>(
+        &mut self, disk_path: &Path, dest: &Uuid, update_status: &F,
+    ) -> CoreResult<()> {
+        let public_key = self.get_public_key()?;
+        let mut tree = self
+            .tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy();
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
+
         update_status(ImportStatus::StartingItem(format!("{}", disk_path.display())));
 
-        if !disk_path.exists() {
-            return Err(CoreError::DiskPathInvalid);
-        }
+        let mut disk_paths_with_destinations = vec![(PathBuf::from(disk_path), *dest)];
+        loop {
+            let (disk_path, dest) = match disk_paths_with_destinations.pop() {
+                None => break,
+                Some((disk_path, dest)) => (disk_path, dest),
+            };
 
-        let disk_file_name = disk_path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .ok_or(CoreError::DiskPathInvalid)?;
-
-        let ftype = match disk_path.is_file() {
-            true => FileType::Document,
-            false => FileType::Folder,
-        };
-
-        let file_name = RequestContext::<Client>::generate_non_conflicting_name(
-            &mut tree,
-            account,
-            dest,
-            disk_file_name,
-        )?;
-        let (mut tree, id) = tree.create(dest, &file_name, ftype, account, public_key)?;
-        let file = tree.finalize(&id, account, public_key_cache)?;
-
-        let tree = if ftype == FileType::Document {
-            let doc = fs::read(&disk_path).map_err(CoreError::from)?;
-            let tree = tree.write_document(config, &id, &doc, account)?;
-            update_status(ImportStatus::FinishedItem(file));
-            tree
-        } else {
-            update_status(ImportStatus::FinishedItem(file));
-
-            let entries = fs::read_dir(disk_path).map_err(CoreError::from)?;
-
-            for entry in entries {
-                let child_path = entry.map_err(CoreError::from)?.path();
-                tree = RequestContext::<Client>::import_file_recursively(
-                    account,
-                    config,
-                    public_key_cache,
-                    public_key,
-                    tree,
-                    &child_path,
-                    &id,
-                    update_status,
-                )?;
+            if !disk_path.exists() {
+                return Err(CoreError::DiskPathInvalid);
             }
 
-            tree
-        };
+            let disk_file_name = disk_path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or(CoreError::DiskPathInvalid)?;
 
-        Ok(tree)
+            let ftype = match disk_path.is_file() {
+                true => FileType::Document,
+                false => FileType::Folder,
+            };
+
+            let file_name = RequestContext::<Client>::generate_non_conflicting_name(
+                &mut tree,
+                account,
+                &dest,
+                disk_file_name,
+            )?;
+
+            let (tmp_tree, id) = tree.create(&dest, &file_name, ftype, account, &public_key)?;
+            tree = tmp_tree;
+            let file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
+
+            tree = if ftype == FileType::Document {
+                let doc = fs::read(&disk_path).map_err(CoreError::from)?;
+
+                let (tree, encrypted_document) = tree.update_document(&id, &doc, account)?;
+                let hmac = tree.find(&id)?.document_hmac();
+                document_repo::insert(self.config, &id, hmac, &encrypted_document)?;
+
+                update_status(ImportStatus::FinishedItem(file));
+                tree
+            } else {
+                update_status(ImportStatus::FinishedItem(file));
+
+                let entries = fs::read_dir(disk_path).map_err(CoreError::from)?;
+
+                for entry in entries {
+                    let child_path = entry.map_err(CoreError::from)?.path();
+                    disk_paths_with_destinations.push((child_path.clone(), id));
+                }
+
+                tree
+            };
+        }
+
+        Ok(())
     }
 
     fn generate_non_conflicting_name<Base, Local>(

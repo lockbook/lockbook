@@ -7,7 +7,7 @@ use lockbook_core::{Core, CoreLib};
 use lockbook_shared::api::{PaymentMethod, StripeAccountTier};
 use lockbook_shared::core_config::Config;
 use lockbook_shared::crypto::EncryptedDocument;
-use lockbook_shared::document_repo::{self, RepoSource};
+use lockbook_shared::document_repo;
 use lockbook_shared::work_unit::WorkUnit;
 use std::collections::HashMap;
 use std::env;
@@ -114,17 +114,17 @@ pub fn assert_dbs_equal<Client: Requester>(left: &CoreLib<Client>, right: &CoreL
     assert_eq!(left.db.base_metadata.get_all().unwrap(), right.db.base_metadata.get_all().unwrap());
 }
 
-pub fn doc_repo_get_all(config: &Config, source: RepoSource) -> Vec<EncryptedDocument> {
+pub fn doc_repo_get_all(config: &Config) -> Vec<EncryptedDocument> {
     let mut docs = vec![];
-    for file in list_files(config, &source) {
+    for file in list_files(config) {
         let content = fs::read(file).unwrap();
         docs.push(bincode::deserialize(&content).unwrap());
     }
     docs
 }
 
-fn list_files(db: &Config, namespace: &RepoSource) -> Vec<String> {
-    let path = document_repo::namespace_path(db, namespace);
+fn list_files(db: &Config) -> Vec<String> {
+    let path = document_repo::namespace_path(db);
     let path = Path::new(&path);
 
     match fs::read_dir(&path) {

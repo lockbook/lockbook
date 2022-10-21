@@ -11,7 +11,6 @@ use crate::access_info::{UserAccessInfo, UserAccessMode};
 use crate::account::Account;
 use crate::core_config::Config;
 use crate::crypto::{DecryptedDocument, EncryptedDocument};
-use crate::document_repo::RepoSource;
 use crate::file::{File, Share, ShareMode};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileMetadata, FileType, Owner};
@@ -297,9 +296,9 @@ where
         }
 
         let maybe_encrypted_document =
-            match document_repo::maybe_get(config, RepoSource::Local, meta.id())? {
+            match document_repo::maybe_get(config, meta.id(), meta.document_hmac())? {
                 Some(local) => Some(local),
-                None => document_repo::maybe_get(config, RepoSource::Base, meta.id())?,
+                None => document_repo::maybe_get(config, meta.id(), meta.document_hmac())?,
             };
 
         let doc = match maybe_encrypted_document {
@@ -308,50 +307,6 @@ where
         };
 
         Ok((self, doc))
-    }
-
-    pub fn write_document(
-        self, config: &Config, id: &Uuid, document: &[u8], account: &Account,
-    ) -> SharedResult<Self> {
-        let id = match self.find(id)?.file_type() {
-            FileType::Document | FileType::Folder => *id,
-            FileType::Link { target } => target,
-        };
-
-        let (tree, document) = self.update_document(&id, document, account)?;
-        tree.write_document_content(config, RepoSource::Local, &id, &document)?;
-
-        Ok(tree)
-    }
-
-    /// assumes hmacs have already been written
-    pub fn write_document_content(
-        &self, config: &Config, source: RepoSource, id: &Uuid, document: &EncryptedDocument,
-    ) -> SharedResult<()> {
-        let base_hmac = self
-            .tree
-            .base
-            .maybe_find(id)
-            .and_then(|f| f.document_hmac());
-        let local_hmac = self
-            .tree
-            .staged
-            .maybe_find(id)
-            .and_then(|f| f.document_hmac());
-        match source {
-            RepoSource::Local => {
-                if base_hmac != local_hmac {
-                    document_repo::insert(config, RepoSource::Local, id, document)?;
-                }
-            }
-            RepoSource::Base => {
-                document_repo::insert(config, RepoSource::Base, id, document)?;
-                if base_hmac == local_hmac {
-                    document_repo::delete(config, RepoSource::Local, id)?;
-                }
-            }
-        }
-        Ok(())
     }
 
     pub fn update_document(
@@ -366,10 +321,15 @@ where
     pub fn stage_update_document(
         mut self, id: &Uuid, document: &[u8], account: &Account,
     ) -> SharedResult<(TreeWithOp<Base, Local>, EncryptedDocument)> {
-        let mut file: FileMetadata = self.find(id)?.timestamped_value.value.clone();
+        let id = match self.find(id)?.file_type() {
+            FileType::Document | FileType::Folder => *id,
+            FileType::Link { target } => target,
+        };
+
+        let mut file: FileMetadata = self.find(&id)?.timestamped_value.value.clone();
         validate::is_document(&file)?;
 
-        let key = self.decrypt_key(id, account)?;
+        let key = self.decrypt_key(&id, account)?;
         let hmac = {
             let mut mac =
                 HmacSha256::new_from_slice(&key).map_err(SharedError::HmacCreationError)?;
@@ -621,17 +581,14 @@ where
 {
     /// Applies changes to local such that this is a valid tree.
     pub fn merge(
-        self, account: &Account, base_documents: &HashMap<Uuid, EncryptedDocument>,
-        local_document_changes: &HashMap<Uuid, EncryptedDocument>,
-        remote_document_changes: &HashMap<Uuid, EncryptedDocument>,
-    ) -> SharedResult<(Self, HashMap<Uuid, EncryptedDocument>)>
+        self, config: &Config, account: &Account, remote_document_changes: &HashSet<Uuid>,
+    ) -> SharedResult<Self>
     where
         Base: Stagable<F = SignedFile>,
         Remote: Stagable<F = SignedFile>,
         Local: Stagable<F = SignedFile>,
     {
         let mut result = self.stage(Vec::new());
-        let mut merge_document_changes = HashMap::new();
 
         // merge files on an individual basis
         {
@@ -811,7 +768,11 @@ where
 
         // merge documents
         {
-            for (id, remote_document_change) in remote_document_changes {
+            for id in remote_document_changes {
+                let remote_document_change_hmac =
+                    result.tree.base.base.staged.find(id)?.document_hmac();
+                let remote_document_change =
+                    document_repo::get(config, id, remote_document_change_hmac)?;
                 if result.calculate_deleted(id)? {
                     // cannot modify locally deleted documents; local changes to deleted documents are reset anyway
                     continue;
@@ -819,9 +780,32 @@ where
                 // todo: use merged document type
                 let local_document_type =
                     DocumentType::from_file_name_using_extension(&result.name(id, account)?);
-                result = match (local_document_changes.get(id), local_document_type) {
+                let base_document_hmac = result
+                    .tree
+                    .base
+                    .base
+                    .base
+                    .maybe_find(id)
+                    .and_then(|f| f.document_hmac())
+                    .cloned();
+                let local_document_hmac = result
+                    .tree
+                    .base
+                    .staged
+                    .maybe_find(id)
+                    .and_then(|f| f.document_hmac())
+                    .cloned();
+                let maybe_local_document_change =
+                    if local_document_hmac.is_none() || base_document_hmac == local_document_hmac {
+                        None
+                    } else {
+                        Some(document_repo::get(config, id, local_document_hmac.as_ref())?)
+                    };
+                result = match (maybe_local_document_change, local_document_type) {
                     // no local changes -> no merge
-                    (None, _) => result,
+                    (None, _) => {
+                        result
+                    }
                     // text files always merged
                     (Some(local_document_change), DocumentType::Text) => {
                         let (
@@ -832,17 +816,17 @@ where
                             let (local, merge_changes) = result.unstage();
                             let (remote, local_changes) = local.unstage();
                             let (mut base, remote_changes) = remote.unstage();
-                            let decrypted_base_document = base_documents
-                                .get(id)
-                                .map(|document| base.decrypt_document(id, document, account))
-                                .map_or(Ok(None), |v| v.map(Some))?
-                                .unwrap_or_default();
+                            let decrypted_base_document =
+                                document_repo::maybe_get(config, id, base_document_hmac.as_ref())?
+                                    .map(|document| base.decrypt_document(id, &document, account))
+                                    .map_or(Ok(None), |v| v.map(Some))?
+                                    .unwrap_or_default();
                             let mut remote = base.stage(remote_changes);
                             let decrypted_remote_document =
-                                remote.decrypt_document(id, remote_document_change, account)?;
+                                remote.decrypt_document(id, &remote_document_change, account)?;
                             let mut local = remote.stage(local_changes);
                             let decrypted_local_document =
-                                local.decrypt_document(id, local_document_change, account)?;
+                                local.decrypt_document(id, &local_document_change, account)?;
                             result = local.stage(merge_changes);
                             (
                                 decrypted_base_document,
@@ -861,7 +845,8 @@ where
                         };
                         let (result, encrypted_document) =
                             result.update_document(id, &merged_document, account)?;
-                        merge_document_changes.insert(*id, encrypted_document);
+                        let hmac = result.find(id)?.document_hmac();
+                        document_repo::insert(config, id, hmac, &encrypted_document)?;
                         result
                     }
                     // non-text files always duplicated
@@ -870,10 +855,10 @@ where
                             let (local, merge_changes) = result.unstage();
                             let (mut remote, local_changes) = local.unstage();
                             let decrypted_remote_document =
-                                remote.decrypt_document(id, remote_document_change, account)?;
+                                remote.decrypt_document(id, &remote_document_change, account)?;
                             let mut local = remote.stage(local_changes);
                             let decrypted_local_document =
-                                local.decrypt_document(id, local_document_change, account)?;
+                                local.decrypt_document(id, &local_document_change, account)?;
                             result = local.stage(merge_changes);
                             (decrypted_remote_document, decrypted_local_document)
                         };
@@ -885,7 +870,8 @@ where
                             account,
                         )?;
                         let mut result = result.promote();
-                        merge_document_changes.insert(*id, encrypted_document);
+                        let hmac = result.find(id)?.document_hmac();
+                        document_repo::insert(config, id, hmac, &encrypted_document)?;
 
                         // create copied document (todo: avoid decrypting and re-encrypting document)
                         let (&existing_parent, existing_file_type) = {
@@ -907,7 +893,13 @@ where
                             account,
                         )?;
                         let result = result.promote();
-                        merge_document_changes.insert(copied_document_id, encrypted_document);
+                        let copied_hmac = result.find(&copied_document_id)?.document_hmac();
+                        document_repo::insert(
+                            config,
+                            &copied_document_id,
+                            copied_hmac,
+                            &encrypted_document,
+                        )?;
 
                         result
                     }
@@ -924,7 +916,7 @@ where
         result = result.resolve_owned_links(account)?.promote();
         result = result.delete_links_to_deleted_files(account)?.promote();
 
-        Ok((result, merge_document_changes))
+        Ok(result)
     }
 }
 
