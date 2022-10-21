@@ -53,10 +53,7 @@ fn from_args(releaser: Releaser) {
                 ]
             } else {
                 vec![
-                    Releaser::DeployServer,
-                    Releaser::ReleaseAndroid,
                     Releaser::ReleaseWindows,
-                    Releaser::ReleasePublicSite,
                 ]
             };
 
