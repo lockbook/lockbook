@@ -19,7 +19,7 @@ struct NewFileSheet: View {
     @Environment(\.presentationMode) var presentationMode
     
     var body: some View {
-        if let creatingInfo = sheets.creatingInfo {
+        if let parent = sheets.creatingInfo?.parent {
             VStack (alignment: .leading, spacing: 15){
                 HStack (alignment: .center) {
                     Text("Create")
@@ -35,7 +35,7 @@ struct NewFileSheet: View {
                 }
                 HStack {
                     Text("Inside:")
-                    Text(creatingInfo.parent.name + "/")
+                    Text(parent.name + "/")
                         .font(.system(.body, design: .monospaced))
                 }
                 Picker(selection: $selected, label: Text(""), content: {
