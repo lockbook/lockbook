@@ -6,6 +6,8 @@ class FileService: ObservableObject {
 
     @Published var root: File? = nil
     @Published var files: [File] = []
+    var successfulAction: FileAction? = nil
+    
 
     func childrenOf(_ meta: File?) -> [File] {
         var file: File
@@ -47,6 +49,7 @@ class FileService: ObservableObject {
             DispatchQueue.main.async {
                 switch operation {
                 case .success(_):
+                    self.successfulAction = FileAction.move
                     self.refresh()
                     DI.status.checkForLocalWork()
                 case .failure(let error):
@@ -74,6 +77,7 @@ class FileService: ObservableObject {
 
         switch operation {
         case .success(_):
+            self.successfulAction = FileAction.move
             refresh()
             DI.status.checkForLocalWork()
             return true
@@ -105,6 +109,7 @@ class FileService: ObservableObject {
                     if DI.documentLoader.meta?.id == id {
                         DI.documentLoader.deleted = true
                     }
+                    self.successfulAction = FileAction.delete
                     self.refresh()
                     DI.status.checkForLocalWork()
                 case .failure(let error):
@@ -121,6 +126,7 @@ class FileService: ObservableObject {
             DispatchQueue.main.async {
                 switch operation {
                 case .success(_):
+                    self.successfulAction = FileAction.rename
                     self.refresh()
                     DI.status.checkForLocalWork()
                 case .failure(let error):
@@ -179,4 +185,10 @@ class FileService: ObservableObject {
             DI.documentLoader.updatesFromCoreAvailable(meta)
         }
     }
+}
+
+enum FileAction {
+    case move
+    case rename
+    case delete
 }

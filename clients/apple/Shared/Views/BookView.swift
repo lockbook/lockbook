@@ -1,10 +1,12 @@
 import SwiftUI
 import SwiftLockbookCore
+import AlertToast
 
 struct BookView: View {
 
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var onboarding: OnboardingService
+    @EnvironmentObject var files: FileService
 
     let currentFolder: File
     let account: Account
@@ -24,8 +26,26 @@ struct BookView: View {
                 .sheet(isPresented: $sheets.renaming) {
                     RenamingSheet()
                 }
+                .toast(isPresenting: Binding(get: { files.successfulAction != nil }, set: { _ in files.successfulAction = nil }), duration: 2, tapToDismiss: true) {
+                    postFileAction()
+                }
     }
-
+    
+    func postFileAction() -> AlertToast {
+        if let action = files.successfulAction {
+            switch action {
+            case FileAction.rename:
+                return AlertToast(type: .regular, title: "File successfully renamed")
+            case FileAction.delete:
+                return AlertToast(type: .regular, title: "File successfully deleted")
+            case FileAction.move:
+                return AlertToast(type: .regular, title: "File successfully moved")
+            }
+        } else {
+            return AlertToast(type: .regular, title: "ERROR")
+        }
+    }
+    
     #if os(iOS)
     var iOS: some View {
         NavigationView {
