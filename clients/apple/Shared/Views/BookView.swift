@@ -18,7 +18,7 @@ struct BookView: View {
         platformFileTree
                 .sheet(isPresented: $onboarding.anAccountWasCreatedThisSession, content: { BeforeYouStart() })
                 .sheet(isPresented: $sheets.creating) {
-                    NewFileSheet()
+                    NewFileSheet(selected: sheets.creatingInfo?.toClientFileTypes() ?? .Document)
                 }
                 .iOSOnlySheet(isPresented: $sheets.moving)
                 .sheet(isPresented: $sheets.renaming) {

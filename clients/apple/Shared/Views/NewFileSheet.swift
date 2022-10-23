@@ -7,7 +7,6 @@ struct NewFileSheet: View {
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var selection: CurrentDocument
 
-    // TODO there is a type in creating info that maybe we should use
     @State var selected: ClientFileTypes = .Document
     @State var name: String = ".md"
     @State var errors: String = ""
@@ -20,7 +19,7 @@ struct NewFileSheet: View {
     @Environment(\.presentationMode) var presentationMode
     
     var body: some View {
-        if let parent = sheets.creatingInfo?.parent {
+        if let creatingInfo = sheets.creatingInfo {
             VStack (alignment: .leading, spacing: 15){
                 HStack (alignment: .center) {
                     Text("Create")
@@ -36,7 +35,7 @@ struct NewFileSheet: View {
                 }
                 HStack {
                     Text("Inside:")
-                    Text(parent.name + "/")
+                    Text(creatingInfo.parent.name + "/")
                         .font(.system(.body, design: .monospaced))
                 }
                 Picker(selection: $selected, label: Text(""), content: {
