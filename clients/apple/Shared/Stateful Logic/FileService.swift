@@ -49,7 +49,7 @@ class FileService: ObservableObject {
             DispatchQueue.main.async {
                 switch operation {
                 case .success(_):
-                    self.successfulAction = FileAction.move
+                    self.successfulAction = .move
                     self.refresh()
                     DI.status.checkForLocalWork()
                 case .failure(let error):
@@ -77,7 +77,7 @@ class FileService: ObservableObject {
 
         switch operation {
         case .success(_):
-            self.successfulAction = FileAction.move
+            self.successfulAction = .move
             refresh()
             DI.status.checkForLocalWork()
             return true
@@ -109,7 +109,7 @@ class FileService: ObservableObject {
                     if DI.documentLoader.meta?.id == id {
                         DI.documentLoader.deleted = true
                     }
-                    self.successfulAction = FileAction.delete
+                    self.successfulAction = .delete
                     self.refresh()
                     DI.status.checkForLocalWork()
                 case .failure(let error):
@@ -126,7 +126,7 @@ class FileService: ObservableObject {
             DispatchQueue.main.async {
                 switch operation {
                 case .success(_):
-                    self.successfulAction = FileAction.rename
+                    self.successfulAction = .rename
                     self.refresh()
                     DI.status.checkForLocalWork()
                 case .failure(let error):
@@ -191,4 +191,5 @@ enum FileAction {
     case move
     case rename
     case delete
+    case createFolder
 }
