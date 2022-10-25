@@ -6,12 +6,12 @@ use lockbook_shared::tree_like::{Stagable, TreeLike};
 
 use crate::model::drawing;
 use crate::model::errors::{TestRepoError, Warning};
-use crate::{OneKey, RequestContext};
+use crate::{OneKey, RequestContext, Requester};
 
 const UTF8_SUFFIXES: [&str; 12] =
     ["md", "txt", "text", "markdown", "sh", "zsh", "bash", "html", "css", "js", "csv", "rs"];
 
-impl RequestContext<'_, '_> {
+impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn test_repo_integrity(&mut self) -> Result<Vec<Warning>, TestRepoError> {
         let mut tree = self
             .tx
@@ -25,7 +25,7 @@ impl RequestContext<'_, '_> {
             .ok_or(TestRepoError::NoAccount)?;
 
         if self.tx.last_synced.get(&OneKey {}).unwrap_or(&0) != &0
-            && self.tx.root.get(&OneKey).is_none()
+            && self.tx.root.get(&OneKey {}).is_none()
         {
             return Err(TestRepoError::NoRootFolder);
         }

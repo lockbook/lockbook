@@ -14,6 +14,7 @@ use crate::billing::stripe_client::SimplifiedStripeError;
 use crate::billing::stripe_model::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
 use crate::schema::v2::{transaction, Server};
 use crate::ServerError::ClientError;
+pub use stripe;
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -59,9 +60,8 @@ pub fn verify_client_version<Req: Request>(
     request: &RequestWrapper<Req>,
 ) -> Result<(), ErrorWrapper<Req::Error>> {
     match &request.client_version as &str {
-        "0.5.2" => Ok(()),
-        "0.5.3" => Ok(()),
         "0.5.4" => Ok(()),
+        "0.5.5" => Ok(()),
         _ => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
     }
 }

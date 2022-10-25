@@ -128,7 +128,6 @@
     <string name="import_account_starting_import">Starting import…</string>
     <string name="before_you_start">Before you start…</string>
     <string name="before_you_start_description">Lockbook <a href="https://en.wikipedia.org/wiki/End-to-end_encryption">encrypts</a> your notes with a key that stays on your Lockbook devices. This makes your notes unreadable to anyone but you. If you lose the key, your notes are not recoverable, so we recommend you make a backup in case something happens to this device.</string>
-    <string name="drawing_parse_error">Could not open drawing.</string>
 
     <string name="free_space">%1$s used out of %2$s</string>
     <string name="last_sync">Synced %s</string>
@@ -182,6 +181,7 @@
     <string name="link_in_shared_folder">You cannot create a link in a shared folder.</string>
     <string name="link_target_is_owned">You cannot create a link to a file you own.</string>
     <string name="link_target_nonexistent">You cannot link to a file that does not exist.</string>
+    <string name="multiple_links_to_same_file">You cannot link to a file that is already linked to.</string>
     <string name="insufficient_permissions">Error, you have insufficient permissions.</string>
 
     <string name="unexpected_error">An unexpected error has occurred!</string>
@@ -218,6 +218,8 @@
 
     <string name="subscription_info_key">subscription_info</string>
     <string name="premium_key">premium</string>
+    <string name="show_running_out_of_space_0.9_key">running_out_of_space_0.9_key</string>
+    <string name="show_running_out_of_space_0.8_key">running_out_of_space_0.8_key</string>
 
     <!--    Billing-->
 
@@ -257,4 +259,10 @@
     <string name="no_search_results">No search results</string>
     <string name="exit_app">Exit App</string>
     <string name="note">note</string>
+
+    <string name="running_out_of_space">You are running out of space!</string>
+    <string name="out_of_space">You are out of space!</string>
+    <string name="more_info">More info</string>
+    <string name="upgrade_now">Upgrade now</string>
+
 </resources>

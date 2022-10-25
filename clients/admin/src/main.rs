@@ -1,20 +1,24 @@
+extern crate core;
+
+mod account;
+mod disappear;
 mod error;
+mod info;
+mod validate;
 
 use std::env;
 
 use structopt::StructOpt;
 
-use dialoguer::theme::ColorfulTheme;
-use dialoguer::Confirm;
-
 use crate::error::Error;
-use lockbook_core::Core;
-use lockbook_core::{Config, Uuid};
+use lockbook_core::{Config, Core, Uuid};
 
 #[derive(Debug, PartialEq, Eq, StructOpt)]
 pub enum Admin {
-    /// Delete a user
-    DeleteAccount { username: String },
+    /// Disappear a user
+    ///
+    /// Frees up their username
+    DisappearAccount { username: String },
 
     /// Disappear a file
     ///
@@ -25,6 +29,34 @@ pub enum Admin {
 
     /// Validates file trees of all users on the server and prints any failures
     ValidateAccount { username: String },
+
+    /// Performs server-wide integrity checks
+    ValidateServer,
+
+    /// List all users
+    ListUsers {
+        #[structopt(short, long)]
+        premium: bool,
+
+        #[structopt(short, long)]
+        google_play_premium: bool,
+
+        #[structopt(short, long)]
+        stripe_premium: bool,
+    },
+
+    /// Get a user's info. This includes their username, public key, and payment platform.
+    AccountInfo {
+        #[structopt(short, long)]
+        username: Option<String>,
+
+        // A base 64 encoded and compressed public key
+        #[structopt(short, long)]
+        public_key: Option<String>,
+    },
+
+    /// Prints information about a file as it appears on the server
+    FileInfo { id: Uuid },
 }
 
 type Res<T> = Result<T, Error>;
@@ -40,52 +72,18 @@ pub fn main() {
     let core = Core::init(&Config { writeable_path, logs: true, colored_logs: true }).unwrap();
 
     let result = match Admin::from_args() {
-        Admin::DeleteAccount { username } => delete_account(&core, username),
-        Admin::DisappearFile { id } => disappear_file(&core, id),
-        Admin::ValidateAccount { username } => server_validate(&core, username),
+        Admin::DisappearAccount { username } => disappear::account(&core, username),
+        Admin::ListUsers { premium, google_play_premium, stripe_premium } => {
+            account::list(&core, premium, google_play_premium, stripe_premium)
+        }
+        Admin::AccountInfo { username, public_key } => account::info(&core, username, public_key),
+        Admin::DisappearFile { id } => disappear::file(&core, id),
+        Admin::ValidateAccount { username } => validate::account(&core, username),
+        Admin::ValidateServer => validate::server(&core),
+        Admin::FileInfo { id } => info::file(&core, id),
     };
 
-    result.unwrap_err();
-}
-
-fn disappear_file(core: &Core, id: Uuid) -> Res<()> {
-    let maybe_confirm = Confirm::with_theme(&ColorfulTheme::default())
-        .with_prompt(format!("Are you sure you want to delete '{}'?", id))
-        .interact_opt()?;
-
-    if maybe_confirm.unwrap_or(false) {
-        core.admin_disappear_file(id)?;
+    if result.is_err() {
+        panic!("unsuccessful completion")
     }
-    Ok(())
-}
-
-fn delete_account(core: &Core, username: String) -> Res<()> {
-    let maybe_confirm = Confirm::with_theme(&ColorfulTheme::default())
-        .with_prompt(format!("Are you sure you want to delete '{}'?", username))
-        .interact_opt()?;
-
-    if maybe_confirm.unwrap_or(false) {
-        core.admin_delete_account(&username)?;
-
-        println!("Account deleted!");
-    }
-
-    Ok(())
-}
-
-fn server_validate(core: &Core, username: String) -> Res<()> {
-    println!("Validating server...");
-
-    let validation_failures = core.admin_server_validate(&username)?;
-    for failure in validation_failures.tree_validation_failures {
-        println!("tree validation failure: {:?}", failure);
-    }
-    for failure in validation_failures.documents_missing_content {
-        println!("document missing content: {:?}", failure);
-    }
-    for failure in validation_failures.documents_missing_size {
-        println!("document missing size: {:?}", failure);
-    }
-
-    Ok(())
 }

@@ -7,7 +7,6 @@ struct NewFileSheet: View {
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var selection: CurrentDocument
 
-    // TODO there is a type in creating info that maybe we should use
     @State var selected: ClientFileTypes = .Document
     @State var name: String = ".md"
     @State var errors: String = ""
@@ -108,13 +107,14 @@ struct NewFileSheet: View {
     func onCommit() {
         switch DI.core.createFile(name: name, dirId: sheets.creatingInfo!.parent.id, isFolder: selected == .Folder) {
         case .success(let newMeta):
+            if newMeta.fileType == .Folder {
+                files.successfulAction = .createFolder
+                sheets.created = newMeta
+            } else {
+                selection.selectedItem = newMeta
+            }
             files.refresh()
             status.checkForLocalWork()
-            if newMeta.fileType == .Document {
-                selection.selectedItem = newMeta
-            } else {
-                sheets.created = newMeta
-            }
             presentationMode.wrappedValue.dismiss()
         case .failure(let err):
             switch err.kind {

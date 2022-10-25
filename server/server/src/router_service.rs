@@ -21,7 +21,7 @@ use warp::{reject, Filter, Rejection};
 lazy_static! {
     pub static ref HTTP_REQUEST_DURATION_HISTOGRAM: HistogramVec = register_histogram_vec!(
         "lockbook_server_request_duration_seconds",
-        "Lockbook server's HTTP request duration in seconds.",
+        "Lockbook server's HTTP request duration in seconds",
         &["request"]
     )
     .unwrap();
@@ -69,8 +69,8 @@ macro_rules! core_req {
                     let username = match state.index_db.accounts.get(&Owner(req_pk)) {
                         Ok(Some(account)) => account.username,
                         Ok(None) => "~unknown~".to_string(),
-                        Err(err) => {
-                            error!("hmdb error! {:?}", err);
+                        Err(error) => {
+                            error!(?error, "hmdb error");
                             "~error~".to_string()
                         }
                     };
@@ -122,16 +122,22 @@ pub fn core_routes(
         .or(core_req!(UpsertRequest, upsert_file_metadata, server_state))
         .or(core_req!(GetDocRequest, get_document, server_state))
         .or(core_req!(GetPublicKeyRequest, get_public_key, server_state))
+        .or(core_req!(GetUsernameRequest, get_username, server_state))
         .or(core_req!(GetUsageRequest, get_usage, server_state))
+        .or(core_req!(GetFileIdsRequest, get_file_ids, server_state))
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
         .or(core_req!(UpgradeAccountGooglePlayRequest, upgrade_account_google_play, server_state))
         .or(core_req!(UpgradeAccountStripeRequest, upgrade_account_stripe, server_state))
         .or(core_req!(CancelSubscriptionRequest, cancel_subscription, server_state))
         .or(core_req!(GetSubscriptionInfoRequest, get_subscription_info, server_state))
         .or(core_req!(DeleteAccountRequest, delete_account, server_state))
-        .or(core_req!(AdminDeleteAccountRequest, admin_delete_account, server_state))
+        .or(core_req!(AdminDisappearAccountRequest, admin_disappear_account, server_state))
         .or(core_req!(AdminDisappearFileRequest, admin_disappear_file, server_state))
-        .or(core_req!(AdminServerValidateRequest, admin_server_validate, server_state))
+        .or(core_req!(AdminListUsersRequest, admin_list_users, server_state))
+        .or(core_req!(AdminGetAccountInfoRequest, admin_get_account_info, server_state))
+        .or(core_req!(AdminValidateAccountRequest, admin_validate_account, server_state))
+        .or(core_req!(AdminValidateServerRequest, admin_validate_server, server_state))
+        .or(core_req!(AdminFileInfoRequest, admin_file_info, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {

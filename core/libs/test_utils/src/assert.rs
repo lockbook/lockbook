@@ -1,7 +1,7 @@
 use crate::{get_dirty_ids, slices_equal_ignore_order, test_core_from};
 use hmdb::transaction::Transaction;
-use lockbook_core::repo::schema::OneKey;
 use lockbook_core::Core;
+use lockbook_core::OneKey;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::path_ops::Filter::DocumentsOnly;

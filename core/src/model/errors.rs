@@ -7,7 +7,9 @@ use serde::{Serialize, Serializer};
 use strum_macros::EnumIter;
 use uuid::Uuid;
 
-use lockbook_shared::api::{self, GetPublicKeyError, GetUpdatesError, NewAccountError};
+use lockbook_shared::api::{
+    self, GetFileIdsError, GetPublicKeyError, GetUpdatesError, GetUsernameError, NewAccountError,
+};
 use lockbook_shared::{SharedError, ValidationFailure};
 
 use crate::service::api_service::ApiError;
@@ -301,6 +303,17 @@ impl From<ApiError<GetPublicKeyError>> for CoreError {
     }
 }
 
+impl From<ApiError<GetUsernameError>> for CoreError {
+    fn from(err: ApiError<GetUsernameError>) -> Self {
+        match err {
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            ApiError::Endpoint(GetUsernameError::UserNotFound) => CoreError::AccountNonexistent,
+            e => core_err_unexpected(e),
+        }
+    }
+}
+
 impl From<CoreError> for Error<ImportError> {
     fn from(e: CoreError) -> Self {
         match e {
@@ -394,7 +407,7 @@ pub enum CreateFileError {
     LinkTargetIsOwned,
     LinkTargetNonexistent,
     InsufficientPermission,
-    // MultipleLinksToSameFile,
+    MultipleLinksToSameFile,
 }
 
 impl From<CoreError> for Error<CreateFileError> {
@@ -410,7 +423,7 @@ impl From<CoreError> for Error<CreateFileError> {
             CoreError::LinkTargetIsOwned => UiError(CreateFileError::LinkTargetIsOwned),
             CoreError::LinkTargetNonexistent => UiError(CreateFileError::LinkTargetNonexistent),
             CoreError::InsufficientPermission => UiError(CreateFileError::InsufficientPermission),
-            // CoreError::MultipleLinksToSameFile => UiError(CreateFileError::MultipleLinksToSameFile),
+            CoreError::MultipleLinksToSameFile => UiError(CreateFileError::MultipleLinksToSameFile),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -670,6 +683,16 @@ impl From<CoreError> for Error<SyncAllError> {
             CoreError::ServerUnreachable => UiError(SyncAllError::CouldNotReachServer),
             CoreError::ClientUpdateRequired => UiError(SyncAllError::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+impl From<ApiError<GetFileIdsError>> for CoreError {
+    fn from(e: ApiError<GetFileIdsError>) -> Self {
+        match e {
+            ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+            ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+            e => core_err_unexpected(e),
         }
     }
 }
@@ -999,24 +1022,22 @@ impl From<CoreError> for Error<GetSubscriptionInfoError> {
 }
 
 #[derive(Debug, Serialize, EnumIter)]
-pub enum AdminDeleteAccountError {
+pub enum AdminDisappearAccount {
     InsufficientPermission,
     UsernameNotFound,
     CouldNotReachServer,
     ClientUpdateRequired,
 }
 
-impl From<CoreError> for Error<AdminDeleteAccountError> {
+impl From<CoreError> for Error<AdminDisappearAccount> {
     fn from(e: CoreError) -> Self {
         match e {
             CoreError::InsufficientPermission => {
-                UiError(AdminDeleteAccountError::InsufficientPermission)
+                UiError(AdminDisappearAccount::InsufficientPermission)
             }
-            CoreError::UsernameNotFound => UiError(AdminDeleteAccountError::UsernameNotFound),
-            CoreError::ServerUnreachable => UiError(AdminDeleteAccountError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => {
-                UiError(AdminDeleteAccountError::ClientUpdateRequired)
-            }
+            CoreError::UsernameNotFound => UiError(AdminDisappearAccount::UsernameNotFound),
+            CoreError::ServerUnreachable => UiError(AdminDisappearAccount::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(AdminDisappearAccount::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -1051,6 +1072,7 @@ pub enum AdminServerValidateError {
     InsufficientPermission,
     CouldNotReachServer,
     ClientUpdateRequired,
+    UserNotFound,
 }
 
 impl From<CoreError> for Error<AdminServerValidateError> {
@@ -1063,6 +1085,72 @@ impl From<CoreError> for Error<AdminServerValidateError> {
             CoreError::ClientUpdateRequired => {
                 UiError(AdminServerValidateError::ClientUpdateRequired)
             }
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum AdminListUsersError {
+    InsufficientPermission,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<AdminListUsersError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::InsufficientPermission => {
+                UiError(AdminListUsersError::InsufficientPermission)
+            }
+            CoreError::ServerUnreachable => UiError(AdminListUsersError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(AdminListUsersError::ClientUpdateRequired),
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum AdminGetAccountInfoError {
+    InsufficientPermission,
+    UsernameNotFound,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<AdminGetAccountInfoError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::InsufficientPermission => {
+                UiError(AdminGetAccountInfoError::InsufficientPermission)
+            }
+            CoreError::UsernameNotFound => UiError(AdminGetAccountInfoError::UsernameNotFound),
+            CoreError::ServerUnreachable => UiError(AdminGetAccountInfoError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => {
+                UiError(AdminGetAccountInfoError::ClientUpdateRequired)
+            }
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum AdminFileInfoError {
+    InsufficientPermission,
+    FileNotFound,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<AdminFileInfoError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::InsufficientPermission => {
+                UiError(AdminFileInfoError::InsufficientPermission)
+            }
+            CoreError::FileNonexistent => UiError(AdminFileInfoError::FileNotFound),
+            CoreError::ServerUnreachable => UiError(AdminFileInfoError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => UiError(AdminFileInfoError::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
         }
     }

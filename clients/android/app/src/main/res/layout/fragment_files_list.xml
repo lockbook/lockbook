@@ -4,7 +4,9 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/drawerLayout"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:clickable="true"
+    android:focusable="true">
 
     <androidx.coordinatorlayout.widget.CoordinatorLayout
         android:id="@+id/fragment_list_files"
@@ -92,6 +94,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:layout_gravity="fill"
+            android:translationZ="-5dp"
             android:fitsSystemWindows="true" />
 
         <com.leinardi.android.speeddial.SpeedDialView
@@ -99,6 +102,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|end"
+            android:translationZ="-4dp"
             app:sdExpansionMode="top"
             app:sdMainFabAnimationRotateAngle="90"
             app:sdMainFabClosedBackgroundColor="?attr/colorPrimary"
@@ -157,6 +161,11 @@
             </LinearLayout>
 
         </com.google.android.material.card.MaterialCardView>
+
+        <include
+            android:id="@+id/out_of_space"
+            layout="@layout/out_of_space"
+            android:visibility="gone"/>
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 

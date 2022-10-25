@@ -1,4 +1,4 @@
-use crate::{CoreError, CoreResult, OneKey, RequestContext, UnexpectedError};
+use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester, UnexpectedError};
 use crossbeam::channel::{self, Receiver, RecvTimeoutError, Sender};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
@@ -44,7 +44,7 @@ impl PartialOrd for SearchResultItem {
     }
 }
 
-impl RequestContext<'_, '_> {
+impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn search_file_paths(&mut self, input: &str) -> CoreResult<Vec<SearchResultItem>> {
         if input.is_empty() {
             return Ok(Vec::new());
@@ -65,11 +65,15 @@ impl RequestContext<'_, '_> {
         let matcher = SkimMatcherV2::default();
 
         for id in tree.owned_ids() {
-            if !tree.calculate_deleted(&id)? {
-                let path = tree.id_to_path(&id, account)?;
+            if !tree.calculate_deleted(&id)? && !tree.in_pending_share(&id)? {
+                let file = tree.find(&id)?;
 
-                if let Some(score) = matcher.fuzzy_match(&path, input) {
-                    results.push(SearchResultItem { id, path, score });
+                if file.is_document() {
+                    let path = tree.id_to_path(&id, account)?;
+
+                    if let Some(score) = matcher.fuzzy_match(&path, input) {
+                        results.push(SearchResultItem { id, path, score });
+                    }
                 }
             }
         }
@@ -93,7 +97,7 @@ impl RequestContext<'_, '_> {
         let mut files_info = Vec::new();
 
         for id in tree.owned_ids() {
-            if !tree.calculate_deleted(&id)? {
+            if !tree.calculate_deleted(&id)? && !tree.in_pending_share(&id)? {
                 let file = tree.find(&id)?;
 
                 if file.is_document() {
@@ -159,7 +163,8 @@ impl RequestContext<'_, '_> {
         let debounce_duration = Duration::from_millis(DEBOUNCE_MILLIS);
 
         loop {
-            let search = RequestContext::recv_with_debounce(&search_rx, debounce_duration)?;
+            let search =
+                RequestContext::<Client>::recv_with_debounce(&search_rx, debounce_duration)?;
             should_continue.store(false, atomic::Ordering::Relaxed);
 
             match search {
@@ -172,9 +177,12 @@ impl RequestContext<'_, '_> {
                     let input = input.clone();
 
                     thread::spawn(move || {
-                        if let Err(search_err) =
-                            RequestContext::search(&results_tx, files_info, should_continue, input)
-                        {
+                        if let Err(search_err) = RequestContext::<Client>::search(
+                            &results_tx,
+                            files_info,
+                            should_continue,
+                            input,
+                        ) {
                             if let Err(err) = results_tx.send(SearchResult::Error(search_err)) {
                                 warn!("Send failed: {:#?}", err);
                             }
@@ -193,7 +201,7 @@ impl RequestContext<'_, '_> {
     ) -> Result<(), UnexpectedError> {
         let mut no_matches = true;
 
-        RequestContext::search_file_names(
+        RequestContext::<Client>::search_file_names(
             results_tx,
             &should_continue,
             &files_info,
@@ -202,7 +210,7 @@ impl RequestContext<'_, '_> {
         )?;
 
         if should_continue.load(atomic::Ordering::Relaxed) {
-            RequestContext::search_file_contents(
+            RequestContext::<Client>::search_file_contents(
                 results_tx,
                 &should_continue,
                 &files_info,
@@ -281,7 +289,7 @@ impl RequestContext<'_, '_> {
 
                         if score >= LOWEST_CONTENT_SCORE_THRESHOLD {
                             let (paragraph, matched_indices) =
-                                RequestContext::optimize_searched_text(
+                                RequestContext::<Client>::optimize_searched_text(
                                     paragraph,
                                     fuzzy_match.matched_indices().cloned().collect(),
                                 )?;

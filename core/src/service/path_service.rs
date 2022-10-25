@@ -1,11 +1,11 @@
-use crate::OneKey;
 use crate::{CoreError, CoreResult, RequestContext};
+use crate::{OneKey, Requester};
 use lockbook_shared::file::File;
 use lockbook_shared::path_ops::Filter;
 use lockbook_shared::tree_like::Stagable;
 use uuid::Uuid;
 
-impl RequestContext<'_, '_> {
+impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn create_link_at_path(&mut self, path: &str, target_id: Uuid) -> CoreResult<File> {
         let pub_key = self.get_public_key()?;
         let tree = self
@@ -27,7 +27,7 @@ impl RequestContext<'_, '_> {
 
         let (mut tree, id) = tree.create_link_at_path(path, target_id, root, account, &pub_key)?;
 
-        let ui_file = tree.finalize(&id, account)?;
+        let ui_file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
 
         Ok(ui_file)
     }
@@ -53,7 +53,7 @@ impl RequestContext<'_, '_> {
 
         let (mut tree, id) = tree.create_at_path(path, root, account, &pub_key)?;
 
-        let ui_file = tree.finalize(&id, account)?;
+        let ui_file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
 
         Ok(ui_file)
     }
@@ -78,7 +78,7 @@ impl RequestContext<'_, '_> {
 
         let id = tree.path_to_id(path, root, account)?;
 
-        let ui_file = tree.finalize(&id, account)?;
+        let ui_file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
 
         Ok(ui_file)
     }

@@ -122,6 +122,7 @@ impl super::App {
                             LinkInSharedFolder => "Can't save a link in a shared folder.",
                             LinkTargetIsOwned => "Link target is owned.",
                             LinkTargetNonexistent => "Link target doesn't exist.",
+                            MultipleLinksToSameFile => "Another link exists with the same target.",
                             InsufficientPermission => "Permission denied.",
                         }
                         .to_string(),

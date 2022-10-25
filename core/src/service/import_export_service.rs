@@ -1,11 +1,13 @@
-use crate::{CoreError, RequestContext};
+use crate::{CoreError, RequestContext, Requester};
 use crate::{CoreResult, OneKey};
+use hmdb::log::SchemaEvent;
+use hmdb::transaction::TransactionTable;
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Account;
 use lockbook_shared::core_config::Config;
 use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileType;
+use lockbook_shared::file_metadata::{FileType, Owner};
 use lockbook_shared::filename::NameComponents;
 use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::signed_file::SignedFile;
@@ -25,7 +27,7 @@ pub enum ImportStatus {
     FinishedItem(File),
 }
 
-impl RequestContext<'_, '_> {
+impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn import_files<F: Fn(ImportStatus)>(
         &mut self, sources: &[PathBuf], dest: Uuid, update_status: &F,
     ) -> CoreResult<()> {
@@ -54,6 +56,7 @@ impl RequestContext<'_, '_> {
             tree = Self::import_file_recursively(
                 account,
                 self.config,
+                &mut self.tx.username_by_public_key,
                 &public_key,
                 tree,
                 disk_path,
@@ -126,7 +129,7 @@ impl RequestContext<'_, '_> {
                 for id in children {
                     if !tree.calculate_deleted(&id)? {
                         let file = tree.find(&id)?.clone();
-                        tree = RequestContext::export_file_recursively(
+                        tree = RequestContext::<Client>::export_file_recursively(
                             config,
                             account,
                             tree,
@@ -161,7 +164,7 @@ impl RequestContext<'_, '_> {
             FileType::Link { target } => {
                 if !tree.calculate_deleted(&target)? {
                     let file = tree.find(&target)?.clone();
-                    tree = RequestContext::export_file_recursively(
+                    tree = RequestContext::<Client>::export_file_recursively(
                         config,
                         account,
                         tree,
@@ -177,13 +180,17 @@ impl RequestContext<'_, '_> {
         Ok(tree)
     }
 
-    fn import_file_recursively<F: Fn(ImportStatus), Base, Local>(
-        account: &Account, config: &Config, public_key: &PublicKey,
-        mut tree: LazyStaged1<Base, Local>, disk_path: &Path, dest: &Uuid, update_status: &F,
+    #[allow(clippy::too_many_arguments)]
+    fn import_file_recursively<F: Fn(ImportStatus), Base, Local, PublicKeyCache>(
+        account: &Account, config: &Config,
+        public_key_cache: &mut TransactionTable<Owner, String, PublicKeyCache>,
+        public_key: &PublicKey, mut tree: LazyStaged1<Base, Local>, disk_path: &Path, dest: &Uuid,
+        update_status: &F,
     ) -> CoreResult<LazyStaged1<Base, Local>>
     where
         Base: Stagable<F = SignedFile>,
         Local: Stagable<F = Base::F>,
+        PublicKeyCache: SchemaEvent<Owner, String>,
     {
         update_status(ImportStatus::StartingItem(format!("{}", disk_path.display())));
 
@@ -201,14 +208,14 @@ impl RequestContext<'_, '_> {
             false => FileType::Folder,
         };
 
-        let file_name = RequestContext::generate_non_conflicting_name(
+        let file_name = RequestContext::<Client>::generate_non_conflicting_name(
             &mut tree,
             account,
             dest,
             disk_file_name,
         )?;
         let (mut tree, id) = tree.create(dest, &file_name, ftype, account, public_key)?;
-        let file = tree.finalize(&id, account)?;
+        let file = tree.finalize(&id, account, public_key_cache)?;
 
         let tree = if ftype == FileType::Document {
             let doc = fs::read(&disk_path).map_err(CoreError::from)?;
@@ -222,9 +229,10 @@ impl RequestContext<'_, '_> {
 
             for entry in entries {
                 let child_path = entry.map_err(CoreError::from)?.path();
-                tree = RequestContext::import_file_recursively(
+                tree = RequestContext::<Client>::import_file_recursively(
                     account,
                     config,
+                    public_key_cache,
                     public_key,
                     tree,
                     &child_path,

@@ -1,18 +1,22 @@
 use http::Method;
 use libsecp256k1::PublicKey;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
 use uuid::Uuid;
 
 use crate::account::Account;
 use crate::account::Username;
 use crate::crypto::*;
-use crate::file_metadata::{DocumentHmac, FileDiff, FileMetadata};
+use crate::file_metadata::{DocumentHmac, FileDiff, FileMetadata, Owner};
+use crate::server_file::ServerFile;
 use crate::signed_file::SignedFile;
 use crate::ValidationFailure;
 
-pub trait Request {
-    type Response;
-    type Error;
+pub trait Request: Serialize + 'static {
+    type Response: Debug + DeserializeOwned + Clone;
+    type Error: Debug + DeserializeOwned + Clone;
     const METHOD: Method;
     const ROUTE: &'static str;
 }
@@ -148,6 +152,28 @@ impl Request for GetPublicKeyRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct GetUsernameRequest {
+    pub key: PublicKey,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct GetUsernameResponse {
+    pub username: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum GetUsernameError {
+    UserNotFound,
+}
+
+impl Request for GetUsernameRequest {
+    type Response = GetUsernameResponse;
+    type Error = GetUsernameError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/get-username";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetUsageRequest {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -178,6 +204,26 @@ impl Request for GetUsageRequest {
     type Error = GetUsageError;
     const METHOD: Method = Method::GET;
     const ROUTE: &'static str = "/get-usage";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct GetFileIdsRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct GetFileIdsResponse {
+    pub ids: HashSet<Uuid>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum GetFileIdsError {
+    UserNotFound,
+}
+
+impl Request for GetFileIdsRequest {
+    type Response = GetFileIdsResponse;
+    type Error = GetFileIdsError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/get-file-ids";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -250,8 +296,8 @@ pub enum GetBuildInfoError {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetBuildInfoResponse {
-    pub build_version: &'static str,
-    pub git_commit_hash: &'static str,
+    pub build_version: String,
+    pub git_commit_hash: String,
 }
 
 impl Request for GetBuildInfoRequest {
@@ -407,21 +453,21 @@ impl Request for GetSubscriptionInfoRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct AdminDeleteAccountRequest {
+pub struct AdminDisappearAccountRequest {
     pub username: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum AdminDeleteAccountError {
+pub enum AdminDisappearAccountError {
     NotPermissioned,
     UserNotFound,
 }
 
-impl Request for AdminDeleteAccountRequest {
+impl Request for AdminDisappearAccountRequest {
     type Response = ();
-    type Error = AdminDeleteAccountError;
+    type Error = AdminDisappearAccountError;
     const METHOD: Method = Method::DELETE;
-    const ROUTE: &'static str = "/admin-delete-account";
+    const ROUTE: &'static str = "/admin-disappear-account";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -443,28 +489,171 @@ impl Request for AdminDisappearFileRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct AdminServerValidateRequest {
+pub struct AdminValidateAccountRequest {
     pub username: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct AdminServerValidateResponse {
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Default)]
+pub struct AdminValidateAccount {
     pub tree_validation_failures: Vec<ValidationFailure>,
     pub documents_missing_size: Vec<Uuid>,
     pub documents_missing_content: Vec<Uuid>,
 }
 
+impl AdminValidateAccount {
+    pub fn is_empty(&self) -> bool {
+        self.tree_validation_failures.is_empty()
+            && self.documents_missing_content.is_empty()
+            && self.documents_missing_size.is_empty()
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum AdminServerValidateError {
+pub enum AdminValidateAccountError {
     NotPermissioned,
     UserNotFound,
 }
 
-impl Request for AdminServerValidateRequest {
-    type Response = AdminServerValidateResponse;
-    type Error = AdminServerValidateError;
+impl Request for AdminValidateAccountRequest {
+    type Response = AdminValidateAccount;
+    type Error = AdminValidateAccountError;
     const METHOD: Method = Method::GET;
-    const ROUTE: &'static str = "/admin-server-validate";
+    const ROUTE: &'static str = "/admin-validate-account";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminValidateServerRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Default)]
+pub struct AdminValidateServer {
+    // accounts
+    pub users_with_validation_failures: HashMap<Username, AdminValidateAccount>,
+    // index integrity
+    pub usernames_mapped_to_wrong_accounts: HashMap<String, String>, // mapped username -> account username
+    pub usernames_mapped_to_nonexistent_accounts: HashMap<String, Owner>,
+    pub usernames_unmapped_to_accounts: HashSet<String>,
+    pub owners_mapped_to_unowned_files: HashMap<Owner, HashSet<Uuid>>,
+    pub owners_mapped_to_nonexistent_files: HashMap<Owner, HashSet<Uuid>>,
+    pub owners_unmapped_to_owned_files: HashMap<Owner, HashSet<Uuid>>,
+    pub owners_unmapped: HashSet<Owner>,
+    pub sharees_mapped_to_unshared_files: HashMap<Owner, HashSet<Uuid>>,
+    pub sharees_mapped_to_nonexistent_files: HashMap<Owner, HashSet<Uuid>>,
+    pub sharees_mapped_for_owned_files: HashMap<Owner, HashSet<Uuid>>,
+    pub sharees_unmapped_to_shared_files: HashMap<Owner, HashSet<Uuid>>,
+    pub sharees_unmapped: HashSet<Owner>,
+    pub files_mapped_as_parent_to_non_children: HashMap<Uuid, HashSet<Uuid>>,
+    pub files_mapped_as_parent_to_nonexistent_children: HashMap<Uuid, HashSet<Uuid>>,
+    pub files_mapped_as_parent_to_self: HashSet<Uuid>,
+    pub files_unmapped_as_parent_to_children: HashMap<Uuid, HashSet<Uuid>>,
+    pub files_unmapped_as_parent: HashSet<Uuid>,
+    pub sizes_mapped_for_files_without_hmac: HashSet<Uuid>,
+    pub sizes_mapped_for_nonexistent_files: HashSet<Uuid>,
+    pub sizes_unmapped_for_files_with_hmac: HashSet<Uuid>,
+    // document presence
+    pub files_with_hmacs_and_no_contents: HashSet<Uuid>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminValidateServerError {
+    NotPermissioned,
+}
+
+impl Request for AdminValidateServerRequest {
+    type Response = AdminValidateServer;
+    type Error = AdminValidateServerError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/admin-validate-server";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminListUsersRequest {
+    pub filter: Option<AccountFilter>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AccountFilter {
+    Premium,
+    StripePremium,
+    GooglePlayPremium,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminListUsersResponse {
+    pub users: Vec<Username>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminListUsersError {
+    NotPermissioned,
+}
+
+impl Request for AdminListUsersRequest {
+    type Response = AdminListUsersResponse;
+    type Error = AdminListUsersError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/admin-list-users";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminGetAccountInfoRequest {
+    pub identifier: AccountIdentifier,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AccountIdentifier {
+    PublicKey(PublicKey),
+    Username(Username),
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminGetAccountInfoResponse {
+    pub account: AccountInfo,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AccountInfo {
+    pub username: String,
+    pub root: Uuid,
+    pub payment_platform: Option<PaymentPlatform>,
+    pub usage: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminGetAccountInfoError {
+    UserNotFound,
+    NotPermissioned,
+}
+
+impl Request for AdminGetAccountInfoRequest {
+    type Response = AdminGetAccountInfoResponse;
+    type Error = AdminGetAccountInfoError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/admin-get-account-info";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminFileInfoRequest {
+    pub id: Uuid,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AdminFileInfoResponse {
+    pub file: ServerFile,
+    pub ancestors: Vec<ServerFile>,
+    pub descendants: Vec<ServerFile>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminFileInfoError {
+    NotPermissioned,
+    FileNonexistent,
+}
+
+impl Request for AdminFileInfoRequest {
+    type Response = AdminFileInfoResponse;
+    type Error = AdminFileInfoError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/admin-file-info";
 }
 
 // number of milliseconds that have elapsed since the unix epoch

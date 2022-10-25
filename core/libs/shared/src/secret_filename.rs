@@ -63,6 +63,7 @@ impl SecretFileName {
     }
 }
 
+// Impl'd to avoid comparing encrypted values
 impl PartialEq for SecretFileName {
     fn eq(&self, other: &Self) -> bool {
         self.hmac == other.hmac

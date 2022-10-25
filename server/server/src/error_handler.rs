@@ -6,11 +6,7 @@ use crate::ServerError::InternalError;
 use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
-use lockbook_shared::api::{
-    AdminDeleteAccountError, AdminServerValidateError, CancelSubscriptionError, ChangeDocError,
-    DeleteAccountError, GetDocumentError, GetUpdatesError, GetUsageError,
-    UpgradeAccountGooglePlayError, UpgradeAccountStripeError, UpsertError,
-};
+use lockbook_shared::api::*;
 use lockbook_shared::SharedError;
 use std::fmt::Debug;
 use std::io::Error;
@@ -101,13 +97,13 @@ impl From<stripe::WebhookError> for ServerError<StripeWebhookError> {
     fn from(e: stripe::WebhookError) -> Self {
         match e {
             stripe::WebhookError::BadKey => {
-                internal!("Cannot verify stripe webhook request because server is using a bad signing key.")
+                internal!("Cannot verify stripe webhook request because server is using a bad signing key")
             }
             stripe::WebhookError::BadHeader(bad_header_err) => {
                 ClientError(StripeWebhookError::InvalidHeader(format!("{:?}", bad_header_err)))
             }
             stripe::WebhookError::BadSignature => {
-                ClientError(StripeWebhookError::InvalidHeader("Bad signature.".to_string()))
+                ClientError(StripeWebhookError::InvalidHeader("Bad signature".to_string()))
             }
             stripe::WebhookError::BadTimestamp(bad_timestamp_err) => {
                 ClientError(StripeWebhookError::InvalidHeader(format!(
@@ -181,18 +177,30 @@ impl From<ServerError<DeleteAccountHelperError>> for ServerError<DeleteAccountEr
     }
 }
 
-impl From<ServerError<DeleteAccountHelperError>> for ServerError<AdminDeleteAccountError> {
+impl From<ServerError<DeleteAccountHelperError>> for ServerError<AdminDisappearAccountError> {
     fn from(err: ServerError<DeleteAccountHelperError>) -> Self {
         match err {
             ClientError(DeleteAccountHelperError::UserNotFound) => {
-                ClientError(AdminDeleteAccountError::UserNotFound)
+                ClientError(AdminDisappearAccountError::UserNotFound)
             }
             InternalError(msg) => InternalError(msg),
         }
     }
 }
 
-impl From<SharedError> for ServerError<AdminServerValidateError> {
+impl From<SharedError> for ServerError<AdminValidateAccountError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+
+impl From<SharedError> for ServerError<AdminValidateServerError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+
+impl From<SharedError> for ServerError<AdminFileInfoError> {
     fn from(err: SharedError) -> Self {
         internal!("{:?}", err)
     }
@@ -231,6 +239,12 @@ impl From<SharedError> for ServerError<MetricsError> {
 }
 
 impl From<SharedError> for ServerError<GetDocumentError> {
+    fn from(err: SharedError) -> Self {
+        internal!("{:?}", err)
+    }
+}
+
+impl From<SharedError> for ServerError<GetFileIdsError> {
     fn from(err: SharedError) -> Self {
         internal!("{:?}", err)
     }

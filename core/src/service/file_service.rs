@@ -1,4 +1,4 @@
-use crate::{CoreError, CoreResult, OneKey, RequestContext};
+use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
 use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileType, Owner};
@@ -6,7 +6,7 @@ use lockbook_shared::tree_like::{Stagable, TreeLike};
 use std::iter;
 use uuid::Uuid;
 
-impl RequestContext<'_, '_> {
+impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn create_file(
         &mut self, name: &str, parent: &Uuid, file_type: FileType,
     ) -> CoreResult<File> {
@@ -24,7 +24,9 @@ impl RequestContext<'_, '_> {
 
         let (mut tree, id) = tree.create(parent, name, file_type, account, &pub_key)?;
 
-        let ui_file = tree.finalize(&id, account)?;
+        let ui_file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
+
+        info!("created {:?} with id {id}", file_type);
 
         Ok(ui_file)
     }
@@ -74,12 +76,7 @@ impl RequestContext<'_, '_> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let tree = tree.delete(id, account)?;
-
-        let (mut tree, prunable_ids) = tree.prunable_ids()?;
-        for id in prunable_ids {
-            tree.remove(id);
-        }
+        tree.delete(id, account)?;
 
         Ok(())
     }
@@ -102,7 +99,7 @@ impl RequestContext<'_, '_> {
             .get(&OneKey {})
             .ok_or(CoreError::RootNonexistent)?;
 
-        let root = tree.finalize(root_id, account)?;
+        let root = tree.finalize(root_id, account, &mut self.tx.username_by_public_key)?;
 
         Ok(root)
     }
@@ -121,7 +118,7 @@ impl RequestContext<'_, '_> {
 
         let ids = tree.owned_ids().into_iter();
 
-        Ok(tree.resolve_and_finalize(account, ids)?)
+        Ok(tree.resolve_and_finalize(account, ids, &mut self.tx.username_by_public_key)?)
     }
 
     pub fn get_children(&mut self, id: &Uuid) -> CoreResult<Vec<File>> {
@@ -137,7 +134,7 @@ impl RequestContext<'_, '_> {
             .ok_or(CoreError::AccountNonexistent)?;
 
         let ids = tree.children_using_links(id)?.into_iter();
-        Ok(tree.resolve_and_finalize(account, ids)?)
+        Ok(tree.resolve_and_finalize(account, ids, &mut self.tx.username_by_public_key)?)
     }
 
     pub fn get_and_get_children_recursively(&mut self, id: &Uuid) -> CoreResult<Vec<File>> {
@@ -153,7 +150,11 @@ impl RequestContext<'_, '_> {
             .ok_or(CoreError::AccountNonexistent)?;
 
         let descendants = tree.descendants_using_links(id)?;
-        Ok(tree.resolve_and_finalize(account, descendants.into_iter().chain(iter::once(*id)))?)
+        Ok(tree.resolve_and_finalize(
+            account,
+            descendants.into_iter().chain(iter::once(*id)),
+            &mut self.tx.username_by_public_key,
+        )?)
     }
 
     pub fn get_file_by_id(&mut self, id: &Uuid) -> CoreResult<File> {
@@ -171,7 +172,7 @@ impl RequestContext<'_, '_> {
             return Err(CoreError::FileNonexistent);
         }
 
-        Ok(tree.finalize(id, account)?)
+        Ok(tree.finalize(id, account, &mut self.tx.username_by_public_key)?)
     }
 
     pub fn find_owner(&self, id: &Uuid) -> CoreResult<Owner> {

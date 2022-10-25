@@ -198,6 +198,7 @@ enum class CreateFileError : UiCoreError {
     LinkInSharedFolder,
     LinkTargetIsOwned,
     LinkTargetNonexistent,
+    MultipleLinksToSameFile,
     InsufficientPermission;
 
     override fun toLbError(res: Resources): LbError = when (this) {
@@ -209,6 +210,7 @@ enum class CreateFileError : UiCoreError {
         LinkInSharedFolder -> LbError.newUserError(getString(res, R.string.link_in_shared_folder))
         LinkTargetIsOwned -> LbError.newUserError(getString(res, R.string.link_target_is_owned))
         LinkTargetNonexistent -> LbError.newUserError(getString(res, R.string.link_target_nonexistent))
+        MultipleLinksToSameFile -> LbError.newUserError(getString(res, R.string.multiple_links_to_same_file))
         InsufficientPermission -> LbError.newUserError(getString(res, R.string.insufficient_permissions))
     }
 }
@@ -390,6 +392,32 @@ enum class ExportFileError : UiCoreError {
         // Used basic errors since specific errors are not useful to the user
         DiskPathTaken -> LbError.newUserError(getString(res, R.string.basic_error))
         DiskPathInvalid -> LbError.newUserError(getString(res, R.string.basic_error))
+    }
+}
+
+@Serializable
+enum class GetDrawingError : UiCoreError {
+    FolderTreatedAsDrawing,
+    InvalidDrawing,
+    FileDoesNotExist;
+
+    override fun toLbError(res: Resources): LbError = when (this) {
+        FolderTreatedAsDrawing -> LbError.newUserError(getString(res, R.string.folder_treated_as_drawing))
+        InvalidDrawing -> LbError.newUserError(getString(res, R.string.invalid_drawing))
+        FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
+    }
+}
+
+@Serializable
+enum class SaveDrawingError : UiCoreError {
+    FileDoesNotExist,
+    FolderTreatedAsDrawing,
+    InvalidDrawing;
+
+    override fun toLbError(res: Resources): LbError = when (this) {
+        FileDoesNotExist -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
+        FolderTreatedAsDrawing -> LbError.newUserError(getString(res, R.string.folder_treated_as_drawing))
+        InvalidDrawing -> LbError.newUserError(getString(res, R.string.invalid_drawing))
     }
 }
 
