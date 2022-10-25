@@ -108,13 +108,14 @@ struct NewFileSheet: View {
     func onCommit() {
         switch DI.core.createFile(name: name, dirId: sheets.creatingInfo!.parent.id, isFolder: selected == .Folder) {
         case .success(let newMeta):
+            if newMeta.fileType == .Folder {
+                files.successfulAction = .createFolder
+                sheets.created = newMeta
+            } else {
+                selection.selectedItem = newMeta
+            }
             files.refresh()
             status.checkForLocalWork()
-            if newMeta.fileType == .Document {
-                selection.selectedItem = newMeta
-            } else {
-                sheets.created = newMeta
-            }
             presentationMode.wrappedValue.dismiss()
         case .failure(let err):
             switch err.kind {
