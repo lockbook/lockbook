@@ -7,7 +7,6 @@ struct NewFileSheet: View {
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var selection: CurrentDocument
 
-    // TODO there is a type in creating info that maybe we should use
     @State var selected: ClientFileTypes = .Document
     @State var name: String = ".md"
     @State var errors: String = ""
