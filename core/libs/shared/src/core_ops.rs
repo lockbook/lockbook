@@ -347,6 +347,16 @@ where
         Ok((self.stage(Some(file)), document))
     }
 
+    pub fn delete_unreferenced_file_versions(&self, config: &Config) -> SharedResult<()> {
+        let base_files = self.tree.base.all_files()?.into_iter();
+        let local_files = self.tree.all_files()?.into_iter();
+        let file_hmacs = base_files
+            .chain(local_files)
+            .filter_map(|f| f.document_hmac().map(|hmac| (f.id(), hmac)))
+            .collect::<HashSet<_>>();
+        document_repo::retain(config, file_hmacs)
+    }
+
     // assumptions: no orphans
     // changes: moves files
     // invalidated by: moved files
@@ -803,9 +813,7 @@ where
                     };
                 result = match (maybe_local_document_change, local_document_type) {
                     // no local changes -> no merge
-                    (None, _) => {
-                        result
-                    }
+                    (None, _) => result,
                     // text files always merged
                     (Some(local_document_change), DocumentType::Text) => {
                         let (

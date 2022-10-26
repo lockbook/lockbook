@@ -47,4 +47,13 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         Ok(())
     }
+
+    pub fn cleanup(&mut self) -> CoreResult<()> {
+        self.tx
+            .base_metadata
+            .stage(&mut self.tx.local_metadata)
+            .to_lazy()
+            .delete_unreferenced_file_versions(self.config)?;
+        Ok(())
+    }
 }
