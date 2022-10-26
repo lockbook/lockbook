@@ -813,9 +813,7 @@ where
                     };
                 result = match (maybe_local_document_change, local_document_type) {
                     // no local changes -> no merge
-                    (None, _) => {
-                        result
-                    }
+                    (None, _) => result,
                     // text files always merged
                     (Some(local_document_change), DocumentType::Text) => {
                         let (
