@@ -39,7 +39,7 @@ fn from_args(releaser: Releaser) {
         Releaser::ReleasePublicSite => public_site::release(),
         Releaser::ReleaseLinux => linux::release_linux(),
         Releaser::All => {
-            let releases = if cfg!(target_os = "apple") {
+            let releases = if cfg!(target_os = "macos") {
                 vec![
                     Releaser::ReleaseApple,
                 ]
