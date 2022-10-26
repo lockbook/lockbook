@@ -40,9 +40,7 @@ fn from_args(releaser: Releaser) {
         Releaser::ReleaseLinux => linux::release_linux(),
         Releaser::All => {
             let releases = if cfg!(target_os = "macos") {
-                vec![
-                    Releaser::ReleaseApple,
-                ]
+                vec![Releaser::ReleaseApple]
             } else if cfg!(target_os = "linux") {
                 vec![
                     Releaser::DeployServer,
@@ -52,9 +50,7 @@ fn from_args(releaser: Releaser) {
                     Releaser::ReleasePublicSite,
                 ]
             } else {
-                vec![
-                    Releaser::ReleaseWindows,
-                ]
+                vec![Releaser::ReleaseWindows]
             };
 
             for releaser in releases {
