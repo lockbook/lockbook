@@ -124,7 +124,7 @@ pub fn doc_repo_get_all(config: &Config) -> Vec<EncryptedDocument> {
 }
 
 fn list_files(db: &Config) -> Vec<String> {
-    let path = document_repo::namespace_path(db);
+    let path = document_repo::namespace_path(&db.writeable_path);
     let path = Path::new(&path);
 
     match fs::read_dir(&path) {
