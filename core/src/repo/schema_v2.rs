@@ -80,10 +80,7 @@ impl CoreV2 {
                     .base_metadata
                     .get(&id)?
                     .and_then(|f| f.document_hmac().cloned())
-                    .ok_or(CoreError::Unexpected(format!(
-                        "hmac in metadata missing for disk file {:?}",
-                        id
-                    )))?;
+                    .ok_or(SharedError::Unexpected("hmac in metadata missing for disk file"))?;
                 fs::rename(path, document_repo::key_path(writeable_path, &id, &hmac))?;
             }
 
