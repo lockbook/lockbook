@@ -190,8 +190,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .promote();
 
         self.reset_deleted_files()?;
-        // todo: cleanup unused versions of documents?
-        // todo: download instant-deleted documents
 
         Ok(update_as_of as i64)
     }
