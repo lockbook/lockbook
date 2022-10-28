@@ -440,7 +440,7 @@ fn write_document_deleted_link() {
         .write_document(link.id, b"document content by sharee 2")
         .unwrap();
 
-    // assert_eq!(cores[1].read_document(document.id).unwrap(), b"document content by sharee 2");
+    assert_eq!(cores[1].read_document(document.id).unwrap(), b"document content by sharee 2");
     cores[1].sync(None).unwrap();
     cores[0].sync(None).unwrap();
     assert_eq!(cores[0].read_document(document.id).unwrap(), b"document content by sharee 2");
