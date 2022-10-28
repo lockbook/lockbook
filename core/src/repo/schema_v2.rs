@@ -1,9 +1,13 @@
 use crate::repo::schema::CoreV1;
+use crate::CoreError;
 use hmdb::transaction::Transaction;
 use lockbook_shared::account::Account;
+use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::signed_file::SignedFile;
+use lockbook_shared::{document_repo, SharedError};
 use serde::{Deserialize, Serialize};
+use std::fs;
 use uuid::Uuid;
 
 pub type Tx<'a> = transaction::CoreV2<'a>;
@@ -24,8 +28,10 @@ hmdb::schema! {
 }
 
 impl CoreV2 {
-    pub fn init_with_migration(writeable_path: &str) -> Result<CoreV2, hmdb::errors::Error> {
+    pub fn init_with_migration(writeable_path: &str) -> Result<CoreV2, CoreError> {
         let db = CoreV2::init(writeable_path)?;
+
+        // migrate metadata from v1
         if db.account.get_all()?.is_empty() {
             let source = CoreV1::init(writeable_path)?;
             db.transaction(|tx| {
@@ -46,10 +52,67 @@ impl CoreV2 {
                     tx.base_metadata.insert(k, v);
                 }
 
-                Ok(())
+                Ok::<_, hmdb::errors::Error>(())
             })
             .expect("failed to migrate local database from v1 to v2")?;
         }
+
+        // migrate documents from id+source structure to id+hmac structure
+        let base_path = format!("{}/all_base_documents", writeable_path);
+        let base_path = Path::new(&base_path);
+        let local_path = format!("{}/changed_local_documents", writeable_path);
+        let local_path = Path::new(&local_path);
+        let docs_path = document_repo::namespace_path(writeable_path);
+        if base_path.is_dir() && local_path.is_dir() {
+            // create docs directory
+            println!("create_dir_all v");
+            fs::create_dir_all(&docs_path)?;
+            println!("^");
+
+            // move/rename base files
+            for entry in fs::read_dir(&base_path)? {
+                let path = entry?.path();
+                let id_str = path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .ok_or(SharedError::Unexpected("document disk file name malformed"))?;
+                let id = Uuid::parse_str(id_str)
+                    .map_err(|_| SharedError::Unexpected("document disk file name malformed"))?;
+                let hmac = db
+                    .base_metadata
+                    .get(&id)?
+                    .and_then(|f| f.document_hmac().cloned())
+                    .ok_or(CoreError::Unexpected(format!(
+                        "hmac in metadata missing for disk file {:?}",
+                        id
+                    )))?;
+                println!("rename v");
+                fs::rename(path, document_repo::key_path(writeable_path, &id, &hmac))?;
+                println!("^");
+            }
+
+            // move/rename local files
+            for entry in fs::read_dir(&local_path)? {
+                let path = entry?.path();
+                let id_str = path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .ok_or(SharedError::Unexpected("document disk file name malformed"))?;
+                let id = Uuid::parse_str(id_str)
+                    .map_err(|_| SharedError::Unexpected("document disk file name malformed"))?;
+                let hmac = db
+                    .local_metadata
+                    .get(&id)?
+                    .and_then(|f| f.document_hmac().cloned())
+                    .ok_or(SharedError::Unexpected("hmac in metadata missing for disk file"))?;
+                fs::rename(path, document_repo::key_path(writeable_path, &id, &hmac))?;
+            }
+
+            // remove emptied directories
+            // fs::remove_dir_all(base_path)?;
+            // fs::remove_dir_all(local_path)?;
+        }
+
         Ok(db)
     }
 }

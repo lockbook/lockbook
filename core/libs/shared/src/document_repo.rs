@@ -10,13 +10,13 @@ use std::path::Path;
 use tracing::*;
 use uuid::Uuid;
 
-pub fn namespace_path(db: &Config) -> String {
-    format!("{}/documents", db.writeable_path)
+pub fn namespace_path(writeable_path: &str) -> String {
+    format!("{}/documents", writeable_path)
 }
 
-fn key_path(db: &Config, key: &Uuid, hmac: &DocumentHmac) -> String {
+pub fn key_path(writeable_path: &str, key: &Uuid, hmac: &DocumentHmac) -> String {
     let hmac = base64::encode_config(hmac, base64::URL_SAFE);
-    format!("{}/{}-{}", namespace_path(db), key, hmac)
+    format!("{}/{}-{}", namespace_path(writeable_path), key, hmac)
 }
 
 #[instrument(level = "debug", skip(config, document), err(Debug))]
@@ -25,7 +25,7 @@ pub fn insert(
 ) -> SharedResult<()> {
     if let Some(hmac) = hmac {
         let value = &bincode::serialize(document)?;
-        let path_str = key_path(config, id, hmac) + ".pending";
+        let path_str = key_path(&config.writeable_path, id, hmac) + ".pending";
         let path = Path::new(&path_str);
         trace!("write\t{} {:?} bytes", &path_str, value.len());
         fs::create_dir_all(path.parent().unwrap())?;
@@ -35,7 +35,7 @@ pub fn insert(
             .truncate(true)
             .open(path)?;
         f.write_all(value)?;
-        Ok(fs::rename(path, key_path(config, id, hmac))?)
+        Ok(fs::rename(path, key_path(&config.writeable_path, id, hmac))?)
     } else {
         Ok(())
     }
@@ -53,7 +53,7 @@ pub fn maybe_get(
     config: &Config, id: &Uuid, hmac: Option<&DocumentHmac>,
 ) -> SharedResult<Option<EncryptedDocument>> {
     if let Some(hmac) = hmac {
-        let path_str = key_path(config, id, hmac);
+        let path_str = key_path(&config.writeable_path, id, hmac);
         let path = Path::new(&path_str);
         trace!("read\t{}", &path_str);
         let maybe_data: Option<Vec<u8>> = match File::open(path) {
@@ -80,7 +80,7 @@ pub fn maybe_get(
 #[instrument(level = "debug", skip(config), err(Debug))]
 pub fn delete(config: &Config, id: &Uuid, hmac: Option<&DocumentHmac>) -> SharedResult<()> {
     if let Some(hmac) = hmac {
-        let path_str = key_path(config, id, hmac);
+        let path_str = key_path(&config.writeable_path, id, hmac);
         let path = Path::new(&path_str);
         trace!("delete\t{}", &path_str);
         if path.exists() {
@@ -93,7 +93,7 @@ pub fn delete(config: &Config, id: &Uuid, hmac: Option<&DocumentHmac>) -> Shared
 
 #[instrument(level = "debug", skip(config), err(Debug))]
 pub fn retain(config: &Config, file_hmacs: HashSet<(&Uuid, &DocumentHmac)>) -> SharedResult<()> {
-    let dir_path = namespace_path(config);
+    let dir_path = namespace_path(&config.writeable_path);
     fs::create_dir_all(&dir_path)?;
     let entries = fs::read_dir(&dir_path)?;
     for entry in entries {
