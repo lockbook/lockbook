@@ -24,7 +24,7 @@ Virtual Machine. On an Ubuntu distribution, snap is already going to be installe
 - Enter the [snap package folder](/utils/dev/snap-packages/lockbook-desktop) and run `snapcraft` to build the package.
 - Run `snapcraft upload --release=stable <.snap file>` to release the snap package to the store.
 
-You also want to upload a `.sign-build` file to the Snap Sotre, which helps validates the package has been built
+You also want to upload a `.sign-build` file to the Snap Store, which helps validates the package has been built
 the lockbook team.
 
 - Run `snapcraft create-key` to create a key to sign the snap package.
