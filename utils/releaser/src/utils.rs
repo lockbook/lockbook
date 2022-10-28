@@ -1,6 +1,5 @@
 use gh_release::RepoInfo;
-use sha2::Digest;
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 use std::{env, fs};
