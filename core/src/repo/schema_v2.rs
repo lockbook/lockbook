@@ -63,13 +63,11 @@ impl CoreV2 {
         let local_path = format!("{}/changed_local_documents", writeable_path);
         let local_path = Path::new(&local_path);
         let docs_path = document_repo::namespace_path(writeable_path);
-        if base_path.is_dir() && local_path.is_dir() {
-            // create docs directory
-            println!("create_dir_all v");
-            fs::create_dir_all(&docs_path)?;
-            println!("^");
 
-            // move/rename base files
+        // move/rename base files
+        if base_path.is_dir() {
+            fs::create_dir_all(&docs_path)?;
+
             for entry in fs::read_dir(&base_path)? {
                 let path = entry?.path();
                 let id_str = path
@@ -86,12 +84,16 @@ impl CoreV2 {
                         "hmac in metadata missing for disk file {:?}",
                         id
                     )))?;
-                println!("rename v");
                 fs::rename(path, document_repo::key_path(writeable_path, &id, &hmac))?;
-                println!("^");
             }
 
-            // move/rename local files
+            fs::remove_dir_all(base_path)?;
+        }
+
+        // move/rename local files
+        if local_path.is_dir() {
+            fs::create_dir_all(&docs_path)?;
+
             for entry in fs::read_dir(&local_path)? {
                 let path = entry?.path();
                 let id_str = path
@@ -106,11 +108,9 @@ impl CoreV2 {
                     .and_then(|f| f.document_hmac().cloned())
                     .ok_or(SharedError::Unexpected("hmac in metadata missing for disk file"))?;
                 fs::rename(path, document_repo::key_path(writeable_path, &id, &hmac))?;
-            }
 
-            // remove emptied directories
-            // fs::remove_dir_all(base_path)?;
-            // fs::remove_dir_all(local_path)?;
+                fs::remove_dir_all(local_path)?;
+            }
         }
 
         Ok(db)
