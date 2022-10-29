@@ -176,12 +176,10 @@ impl<Client: Requester> CoreLib<Client> {
     pub fn write_document(
         &self, id: Uuid, content: &[u8],
     ) -> Result<(), Error<WriteToDocumentError>> {
-        let val: CoreResult<_> = self.db.transaction(|tx| {
-            let mut ctx = self.context(tx)?;
-            ctx.write_document(id, content)?;
-            Ok(())
-        })?;
-        Ok(val?)
+        self.db
+            .transaction(|tx| self.context(tx)?.write_document(id, content))??;
+        self.db.transaction(|tx| self.context(tx)?.cleanup())??;
+        Ok(())
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
@@ -350,6 +348,7 @@ impl<Client: Requester> CoreLib<Client> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>> {
         let val = self.db.transaction(|tx| self.context(tx)?.sync(f))?;
+        self.db.transaction(|tx| self.context(tx)?.cleanup())??;
         Ok(val?)
     }
 
@@ -395,10 +394,10 @@ impl<Client: Requester> CoreLib<Client> {
 
     #[instrument(level = "debug", skip(self, d), err(Debug))]
     pub fn save_drawing(&self, id: Uuid, d: &Drawing) -> Result<(), Error<SaveDrawingError>> {
-        let val = self
-            .db
-            .transaction(|tx| self.context(tx)?.save_drawing(id, d))?;
-        Ok(val?)
+        self.db
+            .transaction(|tx| self.context(tx)?.save_drawing(id, d))??;
+        self.db.transaction(|tx| self.context(tx)?.cleanup())??;
+        Ok(())
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -428,10 +427,10 @@ impl<Client: Requester> CoreLib<Client> {
     pub fn import_files<F: Fn(ImportStatus)>(
         &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
     ) -> Result<(), Error<ImportFileError>> {
-        let val = self
-            .db
-            .transaction(|tx| self.context(tx)?.import_files(sources, dest, update_status))?;
-        Ok(val?)
+        self.db
+            .transaction(|tx| self.context(tx)?.import_files(sources, dest, update_status))??;
+        self.db.transaction(|tx| self.context(tx)?.cleanup())??;
+        Ok(())
     }
 
     #[instrument(level = "debug", skip(self, export_progress), err(Debug))]
