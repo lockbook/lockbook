@@ -39,64 +39,97 @@ enum SyncOperation {
     PushDocumentEnd,
 }
 
+fn get_work_units(op: &SyncOperation) -> Vec<WorkUnit> {
+    let mut work_units: Vec<WorkUnit> = Vec::new();
+    match op {
+        SyncOperation::PullMetadataEnd(files) => {
+            for file in files {
+                work_units.push(WorkUnit::ServerChange { metadata: file.clone() });
+            }
+        }
+        SyncOperation::PushMetadataStart(files) => {
+            for file in files {
+                work_units.push(WorkUnit::LocalChange { metadata: file.clone() });
+            }
+        }
+        SyncOperation::PullMetadataStart
+        | SyncOperation::PushMetadataEnd
+        | SyncOperation::PullDocumentStart(_)
+        | SyncOperation::PullDocumentEnd
+        | SyncOperation::PushDocumentStart(_)
+        | SyncOperation::PushDocumentEnd => {}
+    }
+    work_units
+}
+
 impl<Client: Requester> RequestContext<'_, '_, Client> {
+    #[instrument(level = "debug", skip_all, err(Debug))]
+    pub fn calculate_work(&mut self) -> CoreResult<WorkCalculated> {
+        let mut work_units: Vec<WorkUnit> = Vec::new();
+        let update_as_of = self
+            .sync_helper(true, &mut |op: SyncOperation| work_units.extend(get_work_units(&op)))?;
+
+        Ok(WorkCalculated { work_units, most_recent_update_from_server: update_as_of as u64 })
+    }
+
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync<F: Fn(SyncProgress)>(
         &mut self, maybe_update_sync_progress: Option<F>,
     ) -> CoreResult<WorkCalculated> {
-        let mut sync_progress = SyncProgress {
-            total: 0, // todo: dry run to compute (if sync progress is requested)
-            progress: 0,
-            current_work_unit: ClientWorkUnit::PullMetadata,
-        };
         let mut work_units: Vec<WorkUnit> = Vec::new();
-        let mut handle_sync_operation = |op: SyncOperation| {
-            if let Some(ref update_sync_progress) = maybe_update_sync_progress {
+        let update_as_of = if let Some(update_sync_progress) = maybe_update_sync_progress {
+            let mut sync_progress = SyncProgress {
+                total: 0,
+                progress: 0,
+                current_work_unit: ClientWorkUnit::PullMetadata,
+            };
+            self.sync_helper(true, &mut |op: SyncOperation| {
+                sync_progress.total += get_work_units(&op).len()
+            })?;
+            self.sync_helper(false, &mut |op: SyncOperation| {
+                work_units.extend(get_work_units(&op));
                 match op {
                     SyncOperation::PullMetadataStart => {
                         sync_progress.current_work_unit = ClientWorkUnit::PullMetadata;
                     }
-                    SyncOperation::PullMetadataEnd(files) => {
-                        sync_progress.progress += 1;
-                        for file in files {
-                            work_units.push(WorkUnit::ServerChange { metadata: file });
-                        }
-                    }
-                    SyncOperation::PushMetadataStart(files) => {
+                    SyncOperation::PushMetadataStart(_) => {
                         sync_progress.current_work_unit = ClientWorkUnit::PushMetadata;
-                        for file in files {
-                            work_units.push(WorkUnit::LocalChange { metadata: file });
-                        }
-                    }
-                    SyncOperation::PushMetadataEnd => {
-                        sync_progress.progress += 1;
                     }
                     SyncOperation::PullDocumentStart(file) => {
                         sync_progress.current_work_unit = ClientWorkUnit::PullDocument(file.name);
                     }
-                    SyncOperation::PullDocumentEnd => {
-                        sync_progress.progress += 1;
-                    }
                     SyncOperation::PushDocumentStart(file) => {
                         sync_progress.current_work_unit = ClientWorkUnit::PushDocument(file.name);
                     }
-                    SyncOperation::PushDocumentEnd => {
+                    SyncOperation::PullMetadataEnd(_)
+                    | SyncOperation::PushMetadataEnd
+                    | SyncOperation::PullDocumentEnd
+                    | SyncOperation::PushDocumentEnd => {
                         sync_progress.progress += 1;
                     }
                 }
                 update_sync_progress(sync_progress.clone());
-            }
+            })?
+        } else {
+            self.sync_helper(false, &mut |op: SyncOperation| {
+                work_units.extend(get_work_units(&op))
+            })?
         };
-
-        let update_as_of = self.pull(&mut handle_sync_operation)?;
-        self.tx.last_synced.insert(OneKey {}, update_as_of);
-        self.push_metadata(&mut handle_sync_operation)?;
-        self.prune()?;
-        self.push_documents(&mut handle_sync_operation)?;
-        let update_as_of = self.pull(&mut handle_sync_operation)?;
-        self.tx.last_synced.insert(OneKey {}, update_as_of);
-
         Ok(WorkCalculated { work_units, most_recent_update_from_server: update_as_of as u64 })
+    }
+
+    fn sync_helper<F>(&mut self, dry_run: bool, report_sync_operation: &mut F) -> CoreResult<i64>
+    where
+        F: FnMut(SyncOperation),
+    {
+        let update_as_of = self.pull(report_sync_operation)?;
+        self.tx.last_synced.insert(OneKey {}, update_as_of);
+        self.push_metadata(report_sync_operation)?;
+        self.prune()?;
+        self.push_documents(report_sync_operation)?;
+        let update_as_of = self.pull(report_sync_operation)?;
+        self.tx.last_synced.insert(OneKey {}, update_as_of);
+        Ok(update_as_of)
     }
 
     /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.
@@ -453,46 +486,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .promote();
 
         Ok(())
-    }
-
-    #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn calculate_work(&mut self) -> CoreResult<WorkCalculated> {
-        let updates = self.get_updates()?;
-        let most_recent_update_from_server = updates.as_of_metadata_version;
-        let mut remote_changes = updates.file_metadata;
-
-        // prune prunable files
-        remote_changes = self.prune_remote_orphans(remote_changes)?;
-
-        // calculate work
-        let account = self
-            .tx
-            .account
-            .get(&OneKey {})
-            .ok_or(CoreError::AccountNonexistent)?;
-        let mut work_units: Vec<WorkUnit> = Vec::new();
-        {
-            let mut remote = self.tx.base_metadata.to_lazy().stage(remote_changes);
-            for id in remote.tree.staged.owned_ids() {
-                work_units.push(WorkUnit::ServerChange {
-                    metadata: remote.finalize(&id, account, &mut self.tx.username_by_public_key)?,
-                });
-            }
-        }
-        {
-            let mut local = self
-                .tx
-                .base_metadata
-                .stage(&mut self.tx.local_metadata)
-                .to_lazy();
-            for id in local.tree.staged.owned_ids() {
-                work_units.push(WorkUnit::LocalChange {
-                    metadata: local.finalize(&id, account, &mut self.tx.username_by_public_key)?,
-                });
-            }
-        }
-
-        Ok(WorkCalculated { work_units, most_recent_update_from_server })
     }
 
     fn populate_public_key_cache(&mut self, files: &[SignedFile]) -> CoreResult<()> {
