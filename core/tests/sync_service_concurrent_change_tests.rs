@@ -570,11 +570,8 @@ fn identical_content_edit_not_mergable() {
     write_path(&c2, "/document.draw", b"document content 2").unwrap();
 
     sync_and_assert(&c1, &c2);
-    assert::all_paths(&c2, &["/", "/document.draw", "/document-1.draw"]);
-    assert::all_document_contents(
-        &c2,
-        &[("/document.draw", b"document content 2"), ("/document-1.draw", b"document content 2")],
-    );
+    assert::all_paths(&c2, &["/", "/document.draw"]);
+    assert::all_document_contents(&c2, &[("/document.draw", b"document content 2")]);
 }
 
 #[test]
