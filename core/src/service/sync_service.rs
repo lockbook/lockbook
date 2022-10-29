@@ -6,8 +6,9 @@ use lockbook_shared::api::{
     GetUsernameRequest, UpsertRequest,
 };
 use lockbook_shared::document_repo;
+use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{DocumentHmac, FileDiff, Owner};
+use lockbook_shared::file_metadata::{FileDiff, Owner};
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
@@ -20,82 +21,122 @@ pub struct WorkCalculated {
     pub most_recent_update_from_server: u64,
 }
 
+#[derive(Clone)]
 pub struct SyncProgress {
     pub total: usize,
     pub progress: usize,
     pub current_work_unit: ClientWorkUnit,
 }
 
-fn should_pull_document(
-    maybe_base_hmac: Option<&DocumentHmac>, maybe_remote_hmac: Option<&DocumentHmac>,
-) -> bool {
-    match (maybe_base_hmac, maybe_remote_hmac) {
-        (_, None) => false,
-        (None, _) => true,
-        (Some(base_hmac), Some(remote_hmac)) => base_hmac != remote_hmac,
-    }
-}
-
-enum SyncProgressOperation {
-    IncrementTotalWork(usize),
-    StartWorkUnit(ClientWorkUnit),
+enum SyncOperation {
+    PullMetadataStart,
+    PullMetadataEnd(Vec<File>),
+    PushMetadataStart(Vec<File>),
+    PushMetadataEnd,
+    PullDocumentStart(File),
+    PullDocumentEnd,
+    PushDocumentStart(File),
+    PushDocumentEnd,
 }
 
 impl<Client: Requester> RequestContext<'_, '_, Client> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync<F: Fn(SyncProgress)>(
         &mut self, maybe_update_sync_progress: Option<F>,
-    ) -> CoreResult<()> {
-        // initialize sync progress: 3 metadata pulls + 1 metadata push + num local doc changes
-        // note: num doc changes can change as a result of pull (can make new/changes docs deleted or add new docs from merge conflicts)
-        let mut num_doc_changes = 0;
-        for (id, local_change) in self.tx.local_metadata.get_all() {
-            if let Some(base_file) = self.tx.base_metadata.get(id) {
-                if local_change.document_hmac() != base_file.document_hmac() {
-                    num_doc_changes += 1;
+    ) -> CoreResult<WorkCalculated> {
+        let mut sync_progress = SyncProgress {
+            total: 0, // todo: dry run to compute (if sync progress is requested)
+            progress: 0,
+            current_work_unit: ClientWorkUnit::PullMetadata,
+        };
+        let mut work_units: Vec<WorkUnit> = Vec::new();
+        let mut handle_sync_operation = |op: SyncOperation| {
+            if let Some(ref update_sync_progress) = maybe_update_sync_progress {
+                match op {
+                    SyncOperation::PullMetadataStart => {
+                        sync_progress.current_work_unit = ClientWorkUnit::PullMetadata;
+                    }
+                    SyncOperation::PullMetadataEnd(files) => {
+                        sync_progress.progress += 1;
+                        for file in files {
+                            work_units.push(WorkUnit::ServerChange { metadata: file });
+                        }
+                    }
+                    SyncOperation::PushMetadataStart(files) => {
+                        sync_progress.current_work_unit = ClientWorkUnit::PushMetadata;
+                        for file in files {
+                            work_units.push(WorkUnit::LocalChange { metadata: file });
+                        }
+                    }
+                    SyncOperation::PushMetadataEnd => {
+                        sync_progress.progress += 1;
+                    }
+                    SyncOperation::PullDocumentStart(file) => {
+                        sync_progress.current_work_unit = ClientWorkUnit::PullDocument(file.name);
+                    }
+                    SyncOperation::PullDocumentEnd => {
+                        sync_progress.progress += 1;
+                    }
+                    SyncOperation::PushDocumentStart(file) => {
+                        sync_progress.current_work_unit = ClientWorkUnit::PushDocument(file.name);
+                    }
+                    SyncOperation::PushDocumentEnd => {
+                        sync_progress.progress += 1;
+                    }
                 }
-            } else if local_change.document_hmac().is_some() {
-                num_doc_changes += 1;
-            }
-        }
-        let mut sync_progress_total = 4 + num_doc_changes; // 3 metadata pulls + 1 metadata push
-        let mut sync_progress = 0;
-        let mut update_sync_progress = |op: SyncProgressOperation| match op {
-            SyncProgressOperation::IncrementTotalWork(inc) => sync_progress_total += inc,
-            SyncProgressOperation::StartWorkUnit(work_unit) => {
-                if let Some(ref update_sync_progress) = maybe_update_sync_progress {
-                    update_sync_progress(SyncProgress {
-                        total: sync_progress_total,
-                        progress: sync_progress,
-                        current_work_unit: work_unit,
-                    })
-                }
-                sync_progress += 1;
+                update_sync_progress(sync_progress.clone());
             }
         };
 
-        self.pull(&mut update_sync_progress)?;
-        self.push_metadata(&mut update_sync_progress)?;
+        let update_as_of = self.pull(&mut handle_sync_operation)?;
+        self.tx.last_synced.insert(OneKey {}, update_as_of);
+        self.push_metadata(&mut handle_sync_operation)?;
         self.prune()?;
-        self.push_documents(&mut update_sync_progress)?;
-        let update_as_of = self.pull(&mut update_sync_progress)?;
+        self.push_documents(&mut handle_sync_operation)?;
+        let update_as_of = self.pull(&mut handle_sync_operation)?;
         self.tx.last_synced.insert(OneKey {}, update_as_of);
         self.populate_public_key_cache()?;
 
-        Ok(())
+        Ok(WorkCalculated { work_units, most_recent_update_from_server: update_as_of as u64 })
     }
 
     /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.
     /// Promotes Base to Stage<Base, Remote> and Local to Stage<Local, Merge>
-    fn pull<F>(&mut self, update_sync_progress: &mut F) -> CoreResult<i64>
+    fn pull<F>(&mut self, report_sync_operation: &mut F) -> CoreResult<i64>
     where
-        F: FnMut(SyncProgressOperation),
+        F: FnMut(SyncOperation),
     {
         // fetch metadata updates
-        update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PullMetadata));
+        report_sync_operation(SyncOperation::PullMetadataStart);
         let updates = self.get_updates()?;
         let mut remote_changes = updates.file_metadata;
         let update_as_of = updates.as_of_metadata_version;
+
+        // pre-process changes
+        remote_changes = self.prune_remote_orphans(remote_changes)?;
+
+        let account = self
+            .tx
+            .account
+            .get(&OneKey {})
+            .ok_or(CoreError::AccountNonexistent)?;
+
+        // todo: key cache must be populated at this point
+
+        // track work
+        remote_changes = {
+            let mut remote = self.tx.base_metadata.stage(remote_changes).to_lazy();
+
+            let finalized_remote_changes = remote.resolve_and_finalize(
+                account,
+                remote.tree.staged.owned_ids().into_iter(),
+                &mut self.tx.username_by_public_key,
+            )?;
+            report_sync_operation(SyncOperation::PullMetadataEnd(finalized_remote_changes));
+
+            let (_, remote_changes) = remote.unstage();
+            remote_changes
+        };
 
         // initialize root if this is the first pull on this device
         if self.tx.root.get(&OneKey {}).is_none() {
@@ -107,33 +148,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             self.tx.root.insert(OneKey {}, *root.id());
         }
 
-        // track work
-        {
-            let base = self
-                .tx
-                .base_metadata
-                .stage(&mut self.tx.local_metadata)
-                .to_lazy();
-            let mut num_documents_to_pull = 0;
-            for id in remote_changes.owned_ids() {
-                let maybe_base_hmac = base.maybe_find(&id).and_then(|f| f.document_hmac());
-                let maybe_remote_hmac = remote_changes.find(&id)?.document_hmac();
-                if should_pull_document(maybe_base_hmac, maybe_remote_hmac) {
-                    num_documents_to_pull += 1;
-                }
-            }
-            update_sync_progress(SyncProgressOperation::IncrementTotalWork(num_documents_to_pull));
-        }
-
-        // pre-process changes
-        remote_changes = self.prune_remote_orphans(remote_changes)?;
-
-        // fetch document updates and local documents for merge (todo: don't hold these all in memory at the same time)
-        let account = self
-            .tx
-            .account
-            .get(&OneKey {})
-            .ok_or(CoreError::AccountNonexistent)?;
+        // fetch document updates and local documents for merge
         let mut remote_document_changes = HashSet::new();
         remote_changes = {
             let mut remote = self.tx.base_metadata.to_lazy().stage(remote_changes);
@@ -153,15 +168,18 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 }
 
                 if let Some(remote_hmac) = remote_hmac {
-                    update_sync_progress(SyncProgressOperation::StartWorkUnit(
-                        ClientWorkUnit::PullDocument(remote.name(&id, account)?),
-                    ));
+                    report_sync_operation(SyncOperation::PullDocumentStart(remote.finalize(
+                        &id,
+                        account,
+                        &mut self.tx.username_by_public_key,
+                    )?));
                     let remote_document = self
                         .client
                         .request(account, GetDocRequest { id, hmac: remote_hmac })?
                         .content;
                     document_repo::insert(self.config, &id, Some(&remote_hmac), &remote_document)?;
                     remote_document_changes.insert(id);
+                    report_sync_operation(SyncOperation::PullDocumentEnd);
                 }
             }
             let (_, remote_changes) = remote.unstage();
@@ -226,7 +244,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                     .iter()
                     .any(|k| k.encrypted_for == me.0)
             {
-                result.push(remote.find(&id)?.clone()); // todo: don't clone
+                result.push(remote.find(&id)?.clone());
             }
         }
         Ok(result)
@@ -309,14 +327,14 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
     /// Updates remote and base metadata to local.
     #[instrument(level = "debug", skip_all, err(Debug))]
-    fn push_metadata<F>(&mut self, update_sync_progress: &mut F) -> CoreResult<()>
+    fn push_metadata<F>(&mut self, report_sync_operation: &mut F) -> CoreResult<()>
     where
-        F: FnMut(SyncProgressOperation),
+        F: FnMut(SyncOperation),
     {
         // remote = local
         let mut local_changes_no_digests = Vec::new();
         let mut updates = Vec::new();
-        let local = self
+        let mut local = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)
@@ -327,7 +345,13 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        update_sync_progress(SyncProgressOperation::StartWorkUnit(ClientWorkUnit::PushMetadata));
+        let finalized_local_changes = local.resolve_and_finalize(
+            account,
+            local.tree.staged.owned_ids().into_iter(),
+            &mut self.tx.username_by_public_key,
+        )?;
+        report_sync_operation(SyncOperation::PushMetadataStart(finalized_local_changes));
+
         for id in local.tree.staged.owned_ids() {
             let mut local_change = local.tree.staged.find(&id)?.timestamped_value.value.clone();
             let maybe_base_file = local.tree.base.maybe_find(&id);
@@ -345,6 +369,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             self.client.request(account, UpsertRequest { updates })?;
         }
 
+        report_sync_operation(SyncOperation::PushMetadataEnd);
+
         // base = local
         self.tx
             .base_metadata
@@ -357,9 +383,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
     /// Updates remote and base files to local. Assumes metadata is already pushed for all new files.
     #[instrument(level = "debug", skip_all, err(Debug))]
-    fn push_documents<F>(&mut self, update_sync_progress: &mut F) -> CoreResult<()>
+    fn push_documents<F>(&mut self, report_sync_operation: &mut F) -> CoreResult<()>
     where
-        F: FnMut(SyncProgressOperation),
+        F: FnMut(SyncOperation),
     {
         let mut local = self
             .tx
@@ -390,11 +416,14 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             let local_document_change =
                 document_repo::get(self.config, &id, local_change.document_hmac())?;
 
-            update_sync_progress(SyncProgressOperation::StartWorkUnit(
-                ClientWorkUnit::PushDocument(local.name(&id, account)?),
-            ));
+            report_sync_operation(SyncOperation::PushDocumentStart(local.finalize(
+                &id,
+                account,
+                &mut self.tx.username_by_public_key,
+            )?));
 
             // base = local (document)
+            // todo: is this required?
             document_repo::insert(
                 self.config,
                 &id,
@@ -410,6 +439,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                     new_content: local_document_change,
                 },
             )?;
+
+            report_sync_operation(SyncOperation::PushDocumentEnd);
 
             local_changes_digests_only.push(local_change);
         }
