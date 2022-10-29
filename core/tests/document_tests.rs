@@ -1,16 +1,16 @@
 use uuid::Uuid;
 
 use lockbook_shared::crypto::AESEncrypted;
-use lockbook_shared::document_repo::{self, RepoSource};
+use lockbook_shared::document_repo;
 use lockbook_shared::symkey;
-use test_utils::*;
+use test_utils::{self, test_config};
 
 #[test]
 fn get() {
     let config = &test_config();
 
     let id = Uuid::new_v4();
-    let result = document_repo::get(config, RepoSource::Local, &id);
+    let result = document_repo::get(config, &id, Some(&Default::default()));
 
     assert!(result.is_err());
 }
@@ -20,7 +20,7 @@ fn maybe_get() {
     let config = &test_config();
 
     let id = Uuid::new_v4();
-    let result = document_repo::maybe_get(config, RepoSource::Local, &id).unwrap();
+    let result = document_repo::maybe_get(config, &id, Some(&Default::default())).unwrap();
 
     assert_eq!(result, None);
 }
@@ -32,21 +32,38 @@ fn insert_get() {
 
     let (id, document) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
-    document_repo::insert(config, RepoSource::Local, &id, &document).unwrap();
-    let result = document_repo::get(config, RepoSource::Local, &id).unwrap();
+    document_repo::insert(config, &id, Some(&Default::default()), &document).unwrap();
+    let result = document_repo::get(config, &id, Some(&Default::default())).unwrap();
 
     assert_eq!(result, document);
 }
 
 #[test]
-fn insert_get_different_source() {
+fn insert_get_different_hmac() {
     let config = &test_config();
     let key = &symkey::generate_key();
 
     let (id, document) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
-    document_repo::insert(config, RepoSource::Local, &id, &document).unwrap();
-    let result = document_repo::maybe_get(config, RepoSource::Base, &id).unwrap();
+    document_repo::insert(
+        config,
+        &id,
+        Some(&[
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0,
+        ]),
+        &document,
+    )
+    .unwrap();
+    let result = document_repo::maybe_get(
+        config,
+        &id,
+        Some(&[
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 1,
+        ]),
+    )
+    .unwrap();
 
     assert_eq!(result, None);
 }
@@ -58,11 +75,11 @@ fn insert_get_overwrite_different_source() {
 
     let (id, document) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
-    document_repo::insert(config, RepoSource::Local, &id, &document).unwrap();
+    document_repo::insert(config, &id, Some(&Default::default()), &document).unwrap();
     let (id_2, document_2) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document_2").into_bytes()).unwrap());
-    document_repo::insert(config, RepoSource::Base, &id_2, &document_2).unwrap();
-    let result = document_repo::get(config, RepoSource::Local, &id).unwrap();
+    document_repo::insert(config, &id_2, Some(&Default::default()), &document_2).unwrap();
+    let result = document_repo::get(config, &id, Some(&Default::default())).unwrap();
 
     assert_eq!(result, document);
 }
@@ -74,20 +91,20 @@ fn insert_get_all() {
 
     let (id, document) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
-    document_repo::insert(config, RepoSource::Local, &id, &document).unwrap();
+    document_repo::insert(config, &id, Some(&Default::default()), &document).unwrap();
     let (id_2, document_2) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document_2").into_bytes()).unwrap());
-    document_repo::insert(config, RepoSource::Local, &id_2, &document_2).unwrap();
+    document_repo::insert(config, &id_2, Some(&Default::default()), &document_2).unwrap();
     let (id_3, document_3) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document_3").into_bytes()).unwrap());
-    document_repo::insert(config, RepoSource::Local, &id_3, &document_3).unwrap();
+    document_repo::insert(config, &id_3, Some(&Default::default()), &document_3).unwrap();
     let (id_4, document_4) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document_4").into_bytes()).unwrap());
-    document_repo::insert(config, RepoSource::Local, &id_4, &document_4).unwrap();
+    document_repo::insert(config, &id_4, Some(&Default::default()), &document_4).unwrap();
     let (id_5, document_5) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document_5").into_bytes()).unwrap());
-    document_repo::insert(config, RepoSource::Local, &id_5, &document_5).unwrap();
-    let result = doc_repo_get_all(config, RepoSource::Local);
+    document_repo::insert(config, &id_5, Some(&Default::default()), &document_5).unwrap();
+    let result = test_utils::doc_repo_get_all(config);
 
     let mut expectation = vec![
         (id, document),
@@ -105,28 +122,15 @@ fn insert_get_all() {
 }
 
 #[test]
-fn insert_get_all_different_source() {
-    let config = &test_config();
-    let key = &symkey::generate_key();
-
-    let (id, document) =
-        (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
-    document_repo::insert(config, RepoSource::Local, &id, &document).unwrap();
-    let result = test_utils::doc_repo_get_all(config, RepoSource::Base);
-
-    assert_eq!(result, Vec::<AESEncrypted<Vec<u8>>>::new());
-}
-
-#[test]
 fn insert_delete() {
     let config = &test_config();
     let key = &symkey::generate_key();
 
     let (id, document) =
         (Uuid::new_v4(), symkey::encrypt(key, &String::from("document").into_bytes()).unwrap());
-    document_repo::insert(config, RepoSource::Local, &id, &document).unwrap();
-    document_repo::delete(config, RepoSource::Local, &id).unwrap();
-    let result = document_repo::maybe_get(config, RepoSource::Local, &id).unwrap();
+    document_repo::insert(config, &id, Some(&Default::default()), &document).unwrap();
+    document_repo::delete(config, &id, Some(&Default::default())).unwrap();
+    let result = document_repo::maybe_get(config, &id, Some(&Default::default())).unwrap();
 
     assert_eq!(result, None);
 }
