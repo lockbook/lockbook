@@ -95,7 +95,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         self.push_documents(&mut handle_sync_operation)?;
         let update_as_of = self.pull(&mut handle_sync_operation)?;
         self.tx.last_synced.insert(OneKey {}, update_as_of);
-        self.populate_public_key_cache()?;
 
         Ok(WorkCalculated { work_units, most_recent_update_from_server: update_as_of as u64 })
     }
@@ -115,13 +114,14 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         // pre-process changes
         remote_changes = self.prune_remote_orphans(remote_changes)?;
 
+        // populate key cache
+        self.populate_public_key_cache(&remote_changes)?;
+
         let account = self
             .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
-
-        // todo: key cache must be populated at this point
 
         // track work
         remote_changes = {
@@ -495,7 +495,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         Ok(WorkCalculated { work_units, most_recent_update_from_server })
     }
 
-    fn populate_public_key_cache(&mut self) -> CoreResult<()> {
+    fn populate_public_key_cache(&mut self, files: &[SignedFile]) -> CoreResult<()> {
         let account = self
             .tx
             .account
@@ -503,13 +503,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .ok_or(CoreError::AccountNonexistent)?;
 
         let mut all_owners = HashSet::new();
-        for file in self.tx.base_metadata.get_all().values() {
-            for user_access_key in file.user_access_keys() {
-                all_owners.insert(Owner(user_access_key.encrypted_by));
-                all_owners.insert(Owner(user_access_key.encrypted_for));
-            }
-        }
-        for file in self.tx.local_metadata.get_all().values() {
+        for file in files {
             for user_access_key in file.user_access_keys() {
                 all_owners.insert(Owner(user_access_key.encrypted_by));
                 all_owners.insert(Owner(user_access_key.encrypted_for));
