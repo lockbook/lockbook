@@ -317,10 +317,14 @@ impl<T: Stagable> LazyTree<T> {
     }
 }
 
-pub type Stage1<Base, Local> = StagedTree<Base, Local>;
-pub type LazyStaged1<Base, Local> = LazyTree<Stage1<Base, Local>>;
-pub type Stage2<Base, Local, Staged> = StagedTree<StagedTree<Base, Local>, Staged>;
-pub type LazyStage2<Base, Local, Staged> = LazyTree<Stage2<Base, Local, Staged>>;
+pub type Staged1<S1, S2> = StagedTree<S1, S2>;
+pub type LazyStaged1<S1, S2> = LazyTree<Staged1<S1, S2>>;
+pub type Staged2<S1, S2, S3> = StagedTree<Staged1<S1, S2>, S3>;
+pub type LazyStaged2<S1, S2, S3> = LazyTree<Staged2<S1, S2, S3>>;
+pub type Staged3<S1, S2, S3, S4> = StagedTree<Staged2<S1, S2, S3>, S4>;
+pub type LazyStaged3<S1, S2, S3, S4> = LazyTree<Staged3<S1, S2, S3, S4>>;
+pub type Staged4<S1, S2, S3, S4, S5> = StagedTree<Staged3<S1, S2, S3, S4>, S5>;
+pub type LazyStaged4<S1, S2, S3, S4, S5> = LazyTree<Staged4<S1, S2, S3, S4, S5>>;
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Eq)]
 pub enum ValidationFailure {

@@ -122,19 +122,25 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     where
         F: FnMut(SyncOperation),
     {
-        let update_as_of = self.pull(report_sync_operation)?;
-        self.tx.last_synced.insert(OneKey {}, update_as_of);
-        self.push_metadata(report_sync_operation)?;
-        self.prune()?;
-        self.push_documents(report_sync_operation)?;
-        let update_as_of = self.pull(report_sync_operation)?;
-        self.tx.last_synced.insert(OneKey {}, update_as_of);
+        let update_as_of = self.pull(dry_run, report_sync_operation)?;
+        if !dry_run {
+            self.tx.last_synced.insert(OneKey {}, update_as_of);
+        }
+        self.push_metadata(dry_run, report_sync_operation)?;
+        if !dry_run {
+            self.prune()?;
+        }
+        self.push_documents(dry_run, report_sync_operation)?;
+        let update_as_of = self.pull(dry_run, report_sync_operation)?;
+        if !dry_run {
+            self.tx.last_synced.insert(OneKey {}, update_as_of);
+        }
         Ok(update_as_of)
     }
 
     /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.
-    /// Promotes Base to Stage<Base, Remote> and Local to Stage<Local, Merge>
-    fn pull<F>(&mut self, report_sync_operation: &mut F) -> CoreResult<i64>
+    /// Promotes Base to Stage<Base, Remote> and Local to Stage<Local, Merge> unless dry_run == true
+    fn pull<F>(&mut self, dry_run: bool, report_sync_operation: &mut F) -> CoreResult<i64>
     where
         F: FnMut(SyncOperation),
     {
@@ -206,13 +212,20 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         account,
                         &mut self.tx.username_by_public_key,
                     )?));
-                    let remote_document = self
-                        .client
-                        .request(account, GetDocRequest { id, hmac: remote_hmac })?
-                        .content;
-                    document_repo::insert(self.config, &id, Some(&remote_hmac), &remote_document)?;
-                    remote_document_changes.insert(id);
+                    if !dry_run {
+                        let remote_document = self
+                            .client
+                            .request(account, GetDocRequest { id, hmac: remote_hmac })?
+                            .content;
+                        document_repo::insert(
+                            self.config,
+                            &id,
+                            Some(&remote_hmac),
+                            &remote_document,
+                        )?;
+                    }
                     report_sync_operation(SyncOperation::PullDocumentEnd);
+                    remote_document_changes.insert(id);
                 }
             }
             let (_, remote_changes) = remote.unstage();
@@ -220,27 +233,35 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         };
 
         // base = remote; local = merge
-        let remote_changes = {
+        let (remote_changes, merge_changes) = {
             let local = self
                 .tx
                 .base_metadata
                 .stage(remote_changes)
                 .stage(&mut self.tx.local_metadata)
+                .stage(Vec::new())
                 .to_lazy();
 
-            let local = local.merge(self.config, account, &remote_document_changes)?;
+            let merge = local.merge(self.config, dry_run, account, &remote_document_changes)?;
+            let (local, merge_changes) = merge.unstage();
             let (remote, _) = local.unstage();
             let (_, remote_changes) = remote.unstage();
-            remote_changes
+            (remote_changes, merge_changes)
         };
 
-        self.tx
-            .base_metadata
-            .stage(remote_changes)
-            .to_lazy()
-            .promote();
-
-        self.reset_deleted_files()?;
+        if !dry_run {
+            self.tx
+                .base_metadata
+                .stage(remote_changes)
+                .to_lazy()
+                .promote();
+            self.tx
+                .local_metadata
+                .stage(merge_changes)
+                .to_lazy()
+                .promote();
+            self.reset_deleted_files()?;
+        }
 
         Ok(update_as_of as i64)
     }
@@ -360,7 +381,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
     /// Updates remote and base metadata to local.
     #[instrument(level = "debug", skip_all, err(Debug))]
-    fn push_metadata<F>(&mut self, report_sync_operation: &mut F) -> CoreResult<()>
+    fn push_metadata<F>(&mut self, dry_run: bool, report_sync_operation: &mut F) -> CoreResult<()>
     where
         F: FnMut(SyncOperation),
     {
@@ -384,24 +405,24 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             &mut self.tx.username_by_public_key,
         )?;
         report_sync_operation(SyncOperation::PushMetadataStart(finalized_local_changes));
+        if !dry_run {
+            for id in local.tree.staged.owned_ids() {
+                let mut local_change = local.tree.staged.find(&id)?.timestamped_value.value.clone();
+                let maybe_base_file = local.tree.base.maybe_find(&id);
 
-        for id in local.tree.staged.owned_ids() {
-            let mut local_change = local.tree.staged.find(&id)?.timestamped_value.value.clone();
-            let maybe_base_file = local.tree.base.maybe_find(&id);
+                // change everything but document hmac and re-sign
+                local_change.document_hmac =
+                    maybe_base_file.and_then(|f| f.timestamped_value.value.document_hmac);
+                let local_change = local_change.sign(account)?;
 
-            // change everything but document hmac and re-sign
-            local_change.document_hmac =
-                maybe_base_file.and_then(|f| f.timestamped_value.value.document_hmac);
-            let local_change = local_change.sign(account)?;
-
-            local_changes_no_digests.push(local_change.clone());
-            let file_diff = FileDiff { old: maybe_base_file.cloned(), new: local_change };
-            updates.push(file_diff);
+                local_changes_no_digests.push(local_change.clone());
+                let file_diff = FileDiff { old: maybe_base_file.cloned(), new: local_change };
+                updates.push(file_diff);
+            }
+            if !updates.is_empty() {
+                self.client.request(account, UpsertRequest { updates })?;
+            }
         }
-        if !updates.is_empty() {
-            self.client.request(account, UpsertRequest { updates })?;
-        }
-
         report_sync_operation(SyncOperation::PushMetadataEnd);
 
         // base = local
@@ -416,7 +437,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
     /// Updates remote and base files to local. Assumes metadata is already pushed for all new files.
     #[instrument(level = "debug", skip_all, err(Debug))]
-    fn push_documents<F>(&mut self, report_sync_operation: &mut F) -> CoreResult<()>
+    fn push_documents<F>(&mut self, dry_run: bool, report_sync_operation: &mut F) -> CoreResult<()>
     where
         F: FnMut(SyncOperation),
     {
@@ -454,36 +475,38 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 account,
                 &mut self.tx.username_by_public_key,
             )?));
+            if !dry_run {
+                // base = local (document)
+                // todo: is this required?
+                document_repo::insert(
+                    self.config,
+                    &id,
+                    local_change.document_hmac(),
+                    &local_document_change,
+                )?;
 
-            // base = local (document)
-            // todo: is this required?
-            document_repo::insert(
-                self.config,
-                &id,
-                local_change.document_hmac(),
-                &local_document_change,
-            )?;
-
-            // remote = local
-            self.client.request(
-                account,
-                ChangeDocRequest {
-                    diff: FileDiff { old: Some(base_file), new: local_change.clone() },
-                    new_content: local_document_change,
-                },
-            )?;
-
+                // remote = local
+                self.client.request(
+                    account,
+                    ChangeDocRequest {
+                        diff: FileDiff { old: Some(base_file), new: local_change.clone() },
+                        new_content: local_document_change,
+                    },
+                )?;
+            }
             report_sync_operation(SyncOperation::PushDocumentEnd);
 
             local_changes_digests_only.push(local_change);
         }
 
         // base = local (metadata)
-        self.tx
-            .base_metadata
-            .to_lazy()
-            .stage(local_changes_digests_only)
-            .promote();
+        if !dry_run {
+            self.tx
+                .base_metadata
+                .to_lazy()
+                .stage(local_changes_digests_only)
+                .promote();
+        }
 
         Ok(())
     }

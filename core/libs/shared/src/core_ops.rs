@@ -15,15 +15,14 @@ use crate::file::{File, Share, ShareMode};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileMetadata, FileType, Owner};
 use crate::filename::{DocumentType, NameComponents};
-use crate::lazy::{LazyStage2, LazyStaged1, LazyTree, Stage1};
+use crate::lazy::{LazyStaged1, LazyStaged2, LazyStaged3, LazyStaged4};
 use crate::secret_filename::{HmacSha256, SecretFileName};
 use crate::signed_file::SignedFile;
-use crate::staged::StagedTree;
 use crate::tree_like::{Stagable, TreeLike};
 use crate::{compression_service, document_repo, symkey, validate, SharedError, SharedResult};
 
-pub type TreeWithOp<Base, Local> = LazyTree<StagedTree<Stage1<Base, Local>, Option<SignedFile>>>;
-pub type TreeWithOps<Base, Local> = LazyTree<StagedTree<Stage1<Base, Local>, Vec<SignedFile>>>;
+pub type TreeWithOp<Base, Local> = LazyStaged2<Base, Local, Option<SignedFile>>;
+pub type TreeWithOps<Base, Local> = LazyStaged2<Base, Local, Vec<SignedFile>>;
 
 impl<Base, Local> LazyStaged1<Base, Local>
 where
@@ -356,22 +355,27 @@ where
             .collect::<HashSet<_>>();
         document_repo::retain(config, file_hmacs)
     }
+}
 
+impl<Base, Remote, Local, Merge, Resolution> LazyStaged4<Base, Remote, Local, Merge, Resolution>
+where
+    Base: Stagable<F = SignedFile>,
+    Remote: Stagable<F = Base::F>,
+    Local: Stagable<F = Base::F>,
+    Merge: Stagable<F = Base::F>,
+    Resolution: Stagable<F = Base::F>,
+{
     // assumptions: no orphans
     // changes: moves files
     // invalidated by: moved files
     // todo: incrementalism
-    pub fn unmove_moved_files_in_cycles(
-        self, account: &Account,
-    ) -> SharedResult<TreeWithOps<Base, Local>> {
-        let mut result = self.stage(Vec::new());
-
+    pub fn unmove_moved_files_in_cycles(mut self, account: &Account) -> SharedResult<Self> {
         let mut root_found = false;
         let mut no_cycles_in_ancestors = HashSet::new();
         let mut to_revert = HashSet::new();
-        for id in result.owned_ids() {
+        for id in self.owned_ids() {
             let mut ancestors = HashSet::new();
-            let mut current_file = result.find(&id)?;
+            let mut current_file = self.find(&id)?;
             loop {
                 if no_cycles_in_ancestors.contains(current_file.id()) {
                     break;
@@ -385,11 +389,11 @@ where
                         break;
                     }
                 } else if ancestors.contains(current_file.parent()) {
-                    to_revert.extend(result.ancestors(current_file.id())?);
+                    to_revert.extend(self.ancestors(current_file.id())?);
                     break;
                 }
                 ancestors.insert(*current_file.id());
-                current_file = match result.maybe_find_parent(current_file) {
+                current_file = match self.maybe_find_parent(current_file) {
                     Some(file) => file,
                     None => {
                         if current_file.user_access_keys().is_empty() {
@@ -404,23 +408,24 @@ where
         }
 
         for id in to_revert {
-            if let (Some(base), Some(_)) =
-                (result.tree.base.base.maybe_find(&id), result.tree.base.staged.maybe_find(&id))
-            {
+            if let (Some(base), Some(_)) = (
+                self.tree.base.base.base.maybe_find(&id),
+                self.tree.base.base.staged.maybe_find(&id),
+            ) {
                 let parent_id = *base.parent();
                 // modified version of stage_move where we use keys from base instead of local (which has a cycle)
                 // also, we don't care if files are deleted
-                result = {
+                self = {
                     let id = &id;
-                    let mut file = result.find(id)?.timestamped_value.value.clone();
+                    let mut file = self.find(id)?.timestamped_value.value.clone();
 
                     let (key, parent_key) = {
-                        let mut local = result.tree.base.to_lazy();
-                        let mut base = local.tree.base.to_lazy();
+                        let mut local = self.tree.base.base.to_lazy();
+                        let mut base = local.tree.base.base.to_lazy();
                         let key = base.decrypt_key(id, account)?;
                         let parent_key = base.decrypt_key(&parent_id, account)?;
-                        local.tree.base = base.tree;
-                        result.tree.base = local.tree;
+                        local.tree.base.base = base.tree;
+                        self.tree.base.base = local.tree;
                         (key, parent_key)
                     };
                     file.parent = parent_id;
@@ -429,42 +434,38 @@ where
                         SecretFileName::from_str(&file.name.to_string(&key)?, &key, &parent_key)?;
                     let file = file.sign(account)?;
 
-                    result.stage(Some(file))
+                    self.stage(Some(file))
                 }
                 .promote();
             }
         }
 
-        Ok(result)
+        Ok(self)
     }
 
     // assumptions: no orphans
     // changes: renames files
     // invalidated by: moved files, renamed files
     // todo: incrementalism
-    pub fn rename_files_with_path_conflicts(
-        self, account: &Account,
-    ) -> SharedResult<TreeWithOps<Base, Local>> {
-        let mut result = self.stage(Vec::new());
-
-        for (_, sibling_ids) in result.all_children()?.clone() {
+    pub fn rename_files_with_path_conflicts(mut self, account: &Account) -> SharedResult<Self> {
+        for (_, sibling_ids) in self.all_children()?.clone() {
             let mut not_deleted_sibling_ids = HashSet::new();
             for id in sibling_ids {
-                if !result.calculate_deleted(&id)? {
+                if !self.calculate_deleted(&id)? {
                     not_deleted_sibling_ids.insert(id);
                 }
             }
             for sibling_id in not_deleted_sibling_ids.iter() {
                 // todo: check for renames specifically
-                if result.tree.base.staged.maybe_find(sibling_id).is_none() {
+                if self.tree.base.base.staged.maybe_find(sibling_id).is_none() {
                     continue;
                 }
-                let mut name = result.name(sibling_id, account)?;
+                let mut name = self.name(sibling_id, account)?;
                 let mut changed = false;
                 while not_deleted_sibling_ids
                     .iter()
                     .filter(|&id| id != sibling_id)
-                    .map(|id| result.name(id, account))
+                    .map(|id| self.name(id, account))
                     .propagate_err()?
                     .any(|sibling_name| sibling_name == name)
                 {
@@ -472,46 +473,43 @@ where
                     changed = true;
                 }
                 if changed {
-                    result = result.stage_rename(sibling_id, &name, account)?.promote();
+                    self = self.stage_rename(sibling_id, &name, account)?.promote();
                 }
             }
         }
 
-        Ok(result)
+        Ok(self)
     }
 
-    pub fn deduplicate_links(self, account: &Account) -> SharedResult<TreeWithOps<Base, Local>> {
-        let mut result = self.stage(Vec::new());
-
+    pub fn deduplicate_links(mut self, account: &Account) -> SharedResult<Self> {
         let mut base_link_targets = HashSet::new();
-        for id in result.tree.base.base.owned_ids() {
-            if result.calculate_deleted(&id)? {
+        for id in self.tree.base.base.base.owned_ids() {
+            if self.calculate_deleted(&id)? {
                 continue;
             }
-            if let FileType::Link { target } = result.find(&id)?.file_type() {
+            if let FileType::Link { target } = self.find(&id)?.file_type() {
                 base_link_targets.insert(target);
             }
         }
 
-        for id in result.tree.base.staged.owned_ids() {
-            if result.calculate_deleted(&id)? {
+        for id in self.tree.base.base.staged.owned_ids() {
+            if self.calculate_deleted(&id)? {
                 continue;
             }
-            if let FileType::Link { target } = result.find(&id)?.file_type() {
+            if let FileType::Link { target } = self.find(&id)?.file_type() {
                 if base_link_targets.contains(&target) {
-                    result = result.stage_delete(&id, account)?.promote();
+                    self = self.stage_delete(&id, account)?.promote();
                 }
             }
         }
-        Ok(result)
+        Ok(self)
     }
 
-    pub fn resolve_shared_links(
-        mut self, account: &Account,
-    ) -> SharedResult<TreeWithOps<Base, Local>> {
+    pub fn resolve_shared_links(mut self, account: &Account) -> SharedResult<Self> {
         let mut base_shared_files = HashSet::new();
         let mut base_links = HashSet::new();
-        let (base, local_changes) = self.unstage();
+        let (local, merge_changes) = self.unstage();
+        let (base, local_changes) = local.unstage();
         for id in base.owned_ids() {
             let file = base.find(&id)?;
             if file.is_shared() {
@@ -521,91 +519,85 @@ where
                 base_links.insert(id);
             }
         }
-        self = base.stage(local_changes);
+        let local = base.stage(local_changes);
+        self = local.stage(merge_changes);
 
-        let mut result = self.stage(Vec::new());
-        for id in result.tree.base.staged.owned_ids() {
-            if result.find(&id)?.is_shared() {
-                for descendant in result.descendants(&id)? {
+        for id in self.tree.base.base.staged.owned_ids() {
+            if self.find(&id)?.is_shared() {
+                for descendant in self.descendants(&id)? {
                     if base_links.contains(&descendant) {
                         // unshare newly shared folder with link inside
-                        result = result.stage_delete_share(&id, None, account)?.promote();
+                        self = self.stage_delete_share(&id, None, account)?.promote();
                     }
                 }
             }
-            if !result.ancestors(&id)?.is_disjoint(&base_shared_files)
-                && matches!(result.find(&id)?.file_type(), FileType::Link { .. })
+            if !self.ancestors(&id)?.is_disjoint(&base_shared_files)
+                && matches!(self.find(&id)?.file_type(), FileType::Link { .. })
             {
                 // delete new link in shared folder
-                result = result.stage_delete(&id, account)?.promote();
+                self = self.stage_delete(&id, account)?.promote();
             }
         }
-        Ok(result)
+        Ok(self)
     }
 
-    pub fn resolve_owned_links(self, account: &Account) -> SharedResult<TreeWithOps<Base, Local>> {
-        let mut result = self.stage(Vec::new());
-
-        for id in result.tree.base.staged.owned_ids() {
-            if let FileType::Link { target } = result.find(&id)?.file_type() {
-                if result.find(&target)?.owner().0 == account.public_key() {
+    pub fn resolve_owned_links(mut self, account: &Account) -> SharedResult<Self> {
+        for id in self.tree.base.base.staged.owned_ids() {
+            if let FileType::Link { target } = self.find(&id)?.file_type() {
+                if self.find(&target)?.owner().0 == account.public_key() {
                     // delete new link to owned file
-                    result = result.stage_delete(&id, account)?.promote();
+                    self = self.stage_delete(&id, account)?.promote();
                 }
             }
-            if result.find(&id)?.owner().0 == account.public_key() && result.link(&id)?.is_some() {
+            if self.find(&id)?.owner().0 == account.public_key() && self.link(&id)?.is_some() {
                 // unmove newly owned file with a link targeting it
-                let old_parent = *result.tree.base.base.find(&id)?.parent();
-                result = result.stage_move(&id, &old_parent, account)?.promote();
+                let old_parent = *self.tree.base.base.base.find(&id)?.parent();
+                self = self.stage_move(&id, &old_parent, account)?.promote();
             }
         }
-        Ok(result)
+        Ok(self)
     }
 
-    pub fn delete_links_to_deleted_files(
-        self, account: &Account,
-    ) -> SharedResult<TreeWithOps<Base, Local>> {
-        let mut result = self.stage(Vec::new());
-
-        for id in result.owned_ids() {
-            if result.calculate_deleted(&id)? {
+    pub fn delete_links_to_deleted_files(mut self, account: &Account) -> SharedResult<Self> {
+        for id in self.owned_ids() {
+            if self.calculate_deleted(&id)? {
                 continue;
             }
-            let file = result.find(&id)?;
+            let file = self.find(&id)?;
             if let FileType::Link { target } = file.file_type() {
-                if result.calculate_deleted(&target)? {
-                    // delete link to deleted file file
-                    result = result.stage_delete(&id, account)?.promote();
+                if self.calculate_deleted(&target)? {
+                    // delete link to deleted file
+                    self = self.stage_delete(&id, account)?.promote();
                 }
             }
         }
-        Ok(result)
+        Ok(self)
     }
 }
 
-impl<Base, Remote, Local> LazyStage2<Base, Remote, Local>
+impl<Base, Remote, Local, Merge> LazyStaged3<Base, Remote, Local, Merge>
 where
     Base: Stagable<F = SignedFile>,
     Remote: Stagable<F = Base::F>,
     Local: Stagable<F = Base::F>,
+    Merge: Stagable<F = Base::F>,
 {
     /// Applies changes to local such that this is a valid tree.
     pub fn merge(
-        self, config: &Config, account: &Account, remote_document_changes: &HashSet<Uuid>,
+        mut self, config: &Config, dry_run: bool, account: &Account,
+        remote_document_changes: &HashSet<Uuid>,
     ) -> SharedResult<Self>
     where
         Base: Stagable<F = SignedFile>,
         Remote: Stagable<F = SignedFile>,
         Local: Stagable<F = SignedFile>,
     {
-        let mut result = self.stage(Vec::new());
-
         // merge files on an individual basis
         {
-            for id in result.tree.base.base.staged.owned_ids() {
-                if result.tree.base.staged.maybe_find(&id).is_some() {
+            for id in self.tree.base.base.staged.owned_ids() {
+                if self.tree.base.staged.maybe_find(&id).is_some() {
                     // 3-way merge
-                    if result.tree.base.base.base.maybe_find(&id).is_some() {
+                    if self.tree.base.base.base.maybe_find(&id).is_some() {
                         let (
                             base_file,
                             remote_change,
@@ -617,7 +609,7 @@ where
                             folder_access_key,
                             user_access_keys,
                         ) = {
-                            let (local, merge_changes) = result.unstage();
+                            let (local, merge_changes) = self.unstage();
                             let (remote, local_changes) = local.unstage();
                             let (mut base, remote_changes) = remote.unstage();
                             let base_file = base.find(&id)?.clone();
@@ -629,7 +621,7 @@ where
                             let remote_deleted = remote.calculate_deleted(&id)?;
                             let mut local = remote.stage(local_changes);
                             let local_name = local.name(&id, account)?;
-                            result = local.stage(merge_changes);
+                            self = local.stage(merge_changes);
                             let document_hmac = three_way_merge(
                                 &base_file.document_hmac(),
                                 &remote_change.document_hmac(),
@@ -643,12 +635,12 @@ where
                                 local_change.parent(),
                                 remote_change.parent(),
                             );
-                            let key = result.decrypt_key(&id, account)?;
+                            let key = self.decrypt_key(&id, account)?;
                             let (name, folder_access_key) = {
                                 // we may not have the parent of a direct share
                                 // in that case changes are unauthorized anyway
-                                if result.maybe_find(&parent).is_some() {
-                                    let parent_key = result.decrypt_key(&parent, account)?;
+                                if self.maybe_find(&parent).is_some() {
+                                    let parent_key = self.decrypt_key(&parent, account)?;
                                     let name = SecretFileName::from_str(
                                         three_way_merge(
                                             &base_name,
@@ -688,9 +680,9 @@ where
 
                         if remote_deleted {
                             // discard changes to remote-deleted files
-                            result.insert(remote_change);
+                            self.insert(remote_change);
                         } else {
-                            result.insert(
+                            self.insert(
                                 FileMetadata {
                                     id,
                                     file_type: base_file.file_type(),
@@ -715,7 +707,7 @@ where
                             local_change,
                             user_access_keys,
                         ) = {
-                            let (local, merge_changes) = result.unstage();
+                            let (local, merge_changes) = self.unstage();
                             let (remote, local_changes) = local.unstage();
                             let (base, remote_changes) = remote.unstage();
                             let remote_change = remote_changes.find(&id)?.clone();
@@ -724,7 +716,7 @@ where
                             let remote_name = remote.name(&id, account)?;
                             let remote_deleted = remote.calculate_deleted(&id)?;
                             let local = remote.stage(local_changes);
-                            result = local.stage(merge_changes);
+                            self = local.stage(merge_changes);
                             let user_access_keys = merge_user_access(
                                 None,
                                 remote_change.user_access_keys(),
@@ -739,13 +731,13 @@ where
                             )
                         };
 
-                        let key = result.decrypt_key(&id, account)?;
+                        let key = self.decrypt_key(&id, account)?;
                         let name = {
                             // we may not have the parent of a direct share
                             // in that case changes are unauthorized anyway
-                            if result.maybe_find(remote_change.parent()).is_some() {
+                            if self.maybe_find(remote_change.parent()).is_some() {
                                 let parent_key =
-                                    result.decrypt_key(remote_change.parent(), account)?;
+                                    self.decrypt_key(remote_change.parent(), account)?;
                                 SecretFileName::from_str(&remote_name, &key, &parent_key)?
                             } else {
                                 remote_change.secret_name().clone()
@@ -754,9 +746,9 @@ where
 
                         if remote_deleted {
                             // discard changes to remote-deleted files
-                            result.insert(remote_change);
+                            self.insert(remote_change);
                         } else {
-                            result.insert(
+                            self.insert(
                                 FileMetadata {
                                     id,
                                     file_type: remote_change.file_type(),
@@ -780,17 +772,17 @@ where
         {
             for id in remote_document_changes {
                 let remote_document_change_hmac =
-                    result.tree.base.base.staged.find(id)?.document_hmac();
+                    self.tree.base.base.staged.find(id)?.document_hmac();
                 let remote_document_change =
                     document_repo::get(config, id, remote_document_change_hmac)?;
-                if result.calculate_deleted(id)? {
+                if self.calculate_deleted(id)? {
                     // cannot modify locally deleted documents; local changes to deleted documents are reset anyway
                     continue;
                 }
                 // todo: use merged document type
                 let local_document_type =
-                    DocumentType::from_file_name_using_extension(&result.name(id, account)?);
-                let base_document_hmac = result
+                    DocumentType::from_file_name_using_extension(&self.name(id, account)?);
+                let base_document_hmac = self
                     .tree
                     .base
                     .base
@@ -798,7 +790,7 @@ where
                     .maybe_find(id)
                     .and_then(|f| f.document_hmac())
                     .cloned();
-                let local_document_hmac = result
+                let local_document_hmac = self
                     .tree
                     .base
                     .staged
@@ -808,12 +800,14 @@ where
                 let maybe_local_document_change =
                     if local_document_hmac.is_none() || base_document_hmac == local_document_hmac {
                         None
+                    } else if dry_run {
+                        Some(Default::default())
                     } else {
                         Some(document_repo::get(config, id, local_document_hmac.as_ref())?)
                     };
-                result = match (maybe_local_document_change, local_document_type) {
+                self = match (maybe_local_document_change, local_document_type) {
                     // no local changes -> no merge
-                    (None, _) => result,
+                    (None, _) => self,
                     // text files always merged
                     (Some(local_document_change), DocumentType::Text) => {
                         let (
@@ -821,21 +815,24 @@ where
                             decrypted_remote_document,
                             decrypted_local_document,
                         ) = {
-                            let (local, merge_changes) = result.unstage();
+                            let (local, merge_changes) = self.unstage();
                             let (remote, local_changes) = local.unstage();
                             let (mut base, remote_changes) = remote.unstage();
-                            let decrypted_base_document =
+                            let decrypted_base_document = if dry_run {
+                                Default::default()
+                            } else {
                                 document_repo::maybe_get(config, id, base_document_hmac.as_ref())?
                                     .map(|document| base.decrypt_document(id, &document, account))
                                     .map_or(Ok(None), |v| v.map(Some))?
-                                    .unwrap_or_default();
+                                    .unwrap_or_default()
+                            };
                             let mut remote = base.stage(remote_changes);
                             let decrypted_remote_document =
                                 remote.decrypt_document(id, &remote_document_change, account)?;
                             let mut local = remote.stage(local_changes);
                             let decrypted_local_document =
                                 local.decrypt_document(id, &local_document_change, account)?;
-                            result = local.stage(merge_changes);
+                            self = local.stage(merge_changes);
                             (
                                 decrypted_base_document,
                                 decrypted_remote_document,
@@ -852,34 +849,35 @@ where
                             Err(with_conflicts) => with_conflicts,
                         };
                         let (result, encrypted_document) =
-                            result.update_document(id, &merged_document, account)?;
+                            self.update_document(id, &merged_document, account)?;
                         let hmac = result.find(id)?.document_hmac();
-                        document_repo::insert(config, id, hmac, &encrypted_document)?;
+                        if !dry_run {
+                            document_repo::insert(config, id, hmac, &encrypted_document)?;
+                        }
                         result
                     }
                     // non-text files always duplicated
                     (Some(local_document_change), DocumentType::Drawing | DocumentType::Other) => {
                         let (decrypted_remote_document, decrypted_local_document) = {
-                            let (local, merge_changes) = result.unstage();
+                            let (local, merge_changes) = self.unstage();
                             let (mut remote, local_changes) = local.unstage();
                             let decrypted_remote_document =
                                 remote.decrypt_document(id, &remote_document_change, account)?;
                             let mut local = remote.stage(local_changes);
                             let decrypted_local_document =
                                 local.decrypt_document(id, &local_document_change, account)?;
-                            result = local.stage(merge_changes);
+                            self = local.stage(merge_changes);
                             (decrypted_remote_document, decrypted_local_document)
                         };
 
                         // overwrite existing document (todo: avoid decrypting and re-encrypting document)
-                        let (result, encrypted_document) = result.stage_update_document(
-                            id,
-                            &decrypted_remote_document,
-                            account,
-                        )?;
+                        let (result, encrypted_document) =
+                            self.stage_update_document(id, &decrypted_remote_document, account)?;
                         let mut result = result.promote();
                         let hmac = result.find(id)?.document_hmac();
-                        document_repo::insert(config, id, hmac, &encrypted_document)?;
+                        if !dry_run {
+                            document_repo::insert(config, id, hmac, &encrypted_document)?;
+                        }
 
                         // create copied document (todo: avoid decrypting and re-encrypting document)
                         let (&existing_parent, existing_file_type) = {
@@ -902,12 +900,14 @@ where
                         )?;
                         let result = result.promote();
                         let copied_hmac = result.find(&copied_document_id)?.document_hmac();
-                        document_repo::insert(
-                            config,
-                            &copied_document_id,
-                            copied_hmac,
-                            &encrypted_document,
-                        )?;
+                        if !dry_run {
+                            document_repo::insert(
+                                config,
+                                &copied_document_id,
+                                copied_hmac,
+                                &encrypted_document,
+                            )?;
+                        }
 
                         result
                     }
@@ -916,15 +916,29 @@ where
         }
 
         // resolve tree merge conflicts
-        let mut result = result.promote();
-        result = result.unmove_moved_files_in_cycles(account)?.promote();
-        result = result.rename_files_with_path_conflicts(account)?.promote();
-        result = result.deduplicate_links(account)?.promote();
-        result = result.resolve_shared_links(account)?.promote();
-        result = result.resolve_owned_links(account)?.promote();
-        result = result.delete_links_to_deleted_files(account)?.promote();
+        self = self
+            .stage(Vec::new())
+            .unmove_moved_files_in_cycles(account)?
+            .promote();
+        self = self
+            .stage(Vec::new())
+            .rename_files_with_path_conflicts(account)?
+            .promote();
+        self = self.stage(Vec::new()).deduplicate_links(account)?.promote();
+        self = self
+            .stage(Vec::new())
+            .resolve_shared_links(account)?
+            .promote();
+        self = self
+            .stage(Vec::new())
+            .resolve_owned_links(account)?
+            .promote();
+        self = self
+            .stage(Vec::new())
+            .delete_links_to_deleted_files(account)?
+            .promote();
 
-        Ok(result)
+        Ok(self)
     }
 }
 
