@@ -1,4 +1,5 @@
-use lockbook_shared::document_repo::{self, RepoSource};
+use lockbook_shared::document_repo;
+use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::file_metadata::FileType::Folder;
 use test_utils::*;
@@ -18,7 +19,15 @@ fn report_usage() {
 
     core.sync(None).unwrap();
 
-    let local_encrypted = document_repo::get(&core.config, RepoSource::Base, &file.id)
+    let hmac = core
+        .db
+        .base_metadata
+        .get(&file.id)
+        .unwrap()
+        .unwrap()
+        .document_hmac()
+        .cloned();
+    let local_encrypted = document_repo::get(&core.config, &file.id, hmac.as_ref())
         .unwrap()
         .value;
 
@@ -76,7 +85,15 @@ fn usage_go_back_down_after_delete_folder() {
     }
     core.sync(None).unwrap();
 
-    document_repo::get(&core.config, RepoSource::Base, &file.id).unwrap();
+    let hmac = core
+        .db
+        .base_metadata
+        .get(&file.id)
+        .unwrap()
+        .unwrap()
+        .document_hmac()
+        .cloned();
+    document_repo::get(&core.config, &file.id, hmac.as_ref()).unwrap();
 
     let usage = core.get_usage().unwrap_or_else(|err| panic!("{:?}", err));
 
