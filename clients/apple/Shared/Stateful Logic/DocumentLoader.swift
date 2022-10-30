@@ -108,7 +108,7 @@ class DocumentLoader: ObservableObject {
     private func setupAutoSavers() {
         print("autosaver setup")
         $textDocument
-                .debounce(for: .seconds(1), scheduler: DispatchQueue.global(qos: .userInitiated))
+            .debounce(for: .milliseconds(100), scheduler: DispatchQueue.global(qos: .userInitiated))
                 .sink(receiveValue: {
                     if let text = $0 { // TODO don't write if a reload or delete is required
                         self.writeDocument(content: text)
@@ -117,7 +117,7 @@ class DocumentLoader: ObservableObject {
                 .store(in: &cancellables)
 
         $drawing
-                .debounce(for: .seconds(1), scheduler: DispatchQueue.global(qos: .userInitiated))
+                .debounce(for: .milliseconds(100), scheduler: DispatchQueue.global(qos: .userInitiated))
                 .sink(receiveValue: {
                     if let text = $0 { // TODO don't write if a reload or delete is required
                         self.writeDrawing(drawing: text)
