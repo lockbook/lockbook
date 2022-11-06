@@ -467,8 +467,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             }
 
             let local_change = local_change.sign(account)?;
-            let local_document_change =
-                document_repo::get(self.config, &id, local_change.document_hmac())?;
 
             report_sync_operation(SyncOperation::PushDocumentStart(local.finalize(
                 &id,
@@ -476,6 +474,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 &mut self.tx.username_by_public_key,
             )?));
             if !dry_run {
+                let local_document_change =
+                    document_repo::get(self.config, &id, local_change.document_hmac())?;
+
                 // base = local (document)
                 // todo: is this required?
                 document_repo::insert(
