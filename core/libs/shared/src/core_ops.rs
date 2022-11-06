@@ -212,7 +212,7 @@ where
         Ok(self.stage(staged))
     }
 
-    pub fn delete(self, id: &Uuid, account: &Account) -> SharedResult<LazyStaged1<Base, Local>> {
+    pub fn delete(self, id: &Uuid, account: &Account) -> SharedResult<Self> {
         let mut tree = self.stage_delete(id, account)?;
         tree = tree.validate(Owner(account.public_key()))?;
         let tree = tree.promote();
@@ -232,7 +232,7 @@ where
 
     pub fn delete_share(
         self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
-    ) -> SharedResult<LazyStaged1<Base, Local>> {
+    ) -> SharedResult<Self> {
         let mut tree = self.stage_delete_share(id, maybe_encrypted_for, account)?;
         tree = tree.validate(Owner(account.public_key()))?;
         let tree = tree.promote();
