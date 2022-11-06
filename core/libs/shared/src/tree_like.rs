@@ -44,7 +44,7 @@ pub trait TreeLike: Sized {
 }
 
 pub trait Stagable: TreeLike {
-    fn stage<Staged>(self, staged: Staged) -> StagedTree<Self, Staged>
+    fn stage<Staged>(self, staged: &mut Staged) -> StagedTree<Self, Staged>
     where
         Staged: Stagable<F = Self::F>,
         Self: Sized,

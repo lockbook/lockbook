@@ -30,9 +30,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     ) -> CoreResult<()> {
         update_status(ImportStatus::CalculatedTotal(get_total_child_count(sources)?));
 
-        let tree = self
-            .tx
-            .base_metadata
+        let tree = (&mut self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
 
@@ -56,9 +54,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             return Err(CoreError::DiskPathInvalid);
         }
 
-        let tree = self
-            .tx
-            .base_metadata
+        let tree = (&mut self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
 
@@ -83,11 +79,11 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         Ok(())
     }
 
-    fn export_file_recursively<Base, Local>(
-        config: &Config, account: &Account, mut tree: LazyStaged1<Base, Local>,
+    fn export_file_recursively<'l, Base, Local>(
+        config: &Config, account: &Account, mut tree: LazyStaged1<'l, Base, Local>,
         this_file: &Base::F, disk_path: &Path, edit: bool,
         export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
-    ) -> CoreResult<LazyStaged1<Base, Local>>
+    ) -> CoreResult<LazyStaged1<'l, Base, Local>>
     where
         Base: Stagable<F = SignedFile>,
         Local: Stagable<F = Base::F>,
@@ -164,9 +160,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         &mut self, disk_path: &Path, dest: &Uuid, update_status: &F,
     ) -> CoreResult<()> {
         let public_key = self.get_public_key()?;
-        let mut tree = self
-            .tx
-            .base_metadata
+        let mut tree = (&mut self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self

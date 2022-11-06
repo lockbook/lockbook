@@ -4,17 +4,17 @@ use std::collections::HashSet;
 use uuid::Uuid;
 
 #[derive(Debug)]
-pub struct StagedTree<Base, Staged>
+pub struct StagedTree<'s, Base, Staged>
 where
     Base: Stagable,
     Staged: Stagable<F = Base::F>,
 {
     pub base: Base,
-    pub staged: Staged,
+    pub staged: &'s mut Staged,
 }
 
-impl<Base: Stagable, Staged: Stagable<F = Base::F>> StagedTree<Base, Staged> {
-    pub fn new(base: Base, mut staged: Staged) -> Self {
+impl<'s, Base: Stagable, Staged: Stagable<F = Base::F>> StagedTree<'s, Base, Staged> {
+    pub fn new(base: Base, staged: &'s mut Staged) -> Self {
         let mut prunable = vec![];
         for id in staged.ids() {
             if let Some(staged) = staged.maybe_find(id) {
@@ -33,7 +33,7 @@ impl<Base: Stagable, Staged: Stagable<F = Base::F>> StagedTree<Base, Staged> {
     }
 }
 
-impl<Base: Stagable, Staged: Stagable<F = Base::F>> TreeLike for StagedTree<Base, Staged> {
+impl<'s, Base: Stagable, Staged: Stagable<F = Base::F>> TreeLike for StagedTree<'s, Base, Staged> {
     type F = Base::F;
 
     fn ids(&self) -> HashSet<&Uuid> {
@@ -71,6 +71,6 @@ impl<Base: Stagable, Staged: Stagable<F = Base::F>> TreeLike for StagedTree<Base
     }
 }
 
-impl<Base: Stagable, Staged: Stagable<F = Base::F>> Stagable for StagedTree<Base, Staged> {}
+impl<'s, Base: Stagable, Staged: Stagable<F = Base::F>> Stagable for StagedTree<'s, Base, Staged> {}
 
 impl<F: FileLike> Stagable for Vec<F> {}

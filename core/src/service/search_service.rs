@@ -50,9 +50,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             return Ok(Vec::new());
         }
 
-        let mut tree = self
-            .tx
-            .base_metadata
+        let mut tree = (&mut self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
 
@@ -84,9 +82,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn start_search(&mut self) -> CoreResult<StartSearchInfo> {
-        let mut tree = self
-            .tx
-            .base_metadata
+        let mut tree = (&mut self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self

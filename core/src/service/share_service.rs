@@ -18,9 +18,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             ShareMode::Write => UserAccessMode::Write,
             ShareMode::Read => UserAccessMode::Read,
         };
-        let mut tree = self
-            .tx
-            .base_metadata
+        let mut tree = (&mut self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let mut file = tree.find(&id)?.timestamped_value.value.clone();
@@ -61,7 +59,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             access_mode,
         )?);
 
-        let mut tree = tree.stage(Some(file.sign(account)?));
+        let mut staged = Some(file.sign(account)?);
+        let mut tree = tree.stage(&mut staged);
         tree = tree.validate(Owner(account.public_key()))?;
         tree.promote();
 
@@ -79,9 +78,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn get_pending_shares(&mut self) -> CoreResult<Vec<File>> {
         let account = &self.get_account()?.clone(); // todo: don't clone
         let owner = Owner(self.get_public_key()?);
-        let mut tree = self
-            .tx
-            .base_metadata
+        let mut tree = (&mut self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
 
@@ -112,9 +109,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn delete_share(
         &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>,
     ) -> CoreResult<()> {
-        let tree = self
-            .tx
-            .base_metadata
+        let tree = (&mut self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self

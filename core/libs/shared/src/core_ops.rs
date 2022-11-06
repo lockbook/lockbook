@@ -21,10 +21,164 @@ use crate::signed_file::SignedFile;
 use crate::tree_like::{Stagable, TreeLike};
 use crate::{compression_service, document_repo, symkey, validate, SharedError, SharedResult};
 
-pub type TreeWithOp<Base, Local> = LazyStaged2<Base, Local, Option<SignedFile>>;
-pub type TreeWithOps<Base, Local> = LazyStaged2<Base, Local, Vec<SignedFile>>;
+pub type TreeWithOp<'l, 'op, Base, Local> = LazyStaged2<'l, 'op, Base, Local, Option<SignedFile>>;
+pub type TreeWithOps<'l, 'ops, Base, Local> = LazyStaged2<'l, 'ops, Base, Local, Vec<SignedFile>>;
 
-impl<Base, Local> LazyStaged1<Base, Local>
+impl<'l, 'op, Base, Local> TreeWithOp<'l, 'op, Base, Local>
+where
+    Base: Stagable<F = SignedFile>,
+    Local: Stagable<F = Base::F>,
+{
+    pub fn stage_create(
+        mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
+    ) -> SharedResult<(Self, Uuid)> {
+        validate::file_name(name)?;
+
+        if self.calculate_deleted(parent)? {
+            return Err(SharedError::FileParentNonexistent);
+        }
+
+        let parent_owner = self.find(parent)?.owner().0;
+        let parent_key = self.decrypt_key(parent, account)?;
+        let new_file = FileMetadata::create(&parent_owner, *parent, &parent_key, name, file_type)?
+            .sign(account)?;
+        let id = *new_file.id();
+
+        debug!("new {:?} with id: {}", file_type, id);
+        *self.tree.staged = Some(new_file);
+        Ok((self, id))
+    }
+
+    pub fn stage_rename(mut self, id: &Uuid, name: &str, account: &Account) -> SharedResult<Self> {
+        let mut file = self.find(id)?.timestamped_value.value.clone();
+
+        validate::file_name(name)?;
+
+        if self.maybe_find(file.parent()).is_none() {
+            return Err(SharedError::NotPermissioned);
+        }
+        let parent_key = self.decrypt_key(file.parent(), account)?;
+        let key = self.decrypt_key(id, account)?;
+        file.name = SecretFileName::from_str(name, &key, &parent_key)?;
+        let file = file.sign(account)?;
+        *self.tree.staged = Some(file);
+        Ok(self)
+    }
+
+    pub fn stage_delete(self, id: &Uuid, account: &Account) -> SharedResult<Self> {
+        let mut file = self.find(id)?.timestamped_value.value.clone();
+
+        file.is_deleted = true;
+        let file = file.sign(account)?;
+
+        *self.tree.staged = Some(file);
+        Ok(self)
+    }
+
+    pub fn stage_update_document(
+        mut self, id: &Uuid, document: &[u8], account: &Account,
+    ) -> SharedResult<(Self, EncryptedDocument)> {
+        let id = match self.find(id)?.file_type() {
+            FileType::Document | FileType::Folder => *id,
+            FileType::Link { target } => target,
+        };
+
+        let mut file: FileMetadata = self.find(&id)?.timestamped_value.value.clone();
+        validate::is_document(&file)?;
+
+        let key = self.decrypt_key(&id, account)?;
+        let hmac = {
+            let mut mac =
+                HmacSha256::new_from_slice(&key).map_err(SharedError::HmacCreationError)?;
+            mac.update(document);
+            mac.finalize().into_bytes()
+        }
+        .into();
+
+        file.document_hmac = Some(hmac);
+        let file = file.sign(account)?;
+
+        let document = compression_service::compress(document)?;
+        let document = symkey::encrypt(&key, &document)?;
+
+        *self.tree.staged = Some(file);
+        Ok((self, document))
+    }
+}
+
+impl<'l, 'op, Base, Local> TreeWithOps<'l, 'op, Base, Local>
+where
+    Base: Stagable<F = SignedFile>,
+    Local: Stagable<F = Base::F>,
+{
+    pub fn stage_move(
+        mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
+    ) -> SharedResult<Self> {
+        let mut file = self.find(id)?.timestamped_value.value.clone();
+        if self.maybe_find(new_parent).is_none() || self.calculate_deleted(new_parent)? {
+            return Err(SharedError::FileParentNonexistent);
+        }
+
+        let key = self.decrypt_key(id, account)?;
+        let parent_key = self.decrypt_key(new_parent, account)?;
+        let owner = self.find(new_parent)?.owner();
+        file.owner = owner;
+        file.parent = *new_parent;
+        file.folder_access_key = symkey::encrypt(&parent_key, &key)?;
+        file.name = SecretFileName::from_str(&self.name(id, account)?, &key, &parent_key)?;
+        let file = file.sign(account)?;
+
+        let mut staged = vec![file];
+        for id in self.descendants(id)? {
+            let mut descendant = self.find(&id)?.timestamped_value.value.clone();
+            descendant.owner = owner;
+            staged.push(descendant.sign(account)?);
+        }
+
+        *self.tree.staged = staged;
+        Ok(self)
+    }
+
+    pub fn stage_delete_share(
+        mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
+    ) -> SharedResult<Self> {
+        let mut staged = Vec::new();
+        let mut file = self.find(id)?.timestamped_value.value.clone();
+
+        let mut found = false;
+        for key in file.user_access_keys.iter_mut() {
+            if let Some(encrypted_for) = maybe_encrypted_for {
+                if !key.deleted && key.encrypted_for == encrypted_for {
+                    found = true;
+                    key.deleted = true;
+                }
+            } else if !key.deleted {
+                found = true;
+                key.deleted = true;
+            }
+        }
+        if !found {
+            return Err(SharedError::ShareNonexistent);
+        }
+        staged.push(file.sign(account)?);
+
+        // delete any links pointing to file
+        if let Some(encrypted_for) = maybe_encrypted_for {
+            if encrypted_for == account.public_key() {
+                if let Some(link) = self.link(id)? {
+                    let mut link = self.find(&link)?.timestamped_value.value.clone();
+                    link.is_deleted = true;
+                    staged.push(link.sign(account)?);
+                }
+            }
+        }
+
+        *self.tree.staged = staged;
+        Ok(self)
+    }
+}
+
+impl<Base, Local> LazyStaged1<'_, Base, Local>
 where
     Base: Stagable<F = SignedFile>,
     Local: Stagable<F = Base::F>,
@@ -129,151 +283,51 @@ where
         self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
         pub_key: &PublicKey,
     ) -> SharedResult<(Self, Uuid)> {
-        let (mut tree, id) = self.stage_create(parent, name, file_type, account)?;
+        let mut staged = None;
+        let (mut tree, id) = self
+            .stage(&mut staged)
+            .stage_create(parent, name, file_type, account)?;
         tree = tree.validate(Owner(*pub_key))?;
         let tree = tree.promote();
         Ok((tree, id))
     }
 
-    pub fn stage_create(
-        mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
-    ) -> SharedResult<(TreeWithOp<Base, Local>, Uuid)> {
-        validate::file_name(name)?;
-
-        if self.calculate_deleted(parent)? {
-            return Err(SharedError::FileParentNonexistent);
-        }
-
-        let parent_owner = self.find(parent)?.owner().0;
-        let parent_key = self.decrypt_key(parent, account)?;
-        let new_file = FileMetadata::create(&parent_owner, *parent, &parent_key, name, file_type)?
-            .sign(account)?;
-        let id = *new_file.id();
-
-        debug!("new {:?} with id: {}", file_type, id);
-        Ok((self.stage(Some(new_file)), id))
-    }
-
     pub fn rename(self, id: &Uuid, name: &str, account: &Account) -> SharedResult<Self> {
-        let mut tree = self.stage_rename(id, name, account)?;
+        let mut staged = None;
+        let mut tree = self.stage(&mut staged).stage_rename(id, name, account)?;
         tree = tree.validate(Owner(account.public_key()))?;
         let tree = tree.promote();
         Ok(tree)
     }
 
-    pub fn stage_rename(
-        mut self, id: &Uuid, name: &str, account: &Account,
-    ) -> SharedResult<TreeWithOp<Base, Local>> {
-        let mut file = self.find(id)?.timestamped_value.value.clone();
-
-        validate::file_name(name)?;
-
-        if self.maybe_find(file.parent()).is_none() {
-            return Err(SharedError::NotPermissioned);
-        }
-        let parent_key = self.decrypt_key(file.parent(), account)?;
-        let key = self.decrypt_key(id, account)?;
-        file.name = SecretFileName::from_str(name, &key, &parent_key)?;
-        let file = file.sign(account)?;
-        Ok(self.stage(Some(file)))
-    }
-
     pub fn move_file(self, id: &Uuid, new_parent: &Uuid, account: &Account) -> SharedResult<Self> {
-        let mut tree = self.stage_move(id, new_parent, account)?;
+        let mut staged = Vec::new();
+        let mut tree = self
+            .stage(&mut staged)
+            .stage_move(id, new_parent, account)?;
         tree = tree.validate(Owner(account.public_key()))?;
 
         Ok(tree.promote())
     }
 
-    pub fn stage_move(
-        mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
-    ) -> SharedResult<TreeWithOps<Base, Local>> {
-        let mut file = self.find(id)?.timestamped_value.value.clone();
-        if self.maybe_find(new_parent).is_none() || self.calculate_deleted(new_parent)? {
-            return Err(SharedError::FileParentNonexistent);
-        }
-
-        let key = self.decrypt_key(id, account)?;
-        let parent_key = self.decrypt_key(new_parent, account)?;
-        let owner = self.find(new_parent)?.owner();
-        file.owner = owner;
-        file.parent = *new_parent;
-        file.folder_access_key = symkey::encrypt(&parent_key, &key)?;
-        file.name = SecretFileName::from_str(&self.name(id, account)?, &key, &parent_key)?;
-        let file = file.sign(account)?;
-
-        let mut staged = vec![file];
-        for id in self.descendants(id)? {
-            let mut descendant = self.find(&id)?.timestamped_value.value.clone();
-            descendant.owner = owner;
-            staged.push(descendant.sign(account)?);
-        }
-
-        Ok(self.stage(staged))
-    }
-
     pub fn delete(self, id: &Uuid, account: &Account) -> SharedResult<Self> {
-        let mut tree = self.stage_delete(id, account)?;
+        let mut staged = None;
+        let mut tree = self.stage(&mut staged).stage_delete(id, account)?;
         tree = tree.validate(Owner(account.public_key()))?;
         let tree = tree.promote();
         Ok(tree)
-    }
-
-    pub fn stage_delete(
-        self, id: &Uuid, account: &Account,
-    ) -> SharedResult<TreeWithOp<Base, Local>> {
-        let mut file = self.find(id)?.timestamped_value.value.clone();
-
-        file.is_deleted = true;
-        let file = file.sign(account)?;
-
-        Ok(self.stage(Some(file)))
     }
 
     pub fn delete_share(
         self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
     ) -> SharedResult<Self> {
-        let mut tree = self.stage_delete_share(id, maybe_encrypted_for, account)?;
+        let mut staged = Vec::new();
+        let mut tree =
+            self.stage(&mut staged)
+                .stage_delete_share(id, maybe_encrypted_for, account)?;
         tree = tree.validate(Owner(account.public_key()))?;
         let tree = tree.promote();
         Ok(tree)
-    }
-
-    pub fn stage_delete_share(
-        self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
-    ) -> SharedResult<TreeWithOps<Base, Local>> {
-        let mut result = self.stage(Vec::new());
-        let mut file = result.find(id)?.timestamped_value.value.clone();
-
-        let mut found = false;
-        for key in file.user_access_keys.iter_mut() {
-            if let Some(encrypted_for) = maybe_encrypted_for {
-                if !key.deleted && key.encrypted_for == encrypted_for {
-                    found = true;
-                    key.deleted = true;
-                }
-            } else if !key.deleted {
-                found = true;
-                key.deleted = true;
-            }
-        }
-        if !found {
-            return Err(SharedError::ShareNonexistent);
-        }
-        result = result.stage(Some(file.sign(account)?)).promote();
-
-        // delete any links pointing to file
-        if let Some(encrypted_for) = maybe_encrypted_for {
-            if encrypted_for == account.public_key() {
-                if let Some(link) = result.link(id)? {
-                    let mut link = result.find(&link)?.timestamped_value.value.clone();
-                    link.is_deleted = true;
-                    result = result.stage(Some(link.sign(account)?)).promote();
-                }
-            }
-        }
-
-        Ok(result)
     }
 
     pub fn read_document(
@@ -311,39 +365,13 @@ where
     pub fn update_document(
         self, id: &Uuid, document: &[u8], account: &Account,
     ) -> SharedResult<(Self, EncryptedDocument)> {
-        let (mut tree, document) = self.stage_update_document(id, document, account)?;
+        let mut staged = None;
+        let (mut tree, document) = self
+            .stage(&mut staged)
+            .stage_update_document(id, document, account)?;
         tree = tree.validate(Owner(account.public_key()))?;
         let tree = tree.promote();
         Ok((tree, document))
-    }
-
-    pub fn stage_update_document(
-        mut self, id: &Uuid, document: &[u8], account: &Account,
-    ) -> SharedResult<(TreeWithOp<Base, Local>, EncryptedDocument)> {
-        let id = match self.find(id)?.file_type() {
-            FileType::Document | FileType::Folder => *id,
-            FileType::Link { target } => target,
-        };
-
-        let mut file: FileMetadata = self.find(&id)?.timestamped_value.value.clone();
-        validate::is_document(&file)?;
-
-        let key = self.decrypt_key(&id, account)?;
-        let hmac = {
-            let mut mac =
-                HmacSha256::new_from_slice(&key).map_err(SharedError::HmacCreationError)?;
-            mac.update(document);
-            mac.finalize().into_bytes()
-        }
-        .into();
-
-        file.document_hmac = Some(hmac);
-        let file = file.sign(account)?;
-
-        let document = compression_service::compress(document)?;
-        let document = symkey::encrypt(&key, &document)?;
-
-        Ok((self.stage(Some(file)), document))
     }
 
     pub fn delete_unreferenced_file_versions(&self, config: &Config) -> SharedResult<()> {
@@ -357,7 +385,8 @@ where
     }
 }
 
-impl<Base, Remote, Local, Merge, Resolution> LazyStaged4<Base, Remote, Local, Merge, Resolution>
+impl<Base, Remote, Local, Merge, Resolution>
+    LazyStaged4<'_, '_, '_, '_, Base, Remote, Local, Merge, Resolution>
 where
     Base: Stagable<F = SignedFile>,
     Remote: Stagable<F = Base::F>,
@@ -434,7 +463,7 @@ where
                         SecretFileName::from_str(&file.name.to_string(&key)?, &key, &parent_key)?;
                     let file = file.sign(account)?;
 
-                    self.stage(Some(file))
+                    self.stage(&mut Some(file))
                 }
                 .promote();
             }
@@ -473,7 +502,11 @@ where
                     changed = true;
                 }
                 if changed {
-                    self = self.stage_rename(sibling_id, &name, account)?.promote();
+                    let mut staged = None;
+                    self = self
+                        .stage(&mut staged)
+                        .stage_rename(sibling_id, &name, account)?
+                        .promote();
                 }
             }
         }
@@ -498,7 +531,11 @@ where
             }
             if let FileType::Link { target } = self.find(&id)?.file_type() {
                 if base_link_targets.contains(&target) {
-                    self = self.stage_delete(&id, account)?.promote();
+                    let mut staged = None;
+                    self = self
+                        .stage(&mut staged)
+                        .stage_delete(&id, account)?
+                        .promote();
                 }
             }
         }
@@ -527,7 +564,11 @@ where
                 for descendant in self.descendants(&id)? {
                     if base_links.contains(&descendant) {
                         // unshare newly shared folder with link inside
-                        self = self.stage_delete_share(&id, None, account)?.promote();
+                        let mut staged = Vec::new();
+                        self = self
+                            .stage(&mut staged)
+                            .stage_delete_share(&id, None, account)?
+                            .promote();
                     }
                 }
             }
@@ -535,7 +576,11 @@ where
                 && matches!(self.find(&id)?.file_type(), FileType::Link { .. })
             {
                 // delete new link in shared folder
-                self = self.stage_delete(&id, account)?.promote();
+                let mut staged = None;
+                self = self
+                    .stage(&mut staged)
+                    .stage_delete(&id, account)?
+                    .promote();
             }
         }
         Ok(self)
@@ -546,13 +591,21 @@ where
             if let FileType::Link { target } = self.find(&id)?.file_type() {
                 if self.find(&target)?.owner().0 == account.public_key() {
                     // delete new link to owned file
-                    self = self.stage_delete(&id, account)?.promote();
+                    let mut staged = None;
+                    self = self
+                        .stage(&mut staged)
+                        .stage_delete(&id, account)?
+                        .promote();
                 }
             }
             if self.find(&id)?.owner().0 == account.public_key() && self.link(&id)?.is_some() {
                 // unmove newly owned file with a link targeting it
                 let old_parent = *self.tree.base.base.base.find(&id)?.parent();
-                self = self.stage_move(&id, &old_parent, account)?.promote();
+                let mut staged = Vec::new();
+                self = self
+                    .stage(&mut staged)
+                    .stage_move(&id, &old_parent, account)?
+                    .promote();
             }
         }
         Ok(self)
@@ -567,7 +620,11 @@ where
             if let FileType::Link { target } = file.file_type() {
                 if self.calculate_deleted(&target)? {
                     // delete link to deleted file
-                    self = self.stage_delete(&id, account)?.promote();
+                    let mut staged = None;
+                    self = self
+                        .stage(&mut staged)
+                        .stage_delete(&id, account)?
+                        .promote();
                 }
             }
         }
@@ -575,7 +632,7 @@ where
     }
 }
 
-impl<Base, Remote, Local, Merge> LazyStaged3<Base, Remote, Local, Merge>
+impl<Base, Remote, Local, Merge> LazyStaged3<'_, '_, '_, Base, Remote, Local, Merge>
 where
     Base: Stagable<F = SignedFile>,
     Remote: Stagable<F = Base::F>,
@@ -864,8 +921,10 @@ where
                     };
 
                     // overwrite existing document (todo: avoid decrypting and re-encrypting document)
-                    let (result, encrypted_document) =
-                        self.stage_update_document(id, &decrypted_remote_document, account)?;
+                    let mut staged = None;
+                    let (result, encrypted_document) = self
+                        .stage(&mut staged)
+                        .stage_update_document(id, &decrypted_remote_document, account)?;
                     let mut result = result.promote();
                     let hmac = result.find(id)?.document_hmac();
                     if !dry_run {
@@ -879,18 +938,21 @@ where
                     };
 
                     let name = result.name(id, account)?;
-                    let (result, copied_document_id) = result.stage_create(
+                    let mut staged = None;
+                    let (result, copied_document_id) = result.stage(&mut staged).stage_create(
                         &existing_parent,
                         &name,
                         existing_file_type,
                         account,
                     )?;
                     let result = result.promote();
-                    let (result, encrypted_document) = result.stage_update_document(
-                        &copied_document_id,
-                        &decrypted_local_document,
-                        account,
-                    )?;
+                    let mut staged = None;
+                    let (result, encrypted_document) =
+                        result.stage(&mut staged).stage_update_document(
+                            &copied_document_id,
+                            &decrypted_local_document,
+                            account,
+                        )?;
                     let result = result.promote();
                     let copied_hmac = result.find(&copied_document_id)?.document_hmac();
                     if !dry_run {
@@ -908,8 +970,9 @@ where
         }
 
         // resolve tree merge conflicts
+        let mut staged = Vec::new();
         self = self
-            .stage(Vec::new())
+            .stage(&mut staged)
             .unmove_moved_files_in_cycles(account)?
             .rename_files_with_path_conflicts(account)?
             .deduplicate_links(account)?

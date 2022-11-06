@@ -8,9 +8,7 @@ use uuid::Uuid;
 impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn create_link_at_path(&mut self, path: &str, target_id: Uuid) -> CoreResult<File> {
         let pub_key = self.get_public_key()?;
-        let tree = self
-            .tx
-            .base_metadata
+        let tree = (&mut self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
@@ -34,9 +32,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
     pub fn create_at_path(&mut self, path: &str) -> CoreResult<File> {
         let pub_key = self.get_public_key()?;
-        let tree = self
-            .tx
-            .base_metadata
+        let tree = (&mut self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
@@ -59,9 +55,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn get_by_path(&mut self, path: &str) -> CoreResult<File> {
-        let mut tree = self
-            .tx
-            .base_metadata
+        let mut tree = (&mut self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
@@ -84,9 +78,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn get_path_by_id(&mut self, id: Uuid) -> CoreResult<String> {
-        let mut tree = self
-            .tx
-            .base_metadata
+        let mut tree = (&mut self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
@@ -100,9 +92,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn list_paths(&mut self, filter: Option<Filter>) -> CoreResult<Vec<String>> {
-        let mut tree = self
-            .tx
-            .base_metadata
+        let mut tree = (&mut self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self

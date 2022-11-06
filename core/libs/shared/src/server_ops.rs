@@ -1,7 +1,7 @@
 use crate::clock::get_time;
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileDiff, Owner};
-use crate::lazy::{LazyStaged1, LazyTree};
+use crate::lazy::LazyStaged1;
 use crate::server_file::{IntoServerFile, ServerFile};
 use hmdb::log::SchemaEvent;
 use std::collections::HashSet;
@@ -12,11 +12,14 @@ use crate::signed_file::SignedFile;
 use crate::tree_like::TreeLike;
 use crate::{SharedError, SharedResult};
 
-type LazyServerStaged1<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files> =
-    LazyStaged1<ServerTree<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files>, Vec<ServerFile>>;
+type LazyServerStaged1<'a, 'b, 'v, OwnedFiles, SharedFiles, FileChildren, Files> = LazyStaged1<
+    'v,
+    ServerTree<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files>,
+    Vec<ServerFile>,
+>;
 
-impl<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files>
-    LazyTree<ServerTree<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files>>
+impl<'a, 'b, 'v, OwnedFiles, SharedFiles, FileChildren, Files>
+    LazyServerStaged1<'a, 'b, 'v, OwnedFiles, SharedFiles, FileChildren, Files>
 where
     OwnedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
     SharedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
@@ -25,10 +28,11 @@ where
 {
     /// Validates a diff prior to staging it. Performs individual validations, then validations that
     /// require a tree
-    pub fn stage_diff(
-        mut self, changes: Vec<FileDiff<SignedFile>>,
-    ) -> SharedResult<LazyServerStaged1<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files>> {
-        self.tree.ids.extend(changes.iter().map(|diff| *diff.id()));
+    pub fn stage_diff(mut self, changes: Vec<FileDiff<SignedFile>>) -> SharedResult<Self> {
+        self.tree
+            .base
+            .ids
+            .extend(changes.iter().map(|diff| *diff.id()));
 
         // Check new.id == old.id
         for change in &changes {
@@ -78,11 +82,11 @@ where
         }
 
         let now = get_time().0 as u64;
-        let changes = changes
+        *self.tree.staged = changes
             .into_iter()
             .map(|change| change.new.add_time(now))
             .collect();
 
-        Ok(self.stage(changes))
+        Ok(self)
     }
 }

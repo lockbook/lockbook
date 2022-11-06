@@ -163,8 +163,10 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .ok_or(CoreError::AccountNonexistent)?;
 
         // track work
-        remote_changes = {
-            let mut remote = self.tx.base_metadata.stage(remote_changes).to_lazy();
+        {
+            let mut remote = (&mut self.tx.base_metadata)
+                .stage(&mut remote_changes)
+                .to_lazy();
 
             let finalized_remote_changes = remote.resolve_and_finalize(
                 account,
@@ -189,8 +191,10 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         // fetch document updates and local documents for merge
         let mut remote_document_changes = HashSet::new();
-        remote_changes = {
-            let mut remote = self.tx.base_metadata.to_lazy().stage(remote_changes);
+        {
+            let mut remote = (&mut self.tx.base_metadata)
+                .to_lazy()
+                .stage(&mut remote_changes);
             for id in remote.tree.staged.owned_ids() {
                 if remote.calculate_deleted(&id)? {
                     continue;
@@ -233,13 +237,12 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         };
 
         // base = remote; local = merge
-        let (remote_changes, merge_changes) = {
-            let local = self
-                .tx
-                .base_metadata
-                .stage(remote_changes)
+        let mut merge_changes = Vec::new();
+        {
+            let local = (&mut self.tx.base_metadata)
+                .stage(&mut remote_changes)
                 .stage(&mut self.tx.local_metadata)
-                .stage(Vec::new())
+                .stage(&mut merge_changes)
                 .to_lazy();
 
             let merge = local.merge(self.config, dry_run, account, &remote_document_changes)?;
@@ -250,14 +253,12 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         };
 
         if !dry_run {
-            self.tx
-                .base_metadata
-                .stage(remote_changes)
+            (&mut self.tx.base_metadata)
+                .stage(&mut remote_changes)
                 .to_lazy()
                 .promote();
-            self.tx
-                .local_metadata
-                .stage(merge_changes)
+            (&mut self.tx.local_metadata)
+                .stage(&mut merge_changes)
                 .to_lazy()
                 .promote();
             self.reset_deleted_files()?;
@@ -285,10 +286,12 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn prune_remote_orphans(
-        &mut self, remote_changes: Vec<SignedFile>,
+        &mut self, mut remote_changes: Vec<SignedFile>,
     ) -> CoreResult<Vec<SignedFile>> {
         let me = Owner(self.get_public_key()?);
-        let remote = self.tx.base_metadata.to_lazy().stage(remote_changes);
+        let remote = (&mut self.tx.base_metadata)
+            .to_lazy()
+            .stage(&mut remote_changes);
         let mut result = Vec::new();
         for id in remote.tree.staged.owned_ids() {
             let meta = remote.find(&id)?;
@@ -310,7 +313,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         // we must explicitly delete a file which is moved into a deleted folder because otherwise resetting it makes it no longer deleted
         let account = self.get_account()?.clone();
 
-        let mut tree = self.tx.base_metadata.to_lazy();
+        let mut tree = (&mut self.tx.base_metadata).to_lazy();
         let mut already_deleted = HashSet::new();
         for id in tree.owned_ids() {
             if tree.calculate_deleted(&id)? {
@@ -318,9 +321,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             }
         }
 
-        let mut tree = self
-            .tx
-            .base_metadata
+        let mut tree = (&mut self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let mut local_change_removals = HashSet::new();
@@ -346,16 +347,14 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         for id in local_change_removals {
             tree.remove(id);
         }
-        tree.stage(local_change_resets).promote();
+        tree.stage(&mut local_change_resets).promote();
 
         Ok(())
     }
 
     fn prune(&mut self) -> CoreResult<()> {
         let account = self.get_account()?.clone();
-        let mut local = self
-            .tx
-            .base_metadata
+        let mut local = (&mut self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let base_ids = local.tree.base.owned_ids();
@@ -388,9 +387,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         // remote = local
         let mut local_changes_no_digests = Vec::new();
         let mut updates = Vec::new();
-        let mut local = self
-            .tx
-            .base_metadata
+        let mut local = (&mut self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
@@ -426,10 +423,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         report_sync_operation(SyncOperation::PushMetadataEnd);
 
         // base = local
-        self.tx
-            .base_metadata
+        (&mut self.tx.base_metadata)
             .to_lazy()
-            .stage(local_changes_no_digests)
+            .stage(&mut local_changes_no_digests)
             .promote();
 
         Ok(())
@@ -441,9 +437,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     where
         F: FnMut(SyncOperation),
     {
-        let mut local = self
-            .tx
-            .base_metadata
+        let mut local = (&mut self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
@@ -502,10 +496,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         // base = local (metadata)
         if !dry_run {
-            self.tx
-                .base_metadata
+            (&mut self.tx.base_metadata)
                 .to_lazy()
-                .stage(local_changes_digests_only)
+                .stage(&mut local_changes_digests_only)
                 .promote();
         }
 

@@ -293,9 +293,9 @@ impl<T: Stagable> LazyTree<T> {
         compression_service::decompress(&compressed)
     }
 
-    pub fn stage<T2: Stagable<F = T::F>>(self, staged: T2) -> LazyTree<StagedTree<T, T2>> {
+    pub fn stage<'s, S: Stagable<F = T::F>>(self, staged: &'s mut S) -> LazyStaged1<'s, T, S> {
         // todo: optimize by performing minimal updates on self caches
-        LazyTree::<StagedTree<T, T2>> {
+        LazyTree::<StagedTree<T, S>> {
             name: HashMap::new(),
             key: self.key,
             implicit_deleted: HashMap::new(),
@@ -317,14 +317,18 @@ impl<T: Stagable> LazyTree<T> {
     }
 }
 
-pub type Staged1<S1, S2> = StagedTree<S1, S2>;
-pub type LazyStaged1<S1, S2> = LazyTree<Staged1<S1, S2>>;
-pub type Staged2<S1, S2, S3> = StagedTree<Staged1<S1, S2>, S3>;
-pub type LazyStaged2<S1, S2, S3> = LazyTree<Staged2<S1, S2, S3>>;
-pub type Staged3<S1, S2, S3, S4> = StagedTree<Staged2<S1, S2, S3>, S4>;
-pub type LazyStaged3<S1, S2, S3, S4> = LazyTree<Staged3<S1, S2, S3, S4>>;
-pub type Staged4<S1, S2, S3, S4, S5> = StagedTree<Staged3<S1, S2, S3, S4>, S5>;
-pub type LazyStaged4<S1, S2, S3, S4, S5> = LazyTree<Staged4<S1, S2, S3, S4, S5>>;
+pub type Staged1<'s2, S1, S2> = StagedTree<'s2, S1, S2>;
+pub type LazyStaged1<'s2, S1, S2> = LazyTree<Staged1<'s2, S1, S2>>;
+pub type Staged2<'s2, 's3, S1, S2, S3> = StagedTree<'s3, Staged1<'s2, S1, S2>, S3>;
+pub type LazyStaged2<'s2, 's3, S1, S2, S3> = LazyTree<Staged2<'s2, 's3, S1, S2, S3>>;
+pub type Staged3<'s2, 's3, 's4, S1, S2, S3, S4> =
+    StagedTree<'s4, Staged2<'s2, 's3, S1, S2, S3>, S4>;
+pub type LazyStaged3<'s2, 's3, 's4, S1, S2, S3, S4> =
+    LazyTree<Staged3<'s2, 's3, 's4, S1, S2, S3, S4>>;
+pub type Staged4<'s2, 's3, 's4, 's5, S1, S2, S3, S4, S5> =
+    StagedTree<'s5, Staged3<'s2, 's3, 's4, S1, S2, S3, S4>, S5>;
+pub type LazyStaged4<'s2, 's3, 's4, 's5, S1, S2, S3, S4, S5> =
+    LazyTree<Staged4<'s2, 's3, 's4, 's5, S1, S2, S3, S4, S5>>;
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Eq)]
 pub enum ValidationFailure {
@@ -340,14 +344,14 @@ pub enum ValidationFailure {
     OwnedLink(Uuid),
 }
 
-impl<Base, Staged> LazyStaged1<Base, Staged>
+impl<'s, Base, Staged> LazyStaged1<'s, Base, Staged>
 where
     Base: Stagable,
     Staged: Stagable<F = Base::F>,
 {
     // todo: incrementalism
     pub fn promote(self) -> LazyTree<Base> {
-        let mut staged = self.tree.staged;
+        let staged = self.tree.staged;
         let mut base = self.tree.base;
         for id in staged.owned_ids() {
             if let Some(removed) = staged.remove(id) {
@@ -365,7 +369,7 @@ where
     }
 
     // todo: incrementalism
-    pub fn unstage(self) -> (LazyTree<Base>, Staged) {
+    pub fn unstage(self) -> (LazyTree<Base>, &'s mut Staged) {
         (
             LazyTree {
                 tree: self.tree.base,
