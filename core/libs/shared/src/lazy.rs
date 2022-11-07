@@ -10,24 +10,23 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
-#[derive(Debug)]
-pub struct LazyTree<T: TreeLikeMut> {
-    pub tree: T,
+#[derive(Default, Debug)]
+pub struct LazyCache {
     pub name: HashMap<Uuid, String>,
     pub key: HashMap<Uuid, AESKey>,
     pub implicit_deleted: HashMap<Uuid, bool>,
     pub children: HashMap<Uuid, HashSet<Uuid>>,
 }
 
+#[derive(Debug)]
+pub struct LazyTree<T: TreeLikeMut> {
+    pub tree: T,
+    pub cache: LazyCache,
+}
+
 impl<T: TreeLikeMut> LazyTree<T> {
     pub fn new(tree: T) -> Self {
-        Self {
-            name: HashMap::new(),
-            key: HashMap::new(),
-            implicit_deleted: HashMap::new(),
-            children: HashMap::new(),
-            tree,
-        }
+        Self { tree, cache: Default::default() }
     }
 }
 
@@ -67,7 +66,7 @@ impl<T: TreeLikeMut> LazyTree<T> {
     }
 
     pub fn all_children(&mut self) -> SharedResult<&HashMap<Uuid, HashSet<Uuid>>> {
-        if self.children.is_empty() {
+        if self.cache.children.is_empty() {
             let mut all_children: HashMap<Uuid, HashSet<Uuid>> = HashMap::new();
             for file in self.all_files()? {
                 if !file.is_root() {
@@ -76,10 +75,10 @@ impl<T: TreeLikeMut> LazyTree<T> {
                     all_children.insert(*file.parent(), children);
                 }
             }
-            self.children = all_children;
+            self.cache.children = all_children;
         }
 
-        Ok(&self.children)
+        Ok(&self.cache.children)
     }
 
     pub fn calculate_deleted(&mut self, id: &Uuid) -> SharedResult<bool> {
@@ -93,7 +92,7 @@ impl<T: TreeLikeMut> LazyTree<T> {
                 && !visited_ids.contains(file.parent())
             {
                 visited_ids.push(*file.id());
-                if let Some(&implicit) = self.implicit_deleted.get(file.id()) {
+                if let Some(&implicit) = self.cache.implicit_deleted.get(file.id()) {
                     deleted = implicit;
                     break;
                 }
@@ -119,7 +118,7 @@ impl<T: TreeLikeMut> LazyTree<T> {
         };
 
         for id in visited_ids {
-            self.implicit_deleted.insert(id, deleted);
+            self.cache.implicit_deleted.insert(id, deleted);
         }
 
         Ok(deleted)
@@ -130,7 +129,7 @@ impl<T: TreeLikeMut> LazyTree<T> {
         let mut visited_ids = vec![];
 
         loop {
-            if self.key.get(&file_id).is_some() {
+            if self.cache.key.get(&file_id).is_some() {
                 break;
             }
 
@@ -147,7 +146,7 @@ impl<T: TreeLikeMut> LazyTree<T> {
                 None
             };
             if let Some(file_key) = maybe_file_key {
-                self.key.insert(file_id, file_key);
+                self.cache.key.insert(file_id, file_key);
                 break;
             }
 
@@ -159,28 +158,32 @@ impl<T: TreeLikeMut> LazyTree<T> {
             let decrypted_key = {
                 let file = self.find(id)?;
                 let parent = self.find_parent(file)?;
-                let parent_key = self.key.get(parent.id()).ok_or(SharedError::Unexpected(
-                    "parent key should have been populated by prior routine",
-                ))?;
+                let parent_key = self
+                    .cache
+                    .key
+                    .get(parent.id())
+                    .ok_or(SharedError::Unexpected(
+                        "parent key should have been populated by prior routine",
+                    ))?;
                 let encrypted_key = file.folder_access_key();
                 symkey::decrypt(parent_key, encrypted_key)?
             };
-            self.key.insert(*id, decrypted_key);
+            self.cache.key.insert(*id, decrypted_key);
         }
 
-        Ok(*self.key.get(id).ok_or(SharedError::Unexpected(
+        Ok(*self.cache.key.get(id).ok_or(SharedError::Unexpected(
             "parent key should have been populated by prior routine (2)",
         ))?)
     }
 
     pub fn name(&mut self, id: &Uuid, account: &Account) -> SharedResult<String> {
-        if let Some(name) = self.name.get(id) {
+        if let Some(name) = self.cache.name.get(id) {
             return Ok(name.clone());
         }
         let id = if let Some(link) = self.link(id)? { link } else { *id };
         let key = self.decrypt_key(&id, account)?;
         let name = self.find(&id)?.secret_name().to_string(&key)?;
-        self.name.insert(id, name.clone());
+        self.cache.name.insert(id, name.clone());
         Ok(name)
     }
 
@@ -199,7 +202,7 @@ impl<T: TreeLikeMut> LazyTree<T> {
     /// TODO could consider returning a reference to the underlying cached value
     pub fn children(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
         // Check cache
-        if let Some(children) = self.children.get(id) {
+        if let Some(children) = self.cache.children.get(id) {
             return Ok(children.clone());
         }
 
@@ -213,7 +216,7 @@ impl<T: TreeLikeMut> LazyTree<T> {
         self.all_children()?;
 
         // Return value from cache
-        if let Some(children) = self.children.get(id) {
+        if let Some(children) = self.cache.children.get(id) {
             return Ok(children.clone());
         }
 
@@ -296,11 +299,13 @@ impl<T: TreeLikeMut> LazyTree<T> {
     pub fn stage<T2: TreeLikeMut<F = T::F>>(self, staged: T2) -> LazyTree<StagedTree<T, T2>> {
         // todo: optimize by performing minimal updates on self caches
         LazyTree::<StagedTree<T, T2>> {
-            name: HashMap::new(),
-            key: self.key,
-            implicit_deleted: HashMap::new(),
+            cache: LazyCache {
+                name: HashMap::new(),
+                key: self.cache.key,
+                implicit_deleted: HashMap::new(),
+                children: HashMap::new(),
+            },
             tree: StagedTree::new(self.tree, staged),
-            children: HashMap::new(),
         }
     }
 
@@ -353,10 +358,12 @@ where
 
         LazyTree {
             tree: base,
-            name: HashMap::new(),
-            key: HashMap::new(),
-            implicit_deleted: HashMap::new(),
-            children: HashMap::new(),
+            cache: LazyCache {
+                name: HashMap::new(),
+                key: HashMap::new(),
+                implicit_deleted: HashMap::new(),
+                children: HashMap::new(),
+            },
         }
     }
 
@@ -365,10 +372,12 @@ where
         (
             LazyTree {
                 tree: self.tree.base,
-                name: HashMap::new(),
-                key: HashMap::new(),
-                implicit_deleted: HashMap::new(),
-                children: HashMap::new(),
+                cache: LazyCache {
+                    name: HashMap::new(),
+                    key: HashMap::new(),
+                    implicit_deleted: HashMap::new(),
+                    children: HashMap::new(),
+                },
             },
             self.tree.staged,
         )
