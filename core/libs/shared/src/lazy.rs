@@ -375,7 +375,7 @@ where
     }
 }
 
-impl<T: Stagable> TreeLike for LazyTree<T> {
+impl<T: Stagable> TreeLikeMut for LazyTree<T> {
     type F = T::F;
 
     fn ids(&self) -> HashSet<&Uuid> {

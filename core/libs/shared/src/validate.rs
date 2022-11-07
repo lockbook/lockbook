@@ -2,7 +2,7 @@ use crate::access_info::UserAccessMode;
 use crate::file_like::FileLike;
 use crate::file_metadata::{Diff, FileDiff, FileType, Owner};
 use crate::lazy::LazyStaged1;
-use crate::tree_like::{Stagable, TreeLike};
+use crate::tree_like::{Stagable, TreeLikeMut};
 use crate::{SharedError, SharedResult, ValidationFailure};
 use std::collections::{HashMap, HashSet};
 

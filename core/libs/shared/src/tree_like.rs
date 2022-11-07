@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::fmt::Debug;
 use uuid::Uuid;
 
-pub trait TreeLike: Sized {
+pub trait TreeLikeMut: Sized {
     type F: FileLike + Debug;
 
     // todo: iterator using const generics
@@ -60,7 +60,7 @@ pub trait Stagable: TreeLikeMut {
     }
 }
 
-impl<F> TreeLike for Vec<F>
+impl<F> TreeLikeMut for Vec<F>
 where
     F: FileLike,
 {
