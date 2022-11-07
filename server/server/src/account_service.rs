@@ -21,7 +21,7 @@ use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{DocumentHmac, Owner};
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
-use lockbook_shared::tree_like::{Stagable, TreeLikeMut};
+use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::usage::bytes_to_human;
 use std::collections::HashSet;
 use std::fmt::Debug;
