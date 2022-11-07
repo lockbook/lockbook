@@ -2,6 +2,7 @@ use serde::Serialize;
 
 use lockbook_shared::api::{FileUsage, GetUsageRequest, GetUsageResponse};
 use lockbook_shared::file_like::FileLike;
+use lockbook_shared::lazy::LazyTreeLike;
 use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::usage::bytes_to_human;
 
