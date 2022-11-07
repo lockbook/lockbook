@@ -156,26 +156,24 @@ where
 }
 
 #[derive(Debug)]
-pub struct StagedTree<'s, Base, Staged>
+pub struct StagedTree<Base, Staged>
 where
     Base: StagableMut,
     Staged: StagableMut<F = Base::F>,
 {
     pub base: Base,
-    pub staged: &'s mut Staged,
+    pub staged: Staged,
 }
 
-impl<'s, Base: StagableMut, Staged: StagableMut<F = Base::F>> StagedTree<'s, Base, Staged> {
-    pub fn new(base: Base, staged: &'s mut Staged) -> Self {
+impl<Base: StagableMut, Staged: StagableMut<F = Base::F>> StagedTree<Base, Staged> {
+    pub fn new(base: Base, staged: Staged) -> Self {
         let mut result = Self { base, staged };
         result.prune();
         result
     }
 }
 
-impl<'s, Base: StagableMut, Staged: StagableMut<F = Base::F>> TreeLike
-    for StagedTree<'s, Base, Staged>
-{
+impl<Base: StagableMut, Staged: StagableMut<F = Base::F>> TreeLike for StagedTree<Base, Staged> {
     type F = Base::F;
 
     fn ids(&self) -> HashSet<&Uuid> {
@@ -187,9 +185,7 @@ impl<'s, Base: StagableMut, Staged: StagableMut<F = Base::F>> TreeLike
     }
 }
 
-impl<'s, Base: StagableMut, Staged: StagableMut<F = Base::F>> TreeLikeMut
-    for StagedTree<'s, Base, Staged>
-{
+impl<Base: StagableMut, Staged: StagableMut<F = Base::F>> TreeLikeMut for StagedTree<Base, Staged> {
     fn insert(&mut self, f: Self::F) -> Option<Self::F> {
         if let Some(base) = self.base.maybe_find(f.id()) {
             if *base == f {
@@ -209,7 +205,7 @@ impl<'s, Base: StagableMut, Staged: StagableMut<F = Base::F>> TreeLikeMut
     }
 }
 
-impl<Base, Staged> StagedTreeLike for StagedTree<'_, Base, Staged>
+impl<Base, Staged> StagedTreeLike for StagedTree<Base, Staged>
 where
     Base: StagableMut,
     Staged: StagableMut<F = Base::F>,
@@ -222,18 +218,18 @@ where
     }
 
     fn staged(&self) -> &Self::Staged {
-        self.staged
+        &self.staged
     }
 }
 
 impl<'s, Base: StagableMut, Staged: StagableMut<F = Base::F>> StagedTreeLikeMut<Base, Staged>
-    for StagedTree<'s, Base, Staged>
+    for StagedTree<Base, Staged>
 {
     fn base_mut(&mut self) -> &mut Self::Base {
         &mut self.base
     }
 
     fn staged_mut(&mut self) -> &mut Self::Staged {
-        self.staged
+        &mut self.staged
     }
 }

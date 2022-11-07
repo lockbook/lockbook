@@ -350,6 +350,15 @@ impl<T: StagableMut> LazyTree<T> {
     pub fn new(tree: T) -> Self {
         Self { tree, cache: Default::default() }
     }
+
+    pub fn stage_and_promote<S: StagableMut<F = T::F>>(&mut self, mut staged: S) {
+        for id in staged.owned_ids() {
+            if let Some(removed) = staged.remove(id) {
+                self.insert(removed);
+            }
+        }
+        self.cache = Default::default(); // todo: incremental cache update
+    }
 }
 
 impl<T: StagableMut> LazyTreeLike for LazyTree<T> {
@@ -365,7 +374,7 @@ impl<T: StagableMut> LazyTreeLike for LazyTree<T> {
 }
 
 impl<T: StagableMut> LazyTree<T> {
-    pub fn stage<S: StagableMut<F = T::F>>(self, staged: &mut S) -> LazyStaged1<T, S> {
+    pub fn stage<S: StagableMut<F = T::F>>(self, staged: S) -> LazyStaged1<T, S> {
         // todo: optimize by performing minimal updates on self caches
         LazyTree::<StagedTree<T, S>> {
             cache: LazyCache {
@@ -379,47 +388,29 @@ impl<T: StagableMut> LazyTree<T> {
     }
 }
 
-pub type Staged1<'s2, S1, S2> = StagedTree<'s2, S1, S2>;
-pub type LazyStaged1<'s2, S1, S2> = LazyTree<Staged1<'s2, S1, S2>>;
-pub type Staged2<'s2, 's3, S1, S2, S3> = StagedTree<'s3, Staged1<'s2, S1, S2>, S3>;
-pub type LazyStaged2<'s2, 's3, S1, S2, S3> = LazyTree<Staged2<'s2, 's3, S1, S2, S3>>;
-pub type Staged3<'s2, 's3, 's4, S1, S2, S3, S4> =
-    StagedTree<'s4, Staged2<'s2, 's3, S1, S2, S3>, S4>;
-pub type LazyStaged3<'s2, 's3, 's4, S1, S2, S3, S4> =
-    LazyTree<Staged3<'s2, 's3, 's4, S1, S2, S3, S4>>;
-pub type Staged4<'s2, 's3, 's4, 's5, S1, S2, S3, S4, S5> =
-    StagedTree<'s5, Staged3<'s2, 's3, 's4, S1, S2, S3, S4>, S5>;
-pub type LazyStaged4<'s2, 's3, 's4, 's5, S1, S2, S3, S4, S5> =
-    LazyTree<Staged4<'s2, 's3, 's4, 's5, S1, S2, S3, S4, S5>>;
+pub type Staged1<S1, S2> = StagedTree<S1, S2>;
+pub type LazyStaged1<S1, S2> = LazyTree<Staged1<S1, S2>>;
+pub type Staged2<S1, S2, S3> = StagedTree<Staged1<S1, S2>, S3>;
+pub type LazyStaged2<S1, S2, S3> = LazyTree<Staged2<S1, S2, S3>>;
+pub type Staged3<S1, S2, S3, S4> = StagedTree<Staged2<S1, S2, S3>, S4>;
+pub type LazyStaged3<S1, S2, S3, S4> = LazyTree<Staged3<S1, S2, S3, S4>>;
+pub type Staged4<S1, S2, S3, S4, S5> = StagedTree<Staged3<S1, S2, S3, S4>, S5>;
+pub type LazyStaged4<S1, S2, S3, S4, S5> = LazyTree<Staged4<S1, S2, S3, S4, S5>>;
 
-impl<'s, Base, Staged> LazyStaged1<'s, Base, Staged>
+impl<Base, Staged> LazyStaged1<Base, Staged>
 where
     Base: StagableMut,
     Staged: StagableMut<F = Base::F>,
 {
     // todo: incrementalism
     pub fn promote(self) -> LazyTree<Base> {
-        let staged = self.tree.staged;
-        let mut base = self.tree.base;
-        for id in staged.owned_ids() {
-            if let Some(removed) = staged.remove(id) {
-                base.insert(removed);
-            }
-        }
-
-        LazyTree {
-            tree: base,
-            cache: LazyCache {
-                name: HashMap::new(),
-                key: HashMap::new(),
-                implicit_deleted: HashMap::new(),
-                children: HashMap::new(),
-            },
-        }
+        let mut result = LazyTree { tree: self.tree.base, cache: self.cache };
+        result.stage_and_promote(self.tree.staged);
+        result
     }
 
     // todo: incrementalism
-    pub fn unstage(self) -> (LazyTree<Base>, &'s mut Staged) {
+    pub fn unstage(self) -> (LazyTree<Base>, Staged) {
         (
             LazyTree {
                 tree: self.tree.base,

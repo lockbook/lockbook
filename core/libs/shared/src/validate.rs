@@ -49,7 +49,7 @@ pub fn path(path: &str) -> SharedResult<()> {
     Ok(())
 }
 
-impl<Base, Local> LazyStaged1<'_, Base, Local>
+impl<Base, Local> LazyStaged1<Base, Local>
 where
     Base: StagableMut,
     Local: StagableMut<F = Base::F>,

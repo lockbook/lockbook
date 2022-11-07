@@ -13,7 +13,7 @@ use crate::tree::like::TreeLike;
 use crate::tree::stagable::StagableMut;
 use crate::{validate, SharedError, SharedResult};
 
-impl<Base, Local> LazyStaged1<'_, Base, Local>
+impl<Base, Local> LazyStaged1<Base, Local>
 where
     Base: StagableMut<F = SignedFile>,
     Local: StagableMut<F = Base::F>,

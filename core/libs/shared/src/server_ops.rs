@@ -12,14 +12,11 @@ use crate::tree::like::TreeLike;
 use crate::tree::server::ServerTree;
 use crate::{SharedError, SharedResult};
 
-type LazyServerStaged1<'a, 'b, 'v, OwnedFiles, SharedFiles, FileChildren, Files> = LazyStaged1<
-    'v,
-    ServerTree<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files>,
-    Vec<ServerFile>,
->;
+type LazyServerStaged1<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files> =
+    LazyStaged1<ServerTree<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files>, Vec<ServerFile>>;
 
-impl<'a, 'b, 'v, OwnedFiles, SharedFiles, FileChildren, Files>
-    LazyServerStaged1<'a, 'b, 'v, OwnedFiles, SharedFiles, FileChildren, Files>
+impl<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files>
+    LazyServerStaged1<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files>
 where
     OwnedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
     SharedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
@@ -82,7 +79,7 @@ where
         }
 
         let now = get_time().0 as u64;
-        *self.tree.staged = changes
+        self.tree.staged = changes
             .into_iter()
             .map(|change| change.new.add_time(now))
             .collect();

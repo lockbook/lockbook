@@ -80,11 +80,11 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         Ok(())
     }
 
-    fn export_file_recursively<'l, Base, Local>(
-        config: &Config, account: &Account, mut tree: LazyStaged1<'l, Base, Local>,
+    fn export_file_recursively<Base, Local>(
+        config: &Config, account: &Account, mut tree: LazyStaged1<Base, Local>,
         this_file: &Base::F, disk_path: &Path, edit: bool,
         export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
-    ) -> CoreResult<LazyStaged1<'l, Base, Local>>
+    ) -> CoreResult<LazyStaged1<Base, Local>>
     where
         Base: StagableMut<F = SignedFile>,
         Local: StagableMut<F = Base::F>,

@@ -3,6 +3,8 @@ use crate::tree::lazy::{LazyTree, LazyTreeRef};
 use crate::tree::like::{TreeLike, TreeLikeMut};
 use crate::tree::staged::{StagedTree, StagedTreeRef};
 
+
+
 pub trait Stagable: TreeLike {
     fn stage<'b, 's, Staged>(&'b self, staged: &'s Staged) -> StagedTreeRef<'b, 's, Self, Staged>
     where
@@ -21,7 +23,7 @@ impl<T> Stagable for &T where T: Stagable {}
 impl<T> Stagable for &mut T where T: Stagable {}
 
 pub trait StagableMut: Stagable + TreeLikeMut {
-    fn stage_mut<Staged>(self, staged: &mut Staged) -> StagedTree<Self, Staged>
+    fn stage_mut<Staged>(self, staged: Staged) -> StagedTree<Self, Staged>
     where
         Staged: StagableMut<F = Self::F>,
         Self: Sized,
@@ -36,13 +38,10 @@ pub trait StagableMut: Stagable + TreeLikeMut {
 
 impl<T> StagableMut for &mut T where T: StagableMut {}
 
-impl<'s, Base: StagableMut, Staged: StagableMut<F = Base::F>> Stagable
-    for StagedTree<'s, Base, Staged>
-{
-}
+impl<Base: StagableMut, Staged: StagableMut<F = Base::F>> Stagable for StagedTree<Base, Staged> {}
 
 impl<'s, Base: StagableMut, Staged: StagableMut<F = Base::F>> StagableMut
-    for StagedTree<'s, Base, Staged>
+    for StagedTree<Base, Staged>
 {
 }
 
