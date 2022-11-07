@@ -1,5 +1,5 @@
 use crate::file_like::FileLike;
-use crate::tree_like::{Stagable, TreeLike, TreeLikeMut};
+use crate::tree_like::{TreeLike, TreeLikeMut};
 use hmdb::log::SchemaEvent;
 use hmdb::transaction::TransactionTable;
 use std::collections::HashSet;
@@ -33,11 +33,4 @@ where
     fn remove(&mut self, id: Uuid) -> Option<F> {
         self.delete(id)
     }
-}
-
-impl<'a, F, Log> Stagable for &mut TransactionTable<'a, Uuid, F, Log>
-where
-    F: FileLike,
-    Log: SchemaEvent<Uuid, F>,
-{
 }

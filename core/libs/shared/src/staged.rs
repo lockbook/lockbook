@@ -1,19 +1,19 @@
 use crate::file_like::FileLike;
-use crate::tree_like::{Stagable, TreeLike, TreeLikeMut};
+use crate::tree_like::{TreeLike, TreeLikeMut};
 use std::collections::HashSet;
 use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct StagedTree<Base, Staged>
 where
-    Base: Stagable,
-    Staged: Stagable<F = Base::F>,
+    Base: TreeLikeMut,
+    Staged: TreeLikeMut<F = Base::F>,
 {
     pub base: Base,
     pub staged: Staged,
 }
 
-impl<Base: Stagable, Staged: Stagable<F = Base::F>> StagedTree<Base, Staged> {
+impl<Base: TreeLikeMut, Staged: TreeLikeMut<F = Base::F>> StagedTree<Base, Staged> {
     pub fn new(base: Base, mut staged: Staged) -> Self {
         let mut prunable = vec![];
         for id in staged.ids() {
@@ -33,7 +33,7 @@ impl<Base: Stagable, Staged: Stagable<F = Base::F>> StagedTree<Base, Staged> {
     }
 }
 
-impl<Base: Stagable, Staged: Stagable<F = Base::F>> TreeLike for StagedTree<Base, Staged> {
+impl<Base: TreeLikeMut, Staged: TreeLikeMut<F = Base::F>> TreeLike for StagedTree<Base, Staged> {
     type F = Base::F;
 
     fn ids(&self) -> HashSet<&Uuid> {
@@ -53,7 +53,7 @@ impl<Base: Stagable, Staged: Stagable<F = Base::F>> TreeLike for StagedTree<Base
     }
 }
 
-impl<Base: Stagable, Staged: Stagable<F = Base::F>> TreeLikeMut for StagedTree<Base, Staged> {
+impl<Base: TreeLikeMut, Staged: TreeLikeMut<F = Base::F>> TreeLikeMut for StagedTree<Base, Staged> {
     fn insert(&mut self, f: Self::F) -> Option<Self::F> {
         if let Some(base) = self.base.maybe_find(f.id()) {
             if *base == f {
@@ -72,7 +72,3 @@ impl<Base: Stagable, Staged: Stagable<F = Base::F>> TreeLikeMut for StagedTree<B
         }
     }
 }
-
-impl<Base: Stagable, Staged: Stagable<F = Base::F>> Stagable for StagedTree<Base, Staged> {}
-
-impl<F: FileLike> Stagable for Vec<F> {}
