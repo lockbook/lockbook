@@ -22,7 +22,7 @@ impl Display for SignedFile {
     }
 }
 
-impl<F> TreeLikeMut for Option<F>
+impl<F> TreeLike for Option<F>
 where
     F: FileLike,
 {
