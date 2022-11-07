@@ -313,6 +313,24 @@ pub trait LazyTreeLike: TreeLike {
 }
 
 #[derive(Debug)]
+pub struct LazyTreeRef<'t, T: TreeLike> {
+    pub tree: &'t T,
+    pub cache: LazyCache,
+}
+
+impl<T: TreeLike> LazyTreeLike for LazyTreeRef<'_, T> {
+    type T = T;
+
+    fn tree(&self) -> &Self::T {
+        self.tree
+    }
+
+    fn tree_and_cache(&mut self) -> (&Self::T, &mut LazyCache) {
+        (self.tree, &mut self.cache)
+    }
+}
+
+#[derive(Debug)]
 pub struct LazyTree<T: TreeLikeMut> {
     pub tree: T,
     pub cache: LazyCache,
@@ -408,6 +426,18 @@ where
             },
             self.tree.staged,
         )
+    }
+}
+
+impl<'t, T: TreeLike> TreeLike for LazyTreeRef<'t, T> {
+    type F = T::F;
+
+    fn ids(&self) -> HashSet<&Uuid> {
+        self.tree.ids()
+    }
+
+    fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
+        self.tree.maybe_find(id)
     }
 }
 
