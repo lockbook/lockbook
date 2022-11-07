@@ -3,6 +3,56 @@ use crate::tree_like::{Stagable, TreeLike};
 use std::collections::HashSet;
 use uuid::Uuid;
 
+pub trait StagedTreeLike: Sized {
+    type F: FileLike;
+    type Base: Stagable<F = Self::F>;
+    type Staged: Stagable<F = Self::F>;
+
+    fn base(&self) -> &Self::Base;
+    fn staged(&self) -> &Self::Staged;
+
+    fn ids(&self) -> HashSet<&Uuid> {
+        self.base()
+            .ids()
+            .into_iter()
+            .chain(self.staged().ids().into_iter())
+            .collect()
+    }
+
+    fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
+        self.staged()
+            .maybe_find(id)
+            .or_else(|| self.base().maybe_find(id))
+    }
+}
+
+pub struct StagedTreeRef<'b, 's, Base, Staged>
+where
+    Base: Stagable,
+    Staged: Stagable<F = Base::F>,
+{
+    pub base: &'b Base,
+    pub staged: &'s Staged,
+}
+
+impl<Base, Staged> StagedTreeLike for StagedTreeRef<'_, '_, Base, Staged>
+where
+    Base: Stagable,
+    Staged: Stagable<F = Base::F>,
+{
+    type F = Base::F;
+    type Base = Base;
+    type Staged = Staged;
+
+    fn base(&self) -> &Self::Base {
+        self.base
+    }
+
+    fn staged(&self) -> &Self::Staged {
+        self.staged
+    }
+}
+
 #[derive(Debug)]
 pub struct StagedTree<'s, Base, Staged>
 where
@@ -11,6 +61,24 @@ where
 {
     pub base: Base,
     pub staged: &'s mut Staged,
+}
+
+impl<Base, Staged> StagedTreeLike for StagedTree<'_, Base, Staged>
+where
+    Base: Stagable,
+    Staged: Stagable<F = Base::F>,
+{
+    type F = Base::F;
+    type Base = Base;
+    type Staged = Staged;
+
+    fn base(&self) -> &Self::Base {
+        &self.base
+    }
+
+    fn staged(&self) -> &Self::Staged {
+        self.staged
+    }
 }
 
 impl<'s, Base: Stagable, Staged: Stagable<F = Base::F>> StagedTree<'s, Base, Staged> {
