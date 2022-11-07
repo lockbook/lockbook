@@ -30,7 +30,7 @@ fn run(
 fn create_two_files_with_same_path() {
     assert_matches!(
         run(|account, owner, root, base_metadata, local_metadata| {
-            let tree = base_metadata.stage(local_metadata).to_lazy();
+            let tree = base_metadata.stage_mut(local_metadata).to_lazy();
 
             let mut tree = tree.stage(Vec::new());
             let (staged_tree, _) = tree

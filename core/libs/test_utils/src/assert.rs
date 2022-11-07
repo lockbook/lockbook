@@ -174,7 +174,7 @@ pub fn local_work_paths(db: &Core, expected_paths: &[&'static str]) {
         .db
         .transaction(|tx| {
             let account = tx.account.get(&OneKey {}).unwrap();
-            let mut local = tx.base_metadata.stage(&mut tx.local_metadata).to_lazy();
+            let mut local = tx.base_metadata.stage_mut(&mut tx.local_metadata).to_lazy();
             dirty
                 .iter()
                 .filter(|id| !matches!(local.find(id).unwrap().file_type(), FileType::Link { .. }))
@@ -206,7 +206,7 @@ pub fn server_work_paths(db: &Core, expected_paths: &[&'static str]) {
             let context = db.context(tx).unwrap();
             let account = context.tx.account.get(&OneKey {}).unwrap();
             let remote_changes = context.get_updates().unwrap().file_metadata;
-            let mut remote = context.tx.base_metadata.stage(remote_changes).to_lazy();
+            let mut remote = context.tx.base_metadata.stage_mut(remote_changes).to_lazy();
             remote
                 .tree
                 .staged

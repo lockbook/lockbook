@@ -12,7 +12,7 @@ use lockbook_shared::file::signed::SignedFile;
 use lockbook_shared::file::File;
 use lockbook_shared::tree::lazy::LazyTreeLike;
 use lockbook_shared::tree::like::{TreeLike, TreeLikeMut};
-use lockbook_shared::tree::stagable::Stagable;
+use lockbook_shared::tree::stagable::StagableMut;
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
 use std::collections::HashSet;
@@ -167,7 +167,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         // track work
         {
             let mut remote = (&mut self.tx.base_metadata)
-                .stage(&mut remote_changes)
+                .stage_mut(&mut remote_changes)
                 .to_lazy();
 
             let finalized_remote_changes = remote.resolve_and_finalize(
@@ -242,9 +242,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         let mut merge_changes = Vec::new();
         {
             let local = (&mut self.tx.base_metadata)
-                .stage(&mut remote_changes)
-                .stage(&mut self.tx.local_metadata)
-                .stage(&mut merge_changes)
+                .stage_mut(&mut remote_changes)
+                .stage_mut(&mut self.tx.local_metadata)
+                .stage_mut(&mut merge_changes)
                 .to_lazy();
 
             let merge = local.merge(self.config, dry_run, account, &remote_document_changes)?;
@@ -256,11 +256,11 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         if !dry_run {
             (&mut self.tx.base_metadata)
-                .stage(&mut remote_changes)
+                .stage_mut(&mut remote_changes)
                 .to_lazy()
                 .promote();
             (&mut self.tx.local_metadata)
-                .stage(&mut merge_changes)
+                .stage_mut(&mut merge_changes)
                 .to_lazy()
                 .promote();
             self.reset_deleted_files()?;
@@ -324,7 +324,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         }
 
         let mut tree = (&mut self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
+            .stage_mut(&mut self.tx.local_metadata)
             .to_lazy();
         let mut local_change_removals = HashSet::new();
         let mut local_change_resets = Vec::new();
@@ -357,7 +357,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     fn prune(&mut self) -> CoreResult<()> {
         let account = self.get_account()?.clone();
         let mut local = (&mut self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
+            .stage_mut(&mut self.tx.local_metadata)
             .to_lazy();
         let base_ids = local.tree.base.owned_ids();
         let server_ids = self.client.request(&account, GetFileIdsRequest {})?.ids;
@@ -390,7 +390,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         let mut local_changes_no_digests = Vec::new();
         let mut updates = Vec::new();
         let mut local = (&mut self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
+            .stage_mut(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx
@@ -440,7 +440,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         F: FnMut(SyncOperation),
     {
         let mut local = (&mut self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
+            .stage_mut(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx

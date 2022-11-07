@@ -9,7 +9,7 @@ use lockbook_shared::file::signed::SignedFile;
 use lockbook_shared::file::File;
 use lockbook_shared::tree::lazy::{LazyStaged1, LazyTreeLike};
 use lockbook_shared::tree::like::TreeLike;
-use lockbook_shared::tree::stagable::Stagable;
+use lockbook_shared::tree::stagable::StagableMut;
 use lockbook_shared::{document_repo, SharedError};
 use std::collections::HashSet;
 use std::fs;
@@ -32,7 +32,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         update_status(ImportStatus::CalculatedTotal(get_total_child_count(sources)?));
 
         let tree = (&mut self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
+            .stage_mut(&mut self.tx.local_metadata)
             .to_lazy();
 
         let parent = tree.find(&dest)?;
@@ -56,7 +56,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         }
 
         let tree = (&mut self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
+            .stage_mut(&mut self.tx.local_metadata)
             .to_lazy();
 
         let file = tree.find(&id)?.clone();
@@ -86,8 +86,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> CoreResult<LazyStaged1<'l, Base, Local>>
     where
-        Base: Stagable<F = SignedFile>,
-        Local: Stagable<F = Base::F>,
+        Base: StagableMut<F = SignedFile>,
+        Local: StagableMut<F = Base::F>,
     {
         let dest_with_new = disk_path.join(&tree.name(this_file.id(), account)?);
 
@@ -162,7 +162,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     ) -> CoreResult<()> {
         let public_key = self.get_public_key()?;
         let mut tree = (&mut self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
+            .stage_mut(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx
@@ -234,8 +234,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         tree: &mut LazyStaged1<Base, Local>, account: &Account, parent: &Uuid, proposed_name: &str,
     ) -> CoreResult<String>
     where
-        Base: Stagable<F = SignedFile>,
-        Local: Stagable<F = Base::F>,
+        Base: StagableMut<F = SignedFile>,
+        Local: StagableMut<F = Base::F>,
     {
         let maybe_siblings = tree.children(parent)?;
         let mut new_name = NameComponents::from(proposed_name);

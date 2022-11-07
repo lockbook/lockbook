@@ -3,7 +3,7 @@ use crate::file::like::FileLike;
 use crate::file::metadata::{Diff, FileDiff, FileType, Owner};
 use crate::tree::lazy::{LazyStaged1, LazyTreeLike};
 use crate::tree::like::TreeLike;
-use crate::tree::stagable::Stagable;
+use crate::tree::stagable::StagableMut;
 use crate::{SharedError, SharedResult, ValidationFailure};
 use std::collections::{HashMap, HashSet};
 
@@ -51,8 +51,8 @@ pub fn path(path: &str) -> SharedResult<()> {
 
 impl<Base, Local> LazyStaged1<'_, Base, Local>
 where
-    Base: Stagable,
-    Local: Stagable<F = Base::F>,
+    Base: StagableMut,
+    Local: StagableMut<F = Base::F>,
 {
     pub fn validate(mut self, owner: Owner) -> SharedResult<Self> {
         // point checks

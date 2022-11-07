@@ -19,7 +19,7 @@ use crate::file::signed::SignedFile;
 use crate::file::{File, Share, ShareMode};
 use crate::tree::lazy::{LazyStaged1, LazyStaged2, LazyStaged3, LazyStaged4, LazyTreeLike};
 use crate::tree::like::{TreeLike, TreeLikeMut};
-use crate::tree::stagable::Stagable;
+use crate::tree::stagable::StagableMut;
 use crate::{compression_service, document_repo, symkey, validate, SharedError, SharedResult};
 
 pub type TreeWithOp<'l, 'op, Base, Local> = LazyStaged2<'l, 'op, Base, Local, Option<SignedFile>>;
@@ -27,8 +27,8 @@ pub type TreeWithOps<'l, 'ops, Base, Local> = LazyStaged2<'l, 'ops, Base, Local,
 
 impl<'l, 'op, Base, Local> TreeWithOp<'l, 'op, Base, Local>
 where
-    Base: Stagable<F = SignedFile>,
-    Local: Stagable<F = Base::F>,
+    Base: StagableMut<F = SignedFile>,
+    Local: StagableMut<F = Base::F>,
 {
     pub fn stage_create(
         mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
@@ -109,8 +109,8 @@ where
 
 impl<'l, 'op, Base, Local> TreeWithOps<'l, 'op, Base, Local>
 where
-    Base: Stagable<F = SignedFile>,
-    Local: Stagable<F = Base::F>,
+    Base: StagableMut<F = SignedFile>,
+    Local: StagableMut<F = Base::F>,
 {
     pub fn stage_move(
         mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
@@ -181,8 +181,8 @@ where
 
 impl<Base, Local> LazyStaged1<'_, Base, Local>
 where
-    Base: Stagable<F = SignedFile>,
-    Local: Stagable<F = Base::F>,
+    Base: StagableMut<F = SignedFile>,
+    Local: StagableMut<F = Base::F>,
 {
     pub fn finalize<PublicKeyCache: SchemaEvent<Owner, String>>(
         &mut self, id: &Uuid, account: &Account,
@@ -389,11 +389,11 @@ where
 impl<Base, Remote, Local, Merge, Resolution>
     LazyStaged4<'_, '_, '_, '_, Base, Remote, Local, Merge, Resolution>
 where
-    Base: Stagable<F = SignedFile>,
-    Remote: Stagable<F = Base::F>,
-    Local: Stagable<F = Base::F>,
-    Merge: Stagable<F = Base::F>,
-    Resolution: Stagable<F = Base::F>,
+    Base: StagableMut<F = SignedFile>,
+    Remote: StagableMut<F = Base::F>,
+    Local: StagableMut<F = Base::F>,
+    Merge: StagableMut<F = Base::F>,
+    Resolution: StagableMut<F = Base::F>,
 {
     // assumptions: no orphans
     // changes: moves files
@@ -635,10 +635,10 @@ where
 
 impl<Base, Remote, Local, Merge> LazyStaged3<'_, '_, '_, Base, Remote, Local, Merge>
 where
-    Base: Stagable<F = SignedFile>,
-    Remote: Stagable<F = Base::F>,
-    Local: Stagable<F = Base::F>,
-    Merge: Stagable<F = Base::F>,
+    Base: StagableMut<F = SignedFile>,
+    Remote: StagableMut<F = Base::F>,
+    Local: StagableMut<F = Base::F>,
+    Merge: StagableMut<F = Base::F>,
 {
     /// Applies changes to local such that this is a valid tree.
     pub fn merge(
@@ -646,9 +646,9 @@ where
         remote_document_changes: &HashSet<Uuid>,
     ) -> SharedResult<Self>
     where
-        Base: Stagable<F = SignedFile>,
-        Remote: Stagable<F = SignedFile>,
-        Local: Stagable<F = SignedFile>,
+        Base: StagableMut<F = SignedFile>,
+        Remote: StagableMut<F = SignedFile>,
+        Local: StagableMut<F = SignedFile>,
     {
         // merge files on an individual basis
         for id in self.tree.base.base.staged.owned_ids() {

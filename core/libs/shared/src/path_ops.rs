@@ -10,13 +10,13 @@ use crate::file::metadata::{FileType, Owner};
 use crate::file::signed::SignedFile;
 use crate::tree::lazy::{LazyStaged1, LazyTreeLike};
 use crate::tree::like::TreeLike;
-use crate::tree::stagable::Stagable;
+use crate::tree::stagable::StagableMut;
 use crate::{validate, SharedError, SharedResult};
 
 impl<Base, Local> LazyStaged1<'_, Base, Local>
 where
-    Base: Stagable<F = SignedFile>,
-    Local: Stagable<F = Base::F>,
+    Base: StagableMut<F = SignedFile>,
+    Local: StagableMut<F = Base::F>,
 {
     pub fn create_link_at_path(
         self, path: &str, target_id: Uuid, root: &Uuid, account: &Account, pub_key: &PublicKey,

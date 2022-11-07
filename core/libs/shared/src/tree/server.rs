@@ -2,7 +2,7 @@ use crate::file::like::FileLike;
 use crate::file::metadata::Owner;
 use crate::file::server::ServerFile;
 use crate::tree::like::{TreeLike, TreeLikeMut};
-use crate::tree::stagable::Stagable;
+use crate::tree::stagable::{Stagable, StagableMut};
 use crate::SharedResult;
 use hmdb::log::SchemaEvent;
 use hmdb::transaction::TransactionTable;
@@ -180,6 +180,16 @@ where
 }
 
 impl<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files> Stagable
+    for ServerTree<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files>
+where
+    OwnedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
+    SharedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
+    FileChildren: SchemaEvent<Uuid, HashSet<Uuid>>,
+    Files: SchemaEvent<Uuid, ServerFile>,
+{
+}
+
+impl<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files> StagableMut
     for ServerTree<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files>
 where
     OwnedFiles: SchemaEvent<Owner, HashSet<Uuid>>,

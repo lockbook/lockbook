@@ -1,11 +1,10 @@
 use crate::file::like::FileLike;
 use crate::tree::like::{TreeLike, TreeLikeMut};
-use crate::tree::stagable::Stagable;
+use crate::tree::stagable::{Stagable, StagableMut};
 use std::collections::HashSet;
 use uuid::Uuid;
 
-pub trait StagedTreeLike: Sized {
-    type F: FileLike;
+pub trait StagedTreeLike: TreeLike {
     type Base: Stagable<F = Self::F>;
     type Staged: Stagable<F = Self::F>;
 
@@ -27,9 +26,83 @@ pub trait StagedTreeLike: Sized {
     }
 }
 
-// todo: ??
-pub trait StagedTreeLikeMut: StagedTreeLike {}
+impl<T> StagedTreeLike for &T
+where
+    T: StagedTreeLike,
+{
+    type Base = T::Base;
+    type Staged = T::Staged;
 
+    fn base(&self) -> &Self::Base {
+        T::base(self)
+    }
+
+    fn staged(&self) -> &Self::Staged {
+        T::staged(self)
+    }
+}
+
+impl<T> StagedTreeLike for &mut T
+where
+    T: StagedTreeLike,
+{
+    type Base = T::Base;
+    type Staged = T::Staged;
+
+    fn base(&self) -> &Self::Base {
+        T::base(self)
+    }
+
+    fn staged(&self) -> &Self::Staged {
+        T::staged(self)
+    }
+}
+
+// todo: make this trait not generic once associated type bounds are stabilized
+// https://rust-lang.github.io/rfcs/2289-associated-type-bounds.html
+pub trait StagedTreeLikeMut<Base, Staged>:
+    StagedTreeLike<Base = Base, Staged = Staged> + TreeLikeMut
+where
+    Base: StagableMut<F = Self::F>,
+    Staged: StagableMut<F = Self::F>,
+{
+    fn base_mut(&mut self) -> &mut Self::Base;
+    fn staged_mut(&mut self) -> &mut Self::Staged;
+
+    fn prune(&mut self) {
+        let mut prunable = vec![];
+        for id in self.staged().ids() {
+            if let Some(staged) = self.staged().maybe_find(id) {
+                if let Some(base) = self.base().maybe_find(id) {
+                    if staged == base {
+                        prunable.push(*id);
+                    }
+                }
+            }
+        }
+
+        for id in prunable {
+            self.staged_mut().remove(id);
+        }
+    }
+}
+
+impl<T, Base, Staged> StagedTreeLikeMut<Base, Staged> for &mut T
+where
+    T: StagedTreeLikeMut<Base, Staged>,
+    Staged: StagableMut<F = Self::F>,
+    Base: StagableMut<F = Self::F>,
+{
+    fn base_mut(&mut self) -> &mut Self::Base {
+        T::base_mut(self)
+    }
+
+    fn staged_mut(&mut self) -> &mut Self::Staged {
+        T::staged_mut(self)
+    }
+}
+
+#[derive(Debug)]
 pub struct StagedTreeRef<'b, 's, Base, Staged>
 where
     Base: Stagable,
@@ -39,12 +112,37 @@ where
     pub staged: &'s Staged,
 }
 
-impl<Base, Staged> StagedTreeLike for StagedTreeRef<'_, '_, Base, Staged>
+impl<'b, 's, Base, Staged> StagedTreeRef<'b, 's, Base, Staged>
+where
+    Base: Stagable,
+    Staged: Stagable<F = Base::F>,
+{
+    pub fn new(base: &'b Base, staged: &'s Staged) -> Self {
+        Self { base, staged }
+    }
+}
+
+impl<Base, Staged> TreeLike for StagedTreeRef<'_, '_, Base, Staged>
 where
     Base: Stagable,
     Staged: Stagable<F = Base::F>,
 {
     type F = Base::F;
+
+    fn ids(&self) -> HashSet<&Uuid> {
+        StagedTreeLike::ids(self)
+    }
+
+    fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
+        StagedTreeLike::maybe_find(self, id)
+    }
+}
+
+impl<Base, Staged> StagedTreeLike for StagedTreeRef<'_, '_, Base, Staged>
+where
+    Base: Stagable,
+    Staged: Stagable<F = Base::F>,
+{
     type Base = Base;
     type Staged = Staged;
 
@@ -60,72 +158,36 @@ where
 #[derive(Debug)]
 pub struct StagedTree<'s, Base, Staged>
 where
-    Base: Stagable,
-    Staged: Stagable<F = Base::F>,
+    Base: StagableMut,
+    Staged: StagableMut<F = Base::F>,
 {
     pub base: Base,
     pub staged: &'s mut Staged,
 }
 
-impl<Base, Staged> StagedTreeLike for StagedTree<'_, Base, Staged>
-where
-    Base: Stagable,
-    Staged: Stagable<F = Base::F>,
-{
-    type F = Base::F;
-    type Base = Base;
-    type Staged = Staged;
-
-    fn base(&self) -> &Self::Base {
-        &self.base
-    }
-
-    fn staged(&self) -> &Self::Staged {
-        self.staged
-    }
-}
-
-impl<'s, Base: Stagable, Staged: Stagable<F = Base::F>> StagedTree<'s, Base, Staged> {
+impl<'s, Base: StagableMut, Staged: StagableMut<F = Base::F>> StagedTree<'s, Base, Staged> {
     pub fn new(base: Base, staged: &'s mut Staged) -> Self {
-        let mut prunable = vec![];
-        for id in staged.ids() {
-            if let Some(staged) = staged.maybe_find(id) {
-                if let Some(base) = base.maybe_find(id) {
-                    if staged == base {
-                        prunable.push(*id);
-                    }
-                }
-            }
-        }
-
-        for id in prunable {
-            staged.remove(id);
-        }
-        Self { base, staged }
+        let mut result = Self { base, staged };
+        result.prune();
+        result
     }
 }
 
-impl<'s, Base: Stagable, Staged: Stagable<F = Base::F>> TreeLike for StagedTree<'s, Base, Staged> {
+impl<'s, Base: StagableMut, Staged: StagableMut<F = Base::F>> TreeLike
+    for StagedTree<'s, Base, Staged>
+{
     type F = Base::F;
 
     fn ids(&self) -> HashSet<&Uuid> {
-        self.base
-            .ids()
-            .into_iter()
-            .chain(self.staged.ids().into_iter())
-            .collect()
+        StagedTreeLike::ids(self)
     }
 
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
-        match (self.base.maybe_find(id), self.staged.maybe_find(id)) {
-            (_, Some(staged)) => Some(staged),
-            (Some(base), None) => Some(base),
-            (None, None) => None,
-        }
+        StagedTreeLike::maybe_find(self, id)
     }
 }
 
-impl<'s, Base: Stagable, Staged: Stagable<F = Base::F>> TreeLikeMut
+impl<'s, Base: StagableMut, Staged: StagableMut<F = Base::F>> TreeLikeMut
     for StagedTree<'s, Base, Staged>
 {
     fn insert(&mut self, f: Self::F) -> Option<Self::F> {
@@ -147,8 +209,31 @@ impl<'s, Base: Stagable, Staged: Stagable<F = Base::F>> TreeLikeMut
     }
 }
 
-impl<'s, Base: Stagable, Staged: Stagable<F = Base::F>> Stagable for StagedTree<'s, Base, Staged> {}
+impl<Base, Staged> StagedTreeLike for StagedTree<'_, Base, Staged>
+where
+    Base: StagableMut,
+    Staged: StagableMut<F = Base::F>,
+{
+    type Base = Base;
+    type Staged = Staged;
 
-impl<F> Stagable for Option<F> where F: FileLike {}
+    fn base(&self) -> &Self::Base {
+        &self.base
+    }
 
-impl<F: FileLike> Stagable for Vec<F> {}
+    fn staged(&self) -> &Self::Staged {
+        self.staged
+    }
+}
+
+impl<'s, Base: StagableMut, Staged: StagableMut<F = Base::F>> StagedTreeLikeMut<Base, Staged>
+    for StagedTree<'s, Base, Staged>
+{
+    fn base_mut(&mut self) -> &mut Self::Base {
+        &mut self.base
+    }
+
+    fn staged_mut(&mut self) -> &mut Self::Staged {
+        self.staged
+    }
+}

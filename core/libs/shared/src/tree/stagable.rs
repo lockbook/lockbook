@@ -1,11 +1,29 @@
+use crate::file::like::FileLike;
 use crate::tree::lazy::{LazyTree, LazyTreeRef};
-use crate::tree::like::TreeLikeMut;
-use crate::tree::staged::StagedTree;
+use crate::tree::like::{TreeLike, TreeLikeMut};
+use crate::tree::staged::{StagedTree, StagedTreeRef};
 
-pub trait Stagable: TreeLikeMut {
-    fn stage<Staged>(self, staged: &mut Staged) -> StagedTree<Self, Staged>
+pub trait Stagable: TreeLike {
+    fn stage<'b, 's, Staged>(&'b self, staged: &'s Staged) -> StagedTreeRef<'b, 's, Self, Staged>
     where
-        Staged: Stagable<F = Self::F>,
+        Staged: StagableMut<F = Self::F>,
+        Self: Sized,
+    {
+        StagedTreeRef::new(self, staged)
+    }
+
+    fn as_lazy(&self) -> LazyTreeRef<Self> {
+        LazyTreeRef::new(self)
+    }
+}
+
+impl<T> Stagable for &T where T: Stagable {}
+impl<T> Stagable for &mut T where T: Stagable {}
+
+pub trait StagableMut: Stagable + TreeLikeMut {
+    fn stage_mut<Staged>(self, staged: &mut Staged) -> StagedTree<Self, Staged>
+    where
+        Staged: StagableMut<F = Self::F>,
         Self: Sized,
     {
         StagedTree::new(self, staged)
@@ -14,10 +32,22 @@ pub trait Stagable: TreeLikeMut {
     fn to_lazy(self) -> LazyTree<Self> {
         LazyTree::new(self)
     }
-
-    fn as_lazy(&self) -> LazyTreeRef<Self> {
-        LazyTreeRef::new(self)
-    }
 }
 
-impl<T> Stagable for &mut T where T: Stagable {}
+impl<T> StagableMut for &mut T where T: StagableMut {}
+
+impl<'s, Base: StagableMut, Staged: StagableMut<F = Base::F>> Stagable
+    for StagedTree<'s, Base, Staged>
+{
+}
+
+impl<'s, Base: StagableMut, Staged: StagableMut<F = Base::F>> StagableMut
+    for StagedTree<'s, Base, Staged>
+{
+}
+
+impl<F> Stagable for Option<F> where F: FileLike {}
+impl<F> StagableMut for Option<F> where F: FileLike {}
+
+impl<F: FileLike> Stagable for Vec<F> {}
+impl<F: FileLike> StagableMut for Vec<F> {}

@@ -54,7 +54,7 @@ fn test_invalid_file_name_slash() {
     let doc = core.create_at_path("document1.md").unwrap();
     core.db
         .transaction(|tx| {
-            let mut tree = tx.base_metadata.stage(&mut tx.local_metadata).to_lazy();
+            let mut tree = tx.base_metadata.stage_mut(&mut tx.local_metadata).to_lazy();
             let key = tree
                 .decrypt_key(&doc.id, tx.account.get(&OneKey {}).unwrap())
                 .unwrap();
@@ -77,7 +77,7 @@ fn empty_filename() {
     let doc = core.create_at_path("document1.md").unwrap();
     core.db
         .transaction(|tx| {
-            let mut tree = tx.base_metadata.stage(&mut tx.local_metadata).to_lazy();
+            let mut tree = tx.base_metadata.stage_mut(&mut tx.local_metadata).to_lazy();
             let key = tree
                 .decrypt_key(&doc.id, tx.account.get(&OneKey {}).unwrap())
                 .unwrap();
@@ -124,7 +124,7 @@ fn test_name_conflict() {
     core.create_at_path("document2.md").unwrap();
     core.db
         .transaction(|tx| {
-            let mut tree = tx.base_metadata.stage(&mut tx.local_metadata).to_lazy();
+            let mut tree = tx.base_metadata.stage_mut(&mut tx.local_metadata).to_lazy();
             let key = tree
                 .decrypt_key(&doc.id, tx.account.get(&OneKey {}).unwrap())
                 .unwrap();

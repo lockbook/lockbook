@@ -7,7 +7,7 @@ use lockbook_shared::file::metadata::Owner;
 use lockbook_shared::file::{File, ShareMode};
 use lockbook_shared::tree::lazy::LazyTreeLike;
 use lockbook_shared::tree::like::TreeLike;
-use lockbook_shared::tree::stagable::Stagable;
+use lockbook_shared::tree::stagable::StagableMut;
 use lockbook_shared::validate;
 use uuid::Uuid;
 
@@ -21,7 +21,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             ShareMode::Read => UserAccessMode::Read,
         };
         let mut tree = (&mut self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
+            .stage_mut(&mut self.tx.local_metadata)
             .to_lazy();
         let mut file = tree.find(&id)?.timestamped_value.value.clone();
         if tree.calculate_deleted(&id)? {
@@ -81,7 +81,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         let account = &self.get_account()?.clone(); // todo: don't clone
         let owner = Owner(self.get_public_key()?);
         let mut tree = (&mut self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
+            .stage_mut(&mut self.tx.local_metadata)
             .to_lazy();
 
         let mut result = Vec::new();
@@ -112,7 +112,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>,
     ) -> CoreResult<()> {
         let tree = (&mut self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
+            .stage_mut(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx

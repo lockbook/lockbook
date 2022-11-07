@@ -1,6 +1,6 @@
 use crate::file::like::FileLike;
 use crate::tree::like::{TreeLike, TreeLikeMut};
-use crate::tree::stagable::Stagable;
+use crate::tree::stagable::{Stagable, StagableMut};
 use hmdb::log::SchemaEvent;
 use hmdb::transaction::TransactionTable;
 use std::collections::HashSet;
@@ -37,6 +37,13 @@ where
 }
 
 impl<'a, F, Log> Stagable for TransactionTable<'a, Uuid, F, Log>
+where
+    F: FileLike,
+    Log: SchemaEvent<Uuid, F>,
+{
+}
+
+impl<'a, F, Log> StagableMut for TransactionTable<'a, Uuid, F, Log>
 where
     F: FileLike,
     Log: SchemaEvent<Uuid, F>,

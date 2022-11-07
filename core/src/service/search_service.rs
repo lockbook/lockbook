@@ -6,7 +6,7 @@ use lockbook_shared::file::like::FileLike;
 use lockbook_shared::file::name::DocumentType;
 use lockbook_shared::tree::lazy::LazyTreeLike;
 use lockbook_shared::tree::like::TreeLike;
-use lockbook_shared::tree::stagable::Stagable;
+use lockbook_shared::tree::stagable::StagableMut;
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::sync::atomic::{self, AtomicBool};
@@ -53,7 +53,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         }
 
         let mut tree = (&mut self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
+            .stage_mut(&mut self.tx.local_metadata)
             .to_lazy();
 
         let account = self
@@ -85,7 +85,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
     pub fn start_search(&mut self) -> CoreResult<StartSearchInfo> {
         let mut tree = (&mut self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
+            .stage_mut(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx

@@ -43,7 +43,7 @@ fn test_stage_insert_reset() -> SharedResult<()> {
 
     let id = Uuid::new_v4();
     file2.parent = id;
-    let mut files = files.stage(Some(file2.clone()));
+    let mut files = files.stage_mut(Some(file2.clone()));
 
     assert_eq!(files.find(file2.id())?.parent(), &id);
     assert_eq!(files.base.find(file2.id())?.parent(), file2.id());
@@ -70,7 +70,7 @@ fn test_stage_reset() -> SharedResult<()> {
 
     let files = vec![file1, file2.clone(), file3];
 
-    let files = files.stage(Some(file2.clone()));
+    let files = files.stage_mut(Some(file2.clone()));
 
     assert_eq!(files.find(file2.id())?.parent(), file2.id());
     assert_eq!(files.base.find(file2.id())?.parent(), file2.id());

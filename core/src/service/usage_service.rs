@@ -4,7 +4,7 @@ use lockbook_shared::api::{FileUsage, GetUsageRequest, GetUsageResponse};
 use lockbook_shared::file::like::FileLike;
 use lockbook_shared::tree::lazy::LazyTreeLike;
 use lockbook_shared::tree::like::TreeLike;
-use lockbook_shared::tree::stagable::Stagable;
+use lockbook_shared::tree::stagable::StagableMut;
 use lockbook_shared::usage::bytes_to_human;
 
 use crate::{CoreError, RequestContext, Requester};
@@ -48,7 +48,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
     pub fn get_uncompressed_usage(&mut self) -> CoreResult<UsageItemMetric> {
         let mut tree = (&mut self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
+            .stage_mut(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx

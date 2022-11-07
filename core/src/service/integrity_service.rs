@@ -4,7 +4,7 @@ use lockbook_shared::file::like::FileLike;
 use lockbook_shared::file::metadata::Owner;
 use lockbook_shared::tree::lazy::LazyTreeLike;
 use lockbook_shared::tree::like::TreeLike;
-use lockbook_shared::tree::stagable::Stagable;
+use lockbook_shared::tree::stagable::StagableMut;
 
 use crate::model::drawing;
 use crate::model::errors::{TestRepoError, Warning};
@@ -16,7 +16,7 @@ const UTF8_SUFFIXES: [&str; 12] =
 impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn test_repo_integrity(&mut self) -> Result<Vec<Warning>, TestRepoError> {
         let mut tree = (&mut self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
+            .stage_mut(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx
