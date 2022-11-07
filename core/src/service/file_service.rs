@@ -2,6 +2,7 @@ use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
 use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileType, Owner};
+use lockbook_shared::lazy::LazyTreeLike;
 use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
 use std::iter;
 use uuid::Uuid;

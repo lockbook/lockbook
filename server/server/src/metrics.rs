@@ -13,6 +13,7 @@ use crate::billing::billing_model::BillingPlatform;
 use crate::transaction::Server as TransactionalServer;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
+use lockbook_shared::lazy::LazyTreeLike;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
 

@@ -8,6 +8,7 @@ use lockbook_shared::api::{
 use lockbook_shared::document_repo;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{DocumentHmac, FileDiff, Owner};
+use lockbook_shared::lazy::LazyTreeLike;
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};

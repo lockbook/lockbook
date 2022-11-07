@@ -15,7 +15,7 @@ use crate::file::{File, Share, ShareMode};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileMetadata, FileType, Owner};
 use crate::filename::{DocumentType, NameComponents};
-use crate::lazy::{LazyStage2, LazyStaged1, LazyTree, Stage1};
+use crate::lazy::{LazyStage2, LazyStaged1, LazyTree, LazyTreeLike, Stage1};
 use crate::secret_filename::{HmacSha256, SecretFileName};
 use crate::signed_file::SignedFile;
 use crate::staged::StagedTree;
