@@ -47,6 +47,9 @@ pub trait StagedTreeLike: Sized {
     }
 }
 
+// todo: ??
+pub trait StagedTreeLikeMut: StagedTreeLike {}
+
 pub struct StagedTreeRef<'b, 's, Base, Staged>
 where
     Base: Stagable,
