@@ -3,7 +3,7 @@ use crate::account::Account;
 use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileType, Owner};
-use crate::staged::StagedTree;
+use crate::staged::{StagedTree, StagedTreeRef};
 use crate::tree_like::{TreeLike, TreeLikeMut};
 use crate::{compression_service, symkey, SharedError, SharedResult};
 use serde::{Deserialize, Serialize};
@@ -273,6 +273,7 @@ pub trait LazyTreeLike: TreeLike {
         }
         Ok(result)
     }
+
     // todo: move to TreeLike
     /// Returns ids of files for which the argument is a descendent—the files' parent, recursively. Does not include the argument.
     /// This function tolerates cycles.
@@ -316,6 +317,12 @@ pub trait LazyTreeLike: TreeLike {
 pub struct LazyTreeRef<'t, T: TreeLike> {
     pub tree: &'t T,
     pub cache: LazyCache,
+}
+
+impl<'l, T: TreeLike> LazyTreeRef<'l, T> {
+    pub fn new(tree: &'l T) -> Self {
+        Self { tree, cache: Default::default() }
+    }
 }
 
 impl<T: TreeLike> LazyTreeLike for LazyTreeRef<'_, T> {
