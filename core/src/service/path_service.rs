@@ -2,7 +2,7 @@ use crate::{CoreError, CoreResult, RequestContext};
 use crate::{OneKey, Requester};
 use lockbook_shared::file::File;
 use lockbook_shared::path_ops::Filter;
-use lockbook_shared::tree_like::Stagable;
+use lockbook_shared::tree_like::TreeLikeMut;
 use uuid::Uuid;
 
 impl<Client: Requester> RequestContext<'_, '_, Client> {
