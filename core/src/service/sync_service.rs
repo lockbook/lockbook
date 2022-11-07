@@ -136,7 +136,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .ok_or(CoreError::AccountNonexistent)?;
         let mut remote_document_changes = HashSet::new();
         remote_changes = {
-            let mut remote = self.tx.base_metadata.to_lazy().stage(remote_changes);
+            let mut remote = self.tx.base_metadata.to_lazy().stage_lazy(remote_changes);
             for id in remote.tree.staged.owned_ids() {
                 if remote.calculate_deleted(&id)? {
                     continue;
@@ -216,7 +216,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         &mut self, remote_changes: Vec<SignedFile>,
     ) -> CoreResult<Vec<SignedFile>> {
         let me = Owner(self.get_public_key()?);
-        let remote = self.tx.base_metadata.to_lazy().stage(remote_changes);
+        let remote = self.tx.base_metadata.to_lazy().stage_lazy(remote_changes);
         let mut result = Vec::new();
         for id in remote.tree.staged.owned_ids() {
             let meta = remote.find(&id)?;
@@ -274,7 +274,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         for id in local_change_removals {
             tree.remove(id);
         }
-        tree.stage(local_change_resets).promote();
+        tree.stage_lazy(local_change_resets).promote();
 
         Ok(())
     }
@@ -349,7 +349,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         self.tx
             .base_metadata
             .to_lazy()
-            .stage(local_changes_no_digests)
+            .stage_lazy(local_changes_no_digests)
             .promote();
 
         Ok(())
@@ -418,7 +418,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         self.tx
             .base_metadata
             .to_lazy()
-            .stage(local_changes_digests_only)
+            .stage_lazy(local_changes_digests_only)
             .promote();
 
         Ok(())
@@ -441,7 +441,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .ok_or(CoreError::AccountNonexistent)?;
         let mut work_units: Vec<WorkUnit> = Vec::new();
         {
-            let mut remote = self.tx.base_metadata.to_lazy().stage(remote_changes);
+            let mut remote = self.tx.base_metadata.to_lazy().stage_lazy(remote_changes);
             for id in remote.tree.staged.owned_ids() {
                 work_units.push(WorkUnit::ServerChange {
                     metadata: remote.finalize(&id, account, &mut self.tx.username_by_public_key)?,

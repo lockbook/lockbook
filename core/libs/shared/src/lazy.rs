@@ -296,7 +296,7 @@ impl<T: TreeLikeMut> LazyTree<T> {
         compression_service::decompress(&compressed)
     }
 
-    pub fn stage<T2: TreeLikeMut<F = T::F>>(self, staged: T2) -> LazyTree<StagedTree<T, T2>> {
+    pub fn stage_lazy<T2: TreeLikeMut<F = T::F>>(self, staged: T2) -> LazyTree<StagedTree<T, T2>> {
         // todo: optimize by performing minimal updates on self caches
         LazyTree::<StagedTree<T, T2>> {
             cache: LazyCache {

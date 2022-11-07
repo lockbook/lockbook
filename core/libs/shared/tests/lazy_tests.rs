@@ -34,7 +34,7 @@ fn decrypt_child_name_staged() {
     let child =
         FileMetadata::create(&account.public_key(), root.id, &key, "test", FileType::Document)
             .unwrap();
-    let mut files = files.stage(Some(child.clone()));
+    let mut files = files.stage_lazy(Some(child.clone()));
     assert_eq!(files.name(child.id(), &account).unwrap(), "test");
 }
 
@@ -47,7 +47,7 @@ fn decrypt_child_name_stage_promote() {
     let child =
         FileMetadata::create(&account.public_key(), root.id, &key, "test", FileType::Document)
             .unwrap();
-    let mut files = files.stage(Some(child.clone())).promote();
+    let mut files = files.stage_lazy(Some(child.clone())).promote();
     assert_eq!(files.name(child.id(), &account).unwrap(), "test");
 }
 

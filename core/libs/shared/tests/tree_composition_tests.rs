@@ -8,7 +8,7 @@ use test_utils::*;
 fn test_empty() {
     let account = Account::new(random_name(), url());
     let root = FileMetadata::create_root(&account).unwrap();
-    let files = vec![root].to_lazy().stage(vec![]);
+    let files = vec![root].to_lazy().stage_lazy(vec![]);
     assert_eq!(files.tree.base.len(), 1);
     assert_eq!(files.tree.staged.len(), 0);
 }
@@ -20,7 +20,7 @@ fn test_stage_promote() {
         .unwrap()
         .sign(account)
         .unwrap();
-    let files = vec![root.clone()].to_lazy().stage(vec![]);
+    let files = vec![root.clone()].to_lazy().stage_lazy(vec![]);
     let files = files
         .stage_create(root.id(), "test", FileType::Folder, account)
         .unwrap()
@@ -42,7 +42,7 @@ fn test_stage_unstage() {
         .unwrap()
         .sign(account)
         .unwrap();
-    let files = vec![root.clone()].to_lazy().stage(vec![]);
+    let files = vec![root.clone()].to_lazy().stage_lazy(vec![]);
     let files = files
         .stage_create(root.id(), "test", FileType::Folder, account)
         .unwrap()

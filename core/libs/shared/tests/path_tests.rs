@@ -15,7 +15,7 @@ fn test_create_path() {
 
     let mut tree = vec![root.clone()]
         .to_lazy()
-        .stage(vec![])
+        .stage_lazy(vec![])
         .create_at_path("test1", root.id(), account, pk)
         .unwrap()
         .0
@@ -45,7 +45,7 @@ fn test_path2() {
 
     let mut tree = vec![root.clone()]
         .to_lazy()
-        .stage(vec![])
+        .stage_lazy(vec![])
         .create_at_path("test1/2/3", root.id(), account, pk)
         .unwrap()
         .0;
@@ -72,7 +72,7 @@ fn test_path_to_id() {
 
     let mut tree = vec![root.clone()]
         .to_lazy()
-        .stage(vec![])
+        .stage_lazy(vec![])
         .create_at_path("test1/2/3", root.id(), account, pk)
         .unwrap()
         .0;
@@ -100,7 +100,7 @@ fn test_path_file_types() {
 
     let mut tree = vec![root.clone()]
         .to_lazy()
-        .stage(vec![])
+        .stage_lazy(vec![])
         .create_at_path("test1/2/3", root.id(), account, pk)
         .unwrap()
         .0;

@@ -61,7 +61,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             access_mode,
         )?);
 
-        let mut tree = tree.stage(Some(file.sign(account)?));
+        let mut tree = tree.stage_lazy(Some(file.sign(account)?));
         tree = tree.validate(Owner(account.public_key()))?;
         tree.promote();
 
