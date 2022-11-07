@@ -83,6 +83,6 @@ where
             .map(|change| change.new.add_time(now))
             .collect();
 
-        Ok(self.stage(changes))
+        Ok(self.stage_lazy(changes))
     }
 }

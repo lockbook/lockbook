@@ -261,7 +261,7 @@ pub async fn change_doc(
         }
 
         tx.sizes.insert(*meta.id(), new_size);
-        tree.stage(vec![new]).promote();
+        tree.stage_lazy(vec![new]).promote();
 
         Ok(())
     })?;
@@ -531,7 +531,7 @@ pub fn validate_account_helper(
         }
     }
 
-    let validation_res = tree.stage(None).validate(owner);
+    let validation_res = tree.stage_lazy(None).validate(owner);
     match validation_res {
         Ok(_) => {}
         Err(SharedError::ValidationFailure(validation)) => {

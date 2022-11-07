@@ -12,7 +12,7 @@ fn test_create() {
         .sign(account)
         .unwrap();
     let files = vec![root.clone()].to_lazy();
-    let files = files.stage(vec![]);
+    let files = files.stage_lazy(vec![]);
     let (mut files, id) = files
         .create(root.id(), "test-doc", FileType::Document, account, &account.public_key())
         .unwrap();
@@ -28,7 +28,7 @@ fn test_rename() {
         .sign(account)
         .unwrap();
     let files = vec![root.clone()].to_lazy();
-    let files = files.stage(vec![]);
+    let files = files.stage_lazy(vec![]);
     let (files, id) = files
         .create(root.id(), "test-doc", FileType::Document, account, &account.public_key())
         .unwrap();
@@ -48,7 +48,7 @@ fn test_children_and_move() {
 
     // Create a tree with a doc and a dir
     let tree = vec![root.clone()].to_lazy();
-    let tree = tree.stage(vec![]);
+    let tree = tree.stage_lazy(vec![]);
     let (tree, doc) = tree
         .create(root.id(), "test-doc", FileType::Document, account, &account.public_key())
         .unwrap();

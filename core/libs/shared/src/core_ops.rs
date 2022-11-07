@@ -152,7 +152,7 @@ where
         let id = *new_file.id();
 
         debug!("new {:?} with id: {}", file_type, id);
-        Ok((self.stage(Some(new_file)), id))
+        Ok((self.stage_lazy(Some(new_file)), id))
     }
 
     pub fn rename(self, id: &Uuid, name: &str, account: &Account) -> SharedResult<Self> {
@@ -176,7 +176,7 @@ where
         let key = self.decrypt_key(id, account)?;
         file.name = SecretFileName::from_str(name, &key, &parent_key)?;
         let file = file.sign(account)?;
-        Ok(self.stage(Some(file)))
+        Ok(self.stage_lazy(Some(file)))
     }
 
     pub fn move_file(self, id: &Uuid, new_parent: &Uuid, account: &Account) -> SharedResult<Self> {
@@ -210,7 +210,7 @@ where
             staged.push(descendant.sign(account)?);
         }
 
-        Ok(self.stage(staged))
+        Ok(self.stage_lazy(staged))
     }
 
     pub fn delete(self, id: &Uuid, account: &Account) -> SharedResult<LazyStaged1<Base, Local>> {
@@ -228,7 +228,7 @@ where
         file.is_deleted = true;
         let file = file.sign(account)?;
 
-        Ok(self.stage(Some(file)))
+        Ok(self.stage_lazy(Some(file)))
     }
 
     pub fn delete_share(
@@ -243,7 +243,7 @@ where
     pub fn stage_delete_share(
         self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
     ) -> SharedResult<TreeWithOps<Base, Local>> {
-        let mut result = self.stage(Vec::new());
+        let mut result = self.stage_lazy(Vec::new());
         let mut file = result.find(id)?.timestamped_value.value.clone();
 
         let mut found = false;
@@ -261,7 +261,7 @@ where
         if !found {
             return Err(SharedError::ShareNonexistent);
         }
-        result = result.stage(Some(file.sign(account)?)).promote();
+        result = result.stage_lazy(Some(file.sign(account)?)).promote();
 
         // delete any links pointing to file
         if let Some(encrypted_for) = maybe_encrypted_for {
@@ -269,7 +269,7 @@ where
                 if let Some(link) = result.link(id)? {
                     let mut link = result.find(&link)?.timestamped_value.value.clone();
                     link.is_deleted = true;
-                    result = result.stage(Some(link.sign(account)?)).promote();
+                    result = result.stage_lazy(Some(link.sign(account)?)).promote();
                 }
             }
         }
@@ -344,7 +344,7 @@ where
         let document = compression_service::compress(document)?;
         let document = symkey::encrypt(&key, &document)?;
 
-        Ok((self.stage(Some(file)), document))
+        Ok((self.stage_lazy(Some(file)), document))
     }
 
     pub fn delete_unreferenced_file_versions(&self, config: &Config) -> SharedResult<()> {
@@ -364,7 +364,7 @@ where
     pub fn unmove_moved_files_in_cycles(
         self, account: &Account,
     ) -> SharedResult<TreeWithOps<Base, Local>> {
-        let mut result = self.stage(Vec::new());
+        let mut result = self.stage_lazy(Vec::new());
 
         let mut root_found = false;
         let mut no_cycles_in_ancestors = HashSet::new();
@@ -429,7 +429,7 @@ where
                         SecretFileName::from_str(&file.name.to_string(&key)?, &key, &parent_key)?;
                     let file = file.sign(account)?;
 
-                    result.stage(Some(file))
+                    result.stage_lazy(Some(file))
                 }
                 .promote();
             }
@@ -445,7 +445,7 @@ where
     pub fn rename_files_with_path_conflicts(
         self, account: &Account,
     ) -> SharedResult<TreeWithOps<Base, Local>> {
-        let mut result = self.stage(Vec::new());
+        let mut result = self.stage_lazy(Vec::new());
 
         for (_, sibling_ids) in result.all_children()?.clone() {
             let mut not_deleted_sibling_ids = HashSet::new();
@@ -481,7 +481,7 @@ where
     }
 
     pub fn deduplicate_links(self, account: &Account) -> SharedResult<TreeWithOps<Base, Local>> {
-        let mut result = self.stage(Vec::new());
+        let mut result = self.stage_lazy(Vec::new());
 
         let mut base_link_targets = HashSet::new();
         for id in result.tree.base.base.owned_ids() {
@@ -521,9 +521,9 @@ where
                 base_links.insert(id);
             }
         }
-        self = base.stage(local_changes);
+        self = base.stage_lazy(local_changes);
 
-        let mut result = self.stage(Vec::new());
+        let mut result = self.stage_lazy(Vec::new());
         for id in result.tree.base.staged.owned_ids() {
             if result.find(&id)?.is_shared() {
                 for descendant in result.descendants(&id)? {
@@ -544,7 +544,7 @@ where
     }
 
     pub fn resolve_owned_links(self, account: &Account) -> SharedResult<TreeWithOps<Base, Local>> {
-        let mut result = self.stage(Vec::new());
+        let mut result = self.stage_lazy(Vec::new());
 
         for id in result.tree.base.staged.owned_ids() {
             if let FileType::Link { target } = result.find(&id)?.file_type() {
@@ -565,7 +565,7 @@ where
     pub fn delete_links_to_deleted_files(
         self, account: &Account,
     ) -> SharedResult<TreeWithOps<Base, Local>> {
-        let mut result = self.stage(Vec::new());
+        let mut result = self.stage_lazy(Vec::new());
 
         for id in result.owned_ids() {
             if result.calculate_deleted(&id)? {
@@ -598,7 +598,7 @@ where
         Remote: TreeLikeMut<F = SignedFile>,
         Local: TreeLikeMut<F = SignedFile>,
     {
-        let mut result = self.stage(Vec::new());
+        let mut result = self.stage_lazy(Vec::new());
 
         // merge files on an individual basis
         {
@@ -624,12 +624,12 @@ where
                             let remote_change = remote_changes.find(&id)?.clone();
                             let local_change = local_changes.find(&id)?.clone();
                             let base_name = base.name(&id, account)?;
-                            let mut remote = base.stage(remote_changes);
+                            let mut remote = base.stage_lazy(remote_changes);
                             let remote_name = remote.name(&id, account)?;
                             let remote_deleted = remote.calculate_deleted(&id)?;
-                            let mut local = remote.stage(local_changes);
+                            let mut local = remote.stage_lazy(local_changes);
                             let local_name = local.name(&id, account)?;
-                            result = local.stage(merge_changes);
+                            result = local.stage_lazy(merge_changes);
                             let document_hmac = three_way_merge(
                                 &base_file.document_hmac(),
                                 &remote_change.document_hmac(),
@@ -720,11 +720,11 @@ where
                             let (base, remote_changes) = remote.unstage();
                             let remote_change = remote_changes.find(&id)?.clone();
                             let local_change = local_changes.find(&id)?.clone();
-                            let mut remote = base.stage(remote_changes);
+                            let mut remote = base.stage_lazy(remote_changes);
                             let remote_name = remote.name(&id, account)?;
                             let remote_deleted = remote.calculate_deleted(&id)?;
-                            let local = remote.stage(local_changes);
-                            result = local.stage(merge_changes);
+                            let local = remote.stage_lazy(local_changes);
+                            result = local.stage_lazy(merge_changes);
                             let user_access_keys = merge_user_access(
                                 None,
                                 remote_change.user_access_keys(),
@@ -829,13 +829,13 @@ where
                                     .map(|document| base.decrypt_document(id, &document, account))
                                     .map_or(Ok(None), |v| v.map(Some))?
                                     .unwrap_or_default();
-                            let mut remote = base.stage(remote_changes);
+                            let mut remote = base.stage_lazy(remote_changes);
                             let decrypted_remote_document =
                                 remote.decrypt_document(id, &remote_document_change, account)?;
-                            let mut local = remote.stage(local_changes);
+                            let mut local = remote.stage_lazy(local_changes);
                             let decrypted_local_document =
                                 local.decrypt_document(id, &local_document_change, account)?;
-                            result = local.stage(merge_changes);
+                            result = local.stage_lazy(merge_changes);
                             (
                                 decrypted_base_document,
                                 decrypted_remote_document,
@@ -864,10 +864,10 @@ where
                             let (mut remote, local_changes) = local.unstage();
                             let decrypted_remote_document =
                                 remote.decrypt_document(id, &remote_document_change, account)?;
-                            let mut local = remote.stage(local_changes);
+                            let mut local = remote.stage_lazy(local_changes);
                             let decrypted_local_document =
                                 local.decrypt_document(id, &local_document_change, account)?;
-                            result = local.stage(merge_changes);
+                            result = local.stage_lazy(merge_changes);
                             (decrypted_remote_document, decrypted_local_document)
                         };
 

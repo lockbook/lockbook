@@ -32,7 +32,7 @@ fn create_two_files_with_same_path() {
         run(|account, owner, root, base_metadata, local_metadata| {
             let tree = base_metadata.stage(local_metadata).to_lazy();
 
-            let mut tree = tree.stage(Vec::new());
+            let mut tree = tree.stage_lazy(Vec::new());
             let (staged_tree, _) = tree
                 .stage_create(&root.id, "document", FileType::Document, &account)
                 .unwrap();
