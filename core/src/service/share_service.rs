@@ -112,7 +112,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn delete_share(
         &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>,
     ) -> CoreResult<()> {
-        let tree = (&mut self.tx.base_metadata)
+        let mut tree = (&mut self.tx.base_metadata)
             .stage_mut(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self

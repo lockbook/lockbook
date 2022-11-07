@@ -160,7 +160,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     fn import_file_recursively<F: Fn(ImportStatus)>(
         &mut self, disk_path: &Path, dest: &Uuid, update_status: &F,
     ) -> CoreResult<()> {
-        let public_key = self.get_public_key()?;
         let mut tree = (&mut self.tx.base_metadata)
             .stage_mut(&mut self.tx.local_metadata)
             .to_lazy();
@@ -200,19 +199,17 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 disk_file_name,
             )?;
 
-            let (tmp_tree, id) = tree.create(&dest, &file_name, ftype, account, &public_key)?;
-            tree = tmp_tree;
+            let id = tree.create(&dest, &file_name, ftype, account)?;
             let file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
 
-            tree = if ftype == FileType::Document {
+            if ftype == FileType::Document {
                 let doc = fs::read(&disk_path).map_err(CoreError::from)?;
 
-                let (tree, encrypted_document) = tree.update_document(&id, &doc, account)?;
+                let encrypted_document = tree.update_document(&id, &doc, account)?;
                 let hmac = tree.find(&id)?.document_hmac();
                 document_repo::insert(self.config, &id, hmac, &encrypted_document)?;
 
                 update_status(ImportStatus::FinishedItem(file));
-                tree
             } else {
                 update_status(ImportStatus::FinishedItem(file));
 
@@ -222,8 +219,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                     let child_path = entry.map_err(CoreError::from)?.path();
                     disk_paths_with_destinations.push((child_path.clone(), id));
                 }
-
-                tree
             };
         }
 

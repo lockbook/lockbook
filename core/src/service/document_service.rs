@@ -25,7 +25,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn write_document(&mut self, id: Uuid, content: &[u8]) -> CoreResult<()> {
-        let tree = (&mut self.tx.base_metadata)
+        let mut tree = (&mut self.tx.base_metadata)
             .stage_mut(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
@@ -38,7 +38,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             FileType::Document | FileType::Folder => id,
             FileType::Link { target } => target,
         };
-        let (tree, encrypted_document) = tree.update_document(&id, content, account)?;
+        let encrypted_document = tree.update_document(&id, content, account)?;
         let hmac = tree.find(&id)?.document_hmac();
         document_repo::insert(self.config, &id, hmac, &encrypted_document)?;
 

@@ -20,7 +20,6 @@ use crate::file::{File, Share, ShareMode};
 use crate::tree::lazy::{LazyStaged1, LazyStaged2, LazyStaged3, LazyStaged4, LazyTreeLike};
 use crate::tree::like::{TreeLike, TreeLikeMut};
 use crate::tree::stagable::StagableMut;
-use crate::validate::LazyTreeLikeValidate;
 use crate::{compression_service, document_repo, symkey, validate, SharedError, SharedResult};
 
 pub type TreeWithOp<Base, Local> = LazyStaged2<Base, Local, Option<SignedFile>>;
@@ -169,12 +168,11 @@ where
     }
 
     pub fn create(
-        mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
-        pub_key: &PublicKey,
-    ) -> SharedResult<(Self, Uuid)> {
+        &mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
+    ) -> SharedResult<Uuid> {
         let (op, id) = self.create_op(parent, name, file_type, account)?;
-        let tree = self.stage(op).validate(Owner(*pub_key))?.promote();
-        Ok((tree, id))
+        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
+        Ok(id)
     }
 
     fn rename_op(
@@ -203,13 +201,10 @@ where
         Ok(())
     }
 
-    pub fn rename(mut self, id: &Uuid, name: &str, account: &Account) -> SharedResult<Self> {
+    pub fn rename(&mut self, id: &Uuid, name: &str, account: &Account) -> SharedResult<()> {
         let op = self.rename_op(id, name, account)?;
-        let tree = self
-            .stage(op)
-            .validate(Owner(account.public_key()))?
-            .promote();
-        Ok(tree)
+        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
+        Ok(())
     }
 
     fn move_op(
@@ -248,14 +243,11 @@ where
     }
 
     pub fn move_file(
-        mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
-    ) -> SharedResult<Self> {
+        &mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
+    ) -> SharedResult<()> {
         let op = self.move_op(id, new_parent, account)?;
-        let tree = self
-            .stage(op)
-            .validate(Owner(account.public_key()))?
-            .promote();
-        Ok(tree)
+        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
+        Ok(())
     }
 
     fn delete_op(&self, id: &Uuid, account: &Account) -> SharedResult<Option<SignedFile>> {
@@ -273,13 +265,10 @@ where
         Ok(())
     }
 
-    pub fn delete(self, id: &Uuid, account: &Account) -> SharedResult<Self> {
+    pub fn delete(&mut self, id: &Uuid, account: &Account) -> SharedResult<()> {
         let op = self.delete_op(id, account)?;
-        let tree = self
-            .stage(op)
-            .validate(Owner(account.public_key()))?
-            .promote();
-        Ok(tree)
+        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
+        Ok(())
     }
 
     fn delete_share_op(
@@ -328,14 +317,11 @@ where
     }
 
     pub fn delete_share(
-        mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
-    ) -> SharedResult<Self> {
+        &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
+    ) -> SharedResult<()> {
         let op = self.delete_share_op(id, maybe_encrypted_for, account)?;
-        let tree = self
-            .stage(op)
-            .validate(Owner(account.public_key()))?
-            .promote();
-        Ok(tree)
+        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
+        Ok(())
     }
 
     pub fn read_document(
@@ -408,14 +394,11 @@ where
     }
 
     pub fn update_document(
-        mut self, id: &Uuid, document: &[u8], account: &Account,
-    ) -> SharedResult<(Self, EncryptedDocument)> {
+        &mut self, id: &Uuid, document: &[u8], account: &Account,
+    ) -> SharedResult<EncryptedDocument> {
         let (op, document) = self.update_document_op(id, document, account)?;
-        let tree = self
-            .stage(op)
-            .validate(Owner(account.public_key()))?
-            .promote();
-        Ok((tree, document))
+        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
+        Ok(document)
     }
 
     pub fn delete_unreferenced_file_versions(&self, config: &Config) -> SharedResult<()> {
