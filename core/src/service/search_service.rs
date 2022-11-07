@@ -4,7 +4,7 @@ use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::filename::DocumentType;
-use lockbook_shared::tree_like::{Stagable, TreeLikeMut};
+use lockbook_shared::tree_like::{Stagable, TreeLike};
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::sync::atomic::{self, AtomicBool};
