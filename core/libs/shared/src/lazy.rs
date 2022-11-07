@@ -4,7 +4,7 @@ use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileType, Owner};
 use crate::staged::StagedTree;
-use crate::tree_like::{Stagable, TreeLike};
+use crate::tree_like::{Stagable, TreeLikeMut};
 use crate::{compression_service, symkey, SharedError, SharedResult};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -375,7 +375,7 @@ where
     }
 }
 
-impl<T: Stagable> TreeLike for LazyTree<T> {
+impl<T: Stagable> TreeLikeMut for LazyTree<T> {
     type F = T::F;
 
     fn ids(&self) -> HashSet<&Uuid> {

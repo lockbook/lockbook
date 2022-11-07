@@ -1,7 +1,7 @@
 use crate::crypto::ECSigned;
 use crate::file_like::FileLike;
 use crate::file_metadata::FileMetadata;
-use crate::tree_like::{Stagable, TreeLike};
+use crate::tree_like::{Stagable, TreeLikeMut};
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
@@ -22,7 +22,7 @@ impl Display for SignedFile {
     }
 }
 
-impl<F> TreeLike for Option<F>
+impl<F> TreeLikeMut for Option<F>
 where
     F: FileLike,
 {

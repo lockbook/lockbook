@@ -1,7 +1,7 @@
 use lockbook_shared::account::Account;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileMetadata;
-use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::tree_like::{Stagable, TreeLikeMut};
 use lockbook_shared::SharedResult;
 use test_utils::*;
 use uuid::Uuid;
@@ -23,7 +23,7 @@ fn tree_test() -> SharedResult<()> {
 
     assert_eq!(files.ids().len(), 3);
 
-    TreeLike::remove(&mut files, file2.id).unwrap();
+    TreeLikeMut::remove(&mut files, file2.id).unwrap();
 
     assert_eq!(files.ids().len(), 2);
     files.find(&file2.id).unwrap_err();

@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::fmt::Debug;
 use uuid::Uuid;
 
-pub trait TreeLike: Sized {
+pub trait TreeLikeMut: Sized {
     type F: FileLike + Debug;
 
     // TODO perf, it would be nice to make this a reference type, some point in the future
@@ -43,7 +43,7 @@ pub trait TreeLike: Sized {
     }
 }
 
-pub trait Stagable: TreeLike {
+pub trait Stagable: TreeLikeMut {
     fn stage<Staged>(self, staged: Staged) -> StagedTree<Self, Staged>
     where
         Staged: Stagable<F = Self::F>,
@@ -57,7 +57,7 @@ pub trait Stagable: TreeLike {
     }
 }
 
-impl<F> TreeLike for Vec<F>
+impl<F> TreeLikeMut for Vec<F>
 where
     F: FileLike,
 {

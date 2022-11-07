@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::server_tree::ServerTree;
 use crate::signed_file::SignedFile;
-use crate::tree_like::TreeLike;
+use crate::tree_like::TreeLikeMut;
 use crate::{SharedError, SharedResult};
 
 type LazyServerStaged1<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files> =
