@@ -5,6 +5,7 @@ use lockbook_shared::file::metadata::Owner;
 use lockbook_shared::tree::lazy::LazyTreeLike;
 use lockbook_shared::tree::like::TreeLike;
 use lockbook_shared::tree::stagable::StagableMut;
+use lockbook_shared::validate::LazyTreeLikeValidate;
 
 use crate::model::drawing;
 use crate::model::errors::{TestRepoError, Warning};

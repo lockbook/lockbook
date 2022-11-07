@@ -20,6 +20,7 @@ use crate::file::{File, Share, ShareMode};
 use crate::tree::lazy::{LazyStaged1, LazyStaged2, LazyStaged3, LazyStaged4, LazyTreeLike};
 use crate::tree::like::{TreeLike, TreeLikeMut};
 use crate::tree::stagable::StagableMut;
+use crate::validate::LazyTreeLikeValidate;
 use crate::{compression_service, document_repo, symkey, validate, SharedError, SharedResult};
 
 pub type TreeWithOp<Base, Local> = LazyStaged2<Base, Local, Option<SignedFile>>;

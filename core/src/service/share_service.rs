@@ -9,6 +9,7 @@ use lockbook_shared::tree::lazy::LazyTreeLike;
 use lockbook_shared::tree::like::TreeLike;
 use lockbook_shared::tree::stagable::StagableMut;
 use lockbook_shared::validate;
+use lockbook_shared::validate::LazyTreeLikeValidate;
 use uuid::Uuid;
 
 impl<Client: Requester> RequestContext<'_, '_, Client> {

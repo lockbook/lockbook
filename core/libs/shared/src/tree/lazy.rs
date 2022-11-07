@@ -6,6 +6,7 @@ use crate::file::metadata::{FileType, Owner};
 use crate::tree::like::{TreeLike, TreeLikeMut};
 use crate::tree::stagable::{Stagable, StagableMut};
 use crate::tree::staged::StagedTree;
+use crate::validate::LazyTreeLikeValidate;
 use crate::{compression_service, symkey, SharedError, SharedResult, ValidationFailure};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
@@ -18,11 +19,11 @@ pub struct LazyCache {
     pub children: HashMap<Uuid, HashSet<Uuid>>,
 }
 
-pub trait LazyTreeLike: Sized {
-    type T: Stagable;
+pub trait LazyTreeLike: TreeLike<F = <Self::S as TreeLike>::F> + Sized {
+    type S: Stagable;
 
-    fn tree(&self) -> &Self::T;
-    fn tree_and_cache(&mut self) -> (&Self::T, &mut LazyCache);
+    fn tree(&self) -> &Self::S;
+    fn tree_and_cache(&mut self) -> (&Self::S, &mut LazyCache);
 
     fn cache(&mut self) -> &mut LazyCache {
         let (_, cache) = self.tree_and_cache();
@@ -328,14 +329,26 @@ impl<'t, T: Stagable> LazyTreeRef<'t, T> {
     }
 }
 
-impl<'t, T: Stagable> LazyTreeLike for LazyTreeRef<'t, T> {
-    type T = T;
+impl<'t, T: Stagable> TreeLike for LazyTreeRef<'t, T> {
+    type F = T::F;
 
-    fn tree(&self) -> &Self::T {
+    fn ids(&self) -> HashSet<&Uuid> {
+        self.tree.ids()
+    }
+
+    fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
+        self.tree.maybe_find(id)
+    }
+}
+
+impl<'t, T: Stagable> LazyTreeLike for LazyTreeRef<'t, T> {
+    type S = T;
+
+    fn tree(&self) -> &Self::S {
         self.tree
     }
 
-    fn tree_and_cache(&mut self) -> (&Self::T, &mut LazyCache) {
+    fn tree_and_cache(&mut self) -> (&Self::S, &mut LazyCache) {
         (self.tree, &mut self.cache)
     }
 }
@@ -359,16 +372,24 @@ impl<T: StagableMut> LazyTree<T> {
         }
         self.cache = Default::default(); // todo: incremental cache update
     }
+
+    pub fn stage_validate_and_promote<S: StagableMut<F = T::F>>(
+        &mut self, staged: S, owner: Owner,
+    ) -> SharedResult<()> {
+        self.tree.stage(&staged).as_lazy().validate(owner)?;
+        self.stage_and_promote(staged);
+        Ok(())
+    }
 }
 
 impl<T: StagableMut> LazyTreeLike for LazyTree<T> {
-    type T = T;
+    type S = T;
 
-    fn tree(&self) -> &Self::T {
+    fn tree(&self) -> &Self::S {
         &self.tree
     }
 
-    fn tree_and_cache(&mut self) -> (&Self::T, &mut LazyCache) {
+    fn tree_and_cache(&mut self) -> (&Self::S, &mut LazyCache) {
         (&self.tree, &mut self.cache)
     }
 }
