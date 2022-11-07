@@ -6,14 +6,12 @@ use std::collections::HashSet;
 use std::fmt::Debug;
 use uuid::Uuid;
 
-pub trait TreeLikeMut: Sized {
+pub trait TreeLike: Sized {
     type F: FileLike + Debug;
 
-    // TODO perf, it would be nice to make this a reference type, some point in the future
+    // todo: iterator using const generics
     fn ids(&self) -> HashSet<&Uuid>;
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F>;
-    fn insert(&mut self, f: Self::F) -> Option<Self::F>;
-    fn remove(&mut self, id: Uuid) -> Option<Self::F>;
 
     fn find(&self, id: &Uuid) -> SharedResult<&Self::F> {
         self.maybe_find(id).ok_or(SharedError::FileNonexistent)
@@ -43,6 +41,11 @@ pub trait TreeLikeMut: Sized {
     }
 }
 
+pub trait TreeLikeMut: TreeLike {
+    fn insert(&mut self, f: Self::F) -> Option<Self::F>;
+    fn remove(&mut self, id: Uuid) -> Option<Self::F>;
+}
+
 pub trait Stagable: TreeLikeMut {
     fn stage<Staged>(self, staged: Staged) -> StagedTree<Self, Staged>
     where
@@ -57,7 +60,7 @@ pub trait Stagable: TreeLikeMut {
     }
 }
 
-impl<F> TreeLikeMut for Vec<F>
+impl<F> TreeLike for Vec<F>
 where
     F: FileLike,
 {
@@ -70,7 +73,12 @@ where
     fn maybe_find(&self, id: &Uuid) -> Option<&F> {
         self.iter().find(|f| f.id() == id)
     }
+}
 
+impl<F> TreeLikeMut for Vec<F>
+where
+    F: FileLike,
+{
     fn insert(&mut self, f: F) -> Option<F> {
         for (i, value) in self.iter().enumerate() {
             if value.id() == f.id() {

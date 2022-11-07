@@ -8,7 +8,7 @@ use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::filename::NameComponents;
 use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::signed_file::SignedFile;
-use lockbook_shared::tree_like::{Stagable, TreeLikeMut};
+use lockbook_shared::tree_like::{Stagable, TreeLike};
 use lockbook_shared::{document_repo, SharedError};
 use std::collections::HashSet;
 use std::fs;
