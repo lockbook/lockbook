@@ -325,8 +325,8 @@ where
     }
 
     pub fn read_document(
-        mut self, config: &Config, id: &Uuid, account: &Account,
-    ) -> SharedResult<(Self, DecryptedDocument)> {
+        &mut self, config: &Config, id: &Uuid, account: &Account,
+    ) -> SharedResult<DecryptedDocument> {
         if self.calculate_deleted(id)? {
             return Err(SharedError::FileNonexistent);
         }
@@ -339,7 +339,7 @@ where
 
         validate::is_document(meta)?;
         if meta.document_hmac().is_none() {
-            return Ok((self, vec![]));
+            return Ok(vec![]);
         }
 
         let maybe_encrypted_document =
@@ -353,7 +353,7 @@ where
             None => return Err(SharedError::FileNonexistent),
         };
 
-        Ok((self, doc))
+        Ok(doc)
     }
 
     fn update_document_op(

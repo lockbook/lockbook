@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn read_document(&mut self, id: Uuid) -> CoreResult<DecryptedDocument> {
-        let tree = (&mut self.tx.base_metadata)
+        let mut tree = (&mut self.tx.base_metadata)
             .stage_mut(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
@@ -19,7 +19,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let (_, doc) = tree.read_document(self.config, &id, account)?;
+        let doc = tree.read_document(self.config, &id, account)?;
 
         Ok(doc)
     }

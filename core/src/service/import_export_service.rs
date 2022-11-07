@@ -132,9 +132,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 }
                 .map_err(CoreError::from)?;
 
-                let doc_read = tree.read_document(config, this_file.id(), account)?;
-                tree = doc_read.0;
-                let doc = doc_read.1;
+                let doc = tree.read_document(config, this_file.id(), account)?;
 
                 file.write_all(doc.as_slice()).map_err(CoreError::from)?;
             }

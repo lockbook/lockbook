@@ -103,9 +103,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         &tree.name(&id, account)?,
                     ) {
                         DocumentType::Text => {
-                            let doc_read = tree.read_document(self.config, &id, account)?;
-                            tree = doc_read.0;
-                            match String::from_utf8(doc_read.1) {
+                            let doc = tree.read_document(self.config, &id, account)?;
+                            match String::from_utf8(doc) {
                                 Ok(str) => Some(str),
                                 Err(utf_8) => {
                                     error!("failed to read {id}, {utf_8}");

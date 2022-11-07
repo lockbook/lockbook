@@ -62,9 +62,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             let file = tree.find(&id)?;
 
             if !is_file_deleted && file.is_document() {
-                let result = tree.read_document(self.config, &id, account)?;
-                tree = result.0;
-                let doc = result.1;
+                let doc = tree.read_document(self.config, &id, account)?;
 
                 local_usage += doc.len() as u64
             }
