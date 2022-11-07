@@ -8,7 +8,7 @@ pub mod core_ops;
 pub mod crypto;
 pub mod document_repo;
 pub mod drawing;
-pub mod files;
+pub mod file;
 pub mod path_ops;
 pub mod pubkey;
 pub mod server_ops;
@@ -18,15 +18,27 @@ pub mod usage;
 pub mod validate;
 pub mod work_unit;
 
-pub use files::*;
-pub use tree::*;
-
-pub use lazy::ValidationFailure;
-use std::io;
-
 use hmac::crypto_mac::{InvalidKeyLength, MacError};
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use std::io;
+use uuid::Uuid;
 
 pub type SharedResult<T> = Result<T, SharedError>;
+
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Eq)]
+pub enum ValidationFailure {
+    Orphan(Uuid),
+    Cycle(HashSet<Uuid>),
+    PathConflict(HashSet<Uuid>),
+    NonFolderWithChildren(Uuid),
+    FileWithDifferentOwnerParent(Uuid),
+    NonDecryptableFileName(Uuid),
+    SharedLink { link: Uuid, shared_ancestor: Uuid },
+    DuplicateLink { target: Uuid },
+    BrokenLink(Uuid),
+    OwnedLink(Uuid),
+}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SharedError {

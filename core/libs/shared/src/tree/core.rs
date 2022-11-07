@@ -1,6 +1,6 @@
-use crate::file_like::FileLike;
-use crate::staged::Stagable;
-use crate::tree_like::{TreeLike, TreeLikeMut};
+use crate::file::like::FileLike;
+use crate::tree::like::{TreeLike, TreeLikeMut};
+use crate::tree::stagable::Stagable;
 use hmdb::log::SchemaEvent;
 use hmdb::transaction::TransactionTable;
 use std::collections::HashSet;

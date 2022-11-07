@@ -3,8 +3,8 @@ use test_utils::*;
 use uuid::Uuid;
 
 use lockbook_shared::api::*;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileDiff;
+use lockbook_shared::file::like::FileLike;
+use lockbook_shared::file::metadata::FileDiff;
 use lockbook_shared::ValidationFailure;
 
 #[test]

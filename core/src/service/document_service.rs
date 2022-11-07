@@ -2,10 +2,10 @@ use crate::{CoreError, RequestContext, Requester};
 use crate::{CoreResult, OneKey};
 use lockbook_shared::crypto::DecryptedDocument;
 use lockbook_shared::document_repo;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileType;
-use lockbook_shared::staged::Stagable;
-use lockbook_shared::tree_like::TreeLike;
+use lockbook_shared::file::like::FileLike;
+use lockbook_shared::file::metadata::FileType;
+use lockbook_shared::tree::like::TreeLike;
+use lockbook_shared::tree::stagable::Stagable;
 use uuid::Uuid;
 
 impl<Client: Requester> RequestContext<'_, '_, Client> {

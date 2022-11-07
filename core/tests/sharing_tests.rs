@@ -3,8 +3,8 @@ use lockbook_core::{
     CreateFileAtPathError, CreateFileError, CreateLinkAtPathError, DeletePendingShareError, Error,
     FileDeleteError, MoveFileError, RenameFileError, ShareFileError, WriteToDocumentError,
 };
+use lockbook_shared::file::metadata::FileType;
 use lockbook_shared::file::ShareMode;
-use lockbook_shared::file_metadata::FileType;
 use test_utils::*;
 use uuid::Uuid;
 

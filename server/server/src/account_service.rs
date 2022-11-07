@@ -1,7 +1,7 @@
 use crate::billing::billing_model::BillingPlatform;
+use crate::file::serverError::ClientError;
 use crate::schema::Account;
 use crate::utils::username_is_valid;
-use crate::ServerError::ClientError;
 use crate::{document_service, RequestContext, Server, ServerError, ServerState, Tx};
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
@@ -17,11 +17,11 @@ use lockbook_shared::api::{
     NewAccountResponse, PaymentPlatform,
 };
 use lockbook_shared::clock::get_time;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{DocumentHmac, Owner};
-use lockbook_shared::server_file::IntoServerFile;
-use lockbook_shared::server_tree::ServerTree;
-use lockbook_shared::tree_like::{Stagable, TreeLikeMut};
+use lockbook_shared::file::like::FileLike;
+use lockbook_shared::file::metadata::{DocumentHmac, Owner};
+use lockbook_shared::file::server::IntoServerFile;
+use lockbook_shared::file::server::ServerTree;
+use lockbook_shared::tree::like::{Stagable, TreeLikeMut};
 use lockbook_shared::usage::bytes_to_human;
 use std::collections::HashSet;
 use std::fmt::Debug;

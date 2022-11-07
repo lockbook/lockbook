@@ -1,15 +1,15 @@
 use crate::clock::get_time;
-use crate::file_like::FileLike;
-use crate::file_metadata::{FileDiff, Owner};
-use crate::lazy::LazyStaged1;
-use crate::server_file::{IntoServerFile, ServerFile};
+use crate::file::like::FileLike;
+use crate::file::metadata::{FileDiff, Owner};
+use crate::file::server::{IntoServerFile, ServerFile};
+use crate::tree::lazy::LazyStaged1;
 use hmdb::log::SchemaEvent;
 use std::collections::HashSet;
 use uuid::Uuid;
 
-use crate::server_tree::ServerTree;
-use crate::signed_file::SignedFile;
-use crate::tree_like::TreeLike;
+use crate::file::signed::SignedFile;
+use crate::tree::like::TreeLike;
+use crate::tree::server::ServerTree;
 use crate::{SharedError, SharedResult};
 
 type LazyServerStaged1<'a, 'b, 'v, OwnedFiles, SharedFiles, FileChildren, Files> = LazyStaged1<

@@ -2,11 +2,11 @@ use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester, Unexpected
 use crossbeam::channel::{self, Receiver, RecvTimeoutError, Sender};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::filename::DocumentType;
-use lockbook_shared::lazy::LazyTreeLike;
-use lockbook_shared::staged::Stagable;
-use lockbook_shared::tree_like::TreeLike;
+use lockbook_shared::file::like::FileLike;
+use lockbook_shared::file::name::DocumentType;
+use lockbook_shared::tree::lazy::LazyTreeLike;
+use lockbook_shared::tree::like::TreeLike;
+use lockbook_shared::tree::stagable::Stagable;
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::sync::atomic::{self, AtomicBool};

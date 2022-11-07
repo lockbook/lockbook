@@ -1,5 +1,6 @@
-pub mod core_tree;
+pub mod core;
 pub mod lazy;
-pub mod server_tree;
+pub mod like;
+pub mod server;
+pub mod stagable;
 pub mod staged;
-pub mod tree_like;

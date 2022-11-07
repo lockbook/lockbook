@@ -1,6 +1,6 @@
 use crate::core_config::Config;
 use crate::crypto::*;
-use crate::file_metadata::DocumentHmac;
+use crate::file::metadata::DocumentHmac;
 use crate::{SharedError, SharedResult};
 use std::collections::HashSet;
 use std::convert::TryInto;

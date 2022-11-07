@@ -4,7 +4,7 @@ use lockbook_shared::api::{
     UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest, UpgradeAccountStripeError,
     UpgradeAccountStripeRequest,
 };
-use lockbook_shared::file_metadata::FileType;
+use lockbook_shared::file::metadata::FileType;
 use rand::RngCore;
 use test_utils::{
     assert_matches, generate_premium_account_tier, test_core_with_account, test_credit_cards,

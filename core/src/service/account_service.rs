@@ -4,8 +4,8 @@ use crate::{CoreError, CoreResult, RequestContext, Requester};
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Account;
 use lockbook_shared::api::{GetPublicKeyRequest, NewAccountRequest};
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileMetadata;
+use lockbook_shared::file::like::FileLike;
+use lockbook_shared::file::metadata::FileMetadata;
 use qrcode_generator::QrCodeEcc;
 
 impl<Client: Requester> RequestContext<'_, '_, Client> {

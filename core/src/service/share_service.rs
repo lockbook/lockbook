@@ -2,12 +2,12 @@ use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
 use libsecp256k1::PublicKey;
 use lockbook_shared::access_info::{UserAccessInfo, UserAccessMode};
 use lockbook_shared::api::GetPublicKeyRequest;
+use lockbook_shared::file::like::FileLike;
+use lockbook_shared::file::metadata::Owner;
 use lockbook_shared::file::{File, ShareMode};
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::Owner;
-use lockbook_shared::lazy::LazyTreeLike;
-use lockbook_shared::staged::Stagable;
-use lockbook_shared::tree_like::TreeLike;
+use lockbook_shared::tree::lazy::LazyTreeLike;
+use lockbook_shared::tree::like::TreeLike;
+use lockbook_shared::tree::stagable::Stagable;
 use lockbook_shared::validate;
 use uuid::Uuid;
 

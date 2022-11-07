@@ -6,13 +6,13 @@ use lockbook_shared::api::{
     GetUsernameRequest, UpsertRequest,
 };
 use lockbook_shared::document_repo;
+use lockbook_shared::file::like::FileLike;
+use lockbook_shared::file::metadata::{FileDiff, Owner};
+use lockbook_shared::file::signed::SignedFile;
 use lockbook_shared::file::File;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{FileDiff, Owner};
-use lockbook_shared::lazy::LazyTreeLike;
-use lockbook_shared::signed_file::SignedFile;
-use lockbook_shared::staged::Stagable;
-use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
+use lockbook_shared::tree::lazy::LazyTreeLike;
+use lockbook_shared::tree::like::{TreeLike, TreeLikeMut};
+use lockbook_shared::tree::stagable::Stagable;
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
 use std::collections::HashSet;

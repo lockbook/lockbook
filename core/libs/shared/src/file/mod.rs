@@ -1,5 +1,12 @@
+pub mod like;
+pub mod metadata;
+pub mod name;
+pub mod secret_name;
+pub mod server;
+pub mod signed;
+
 use crate::account::Username;
-use crate::file_metadata::FileType;
+use crate::file::metadata::FileType;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

@@ -1,7 +1,7 @@
 use crate::{ServerError, ServerState};
 
 use lockbook_shared::crypto::EncryptedDocument;
-use lockbook_shared::file_metadata::DocumentHmac;
+use lockbook_shared::file::metadata::DocumentHmac;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use tokio::fs::{remove_file, File};

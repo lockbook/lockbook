@@ -1,7 +1,7 @@
 use lockbook_shared::account::Account;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileMetadata;
-use lockbook_shared::tree_like::{Stagable, TreeLikeMut};
+use lockbook_shared::file::like::FileLike;
+use lockbook_shared::file::metadata::FileMetadata;
+use lockbook_shared::tree::like::{Stagable, TreeLikeMut};
 use lockbook_shared::SharedResult;
 use test_utils::*;
 use uuid::Uuid;

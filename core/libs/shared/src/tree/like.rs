@@ -1,4 +1,4 @@
-use crate::file_like::FileLike;
+use crate::file::like::FileLike;
 use crate::{SharedError, SharedResult};
 use std::collections::HashSet;
 use std::fmt::Debug;

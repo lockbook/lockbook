@@ -23,16 +23,16 @@ pub use lockbook_shared::api::{
 pub use lockbook_shared::core_config::Config;
 pub use lockbook_shared::crypto::DecryptedDocument;
 pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
+pub use lockbook_shared::file::like::FileLike;
+pub use lockbook_shared::file::metadata::{FileType, Owner};
+pub use lockbook_shared::file::name::NameComponents;
+pub use lockbook_shared::file::server::ServerFile;
 pub use lockbook_shared::file::File;
 pub use lockbook_shared::file::ShareMode;
-pub use lockbook_shared::file_like::FileLike;
-pub use lockbook_shared::file_metadata::{FileType, Owner};
-pub use lockbook_shared::filename::NameComponents;
-pub use lockbook_shared::lazy;
-pub use lockbook_shared::lazy::LazyTree;
 pub use lockbook_shared::path_ops::Filter;
-pub use lockbook_shared::server_file::ServerFile;
-pub use lockbook_shared::tree_like::TreeLikeMut;
+pub use lockbook_shared::tree::lazy;
+pub use lockbook_shared::tree::lazy::LazyTree;
+pub use lockbook_shared::tree::like::TreeLikeMut;
 pub use lockbook_shared::usage::bytes_to_human;
 pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 

@@ -2,10 +2,10 @@ use hmdb::transaction::Transaction;
 use lockbook_core::model::errors::TestRepoError::*;
 use lockbook_core::OneKey;
 use lockbook_core::Warning::*;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileType::Document;
-use lockbook_shared::secret_filename::SecretFileName;
-use lockbook_shared::tree_like::{Stagable, TreeLikeMut};
+use lockbook_shared::file::like::FileLike;
+use lockbook_shared::file::metadata::FileType::Document;
+use lockbook_shared::secret_name::SecretFileName;
+use lockbook_shared::tree::like::{Stagable, TreeLikeMut};
 use rand::Rng;
 use test_utils::*;
 

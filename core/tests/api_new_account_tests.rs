@@ -1,7 +1,7 @@
 use lockbook_core::service::api_service::{ApiError, Network, Requester};
 use lockbook_shared::account::Account;
 use lockbook_shared::api::*;
-use lockbook_shared::file_metadata::FileMetadata;
+use lockbook_shared::file::metadata::FileMetadata;
 use lockbook_shared::pubkey;
 use test_utils::*;
 

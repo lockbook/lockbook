@@ -12,8 +12,8 @@ use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_service::StripeWebhookError;
 use crate::billing::stripe_client::SimplifiedStripeError;
 use crate::billing::stripe_model::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
+use crate::file::serverError::ClientError;
 use crate::schema::v2::{transaction, Server};
-use crate::ServerError::ClientError;
 pub use stripe;
 
 static CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -52,7 +52,7 @@ macro_rules! internal {
     ($($arg:tt)*) => {{
         let msg = format!($($arg)*);
         tracing::error!("{}", msg);
-        $crate::ServerError::InternalError(msg)
+        $crate::file::serverError::InternalError(msg)
     }};
 }
 

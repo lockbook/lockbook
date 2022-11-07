@@ -1,7 +1,7 @@
 use lockbook_shared::document_repo;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileType;
-use lockbook_shared::file_metadata::FileType::Folder;
+use lockbook_shared::file::like::FileLike;
+use lockbook_shared::file::metadata::FileType;
+use lockbook_shared::file::metadata::FileType::Folder;
 use test_utils::*;
 
 #[test]

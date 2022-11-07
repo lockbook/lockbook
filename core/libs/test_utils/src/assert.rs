@@ -2,10 +2,10 @@ use crate::{get_dirty_ids, slices_equal_ignore_order, test_core_from};
 use hmdb::transaction::Transaction;
 use lockbook_core::Core;
 use lockbook_core::OneKey;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileType;
+use lockbook_shared::file::like::FileLike;
+use lockbook_shared::file::metadata::FileType;
 use lockbook_shared::path_ops::Filter::DocumentsOnly;
-use lockbook_shared::tree_like::{Stagable, TreeLikeMut};
+use lockbook_shared::tree::like::{Stagable, TreeLikeMut};
 use uuid::Uuid;
 
 #[macro_export]

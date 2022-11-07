@@ -6,7 +6,7 @@ use google_androidpublisher3::hyper::body::Bytes;
 use google_androidpublisher3::hyper::header::HeaderValue;
 use libsecp256k1::PublicKey;
 use lockbook_shared::api::{PaymentMethod, StripeAccountTier, UpgradeAccountStripeError};
-use lockbook_shared::file_metadata::Owner;
+use lockbook_shared::file::metadata::Owner;
 use std::ops::Deref;
 use std::sync::Arc;
 use stripe::{Invoice, WebhookEvent};

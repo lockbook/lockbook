@@ -1,7 +1,7 @@
 use crossbeam::channel::{Receiver, Sender};
 use lockbook_core::service::search_service::{SearchRequest, SearchResult, SearchResultItem};
+use lockbook_shared::file::metadata::FileType;
 use lockbook_shared::file::ShareMode;
-use lockbook_shared::file_metadata::FileType;
 use std::collections::HashSet;
 use test_utils::*;
 

@@ -1,10 +1,10 @@
 use hmdb::transaction::{Transaction, TransactionTable};
 use lockbook_core::repo::schema_v2::helper_log::{base_metadata, local_metadata};
 use lockbook_shared::account::Account;
+use lockbook_shared::file::metadata::{FileType, Owner};
+use lockbook_shared::file::signed::SignedFile;
 use lockbook_shared::file::File;
-use lockbook_shared::file_metadata::{FileType, Owner};
-use lockbook_shared::signed_file::SignedFile;
-use lockbook_shared::tree_like::Stagable;
+use lockbook_shared::tree::like::Stagable;
 use lockbook_shared::{SharedError, SharedResult, ValidationFailure};
 use test_utils::*;
 use uuid::Uuid;

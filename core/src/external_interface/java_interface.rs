@@ -17,7 +17,7 @@ use crate::{
 };
 use lockbook_shared::clock;
 use lockbook_shared::drawing::Drawing;
-use lockbook_shared::file_metadata::FileType;
+use lockbook_shared::file::metadata::FileType;
 use lockbook_shared::work_unit::ClientWorkUnit;
 
 use crate::external_interface::json_interface::translate;

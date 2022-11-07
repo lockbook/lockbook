@@ -1,12 +1,12 @@
 use crate::access_info::UserAccessMode;
 use crate::account::Account;
 use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
-use crate::file_like::FileLike;
-use crate::file_metadata::{FileType, Owner};
-use crate::staged::{Stagable, StagedTree};
-use crate::tree_like::{TreeLike, TreeLikeMut};
-use crate::{compression_service, symkey, SharedError, SharedResult};
-use serde::{Deserialize, Serialize};
+use crate::file::like::FileLike;
+use crate::file::metadata::{FileType, Owner};
+use crate::tree::like::{TreeLike, TreeLikeMut};
+use crate::tree::stagable::Stagable;
+use crate::tree::staged::StagedTree;
+use crate::{compression_service, symkey, SharedError, SharedResult, ValidationFailure};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
@@ -391,20 +391,6 @@ pub type Staged4<'s2, 's3, 's4, 's5, S1, S2, S3, S4, S5> =
     StagedTree<'s5, Staged3<'s2, 's3, 's4, S1, S2, S3, S4>, S5>;
 pub type LazyStaged4<'s2, 's3, 's4, 's5, S1, S2, S3, S4, S5> =
     LazyTree<Staged4<'s2, 's3, 's4, 's5, S1, S2, S3, S4, S5>>;
-
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Eq)]
-pub enum ValidationFailure {
-    Orphan(Uuid),
-    Cycle(HashSet<Uuid>),
-    PathConflict(HashSet<Uuid>),
-    NonFolderWithChildren(Uuid),
-    FileWithDifferentOwnerParent(Uuid),
-    NonDecryptableFileName(Uuid),
-    SharedLink { link: Uuid, shared_ancestor: Uuid },
-    DuplicateLink { target: Uuid },
-    BrokenLink(Uuid),
-    OwnedLink(Uuid),
-}
 
 impl<'s, Base, Staged> LazyStaged1<'s, Base, Staged>
 where

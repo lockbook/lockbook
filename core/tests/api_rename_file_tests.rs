@@ -1,7 +1,7 @@
 use lockbook_core::service::api_service::Requester;
 use lockbook_shared::api::*;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileDiff;
+use lockbook_shared::file::like::FileLike;
+use lockbook_shared::file::metadata::FileDiff;
 use test_utils::*;
 
 #[test]

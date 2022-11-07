@@ -1,8 +1,8 @@
 use crate::account_service::DeleteAccountHelperError;
 use crate::billing::billing_service::LockBillingWorkflowError;
 use crate::billing::google_play_client::SimpleGCPError;
+use crate::file::serverError::InternalError;
 use crate::metrics::MetricsError;
-use crate::ServerError::InternalError;
 use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };

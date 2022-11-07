@@ -1,6 +1,6 @@
 use lockbook_core::model::errors::CreateFileAtPathError::*;
 use lockbook_core::Error::UiError;
-use lockbook_shared::file_metadata::FileType;
+use lockbook_shared::file::metadata::FileType;
 use lockbook_shared::path_ops::Filter::{DocumentsOnly, FoldersOnly, LeafNodesOnly};
 use test_utils::*;
 

@@ -1,8 +1,8 @@
-use crate::file_like::FileLike;
-use crate::file_metadata::Owner;
-use crate::server_file::ServerFile;
-use crate::staged::Stagable;
-use crate::tree_like::{TreeLike, TreeLikeMut};
+use crate::file::like::FileLike;
+use crate::file::metadata::Owner;
+use crate::file::server::ServerFile;
+use crate::tree::like::{TreeLike, TreeLikeMut};
+use crate::tree::stagable::Stagable;
 use crate::SharedResult;
 use hmdb::log::SchemaEvent;
 use hmdb::transaction::TransactionTable;

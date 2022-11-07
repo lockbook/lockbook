@@ -10,9 +10,9 @@ use crate::access_info::{EncryptedFolderAccessKey, UserAccessInfo, UserAccessMod
 use crate::account::Account;
 use crate::clock::get_time;
 use crate::crypto::AESKey;
-use crate::file_like::FileLike;
-use crate::secret_filename::SecretFileName;
-use crate::signed_file::SignedFile;
+use crate::file::like::FileLike;
+use crate::file::secret_name::SecretFileName;
+use crate::file::signed::SignedFile;
 use crate::{pubkey, symkey, SharedResult};
 
 pub type DocumentHmac = [u8; 32];

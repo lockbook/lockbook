@@ -5,8 +5,8 @@ use crate::billing::billing_service::LockBillingWorkflowError::{
 };
 use crate::billing::google_play_model::NotificationType;
 use crate::billing::{google_play_client, google_play_service, stripe_client, stripe_service};
+use crate::file::serverError::ClientError;
 use crate::schema::Account;
-use crate::ServerError::ClientError;
 use crate::{
     account_service, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE,
     PREMIUM_TIER_USAGE_SIZE,
@@ -22,7 +22,7 @@ use lockbook_shared::api::{
     UpgradeAccountStripeRequest, UpgradeAccountStripeResponse,
 };
 use lockbook_shared::clock::get_time;
-use lockbook_shared::file_metadata::Owner;
+use lockbook_shared::file::metadata::Owner;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;

@@ -5,7 +5,7 @@ use serde::Serialize;
 use serde_json::json;
 use uuid::Uuid;
 
-use lockbook_shared::file_metadata::FileType;
+use lockbook_shared::file::metadata::FileType;
 use lockbook_shared::path_ops::{filter_from_str, Filter};
 
 use crate::external_interface::json_interface::translate;

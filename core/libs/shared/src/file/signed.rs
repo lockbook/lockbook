@@ -1,6 +1,6 @@
 use crate::crypto::ECSigned;
-use crate::file_like::FileLike;
-use crate::file_metadata::FileMetadata;
+use crate::file::like::FileLike;
+use crate::file::metadata::FileMetadata;
 use std::fmt::{Display, Formatter};
 
 pub type SignedFile = ECSigned<FileMetadata>;

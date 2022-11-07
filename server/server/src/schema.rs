@@ -1,6 +1,6 @@
 use crate::billing::billing_model::SubscriptionProfile;
-use lockbook_shared::file_metadata::Owner;
-use lockbook_shared::server_file::ServerFile;
+use lockbook_shared::file::metadata::Owner;
+use lockbook_shared::file::server::ServerFile;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use uuid::Uuid;
@@ -28,9 +28,9 @@ hmdb::schema! {
 
 pub mod v2 {
     use super::Account;
-    use lockbook_shared::file_like::FileLike;
-    use lockbook_shared::file_metadata::Owner;
-    use lockbook_shared::server_file::ServerFile;
+    use lockbook_shared::file::like::FileLike;
+    use lockbook_shared::file::metadata::Owner;
+    use lockbook_shared::file::server::ServerFile;
     use std::collections::HashSet;
     use tracing::info;
     use uuid::Uuid;

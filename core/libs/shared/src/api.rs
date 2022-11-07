@@ -9,9 +9,9 @@ use uuid::Uuid;
 use crate::account::Account;
 use crate::account::Username;
 use crate::crypto::*;
-use crate::file_metadata::{DocumentHmac, FileDiff, FileMetadata, Owner};
-use crate::server_file::ServerFile;
-use crate::signed_file::SignedFile;
+use crate::file::metadata::{DocumentHmac, FileDiff, FileMetadata, Owner};
+use crate::file::server::ServerFile;
+use crate::file::signed::SignedFile;
 use crate::ValidationFailure;
 
 pub trait Request: Serialize + 'static {

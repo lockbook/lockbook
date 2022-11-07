@@ -1,5 +1,5 @@
 use lockbook_core::service::import_export_service::{ImportExportFileInfo, ImportStatus};
-use lockbook_shared::file_metadata::FileType;
+use lockbook_shared::file::metadata::FileType;
 use rand::Rng;
 
 use std::path::PathBuf;

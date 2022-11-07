@@ -11,10 +11,10 @@ use uuid::Uuid;
 
 use crate::billing::billing_model::BillingPlatform;
 use crate::transaction::Server as TransactionalServer;
-use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::Owner;
-use lockbook_shared::server_tree::ServerTree;
-use lockbook_shared::tree_like::{Stagable, TreeLikeMut};
+use lockbook_shared::file::like::FileLike;
+use lockbook_shared::file::metadata::Owner;
+use lockbook_shared::file::server::ServerTree;
+use lockbook_shared::tree::like::{Stagable, TreeLikeMut};
 
 make_static_metric! {
     pub struct MetricsStatistics: IntGauge {

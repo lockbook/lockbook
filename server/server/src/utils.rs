@@ -1,4 +1,4 @@
-use crate::ServerError;
+use crate::file::serverError;
 use lockbook_shared::api::{GetBuildInfoError, GetBuildInfoResponse};
 use shadow_rs::shadow;
 
