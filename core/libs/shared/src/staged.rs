@@ -1,7 +1,28 @@
 use crate::file_like::FileLike;
-use crate::tree_like::{Stagable, TreeLike};
+use crate::lazy::{LazyTree, LazyTreeRef};
+use crate::tree_like::{TreeLike, TreeLikeMut};
 use std::collections::HashSet;
 use uuid::Uuid;
+
+pub trait Stagable: TreeLikeMut {
+    fn stage<Staged>(self, staged: &mut Staged) -> StagedTree<Self, Staged>
+    where
+        Staged: Stagable<F = Self::F>,
+        Self: Sized,
+    {
+        StagedTree::new(self, staged)
+    }
+
+    fn to_lazy(self) -> LazyTree<Self> {
+        LazyTree::new(self)
+    }
+
+    fn as_lazy(&self) -> LazyTreeRef<Self> {
+        LazyTreeRef::new(self)
+    }
+}
+
+impl<T> Stagable for &mut T where T: Stagable {}
 
 pub trait StagedTreeLike: Sized {
     type F: FileLike;
@@ -119,7 +140,11 @@ impl<'s, Base: Stagable, Staged: Stagable<F = Base::F>> TreeLike for StagedTree<
             (None, None) => None,
         }
     }
+}
 
+impl<'s, Base: Stagable, Staged: Stagable<F = Base::F>> TreeLikeMut
+    for StagedTree<'s, Base, Staged>
+{
     fn insert(&mut self, f: Self::F) -> Option<Self::F> {
         if let Some(base) = self.base.maybe_find(f.id()) {
             if *base == f {
@@ -140,5 +165,7 @@ impl<'s, Base: Stagable, Staged: Stagable<F = Base::F>> TreeLike for StagedTree<
 }
 
 impl<'s, Base: Stagable, Staged: Stagable<F = Base::F>> Stagable for StagedTree<'s, Base, Staged> {}
+
+impl<F> Stagable for Option<F> where F: FileLike {}
 
 impl<F: FileLike> Stagable for Vec<F> {}

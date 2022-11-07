@@ -3,8 +3,8 @@ use crate::account::Account;
 use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileType, Owner};
-use crate::staged::StagedTree;
-use crate::tree_like::{Stagable, TreeLike};
+use crate::staged::{Stagable, StagedTree};
+use crate::tree_like::{TreeLike, TreeLikeMut};
 use crate::{compression_service, symkey, SharedError, SharedResult};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -459,7 +459,9 @@ impl<T: Stagable> TreeLike for LazyTree<T> {
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
         self.tree.maybe_find(id)
     }
+}
 
+impl<T: Stagable> TreeLikeMut for LazyTree<T> {
     fn insert(&mut self, f: Self::F) -> Option<Self::F> {
         self.tree.insert(f)
     }

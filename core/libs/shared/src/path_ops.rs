@@ -9,7 +9,8 @@ use crate::file_like::FileLike;
 use crate::file_metadata::{FileType, Owner};
 use crate::lazy::{LazyStaged1, LazyTreeLike};
 use crate::signed_file::SignedFile;
-use crate::tree_like::{Stagable, TreeLike};
+use crate::staged::Stagable;
+use crate::tree_like::TreeLike;
 use crate::{validate, SharedError, SharedResult};
 
 impl<Base, Local> LazyStaged1<'_, Base, Local>
