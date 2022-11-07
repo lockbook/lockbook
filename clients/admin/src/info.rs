@@ -3,6 +3,7 @@ use std::iter;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::Res;
+use lockbook_core::lazy::LazyTreeLike;
 use lockbook_core::{
     ChronoHumanDuration, Core, FileLike, LazyTree, ServerFile, TreeLike, TreeLikeMut, Uuid,
 };

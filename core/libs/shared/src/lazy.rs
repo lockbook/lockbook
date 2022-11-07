@@ -18,21 +18,20 @@ pub struct LazyCache {
     pub children: HashMap<Uuid, HashSet<Uuid>>,
 }
 
-#[derive(Debug)]
-pub struct LazyTree<T: TreeLikeMut> {
-    pub tree: T,
-    pub cache: LazyCache,
-}
+pub trait LazyTreeLike: TreeLike {
+    type T: TreeLike<F = Self::F>;
 
-impl<T: TreeLikeMut> LazyTree<T> {
-    pub fn new(tree: T) -> Self {
-        Self { tree, cache: Default::default() }
+    fn tree(&self) -> &Self::T;
+    fn tree_and_cache(&mut self) -> (&Self::T, &mut LazyCache);
+
+    fn cache(&mut self) -> &mut LazyCache {
+        let (_, cache) = self.tree_and_cache();
+        cache
     }
-}
 
-impl<T: TreeLikeMut> LazyTree<T> {
-    pub fn access_mode(&self, owner: Owner, id: &Uuid) -> SharedResult<Option<UserAccessMode>> {
-        let mut file = self.find(id)?;
+    fn access_mode(&self, owner: Owner, id: &Uuid) -> SharedResult<Option<UserAccessMode>> {
+        let tree = self.tree();
+        let mut file = tree.find(id)?;
         let mut max_access_mode = None;
         loop {
             let access_mode = file.access_mode(&owner);
@@ -41,7 +40,7 @@ impl<T: TreeLikeMut> LazyTree<T> {
             }
             if file.parent() == file.id() {
                 break; // root
-            } else if let Some(parent) = self.maybe_find(file.parent()) {
+            } else if let Some(parent) = tree.maybe_find(file.parent()) {
                 file = parent
             } else {
                 break; // share root
@@ -50,59 +49,64 @@ impl<T: TreeLikeMut> LazyTree<T> {
         Ok(max_access_mode)
     }
 
-    pub fn in_pending_share(&mut self, id: &Uuid) -> SharedResult<bool> {
+    fn in_pending_share(&mut self, id: &Uuid) -> SharedResult<bool> {
         let mut id = *id;
         loop {
-            if self.find(&id)?.parent() == self.find(&id)?.id() {
+            if self.tree().find(&id)?.parent() == self.tree().find(&id)?.id() {
                 return Ok(false); // root
             } else if let Some(link) = self.link(&id)? {
                 id = link;
-            } else if self.maybe_find(self.find(&id)?.parent()).is_some() {
-                id = *self.find(&id)?.parent();
+            } else if self
+                .tree()
+                .maybe_find(self.tree().find(&id)?.parent())
+                .is_some()
+            {
+                id = *self.tree().find(&id)?.parent();
             } else {
                 return Ok(true); // share root
             }
         }
     }
 
-    pub fn all_children(&mut self) -> SharedResult<&HashMap<Uuid, HashSet<Uuid>>> {
-        if self.cache.children.is_empty() {
+    fn all_children(&mut self) -> SharedResult<&HashMap<Uuid, HashSet<Uuid>>> {
+        let (tree, cache) = self.tree_and_cache();
+        if cache.children.is_empty() {
             let mut all_children: HashMap<Uuid, HashSet<Uuid>> = HashMap::new();
-            for file in self.all_files()? {
+            for file in tree.all_files()? {
                 if !file.is_root() {
                     let mut children = all_children.remove(file.parent()).unwrap_or_default();
                     children.insert(*file.id());
                     all_children.insert(*file.parent(), children);
                 }
             }
-            self.cache.children = all_children;
+            cache.children = all_children;
         }
 
-        Ok(&self.cache.children)
+        Ok(&cache.children)
     }
 
-    pub fn calculate_deleted(&mut self, id: &Uuid) -> SharedResult<bool> {
+    fn calculate_deleted(&mut self, id: &Uuid) -> SharedResult<bool> {
+        let (tree, cache) = self.tree_and_cache();
         let (visited_ids, deleted) = {
-            let mut file = self.find(id)?;
+            let mut file = tree.find(id)?;
             let mut visited_ids = vec![];
             let mut deleted = false;
 
             while !file.is_root()
-                && self.maybe_find(file.parent()).is_some()
+                && tree.maybe_find(file.parent()).is_some()
                 && !visited_ids.contains(file.parent())
             {
                 visited_ids.push(*file.id());
-                if let Some(&implicit) = self.cache.implicit_deleted.get(file.id()) {
+                if let Some(&implicit) = cache.implicit_deleted.get(file.id()) {
                     deleted = implicit;
                     break;
                 }
-
                 if file.explicitly_deleted() {
                     deleted = true;
                     break;
                 }
 
-                file = match self.maybe_find_parent(file) {
+                file = match tree.maybe_find_parent(file) {
                     Some(file) => file,
                     None => {
                         if !file.user_access_keys().is_empty() {
@@ -113,29 +117,29 @@ impl<T: TreeLikeMut> LazyTree<T> {
                     }
                 }
             }
-
             (visited_ids, deleted)
         };
 
         for id in visited_ids {
-            self.cache.implicit_deleted.insert(id, deleted);
+            cache.implicit_deleted.insert(id, deleted);
         }
 
         Ok(deleted)
     }
 
-    pub fn decrypt_key(&mut self, id: &Uuid, account: &Account) -> SharedResult<AESKey> {
-        let mut file_id = *self.find(id)?.id();
+    fn decrypt_key(&mut self, id: &Uuid, account: &Account) -> SharedResult<AESKey> {
+        let (tree, cache) = self.tree_and_cache();
+        let mut file_id = *tree.find(id)?.id();
         let mut visited_ids = vec![];
 
         loop {
-            if self.cache.key.get(&file_id).is_some() {
+            if cache.key.get(&file_id).is_some() {
                 break;
             }
 
             let my_pk = account.public_key();
 
-            let maybe_file_key = if let Some(user_access) = self
+            let maybe_file_key = if let Some(user_access) = tree
                 .find(&file_id)?
                 .user_access_keys()
                 .iter()
@@ -146,50 +150,46 @@ impl<T: TreeLikeMut> LazyTree<T> {
                 None
             };
             if let Some(file_key) = maybe_file_key {
-                self.cache.key.insert(file_id, file_key);
+                cache.key.insert(file_id, file_key);
                 break;
             }
 
             visited_ids.push(file_id);
-            file_id = *self.find_parent(self.find(&file_id)?)?.id();
+            file_id = *tree.find_parent(tree.find(&file_id)?)?.id();
         }
 
         for id in visited_ids.iter().rev() {
             let decrypted_key = {
-                let file = self.find(id)?;
-                let parent = self.find_parent(file)?;
-                let parent_key = self
-                    .cache
-                    .key
-                    .get(parent.id())
-                    .ok_or(SharedError::Unexpected(
-                        "parent key should have been populated by prior routine",
-                    ))?;
+                let file = tree.find(id)?;
+                let parent = tree.find_parent(file)?;
+                let parent_key = cache.key.get(parent.id()).ok_or(SharedError::Unexpected(
+                    "parent key should have been populated by prior routine",
+                ))?;
                 let encrypted_key = file.folder_access_key();
                 symkey::decrypt(parent_key, encrypted_key)?
             };
-            self.cache.key.insert(*id, decrypted_key);
+            cache.key.insert(*id, decrypted_key);
         }
 
-        Ok(*self.cache.key.get(id).ok_or(SharedError::Unexpected(
+        Ok(*cache.key.get(id).ok_or(SharedError::Unexpected(
             "parent key should have been populated by prior routine (2)",
         ))?)
     }
 
-    pub fn name(&mut self, id: &Uuid, account: &Account) -> SharedResult<String> {
-        if let Some(name) = self.cache.name.get(id) {
+    fn name(&mut self, id: &Uuid, account: &Account) -> SharedResult<String> {
+        if let Some(name) = self.cache().name.get(id) {
             return Ok(name.clone());
         }
         let id = if let Some(link) = self.link(id)? { link } else { *id };
         let key = self.decrypt_key(&id, account)?;
-        let name = self.find(&id)?.secret_name().to_string(&key)?;
-        self.cache.name.insert(id, name.clone());
+        let name = self.tree().find(&id)?.secret_name().to_string(&key)?;
+        self.cache().name.insert(id, name.clone());
         Ok(name)
     }
 
-    pub fn link(&mut self, id: &Uuid) -> SharedResult<Option<Uuid>> {
-        for link_id in self.owned_ids() {
-            if let FileType::Link { target } = self.find(&link_id)?.file_type() {
+    fn link(&mut self, id: &Uuid) -> SharedResult<Option<Uuid>> {
+        for link_id in self.tree().owned_ids() {
+            if let FileType::Link { target } = self.tree().find(&link_id)?.file_type() {
                 if id == &target && !self.calculate_deleted(&link_id)? {
                     return Ok(Some(link_id));
                 }
@@ -200,23 +200,24 @@ impl<T: TreeLikeMut> LazyTree<T> {
 
     /// Returns ids of files whose parent is the argument. Does not include the argument.
     /// TODO could consider returning a reference to the underlying cached value
-    pub fn children(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+    fn children(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+        let (tree, cache) = self.tree_and_cache();
+
         // Check cache
-        if let Some(children) = self.cache.children.get(id) {
+        if let Some(children) = cache.children.get(id) {
             return Ok(children.clone());
         }
 
         // Confirm file exists
-        let file = self.find(id)?;
+        let file = tree.find(id)?;
         if !file.is_folder() {
             return Ok(HashSet::default());
         }
-
         // Populate cache
         self.all_children()?;
 
         // Return value from cache
-        if let Some(children) = self.cache.children.get(id) {
+        if let Some(children) = self.cache().children.get(id) {
             return Ok(children.clone());
         }
 
@@ -224,8 +225,9 @@ impl<T: TreeLikeMut> LazyTree<T> {
     }
 
     // todo: cache?
-    pub fn children_using_links(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
-        let id = match self.find(id)?.file_type() {
+    fn children_using_links(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+        let tree = self.tree();
+        let id = match tree.find(id)?.file_type() {
             FileType::Document | FileType::Folder => *id,
             FileType::Link { target } => target,
         };
@@ -234,7 +236,7 @@ impl<T: TreeLikeMut> LazyTree<T> {
 
     /// Returns ids of files for which the argument is an ancestor—the files' children, recursively. Does not include the argument.
     /// This function tolerates cycles.
-    pub fn descendants(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+    fn descendants(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
         // todo: caching?
         let mut result = HashSet::new();
         let mut to_process = vec![*id];
@@ -253,7 +255,7 @@ impl<T: TreeLikeMut> LazyTree<T> {
         Ok(result)
     }
 
-    pub fn descendants_using_links(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+    fn descendants_using_links(&mut self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
         // todo: caching?
         let mut result = HashSet::new();
         let mut to_process = vec![*id];
@@ -271,29 +273,54 @@ impl<T: TreeLikeMut> LazyTree<T> {
         }
         Ok(result)
     }
-
     // todo: move to TreeLike
     /// Returns ids of files for which the argument is a descendent—the files' parent, recursively. Does not include the argument.
     /// This function tolerates cycles.
-    pub fn ancestors(&self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+    fn ancestors(&self, id: &Uuid) -> SharedResult<HashSet<Uuid>> {
+        let tree = self.tree();
         let mut result = HashSet::new();
-        let mut current_file = self.find(id)?;
+        let mut current_file = tree.find(id)?;
         while !current_file.is_root()
-            && self.maybe_find(current_file.parent()).is_some()
+            && tree.maybe_find(current_file.parent()).is_some()
             && !result.contains(current_file.parent())
         {
             result.insert(*current_file.parent());
-            current_file = self.find_parent(current_file)?;
+            current_file = tree.find_parent(current_file)?;
         }
         Ok(result)
     }
 
-    pub fn decrypt_document(
+    fn decrypt_document(
         &mut self, id: &Uuid, encrypted: &EncryptedDocument, account: &Account,
     ) -> SharedResult<DecryptedDocument> {
         let key = self.decrypt_key(id, account)?;
         let compressed = symkey::decrypt(&key, encrypted)?;
         compression_service::decompress(&compressed)
+    }
+
+    // todo: optimize
+    fn assert_names_decryptable(&mut self, account: &Account) -> SharedResult<()> {
+        let tree = self.tree();
+        for id in tree.owned_ids() {
+            if self.name(&id, account).is_err() {
+                return Err(SharedError::ValidationFailure(
+                    ValidationFailure::NonDecryptableFileName(id),
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct LazyTree<T: TreeLikeMut> {
+    pub tree: T,
+    pub cache: LazyCache,
+}
+
+impl<T: TreeLikeMut> LazyTree<T> {
+    pub fn new(tree: T) -> Self {
+        Self { tree, cache: Default::default() }
     }
 
     pub fn stage_lazy<T2: TreeLikeMut<F = T::F>>(self, staged: T2) -> LazyTree<StagedTree<T, T2>> {
@@ -308,17 +335,17 @@ impl<T: TreeLikeMut> LazyTree<T> {
             tree: StagedTree::new(self.tree, staged),
         }
     }
+}
 
-    // todo: optimize
-    pub fn assert_names_decryptable(&mut self, account: &Account) -> SharedResult<()> {
-        for id in self.owned_ids() {
-            if self.name(&id, account).is_err() {
-                return Err(SharedError::ValidationFailure(
-                    ValidationFailure::NonDecryptableFileName(id),
-                ));
-            }
-        }
-        Ok(())
+impl<T: TreeLikeMut> LazyTreeLike for LazyTree<T> {
+    type T = T;
+
+    fn tree(&self) -> &Self::T {
+        &self.tree
+    }
+
+    fn tree_and_cache(&mut self) -> (&Self::T, &mut LazyCache) {
+        (&self.tree, &mut self.cache)
     }
 }
 

@@ -4,6 +4,7 @@ use lockbook_core::Core;
 use lockbook_core::OneKey;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType;
+use lockbook_shared::lazy::LazyTreeLike;
 use lockbook_shared::path_ops::Filter::DocumentsOnly;
 use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
 use uuid::Uuid;

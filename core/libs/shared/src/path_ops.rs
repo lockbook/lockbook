@@ -7,7 +7,7 @@ use crate::access_info::UserAccessMode;
 use crate::account::Account;
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileType, Owner};
-use crate::lazy::LazyStaged1;
+use crate::lazy::{LazyStaged1, LazyTreeLike};
 use crate::signed_file::SignedFile;
 use crate::tree_like::{TreeLike, TreeLikeMut};
 use crate::{validate, SharedError, SharedResult};

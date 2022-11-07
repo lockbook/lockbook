@@ -4,6 +4,7 @@ use lockbook_core::OneKey;
 use lockbook_core::Warning::*;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType::Document;
+use lockbook_shared::lazy::LazyTreeLike;
 use lockbook_shared::secret_filename::SecretFileName;
 use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
 use rand::Rng;
