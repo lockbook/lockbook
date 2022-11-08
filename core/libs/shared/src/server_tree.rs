@@ -1,7 +1,7 @@
 use crate::file_like::FileLike;
 use crate::file_metadata::Owner;
 use crate::server_file::ServerFile;
-use crate::tree_like::{Stagable, TreeLike};
+use crate::tree_like::{Stagable, TreeLike, TreeLikeMut};
 use crate::SharedResult;
 use hmdb::log::SchemaEvent;
 use hmdb::transaction::TransactionTable;
@@ -61,13 +61,13 @@ where
     }
 }
 
-impl<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files> TreeLike
-    for ServerTree<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files>
+impl<OwnedFiles, SharedFiles, FileChildren, Files> TreeLike
+    for ServerTree<'_, '_, OwnedFiles, SharedFiles, FileChildren, Files>
 where
-    OwnedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
-    SharedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
     FileChildren: SchemaEvent<Uuid, HashSet<Uuid>>,
     Files: SchemaEvent<Uuid, ServerFile>,
+    OwnedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
+    SharedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
 {
     type F = ServerFile;
 
@@ -82,7 +82,16 @@ where
             None
         }
     }
+}
 
+impl<OwnedFiles, SharedFiles, FileChildren, Files> TreeLikeMut
+    for ServerTree<'_, '_, OwnedFiles, SharedFiles, FileChildren, Files>
+where
+    OwnedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
+    SharedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
+    FileChildren: SchemaEvent<Uuid, HashSet<Uuid>>,
+    Files: SchemaEvent<Uuid, ServerFile>,
+{
     fn insert(&mut self, f: Self::F) -> Option<Self::F> {
         let id = *f.id();
         let owner = f.owner();

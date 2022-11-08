@@ -1,7 +1,7 @@
 use crate::crypto::ECSigned;
 use crate::file_like::FileLike;
 use crate::file_metadata::FileMetadata;
-use crate::tree_like::{Stagable, TreeLike};
+use crate::tree_like::{Stagable, TreeLike, TreeLikeMut};
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
@@ -47,7 +47,12 @@ where
             None
         }
     }
+}
 
+impl<F> TreeLikeMut for Option<F>
+where
+    F: FileLike,
+{
     fn insert(&mut self, f: F) -> Option<F> {
         self.replace(f)
     }

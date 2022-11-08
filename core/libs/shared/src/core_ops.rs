@@ -19,7 +19,7 @@ use crate::lazy::{LazyStage2, LazyStaged1, LazyTree, Stage1};
 use crate::secret_filename::{HmacSha256, SecretFileName};
 use crate::signed_file::SignedFile;
 use crate::staged::StagedTree;
-use crate::tree_like::{Stagable, TreeLike};
+use crate::tree_like::{Stagable, TreeLike, TreeLikeMut};
 use crate::{compression_service, document_repo, symkey, validate, SharedError, SharedResult};
 
 pub type TreeWithOp<Base, Local> = LazyTree<StagedTree<Stage1<Base, Local>, Option<SignedFile>>>;
