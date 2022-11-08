@@ -3,7 +3,7 @@ use crate::account::Account;
 use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileType, Owner};
-use crate::staged::{StagedTree, StagedTreeRef};
+use crate::staged::StagedTree;
 use crate::tree_like::{TreeLike, TreeLikeMut};
 use crate::{compression_service, symkey, SharedError, SharedResult};
 use serde::{Deserialize, Serialize};
