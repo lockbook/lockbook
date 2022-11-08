@@ -1,5 +1,5 @@
 use crate::file_like::FileLike;
-use crate::tree_like::{Stagable, TreeLike};
+use crate::tree_like::{Stagable, TreeLike, TreeLikeMut};
 use std::collections::HashSet;
 use uuid::Uuid;
 
@@ -51,7 +51,9 @@ impl<Base: Stagable, Staged: Stagable<F = Base::F>> TreeLike for StagedTree<Base
             (None, None) => None,
         }
     }
+}
 
+impl<Base: Stagable, Staged: Stagable<F = Base::F>> TreeLikeMut for StagedTree<Base, Staged> {
     fn insert(&mut self, f: Self::F) -> Option<Self::F> {
         if let Some(base) = self.base.maybe_find(f.id()) {
             if *base == f {
