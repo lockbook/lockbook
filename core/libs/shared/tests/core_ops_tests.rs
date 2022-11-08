@@ -13,9 +13,9 @@ fn test_create() {
         .sign(account)
         .unwrap();
     let files = vec![root.clone()].to_lazy();
-    let files = files.stage_lazy(vec![]);
-    let (mut files, id) = files
-        .create(root.id(), "test-doc", FileType::Document, account, &account.public_key())
+    let mut files = files.stage_lazy(vec![]);
+    let id = files
+        .create(root.id(), "test-doc", FileType::Document, account)
         .unwrap();
 
     assert_eq!(files.name(&id, account).unwrap(), "test-doc");
@@ -29,12 +29,12 @@ fn test_rename() {
         .sign(account)
         .unwrap();
     let files = vec![root.clone()].to_lazy();
-    let files = files.stage_lazy(vec![]);
-    let (files, id) = files
-        .create(root.id(), "test-doc", FileType::Document, account, &account.public_key())
+    let mut files = files.stage_lazy(vec![]);
+    let id = files
+        .create(root.id(), "test-doc", FileType::Document, account)
         .unwrap();
 
-    let mut files = files.rename(&id, "new-name", account).unwrap();
+    files.rename(&id, "new-name", account).unwrap();
 
     assert_eq!(files.name(&id, account).unwrap(), "new-name");
 }
@@ -49,12 +49,12 @@ fn test_children_and_move() {
 
     // Create a tree with a doc and a dir
     let tree = vec![root.clone()].to_lazy();
-    let tree = tree.stage_lazy(vec![]);
-    let (tree, doc) = tree
-        .create(root.id(), "test-doc", FileType::Document, account, &account.public_key())
+    let mut tree = tree.stage_lazy(vec![]);
+    let doc = tree
+        .create(root.id(), "test-doc", FileType::Document, account)
         .unwrap();
-    let (mut tree, dir) = tree
-        .create(root.id(), "dir", FileType::Folder, account, &account.public_key())
+    let dir = tree
+        .create(root.id(), "dir", FileType::Folder, account)
         .unwrap();
 
     // Root should have 2 children and dir should have 0 child right now
@@ -63,7 +63,7 @@ fn test_children_and_move() {
     let children = tree.children(root.id()).unwrap();
     assert_eq!(children.len(), 2);
 
-    let mut tree = tree.move_file(&doc, &dir, account).unwrap();
+    tree.move_file(&doc, &dir, account).unwrap();
 
     // Dir should have 1 child after the move
     let children = tree.children(&dir).unwrap();
