@@ -1,5 +1,5 @@
 use crate::file_like::FileLike;
-use crate::lazy::LazyTree;
+use crate::lazy::{LazyTree, LazyTreeRef};
 use crate::staged::StagedTree;
 use crate::{SharedError, SharedResult};
 use std::collections::HashSet;
@@ -38,6 +38,10 @@ pub trait TreeLike: Sized {
         }
 
         Ok(all)
+    }
+
+    fn as_lazy(&self) -> LazyTreeRef<Self> {
+        LazyTreeRef::new(self)
     }
 }
 

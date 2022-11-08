@@ -66,8 +66,8 @@ where
 
 impl<'b, 's, Base, Staged> StagedTreeRef<'b, 's, Base, Staged>
 where
-    Base: TreeLikeMut,
-    Staged: TreeLikeMut<F = Base::F>,
+    Base: TreeLike,
+    Staged: TreeLike<F = Base::F>,
 {
     pub fn new(base: &'b Base, staged: &'s Staged) -> Self {
         Self { base, staged }
