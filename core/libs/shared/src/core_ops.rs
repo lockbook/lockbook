@@ -117,7 +117,8 @@ where
         Ok(files)
     }
 
-    fn create_op(
+    // pub for testing (tree_composition_tests)
+    pub fn create_op(
         &mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
     ) -> SharedResult<(Option<SignedFile>, Uuid)> {
         validate::file_name(name)?;

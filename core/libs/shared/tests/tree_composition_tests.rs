@@ -20,11 +20,11 @@ fn test_stage_promote() {
         .unwrap()
         .sign(account)
         .unwrap();
-    let files = vec![root.clone()].to_lazy().stage_lazy(vec![]);
-    let files = files
-        .stage_create(root.id(), "test", FileType::Folder, account)
-        .unwrap()
-        .0;
+    let mut files = vec![root.clone()].to_lazy().stage_lazy(vec![]);
+    let (op, _) = files
+        .create_op(root.id(), "test", FileType::Folder, account)
+        .unwrap();
+    let files = files.tree.stage(op).to_lazy();
 
     assert_eq!(files.tree.base.base.len(), 1);
     assert_eq!(files.tree.base.staged.len(), 0);
@@ -42,11 +42,11 @@ fn test_stage_unstage() {
         .unwrap()
         .sign(account)
         .unwrap();
-    let files = vec![root.clone()].to_lazy().stage_lazy(vec![]);
-    let files = files
-        .stage_create(root.id(), "test", FileType::Folder, account)
-        .unwrap()
-        .0;
+    let mut files = vec![root.clone()].to_lazy().stage_lazy(vec![]);
+    let (op, _) = files
+        .create_op(root.id(), "test", FileType::Folder, account)
+        .unwrap();
+    let files = files.tree.stage(op).to_lazy();
 
     assert_eq!(files.tree.base.base.len(), 1);
     assert_eq!(files.tree.base.staged.len(), 0);
