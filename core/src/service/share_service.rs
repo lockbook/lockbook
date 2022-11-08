@@ -8,6 +8,7 @@ use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::lazy::LazyTreeLike;
 use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
 use lockbook_shared::validate;
+use lockbook_shared::validate::LazyTreeLikeValidate;
 use uuid::Uuid;
 
 impl<Client: Requester> RequestContext<'_, '_, Client> {
@@ -113,7 +114,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn delete_share(
         &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>,
     ) -> CoreResult<()> {
-        let tree = self
+        let mut tree = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)

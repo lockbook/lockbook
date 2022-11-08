@@ -72,8 +72,7 @@ where
             let this_file_type =
                 if index != path_components.len() - 1 { FileType::Folder } else { file_type };
 
-            (self, current) =
-                self.create(&current, path_components[index], this_file_type, account, pub_key)?;
+            current = self.create(&current, path_components[index], this_file_type, account)?;
         }
 
         Ok((self, current))

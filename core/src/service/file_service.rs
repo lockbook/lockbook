@@ -11,8 +11,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn create_file(
         &mut self, name: &str, parent: &Uuid, file_type: FileType,
     ) -> CoreResult<File> {
-        let pub_key = self.get_public_key()?;
-        let tree = self
+        let mut tree = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)
@@ -23,7 +22,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let (mut tree, id) = tree.create(parent, name, file_type, account, &pub_key)?;
+        let id = tree.create(parent, name, file_type, account)?;
 
         let ui_file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
 
@@ -33,7 +32,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn rename_file(&mut self, id: &Uuid, new_name: &str) -> CoreResult<()> {
-        let tree = self
+        let mut tree = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)
@@ -50,7 +49,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn move_file(&mut self, id: &Uuid, new_parent: &Uuid) -> CoreResult<()> {
-        let tree = self
+        let mut tree = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)
@@ -62,11 +61,12 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .ok_or(CoreError::AccountNonexistent)?;
 
         tree.move_file(id, new_parent, account)?;
+
         Ok(())
     }
 
     pub fn delete(&mut self, id: &Uuid) -> CoreResult<()> {
-        let tree = self
+        let mut tree = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)

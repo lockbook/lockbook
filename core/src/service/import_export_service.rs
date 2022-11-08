@@ -135,9 +135,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 }
                 .map_err(CoreError::from)?;
 
-                let doc_read = tree.read_document(config, this_file.id(), account)?;
-                tree = doc_read.0;
-                let doc = doc_read.1;
+                let doc = tree.read_document(config, this_file.id(), account)?;
 
                 file.write_all(doc.as_slice()).map_err(CoreError::from)?;
             }
@@ -163,7 +161,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     fn import_file_recursively<F: Fn(ImportStatus)>(
         &mut self, disk_path: &Path, dest: &Uuid, update_status: &F,
     ) -> CoreResult<()> {
-        let public_key = self.get_public_key()?;
         let mut tree = self
             .tx
             .base_metadata
@@ -205,14 +202,13 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 disk_file_name,
             )?;
 
-            let (tmp_tree, id) = tree.create(&dest, &file_name, ftype, account, &public_key)?;
-            tree = tmp_tree;
+            let id = tree.create(&dest, &file_name, ftype, account)?;
             let file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
 
             tree = if ftype == FileType::Document {
                 let doc = fs::read(&disk_path).map_err(CoreError::from)?;
 
-                let (tree, encrypted_document) = tree.update_document(&id, &doc, account)?;
+                let encrypted_document = tree.update_document(&id, &doc, account)?;
                 let hmac = tree.find(&id)?.document_hmac();
                 document_repo::insert(self.config, &id, hmac, &encrypted_document)?;
 

@@ -3,8 +3,9 @@ use crate::account::Account;
 use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileType, Owner};
-use crate::staged::StagedTree;
+use crate::staged::{StagedTree, StagedTreeRef};
 use crate::tree_like::{TreeLike, TreeLikeMut};
+use crate::validate::LazyTreeLikeValidate;
 use crate::{compression_service, symkey, SharedError, SharedResult};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -359,6 +360,25 @@ impl<T: TreeLikeMut> LazyTree<T> {
             },
             tree: StagedTree::new(self.tree, staged),
         }
+    }
+
+    pub fn stage_and_promote<S: TreeLikeMut<F = T::F>>(&mut self, mut staged: S) {
+        for id in staged.owned_ids() {
+            if let Some(removed) = staged.remove(id) {
+                self.insert(removed);
+            }
+        }
+        self.cache = Default::default(); // todo: incremental cache update
+    }
+
+    pub fn stage_validate_and_promote<S: TreeLikeMut<F = T::F>>(
+        &mut self, staged: S, owner: Owner,
+    ) -> SharedResult<()> {
+        StagedTreeRef::new(&self.tree, &staged)
+            .as_lazy()
+            .validate(owner)?;
+        self.stage_and_promote(staged);
+        Ok(())
     }
 }
 

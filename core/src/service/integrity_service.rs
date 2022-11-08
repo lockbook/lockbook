@@ -4,6 +4,7 @@ use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::lazy::LazyTreeLike;
 use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
+use lockbook_shared::validate::LazyTreeLikeValidate;
 
 use crate::model::drawing;
 use crate::model::errors::{TestRepoError, Warning};
@@ -50,9 +51,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             let cont = file.document_hmac().is_some();
             let not_deleted = !tree.calculate_deleted(&id)?;
             if not_deleted && doc && cont {
-                let read_doc = tree.read_document(self.config, &id, account)?;
-                tree = read_doc.0;
-                let doc = read_doc.1;
+                let doc = tree.read_document(self.config, &id, account)?;
 
                 if doc.len() as u64 == 0 {
                     warnings.push(Warning::EmptyFile(id));
