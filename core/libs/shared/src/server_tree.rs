@@ -1,7 +1,7 @@
 use crate::file_like::FileLike;
 use crate::file_metadata::Owner;
 use crate::server_file::ServerFile;
-use crate::tree_like::{Stagable, TreeLike, TreeLikeMut};
+use crate::tree_like::{TreeLike, TreeLikeMut};
 use crate::SharedResult;
 use hmdb::log::SchemaEvent;
 use hmdb::transaction::TransactionTable;
@@ -176,14 +176,4 @@ where
         error!("remove metadata called in server!");
         None
     }
-}
-
-impl<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files> Stagable
-    for ServerTree<'a, 'b, OwnedFiles, SharedFiles, FileChildren, Files>
-where
-    OwnedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
-    SharedFiles: SchemaEvent<Owner, HashSet<Uuid>>,
-    FileChildren: SchemaEvent<Uuid, HashSet<Uuid>>,
-    Files: SchemaEvent<Uuid, ServerFile>,
-{
 }

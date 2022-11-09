@@ -1,7 +1,7 @@
 use crate::crypto::ECSigned;
 use crate::file_like::FileLike;
 use crate::file_metadata::FileMetadata;
-use crate::tree_like::{Stagable, TreeLike, TreeLikeMut};
+use crate::tree_like::{TreeLike, TreeLikeMut};
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
@@ -69,5 +69,3 @@ where
         }
     }
 }
-
-impl<F> Stagable for Option<F> where F: FileLike {}
