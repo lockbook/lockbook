@@ -5,7 +5,6 @@ use lockbook_shared::file::File;
 use lockbook_shared::file_metadata::{FileType, Owner};
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::tree_like::TreeLikeMut;
-use lockbook_shared::validate::LazyTreeLikeValidate;
 use lockbook_shared::{SharedError, SharedResult, ValidationFailure};
 use test_utils::*;
 use uuid::Uuid;

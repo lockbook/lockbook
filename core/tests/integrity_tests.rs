@@ -65,7 +65,7 @@ fn test_invalid_file_name_slash() {
             let new_name = SecretFileName::from_str("te/st", &key, &parent).unwrap();
             let mut doc = tree.find(&doc.id).unwrap().clone();
             doc.timestamped_value.value.name = new_name;
-            tree.insert(doc);
+            tree.stage_and_promote(Some(doc));
         })
         .unwrap();
 
@@ -88,7 +88,7 @@ fn empty_filename() {
             let new_name = SecretFileName::from_str("", &key, &parent).unwrap();
             let mut doc = tree.find(&doc.id).unwrap().clone();
             doc.timestamped_value.value.name = new_name;
-            tree.insert(doc);
+            tree.stage_and_promote(Some(doc));
         })
         .unwrap();
 
@@ -135,7 +135,7 @@ fn test_name_conflict() {
             let new_name = SecretFileName::from_str("document2.md", &key, &parent).unwrap();
             let mut doc = tree.find(&doc.id).unwrap().clone();
             doc.timestamped_value.value.name = new_name;
-            tree.insert(doc);
+            tree.stage_and_promote(Some(doc));
         })
         .unwrap();
     assert_matches!(core.validate(), Err(PathConflict(_)));

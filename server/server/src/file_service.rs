@@ -11,7 +11,6 @@ use lockbook_shared::lazy::LazyTreeLike;
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
-use lockbook_shared::validate::LazyTreeLikeValidate;
 use lockbook_shared::{SharedError, SharedResult};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;

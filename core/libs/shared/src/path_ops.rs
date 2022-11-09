@@ -14,7 +14,7 @@ use crate::{validate, SharedError, SharedResult};
 
 impl<Base, Local> LazyStaged1<Base, Local>
 where
-    Base: TreeLikeMut<F = SignedFile>,
+    Base: TreeLike<F = SignedFile>,
     Local: TreeLikeMut<F = Base::F>,
 {
     pub fn create_link_at_path(

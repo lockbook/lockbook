@@ -5,7 +5,6 @@ use crate::file_like::FileLike;
 use crate::file_metadata::{FileType, Owner};
 use crate::staged::{StagedTree, StagedTreeRef};
 use crate::tree_like::{TreeLike, TreeLikeMut};
-use crate::validate::LazyTreeLikeValidate;
 use crate::{compression_service, symkey, SharedError, SharedResult};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -315,40 +314,18 @@ pub trait LazyTreeLike: TreeLike {
 }
 
 #[derive(Debug)]
-pub struct LazyTreeRef<'t, T: TreeLike> {
-    pub tree: &'t T,
-    pub cache: LazyCache,
-}
-
-impl<'l, T: TreeLike> LazyTreeRef<'l, T> {
-    pub fn new(tree: &'l T) -> Self {
-        Self { tree, cache: Default::default() }
-    }
-}
-
-impl<T: TreeLike> LazyTreeLike for LazyTreeRef<'_, T> {
-    type T = T;
-
-    fn tree(&self) -> &Self::T {
-        self.tree
-    }
-
-    fn tree_and_cache(&mut self) -> (&Self::T, &mut LazyCache) {
-        (self.tree, &mut self.cache)
-    }
-}
-
-#[derive(Debug)]
-pub struct LazyTree<T: TreeLikeMut> {
+pub struct LazyTree<T: TreeLike> {
     pub tree: T,
     pub cache: LazyCache,
 }
 
-impl<T: TreeLikeMut> LazyTree<T> {
+impl<T: TreeLike> LazyTree<T> {
     pub fn new(tree: T) -> Self {
         Self { tree, cache: Default::default() }
     }
+}
 
+impl<T: TreeLikeMut> LazyTree<T> {
     pub fn stage_lazy<T2: TreeLikeMut<F = T::F>>(self, staged: T2) -> LazyTree<StagedTree<T, T2>> {
         // todo: optimize by performing minimal updates on self caches
         LazyTree::<StagedTree<T, T2>> {
@@ -362,10 +339,23 @@ impl<T: TreeLikeMut> LazyTree<T> {
         }
     }
 
+    pub fn stage_removals(self, removed: HashSet<Uuid>) -> LazyTree<StagedTree<T, Option<T::F>>> {
+        // todo: optimize by performing minimal updates on self caches
+        LazyTree::<StagedTree<T, Option<T::F>>> {
+            cache: LazyCache {
+                name: HashMap::new(),
+                key: self.cache.key,
+                implicit_deleted: HashMap::new(),
+                children: HashMap::new(),
+            },
+            tree: StagedTree { base: self.tree, staged: None, removed },
+        }
+    }
+
     pub fn stage_and_promote<S: TreeLikeMut<F = T::F>>(&mut self, mut staged: S) {
         for id in staged.owned_ids() {
             if let Some(removed) = staged.remove(id) {
-                self.insert(removed);
+                self.tree.insert(removed);
             }
         }
         self.cache = Default::default(); // todo: incremental cache update
@@ -374,15 +364,22 @@ impl<T: TreeLikeMut> LazyTree<T> {
     pub fn stage_validate_and_promote<S: TreeLikeMut<F = T::F>>(
         &mut self, staged: S, owner: Owner,
     ) -> SharedResult<()> {
-        StagedTreeRef::new(&self.tree, &staged)
+        (&StagedTreeRef::new(&self.tree, &staged))
             .as_lazy()
             .validate(owner)?;
         self.stage_and_promote(staged);
         Ok(())
     }
+
+    pub fn stage_removals_and_promote(&mut self, removed: HashSet<Uuid>) {
+        for id in removed {
+            self.tree.remove(id);
+        }
+        self.cache = Default::default(); // todo: incremental cache update
+    }
 }
 
-impl<T: TreeLikeMut> LazyTreeLike for LazyTree<T> {
+impl<T: TreeLike> LazyTreeLike for LazyTree<T> {
     type T = T;
 
     fn tree(&self) -> &Self::T {
@@ -427,6 +424,9 @@ where
                 base.insert(removed);
             }
         }
+        for id in self.tree.removed {
+            base.remove(id);
+        }
 
         LazyTree {
             tree: base,
@@ -438,7 +438,13 @@ where
             },
         }
     }
+}
 
+impl<Base, Staged> LazyStaged1<Base, Staged>
+where
+    Base: TreeLike,
+    Staged: TreeLikeMut<F = Base::F>,
+{
     // todo: incrementalism
     pub fn unstage(self) -> (LazyTree<Base>, Staged) {
         (
@@ -456,7 +462,7 @@ where
     }
 }
 
-impl<'t, T: TreeLike> TreeLike for LazyTreeRef<'t, T> {
+impl<T: TreeLike> TreeLike for LazyTree<T> {
     type F = T::F;
 
     fn ids(&self) -> HashSet<&Uuid> {
@@ -465,27 +471,5 @@ impl<'t, T: TreeLike> TreeLike for LazyTreeRef<'t, T> {
 
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
         self.tree.maybe_find(id)
-    }
-}
-
-impl<T: TreeLikeMut> TreeLike for LazyTree<T> {
-    type F = T::F;
-
-    fn ids(&self) -> HashSet<&Uuid> {
-        self.tree.ids()
-    }
-
-    fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
-        self.tree.maybe_find(id)
-    }
-}
-
-impl<T: TreeLikeMut> TreeLikeMut for LazyTree<T> {
-    fn insert(&mut self, f: Self::F) -> Option<Self::F> {
-        self.tree.insert(f)
-    }
-
-    fn remove(&mut self, id: Uuid) -> Option<Self::F> {
-        self.tree.remove(id)
     }
 }

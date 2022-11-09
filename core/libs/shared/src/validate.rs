@@ -1,7 +1,7 @@
 use crate::access_info::UserAccessMode;
 use crate::file_like::FileLike;
 use crate::file_metadata::{Diff, FileDiff, FileType, Owner};
-use crate::lazy::LazyTreeLike;
+use crate::lazy::{LazyTree, LazyTreeLike};
 use crate::staged::StagedTreeLike;
 use crate::tree_like::TreeLike;
 use crate::{SharedError, SharedResult, ValidationFailure};
@@ -49,36 +49,11 @@ pub fn path(path: &str) -> SharedResult<()> {
     Ok(())
 }
 
-pub trait LazyTreeLikeValidate: Sized {
-    type F: FileLike;
-
-    fn validate(self, owner: Owner) -> SharedResult<Self>;
-    fn assert_all_files_decryptable(&mut self, owner: Owner) -> SharedResult<()>;
-    fn assert_only_folders_have_children(&self) -> SharedResult<()>;
-    fn assert_all_files_same_owner_as_parent(&self) -> SharedResult<()>;
-    fn assert_no_cycles(&mut self) -> SharedResult<()>;
-    fn assert_no_path_conflicts(&mut self) -> SharedResult<()>;
-    fn assert_no_shared_links(&self) -> SharedResult<()>;
-    fn assert_no_duplicate_links(&mut self) -> SharedResult<()>;
-    fn assert_no_broken_links(&self) -> SharedResult<()>;
-    fn assert_no_owned_links(&self) -> SharedResult<()>;
-    fn assert_no_root_changes(&mut self) -> SharedResult<()>;
-    fn assert_no_changes_to_deleted_files(self) -> SharedResult<Self>;
-    fn assert_changes_authorized(&mut self, owner: Owner) -> SharedResult<()>;
-    fn diffs(&self) -> SharedResult<Vec<FileDiff<Self::F>>>;
-}
-
-impl<F, Base, Staged, S, L> LazyTreeLikeValidate for L
+impl<S> LazyTree<S>
 where
-    F: FileLike,
-    Base: TreeLike<F = F>,
-    Staged: TreeLike<F = F>,
-    S: StagedTreeLike<F = F, Base = Base, Staged = Staged>,
-    L: LazyTreeLike<T = S> + TreeLike<F = F>,
+    S: StagedTreeLike,
 {
-    type F = F;
-
-    fn validate(mut self, owner: Owner) -> SharedResult<Self> {
+    pub fn validate(mut self, owner: Owner) -> SharedResult<Self> {
         // point checks
         self.assert_no_root_changes()?;
         self = self.assert_no_changes_to_deleted_files()?;
@@ -101,7 +76,7 @@ where
     }
 
     // note: deleted access keys permissible
-    fn assert_all_files_decryptable(&mut self, owner: Owner) -> SharedResult<()> {
+    pub fn assert_all_files_decryptable(&mut self, owner: Owner) -> SharedResult<()> {
         for file in self.ids().into_iter().filter_map(|id| self.maybe_find(id)) {
             if self.maybe_find_parent(file).is_none()
                 && !file
@@ -115,7 +90,7 @@ where
         Ok(())
     }
 
-    fn assert_only_folders_have_children(&self) -> SharedResult<()> {
+    pub fn assert_only_folders_have_children(&self) -> SharedResult<()> {
         for file in self.all_files()? {
             if let Some(parent) = self.maybe_find(file.parent()) {
                 if !parent.is_folder() {
@@ -128,7 +103,7 @@ where
         Ok(())
     }
 
-    fn assert_all_files_same_owner_as_parent(&self) -> SharedResult<()> {
+    pub fn assert_all_files_same_owner_as_parent(&self) -> SharedResult<()> {
         for file in self.all_files()? {
             if let Some(parent) = self.maybe_find(file.parent()) {
                 if parent.owner() != file.owner() {
@@ -142,7 +117,7 @@ where
     }
 
     // assumption: no orphans
-    fn assert_no_cycles(&mut self) -> SharedResult<()> {
+    pub fn assert_no_cycles(&mut self) -> SharedResult<()> {
         let mut owners_with_found_roots = HashSet::new();
         let mut no_cycles_in_ancestors = HashSet::new();
         for id in self.owned_ids() {
@@ -183,7 +158,7 @@ where
     }
 
     // todo: optimize
-    fn assert_no_path_conflicts(&mut self) -> SharedResult<()> {
+    pub fn assert_no_path_conflicts(&mut self) -> SharedResult<()> {
         let mut id_by_name = HashMap::new();
         for id in self.owned_ids() {
             if !self.calculate_deleted(&id)? {
@@ -202,7 +177,7 @@ where
         Ok(())
     }
 
-    fn assert_no_shared_links(&self) -> SharedResult<()> {
+    pub fn assert_no_shared_links(&self) -> SharedResult<()> {
         for link in self.owned_ids() {
             if let FileType::Link { target: _ } = self.find(&link)?.file_type() {
                 for ancestor in self.ancestors(&link)? {
@@ -217,7 +192,7 @@ where
         Ok(())
     }
 
-    fn assert_no_duplicate_links(&mut self) -> SharedResult<()> {
+    pub fn assert_no_duplicate_links(&mut self) -> SharedResult<()> {
         let mut linked_targets = HashSet::new();
         for link in self.owned_ids() {
             if self.calculate_deleted(&link)? {
@@ -236,7 +211,7 @@ where
 
     // note: a link to a deleted file is not considered broken, because then you would not be able
     // to delete a file linked to by another user.
-    fn assert_no_broken_links(&self) -> SharedResult<()> {
+    pub fn assert_no_broken_links(&self) -> SharedResult<()> {
         for link in self.owned_ids() {
             if let FileType::Link { target } = self.find(&link)?.file_type() {
                 if self.maybe_find(&target).is_none() {
@@ -249,7 +224,7 @@ where
         Ok(())
     }
 
-    fn assert_no_owned_links(&self) -> SharedResult<()> {
+    pub fn assert_no_owned_links(&self) -> SharedResult<()> {
         for link in self.owned_ids() {
             if let FileType::Link { target } = self.find(&link)?.file_type() {
                 if self.find(&link)?.owner() == self.find(&target)?.owner() {
@@ -260,10 +235,10 @@ where
         Ok(())
     }
 
-    fn assert_no_root_changes(&mut self) -> SharedResult<()> {
-        for id in self.tree().staged().owned_ids() {
+    pub fn assert_no_root_changes(&mut self) -> SharedResult<()> {
+        for id in self.tree.staged().owned_ids() {
             // already root
-            if let Some(base) = self.tree().base().maybe_find(&id) {
+            if let Some(base) = self.tree.base().maybe_find(&id) {
                 if base.is_root() {
                     return Err(SharedError::RootModificationInvalid);
                 }
@@ -278,17 +253,17 @@ where
         Ok(())
     }
 
-    fn assert_no_changes_to_deleted_files(mut self) -> SharedResult<Self> {
-        for id in self.tree().staged().owned_ids() {
+    pub fn assert_no_changes_to_deleted_files(mut self) -> SharedResult<Self> {
+        for id in self.tree.staged().owned_ids() {
             // already deleted files cannot have updates
-            let mut base = self.tree().base().as_lazy();
+            let mut base = self.tree.base().as_lazy();
             if base.maybe_find(&id).is_some() && base.calculate_deleted(&id)? {
                 return Err(SharedError::DeletedFileUpdated);
             }
             // newly deleted files cannot have non-deletion updates
             if self.calculate_deleted(&id)? {
-                if let Some(base) = self.tree().base().maybe_find(&id) {
-                    if FileDiff::edit(&base, &self.find(&id)?)
+                if let Some(base) = self.tree.base().maybe_find(&id) {
+                    if FileDiff::edit(&base, &self.tree.find(&id)?)
                         .diff()
                         .iter()
                         .any(|d| d != &Diff::Deleted)
@@ -301,7 +276,7 @@ where
         Ok(self)
     }
 
-    fn assert_changes_authorized(&mut self, owner: Owner) -> SharedResult<()> {
+    pub fn assert_changes_authorized(&mut self, owner: Owner) -> SharedResult<()> {
         // Design rationale:
         // * No combination of individually valid changes should compose into an invalid change.
         //   * Owner and write access must be indistinguishable, otherwise you could e.g. move a
@@ -322,8 +297,8 @@ where
         //     check on the first ancestor with an existing parent folder is sufficient.
         let new_files = {
             let mut new_files = HashSet::new();
-            for id in self.tree().staged().owned_ids() {
-                if self.tree().base().maybe_find(&id).is_none() {
+            for id in self.tree.staged().owned_ids() {
+                if self.tree.base().maybe_find(&id).is_none() {
                     new_files.insert(id);
                 }
             }
@@ -463,12 +438,11 @@ where
         Ok(())
     }
 
-    // todo: figure out how to use associated type instead of new parameter
-    fn diffs(&self) -> SharedResult<Vec<FileDiff<Self::F>>> {
+    fn diffs(&self) -> SharedResult<Vec<FileDiff<<S::Base as TreeLike>::F>>> {
         let mut result = Vec::new();
-        for id in self.tree().staged().owned_ids() {
-            let staged = self.tree().staged().find(&id)?;
-            if let Some(base) = self.tree().base().maybe_find(&id) {
+        for id in self.tree.staged().owned_ids() {
+            let staged = self.tree.staged().find(&id)?;
+            if let Some(base) = self.tree.base().maybe_find(&id) {
                 result.push(FileDiff::edit(base, staged));
             } else {
                 result.push(FileDiff::new(staged));

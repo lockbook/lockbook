@@ -33,7 +33,6 @@ where
     Base: TreeLikeMut<F = Self::F>,
     Staged: TreeLikeMut<F = Self::F>,
 {
-    fn base_mut(&mut self) -> &mut Self::Base;
     fn staged_mut(&mut self) -> &mut Self::Staged;
 
     fn prune(&mut self) {
@@ -110,16 +109,17 @@ where
 #[derive(Debug)]
 pub struct StagedTree<Base, Staged>
 where
-    Base: TreeLikeMut,
+    Base: TreeLike,
     Staged: TreeLikeMut<F = Base::F>,
 {
     pub base: Base,
     pub staged: Staged,
+    pub removed: HashSet<Uuid>,
 }
 
 impl<Base, Staged> StagedTree<Base, Staged>
 where
-    Base: TreeLikeMut,
+    Base: TreeLike,
     Staged: TreeLikeMut<F = Base::F>,
 {
     pub fn new(base: Base, mut staged: Staged) -> Self {
@@ -137,13 +137,22 @@ where
         for id in prunable {
             staged.remove(id);
         }
-        Self { base, staged }
+        Self { base, staged, removed: HashSet::new() }
+    }
+}
+
+impl<Base> StagedTree<Base, Option<Base::F>>
+where
+    Base: TreeLike,
+{
+    pub fn removal(base: Base, removed: HashSet<Uuid>) -> Self {
+        Self { base, staged: None, removed }
     }
 }
 
 impl<Base, Staged> TreeLike for StagedTree<Base, Staged>
 where
-    Base: TreeLikeMut,
+    Base: TreeLike,
     Staged: TreeLikeMut<F = Base::F>,
 {
     type F = Base::F;
@@ -153,13 +162,17 @@ where
     }
 
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
-        StagedTreeLike::maybe_find(self, id)
+        if self.removed.contains(id) {
+            None
+        } else {
+            StagedTreeLike::maybe_find(self, id)
+        }
     }
 }
 
 impl<Base, Staged> TreeLikeMut for StagedTree<Base, Staged>
 where
-    Base: TreeLikeMut,
+    Base: TreeLike,
     Staged: TreeLikeMut<F = Base::F>,
 {
     fn insert(&mut self, f: Self::F) -> Option<Self::F> {
@@ -173,17 +186,18 @@ where
     }
 
     fn remove(&mut self, id: Uuid) -> Option<Self::F> {
-        match (self.base.remove(id), self.staged.remove(id)) {
-            (_, Some(staged)) => Some(staged),
-            (Some(base), None) => Some(base),
-            (None, None) => None,
+        self.removed.insert(id);
+        if let Some(staged) = self.staged.remove(id) {
+            Some(staged)
+        } else {
+            self.base.maybe_find(&id).cloned()
         }
     }
 }
 
 impl<Base, Staged> StagedTreeLike for StagedTree<Base, Staged>
 where
-    Base: TreeLikeMut,
+    Base: TreeLike,
     Staged: TreeLikeMut<F = Base::F>,
 {
     type Base = Base;
@@ -203,11 +217,23 @@ where
     Base: TreeLikeMut,
     Staged: TreeLikeMut<F = Base::F>,
 {
-    fn base_mut(&mut self) -> &mut Self::Base {
-        &mut self.base
-    }
-
     fn staged_mut(&mut self) -> &mut Self::Staged {
         &mut self.staged
+    }
+}
+
+impl<S> StagedTreeLike for &S
+where
+    S: StagedTreeLike,
+{
+    type Base = S::Base;
+    type Staged = S::Staged;
+
+    fn base(&self) -> &Self::Base {
+        S::base(self)
+    }
+
+    fn staged(&self) -> &Self::Staged {
+        S::staged(self)
     }
 }

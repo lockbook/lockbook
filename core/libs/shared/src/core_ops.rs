@@ -18,7 +18,7 @@ use crate::filename::{DocumentType, NameComponents};
 use crate::lazy::{LazyStage2, LazyStaged1, LazyTree, LazyTreeLike, Stage1};
 use crate::secret_filename::{HmacSha256, SecretFileName};
 use crate::signed_file::SignedFile;
-use crate::staged::StagedTree;
+use crate::staged::{StagedTree, StagedTreeRef};
 use crate::tree_like::{TreeLike, TreeLikeMut};
 use crate::{compression_service, document_repo, symkey, validate, SharedError, SharedResult};
 
@@ -27,7 +27,7 @@ pub type TreeWithOps<Base, Local> = LazyTree<StagedTree<Stage1<Base, Local>, Vec
 
 impl<Base, Local> LazyStaged1<Base, Local>
 where
-    Base: TreeLikeMut<F = SignedFile>,
+    Base: TreeLike<F = SignedFile>,
     Local: TreeLikeMut<F = Base::F>,
 {
     pub fn finalize<PublicKeyCache: SchemaEvent<Owner, String>>(
@@ -439,12 +439,9 @@ where
                     let mut file = result.find(id)?.timestamped_value.value.clone();
 
                     let (key, parent_key) = {
-                        let mut local = result.tree.base.to_lazy();
-                        let mut base = local.tree.base.to_lazy();
+                        let mut base = result.tree.base.base.as_lazy();
                         let key = base.decrypt_key(id, account)?;
                         let parent_key = base.decrypt_key(&parent_id, account)?;
-                        local.tree.base = base.tree;
-                        result.tree.base = local.tree;
                         (key, parent_key)
                     };
                     file.parent = parent_id;
@@ -530,14 +527,11 @@ where
         Ok(result)
     }
 
-    pub fn resolve_shared_links(
-        mut self, account: &Account,
-    ) -> SharedResult<TreeWithOps<Base, Local>> {
+    pub fn resolve_shared_links(self, account: &Account) -> SharedResult<TreeWithOps<Base, Local>> {
         let mut base_shared_files = HashSet::new();
         let mut base_links = HashSet::new();
-        let (base, local_changes) = self.unstage();
-        for id in base.owned_ids() {
-            let file = base.find(&id)?;
+        for id in self.tree.base.owned_ids() {
+            let file = self.tree.base.find(&id)?;
             if file.is_shared() {
                 base_shared_files.insert(id);
             }
@@ -545,7 +539,6 @@ where
                 base_links.insert(id);
             }
         }
-        self = base.stage_lazy(local_changes);
 
         let mut result = self.stage_lazy(Vec::new());
         for id in result.tree.base.staged.owned_ids() {
@@ -615,89 +608,36 @@ where
 {
     /// Applies changes to local such that this is a valid tree.
     pub fn merge(
-        self, config: &Config, account: &Account, remote_document_changes: &HashSet<Uuid>,
+        mut self, config: &Config, account: &Account, remote_document_changes: &HashSet<Uuid>,
     ) -> SharedResult<Self>
     where
         Base: TreeLikeMut<F = SignedFile>,
         Remote: TreeLikeMut<F = SignedFile>,
         Local: TreeLikeMut<F = SignedFile>,
     {
-        let mut result = self.stage_lazy(Vec::new());
+        let merge_changes = {
+            // assemble required trees
+            let StagedTree {
+                base: StagedTree { ref base, staged: ref remote_changes, .. },
+                staged: ref local_changes,
+                ..
+            } = self.tree;
+            let local = StagedTreeRef::new(base, local_changes);
+            let remote = StagedTreeRef::new(base, remote_changes);
+            let remote_and_local = StagedTreeRef::new(&remote, local_changes);
+            let merge = StagedTree::new(remote_and_local, Vec::new());
+            let mut base = base.as_lazy();
+            let mut remote = remote.as_lazy();
+            let mut local = local.as_lazy();
+            let mut merge = merge.to_lazy();
 
-        // merge files on an individual basis
-        {
-            for id in result.tree.base.base.staged.owned_ids() {
-                if result.tree.base.staged.maybe_find(&id).is_some() {
-                    // 3-way merge
-                    if result.tree.base.base.base.maybe_find(&id).is_some() {
-                        let (
-                            base_file,
-                            remote_change,
-                            remote_deleted,
-                            local_change,
-                            parent,
-                            name,
-                            document_hmac,
-                            folder_access_key,
-                            user_access_keys,
-                        ) = {
-                            let (local, merge_changes) = result.unstage();
-                            let (remote, local_changes) = local.unstage();
-                            let (mut base, remote_changes) = remote.unstage();
-                            let base_file = base.find(&id)?.clone();
-                            let remote_change = remote_changes.find(&id)?.clone();
-                            let local_change = local_changes.find(&id)?.clone();
-                            let base_name = base.name(&id, account)?;
-                            let mut remote = base.stage_lazy(remote_changes);
-                            let remote_name = remote.name(&id, account)?;
-                            let remote_deleted = remote.calculate_deleted(&id)?;
-                            let mut local = remote.stage_lazy(local_changes);
-                            let local_name = local.name(&id, account)?;
-                            result = local.stage_lazy(merge_changes);
-                            let document_hmac = three_way_merge(
-                                &base_file.document_hmac(),
-                                &remote_change.document_hmac(),
-                                &local_change.document_hmac(),
-                                &None, // overwritten during document merge if local != remote
-                            )
-                            .cloned();
-                            let parent = *three_way_merge(
-                                base_file.parent(),
-                                remote_change.parent(),
-                                local_change.parent(),
-                                remote_change.parent(),
-                            );
-                            let key = result.decrypt_key(&id, account)?;
-                            let (name, folder_access_key) = {
-                                // we may not have the parent of a direct share
-                                // in that case changes are unauthorized anyway
-                                if result.maybe_find(&parent).is_some() {
-                                    let parent_key = result.decrypt_key(&parent, account)?;
-                                    let name = SecretFileName::from_str(
-                                        three_way_merge(
-                                            &base_name,
-                                            &remote_name,
-                                            &local_name,
-                                            &remote_name,
-                                        ),
-                                        &key,
-                                        &parent_key,
-                                    )?;
-                                    let folder_access_key = symkey::encrypt(&parent_key, &key)?;
-                                    (name, folder_access_key)
-                                } else {
-                                    (
-                                        remote_change.secret_name().clone(),
-                                        remote_change.folder_access_key().clone(),
-                                    )
-                                }
-                            };
-                            let user_access_keys = merge_user_access(
-                                Some(base_file.user_access_keys()),
-                                remote_change.user_access_keys(),
-                                local_change.user_access_keys(),
-                            );
-                            (
+            // merge files on an individual basis
+            {
+                for id in remote_changes.owned_ids() {
+                    if local_changes.maybe_find(&id).is_some() {
+                        // 3-way merge
+                        if base.maybe_find(&id).is_some() {
+                            let (
                                 base_file,
                                 remote_change,
                                 remote_deleted,
@@ -707,242 +647,297 @@ where
                                 document_hmac,
                                 folder_access_key,
                                 user_access_keys,
-                            )
-                        };
-
-                        if remote_deleted {
-                            // discard changes to remote-deleted files
-                            result.insert(remote_change);
-                        } else {
-                            result.insert(
-                                FileMetadata {
-                                    id,
-                                    file_type: base_file.file_type(),
+                            ) = {
+                                let base_file = base.find(&id)?.clone();
+                                let remote_change = remote_changes.find(&id)?.clone();
+                                let local_change = local_changes.find(&id)?.clone();
+                                let base_name = base.name(&id, account)?;
+                                let remote_name = remote.name(&id, account)?;
+                                let remote_deleted = remote.calculate_deleted(&id)?;
+                                let local_name = local.name(&id, account)?;
+                                let document_hmac = three_way_merge(
+                                    &base_file.document_hmac(),
+                                    &remote_change.document_hmac(),
+                                    &local_change.document_hmac(),
+                                    &None, // overwritten during document merge if local != remote
+                                )
+                                .cloned();
+                                let parent = *three_way_merge(
+                                    base_file.parent(),
+                                    remote_change.parent(),
+                                    local_change.parent(),
+                                    remote_change.parent(),
+                                );
+                                let key = merge.decrypt_key(&id, account)?;
+                                let (name, folder_access_key) = {
+                                    // we may not have the parent of a direct share
+                                    // in that case changes are unauthorized anyway
+                                    if merge.maybe_find(&parent).is_some() {
+                                        let parent_key = merge.decrypt_key(&parent, account)?;
+                                        let name = SecretFileName::from_str(
+                                            three_way_merge(
+                                                &base_name,
+                                                &remote_name,
+                                                &local_name,
+                                                &remote_name,
+                                            ),
+                                            &key,
+                                            &parent_key,
+                                        )?;
+                                        let folder_access_key = symkey::encrypt(&parent_key, &key)?;
+                                        (name, folder_access_key)
+                                    } else {
+                                        (
+                                            remote_change.secret_name().clone(),
+                                            remote_change.folder_access_key().clone(),
+                                        )
+                                    }
+                                };
+                                let user_access_keys = merge_user_access(
+                                    Some(base_file.user_access_keys()),
+                                    remote_change.user_access_keys(),
+                                    local_change.user_access_keys(),
+                                );
+                                (
+                                    base_file,
+                                    remote_change,
+                                    remote_deleted,
+                                    local_change,
                                     parent,
                                     name,
-                                    owner: base_file.owner(),
-                                    is_deleted: local_change.explicitly_deleted(),
                                     document_hmac,
-                                    user_access_keys,
                                     folder_access_key,
-                                }
-                                .sign(account)?,
-                            );
+                                    user_access_keys,
+                                )
+                            };
+
+                            if remote_deleted {
+                                // discard changes to remote-deleted files
+                                merge.stage_and_promote(Some(remote_change));
+                            } else {
+                                merge.stage_and_promote(Some(
+                                    FileMetadata {
+                                        id,
+                                        file_type: base_file.file_type(),
+                                        parent,
+                                        name,
+                                        owner: base_file.owner(),
+                                        is_deleted: local_change.explicitly_deleted(),
+                                        document_hmac,
+                                        user_access_keys,
+                                        folder_access_key,
+                                    }
+                                    .sign(account)?,
+                                ));
+                            }
                         }
-                    }
-                    // 2-way merge
-                    else {
-                        let (
-                            remote_change,
-                            remote_name,
-                            remote_deleted,
-                            local_change,
-                            user_access_keys,
-                        ) = {
-                            let (local, merge_changes) = result.unstage();
-                            let (remote, local_changes) = local.unstage();
-                            let (base, remote_changes) = remote.unstage();
-                            let remote_change = remote_changes.find(&id)?.clone();
-                            let local_change = local_changes.find(&id)?.clone();
-                            let mut remote = base.stage_lazy(remote_changes);
-                            let remote_name = remote.name(&id, account)?;
-                            let remote_deleted = remote.calculate_deleted(&id)?;
-                            let local = remote.stage_lazy(local_changes);
-                            result = local.stage_lazy(merge_changes);
-                            let user_access_keys = merge_user_access(
-                                None,
-                                remote_change.user_access_keys(),
-                                local_change.user_access_keys(),
-                            );
-                            (
+                        // 2-way merge
+                        else {
+                            let (
                                 remote_change,
                                 remote_name,
                                 remote_deleted,
                                 local_change,
                                 user_access_keys,
-                            )
-                        };
-
-                        let key = result.decrypt_key(&id, account)?;
-                        let name = {
-                            // we may not have the parent of a direct share
-                            // in that case changes are unauthorized anyway
-                            if result.maybe_find(remote_change.parent()).is_some() {
-                                let parent_key =
-                                    result.decrypt_key(remote_change.parent(), account)?;
-                                SecretFileName::from_str(&remote_name, &key, &parent_key)?
-                            } else {
-                                remote_change.secret_name().clone()
-                            }
-                        };
-
-                        if remote_deleted {
-                            // discard changes to remote-deleted files
-                            result.insert(remote_change);
-                        } else {
-                            result.insert(
-                                FileMetadata {
-                                    id,
-                                    file_type: remote_change.file_type(),
-                                    parent: *remote_change.parent(),
-                                    name,
-                                    owner: remote_change.owner(),
-                                    is_deleted: remote_deleted | local_change.explicitly_deleted(),
-                                    document_hmac: remote_change.document_hmac().cloned(), // overwritten during document merge if local != remote
+                            ) = {
+                                let remote_change = remote_changes.find(&id)?.clone();
+                                let local_change = local_changes.find(&id)?.clone();
+                                let remote_name = remote.name(&id, account)?;
+                                let remote_deleted = remote.calculate_deleted(&id)?;
+                                let user_access_keys = merge_user_access(
+                                    None,
+                                    remote_change.user_access_keys(),
+                                    local_change.user_access_keys(),
+                                );
+                                (
+                                    remote_change,
+                                    remote_name,
+                                    remote_deleted,
+                                    local_change,
                                     user_access_keys,
-                                    folder_access_key: remote_change.folder_access_key().clone(),
+                                )
+                            };
+
+                            let key = merge.decrypt_key(&id, account)?;
+                            let name = {
+                                // we may not have the parent of a direct share
+                                // in that case changes are unauthorized anyway
+                                if merge.maybe_find(remote_change.parent()).is_some() {
+                                    let parent_key =
+                                        merge.decrypt_key(remote_change.parent(), account)?;
+                                    SecretFileName::from_str(&remote_name, &key, &parent_key)?
+                                } else {
+                                    remote_change.secret_name().clone()
                                 }
-                                .sign(account)?,
-                            );
+                            };
+
+                            if remote_deleted {
+                                // discard changes to remote-deleted files
+                                merge.stage_and_promote(Some(remote_change));
+                            } else {
+                                merge.stage_and_promote(Some(
+                                    FileMetadata {
+                                        id,
+                                        file_type: remote_change.file_type(),
+                                        parent: *remote_change.parent(),
+                                        name,
+                                        owner: remote_change.owner(),
+                                        is_deleted: remote_deleted
+                                            | local_change.explicitly_deleted(),
+                                        document_hmac: remote_change.document_hmac().cloned(), // overwritten during document merge if local != remote
+                                        user_access_keys,
+                                        folder_access_key: remote_change
+                                            .folder_access_key()
+                                            .clone(),
+                                    }
+                                    .sign(account)?,
+                                ));
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // merge documents
-        {
-            for id in remote_document_changes {
-                let remote_document_change_hmac =
-                    result.tree.base.base.staged.find(id)?.document_hmac();
-                let remote_document_change =
-                    document_repo::get(config, id, remote_document_change_hmac)?;
-                if result.calculate_deleted(id)? {
-                    // cannot modify locally deleted documents; local changes to deleted documents are reset anyway
-                    continue;
-                }
-                // todo: use merged document type
-                let local_document_type =
-                    DocumentType::from_file_name_using_extension(&result.name(id, account)?);
-                let base_document_hmac = result
-                    .tree
-                    .base
-                    .base
-                    .base
-                    .maybe_find(id)
-                    .and_then(|f| f.document_hmac())
-                    .cloned();
-                let local_document_hmac = result
-                    .tree
-                    .base
-                    .staged
-                    .maybe_find(id)
-                    .and_then(|f| f.document_hmac())
-                    .cloned();
-                let maybe_local_document_change =
-                    if local_document_hmac.is_none() || base_document_hmac == local_document_hmac {
+            // merge documents
+            {
+                for id in remote_document_changes {
+                    let remote_document_change_hmac = remote_changes.find(id)?.document_hmac();
+                    let remote_document_change =
+                        document_repo::get(config, id, remote_document_change_hmac)?;
+                    if merge.calculate_deleted(id)? {
+                        // cannot modify locally deleted documents; local changes to deleted documents are reset anyway
+                        continue;
+                    }
+                    // todo: use merged document type
+                    let local_document_type =
+                        DocumentType::from_file_name_using_extension(&merge.name(id, account)?);
+                    let base_document_hmac =
+                        base.maybe_find(id).and_then(|f| f.document_hmac()).cloned();
+                    let local_document_hmac = local_changes
+                        .maybe_find(id)
+                        .and_then(|f| f.document_hmac())
+                        .cloned();
+                    let maybe_local_document_change = if local_document_hmac.is_none()
+                        || base_document_hmac == local_document_hmac
+                    {
                         None
                     } else {
                         Some(document_repo::get(config, id, local_document_hmac.as_ref())?)
                     };
-                match (maybe_local_document_change, local_document_type) {
-                    // no local changes -> no merge
-                    (None, _) => {}
-                    // text files always merged
-                    (Some(local_document_change), DocumentType::Text) => {
-                        let (
-                            decrypted_base_document,
-                            decrypted_remote_document,
-                            decrypted_local_document,
-                        ) = {
-                            let (local, merge_changes) = result.unstage();
-                            let (remote, local_changes) = local.unstage();
-                            let (mut base, remote_changes) = remote.unstage();
-                            let decrypted_base_document =
-                                document_repo::maybe_get(config, id, base_document_hmac.as_ref())?
-                                    .map(|document| base.decrypt_document(id, &document, account))
-                                    .map_or(Ok(None), |v| v.map(Some))?
-                                    .unwrap_or_default();
-                            let mut remote = base.stage_lazy(remote_changes);
-                            let decrypted_remote_document =
-                                remote.decrypt_document(id, &remote_document_change, account)?;
-                            let mut local = remote.stage_lazy(local_changes);
-                            let decrypted_local_document =
-                                local.decrypt_document(id, &local_document_change, account)?;
-                            result = local.stage_lazy(merge_changes);
-                            (
+                    match (maybe_local_document_change, local_document_type) {
+                        // no local changes -> no merge
+                        (None, _) => {}
+                        // text files always merged
+                        (Some(local_document_change), DocumentType::Text) => {
+                            let (
                                 decrypted_base_document,
                                 decrypted_remote_document,
                                 decrypted_local_document,
-                            )
-                        };
+                            ) = {
+                                let decrypted_base_document = document_repo::maybe_get(
+                                    config,
+                                    id,
+                                    base_document_hmac.as_ref(),
+                                )?
+                                .map(|document| base.decrypt_document(id, &document, account))
+                                .map_or(Ok(None), |v| v.map(Some))?
+                                .unwrap_or_default();
+                                let decrypted_remote_document = remote.decrypt_document(
+                                    id,
+                                    &remote_document_change,
+                                    account,
+                                )?;
+                                let decrypted_local_document =
+                                    local.decrypt_document(id, &local_document_change, account)?;
+                                (
+                                    decrypted_base_document,
+                                    decrypted_remote_document,
+                                    decrypted_local_document,
+                                )
+                            };
 
-                        let merged_document = match diffy::merge_bytes(
-                            &decrypted_base_document,
-                            &decrypted_remote_document,
-                            &decrypted_local_document,
-                        ) {
-                            Ok(without_conflicts) => without_conflicts,
-                            Err(with_conflicts) => with_conflicts,
-                        };
-                        let encrypted_document =
-                            result.update_document(id, &merged_document, account)?;
-                        let hmac = result.find(id)?.document_hmac();
-                        document_repo::insert(config, id, hmac, &encrypted_document)?;
-                    }
-                    // non-text files always duplicated
-                    (Some(local_document_change), DocumentType::Drawing | DocumentType::Other) => {
-                        let (decrypted_remote_document, decrypted_local_document) = {
-                            let (local, merge_changes) = result.unstage();
-                            let (mut remote, local_changes) = local.unstage();
-                            let decrypted_remote_document =
-                                remote.decrypt_document(id, &remote_document_change, account)?;
-                            let mut local = remote.stage_lazy(local_changes);
-                            let decrypted_local_document =
-                                local.decrypt_document(id, &local_document_change, account)?;
-                            result = local.stage_lazy(merge_changes);
-                            (decrypted_remote_document, decrypted_local_document)
-                        };
+                            let merged_document = match diffy::merge_bytes(
+                                &decrypted_base_document,
+                                &decrypted_remote_document,
+                                &decrypted_local_document,
+                            ) {
+                                Ok(without_conflicts) => without_conflicts,
+                                Err(with_conflicts) => with_conflicts,
+                            };
+                            let encrypted_document =
+                                merge.update_document(id, &merged_document, account)?;
+                            let hmac = merge.find(id)?.document_hmac();
+                            document_repo::insert(config, id, hmac, &encrypted_document)?;
+                        }
+                        // non-text files always duplicated
+                        (
+                            Some(local_document_change),
+                            DocumentType::Drawing | DocumentType::Other,
+                        ) => {
+                            let (decrypted_remote_document, decrypted_local_document) = {
+                                let decrypted_remote_document = remote.decrypt_document(
+                                    id,
+                                    &remote_document_change,
+                                    account,
+                                )?;
+                                let decrypted_local_document =
+                                    local.decrypt_document(id, &local_document_change, account)?;
+                                (decrypted_remote_document, decrypted_local_document)
+                            };
 
-                        // overwrite existing document (todo: avoid decrypting and re-encrypting document)
-                        let encrypted_document = result.update_document_unvalidated(
-                            id,
-                            &decrypted_remote_document,
-                            account,
-                        )?;
-                        let hmac = result.find(id)?.document_hmac();
-                        document_repo::insert(config, id, hmac, &encrypted_document)?;
+                            // overwrite existing document (todo: avoid decrypting and re-encrypting document)
+                            let encrypted_document = merge.update_document_unvalidated(
+                                id,
+                                &decrypted_remote_document,
+                                account,
+                            )?;
+                            let hmac = merge.find(id)?.document_hmac();
+                            document_repo::insert(config, id, hmac, &encrypted_document)?;
 
-                        // create copied document (todo: avoid decrypting and re-encrypting document)
-                        let (&existing_parent, existing_file_type) = {
-                            let existing_document = result.find(id)?;
-                            (existing_document.parent(), existing_document.file_type())
-                        };
+                            // create copied document (todo: avoid decrypting and re-encrypting document)
+                            let (&existing_parent, existing_file_type) = {
+                                let existing_document = merge.find(id)?;
+                                (existing_document.parent(), existing_document.file_type())
+                            };
 
-                        let name = result.name(id, account)?;
-                        let copied_document_id = result.create_unvalidated(
-                            &existing_parent,
-                            &name,
-                            existing_file_type,
-                            account,
-                        )?;
-                        let encrypted_document = result.update_document_unvalidated(
-                            &copied_document_id,
-                            &decrypted_local_document,
-                            account,
-                        )?;
-                        let copied_hmac = result.find(&copied_document_id)?.document_hmac();
-                        document_repo::insert(
-                            config,
-                            &copied_document_id,
-                            copied_hmac,
-                            &encrypted_document,
-                        )?;
+                            let name = merge.name(id, account)?;
+                            let copied_document_id = merge.create_unvalidated(
+                                &existing_parent,
+                                &name,
+                                existing_file_type,
+                                account,
+                            )?;
+                            let encrypted_document = merge.update_document_unvalidated(
+                                &copied_document_id,
+                                &decrypted_local_document,
+                                account,
+                            )?;
+                            let copied_hmac = merge.find(&copied_document_id)?.document_hmac();
+                            document_repo::insert(
+                                config,
+                                &copied_document_id,
+                                copied_hmac,
+                                &encrypted_document,
+                            )?;
+                        }
                     }
                 }
             }
-        }
+
+            let (_, merge_changes) = merge.unstage();
+            merge_changes
+        };
 
         // resolve tree merge conflicts
-        let mut result = result.promote();
-        result = result.unmove_moved_files_in_cycles(account)?.promote();
-        result = result.rename_files_with_path_conflicts(account)?.promote();
-        result = result.deduplicate_links(account)?.promote();
-        result = result.resolve_shared_links(account)?.promote();
-        result = result.resolve_owned_links(account)?.promote();
-        result = result.delete_links_to_deleted_files(account)?.promote();
+        self = self.stage_lazy(merge_changes).promote();
+        self = self.unmove_moved_files_in_cycles(account)?.promote();
+        self = self.rename_files_with_path_conflicts(account)?.promote();
+        self = self.deduplicate_links(account)?.promote();
+        self = self.resolve_shared_links(account)?.promote();
+        self = self.resolve_owned_links(account)?.promote();
+        self = self.delete_links_to_deleted_files(account)?.promote();
 
-        Ok(result)
+        Ok(self)
     }
 }
 
