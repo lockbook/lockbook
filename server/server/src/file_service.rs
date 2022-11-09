@@ -9,7 +9,7 @@ use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{Diff, Owner};
 use lockbook_shared::server_file::IntoServerFile;
 use lockbook_shared::server_tree::ServerTree;
-use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
 use lockbook_shared::{SharedError, SharedResult};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
