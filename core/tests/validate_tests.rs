@@ -4,7 +4,7 @@ use lockbook_shared::account::Account;
 use lockbook_shared::file::File;
 use lockbook_shared::file_metadata::{FileType, Owner};
 use lockbook_shared::signed_file::SignedFile;
-use lockbook_shared::tree_like::Stagable;
+use lockbook_shared::tree_like::TreeLikeMut;
 use lockbook_shared::{SharedError, SharedResult, ValidationFailure};
 use test_utils::*;
 use uuid::Uuid;

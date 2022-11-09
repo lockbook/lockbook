@@ -1,7 +1,7 @@
 use lockbook_shared::account::Account;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileMetadata, FileType};
-use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
 use test_utils::*;
 
 #[test]

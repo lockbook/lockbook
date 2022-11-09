@@ -19,7 +19,7 @@ use crate::lazy::{LazyStage2, LazyStaged1, LazyTree, Stage1};
 use crate::secret_filename::{HmacSha256, SecretFileName};
 use crate::signed_file::SignedFile;
 use crate::staged::StagedTree;
-use crate::tree_like::{Stagable, TreeLike, TreeLikeMut};
+use crate::tree_like::{TreeLike, TreeLikeMut};
 use crate::{compression_service, document_repo, symkey, validate, SharedError, SharedResult};
 
 pub type TreeWithOp<Base, Local> = LazyTree<StagedTree<Stage1<Base, Local>, Option<SignedFile>>>;
@@ -27,8 +27,8 @@ pub type TreeWithOps<Base, Local> = LazyTree<StagedTree<Stage1<Base, Local>, Vec
 
 impl<Base, Local> LazyStaged1<Base, Local>
 where
-    Base: Stagable<F = SignedFile>,
-    Local: Stagable<F = Base::F>,
+    Base: TreeLikeMut<F = SignedFile>,
+    Local: TreeLikeMut<F = Base::F>,
 {
     pub fn finalize<PublicKeyCache: SchemaEvent<Owner, String>>(
         &mut self, id: &Uuid, account: &Account,
@@ -585,18 +585,18 @@ where
 
 impl<Base, Remote, Local> LazyStage2<Base, Remote, Local>
 where
-    Base: Stagable<F = SignedFile>,
-    Remote: Stagable<F = Base::F>,
-    Local: Stagable<F = Base::F>,
+    Base: TreeLikeMut<F = SignedFile>,
+    Remote: TreeLikeMut<F = Base::F>,
+    Local: TreeLikeMut<F = Base::F>,
 {
     /// Applies changes to local such that this is a valid tree.
     pub fn merge(
         self, config: &Config, account: &Account, remote_document_changes: &HashSet<Uuid>,
     ) -> SharedResult<Self>
     where
-        Base: Stagable<F = SignedFile>,
-        Remote: Stagable<F = SignedFile>,
-        Local: Stagable<F = SignedFile>,
+        Base: TreeLikeMut<F = SignedFile>,
+        Remote: TreeLikeMut<F = SignedFile>,
+        Local: TreeLikeMut<F = SignedFile>,
     {
         let mut result = self.stage(Vec::new());
 

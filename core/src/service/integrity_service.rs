@@ -2,7 +2,7 @@ use std::path::Path;
 
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
-use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
 
 use crate::model::drawing;
 use crate::model::errors::{TestRepoError, Warning};

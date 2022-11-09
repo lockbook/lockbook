@@ -4,7 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::Res;
 use lockbook_core::{
-    ChronoHumanDuration, Core, FileLike, LazyTree, ServerFile, Stagable, TreeLike, Uuid,
+    ChronoHumanDuration, Core, FileLike, LazyTree, ServerFile, TreeLike, TreeLikeMut, Uuid,
 };
 
 pub fn file(core: &Core, id: Uuid) -> Res<()> {

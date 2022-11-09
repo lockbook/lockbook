@@ -4,14 +4,14 @@ use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileType, Owner};
 use crate::staged::StagedTree;
-use crate::tree_like::{Stagable, TreeLike, TreeLikeMut};
+use crate::tree_like::{TreeLike, TreeLikeMut};
 use crate::{compression_service, symkey, SharedError, SharedResult};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 #[derive(Debug)]
-pub struct LazyTree<T: Stagable> {
+pub struct LazyTree<T: TreeLikeMut> {
     pub tree: T,
     pub name: HashMap<Uuid, String>,
     pub key: HashMap<Uuid, AESKey>,
@@ -19,7 +19,7 @@ pub struct LazyTree<T: Stagable> {
     pub children: HashMap<Uuid, HashSet<Uuid>>,
 }
 
-impl<T: Stagable> LazyTree<T> {
+impl<T: TreeLikeMut> LazyTree<T> {
     pub fn new(tree: T) -> Self {
         Self {
             name: HashMap::new(),
@@ -31,7 +31,7 @@ impl<T: Stagable> LazyTree<T> {
     }
 }
 
-impl<T: Stagable> LazyTree<T> {
+impl<T: TreeLikeMut> LazyTree<T> {
     pub fn access_mode(&self, owner: Owner, id: &Uuid) -> SharedResult<Option<UserAccessMode>> {
         let mut file = self.find(id)?;
         let mut max_access_mode = None;
@@ -293,7 +293,7 @@ impl<T: Stagable> LazyTree<T> {
         compression_service::decompress(&compressed)
     }
 
-    pub fn stage<T2: Stagable<F = T::F>>(self, staged: T2) -> LazyTree<StagedTree<T, T2>> {
+    pub fn stage<T2: TreeLikeMut<F = T::F>>(self, staged: T2) -> LazyTree<StagedTree<T, T2>> {
         // todo: optimize by performing minimal updates on self caches
         LazyTree::<StagedTree<T, T2>> {
             name: HashMap::new(),
@@ -338,8 +338,8 @@ pub enum ValidationFailure {
 
 impl<Base, Staged> LazyStaged1<Base, Staged>
 where
-    Base: Stagable,
-    Staged: Stagable<F = Base::F>,
+    Base: TreeLikeMut,
+    Staged: TreeLikeMut<F = Base::F>,
 {
     // todo: incrementalism
     pub fn promote(self) -> LazyTree<Base> {
@@ -375,7 +375,7 @@ where
     }
 }
 
-impl<T: Stagable> TreeLike for LazyTree<T> {
+impl<T: TreeLikeMut> TreeLike for LazyTree<T> {
     type F = T::F;
 
     fn ids(&self) -> HashSet<&Uuid> {
@@ -387,7 +387,7 @@ impl<T: Stagable> TreeLike for LazyTree<T> {
     }
 }
 
-impl<T: Stagable> TreeLikeMut for LazyTree<T> {
+impl<T: TreeLikeMut> TreeLikeMut for LazyTree<T> {
     fn insert(&mut self, f: Self::F) -> Option<Self::F> {
         self.tree.insert(f)
     }

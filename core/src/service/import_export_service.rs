@@ -8,7 +8,7 @@ use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::filename::NameComponents;
 use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::signed_file::SignedFile;
-use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
 use lockbook_shared::{document_repo, SharedError};
 use std::collections::HashSet;
 use std::fs;
@@ -89,8 +89,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> CoreResult<LazyStaged1<Base, Local>>
     where
-        Base: Stagable<F = SignedFile>,
-        Local: Stagable<F = Base::F>,
+        Base: TreeLikeMut<F = SignedFile>,
+        Local: TreeLikeMut<F = Base::F>,
     {
         let dest_with_new = disk_path.join(&tree.name(this_file.id(), account)?);
 
@@ -239,8 +239,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         tree: &mut LazyStaged1<Base, Local>, account: &Account, parent: &Uuid, proposed_name: &str,
     ) -> CoreResult<String>
     where
-        Base: Stagable<F = SignedFile>,
-        Local: Stagable<F = Base::F>,
+        Base: TreeLikeMut<F = SignedFile>,
+        Local: TreeLikeMut<F = Base::F>,
     {
         let maybe_siblings = tree.children(parent)?;
         let mut new_name = NameComponents::from(proposed_name);

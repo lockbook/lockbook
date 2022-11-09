@@ -5,7 +5,7 @@ use lockbook_shared::api::GetPublicKeyRequest;
 use lockbook_shared::file::{File, ShareMode};
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
-use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
 use lockbook_shared::validate;
 use uuid::Uuid;
 
