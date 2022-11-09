@@ -44,12 +44,10 @@ pub trait TreeLike: Sized {
 pub trait TreeLikeMut: TreeLike {
     fn insert(&mut self, f: Self::F) -> Option<Self::F>;
     fn remove(&mut self, id: Uuid) -> Option<Self::F>;
-}
 
-pub trait Stagable: TreeLikeMut {
     fn stage<Staged>(self, staged: Staged) -> StagedTree<Self, Staged>
     where
-        Staged: Stagable<F = Self::F>,
+        Staged: TreeLikeMut<F = Self::F>,
         Self: Sized,
     {
         StagedTree::new(self, staged)
