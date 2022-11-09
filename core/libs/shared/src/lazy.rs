@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 #[derive(Debug)]
-pub struct LazyTree<T: TreeLikeMut> {
+pub struct LazyTree<T: TreeLike> {
     pub tree: T,
     pub name: HashMap<Uuid, String>,
     pub key: HashMap<Uuid, AESKey>,
@@ -19,7 +19,7 @@ pub struct LazyTree<T: TreeLikeMut> {
     pub children: HashMap<Uuid, HashSet<Uuid>>,
 }
 
-impl<T: TreeLikeMut> LazyTree<T> {
+impl<T: TreeLike> LazyTree<T> {
     pub fn new(tree: T) -> Self {
         Self {
             name: HashMap::new(),
@@ -31,7 +31,7 @@ impl<T: TreeLikeMut> LazyTree<T> {
     }
 }
 
-impl<T: TreeLikeMut> LazyTree<T> {
+impl<T: TreeLike> LazyTree<T> {
     pub fn access_mode(&self, owner: Owner, id: &Uuid) -> SharedResult<Option<UserAccessMode>> {
         let mut file = self.find(id)?;
         let mut max_access_mode = None;
@@ -350,6 +350,9 @@ where
                 base.insert(removed);
             }
         }
+        for id in self.tree.removed {
+            base.remove(id);
+        }
 
         LazyTree {
             tree: base,
@@ -375,7 +378,7 @@ where
     }
 }
 
-impl<T: TreeLikeMut> TreeLike for LazyTree<T> {
+impl<T: TreeLike> TreeLike for LazyTree<T> {
     type F = T::F;
 
     fn ids(&self) -> HashSet<&Uuid> {
@@ -384,15 +387,5 @@ impl<T: TreeLikeMut> TreeLike for LazyTree<T> {
 
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
         self.tree.maybe_find(id)
-    }
-}
-
-impl<T: TreeLikeMut> TreeLikeMut for LazyTree<T> {
-    fn insert(&mut self, f: Self::F) -> Option<Self::F> {
-        self.tree.insert(f)
-    }
-
-    fn remove(&mut self, id: Uuid) -> Option<Self::F> {
-        self.tree.remove(id)
     }
 }
