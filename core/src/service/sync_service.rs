@@ -297,11 +297,11 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         }
 
         for id in &prunable_ids {
-            if let Some(base_file) = local.tree.base.maybe_find(&id) {
-                document_repo::delete(self.config, &id, base_file.document_hmac())?;
+            if let Some(base_file) = local.tree.base.maybe_find(id) {
+                document_repo::delete(self.config, id, base_file.document_hmac())?;
             }
-            if let Some(local_file) = local.maybe_find(&id) {
-                document_repo::delete(self.config, &id, local_file.document_hmac())?;
+            if let Some(local_file) = local.maybe_find(id) {
+                document_repo::delete(self.config, id, local_file.document_hmac())?;
             }
         }
 
