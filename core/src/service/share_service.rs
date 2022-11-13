@@ -112,7 +112,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn delete_share(
         &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>,
     ) -> CoreResult<()> {
-        let tree = self
+        let mut tree = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)
