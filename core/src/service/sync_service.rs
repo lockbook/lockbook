@@ -271,9 +271,10 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             }
         }
 
-        for id in local_change_removals {
-            tree.remove(id);
-        }
+        let mut staged = tree.stage(None);
+        staged.tree.removed = local_change_removals;
+        tree = staged.promote();
+
         tree.stage(local_change_resets).promote();
 
         Ok(())
@@ -295,15 +296,23 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             prunable_ids.extend(local.descendants(&id)?.into_iter());
         }
 
-        for id in prunable_ids {
-            local.remove(id);
-            if let Some(base_file) = local.tree.base.maybe_find(&id) {
-                document_repo::delete(self.config, &id, base_file.document_hmac())?;
+        for id in &prunable_ids {
+            if let Some(base_file) = local.tree.base.maybe_find(id) {
+                document_repo::delete(self.config, id, base_file.document_hmac())?;
             }
-            if let Some(local_file) = local.maybe_find(&id) {
-                document_repo::delete(self.config, &id, local_file.document_hmac())?;
+            if let Some(local_file) = local.maybe_find(id) {
+                document_repo::delete(self.config, id, local_file.document_hmac())?;
             }
         }
+
+        let mut base_staged = self.tx.base_metadata.to_lazy().stage(None);
+        base_staged.tree.removed = prunable_ids.clone();
+        base_staged.promote();
+
+        let mut local_staged = self.tx.local_metadata.to_lazy().stage(None);
+        local_staged.tree.removed = prunable_ids;
+        local_staged.promote();
+
         Ok(())
     }
 

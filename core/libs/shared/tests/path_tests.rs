@@ -52,8 +52,6 @@ fn test_path2() {
 
     let paths = tree.list_paths(None, account).unwrap();
 
-    println!("{:#?}", paths);
-
     assert_eq!(paths.len(), 4);
     assert!(paths.contains(&"/".to_string()));
     assert!(paths.contains(&"/test1/".to_string()));

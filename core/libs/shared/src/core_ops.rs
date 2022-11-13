@@ -688,22 +688,24 @@ where
 
                         if remote_deleted {
                             // discard changes to remote-deleted files
-                            result.insert(remote_change);
+                            result = result.stage(Some(remote_change)).promote();
                         } else {
-                            result.insert(
-                                FileMetadata {
-                                    id,
-                                    file_type: base_file.file_type(),
-                                    parent,
-                                    name,
-                                    owner: base_file.owner(),
-                                    is_deleted: local_change.explicitly_deleted(),
-                                    document_hmac,
-                                    user_access_keys,
-                                    folder_access_key,
-                                }
-                                .sign(account)?,
-                            );
+                            result = result
+                                .stage(Some(
+                                    FileMetadata {
+                                        id,
+                                        file_type: base_file.file_type(),
+                                        parent,
+                                        name,
+                                        owner: base_file.owner(),
+                                        is_deleted: local_change.explicitly_deleted(),
+                                        document_hmac,
+                                        user_access_keys,
+                                        folder_access_key,
+                                    }
+                                    .sign(account)?,
+                                ))
+                                .promote();
                         }
                     }
                     // 2-way merge
@@ -754,22 +756,27 @@ where
 
                         if remote_deleted {
                             // discard changes to remote-deleted files
-                            result.insert(remote_change);
+                            result = result.stage(Some(remote_change)).promote();
                         } else {
-                            result.insert(
-                                FileMetadata {
-                                    id,
-                                    file_type: remote_change.file_type(),
-                                    parent: *remote_change.parent(),
-                                    name,
-                                    owner: remote_change.owner(),
-                                    is_deleted: remote_deleted | local_change.explicitly_deleted(),
-                                    document_hmac: remote_change.document_hmac().cloned(), // overwritten during document merge if local != remote
-                                    user_access_keys,
-                                    folder_access_key: remote_change.folder_access_key().clone(),
-                                }
-                                .sign(account)?,
-                            );
+                            result = result
+                                .stage(Some(
+                                    FileMetadata {
+                                        id,
+                                        file_type: remote_change.file_type(),
+                                        parent: *remote_change.parent(),
+                                        name,
+                                        owner: remote_change.owner(),
+                                        is_deleted: remote_deleted
+                                            | local_change.explicitly_deleted(),
+                                        document_hmac: remote_change.document_hmac().cloned(), // overwritten during document merge if local != remote
+                                        user_access_keys,
+                                        folder_access_key: remote_change
+                                            .folder_access_key()
+                                            .clone(),
+                                    }
+                                    .sign(account)?,
+                                ))
+                                .promote();
                         }
                     }
                 }
