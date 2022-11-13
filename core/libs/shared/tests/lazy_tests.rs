@@ -60,7 +60,7 @@ fn decrypt_child_name_insert() {
     let child =
         FileMetadata::create(&account.public_key(), root.id, &key, "test", FileType::Document)
             .unwrap();
-    files.insert(child.clone());
+    files = files.stage(Some(child.clone())).promote();
     assert_eq!(files.name(child.id(), &account).unwrap(), "test");
 }
 
@@ -73,12 +73,12 @@ fn name_2dirs() {
     let child =
         FileMetadata::create(&account.public_key(), root.id, &key, "dir1", FileType::Folder)
             .unwrap();
-    files.insert(child.clone());
+    files = files.stage(Some(child.clone())).promote();
     let key = files.decrypt_key(child.id(), &account).unwrap();
     let child_of_child =
         FileMetadata::create(&account.public_key(), child.id, &key, "dir2", FileType::Folder)
             .unwrap();
-    files.insert(child_of_child.clone());
+    files = files.stage(Some(child_of_child.clone())).promote();
     assert_eq!(files.name(root.id(), &account).unwrap(), account.username);
     assert_eq!(files.name(child.id(), &account).unwrap(), "dir1");
     assert_eq!(files.name(child_of_child.id(), &account).unwrap(), "dir2");
@@ -94,12 +94,12 @@ fn deleted_2dirs() {
         FileMetadata::create(&account.public_key(), root.id, &key, "dir1", FileType::Folder)
             .unwrap();
     child.is_deleted = true;
-    files.insert(child.clone());
+    files = files.stage(Some(child.clone())).promote();
     let key = files.decrypt_key(child.id(), &account).unwrap();
     let child_of_child =
         FileMetadata::create(&account.public_key(), child.id, &key, "dir2", FileType::Folder)
             .unwrap();
-    files.insert(child_of_child.clone());
+    files = files.stage(Some(child_of_child.clone())).promote();
 
     assert!(files.calculate_deleted(child.id()).unwrap());
     assert!(files.calculate_deleted(child_of_child.id()).unwrap());
@@ -114,13 +114,13 @@ fn deleted_2dirs2() {
     let child =
         FileMetadata::create(&account.public_key(), root.id, &key, "dir1", FileType::Folder)
             .unwrap();
-    files.insert(child.clone());
+    files = files.stage(Some(child.clone())).promote();
     let key = files.decrypt_key(child.id(), &account).unwrap();
     let mut child_of_child =
         FileMetadata::create(&account.public_key(), child.id, &key, "dir2", FileType::Folder)
             .unwrap();
     child_of_child.is_deleted = true;
-    files.insert(child_of_child.clone());
+    files = files.stage(Some(child_of_child.clone())).promote();
 
     assert!(!files.calculate_deleted(child.id()).unwrap());
     assert!(files.calculate_deleted(child_of_child.id()).unwrap());
