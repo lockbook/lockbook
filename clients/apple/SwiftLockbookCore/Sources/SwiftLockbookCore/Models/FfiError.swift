@@ -216,3 +216,12 @@ public enum ExportDrawingError: String, UiError {
     case FileDoesNotExist
     case InvalidDrawing
 }
+
+public enum UpgradeAccountAppStoreError: String, UiError {
+    case AlreadyPremium
+    case InvalidAuthDetails
+    case ExistingRequestPending
+    case CouldNotReachServer
+    case ClientUpdateRequired
+
+}

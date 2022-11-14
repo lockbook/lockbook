@@ -359,6 +359,17 @@ pub unsafe extern "C" fn get_local_changes() -> *const c_char {
     })
 }
 
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn upgrade_account_app_store(original_transaction_id: *const c_char, app_account_token: *const c_char, encoded_receipt: *const c_char) -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.upgrade_account_app_store(str_from_ptr(original_transaction_id), str_from_ptr(app_account_token), str_from_ptr(encoded_receipt))),
+        e => translate(e.map(|_| ())),
+    })
+}
+
 // FOR INTEGRATION TESTS ONLY
 /// # Safety
 ///

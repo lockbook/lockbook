@@ -5,6 +5,8 @@ use std::fmt::Display;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::{env, fmt, fs};
+use jwt_simple::algorithms::ES256KeyPair;
+use sha2::Sha256;
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -198,6 +200,7 @@ pub struct BillingConfig {
     pub time_between_lock_attempts: Duration,
     pub google: GoogleConfig,
     pub stripe: StripeConfig,
+    pub apple: AppleConfig,
 }
 
 impl BillingConfig {
@@ -213,6 +216,28 @@ impl BillingConfig {
             ),
             google: GoogleConfig::from_env_vars(),
             stripe: StripeConfig::from_env_vars(),
+            apple: AppleConfig::from_env_vars()
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct AppleConfig {
+    pub iap_key: ES256KeyPair,
+    pub iap_key_id: String,
+    pub issuer_id: String,
+    pub subscription_product_id: String,
+    pub asc_shared_secret: String,
+}
+
+impl AppleConfig {
+    pub fn from_env_vars() -> Self {
+        Self {
+            iap_key: ES256KeyPair::from_pem(&env_or_panic("APPLE_IAP_KEY")).unwrap(),
+            iap_key_id: env_or_panic("APPLE_IAP_KEY_ID"),
+            issuer_id: env_or_panic("APPLE_ISSUER_ID"),
+            subscription_product_id: env_or_panic("APPLE_SUBSCRIPTION_PRODUCT_ID"),
+            asc_shared_secret: env_or_panic("APP_STORE_CONNECT_SHARED_SECRET")
         }
     }
 }

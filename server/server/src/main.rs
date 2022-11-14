@@ -54,7 +54,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .or(build_info())
         .or(get_metrics())
         .or(stripe_webhooks(&server_state))
-        .or(google_play_notification_webhooks(&server_state));
+        .or(google_play_notification_webhooks(&server_state))
+        .or(app_store_notification_webhooks(&server_state));
 
     let server = warp::serve(routes);
 

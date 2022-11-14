@@ -390,6 +390,30 @@ impl Request for UpgradeAccountGooglePlayRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct UpgradeAccountAppStoreRequest {
+    pub original_transaction_id: String,
+    pub app_account_token: String,
+    pub encoded_receipt: String
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct UpgradeAccountAppStoreResponse {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum UpgradeAccountAppStoreError {
+    AlreadyPremium,
+    InvalidAuthDetails,
+    ExistingRequestPending,
+}
+
+impl Request for UpgradeAccountAppStoreRequest {
+    type Response = UpgradeAccountAppStoreResponse;
+    type Error = UpgradeAccountAppStoreError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/upgrade-account-app-store";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct CancelSubscriptionRequest {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -402,6 +426,7 @@ pub enum CancelSubscriptionError {
     UsageIsOverFreeTierDataCap,
     UserNotFound,
     ExistingRequestPending,
+    AppleSubscription
 }
 
 impl Request for CancelSubscriptionRequest {
@@ -425,6 +450,7 @@ pub struct SubscriptionInfo {
 pub enum PaymentPlatform {
     Stripe { card_last_4_digits: String },
     GooglePlay { account_state: GooglePlayAccountState },
+    AppStore { account_state: AppStoreAccountState }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -433,6 +459,14 @@ pub enum GooglePlayAccountState {
     Canceled,
     GracePeriod,
     OnHold,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AppStoreAccountState {
+    Ok,
+    Canceled,
+    GracePeriod,
+    FailedToRenew,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]

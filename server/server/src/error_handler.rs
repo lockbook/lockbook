@@ -10,6 +10,7 @@ use lockbook_shared::api::*;
 use lockbook_shared::SharedError;
 use std::fmt::Debug;
 use std::io::Error;
+use crate::billing::app_store_client::AppStoreError;
 
 impl<T: Debug> From<Error> for ServerError<T> {
     fn from(err: Error) -> Self {
@@ -114,6 +115,20 @@ impl From<stripe::WebhookError> for ServerError<StripeWebhookError> {
             stripe::WebhookError::BadParse(bad_parse_err) => ClientError(
                 StripeWebhookError::ParseError(format!("Parsing error: {:?}", bad_parse_err)),
             ),
+        }
+    }
+}
+
+impl From<reqwest::Error> for AppStoreError {
+    fn from(e: reqwest::Error) -> Self {
+        AppStoreError::Other(format!("{:?}", e))
+    }
+}
+
+impl From<AppStoreError> for ServerError<UpgradeAccountAppStoreError> {
+    fn from(e: AppStoreError) -> Self {
+        match e {
+            AppStoreError::Other(msg) => internal!("{}", msg)
         }
     }
 }

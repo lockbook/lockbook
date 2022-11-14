@@ -45,7 +45,8 @@ pub mod v2 {
             file_children: <Uuid, HashSet<Uuid>>,
             sizes: <Uuid, u64>,
             google_play_ids: <String, Owner>,
-            stripe_ids: <String, Owner>
+            stripe_ids: <String, Owner>,
+            app_store_ids: <String, Owner>
         }
     }
 

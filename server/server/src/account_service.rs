@@ -297,6 +297,9 @@ pub async fn admin_get_account_info(
             BillingPlatform::GooglePlay(user_info) => {
                 PaymentPlatform::GooglePlay { account_state: user_info.account_state }
             }
+            BillingPlatform::AppStore(user_info) => {
+                PaymentPlatform::AppStore { }
+            }
         });
 
     let usage: u64 = db

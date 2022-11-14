@@ -1,8 +1,4 @@
-use lockbook_shared::api::{
-    CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequest,
-    StripeAccountTier, SubscriptionInfo, UpgradeAccountGooglePlayError,
-    UpgradeAccountGooglePlayRequest, UpgradeAccountStripeError, UpgradeAccountStripeRequest,
-};
+use lockbook_shared::api::{CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequest, StripeAccountTier, SubscriptionInfo, UpgradeAccountAppStoreError, UpgradeAccountAppStoreRequest, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest, UpgradeAccountStripeError, UpgradeAccountStripeRequest};
 
 use crate::model::errors::core_err_unexpected;
 use crate::service::api_service::ApiError;
@@ -67,6 +63,38 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                     CoreError::InvalidPurchaseToken
                 }
                 ApiError::Endpoint(UpgradeAccountGooglePlayError::ExistingRequestPending) => {
+                    CoreError::ExistingRequestPending
+                }
+                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                _ => core_err_unexpected(err),
+            })?;
+
+        Ok(())
+    }
+
+    pub fn upgrade_account_app_store(
+        &self, original_transaction_id: String, app_account_token: String, encoded_receipt: String
+    ) -> CoreResult<()> {
+        let account = self.get_account()?;
+
+        self.client
+            .request(
+                account,
+                UpgradeAccountAppStoreRequest {
+                    original_transaction_id,
+                    app_account_token,
+                    encoded_receipt
+                },
+            )
+            .map_err(|err| match err {
+                ApiError::Endpoint(UpgradeAccountAppStoreError::AlreadyPremium) => {
+                    CoreError::AlreadyPremium
+                }
+                ApiError::Endpoint(UpgradeAccountAppStoreError::InvalidAuthDetails) => {
+                    CoreError::InvalidAuthDetails
+                }
+                ApiError::Endpoint(UpgradeAccountAppStoreError::ExistingRequestPending) => {
                     CoreError::ExistingRequestPending
                 }
                 ApiError::SendFailed(_) => CoreError::ServerUnreachable,

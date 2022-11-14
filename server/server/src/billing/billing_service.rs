@@ -1,10 +1,10 @@
 use crate::account_service::GetUsageHelperError;
-use crate::billing::billing_model::BillingPlatform;
+use crate::billing::billing_model::{AppStoreUserInfo, BillingPlatform};
 use crate::billing::billing_service::LockBillingWorkflowError::{
     ExistingRequestPending, UserNotFound,
 };
 use crate::billing::google_play_model::NotificationType;
-use crate::billing::{google_play_client, google_play_service, stripe_client, stripe_service};
+use crate::billing::{app_store_service, google_play_client, google_play_service, stripe_client, stripe_service};
 use crate::schema::Account;
 use crate::ServerError::ClientError;
 use crate::{
@@ -14,13 +14,7 @@ use crate::{
 use base64::DecodeError;
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
-use lockbook_shared::api::{
-    CancelSubscriptionError, CancelSubscriptionRequest, CancelSubscriptionResponse,
-    GetSubscriptionInfoError, GetSubscriptionInfoRequest, GetSubscriptionInfoResponse,
-    GooglePlayAccountState, PaymentPlatform, SubscriptionInfo, UpgradeAccountGooglePlayError,
-    UpgradeAccountGooglePlayRequest, UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError,
-    UpgradeAccountStripeRequest, UpgradeAccountStripeResponse,
-};
+use lockbook_shared::api::{AppStoreAccountState, CancelSubscriptionError, CancelSubscriptionRequest, CancelSubscriptionResponse, GetSubscriptionInfoError, GetSubscriptionInfoRequest, GetSubscriptionInfoResponse, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo, UpgradeAccountAppStoreError, UpgradeAccountAppStoreRequest, UpgradeAccountAppStoreResponse, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest, UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError, UpgradeAccountStripeRequest, UpgradeAccountStripeResponse};
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_metadata::Owner;
 use std::collections::HashMap;
@@ -29,6 +23,8 @@ use std::sync::Arc;
 use tracing::*;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
+use crate::billing::app_store_service::verify_receipt;
+use crate::billing::app_store_model::{NotificationResponseBody, SubscriptionChange, Subtype, TransactionInfo};
 
 #[derive(Debug)]
 pub enum LockBillingWorkflowError {
@@ -71,6 +67,44 @@ fn release_subscription_profile<T: Debug>(
         account.billing_info.last_in_payment_flow = 0;
         tx.accounts.insert(Owner(*public_key), account);
     })?)
+}
+
+pub async fn upgrade_account_app_store(
+    context: RequestContext<'_, UpgradeAccountAppStoreRequest>,
+) -> Result<UpgradeAccountAppStoreResponse, ServerError<UpgradeAccountAppStoreError>> {
+    let (request, server_state) = (&context.request, context.server_state);
+
+    let mut account = lock_subscription_profile(server_state, &context.public_key)?;
+
+    if account.billing_info.data_cap() == PREMIUM_TIER_USAGE_SIZE {
+        return Err(ClientError(UpgradeAccountAppStoreError::AlreadyPremium));
+    }
+
+    let expires = verify_receipt(&server_state.app_store_client, &server_state.config.billing.apple, &request.encoded_receipt, &request.app_account_token, &request.original_transaction_id).await?;
+
+    if server_state.index_db.app_store_ids.exists(&request.app_account_token) {
+        return Err(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails));
+    }
+
+    account.billing_info.billing_platform = Some(BillingPlatform::AppStore(AppStoreUserInfo {
+        original_transaction_id: request.original_transaction_id.clone(),
+        subscription_product_id: "".to_string(),
+        expiration_time: expires,
+        account_state: AppStoreAccountState::Ok
+    })?);
+
+    server_state
+        .index_db
+        .app_store_ids
+        .insert(request.app_account_token.clone(), Owner(context.public_key))?;
+
+    release_subscription_profile::<UpgradeAccountGooglePlayError>(
+        server_state,
+        &context.public_key,
+        account,
+    )?;
+
+    Ok(UpgradeAccountAppStoreResponse {})
 }
 
 pub async fn upgrade_account_google_play(
@@ -191,6 +225,14 @@ pub async fn get_subscription_info(
                 },
                 period_end: info.expiration_time,
             },
+            BillingPlatform::AppStore(info) => {
+                SubscriptionInfo {
+                    payment_platform: PaymentPlatform::AppStore {
+                        account_state: info.account_state.clone(),
+                    },
+                    period_end: info.expiration_time,
+                }
+            }
         });
 
     Ok(GetSubscriptionInfoResponse { subscription_info })
@@ -252,6 +294,9 @@ pub async fn cancel_subscription(
             account.billing_info.billing_platform = None;
 
             debug!("Successfully canceled stripe subscription");
+        }
+        Some(BillingPlatform::AppStore(ref info)) => {
+            return Err(ClientError(CancelSubscriptionError::AppleSubscription));
         }
     }
 
@@ -493,6 +538,98 @@ pub async fn google_play_notification_webhooks(
     if let Some(otp_notif) = notification.one_time_product_notification {
         return Err(internal!("Received a one time product notification although there are no registered one time products. one_time_product_notification: {:?}", otp_notif));
     }
+
+    Ok(())
+}
+
+#[derive(Debug)]
+pub enum AppStoreNotificationError {
+    InvalidJWS,
+}
+
+pub async fn app_store_notification(
+    server_state: &Arc<ServerState>, request_body: Bytes
+) -> Result<(), ServerError<AppStoreNotificationError>> {
+
+    let decoded_resp = app_store_service::decode_verify(&request_body, &NoneVerifier)
+        .map_err(|_| ClientError(AppStoreNotificationError::InvalidJWS))?;
+    let resp = serde_json::from_slice::<NotificationResponseBody>(decoded_resp.payload.as_slice())?;
+
+    if resp.notification_type == SubscriptionChange::Subscribed {
+        return Ok(());
+    }
+
+    let decoded_trans = decode_verify(resp.data.encoded_transaction_info.as_bytes(), &NoneVerifier)
+        .map_err(|_| ClientError(AppStoreNotificationError::InvalidJWS))?
+        .payload;
+    let trans = serde_json::from_slice::<TransactionInfo>(decoded_trans.payload.as_slice())?;
+
+    let public_key = app_store_service::get_public_key(&server_state, &trans)?;
+
+    save_subscription_profile(server_state, &public_key, |account| {
+        if let Some(BillingPlatform::AppStore(ref mut info)) = account.billing_info.billing_platform {
+            match resp.notification_type {
+                SubscriptionChange::DidFailToRenew => {
+                    info.account_state = if resp.subtype == Subtype::GracePeriod {
+                        AppStoreAccountState::GracePeriod
+                    } else {
+                        AppStoreAccountState::FailedToRenew
+                    };
+                }
+                SubscriptionChange::Expired => {
+                    match resp.subtype {
+                        Subtype::BillingRetry => {
+                            info.account_state = AppStoreAccountState::FailedToRenew;
+                        }
+                        Subtype::Voluntary => {}
+                        _ => {
+                            return Err(internal!(
+                                "Unexpected price increase: {:?} {:?}, public_key: {:?}",
+                                resp.notification_type,
+                                res.subtype,
+                                public_key
+                            ))
+                        }
+                    }
+                }
+                SubscriptionChange::GracePeriodExpired => {
+                    account.billing_info.billing_platform = None;
+                }
+                SubscriptionChange::Refund => {
+                    println!("REFUNDED");
+                }
+                SubscriptionChange::RefundDeclined => {
+                    println!("REFUND DECLINED");
+                }
+                SubscriptionChange::RenewalExtended => {}
+                SubscriptionChange::Subscribed
+                | SubscriptionChange::DidRenew => {
+                    info.account_state = AppStoreAccountState::Ok;
+                    info.expiration_time = trans.revocation_date
+                }
+                SubscriptionChange::Test => {
+                    println!("TEST");
+                }
+                SubscriptionChange::ConsumptionRequest
+                | SubscriptionChange::DidChangeRenewalPref
+                | SubscriptionChange::DidChangeRenewalStatus
+                | SubscriptionChange::OfferRedeemed
+                | SubscriptionChange::PriceIncrease
+                | SubscriptionChange::Revoke => {
+                    return Err(internal!(
+                        "Unexpected price increase: {:?} {:?}, public_key: {:?}",
+                        resp.notification_type,
+                        res.subtype,
+                        public_key
+                    ))
+                }
+            }
+
+            Ok(())
+        } else {
+            Err(internal!("Cannot get any billing info for user. public_key: {:?}", public_key))
+        }
+    });
 
     Ok(())
 }
