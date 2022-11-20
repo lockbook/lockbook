@@ -24,6 +24,13 @@ impl SubscriptionProfile {
                         PREMIUM_TIER_USAGE_SIZE
                     }
                 }
+                BillingPlatform::AppStore(info) => {
+                    if info.account_state == AppStoreAccountState::FailedToRenew {
+                        FREE_TIER_USAGE_SIZE
+                    } else {
+                        PREMIUM_TIER_USAGE_SIZE
+                    }
+                }
             },
             None => FREE_TIER_USAGE_SIZE,
         }

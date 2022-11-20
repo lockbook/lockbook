@@ -223,5 +223,9 @@ public enum UpgradeAccountAppStoreError: String, UiError {
     case ExistingRequestPending
     case CouldNotReachServer
     case ClientUpdateRequired
+}
 
+public enum GetSubscriptionInfoError: String, UiError {
+    case CouldNotReachServer
+    case ClientUpdateRequired
 }

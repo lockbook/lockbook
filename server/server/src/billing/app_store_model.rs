@@ -1,6 +1,4 @@
-use uuid::Uuid;
 use serde::{Deserialize, Serialize};
-use crate::billing::google_play_model::NotificationType;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct VerifyReceiptResponse {
@@ -16,6 +14,7 @@ pub struct ReceiptInfo {
     pub original_transaction_id: String,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all="kebab-case")]
 pub struct VerifyReceiptRequest {
     #[serde(rename = "receipt-data")]
@@ -26,10 +25,15 @@ pub struct VerifyReceiptRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all="camelCase")]
+pub struct EncodedNotificationResponseBody {
+    pub signed_payload: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all="camelCase")]
 pub struct NotificationResponseBody {
     pub notification_type: SubscriptionChange,
     pub subtype: Subtype,
-    pub notification_UUID: Uuid,
     pub data: NotificationData,
 }
 
@@ -44,8 +48,8 @@ pub struct NotificationData {
     pub encoded_transaction_info: String
 }
 
-#[serde(rename_all="camelCase")]
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all="camelCase")]
 pub struct TransactionInfo {
     pub bundle_id: String,
     pub product_id: String,
@@ -55,13 +59,13 @@ pub struct TransactionInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-enum Environment {
+pub enum Environment {
     Sandbox,
     Production
 }
 
-#[serde(rename_all="SCREAMING_SNAKE_CASE")]
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all="SCREAMING_SNAKE_CASE")]
 pub enum Subtype {
     InitialBuy,
     Resubscribe,
@@ -78,8 +82,8 @@ pub enum Subtype {
     Accepted
 }
 
-#[serde(rename_all="SCREAMING_SNAKE_CASE")]
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all="SCREAMING_SNAKE_CASE")]
 pub enum SubscriptionChange {
     ConsumptionRequest,
     DidChangeRenewalPref,

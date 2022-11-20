@@ -3,6 +3,7 @@ import SwiftLockbookCore
 
 struct SettingsView: View, Equatable {
     
+    @EnvironmentObject var billing: BillingService
     @EnvironmentObject var settingsState: SettingsService
     @EnvironmentObject var accounts: AccountService
     
@@ -70,13 +71,29 @@ struct SettingsView: View, Equatable {
                             case .Unknown: Text("Unknown")
                             }
                         }
-                        NavigationLink(
-                            destination: ManageSubscription()) {
-                                switch settingsState.tier {
-                                case .Premium: Text("Manage Subscription")
-                                default: Text("Upgrade to premium")
+                        
+                        switch billing.subscriptionInfo {
+                        case .none:
+                            Text("Loading...")
+                        case .some(let subscriptionStatus):
+                            switch subscriptionStatus {
+                            case .premiumStripe:
+                                Text("You are a premium user via Stripe.")
+                            case .premiumGooglePlay:
+                                Text("You are a premium user via Google Play.")
+                            case .premiumAppStore:
+                                Text("You are a premium user via the App Store.")
+                            case .free:
+                                NavigationLink(destination: ManageSubscription()) {
+                                    switch settingsState.tier {
+                                    case .Premium: Text("Manage Subscription")
+                                    default: Text("Upgrade to premium")
+                                    }
                                 }
                             }
+                        }
+                        
+                        
                     } else {
                         Text("Calculating...")
                     }

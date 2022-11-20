@@ -24,7 +24,7 @@ use tracing::*;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
 use crate::billing::app_store_service::verify_receipt;
-use crate::billing::app_store_model::{NotificationResponseBody, SubscriptionChange, Subtype, TransactionInfo};
+use crate::billing::app_store_model::{SubscriptionChange, Subtype};
 
 #[derive(Debug)]
 pub enum LockBillingWorkflowError {
@@ -82,7 +82,7 @@ pub async fn upgrade_account_app_store(
 
     let expires = verify_receipt(&server_state.app_store_client, &server_state.config.billing.apple, &request.encoded_receipt, &request.app_account_token, &request.original_transaction_id).await?;
 
-    if server_state.index_db.app_store_ids.exists(&request.app_account_token) {
+    if server_state.index_db.app_store_ids.exists(&request.app_account_token)? {
         return Err(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails));
     }
 
@@ -91,14 +91,14 @@ pub async fn upgrade_account_app_store(
         subscription_product_id: "".to_string(),
         expiration_time: expires,
         account_state: AppStoreAccountState::Ok
-    })?);
+    }));
 
     server_state
         .index_db
         .app_store_ids
         .insert(request.app_account_token.clone(), Owner(context.public_key))?;
 
-    release_subscription_profile::<UpgradeAccountGooglePlayError>(
+    release_subscription_profile::<UpgradeAccountAppStoreError>(
         server_state,
         &context.public_key,
         account,
@@ -295,7 +295,7 @@ pub async fn cancel_subscription(
 
             debug!("Successfully canceled stripe subscription");
         }
-        Some(BillingPlatform::AppStore(ref info)) => {
+        Some(BillingPlatform::AppStore(_)) => {
             return Err(ClientError(CancelSubscriptionError::AppleSubscription));
         }
     }
@@ -547,23 +547,16 @@ pub enum AppStoreNotificationError {
     InvalidJWS,
 }
 
-pub async fn app_store_notification(
-    server_state: &Arc<ServerState>, request_body: Bytes
+pub async fn app_store_notification_webhook(
+    server_state: &Arc<ServerState>, body: Bytes
 ) -> Result<(), ServerError<AppStoreNotificationError>> {
+    let resp = app_store_service::decode_verify_notification(server_state, &body)?;
 
-    let decoded_resp = app_store_service::decode_verify(&request_body, &NoneVerifier)
-        .map_err(|_| ClientError(AppStoreNotificationError::InvalidJWS))?;
-    let resp = serde_json::from_slice::<NotificationResponseBody>(decoded_resp.payload.as_slice())?;
-
-    if resp.notification_type == SubscriptionChange::Subscribed {
+    if let SubscriptionChange::Subscribed = resp.notification_type {
         return Ok(());
     }
 
-    let decoded_trans = decode_verify(resp.data.encoded_transaction_info.as_bytes(), &NoneVerifier)
-        .map_err(|_| ClientError(AppStoreNotificationError::InvalidJWS))?
-        .payload;
-    let trans = serde_json::from_slice::<TransactionInfo>(decoded_trans.payload.as_slice())?;
-
+    let trans = app_store_service::decode_verify_transaction(server_state, &resp.data.encoded_transaction_info)?;
     let public_key = app_store_service::get_public_key(&server_state, &trans)?;
 
     save_subscription_profile(server_state, &public_key, |account| {
@@ -586,7 +579,7 @@ pub async fn app_store_notification(
                             return Err(internal!(
                                 "Unexpected price increase: {:?} {:?}, public_key: {:?}",
                                 resp.notification_type,
-                                res.subtype,
+                                resp.subtype,
                                 public_key
                             ))
                         }
@@ -619,7 +612,7 @@ pub async fn app_store_notification(
                     return Err(internal!(
                         "Unexpected price increase: {:?} {:?}, public_key: {:?}",
                         resp.notification_type,
-                        res.subtype,
+                        resp.subtype,
                         public_key
                     ))
                 }
@@ -629,7 +622,7 @@ pub async fn app_store_notification(
         } else {
             Err(internal!("Cannot get any billing info for user. public_key: {:?}", public_key))
         }
-    });
+    }).await?;
 
     Ok(())
 }

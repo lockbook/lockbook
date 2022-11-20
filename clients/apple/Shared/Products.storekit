@@ -38,7 +38,7 @@
           ],
           "productID" : "subscription.monthly",
           "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : null,
+          "referenceName" : "Monthly subscription",
           "subscriptionGroupID" : "118A8047",
           "type" : "RecurringSubscription"
         }

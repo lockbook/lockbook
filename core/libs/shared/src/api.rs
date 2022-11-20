@@ -404,6 +404,7 @@ pub enum UpgradeAccountAppStoreError {
     AlreadyPremium,
     InvalidAuthDetails,
     ExistingRequestPending,
+    UserNotFound
 }
 
 impl Request for UpgradeAccountAppStoreRequest {
@@ -464,7 +465,6 @@ pub enum GooglePlayAccountState {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum AppStoreAccountState {
     Ok,
-    Canceled,
     GracePeriod,
     FailedToRenew,
 }

@@ -8,7 +8,7 @@ public protocol LockbookApi {
     func exportAccount() -> FfiResult<String, AccountExportError>
     func getUsage() -> FfiResult<UsageMetrics, GetUsageError>
     func getUncompressedUsage() -> FfiResult<UsageItemMetric, GetUsageError>
-
+    
     // Work
     func syncAll() -> FfiResult<Empty, SyncAllError>
     func calculateWork() -> FfiResult<WorkMetadata, CalculateWorkError>
@@ -32,4 +32,5 @@ public protocol LockbookApi {
     
     // Billing
     func upgradeAccountAppStore(originalTransactionId: String, appAccountToken: String, encodedReceipt: String) -> FfiResult<Empty, UpgradeAccountAppStoreError>
+    func getSubscriptionInfo() -> FfiResult<SubscriptionInfo?, GetSubscriptionInfoError>
 }

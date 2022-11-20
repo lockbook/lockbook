@@ -1,5 +1,5 @@
 use crate::account_service::DeleteAccountHelperError;
-use crate::billing::billing_service::LockBillingWorkflowError;
+use crate::billing::billing_service::{AppStoreNotificationError, LockBillingWorkflowError};
 use crate::billing::google_play_client::SimpleGCPError;
 use crate::metrics::MetricsError;
 use crate::ServerError::InternalError;
@@ -144,6 +144,26 @@ impl From<ServerError<LockBillingWorkflowError>> for ServerError<UpgradeAccountG
             }
             InternalError(msg) => InternalError(msg),
         }
+    }
+}
+
+impl From<ServerError<LockBillingWorkflowError>> for ServerError<UpgradeAccountAppStoreError> {
+    fn from(err: ServerError<LockBillingWorkflowError>) -> Self {
+        match err {
+            ClientError(LockBillingWorkflowError::ExistingRequestPending) => {
+                ClientError(UpgradeAccountAppStoreError::ExistingRequestPending)
+            }
+            ClientError(LockBillingWorkflowError::UserNotFound) => {
+                ClientError(UpgradeAccountAppStoreError::UserNotFound)
+            }
+            InternalError(msg) => InternalError(msg),
+        }
+    }
+}
+
+impl From<jwt_simple::Error> for ServerError<AppStoreNotificationError> {
+    fn from(e: jwt_simple::Error) -> Self {
+        internal!("{:?}", e)
     }
 }
 

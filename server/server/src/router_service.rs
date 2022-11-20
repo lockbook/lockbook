@@ -268,6 +268,41 @@ pub fn google_play_notification_webhooks(
         })
 }
 
+static APP_STORE_WEBHOOK_ROUTE: &str = "app_store_notification_webhook";
+pub fn app_store_notification_webhooks(
+    server_state: &Arc<ServerState>,
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    let cloned_state = server_state.clone();
+
+    warp::post()
+        .and(warp::path(APP_STORE_WEBHOOK_ROUTE))
+        .and(warp::any().map(move || cloned_state.clone()))
+        .and(warp::body::bytes())
+        .then(|state: Arc<ServerState>, body: Bytes| async move {
+            let span =
+                span!(Level::INFO, "matched_request", method = "POST", route = format!("/{}", APP_STORE_WEBHOOK_ROUTE).as_str());
+            let _enter = span.enter();
+            info!("webhook routed");
+            let response = span
+                .in_scope(|| billing_service::app_store_notification_webhook(&state, body))
+                .await;
+
+            match response {
+                Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
+                Err(e) => {
+                    error!("{:?}", e);
+
+                    let status_code = match e {
+                        ServerError::ClientError(AppStoreNotificationError::InvalidJWS) => StatusCode::BAD_REQUEST,
+                        ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                    };
+
+                    warp::reply::with_status("".to_string(), status_code)
+                }
+            }
+        })
+}
+
 pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Clone {
     warp::method()
         .and(warp::any().map(move || name.clone()))

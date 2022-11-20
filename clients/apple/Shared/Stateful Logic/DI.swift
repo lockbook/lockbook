@@ -65,7 +65,7 @@ extension View {
             .environmentObject(DI.documentLoader)
             .environmentObject(DI.sheets)
             .environmentObject(DI.currentDoc)
-
+            .environmentObject(DI.billing)
     }
     
     public func mockiOSDI() -> some View {
@@ -91,5 +91,6 @@ extension View {
             .environmentObject(Mock.documentLoader)
             .environmentObject(Mock.sheets)
             .environmentObject(Mock.currentDoc)
+            .environmentObject(Mock.billing)
     }
 }

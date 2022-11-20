@@ -5,8 +5,6 @@ use std::fmt::Display;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::{env, fmt, fs};
-use jwt_simple::algorithms::ES256KeyPair;
-use sha2::Sha256;
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -221,9 +219,9 @@ impl BillingConfig {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct AppleConfig {
-    pub iap_key: ES256KeyPair,
+    pub iap_key: String,
     pub iap_key_id: String,
     pub issuer_id: String,
     pub subscription_product_id: String,
@@ -233,7 +231,7 @@ pub struct AppleConfig {
 impl AppleConfig {
     pub fn from_env_vars() -> Self {
         Self {
-            iap_key: ES256KeyPair::from_pem(&env_or_panic("APPLE_IAP_KEY")).unwrap(),
+            iap_key: env_or_panic("APPLE_IAP_KEY"),
             iap_key_id: env_or_panic("APPLE_IAP_KEY_ID"),
             issuer_id: env_or_panic("APPLE_ISSUER_ID"),
             subscription_product_id: env_or_panic("APPLE_SUBSCRIPTION_PRODUCT_ID"),
