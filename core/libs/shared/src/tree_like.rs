@@ -39,6 +39,14 @@ pub trait TreeLike: Sized {
 
         Ok(all)
     }
+
+    fn as_lazy(&self) -> LazyTree<&Self> {
+        LazyTree::new(self)
+    }
+
+    fn to_lazy(self) -> LazyTree<Self> {
+        LazyTree::new(self)
+    }
 }
 
 pub trait TreeLikeMut: TreeLike {
@@ -52,9 +60,20 @@ pub trait TreeLikeMut: TreeLike {
     {
         StagedTree::new(self, staged)
     }
+}
 
-    fn to_lazy(self) -> LazyTree<Self> {
-        LazyTree::new(self)
+impl<T> TreeLike for &T
+where
+    T: TreeLike,
+{
+    type F = T::F;
+
+    fn ids(&self) -> HashSet<&Uuid> {
+        T::ids(self)
+    }
+
+    fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
+        T::maybe_find(self, id)
     }
 }
 
