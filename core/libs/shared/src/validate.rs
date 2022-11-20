@@ -1,7 +1,8 @@
 use crate::access_info::UserAccessMode;
 use crate::file_like::FileLike;
 use crate::file_metadata::{Diff, FileDiff, FileType, Owner};
-use crate::lazy::LazyStaged1;
+use crate::lazy::LazyTree;
+use crate::staged::StagedTreeLike;
 use crate::tree_like::{TreeLike, TreeLikeMut};
 use crate::{SharedError, SharedResult, ValidationFailure};
 use std::collections::{HashMap, HashSet};
@@ -48,10 +49,11 @@ pub fn path(path: &str) -> SharedResult<()> {
     Ok(())
 }
 
-impl<Base, Local> LazyStaged1<Base, Local>
+impl<T, Base, Local> LazyTree<T>
 where
-    Base: TreeLikeMut,
-    Local: TreeLikeMut<F = Base::F>,
+    T: StagedTreeLike<Base = Base, Staged = Local>,
+    Base: TreeLike<F = T::F>,
+    Local: TreeLikeMut<F = T::F>,
 {
     pub fn validate(mut self, owner: Owner) -> SharedResult<Self> {
         // point checks
@@ -236,9 +238,9 @@ where
     }
 
     pub fn assert_no_root_changes(&mut self) -> SharedResult<()> {
-        for id in self.tree.staged.owned_ids() {
+        for id in self.tree.staged().owned_ids() {
             // already root
-            if let Some(base) = self.tree.base.maybe_find(&id) {
+            if let Some(base) = self.tree.base().maybe_find(&id) {
                 if base.is_root() {
                     return Err(SharedError::RootModificationInvalid);
                 }
@@ -254,16 +256,15 @@ where
     }
 
     pub fn assert_no_changes_to_deleted_files(mut self) -> SharedResult<Self> {
-        for id in self.tree.staged.owned_ids() {
+        for id in self.tree.staged().owned_ids() {
             // already deleted files cannot have updates
-            let mut base = self.tree.base.to_lazy();
+            let mut base = self.tree.base().to_lazy();
             if base.maybe_find(&id).is_some() && base.calculate_deleted(&id)? {
                 return Err(SharedError::DeletedFileUpdated);
             }
-            self.tree.base = base.tree;
             // newly deleted files cannot have non-deletion updates
             if self.calculate_deleted(&id)? {
-                if let Some(base) = self.tree.base.maybe_find(&id) {
+                if let Some(base) = self.tree.base().maybe_find(&id) {
                     if FileDiff::edit(&base, &self.find(&id)?)
                         .diff()
                         .iter()
@@ -298,8 +299,8 @@ where
         //     check on the first ancestor with an existing parent folder is sufficient.
         let new_files = {
             let mut new_files = HashSet::new();
-            for id in self.tree.staged.owned_ids() {
-                if self.tree.base.maybe_find(&id).is_none() {
+            for id in self.tree.staged().owned_ids() {
+                if self.tree.base().maybe_find(&id).is_none() {
                     new_files.insert(id);
                 }
             }
@@ -441,9 +442,9 @@ where
 
     fn diffs(&self) -> SharedResult<Vec<FileDiff<Base::F>>> {
         let mut result = Vec::new();
-        for id in self.tree.staged.owned_ids() {
-            let staged = self.tree.staged.find(&id)?;
-            if let Some(base) = self.tree.base.maybe_find(&id) {
+        for id in self.tree.staged().owned_ids() {
+            let staged = self.tree.staged().find(&id)?;
+            if let Some(base) = self.tree.base().maybe_find(&id) {
                 result.push(FileDiff::edit(base, staged));
             } else {
                 result.push(FileDiff::new(staged));

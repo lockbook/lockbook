@@ -14,7 +14,7 @@ use crate::transaction::Server as TransactionalServer;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::server_tree::ServerTree;
-use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
+use lockbook_shared::tree_like::TreeLike;
 
 make_static_metric! {
     pub struct MetricsStatistics: IntGauge {
