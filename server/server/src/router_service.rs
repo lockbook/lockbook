@@ -1,5 +1,5 @@
 use crate::account_service::*;
-use crate::billing::billing_service;
+use crate::billing::{app_store_client, billing_service};
 use crate::billing::billing_service::*;
 use crate::file_service::*;
 use crate::utils::get_build_info;
@@ -300,6 +300,21 @@ pub fn app_store_notification_webhooks(
                     warp::reply::with_status("".to_string(), status_code)
                 }
             }
+        })
+}
+
+pub fn app_store_send_test_notification(
+    server_state: &Arc<ServerState>,
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    let cloned_state = server_state.clone();
+
+    warp::post()
+        .and(warp::path("test-notif"))
+        .and(warp::any().map(move || cloned_state.clone()))
+        .then(|state: Arc<ServerState>| async move {
+            println!("{}", app_store_client::request_test_notif(&state.app_store_client, &state.config.billing.apple).await);
+
+            warp::reply::with_status("".to_string(), StatusCode::OK)
         })
 }
 

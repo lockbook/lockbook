@@ -7,7 +7,7 @@ use hmdb::log::{LogCompacter, Reader};
 use hmdb::transaction::Transaction;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::config::Config;
-use lockbook_server_lib::router_service::{app_store_notification_webhooks, build_info, core_routes, get_metrics, google_play_notification_webhooks, stripe_webhooks};
+use lockbook_server_lib::router_service::{app_store_notification_webhooks, app_store_send_test_notification, build_info, core_routes, get_metrics, google_play_notification_webhooks, stripe_webhooks};
 use lockbook_server_lib::schema::v2;
 use lockbook_server_lib::*;
 use std::sync::Arc;
@@ -54,7 +54,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .or(get_metrics())
         .or(stripe_webhooks(&server_state))
         .or(google_play_notification_webhooks(&server_state))
-        .or(app_store_notification_webhooks(&server_state));
+        .or(app_store_notification_webhooks(&server_state))
+        .or(app_store_send_test_notification(&server_state));
 
     let server = warp::serve(routes);
 

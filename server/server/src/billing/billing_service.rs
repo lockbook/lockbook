@@ -24,7 +24,7 @@ use tracing::*;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
 use crate::billing::app_store_service::verify_receipt;
-use crate::billing::app_store_model::{SubscriptionChange, Subtype};
+use crate::billing::app_store_model::{NotificationChange, Subtype};
 
 #[derive(Debug)]
 pub enum LockBillingWorkflowError {
@@ -296,7 +296,7 @@ pub async fn cancel_subscription(
             debug!("Successfully canceled stripe subscription");
         }
         Some(BillingPlatform::AppStore(_)) => {
-            return Err(ClientError(CancelSubscriptionError::AppleSubscription));
+            return Err(ClientError(CancelSubscriptionError::CannotCancelForAppStore));
         }
     }
 
@@ -552,8 +552,11 @@ pub async fn app_store_notification_webhook(
 ) -> Result<(), ServerError<AppStoreNotificationError>> {
     let resp = app_store_service::decode_verify_notification(server_state, &body)?;
 
-    if let SubscriptionChange::Subscribed = resp.notification_type {
+    if let NotificationChange::Subscribed = resp.notification_type {
         return Ok(());
+    } else if let NotificationChange::Test = resp.notification_type {
+        error!("Test notification!: {:?}", resp);
+        return Ok(())
     }
 
     let trans = app_store_service::decode_verify_transaction(server_state, &resp.data.encoded_transaction_info)?;
@@ -562,14 +565,14 @@ pub async fn app_store_notification_webhook(
     save_subscription_profile(server_state, &public_key, |account| {
         if let Some(BillingPlatform::AppStore(ref mut info)) = account.billing_info.billing_platform {
             match resp.notification_type {
-                SubscriptionChange::DidFailToRenew => {
+                NotificationChange::DidFailToRenew => {
                     info.account_state = if resp.subtype == Subtype::GracePeriod {
                         AppStoreAccountState::GracePeriod
                     } else {
                         AppStoreAccountState::FailedToRenew
                     };
                 }
-                SubscriptionChange::Expired => {
+                NotificationChange::Expired => {
                     match resp.subtype {
                         Subtype::BillingRetry => {
                             info.account_state = AppStoreAccountState::FailedToRenew;
@@ -585,30 +588,30 @@ pub async fn app_store_notification_webhook(
                         }
                     }
                 }
-                SubscriptionChange::GracePeriodExpired => {
+                NotificationChange::GracePeriodExpired => {
                     account.billing_info.billing_platform = None;
                 }
-                SubscriptionChange::Refund => {
+                NotificationChange::Refund => {
                     println!("REFUNDED");
                 }
-                SubscriptionChange::RefundDeclined => {
+                NotificationChange::RefundDeclined => {
                     println!("REFUND DECLINED");
                 }
-                SubscriptionChange::RenewalExtended => {}
-                SubscriptionChange::Subscribed
-                | SubscriptionChange::DidRenew => {
+                NotificationChange::RenewalExtended => {}
+                NotificationChange::Subscribed
+                | NotificationChange::DidRenew => {
                     info.account_state = AppStoreAccountState::Ok;
                     info.expiration_time = trans.revocation_date
                 }
-                SubscriptionChange::Test => {
+                NotificationChange::Test => {
                     println!("TEST");
                 }
-                SubscriptionChange::ConsumptionRequest
-                | SubscriptionChange::DidChangeRenewalPref
-                | SubscriptionChange::DidChangeRenewalStatus
-                | SubscriptionChange::OfferRedeemed
-                | SubscriptionChange::PriceIncrease
-                | SubscriptionChange::Revoke => {
+                NotificationChange::ConsumptionRequest
+                | NotificationChange::DidChangeRenewalPref
+                | NotificationChange::DidChangeRenewalStatus
+                | NotificationChange::OfferRedeemed
+                | NotificationChange::PriceIncrease
+                | NotificationChange::Revoke => {
                     return Err(internal!(
                         "Unexpected price increase: {:?} {:?}, public_key: {:?}",
                         resp.notification_type,

@@ -229,3 +229,13 @@ public enum GetSubscriptionInfoError: String, UiError {
     case CouldNotReachServer
     case ClientUpdateRequired
 }
+
+public enum CancelSubscriptionError: String, UiError {
+    case NotPremium
+    case AlreadyCanceled
+    case UsageIsOverFreeTierDataCap
+    case ExistingRequestPending
+    case CouldNotReachServer
+    case ClientUpdateRequired
+    case CannotCancelForAppStore
+}

@@ -115,4 +115,8 @@ public struct CoreApi: LockbookApi {
     public func getSubscriptionInfo() -> FfiResult<SubscriptionInfo?, GetSubscriptionInfoError> {
         fromPrimitiveResult(result: get_subscription_info())
     }
+    
+    public func cancelSubscription() -> FfiResult<Empty, CancelSubscriptionError> {
+        fromPrimitiveResult(result: cancel_subscription())
+    }
 }

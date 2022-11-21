@@ -161,12 +161,6 @@ impl From<ServerError<LockBillingWorkflowError>> for ServerError<UpgradeAccountA
     }
 }
 
-impl From<jwt_simple::Error> for ServerError<AppStoreNotificationError> {
-    fn from(e: jwt_simple::Error) -> Self {
-        internal!("{:?}", e)
-    }
-}
-
 impl From<ServerError<LockBillingWorkflowError>> for ServerError<UpgradeAccountStripeError> {
     fn from(err: ServerError<LockBillingWorkflowError>) -> Self {
         match err {

@@ -40,8 +40,8 @@ struct ManageSubscription: View {
                             DispatchQueue.global(qos: .userInitiated).async {
                                 Thread.sleep(forTimeInterval: 1)
                                 DispatchQueue.main.async {
+                                    settings.calculateUsage()
                                     presentationMode.wrappedValue.dismiss()
-                                    billing.refreshSubscriptionStatus()
                                 }
                             }
                         }

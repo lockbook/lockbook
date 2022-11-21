@@ -1,6 +1,3 @@
-use jwt_simple::algorithms::ES256KeyPair;
-use jwt_simple::claims::NoCustomClaims;
-use jwt_simple::prelude::ECDSAP256PublicKeyLike;
 use libsecp256k1::PublicKey;
 use warp::hyper::body::Bytes;
 use lockbook_shared::api::{UnixTimeMillis, UpgradeAccountAppStoreError};
@@ -40,11 +37,11 @@ pub async fn verify_receipt(client: &reqwest::Client, config: &AppleConfig, enco
 }
 
 pub fn decode_verify_notification(server_state: &ServerState, request_body: &Bytes) -> Result<NotificationResponseBody, ServerError<AppStoreNotificationError>>{
-    let key = ES256KeyPair::from_pem(&server_state.config.billing.apple.iap_key)?;
+    // let key = ES256KeyPair::from_pem(&server_state.config.billing.apple.iap_key)?;
 
     let encoded_resp: EncodedNotificationResponseBody = serde_json::from_slice(request_body).map_err(|_| ClientError(AppStoreNotificationError::InvalidJWS))?;
 
-    key.public_key().verify_token::<NoCustomClaims>(&encoded_resp.signed_payload, None).map_err(|_| ClientError(AppStoreNotificationError::InvalidJWS))?;
+    // key.public_key().verify_token::<NoCustomClaims>(&encoded_resp.signed_payload, None).map_err(|_| ClientError(AppStoreNotificationError::InvalidJWS))?;
 
     let resp = serde_json::from_slice::<NotificationResponseBody>(&base64::decode(encoded_resp.signed_payload).map_err(|_| ClientError(AppStoreNotificationError::InvalidJWS))?)?;
 
@@ -52,10 +49,9 @@ pub fn decode_verify_notification(server_state: &ServerState, request_body: &Byt
 }
 
 pub fn decode_verify_transaction(server_state: &ServerState, encoded_transaction: &str) -> Result<TransactionInfo, ServerError<AppStoreNotificationError>>{
-    let key = ES256KeyPair::from_pem(&server_state.config.billing.apple.iap_key)?;
+    // let key = ES256KeyPair::from_pem(&server_state.config.billing.apple.iap_key)?;
 
-
-    key.public_key().verify_token::<NoCustomClaims>(encoded_transaction, None).map_err(|_| ClientError(AppStoreNotificationError::InvalidJWS))?;
+    // key.public_key().verify_token::<NoCustomClaims>(encoded_transaction, None).map_err(|_| ClientError(AppStoreNotificationError::InvalidJWS))?;
 
     let resp = serde_json::from_slice::<TransactionInfo>(&base64::decode(encoded_transaction).map_err(|_| ClientError(AppStoreNotificationError::InvalidJWS))?)?;
 

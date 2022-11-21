@@ -427,7 +427,7 @@ pub enum CancelSubscriptionError {
     UsageIsOverFreeTierDataCap,
     UserNotFound,
     ExistingRequestPending,
-    AppleSubscription
+    CannotCancelForAppStore
 }
 
 impl Request for CancelSubscriptionRequest {

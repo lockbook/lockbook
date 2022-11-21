@@ -114,6 +114,7 @@ pub enum CoreError {
     AccountStringCorrupted,
     AlreadyCanceled,
     AlreadyPremium,
+    CannotCancelSubscriptionForAppStore,
     CardDecline,
     CardHasInsufficientFunds,
     CardNotSupported,
@@ -1012,6 +1013,7 @@ pub enum CancelSubscriptionError {
     ExistingRequestPending,
     CouldNotReachServer,
     ClientUpdateRequired,
+    CannotCancelForAppStore
 }
 
 impl From<CoreError> for Error<CancelSubscriptionError> {
@@ -1024,6 +1026,9 @@ impl From<CoreError> for Error<CancelSubscriptionError> {
             }
             CoreError::ExistingRequestPending => {
                 UiError(CancelSubscriptionError::ExistingRequestPending)
+            }
+            CoreError::CannotCancelSubscriptionForAppStore => {
+                UiError(CancelSubscriptionError::CannotCancelForAppStore)
             }
             CoreError::ServerUnreachable => UiError(CancelSubscriptionError::CouldNotReachServer),
             CoreError::ClientUpdateRequired => {

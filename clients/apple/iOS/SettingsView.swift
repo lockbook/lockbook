@@ -7,6 +7,8 @@ struct SettingsView: View, Equatable {
     @EnvironmentObject var settingsState: SettingsService
     @EnvironmentObject var accounts: AccountService
     
+    @State var cancelSubscriptionConfirmation = false
+    
     var body: some View {
         switch accounts.account {
         case .none:
@@ -72,27 +74,29 @@ struct SettingsView: View, Equatable {
                             }
                         }
                         
-                        switch billing.subscriptionInfo {
-                        case .none:
-                            Text("Loading...")
-                        case .some(let subscriptionStatus):
-                            switch subscriptionStatus {
-                            case .premiumStripe:
-                                Text("You are a premium user via Stripe.")
-                            case .premiumGooglePlay:
-                                Text("You are a premium user via Google Play.")
-                            case .premiumAppStore:
-                                Text("You are a premium user via the App Store.")
-                            case .free:
-                                NavigationLink(destination: ManageSubscription()) {
-                                    switch settingsState.tier {
-                                    case .Premium: Text("Manage Subscription")
-                                    default: Text("Upgrade to premium")
-                                    }
+                        if settingsState.tier == .Trial {
+                            NavigationLink(destination: ManageSubscription()) {
+                                switch settingsState.tier {
+                                case .Premium: Text("Manage Subscription")
+                                default: Text("Upgrade to premium")
                                 }
                             }
                         }
                         
+                        if settingsState.tier == .Premium {
+                            if billing.cancelSubscriptionResult != .appstoreActionRequired {
+                                Button("Cancel", role: .destructive) {
+                                    cancelSubscriptionConfirmation = true
+                                }
+                                .confirmationDialog("Are you sure you want to cancel your subscription", isPresented: $cancelSubscriptionConfirmation) {
+                                    Button("Cancel subscription", role: .destructive) {
+                                        billing.cancelSubscription()
+                                    }
+                                }
+                            } else {
+                                Text("Please cancel your subscription via the App Store.")
+                            }
+                        }
                         
                     } else {
                         Text("Calculating...")

@@ -12,24 +12,18 @@ public enum PurchaseResult {
     case failure
 }
 
-public enum SubscriptionStatus {
-    case premiumStripe
-    case premiumGooglePlay
-    case premiumAppStore
-    case free
+public enum CancelSubscriptionResult {
+    case success
+    case appstoreActionRequired
 }
 
 class BillingService: ObservableObject {
     let core: LockbookApi
     
-    @Published var subscriptionInfo: SubscriptionStatus?
-    
     let products: [String: String]
-    
     var monthlySubscription: Product? = nil
-    
-    var isPremium: Bool? = nil
     var purchaseResult: PurchaseResult? = nil
+    @Published var cancelSubscriptionResult: CancelSubscriptionResult? = nil
     
     init(_ core: LockbookApi) {
         self.core = core
@@ -41,57 +35,29 @@ class BillingService: ObservableObject {
             products = [:]
         }
         
-        refreshSubscriptionStatus()
-        
         Task {
             await requestProducts()
         }
     }
     
-    
-    func refreshSubscriptionStatus() {
-        DispatchQueue.global(qos: .userInteractive).async {
-            if DI.accounts.account == nil {
-                print("No account yet, but tried to check subscription info, ignoring")
-                return
-            }
-            
-            let subscriptionInfo = self.core.getSubscriptionInfo()
-            
-            DispatchQueue.main.async {
-                switch subscriptionInfo {
-                case .success(let subscriptionInfo):
-                    switch subscriptionInfo {
-                    case .none:
-                        self.subscriptionInfo = .free
-                    case .some(let subscriptionInfo):
-                        switch subscriptionInfo.paymentPlatform {
-                        case .Stripe(cardLast4Digits: _):
-                            self.subscriptionInfo = .premiumStripe
-                        case .GooglePlay(accountState: _):
-                            self.subscriptionInfo = .premiumGooglePlay
-                        case .AppStore(accountState: _):
-                            self.subscriptionInfo = .premiumAppStore
-                        }
-                    }
-                case .failure(let error):
-                    DI.errors.handleError(error)
-                }
-            }
-        }
-    }
-    
     func listenForTransactions() -> Task<Void, Error> {
         return Task.detached {
-            for await result in Transaction.updates {
+            for await verification in Transaction.updates {
                 do {
-                    let transaction = try self.checkVerified(result)
-
-                    
-
-                    await transaction.finish()
+                    if let receipt = self.getReceipt() {
+                        let transaction = try self.checkVerified(verification)
+                            
+                        let result = self.core.upgradeAccountAppStore(originalTransactionId: String(transaction.id), appAccountToken: transaction.appAccountToken!.uuidString, encodedReceipt: receipt)
+                        
+                        switch result {
+                        case .success(_):
+                            await transaction.finish()
+                            self.purchaseResult = .success
+                        case .failure(let error):
+                            DI.errors.handleError(error)
+                        }
+                    }
                 } catch {
-                    //StoreKit has a transaction that fails verification. Don't deliver content to the user.
                     print("Transaction failed verification")
                 }
             }
@@ -103,63 +69,37 @@ class BillingService: ObservableObject {
         let accountToken = UUID()
         let purchaseOpt: Set<Product.PurchaseOption> = [Product.PurchaseOption.appAccountToken(accountToken)]
         
-        
-//        if let appStoreReceiptURL = Bundle.main.appStoreReceiptURL,
-//            FileManager.default.fileExists(atPath: appStoreReceiptURL.path) {
-//
-//            do {
-//                let receiptData = try Data(contentsOf: appStoreReceiptURL, options: .alwaysMapped)
-//                print(receiptData)
-//
-//                let receiptString = receiptData.base64EncodedString(options: [])
-//
-//                print("The data \(receiptString)")
-//            }
-//            catch { print("Couldn't read receipt data with error: " + error.localizedDescription) }
-//        } else {
-//            print("No data :(")
-//        }
-
-
-            print("Got here 1")
-            do {
-                print("Got here 2")
-                let result = try await monthlySubscription!.purchase(options: purchaseOpt)
-                print("Got here 3")
-
-                switch result {
-                case .success(let verification):
-                    
-                    print("Got here 4")
-                    
-                    let receipt = getReceipt()
-                    if receipt != nil {
-//                        let transaction = try checkVerified(verification)
+        do {
+            let result = try await monthlySubscription!.purchase(options: purchaseOpt)
+            switch result {
+            case .success(let verification):
+                if let receipt = getReceipt() {
+                    let transaction = try checkVerified(verification)
                         
-                        print("ITEMS: \(receipt)")
-
-                        // self.core.upgradeAccountAppStore(originalTransactionId: <#T##String#>, appAccountToken: <#T##String#>, encodedReceipt: <#T##String#>)
-                        
-//                        await transaction.finish()
+//                    print("ITEMS: \(String(transaction.id)) \(transaction.appAccountToken) \(receipt)")
+                    let result = self.core.upgradeAccountAppStore(originalTransactionId: String(transaction.id), appAccountToken: accountToken.uuidString, encodedReceipt: receipt)
+                    
+                    switch result {
+                    case .success(_):
+                        await transaction.finish()
                         purchaseResult = .success
                         return .success
+                    case .failure(let error):
+                        DI.errors.handleError(error)
                     }
-                case .pending:
-                    purchaseResult = .pending
-                    return .pending
-                case .userCancelled:
-                    return nil
-                default:
-                    return .failure
                 }
-
+            case .pending:
+                purchaseResult = .pending
+                return .pending
+            case .userCancelled:
+                return nil
+            default:
+                return .failure
             }
-            catch {
-                print("Couldn't read receipt data with error: " + error.localizedDescription)
-            }
-
-
-        print("Failed here 3")
+        }
+        catch {
+            print("Couldn't read receipt data with error: " + error.localizedDescription)
+        }
 
         return .failure
     }
@@ -198,10 +138,33 @@ class BillingService: ObservableObject {
                 print("No products!")
             }
             
-            SKPaymentQueue().restoreCompletedTransactions()
-            print(getReceipt())
+            SKPaymentQueue.default().restoreCompletedTransactions()
         } catch {
             print("Failed product request from the App Store server: \(error)")
+        }
+    }
+    
+    func cancelSubscription() {
+        DispatchQueue.global(qos: .userInteractive).async {
+            let result = self.core.cancelSubscription()
+            
+            DispatchQueue.main.async {
+                switch result {
+                case .success(_):
+                    self.cancelSubscriptionResult = .success
+                case .failure(let err):
+                    switch err.kind {
+                    case .UiError(let errorVariant):
+                        if errorVariant == .CannotCancelForAppStore {
+                            self.cancelSubscriptionResult = .appstoreActionRequired
+                        } else {
+                            DI.errors.handleError(err)
+                        }
+                    case .Unexpected:
+                        DI.errors.handleError(err)
+                    }
+                }
+            }
         }
     }
 }

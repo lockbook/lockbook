@@ -32,7 +32,7 @@ pub struct EncodedNotificationResponseBody {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all="camelCase")]
 pub struct NotificationResponseBody {
-    pub notification_type: SubscriptionChange,
+    pub notification_type: NotificationChange,
     pub subtype: Subtype,
     pub data: NotificationData,
 }
@@ -84,7 +84,7 @@ pub enum Subtype {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all="SCREAMING_SNAKE_CASE")]
-pub enum SubscriptionChange {
+pub enum NotificationChange {
     ConsumptionRequest,
     DidChangeRenewalPref,
     DidChangeRenewalStatus,
