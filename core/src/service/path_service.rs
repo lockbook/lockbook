@@ -8,7 +8,7 @@ use uuid::Uuid;
 impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn create_link_at_path(&mut self, path: &str, target_id: Uuid) -> CoreResult<File> {
         let pub_key = self.get_public_key()?;
-        let tree = self
+        let mut tree = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)
@@ -25,8 +25,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .get(&OneKey {})
             .ok_or(CoreError::RootNonexistent)?;
 
-        let (mut tree, id) = tree.create_link_at_path(path, target_id, root, account, &pub_key)?;
-
+        let id = tree.create_link_at_path(path, target_id, root, account, &pub_key)?;
         let ui_file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
 
         Ok(ui_file)
@@ -34,7 +33,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
     pub fn create_at_path(&mut self, path: &str) -> CoreResult<File> {
         let pub_key = self.get_public_key()?;
-        let tree = self
+        let mut tree = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)
@@ -51,8 +50,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .get(&OneKey {})
             .ok_or(CoreError::RootNonexistent)?;
 
-        let (mut tree, id) = tree.create_at_path(path, root, account, &pub_key)?;
-
+        let id = tree.create_at_path(path, root, account, &pub_key)?;
         let ui_file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
 
         Ok(ui_file)

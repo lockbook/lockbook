@@ -49,9 +49,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             let cont = file.document_hmac().is_some();
             let not_deleted = !tree.calculate_deleted(&id)?;
             if not_deleted && doc && cont {
-                let read_doc = tree.read_document(self.config, &id, account)?;
-                tree = read_doc.0;
-                let doc = read_doc.1;
+                let doc = tree.read_document(self.config, &id, account)?;
 
                 if doc.len() as u64 == 0 {
                     warnings.push(Warning::EmptyFile(id));

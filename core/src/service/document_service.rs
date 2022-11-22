@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn read_document(&mut self, id: Uuid) -> CoreResult<DecryptedDocument> {
-        let tree = self
+        let mut tree = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)
@@ -20,13 +20,13 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let (_, doc) = tree.read_document(self.config, &id, account)?;
+        let doc = tree.read_document(self.config, &id, account)?;
 
         Ok(doc)
     }
 
     pub fn write_document(&mut self, id: Uuid, content: &[u8]) -> CoreResult<()> {
-        let tree = self
+        let mut tree = self
             .tx
             .base_metadata
             .stage(&mut self.tx.local_metadata)
@@ -41,7 +41,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             FileType::Document | FileType::Folder => id,
             FileType::Link { target } => target,
         };
-        let (tree, encrypted_document) = tree.update_document(&id, content, account)?;
+        let encrypted_document = tree.update_document(&id, content, account)?;
         let hmac = tree.find(&id)?.document_hmac();
         document_repo::insert(self.config, &id, hmac, &encrypted_document)?;
 
