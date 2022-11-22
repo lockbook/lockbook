@@ -14,12 +14,12 @@ use crate::{validate, SharedError, SharedResult};
 
 impl<Base, Local> LazyStaged1<Base, Local>
 where
-    Base: TreeLikeMut<F = SignedFile>,
+    Base: TreeLike<F = SignedFile>,
     Local: TreeLikeMut<F = Base::F>,
 {
     pub fn create_link_at_path(
-        self, path: &str, target_id: Uuid, root: &Uuid, account: &Account, pub_key: &PublicKey,
-    ) -> SharedResult<(LazyStaged1<Base, Local>, Uuid)> {
+        &mut self, path: &str, target_id: Uuid, root: &Uuid, account: &Account, pub_key: &PublicKey,
+    ) -> SharedResult<Uuid> {
         validate::path(path)?;
         let file_type = FileType::Link { target: target_id };
         let path_components = split_path(path);
@@ -27,8 +27,8 @@ where
     }
 
     pub fn create_at_path(
-        self, path: &str, root: &Uuid, account: &Account, pub_key: &PublicKey,
-    ) -> SharedResult<(LazyStaged1<Base, Local>, Uuid)> {
+        &mut self, path: &str, root: &Uuid, account: &Account, pub_key: &PublicKey,
+    ) -> SharedResult<Uuid> {
         validate::path(path)?;
         let file_type = if path.ends_with('/') { FileType::Folder } else { FileType::Document };
         let path_components = split_path(path);
@@ -36,9 +36,9 @@ where
     }
 
     fn create_at_path_helper(
-        mut self, file_type: FileType, path_components: Vec<&str>, root: &Uuid, account: &Account,
+        &mut self, file_type: FileType, path_components: Vec<&str>, root: &Uuid, account: &Account,
         pub_key: &PublicKey,
-    ) -> SharedResult<(LazyStaged1<Base, Local>, Uuid)> {
+    ) -> SharedResult<Uuid> {
         let mut current = *root;
         'path: for index in 0..path_components.len() {
             'child: for child in self.children(&current)? {
@@ -72,11 +72,10 @@ where
             let this_file_type =
                 if index != path_components.len() - 1 { FileType::Folder } else { file_type };
 
-            (self, current) =
-                self.create(&current, path_components[index], this_file_type, account, pub_key)?;
+            current = self.create(&current, path_components[index], this_file_type, account)?;
         }
 
-        Ok((self, current))
+        Ok(current)
     }
 
     pub fn path_to_id(&mut self, path: &str, root: &Uuid, account: &Account) -> SharedResult<Uuid> {
