@@ -10,6 +10,7 @@ use lockbook_shared::api::*;
 use lockbook_shared::SharedError;
 use std::fmt::Debug;
 use std::io::Error;
+use jsonwebtoken::errors::ErrorKind;
 use crate::billing::app_store_client::AppStoreError;
 
 impl<T: Debug> From<Error> for ServerError<T> {
@@ -129,6 +130,39 @@ impl From<AppStoreError> for ServerError<UpgradeAccountAppStoreError> {
     fn from(e: AppStoreError) -> Self {
         match e {
             AppStoreError::Other(msg) => internal!("{}", msg)
+        }
+    }
+}
+
+impl From<jsonwebtoken::errors::Error> for AppStoreError {
+    fn from(err: jsonwebtoken::errors::Error) -> Self {
+        AppStoreError::Other(format!("JWT error: {:?}", err))
+    }
+}
+
+impl From<jsonwebtoken::errors::Error> for ServerError<AppStoreNotificationError> {
+    fn from(err: jsonwebtoken::errors::Error) -> Self {
+        match err.kind() {
+            ErrorKind::InvalidToken
+            | ErrorKind::InvalidSignature
+            | ErrorKind::MissingRequiredClaim(_)
+            | ErrorKind::ExpiredSignature
+            | ErrorKind::InvalidIssuer
+            | ErrorKind::InvalidAudience
+            | ErrorKind::InvalidSubject
+            | ErrorKind::ImmatureSignature
+            | ErrorKind::InvalidAlgorithm
+            | ErrorKind::MissingAlgorithm
+            | ErrorKind::Base64(_)
+            | ErrorKind::Json(_)
+            | ErrorKind::Utf8(_) => ClientError(AppStoreNotificationError::InvalidJWS),
+            ErrorKind::InvalidEcdsaKey
+            | ErrorKind::InvalidRsaKey(_)
+            | ErrorKind::RsaFailedSigning
+            | ErrorKind::InvalidAlgorithmName
+            | ErrorKind::InvalidKeyFormat
+            | ErrorKind::Crypto(_)
+            | _ => internal!("JWT error: {:?}", err)
         }
     }
 }

@@ -1,5 +1,4 @@
 use jsonwebtoken::{Algorithm, encode, EncodingKey, Header};
-use reqwest::header::HeaderMap;
 use reqwest::RequestBuilder;
 use crate::config::AppleConfig;
 use crate::billing::app_store_model::{VerifyReceiptRequest, VerifyReceiptResponse};
@@ -9,7 +8,7 @@ use lockbook_shared::clock::get_time;
 const VERIFY_PROD: &str = "https://buy.itunes.apple.com/verifyReceipt";
 const VERIFY_SANDBOX: &str = "https://sandbox.itunes.apple.com/verifyReceipt";
 
-const AUDIENCE: &str = "appstoreconnect-v2";
+const AUDIENCE: &str = "appstoreconnect-v1";
 const BUNDLE_ID: &str = "app.lockbook";
 
 #[derive(Debug)]
@@ -18,7 +17,7 @@ pub enum AppStoreError {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Claims {
+pub struct Claims {
     iss: String,
     iat: usize,
     exp: usize,
@@ -31,16 +30,11 @@ pub fn gen_auth_req(config: &AppleConfig, request: RequestBuilder) -> Result<Req
     // println!("DA claims: {}", serde_json::to_string(&claims).unwrap());
     // println!("THE config: {:?}", config);
 
-    let mut headers = HeaderMap::new();
-    headers.insert("alg", "ES256".parse().map_err(|e| AppStoreError::Other(format!("{:?}", e)))?);
-    headers.insert("kid", config.iap_key_id.parse().map_err(|e| AppStoreError::Other(format!("{:?}", e)))?);
-    headers.insert("typ", "JWT".parse().map_err(|e| AppStoreError::Other(format!("{:?}", e)))?);
-
     let mut header = Header::new(Algorithm::ES256);
     header.kid = Some(config.iap_key_id.clone());
 
-    let iat = get_time().0 as usize;
-    let exp = (get_time().0 + 1200000) as usize;
+    let iat = (get_time().0 / 1000) as usize;
+    let exp = (get_time().0 / 1000 + 1200) as usize;
 
     let claims = Claims {
         iss: config.issuer_id.to_string(),
@@ -50,12 +44,11 @@ pub fn gen_auth_req(config: &AppleConfig, request: RequestBuilder) -> Result<Req
         bid: BUNDLE_ID.to_string()
     };
 
-    println!("CONFUSed: {:?} {:?}", header, claims);
-
-    let token = encode(&header, &claims, &EncodingKey::from_secret(config.iap_key.as_bytes())).unwrap();
-
+    let token = encode(&header, &claims, &EncodingKey::from_ec_pem(config.iap_key.as_bytes())?)?;
     Ok(request
-        .headers(headers)
+        .header("alg", "ES256")
+        .header("kid", &config.iap_key_id)
+        .header("typ", "JWT")
         .bearer_auth(token))
 }
 

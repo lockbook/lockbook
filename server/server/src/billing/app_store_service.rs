@@ -1,3 +1,4 @@
+use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use libsecp256k1::PublicKey;
 use warp::hyper::body::Bytes;
 use lockbook_shared::api::{UnixTimeMillis, UpgradeAccountAppStoreError};
@@ -5,6 +6,7 @@ use lockbook_shared::clock::get_time;
 use crate::billing::app_store_model::{EncodedNotificationResponseBody, NotificationResponseBody, ReceiptInfo, TransactionInfo};
 use crate::{ClientError, ServerError, ServerState};
 use crate::billing::app_store_client;
+use crate::billing::app_store_client::Claims;
 use crate::billing::billing_service::AppStoreNotificationError;
 use crate::config::AppleConfig;
 
@@ -36,24 +38,19 @@ pub async fn verify_receipt(client: &reqwest::Client, config: &AppleConfig, enco
     Ok(latest_receipt.expires_date_ms as UnixTimeMillis)
 }
 
-pub fn decode_verify_notification(server_state: &ServerState, request_body: &Bytes) -> Result<NotificationResponseBody, ServerError<AppStoreNotificationError>>{
-    // let key = ES256KeyPair::from_pem(&server_state.config.billing.apple.iap_key)?;
-
+pub fn decode_verify_notification(config: &AppleConfig, request_body: &Bytes) -> Result<NotificationResponseBody, ServerError<AppStoreNotificationError>>{
     let encoded_resp: EncodedNotificationResponseBody = serde_json::from_slice(request_body).map_err(|_| ClientError(AppStoreNotificationError::InvalidJWS))?;
-
-    // key.public_key().verify_token::<NoCustomClaims>(&encoded_resp.signed_payload, None).map_err(|_| ClientError(AppStoreNotificationError::InvalidJWS))?;
-
-    let resp = serde_json::from_slice::<NotificationResponseBody>(&base64::decode(encoded_resp.signed_payload).map_err(|_| ClientError(AppStoreNotificationError::InvalidJWS))?)?;
-
-    Ok(resp)
+    println!("GOT HERE 1");
+    let key = DecodingKey::from_ec_pem(config.asc_public_key.as_bytes())?;
+    println!("GOT HERE 2: {}", encoded_resp.signed_payload);
+    let payload = jsonwebtoken::decode::<NotificationResponseBody>(&encoded_resp.signed_payload, &key, &Validation::new(Algorithm::ES256))?;
+    println!("GOT HERE 3");
+    Ok(payload.claims)
 }
 
-pub fn decode_verify_transaction(server_state: &ServerState, encoded_transaction: &str) -> Result<TransactionInfo, ServerError<AppStoreNotificationError>>{
-    // let key = ES256KeyPair::from_pem(&server_state.config.billing.apple.iap_key)?;
+pub fn decode_verify_transaction(config: &AppleConfig, encoded_transaction: &str) -> Result<TransactionInfo, ServerError<AppStoreNotificationError>>{
+    let key = DecodingKey::from_ec_pem(config.asc_public_key.as_bytes())?;
+    let payload = jsonwebtoken::decode::<TransactionInfo>(encoded_transaction, &key, &Validation::new(Algorithm::ES256))?;
 
-    // key.public_key().verify_token::<NoCustomClaims>(encoded_transaction, None).map_err(|_| ClientError(AppStoreNotificationError::InvalidJWS))?;
-
-    let resp = serde_json::from_slice::<TransactionInfo>(&base64::decode(encoded_transaction).map_err(|_| ClientError(AppStoreNotificationError::InvalidJWS))?)?;
-
-    Ok(resp)
+    Ok(payload.claims)
 }

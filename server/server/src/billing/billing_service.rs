@@ -550,17 +550,28 @@ pub enum AppStoreNotificationError {
 pub async fn app_store_notification_webhook(
     server_state: &Arc<ServerState>, body: Bytes
 ) -> Result<(), ServerError<AppStoreNotificationError>> {
-    let resp = app_store_service::decode_verify_notification(server_state, &body)?;
+    let resp = app_store_service::decode_verify_notification(&server_state.config.billing.apple, &body)?;
 
     if let NotificationChange::Subscribed = resp.notification_type {
         return Ok(());
     } else if let NotificationChange::Test = resp.notification_type {
-        error!("Test notification!: {:?}", resp);
+        println!("test notification hit");
+
+        debug!(?resp, "This is a test notification.");
         return Ok(())
     }
 
-    let trans = app_store_service::decode_verify_transaction(server_state, &resp.data.encoded_transaction_info)?;
+    let trans = app_store_service::decode_verify_transaction(&server_state.config.billing.apple, &resp.data.encoded_transaction_info)?;
     let public_key = app_store_service::get_public_key(&server_state, &trans)?;
+
+    let owner = Owner(public_key);
+
+    debug!(
+        ?owner,
+        ?resp.notification_type,
+        ?resp.subtype,
+        "Updating app store user's subscription profile to match new subscription state"
+    );
 
     save_subscription_profile(server_state, &public_key, |account| {
         if let Some(BillingPlatform::AppStore(ref mut info)) = account.billing_info.billing_platform {
@@ -577,7 +588,9 @@ pub async fn app_store_notification_webhook(
                         Subtype::BillingRetry => {
                             info.account_state = AppStoreAccountState::FailedToRenew;
                         }
-                        Subtype::Voluntary => {}
+                        Subtype::Voluntary => {
+                            debug!(?owner, "Subscription cancelled");
+                        }
                         _ => {
                             return Err(internal!(
                                 "Unexpected price increase: {:?} {:?}, public_key: {:?}",
@@ -592,10 +605,10 @@ pub async fn app_store_notification_webhook(
                     account.billing_info.billing_platform = None;
                 }
                 NotificationChange::Refund => {
-                    println!("REFUNDED");
+                    debug!(?resp, "A user has requested a refund.");
                 }
                 NotificationChange::RefundDeclined => {
-                    println!("REFUND DECLINED");
+                    debug!(?resp, "A user's refund request has been denied.");
                 }
                 NotificationChange::RenewalExtended => {}
                 NotificationChange::Subscribed
@@ -603,17 +616,15 @@ pub async fn app_store_notification_webhook(
                     info.account_state = AppStoreAccountState::Ok;
                     info.expiration_time = trans.revocation_date
                 }
-                NotificationChange::Test => {
-                    println!("TEST");
-                }
                 NotificationChange::ConsumptionRequest
                 | NotificationChange::DidChangeRenewalPref
                 | NotificationChange::DidChangeRenewalStatus
                 | NotificationChange::OfferRedeemed
                 | NotificationChange::PriceIncrease
-                | NotificationChange::Revoke => {
+                | NotificationChange::Revoke
+                | NotificationChange::Test => {
                     return Err(internal!(
-                        "Unexpected price increase: {:?} {:?}, public_key: {:?}",
+                        "Unexpected notification change: {:?} {:?}, public_key: {:?}",
                         resp.notification_type,
                         resp.subtype,
                         public_key
