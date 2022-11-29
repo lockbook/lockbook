@@ -1,19 +1,21 @@
 use crate::OneKey;
 use crate::{CoreError, RequestContext};
 use crate::{CoreResult, Requester};
+use lockbook_shared::access_info::UserAccessMode;
 use lockbook_shared::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
     GetUsernameRequest, UpsertRequest,
 };
-use lockbook_shared::document_repo;
+use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{DocumentHmac, FileDiff, Owner};
+use lockbook_shared::file_metadata::{Diff, DocumentHmac, FileDiff, Owner};
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::staged::StagedTreeLikeMut;
 use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
+use lockbook_shared::{document_repo, SharedError, ValidationFailure};
 use serde::Serialize;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Serialize, Clone)]
 pub struct WorkCalculated {
@@ -127,12 +129,13 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         // pre-process changes
         remote_changes = self.prune_remote_orphans(remote_changes)?;
 
-        // fetch document updates and local documents for merge (todo: don't hold these all in memory at the same time)
+        // fetch document updates and local documents for merge
         let account = self
             .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
+        let owner = Owner(account.public_key());
         let mut remote_document_changes = HashSet::new();
         remote_changes = {
             let mut remote = (&self.tx.base_metadata).stage(remote_changes).to_lazy();
@@ -167,19 +170,140 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             remote_changes
         };
 
-        // base = remote; local = merge
-        let remote_changes = {
-            let local = (&mut self.tx.base_metadata)
-                .to_staged(remote_changes)
-                .to_staged(&mut self.tx.local_metadata)
+        // compute merge changes
+        let merge_changes = {
+            let mut remote = (&self.tx.base_metadata)
+                .to_staged(&remote_changes)
+                .to_lazy();
+            let mut local = (&self.tx.base_metadata)
+                .to_staged(&self.tx.local_metadata)
                 .to_lazy();
 
-            let local = local.merge(self.config, account, &remote_document_changes)?;
-            let (remote, _) = local.unstage();
-            let (_, remote_changes) = remote.unstage();
-            remote_changes
+            loop {
+                // construct a merge changeset
+                let mut merge_changes = Vec::new();
+
+                for id in self.tx.local_metadata.owned_ids() {
+                    // deleted files may not be modified
+                    if !remote.calculate_deleted(&id)? {
+                        continue;
+                    }
+
+                    let local_file =
+                        local.finalize(&id, account, &mut self.tx.username_by_public_key)?;
+
+                    let file_diff = FileDiff {
+                        old: self.tx.base_metadata.maybe_find(&id),
+                        new: self.tx.local_metadata.find(&id)?,
+                    };
+                    for diff in file_diff.diff() {
+                        match diff {
+                            Diff::New => {
+                                let (op, _) = remote.create_op(
+                                    id,
+                                    &local_file.parent,
+                                    &local_file.name,
+                                    local_file.file_type,
+                                    account,
+                                )?;
+                                merge_changes.push(op);
+                            }
+                            Diff::Parent => {
+                                let op = remote.move_op(&id, &local_file.parent, account)?;
+                                merge_changes.extend(op);
+                            }
+                            Diff::Name => {
+                                let op = remote.rename_op(&id, &local_file.name, account)?;
+                                merge_changes.push(op);
+                            }
+                            Diff::Owner => {} // owner changes are a result of moves
+                            Diff::Deleted => {
+                                let op = remote.delete_op(&id, account)?;
+                                merge_changes.push(op);
+                            }
+                            Diff::Hmac => {
+                                // todo: avoid reading/decrypting/encrypting document
+                                let document = local.read_document(self.config, &id, account)?;
+                                let (op, _) = remote.update_document_op(&id, &document, account)?;
+                                merge_changes.push(op);
+                            }
+                            Diff::UserKeys => {
+                                // change access: either changing your own access, or have write access
+                                let base_keys = {
+                                    if let Some(ref old) = file_diff.old {
+                                        let mut base_keys = HashMap::new();
+                                        for key in old.user_access_keys() {
+                                            base_keys.insert(
+                                                (Owner(key.encrypted_by), Owner(key.encrypted_for)),
+                                                (key.mode, key.deleted),
+                                            );
+                                        }
+                                        base_keys
+                                    } else {
+                                        // unreachable - file diff will always have Some .old if .diff() emits Diff::UserKeys
+                                        HashMap::new()
+                                    }
+                                };
+                                for key in file_diff.new.user_access_keys() {
+                                    let (by, for_) =
+                                        (Owner(key.encrypted_by), Owner(key.encrypted_for));
+                                    if base_keys.contains_key(&(by, for_)) && key.deleted {
+                                        let op =
+                                            remote.delete_share_op(&id, Some(for_.0), account)?;
+                                        merge_changes.extend(op);
+                                    } else {
+                                        let mode = match key.mode {
+                                            UserAccessMode::Read => ShareMode::Read,
+                                            UserAccessMode::Write => ShareMode::Write,
+                                            UserAccessMode::Owner => continue,
+                                        };
+                                        let op = remote.add_share_op(id, for_, mode, account)?;
+                                        merge_changes.push(op);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // validate; handle failures by introducing changeset constraints
+                let merge = (&self.tx.base_metadata)
+                    .to_staged(&self.tx.local_metadata)
+                    .to_staged(&merge_changes)
+                    .to_lazy();
+                let validate_result = merge.validate(owner);
+                match validate_result {
+                    // merge changeset is valid
+                    Ok(_) => break merge_changes,
+                    Err(SharedError::ValidationFailure(ref vf)) => match vf {
+                        // merge changeset has resolvable validation errors and needs modification
+                        ValidationFailure::Cycle(_) => {}
+                        ValidationFailure::PathConflict(_) => {}
+                        ValidationFailure::SharedLink { .. } => {}
+                        ValidationFailure::DuplicateLink { .. } => {}
+                        ValidationFailure::BrokenLink(_) => {}
+                        ValidationFailure::OwnedLink(_) => {}
+                        // merge changeset has unexpected validation errors
+                        ValidationFailure::Orphan(_)
+                        | ValidationFailure::NonFolderWithChildren(_)
+                        | ValidationFailure::FileWithDifferentOwnerParent(_)
+                        | ValidationFailure::NonDecryptableFileName(_) => {
+                            validate_result?;
+                        }
+                    },
+                    // merge changeset has unexpected errors
+                    Err(_) => {
+                        validate_result?;
+                    }
+                }
+            }
         };
 
+        // base = remote; local = merge
+        (&mut self.tx.local_metadata)
+            .to_staged(merge_changes)
+            .to_lazy()
+            .promote();
         (&mut self.tx.base_metadata)
             .to_staged(remote_changes)
             .to_lazy()

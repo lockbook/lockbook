@@ -127,10 +127,9 @@ where
         Ok(files)
     }
 
-    // pub for testing (tree_composition_tests)
     pub fn create_op(
-        &mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
-    ) -> SharedResult<(Option<SignedFile>, Uuid)> {
+        &mut self, id: Uuid, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
+    ) -> SharedResult<(SignedFile, Uuid)> {
         validate::file_name(name)?;
 
         if self.calculate_deleted(parent)? {
@@ -139,17 +138,17 @@ where
 
         let parent_owner = self.find(parent)?.owner().0;
         let parent_key = self.decrypt_key(parent, account)?;
-        let file = FileMetadata::create(&parent_owner, *parent, &parent_key, name, file_type)?
+        let file = FileMetadata::create(id, &parent_owner, *parent, &parent_key, name, file_type)?
             .sign(account)?;
         let id = *file.id();
 
         debug!("new {:?} with id: {}", file_type, id);
-        Ok((Some(file), id))
+        Ok((file, id))
     }
 
-    fn rename_op(
+    pub fn rename_op(
         &mut self, id: &Uuid, name: &str, account: &Account,
-    ) -> SharedResult<Option<SignedFile>> {
+    ) -> SharedResult<SignedFile> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
 
         validate::file_name(name)?;
@@ -161,10 +160,10 @@ where
         file.name = SecretFileName::from_str(name, &key, &parent_key)?;
         let file = file.sign(account)?;
 
-        Ok(Some(file))
+        Ok(file)
     }
 
-    fn move_op(
+    pub fn move_op(
         &mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
     ) -> SharedResult<Vec<SignedFile>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
@@ -190,16 +189,61 @@ where
         Ok(result)
     }
 
-    fn delete_op(&self, id: &Uuid, account: &Account) -> SharedResult<Option<SignedFile>> {
+    pub fn delete_op(&self, id: &Uuid, account: &Account) -> SharedResult<SignedFile> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
 
         file.is_deleted = true;
         let file = file.sign(account)?;
 
-        Ok(Some(file))
+        Ok(file)
     }
 
-    fn delete_share_op(
+    pub fn add_share_op(
+        &mut self, id: Uuid, sharee: Owner, mode: ShareMode, account: &Account,
+    ) -> SharedResult<SignedFile> {
+        let owner = Owner(account.public_key());
+        let access_mode = match mode {
+            ShareMode::Write => UserAccessMode::Write,
+            ShareMode::Read => UserAccessMode::Read,
+        };
+        let mut file = self.find(&id)?.timestamped_value.value.clone();
+        if self.calculate_deleted(&id)? {
+            return Err(SharedError::FileNonexistent);
+        }
+        validate::not_root(&file)?;
+        if mode == ShareMode::Write && file.owner.0 != owner.0 {
+            return Err(SharedError::InsufficientPermission);
+        }
+        // check for and remove duplicate shares
+        let mut found = false;
+        for user_access in &mut file.user_access_keys {
+            if user_access.encrypted_for == sharee.0 {
+                found = true;
+                if user_access.mode == access_mode && !user_access.deleted {
+                    return Err(SharedError::DuplicateShare);
+                }
+            }
+        }
+        if found {
+            file.user_access_keys = file
+                .user_access_keys
+                .into_iter()
+                .filter(|k| k.encrypted_for != sharee.0)
+                .collect();
+        }
+        file.user_access_keys.push(UserAccessInfo::encrypt(
+            account,
+            &owner.0,
+            &sharee.0,
+            &self.decrypt_key(&id, account)?,
+            access_mode,
+        )?);
+        let file = file.sign(account)?;
+
+        Ok(file)
+    }
+
+    pub fn delete_share_op(
         &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
     ) -> SharedResult<Vec<SignedFile>> {
         let mut result = Vec::new();
@@ -266,9 +310,9 @@ where
         Ok(doc)
     }
 
-    fn update_document_op(
+    pub fn update_document_op(
         &mut self, id: &Uuid, document: &[u8], account: &Account,
-    ) -> SharedResult<(Option<SignedFile>, EncryptedDocument)> {
+    ) -> SharedResult<(SignedFile, EncryptedDocument)> {
         let id = match self.find(id)?.file_type() {
             FileType::Document | FileType::Folder => *id,
             FileType::Link { target } => target,
@@ -288,7 +332,7 @@ where
         let document = compression_service::compress(document)?;
         let document = symkey::encrypt(&key, &document)?;
 
-        Ok((Some(file), document))
+        Ok((file, document))
     }
 }
 
@@ -301,16 +345,16 @@ where
     pub fn create_unvalidated(
         &mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
     ) -> SharedResult<Uuid> {
-        let (op, id) = self.create_op(parent, name, file_type, account)?;
-        self.stage_and_promote(op);
+        let (op, id) = self.create_op(Uuid::new_v4(), parent, name, file_type, account)?;
+        self.stage_and_promote(Some(op));
         Ok(id)
     }
 
     pub fn create(
         &mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
     ) -> SharedResult<Uuid> {
-        let (op, id) = self.create_op(parent, name, file_type, account)?;
-        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
+        let (op, id) = self.create_op(Uuid::new_v4(), parent, name, file_type, account)?;
+        self.stage_validate_and_promote(Some(op), Owner(account.public_key()))?;
         Ok(id)
     }
 
@@ -318,13 +362,13 @@ where
         &mut self, id: &Uuid, name: &str, account: &Account,
     ) -> SharedResult<()> {
         let op = self.rename_op(id, name, account)?;
-        self.stage_and_promote(op);
+        self.stage_and_promote(Some(op));
         Ok(())
     }
 
     pub fn rename(&mut self, id: &Uuid, name: &str, account: &Account) -> SharedResult<()> {
         let op = self.rename_op(id, name, account)?;
-        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
+        self.stage_validate_and_promote(Some(op), Owner(account.public_key()))?;
         Ok(())
     }
 
@@ -346,13 +390,29 @@ where
 
     pub fn delete_unvalidated(&mut self, id: &Uuid, account: &Account) -> SharedResult<()> {
         let op = self.delete_op(id, account)?;
-        self.stage_and_promote(op);
+        self.stage_and_promote(Some(op));
         Ok(())
     }
 
     pub fn delete(&mut self, id: &Uuid, account: &Account) -> SharedResult<()> {
         let op = self.delete_op(id, account)?;
-        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
+        self.stage_validate_and_promote(Some(op), Owner(account.public_key()))?;
+        Ok(())
+    }
+
+    pub fn add_share_unvalidated(
+        &mut self, id: Uuid, sharee: Owner, mode: ShareMode, account: &Account,
+    ) -> SharedResult<()> {
+        let op = self.add_share_op(id, sharee, mode, account)?;
+        self.stage_and_promote(Some(op));
+        Ok(())
+    }
+
+    pub fn add_share(
+        &mut self, id: Uuid, sharee: Owner, mode: ShareMode, account: &Account,
+    ) -> SharedResult<()> {
+        let op = self.add_share_op(id, sharee, mode, account)?;
+        self.stage_validate_and_promote(Some(op), Owner(account.public_key()))?;
         Ok(())
     }
 
@@ -376,7 +436,7 @@ where
         &mut self, id: &Uuid, document: &[u8], account: &Account,
     ) -> SharedResult<EncryptedDocument> {
         let (op, document) = self.update_document_op(id, document, account)?;
-        self.stage_and_promote(op);
+        self.stage_and_promote(Some(op));
         Ok(document)
     }
 
@@ -384,7 +444,7 @@ where
         &mut self, id: &Uuid, document: &[u8], account: &Account,
     ) -> SharedResult<EncryptedDocument> {
         let (op, document) = self.update_document_op(id, document, account)?;
-        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
+        self.stage_validate_and_promote(Some(op), Owner(account.public_key()))?;
         Ok(document)
     }
 

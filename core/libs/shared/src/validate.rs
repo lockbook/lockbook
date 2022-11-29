@@ -432,7 +432,6 @@ where
                             }
                         }
                     }
-                    Diff::Id => return Err(SharedError::Unexpected("Id FileDiff")),
                 }
             }
         }

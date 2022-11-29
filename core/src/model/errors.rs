@@ -189,6 +189,7 @@ impl From<SharedError> for CoreError {
             InsufficientPermission => CoreError::InsufficientPermission,
             NotPermissioned => CoreError::InsufficientPermission,
             ShareNonexistent => CoreError::ShareNonexistent,
+            DuplicateShare => CoreError::ShareAlreadyExists,
             ValidationFailure(lockbook_shared::ValidationFailure::Cycle(_)) => {
                 CoreError::FolderMovedIntoSelf
             }

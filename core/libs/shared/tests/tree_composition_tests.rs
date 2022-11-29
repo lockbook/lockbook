@@ -25,7 +25,7 @@ fn test_stage_promote() {
     let (op, _) = files
         .create_op(root.id(), "test", FileType::Folder, account)
         .unwrap();
-    let files = files.tree.to_staged(op).to_lazy();
+    let files = files.tree.to_staged(Some(op)).to_lazy();
 
     assert_eq!(files.tree.base.base.len(), 1);
     assert_eq!(files.tree.base.staged.len(), 0);
@@ -48,7 +48,7 @@ fn test_stage_unstage() {
     let (op, _) = files
         .create_op(root.id(), "test", FileType::Folder, account)
         .unwrap();
-    let files = files.tree.stage(op).to_lazy();
+    let files = files.tree.stage(Some(op)).to_lazy();
 
     assert_eq!(files.tree.base.base.len(), 1);
     assert_eq!(files.tree.base.staged.len(), 0);
