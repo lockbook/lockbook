@@ -368,32 +368,33 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                                 merge.rename_unvalidated(&id, &local_name, account)?;
                                 println!("\tdone");
                             }
+                        }
 
-                            // share
-                            let mut base_keys = HashMap::new();
+                        // share
+                        let mut base_keys = HashMap::new();
+                        if let Some(ref base_file) = maybe_base_file {
                             for key in base_file.user_access_keys() {
                                 base_keys.insert(
                                     (Owner(key.encrypted_by), Owner(key.encrypted_for)),
                                     (key.mode, key.deleted),
                                 );
                             }
-                            for key in local_file.user_access_keys() {
-                                let (by, for_) =
-                                    (Owner(key.encrypted_by), Owner(key.encrypted_for));
-                                if base_keys.contains_key(&(by, for_)) && key.deleted {
-                                    println!("delete share");
-                                    merge.delete_share_unvalidated(&id, Some(for_.0), account)?;
-                                    println!("\tdone");
-                                } else {
-                                    let mode = match key.mode {
-                                        UserAccessMode::Read => ShareMode::Read,
-                                        UserAccessMode::Write => ShareMode::Write,
-                                        UserAccessMode::Owner => continue,
-                                    };
-                                    println!("add share");
-                                    merge.add_share_unvalidated(id, for_, mode, account)?;
-                                    println!("\tdone");
-                                }
+                        }
+                        for key in local_file.user_access_keys() {
+                            let (by, for_) = (Owner(key.encrypted_by), Owner(key.encrypted_for));
+                            if base_keys.contains_key(&(by, for_)) && key.deleted {
+                                println!("delete share");
+                                merge.delete_share_unvalidated(&id, Some(for_.0), account)?;
+                                println!("\tdone");
+                            } else {
+                                let mode = match key.mode {
+                                    UserAccessMode::Read => ShareMode::Read,
+                                    UserAccessMode::Write => ShareMode::Write,
+                                    UserAccessMode::Owner => continue,
+                                };
+                                println!("add share");
+                                merge.add_share_unvalidated(id, for_, mode, account)?;
+                                println!("\tdone");
                             }
                         }
 
@@ -408,6 +409,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         // edit
                         if local_file.document_hmac()
                             != maybe_base_file
+                                .as_ref()
                                 .and_then(|f| f.document_hmac().cloned())
                                 .as_ref()
                         {
@@ -483,10 +485,26 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                                 )));
                             }
                         }
-                        ValidationFailure::SharedLink { .. } => {}
-                        ValidationFailure::DuplicateLink { .. } => {}
-                        ValidationFailure::BrokenLink(_) => {}
-                        ValidationFailure::OwnedLink(_) => {}
+                        ValidationFailure::SharedLink { .. } => {
+                            return Err(CoreError::Unexpected(
+                                "shared link resolution unimplemented".to_string(),
+                            ));
+                        }
+                        ValidationFailure::DuplicateLink { .. } => {
+                            return Err(CoreError::Unexpected(
+                                "duplicate link resolution unimplemented".to_string(),
+                            ));
+                        }
+                        ValidationFailure::BrokenLink(_) => {
+                            return Err(CoreError::Unexpected(
+                                "broken link resolution unimplemented".to_string(),
+                            ));
+                        }
+                        ValidationFailure::OwnedLink(_) => {
+                            return Err(CoreError::Unexpected(
+                                "owned link resolution unimplemented".to_string(),
+                            ));
+                        }
                         // merge changeset has unexpected validation errors
                         ValidationFailure::Orphan(_)
                         | ValidationFailure::NonFolderWithChildren(_)
