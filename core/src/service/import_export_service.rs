@@ -9,7 +9,7 @@ use lockbook_shared::filename::NameComponents;
 use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::tree_like::TreeLike;
-use lockbook_shared::{document_repo, SharedError};
+use lockbook_shared::{document_repo, symkey, SharedError};
 use std::collections::HashSet;
 use std::fs;
 use std::fs::OpenOptions;
@@ -193,7 +193,14 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 disk_file_name,
             )?;
 
-            let id = tree.create(Uuid::new_v4(), &dest, &file_name, ftype, account)?;
+            let id = tree.create(
+                Uuid::new_v4(),
+                symkey::generate_key(),
+                &dest,
+                &file_name,
+                ftype,
+                account,
+            )?;
             let file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
 
             tree = if ftype == FileType::Document {

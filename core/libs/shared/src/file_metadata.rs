@@ -56,11 +56,9 @@ impl FileMetadata {
     }
 
     pub fn create(
-        id: Uuid, owner: &PublicKey, parent: Uuid, parent_key: &AESKey, name: &str,
+        id: Uuid, key: AESKey, owner: &PublicKey, parent: Uuid, parent_key: &AESKey, name: &str,
         file_type: FileType,
     ) -> SharedResult<Self> {
-        let key = symkey::generate_key();
-
         Ok(FileMetadata {
             id,
             file_type,

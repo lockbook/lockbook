@@ -10,7 +10,7 @@ use crate::file_metadata::{FileType, Owner};
 use crate::lazy::LazyStaged1;
 use crate::signed_file::SignedFile;
 use crate::tree_like::{TreeLike, TreeLikeMut};
-use crate::{validate, SharedError, SharedResult};
+use crate::{symkey, validate, SharedError, SharedResult};
 
 impl<Base, Local> LazyStaged1<Base, Local>
 where
@@ -197,6 +197,7 @@ where
 
             current = self.create(
                 Uuid::new_v4(),
+                symkey::generate_key(),
                 &current,
                 path_components[index],
                 this_file_type,

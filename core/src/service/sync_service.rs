@@ -12,7 +12,7 @@ use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::staged::StagedTreeLikeMut;
 use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
-use lockbook_shared::{document_repo, SharedError, ValidationFailure};
+use lockbook_shared::{document_repo, symkey, SharedError, ValidationFailure};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
@@ -77,12 +77,18 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             }
         };
 
+        println!("### self.pull(&mut update_sync_progress)?;");
         self.pull(&mut update_sync_progress)?;
+        println!("### self.push_metadata(&mut update_sync_progress)?;");
         self.push_metadata(&mut update_sync_progress)?;
+        println!("### self.prune()?;");
         self.prune()?;
+        println!("### self.push_documents(&mut update_sync_progress)?;");
         self.push_documents(&mut update_sync_progress)?;
+        println!("### let update_as_of = self.pull(&mut update_sync_progress)?;");
         let update_as_of = self.pull(&mut update_sync_progress)?;
         self.tx.last_synced.insert(OneKey {}, update_as_of);
+        println!("### self.populate_public_key_cache()?;");
         self.populate_public_key_cache()?;
 
         Ok(())
@@ -207,6 +213,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             println!("deletions - create: {:?}", id);
                             let result = deletions.create_unvalidated(
                                 id,
+                                symkey::generate_key(),
                                 local_file.parent(),
                                 &local.name(&id, account)?,
                                 local_file.file_type(),
@@ -275,20 +282,15 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         println!("local change: {:?} {:?}", id, local.name(&id, account)?);
                     }
 
-                    println!("\ndeletions.implicit_deleted: {:?}\n", deletions.implicit_deleted);
-
-                    // creations
+                    // creations and edits of created documents
                     let mut creations = HashSet::new();
                     for id in self.tx.local_metadata.owned_ids() {
-                        if !deletions.calculate_deleted(&id)? {
-                            if self.tx.base_metadata.maybe_find(&id).is_none() {
-                                creations.insert(id);
-                            }
+                        if !deletions.calculate_deleted(&id)?
+                            && self.tx.base_metadata.maybe_find(&id).is_none()
+                        {
+                            creations.insert(id);
                         }
                     }
-
-                    println!("\ndeletions.implicit_deleted: {:?}\n", deletions.implicit_deleted);
-
                     'outer: while !creations.is_empty() {
                         'inner: for id in &creations {
                             // create
@@ -297,6 +299,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             println!("create: {:?}", id);
                             let result = merge.create_unvalidated(
                                 id,
+                                local.decrypt_key(&id, account)?,
                                 local_file.parent(),
                                 &local.name(&id, account)?,
                                 local_file.file_type(),
@@ -325,11 +328,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                     // creations happen first in case a file is moved into a new folder
                     for id in self.tx.local_metadata.owned_ids() {
                         // skip files that are already deleted or will be deleted
-                        println!(
-                            "{:?} deleted: {:?}",
-                            local.name(&id, account)?,
-                            deletions.calculate_deleted(&id)?
-                        );
                         if deletions.calculate_deleted(&id)?
                             || (remote.maybe_find(&id).is_some()
                                 && remote_lazy.calculate_deleted(&id)?)
@@ -342,7 +340,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         }
 
                         let local_file = local.find(&id)?.clone();
-                        if let Some(base_file) = self.tx.base_metadata.maybe_find(&id).cloned() {
+                        let maybe_base_file = self.tx.base_metadata.maybe_find(&id).cloned();
+                        if let Some(ref base_file) = maybe_base_file {
                             // move
                             if local_file.parent() != base_file.parent()
                                 && !files_to_revert_moves.contains(&id)
@@ -363,15 +362,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             if local_name != base_name {
                                 println!("name {:?} -> {:?}", base_name, local_name);
                                 merge.rename_unvalidated(&id, &local_name, account)?;
-                                println!("\tdone");
-                            }
-
-                            // edit
-                            if local_file.document_hmac() != base_file.document_hmac() {
-                                // todo: avoid reading/decrypting/encrypting document
-                                let document = local.read_document(self.config, &id, account)?;
-                                println!("document ? -> {:?}", document);
-                                merge.update_document_unvalidated(&id, &document, account)?;
                                 println!("\tdone");
                             }
 
@@ -411,23 +401,31 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                                 println!("\tdone");
                             }
                         }
+
+                        // edit
+                        if local_file.document_hmac()
+                            != maybe_base_file
+                                .and_then(|f| f.document_hmac().cloned())
+                                .as_ref()
+                        {
+                            // todo: avoid reading/decrypting/encrypting document
+                            let document = local.read_document(self.config, &id, account)?;
+                            println!("document ? -> {:?}", local_file.document_hmac());
+                            merge.update_document_unvalidated(&id, &document, account)?;
+                            println!("\tdone");
+                        }
                     }
 
                     // deletions
                     // moves happen first in case a file is moved into a deleted folder
                     for id in self.tx.local_metadata.owned_ids() {
-                        if self.tx.base_metadata.maybe_find(&id).is_some() {
-                            println!(
-                                "{:?} deleted: {:?}",
-                                local.name(&id, account)?,
-                                deletions.calculate_deleted(&id)?
-                            );
-                            if deletions.calculate_deleted(&id)? {
-                                // delete
-                                println!("delete: {:?}", local.name(&id, account)?);
-                                merge.delete_unvalidated(&id, account)?;
-                                println!("\tdone");
-                            }
+                        if self.tx.base_metadata.maybe_find(&id).is_some()
+                            && deletions.calculate_deleted(&id)?
+                        {
+                            // delete
+                            println!("delete: {:?}", local.name(&id, account)?);
+                            merge.delete_unvalidated(&id, account)?;
+                            println!("\tdone");
                         }
                     }
 
@@ -695,14 +693,17 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             }
 
             let local_change = local_change.sign(account)?;
+            println!("v {:?}", local_change.document_hmac());
             let local_document_change =
                 document_repo::get(self.config, &id, local_change.document_hmac())?;
+            println!("^");
 
             update_sync_progress(SyncProgressOperation::StartWorkUnit(
                 ClientWorkUnit::PushDocument(local.name(&id, account)?),
             ));
 
             // base = local (document)
+            // todo: remove?
             document_repo::insert(
                 self.config,
                 &id,

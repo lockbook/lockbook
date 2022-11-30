@@ -5,7 +5,7 @@ use lockbook_shared::file::File;
 use lockbook_shared::file_metadata::{FileType, Owner};
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::tree_like::TreeLike;
-use lockbook_shared::{SharedError, SharedResult, ValidationFailure};
+use lockbook_shared::{symkey, SharedError, SharedResult, ValidationFailure};
 use test_utils::*;
 use uuid::Uuid;
 
@@ -35,6 +35,7 @@ fn create_two_files_with_same_path() {
             let mut tree = tree.stage(Vec::new());
             tree.create_unvalidated(
                 Uuid::new_v4(),
+                symkey::generate_key(),
                 &root.id,
                 "document",
                 FileType::Document,
@@ -43,6 +44,7 @@ fn create_two_files_with_same_path() {
             .unwrap();
             tree.create_unvalidated(
                 Uuid::new_v4(),
+                symkey::generate_key(),
                 &root.id,
                 "document",
                 FileType::Document,

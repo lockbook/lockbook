@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::access_info::{UserAccessInfo, UserAccessMode};
 use crate::account::Account;
 use crate::core_config::Config;
-use crate::crypto::{DecryptedDocument, EncryptedDocument};
+use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::file::{File, Share, ShareMode};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileMetadata, FileType, Owner};
@@ -126,7 +126,8 @@ where
     }
 
     pub fn create_op(
-        &mut self, id: Uuid, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
+        &mut self, id: Uuid, key: AESKey, parent: &Uuid, name: &str, file_type: FileType,
+        account: &Account,
     ) -> SharedResult<(SignedFile, Uuid)> {
         validate::file_name(name)?;
 
@@ -135,8 +136,9 @@ where
         }
         let parent_owner = self.find(parent)?.owner().0;
         let parent_key = self.decrypt_key(parent, account)?;
-        let file = FileMetadata::create(id, &parent_owner, *parent, &parent_key, name, file_type)?
-            .sign(account)?;
+        let file =
+            FileMetadata::create(id, key, &parent_owner, *parent, &parent_key, name, file_type)?
+                .sign(account)?;
         let id = *file.id();
 
         debug!("new {:?} with id: {}", file_type, id);
@@ -340,21 +342,23 @@ where
     Local: TreeLikeMut<F = Staged::F>,
 {
     pub fn create_unvalidated(
-        &mut self, id: Uuid, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
+        &mut self, id: Uuid, key: AESKey, parent: &Uuid, name: &str, file_type: FileType,
+        account: &Account,
     ) -> SharedResult<Uuid> {
-        let (op, id) = self.create_op(id, parent, name, file_type, account)?;
+        let (op, id) = self.create_op(id, key, parent, name, file_type, account)?;
         self.stage_and_promote(Some(op));
         Ok(id)
     }
 
     pub fn create(
-        &mut self, id: Uuid, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
+        &mut self, id: Uuid, key: AESKey, parent: &Uuid, name: &str, file_type: FileType,
+        account: &Account,
     ) -> SharedResult<Uuid> {
         if self.calculate_deleted(parent)? {
             return Err(SharedError::FileParentNonexistent);
         }
 
-        let (op, id) = self.create_op(id, parent, name, file_type, account)?;
+        let (op, id) = self.create_op(id, key, parent, name, file_type, account)?;
         self.stage_validate_and_promote(Some(op), Owner(account.public_key()))?;
         Ok(id)
     }
@@ -999,6 +1003,7 @@ where
                         let name = result.name(id, account)?;
                         let copied_document_id = result.create_unvalidated(
                             Uuid::new_v4(),
+                            symkey::generate_key(),
                             &existing_parent,
                             &name,
                             existing_file_type,
