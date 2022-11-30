@@ -340,6 +340,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         }
 
                         let local_file = local.find(&id)?.clone();
+                        let local_name = local.name(&id, account)?;
                         let maybe_base_file = self.tx.base_metadata.maybe_find(&id).cloned();
                         if let Some(ref base_file) = maybe_base_file {
                             // move
@@ -357,8 +358,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             }
 
                             // rename
-                            let (local_name, base_name) =
-                                (local.name(&id, account)?, base.name(&id, account)?);
+                            let base_name = base.name(&id, account)?;
                             if local_name != base_name {
                                 println!("name {:?} -> {:?}", base_name, local_name);
                                 merge.rename_unvalidated(&id, &local_name, account)?;
@@ -391,15 +391,14 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                                     println!("\tdone");
                                 }
                             }
+                        }
 
-                            // rename due to path conflict
-                            if files_to_rename.contains(&id) {
-                                let name =
-                                    NameComponents::from(&local_name).generate_next().to_name();
-                                println!("name {:?} -> {:?}", local_name, name);
-                                merge.rename_unvalidated(&id, &name, account)?;
-                                println!("\tdone");
-                            }
+                        // rename due to path conflict
+                        if files_to_rename.contains(&id) {
+                            let name = NameComponents::from(&local_name).generate_next().to_name();
+                            println!("name {:?} -> {:?}", local_name, name);
+                            merge.rename_unvalidated(&id, &name, account)?;
+                            println!("\tdone");
                         }
 
                         // edit
@@ -463,6 +462,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         }
                         ValidationFailure::PathConflict(ids) => {
                             // pick one local id and generate a non-conflicting filename
+                            println!("path conflict: {:?}", ids);
                             let mut progress = false;
                             for &id in ids {
                                 if self.tx.local_metadata.maybe_find(&id).is_some()
