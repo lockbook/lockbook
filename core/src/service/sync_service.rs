@@ -382,11 +382,26 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         }
                         for key in local_file.user_access_keys() {
                             let (by, for_) = (Owner(key.encrypted_by), Owner(key.encrypted_for));
-                            if base_keys.contains_key(&(by, for_)) && key.deleted {
-                                println!("delete share");
-                                merge.delete_share_unvalidated(&id, Some(for_.0), account)?;
-                                println!("\tdone");
+                            if let Some(&(base_mode, base_deleted)) = base_keys.get(&(by, for_)) {
+                                // upgrade share
+                                if key.mode > base_mode {
+                                    let mode = match key.mode {
+                                        UserAccessMode::Read => ShareMode::Read,
+                                        UserAccessMode::Write => ShareMode::Write,
+                                        UserAccessMode::Owner => continue,
+                                    };
+                                    println!("upgrade share");
+                                    merge.add_share_unvalidated(id, for_, mode, account)?;
+                                    println!("\tdone");
+                                }
+                                // delete share
+                                if key.deleted && !base_deleted {
+                                    println!("delete share");
+                                    merge.delete_share_unvalidated(&id, Some(for_.0), account)?;
+                                    println!("\tdone");
+                                }
                             } else {
+                                // add share
                                 let mode = match key.mode {
                                     UserAccessMode::Read => ShareMode::Read,
                                     UserAccessMode::Write => ShareMode::Write,
@@ -715,10 +730,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             }
 
             let local_change = local_change.sign(account)?;
-            println!("v {:?}", local_change.document_hmac());
             let local_document_change =
                 document_repo::get(self.config, &id, local_change.document_hmac())?;
-            println!("^");
 
             update_sync_progress(SyncProgressOperation::StartWorkUnit(
                 ClientWorkUnit::PushDocument(local.name(&id, account)?),
