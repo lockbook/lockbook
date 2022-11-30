@@ -193,7 +193,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 disk_file_name,
             )?;
 
-            let id = tree.create(&dest, &file_name, ftype, account)?;
+            let id = tree.create(Uuid::new_v4(), &dest, &file_name, ftype, account)?;
             let file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
 
             tree = if ftype == FileType::Document {

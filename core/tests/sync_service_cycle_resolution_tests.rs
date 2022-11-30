@@ -693,7 +693,7 @@ fn two_cycle_with_deletes_second_device() {
     delete_path(&c2, "/a/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert::all_paths(&c2, &["/", "/b/"]);
+    assert::all_paths(&c2, &["/"]);
     assert::all_document_contents(&c2, &[]);
 }
 
@@ -715,7 +715,7 @@ fn three_cycle_one_move_reverted_with_deletes_second_device() {
     delete_path(&c2, "/b/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert::all_paths(&c2, &["/", "/c/"]);
+    assert::all_paths(&c2, &["/"]);
     assert::all_document_contents(&c2, &[]);
 }
 
@@ -736,7 +736,7 @@ fn three_cycle_two_moves_reverted_with_deletes_second_device() {
     delete_path(&c2, "/a/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert::all_paths(&c2, &["/", "/b/", "/c/"]);
+    assert::all_paths(&c2, &["/"]);
     assert::all_document_contents(&c2, &[]);
 }
 
@@ -762,7 +762,7 @@ fn four_cycle_one_move_reverted_with_deletes_second_device() {
     delete_path(&c2, "/c/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert::all_paths(&c2, &["/", "/d/"]);
+    assert::all_paths(&c2, &["/"]);
     assert::all_document_contents(&c2, &[]);
 }
 
@@ -787,7 +787,7 @@ fn four_cycle_two_moves_reverted_adjacent_with_deletes_second_device() {
     delete_path(&c2, "/b/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert::all_paths(&c2, &["/", "/c/", "/d/"]);
+    assert::all_paths(&c2, &["/"]);
     assert::all_document_contents(&c2, &[]);
 }
 
@@ -812,7 +812,7 @@ fn four_cycle_two_moves_reverted_alternating_with_deletes_second_device() {
     delete_path(&c2, "/c/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert::all_paths(&c2, &["/", "/b/", "/d/"]);
+    assert::all_paths(&c2, &["/"]);
     assert::all_document_contents(&c2, &[]);
 }
 
@@ -835,7 +835,7 @@ fn four_cycle_three_moves_reverted_with_deletes_second_device() {
     delete_path(&c2, "/a/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert::all_paths(&c2, &["/", "/b/", "/c/", "/d/"]);
+    assert::all_paths(&c2, &["/"]);
     assert::all_document_contents(&c2, &[]);
 }
 

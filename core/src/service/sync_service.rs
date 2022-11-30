@@ -1,6 +1,4 @@
-use crate::OneKey;
-use crate::{CoreError, RequestContext};
-use crate::{CoreResult, Requester};
+use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
 use lockbook_shared::access_info::UserAccessMode;
 use lockbook_shared::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
@@ -8,7 +6,8 @@ use lockbook_shared::api::{
 };
 use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{Diff, DocumentHmac, FileDiff, Owner};
+use lockbook_shared::file_metadata::{DocumentHmac, FileDiff, Owner};
+use lockbook_shared::filename::NameComponents;
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::staged::StagedTreeLikeMut;
 use lockbook_shared::tree_like::TreeLike;
@@ -16,6 +15,7 @@ use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 use lockbook_shared::{document_repo, SharedError, ValidationFailure};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
+use uuid::Uuid;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct WorkCalculated {
@@ -136,7 +136,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
         let owner = Owner(account.public_key());
-        let mut remote_document_changes = HashSet::new();
         remote_changes = {
             let mut remote = (&self.tx.base_metadata).stage(remote_changes).to_lazy();
             for id in remote.tree.staged.owned_ids() {
@@ -163,7 +162,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         .request(account, GetDocRequest { id, hmac: remote_hmac })?
                         .content;
                     document_repo::insert(self.config, &id, Some(&remote_hmac), &remote_document)?;
-                    remote_document_changes.insert(id);
                 }
             }
             let (_, remote_changes) = remote.unstage();
@@ -172,113 +170,317 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         // compute merge changes
         let merge_changes = {
-            let mut remote = (&self.tx.base_metadata)
-                .to_staged(&remote_changes)
-                .to_lazy();
+            // assemble trees
+            let mut base = (&self.tx.base_metadata).to_lazy();
+            let remote = (&self.tx.base_metadata).to_staged(&remote_changes);
+            let mut remote_lazy = remote.as_lazy();
             let mut local = (&self.tx.base_metadata)
                 .to_staged(&self.tx.local_metadata)
                 .to_lazy();
 
+            // changeset constraints - these evolve as we try to assemble changes and face validation failures
+            let mut files_to_revert_moves: HashSet<Uuid> = HashSet::new();
+            let mut files_to_rename: HashSet<Uuid> = HashSet::new();
+
+            println!(
+                "merge conflict resolution; local changes: {:?}",
+                self.tx.local_metadata.owned_ids()
+            );
             loop {
-                // construct a merge changeset
-                let mut merge_changes = Vec::new();
+                // process just the edits which allow us to check deletions in the result
+                println!("* processing deletions *");
+                let mut deletions = {
+                    let mut deletions = remote.stage(Vec::new()).to_lazy();
 
-                for id in self.tx.local_metadata.owned_ids() {
-                    // deleted files may not be modified
-                    if !remote.calculate_deleted(&id)? {
-                        continue;
+                    // creations
+                    let mut deletion_creations = HashSet::new();
+                    for id in self.tx.local_metadata.owned_ids() {
+                        if self.tx.base_metadata.maybe_find(&id).is_none() {
+                            deletion_creations.insert(id);
+                        }
                     }
-
-                    let local_file =
-                        local.finalize(&id, account, &mut self.tx.username_by_public_key)?;
-
-                    let file_diff = FileDiff {
-                        old: self.tx.base_metadata.maybe_find(&id),
-                        new: self.tx.local_metadata.find(&id)?,
-                    };
-                    for diff in file_diff.diff() {
-                        match diff {
-                            Diff::New => {
-                                let (op, _) = remote.create_op(
-                                    id,
-                                    &local_file.parent,
-                                    &local_file.name,
-                                    local_file.file_type,
-                                    account,
-                                )?;
-                                merge_changes.push(op);
-                            }
-                            Diff::Parent => {
-                                let op = remote.move_op(&id, &local_file.parent, account)?;
-                                merge_changes.extend(op);
-                            }
-                            Diff::Name => {
-                                let op = remote.rename_op(&id, &local_file.name, account)?;
-                                merge_changes.push(op);
-                            }
-                            Diff::Owner => {} // owner changes are a result of moves
-                            Diff::Deleted => {
-                                let op = remote.delete_op(&id, account)?;
-                                merge_changes.push(op);
-                            }
-                            Diff::Hmac => {
-                                // todo: avoid reading/decrypting/encrypting document
-                                let document = local.read_document(self.config, &id, account)?;
-                                let (op, _) = remote.update_document_op(&id, &document, account)?;
-                                merge_changes.push(op);
-                            }
-                            Diff::UserKeys => {
-                                // change access: either changing your own access, or have write access
-                                let base_keys = {
-                                    if let Some(ref old) = file_diff.old {
-                                        let mut base_keys = HashMap::new();
-                                        for key in old.user_access_keys() {
-                                            base_keys.insert(
-                                                (Owner(key.encrypted_by), Owner(key.encrypted_for)),
-                                                (key.mode, key.deleted),
-                                            );
-                                        }
-                                        base_keys
-                                    } else {
-                                        // unreachable - file diff will always have Some .old if .diff() emits Diff::UserKeys
-                                        HashMap::new()
-                                    }
-                                };
-                                for key in file_diff.new.user_access_keys() {
-                                    let (by, for_) =
-                                        (Owner(key.encrypted_by), Owner(key.encrypted_for));
-                                    if base_keys.contains_key(&(by, for_)) && key.deleted {
-                                        let op =
-                                            remote.delete_share_op(&id, Some(for_.0), account)?;
-                                        merge_changes.extend(op);
-                                    } else {
-                                        let mode = match key.mode {
-                                            UserAccessMode::Read => ShareMode::Read,
-                                            UserAccessMode::Write => ShareMode::Write,
-                                            UserAccessMode::Owner => continue,
-                                        };
-                                        let op = remote.add_share_op(id, for_, mode, account)?;
-                                        merge_changes.push(op);
-                                    }
+                    'outer: while !deletion_creations.is_empty() {
+                        'inner: for id in &deletion_creations {
+                            // create
+                            let id = *id;
+                            let local_file = local.find(&id)?.clone();
+                            println!("deletions - create: {:?}", id);
+                            let result = deletions.create_unvalidated(
+                                id,
+                                local_file.parent(),
+                                &local.name(&id, account)?,
+                                local_file.file_type(),
+                                account,
+                            );
+                            println!("\tdone");
+                            match result {
+                                Ok(_) => {
+                                    deletion_creations.remove(&id);
+                                    continue 'outer;
+                                }
+                                Err(SharedError::FileParentNonexistent) => {
+                                    continue 'inner;
+                                }
+                                Err(_) => {
+                                    result?;
                                 }
                             }
                         }
+                        return Err(CoreError::Unexpected(format!(
+                            "sync failed to find a topological order for file creations: {:?}",
+                            deletion_creations
+                        )));
                     }
-                }
+
+                    // moves (creations happen first in case a file is moved into a new folder)
+                    for id in self.tx.local_metadata.owned_ids() {
+                        let local_file = local.find(&id)?.clone();
+                        if let Some(base_file) = self.tx.base_metadata.maybe_find(&id).cloned() {
+                            if !local_file.explicitly_deleted()
+                                && local_file.parent() != base_file.parent()
+                                && !files_to_revert_moves.contains(&id)
+                            {
+                                // move
+                                println!(
+                                    "deletions - parent of {:?}: {:?} -> {:?}",
+                                    local.name(&id, account)?,
+                                    local.name(base_file.parent(), account)?,
+                                    local.name(local_file.parent(), account)?,
+                                );
+                                deletions.move_unvalidated(&id, local_file.parent(), account)?;
+                                println!("\tdone");
+                            }
+                        }
+                    }
+
+                    // deletions (moves happen first in case a file is moved into a deleted folder)
+                    for id in self.tx.local_metadata.owned_ids() {
+                        let local_file = local.find(&id)?.clone();
+                        if local_file.explicitly_deleted() {
+                            // delete
+                            println!("deletions - delete: {:?}", local.name(&id, account)?);
+                            deletions.delete_unvalidated(&id, account)?;
+                            println!("\tdone");
+                        }
+                    }
+                    deletions
+                };
+
+                // process all edits, dropping non-deletion edits for files that will be implicitly deleted
+                println!("* processing all edits *");
+                let mut merge = {
+                    let mut merge = remote.stage(Vec::new()).to_lazy();
+
+                    for id in self.tx.local_metadata.owned_ids() {
+                        println!("local change: {:?} {:?}", id, local.name(&id, account)?);
+                    }
+
+                    println!("\ndeletions.implicit_deleted: {:?}\n", deletions.implicit_deleted);
+
+                    // creations
+                    let mut creations = HashSet::new();
+                    for id in self.tx.local_metadata.owned_ids() {
+                        if !deletions.calculate_deleted(&id)? {
+                            if self.tx.base_metadata.maybe_find(&id).is_none() {
+                                creations.insert(id);
+                            }
+                        }
+                    }
+
+                    println!("\ndeletions.implicit_deleted: {:?}\n", deletions.implicit_deleted);
+
+                    'outer: while !creations.is_empty() {
+                        'inner: for id in &creations {
+                            // create
+                            let id = *id;
+                            let local_file = local.find(&id)?.clone();
+                            println!("create: {:?}", id);
+                            let result = merge.create_unvalidated(
+                                id,
+                                local_file.parent(),
+                                &local.name(&id, account)?,
+                                local_file.file_type(),
+                                account,
+                            );
+                            match result {
+                                Ok(_) => {
+                                    creations.remove(&id);
+                                    continue 'outer;
+                                }
+                                Err(SharedError::FileParentNonexistent) => {
+                                    continue 'inner;
+                                }
+                                Err(_) => {
+                                    result?;
+                                }
+                            }
+                        }
+                        return Err(CoreError::Unexpected(format!(
+                            "sync failed to find a topological order for file creations: {:?}",
+                            creations
+                        )));
+                    }
+
+                    // moves, renames, edits, and shares
+                    // creations happen first in case a file is moved into a new folder
+                    for id in self.tx.local_metadata.owned_ids() {
+                        // skip files that are already deleted or will be deleted
+                        println!(
+                            "{:?} deleted: {:?}",
+                            local.name(&id, account)?,
+                            deletions.calculate_deleted(&id)?
+                        );
+                        if deletions.calculate_deleted(&id)?
+                            || (remote.maybe_find(&id).is_some()
+                                && remote_lazy.calculate_deleted(&id)?)
+                        {
+                            println!(
+                                "skipped edits for {:?} because it's deleted on remote or local",
+                                local.name(&id, account)?
+                            );
+                            continue;
+                        }
+
+                        let local_file = local.find(&id)?.clone();
+                        if let Some(base_file) = self.tx.base_metadata.maybe_find(&id).cloned() {
+                            // move
+                            if local_file.parent() != base_file.parent()
+                                && !files_to_revert_moves.contains(&id)
+                            {
+                                println!(
+                                    "parent of {:?}: {:?} -> {:?}",
+                                    local.name(&id, account)?,
+                                    local.name(base_file.parent(), account)?,
+                                    local.name(local_file.parent(), account)?,
+                                );
+                                merge.move_unvalidated(&id, local_file.parent(), account)?;
+                                println!("\tdone");
+                            }
+
+                            // rename
+                            let (local_name, base_name) =
+                                (local.name(&id, account)?, base.name(&id, account)?);
+                            if local_name != base_name {
+                                println!("name {:?} -> {:?}", base_name, local_name);
+                                merge.rename_unvalidated(&id, &local_name, account)?;
+                                println!("\tdone");
+                            }
+
+                            // edit
+                            if local_file.document_hmac() != base_file.document_hmac() {
+                                // todo: avoid reading/decrypting/encrypting document
+                                let document = local.read_document(self.config, &id, account)?;
+                                println!("document ? -> {:?}", document);
+                                merge.update_document_unvalidated(&id, &document, account)?;
+                                println!("\tdone");
+                            }
+
+                            // share
+                            let mut base_keys = HashMap::new();
+                            for key in base_file.user_access_keys() {
+                                base_keys.insert(
+                                    (Owner(key.encrypted_by), Owner(key.encrypted_for)),
+                                    (key.mode, key.deleted),
+                                );
+                            }
+                            for key in local_file.user_access_keys() {
+                                let (by, for_) =
+                                    (Owner(key.encrypted_by), Owner(key.encrypted_for));
+                                if base_keys.contains_key(&(by, for_)) && key.deleted {
+                                    println!("delete share");
+                                    merge.delete_share_unvalidated(&id, Some(for_.0), account)?;
+                                    println!("\tdone");
+                                } else {
+                                    let mode = match key.mode {
+                                        UserAccessMode::Read => ShareMode::Read,
+                                        UserAccessMode::Write => ShareMode::Write,
+                                        UserAccessMode::Owner => continue,
+                                    };
+                                    println!("add share");
+                                    merge.add_share_unvalidated(id, for_, mode, account)?;
+                                    println!("\tdone");
+                                }
+                            }
+
+                            // rename due to path conflict
+                            if files_to_rename.contains(&id) {
+                                let name =
+                                    NameComponents::from(&local_name).generate_next().to_name();
+                                println!("name {:?} -> {:?}", local_name, name);
+                                merge.rename_unvalidated(&id, &name, account)?;
+                                println!("\tdone");
+                            }
+                        }
+                    }
+
+                    // deletions
+                    // moves happen first in case a file is moved into a deleted folder
+                    for id in self.tx.local_metadata.owned_ids() {
+                        if self.tx.base_metadata.maybe_find(&id).is_some() {
+                            println!(
+                                "{:?} deleted: {:?}",
+                                local.name(&id, account)?,
+                                deletions.calculate_deleted(&id)?
+                            );
+                            if deletions.calculate_deleted(&id)? {
+                                // delete
+                                println!("delete: {:?}", local.name(&id, account)?);
+                                merge.delete_unvalidated(&id, account)?;
+                                println!("\tdone");
+                            }
+                        }
+                    }
+
+                    merge
+                };
 
                 // validate; handle failures by introducing changeset constraints
-                let merge = (&self.tx.base_metadata)
-                    .to_staged(&self.tx.local_metadata)
-                    .to_staged(&merge_changes)
-                    .to_lazy();
+                println!("validate");
                 let validate_result = merge.validate(owner);
                 match validate_result {
                     // merge changeset is valid
-                    Ok(_) => break merge_changes,
+                    Ok(_) => {
+                        let (_, merge_changes) = merge.unstage();
+                        break merge_changes;
+                    }
                     Err(SharedError::ValidationFailure(ref vf)) => match vf {
                         // merge changeset has resolvable validation errors and needs modification
-                        ValidationFailure::Cycle(_) => {}
-                        ValidationFailure::PathConflict(_) => {}
+                        ValidationFailure::Cycle(ids) => {
+                            // revert all local moves in the cycle
+                            println!("cycle: {:?}", ids);
+                            let mut progress = false;
+                            for &id in ids {
+                                if self.tx.local_metadata.maybe_find(&id).is_some()
+                                    && files_to_revert_moves.insert(id)
+                                {
+                                    progress = true;
+                                }
+                            }
+                            if !progress {
+                                return Err(CoreError::Unexpected(format!(
+                                    "sync failed to resolve cycle: {:?}",
+                                    ids
+                                )));
+                            }
+                        }
+                        ValidationFailure::PathConflict(ids) => {
+                            // pick one local id and generate a non-conflicting filename
+                            let mut progress = false;
+                            for &id in ids {
+                                if self.tx.local_metadata.maybe_find(&id).is_some()
+                                    && files_to_rename.insert(id)
+                                {
+                                    progress = true;
+                                    break;
+                                }
+                            }
+                            if !progress {
+                                return Err(CoreError::Unexpected(format!(
+                                    "sync failed to resolve path conflict: {:?}",
+                                    ids
+                                )));
+                            }
+                        }
                         ValidationFailure::SharedLink { .. } => {}
                         ValidationFailure::DuplicateLink { .. } => {}
                         ValidationFailure::BrokenLink(_) => {}
@@ -288,11 +490,19 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         | ValidationFailure::NonFolderWithChildren(_)
                         | ValidationFailure::FileWithDifferentOwnerParent(_)
                         | ValidationFailure::NonDecryptableFileName(_) => {
+                            println!(
+                                "validate - unexpected validation error: {:?}",
+                                validate_result
+                            );
                             validate_result?;
                         }
                     },
                     // merge changeset has unexpected errors
                     Err(_) => {
+                        println!(
+                            "validate - unexpected non-validation error: {:?}",
+                            validate_result
+                        );
                         validate_result?;
                     }
                 }
@@ -300,17 +510,38 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         };
 
         // base = remote; local = merge
-        (&mut self.tx.local_metadata)
-            .to_staged(merge_changes)
-            .to_lazy()
-            .promote();
+        {
+            let mut remote = (&self.tx.base_metadata)
+                .to_staged(&remote_changes)
+                .to_lazy();
+            let mut merge = (&self.tx.base_metadata).to_staged(&merge_changes).to_lazy();
+            println!(
+                "remote_changes: {:?}",
+                remote.resolve_and_finalize(
+                    account,
+                    remote_changes.owned_ids().into_iter(),
+                    &mut self.tx.username_by_public_key
+                )
+            );
+            println!(
+                "merge_changes: {:?}",
+                merge.resolve_and_finalize(
+                    account,
+                    merge_changes.owned_ids().into_iter(),
+                    &mut self.tx.username_by_public_key
+                )
+            );
+        }
         (&mut self.tx.base_metadata)
             .to_staged(remote_changes)
             .to_lazy()
             .promote();
+        self.tx.local_metadata.clear();
+        (&mut self.tx.local_metadata)
+            .to_staged(merge_changes)
+            .to_lazy()
+            .promote();
         self.cleanup_local_metadata();
-
-        self.reset_deleted_files()?;
 
         Ok(update_as_of as i64)
     }
@@ -351,52 +582,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             }
         }
         Ok(result)
-    }
-
-    fn reset_deleted_files(&mut self) -> CoreResult<()> {
-        // resets all changes to files that are implicitly deleted, then explicitly deletes them
-        // we don't want to push updates to deleted documents and we might as well not push updates to deleted metadata
-        // we must explicitly delete a file which is moved into a deleted folder because otherwise resetting it makes it no longer deleted
-        let account = self.get_account()?.clone();
-
-        let mut tree = (&self.tx.base_metadata).to_lazy();
-        let mut already_deleted = HashSet::new();
-        for id in tree.owned_ids() {
-            if tree.calculate_deleted(&id)? {
-                already_deleted.insert(id);
-            }
-        }
-
-        let mut tree = (&self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
-        let mut local_change_removals = HashSet::new();
-        let mut local_change_resets = Vec::new();
-
-        for id in tree.tree.staged.owned_ids() {
-            if let Some(base_file) = tree.tree.base.maybe_find(&id) {
-                let mut base_file = base_file.timestamped_value.value.clone();
-                if already_deleted.contains(&id) {
-                    // reset file
-                    local_change_resets.push(base_file.sign(&account)?);
-                } else if tree.calculate_deleted(&id)? {
-                    // reset everything but set deleted=true
-                    base_file.is_deleted = true;
-                    local_change_resets.push(base_file.sign(&account)?);
-                }
-            } else if tree.calculate_deleted(&id)? {
-                // delete
-                local_change_removals.insert(id);
-            }
-        }
-
-        let mut staged = tree.stage(None);
-        staged.tree.removed = local_change_removals;
-        tree = staged.promote();
-
-        tree.stage(local_change_resets).promote();
-
-        Ok(())
     }
 
     fn prune(&mut self) -> CoreResult<()> {
@@ -465,6 +650,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             let file_diff = FileDiff { old: maybe_base_file.cloned(), new: local_change };
             updates.push(file_diff);
         }
+        println!("updates: {:?}", updates);
         if !updates.is_empty() {
             self.client.request(account, UpsertRequest { updates })?;
         }

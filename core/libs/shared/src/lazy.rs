@@ -90,7 +90,7 @@ impl<T: TreeLike> LazyTree<T> {
 
             while !file.is_root()
                 && self.maybe_find(file.parent()).is_some()
-                && !visited_ids.contains(file.parent())
+                && !visited_ids.contains(file.id())
             {
                 visited_ids.push(*file.id());
                 if let Some(&implicit) = self.implicit_deleted.get(file.id()) {

@@ -55,10 +55,10 @@ where
     Base: TreeLike<F = T::F>,
     Local: TreeLike<F = T::F>,
 {
-    pub fn validate(mut self, owner: Owner) -> SharedResult<Self> {
+    pub fn validate(&mut self, owner: Owner) -> SharedResult<()> {
         // point checks
         self.assert_no_root_changes()?;
-        self = self.assert_no_changes_to_deleted_files()?;
+        self.assert_no_changes_to_deleted_files()?;
         self.assert_all_files_decryptable(owner)?;
         self.assert_only_folders_have_children()?;
         self.assert_all_files_same_owner_as_parent()?;
@@ -74,7 +74,7 @@ where
         // authorization check
         self.assert_changes_authorized(owner)?;
 
-        Ok(self)
+        Ok(())
     }
 
     // note: deleted access keys permissible
@@ -255,12 +255,12 @@ where
         Ok(())
     }
 
-    pub fn assert_no_changes_to_deleted_files(mut self) -> SharedResult<Self> {
+    pub fn assert_no_changes_to_deleted_files(&mut self) -> SharedResult<()> {
         for id in self.tree.staged().owned_ids() {
             // already deleted files cannot have updates
             let mut base = self.tree.base().to_lazy();
             if base.maybe_find(&id).is_some() && base.calculate_deleted(&id)? {
-                return Err(SharedError::DeletedFileUpdated);
+                return Err(SharedError::DeletedFileUpdated(id));
             }
             // newly deleted files cannot have non-deletion updates
             if self.calculate_deleted(&id)? {
@@ -270,12 +270,12 @@ where
                         .iter()
                         .any(|d| d != &Diff::Deleted)
                     {
-                        return Err(SharedError::DeletedFileUpdated);
+                        return Err(SharedError::DeletedFileUpdated(id));
                     }
                 }
             }
         }
-        Ok(self)
+        Ok(())
     }
 
     pub fn assert_changes_authorized(&mut self, owner: Owner) -> SharedResult<()> {

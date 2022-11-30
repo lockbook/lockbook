@@ -19,7 +19,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let id = tree.create(parent, name, file_type, account)?;
+        let id = tree.create(Uuid::new_v4(), parent, name, file_type, account)?;
 
         let ui_file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
 

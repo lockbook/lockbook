@@ -195,7 +195,13 @@ where
             let this_file_type =
                 if index != path_components.len() - 1 { FileType::Folder } else { file_type };
 
-            current = self.create(&current, path_components[index], this_file_type, account)?;
+            current = self.create(
+                Uuid::new_v4(),
+                &current,
+                path_components[index],
+                this_file_type,
+                account,
+            )?;
         }
 
         Ok(current)

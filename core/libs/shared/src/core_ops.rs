@@ -25,11 +25,9 @@ use crate::{compression_service, document_repo, symkey, validate, SharedError, S
 pub type TreeWithOp<Staged> = LazyTree<StagedTree<Staged, Option<SignedFile>>>;
 pub type TreeWithOps<Staged> = LazyTree<StagedTree<Staged, Vec<SignedFile>>>;
 
-impl<Base, Local, Staged> LazyTree<Staged>
+impl<T> LazyTree<T>
 where
-    Staged: StagedTreeLike<Base = Base, Staged = Local, F = SignedFile>,
-    Base: TreeLike<F = Staged::F>,
-    Local: TreeLike<F = Staged::F>,
+    T: TreeLike<F = SignedFile>,
 {
     pub fn finalize<PublicKeyCache: SchemaEvent<Owner, String>>(
         &mut self, id: &Uuid, account: &Account,
@@ -132,10 +130,9 @@ where
     ) -> SharedResult<(SignedFile, Uuid)> {
         validate::file_name(name)?;
 
-        if self.calculate_deleted(parent)? {
+        if self.maybe_find(parent).is_none() {
             return Err(SharedError::FileParentNonexistent);
         }
-
         let parent_owner = self.find(parent)?.owner().0;
         let parent_key = self.decrypt_key(parent, account)?;
         let file = FileMetadata::create(id, &parent_owner, *parent, &parent_key, name, file_type)?
@@ -167,7 +164,7 @@ where
         &mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
     ) -> SharedResult<Vec<SignedFile>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
-        if self.maybe_find(new_parent).is_none() || self.calculate_deleted(new_parent)? {
+        if self.maybe_find(new_parent).is_none() {
             return Err(SharedError::FileParentNonexistent);
         }
         let key = self.decrypt_key(id, account)?;
@@ -343,17 +340,21 @@ where
     Local: TreeLikeMut<F = Staged::F>,
 {
     pub fn create_unvalidated(
-        &mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
+        &mut self, id: Uuid, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
     ) -> SharedResult<Uuid> {
-        let (op, id) = self.create_op(Uuid::new_v4(), parent, name, file_type, account)?;
+        let (op, id) = self.create_op(id, parent, name, file_type, account)?;
         self.stage_and_promote(Some(op));
         Ok(id)
     }
 
     pub fn create(
-        &mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
+        &mut self, id: Uuid, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
     ) -> SharedResult<Uuid> {
-        let (op, id) = self.create_op(Uuid::new_v4(), parent, name, file_type, account)?;
+        if self.calculate_deleted(parent)? {
+            return Err(SharedError::FileParentNonexistent);
+        }
+
+        let (op, id) = self.create_op(id, parent, name, file_type, account)?;
         self.stage_validate_and_promote(Some(op), Owner(account.public_key()))?;
         Ok(id)
     }
@@ -383,6 +384,9 @@ where
     pub fn move_file(
         &mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
     ) -> SharedResult<()> {
+        if self.maybe_find(new_parent).is_none() || self.calculate_deleted(new_parent)? {
+            return Err(SharedError::FileParentNonexistent);
+        }
         let op = self.move_op(id, new_parent, account)?;
         self.stage_validate_and_promote(op, Owner(account.public_key()))?;
         Ok(())
@@ -994,6 +998,7 @@ where
 
                         let name = result.name(id, account)?;
                         let copied_document_id = result.create_unvalidated(
+                            Uuid::new_v4(),
                             &existing_parent,
                             &name,
                             existing_file_type,

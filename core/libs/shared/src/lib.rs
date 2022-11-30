@@ -32,6 +32,7 @@ pub use lazy::ValidationFailure;
 use std::io;
 
 use hmac::crypto_mac::{InvalidKeyLength, MacError};
+use uuid::Uuid;
 
 pub type SharedResult<T> = Result<T, SharedError>;
 
@@ -86,7 +87,7 @@ pub enum SharedError {
     HmacModificationInvalid,
 
     /// Found update to a deleted file
-    DeletedFileUpdated,
+    DeletedFileUpdated(Uuid),
 
     Io(String),
 
