@@ -1,4 +1,9 @@
-use lockbook_shared::api::{CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequest, StripeAccountTier, SubscriptionInfo, UpgradeAccountAppStoreError, UpgradeAccountAppStoreRequest, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest, UpgradeAccountStripeError, UpgradeAccountStripeRequest};
+use lockbook_shared::api::{
+    CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequest,
+    StripeAccountTier, SubscriptionInfo, UpgradeAccountAppStoreError,
+    UpgradeAccountAppStoreRequest, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,
+    UpgradeAccountStripeError, UpgradeAccountStripeRequest,
+};
 
 use crate::model::errors::core_err_unexpected;
 use crate::service::api_service::ApiError;
@@ -74,7 +79,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn upgrade_account_app_store(
-        &self, original_transaction_id: String, app_account_token: String, encoded_receipt: String
+        &self, original_transaction_id: String, app_account_token: String, encoded_receipt: String,
     ) -> CoreResult<()> {
         let account = self.get_account()?;
 
@@ -84,7 +89,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 UpgradeAccountAppStoreRequest {
                     original_transaction_id,
                     app_account_token,
-                    encoded_receipt
+                    encoded_receipt,
                 },
             )
             .map_err(|err| match err {

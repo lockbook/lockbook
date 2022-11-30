@@ -2,20 +2,19 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct VerifyReceiptResponse {
-    #[serde(rename = "latestReceipt")]
-    pub encoded_latest_receipt: String
+    pub latest_receipt_info: Option<Vec<ReceiptInfo>>,
+    pub status: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReceiptInfo {
     pub app_account_token: String,
-    pub expires_date_ms: i64,
-    pub cancellation_date_ms: i64,
+    pub expires_date_ms: String,
     pub original_transaction_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all="kebab-case")]
+#[serde(rename_all = "kebab-case")]
 pub struct VerifyReceiptRequest {
     #[serde(rename = "receipt-data")]
     pub encoded_receipt: String,
@@ -24,48 +23,50 @@ pub struct VerifyReceiptRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all="camelCase")]
+#[serde(rename_all = "camelCase")]
 pub struct EncodedNotificationResponseBody {
     pub signed_payload: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all="camelCase")]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Cookie {}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct NotificationResponseBody {
     pub notification_type: NotificationChange,
-    pub subtype: Subtype,
+    pub subtype: Option<Subtype>,
     pub data: NotificationData,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all="camelCase")]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct NotificationData {
     pub bundle_id: String,
     pub environment: Environment,
     #[serde(rename = "signedRenewalInfo")]
-    pub encoded_renewal_info: String,
+    pub encoded_renewal_info: Option<String>,
     #[serde(rename = "signedTransactionInfo")]
-    pub encoded_transaction_info: String
+    pub encoded_transaction_info: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all="camelCase")]
+#[serde(rename_all = "camelCase")]
 pub struct TransactionInfo {
     pub bundle_id: String,
     pub product_id: String,
     pub app_account_token: String,
-    pub revocation_date: u64,
-    pub revocation_reason: u8,
+    pub expires_date: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Environment {
     Sandbox,
-    Production
+    Production,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
-#[serde(rename_all="SCREAMING_SNAKE_CASE")]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Subtype {
     InitialBuy,
     Resubscribe,
@@ -79,11 +80,11 @@ pub enum Subtype {
     GracePeriod,
     BillingRecovery,
     Pending,
-    Accepted
+    Accepted,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all="SCREAMING_SNAKE_CASE")]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum NotificationChange {
     ConsumptionRequest,
     DidChangeRenewalPref,
@@ -99,5 +100,5 @@ pub enum NotificationChange {
     RenewalExtended,
     Revoke,
     Subscribed,
-    Test
+    Test,
 }

@@ -1,7 +1,9 @@
 use crate::config::Config;
 use crate::{ServerError, FREE_TIER_USAGE_SIZE, PREMIUM_TIER_USAGE_SIZE};
 use google_androidpublisher3::api::SubscriptionPurchase;
-use lockbook_shared::api::{AppStoreAccountState, GooglePlayAccountState, UnixTimeMillis, UpgradeAccountGooglePlayError};
+use lockbook_shared::api::{
+    AppStoreAccountState, GooglePlayAccountState, UnixTimeMillis, UpgradeAccountGooglePlayError,
+};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use uuid::Uuid;
@@ -41,7 +43,7 @@ impl SubscriptionProfile {
 pub enum BillingPlatform {
     Stripe(StripeUserInfo),
     GooglePlay(GooglePlayUserInfo),
-    AppStore(AppStoreUserInfo)
+    AppStore(AppStoreUserInfo),
 }
 
 impl BillingPlatform {

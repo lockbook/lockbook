@@ -1013,7 +1013,7 @@ pub enum CancelSubscriptionError {
     ExistingRequestPending,
     CouldNotReachServer,
     ClientUpdateRequired,
-    CannotCancelForAppStore
+    CannotCancelForAppStore,
 }
 
 impl From<CoreError> for Error<CancelSubscriptionError> {

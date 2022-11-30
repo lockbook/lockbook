@@ -214,7 +214,7 @@ impl BillingConfig {
             ),
             google: GoogleConfig::from_env_vars(),
             stripe: StripeConfig::from_env_vars(),
-            apple: AppleConfig::from_env_vars()
+            apple: AppleConfig::from_env_vars(),
         }
     }
 }
@@ -227,17 +227,21 @@ pub struct AppleConfig {
     pub issuer_id: String,
     pub subscription_product_id: String,
     pub asc_shared_secret: String,
+    pub apple_root_cert: Vec<u8>,
 }
 
 impl AppleConfig {
     pub fn from_env_vars() -> Self {
+        let apple_root_cert_dest = env_or_panic("APPLE_ROOT_CERT_PATH");
+
         Self {
             iap_key: env_or_panic("APPLE_IAP_KEY"),
             iap_key_id: env_or_panic("APPLE_IAP_KEY_ID"),
             asc_public_key: env_or_panic("APPLE_APP_STORE_CONNECT_PUBLIC_KEY"),
             issuer_id: env_or_panic("APPLE_ISSUER_ID"),
             subscription_product_id: env_or_panic("APPLE_SUBSCRIPTION_PRODUCT_ID"),
-            asc_shared_secret: env_or_panic("APP_STORE_CONNECT_SHARED_SECRET")
+            asc_shared_secret: env_or_panic("APP_STORE_CONNECT_SHARED_SECRET"),
+            apple_root_cert: fs::read(apple_root_cert_dest).unwrap(),
         }
     }
 }

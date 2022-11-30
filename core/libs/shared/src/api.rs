@@ -393,7 +393,7 @@ impl Request for UpgradeAccountGooglePlayRequest {
 pub struct UpgradeAccountAppStoreRequest {
     pub original_transaction_id: String,
     pub app_account_token: String,
-    pub encoded_receipt: String
+    pub encoded_receipt: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -404,7 +404,7 @@ pub enum UpgradeAccountAppStoreError {
     AlreadyPremium,
     InvalidAuthDetails,
     ExistingRequestPending,
-    UserNotFound
+    UserNotFound,
 }
 
 impl Request for UpgradeAccountAppStoreRequest {
@@ -427,7 +427,7 @@ pub enum CancelSubscriptionError {
     UsageIsOverFreeTierDataCap,
     UserNotFound,
     ExistingRequestPending,
-    CannotCancelForAppStore
+    CannotCancelForAppStore,
 }
 
 impl Request for CancelSubscriptionRequest {
@@ -451,7 +451,7 @@ pub struct SubscriptionInfo {
 pub enum PaymentPlatform {
     Stripe { card_last_4_digits: String },
     GooglePlay { account_state: GooglePlayAccountState },
-    AppStore { account_state: AppStoreAccountState }
+    AppStore { account_state: AppStoreAccountState },
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]

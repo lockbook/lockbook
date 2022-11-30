@@ -47,7 +47,6 @@ struct ManageSubscription: View {
                         }
                         
                         isLoading = false
-                        
                     }
                 }
                 .buttonStyle(.borderedProminent)

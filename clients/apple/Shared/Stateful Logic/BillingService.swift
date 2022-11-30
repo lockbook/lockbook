@@ -20,10 +20,14 @@ public enum CancelSubscriptionResult {
 class BillingService: ObservableObject {
     let core: LockbookApi
     
+    var updateListenerTask: Task<Void, Error>? = nil
+
     let products: [String: String]
     var monthlySubscription: Product? = nil
     var purchaseResult: PurchaseResult? = nil
     @Published var cancelSubscriptionResult: CancelSubscriptionResult? = nil
+    
+    var makingPurchaseAttempt = false
     
     init(_ core: LockbookApi) {
         self.core = core
@@ -35,19 +39,27 @@ class BillingService: ObservableObject {
             products = [:]
         }
         
+        updateListenerTask = listenForTransactions()
+
         Task {
             await requestProducts()
         }
+    }
+    
+    deinit {
+        updateListenerTask?.cancel()
     }
     
     func listenForTransactions() -> Task<Void, Error> {
         return Task.detached {
             for await verification in Transaction.updates {
                 do {
-                    if let receipt = self.getReceipt() {
+                    print("Attempting...")
+                    if let receipt = self.getReceipt(), !self.makingPurchaseAttempt {
+                        print("DOING...")
                         let transaction = try self.checkVerified(verification)
                             
-                        let result = self.core.upgradeAccountAppStore(originalTransactionId: String(transaction.id), appAccountToken: transaction.appAccountToken!.uuidString, encodedReceipt: receipt)
+                        let result = self.core.upgradeAccountAppStore(originalTransactionId: String(transaction.originalID), appAccountToken: transaction.appAccountToken!.uuidString.lowercased(), encodedReceipt: receipt)
                         
                         switch result {
                         case .success(_):
@@ -71,29 +83,42 @@ class BillingService: ObservableObject {
         
         do {
             let result = try await monthlySubscription!.purchase(options: purchaseOpt)
+            SKReceiptRefreshRequest().start()
+            
             switch result {
             case .success(let verification):
-                if let receipt = getReceipt() {
-                    let transaction = try checkVerified(verification)
+                while true {
+                    if let receipt = getReceipt() {
+                        makingPurchaseAttempt = true
+                        let transaction = try checkVerified(verification)
                         
-//                    print("ITEMS: \(String(transaction.id)) \(transaction.appAccountToken) \(receipt)")
-                    let result = self.core.upgradeAccountAppStore(originalTransactionId: String(transaction.id), appAccountToken: accountToken.uuidString, encodedReceipt: receipt)
-                    
-                    switch result {
-                    case .success(_):
-                        await transaction.finish()
-                        purchaseResult = .success
-                        return .success
-                    case .failure(let error):
-                        DI.errors.handleError(error)
+                        //                    print("ITEMS: \(String(transaction.id)) \(transaction.appAccountToken) \(receipt)")
+                        print("SENDING IT TO CORE YK YK")
+                        let result = self.core.upgradeAccountAppStore(originalTransactionId: String(transaction.originalID), appAccountToken: accountToken.uuidString.lowercased(), encodedReceipt: receipt)
+                        
+                        switch result {
+                        case .success(_):
+                            await transaction.finish()
+                            print("FINISHED 1")
+                            makingPurchaseAttempt = false
+                            purchaseResult = .success
+                            print("FINISHED 2")
+                            return .success
+                        case .failure(let error):
+                            makingPurchaseAttempt = false
+                            DI.errors.handleError(error)
+                            return .failure
+                        }
                     }
                 }
             case .pending:
                 purchaseResult = .pending
                 return .pending
             case .userCancelled:
+                print("GOT HERE 3")
                 return nil
             default:
+                print("GOT HERE 4")
                 return .failure
             }
         }
@@ -138,7 +163,6 @@ class BillingService: ObservableObject {
                 print("No products!")
             }
             
-            SKPaymentQueue.default().restoreCompletedTransactions()
         } catch {
             print("Failed product request from the App Store server: \(error)")
         }

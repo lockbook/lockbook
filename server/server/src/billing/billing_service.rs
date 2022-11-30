@@ -1,10 +1,14 @@
 use crate::account_service::GetUsageHelperError;
+use crate::billing::app_store_model::{NotificationChange, Subtype};
+use crate::billing::app_store_service::verify_receipt;
 use crate::billing::billing_model::{AppStoreUserInfo, BillingPlatform};
 use crate::billing::billing_service::LockBillingWorkflowError::{
     ExistingRequestPending, UserNotFound,
 };
 use crate::billing::google_play_model::NotificationType;
-use crate::billing::{app_store_service, google_play_client, google_play_service, stripe_client, stripe_service};
+use crate::billing::{
+    app_store_service, google_play_client, google_play_service, stripe_client, stripe_service,
+};
 use crate::schema::Account;
 use crate::ServerError::ClientError;
 use crate::{
@@ -14,7 +18,15 @@ use crate::{
 use base64::DecodeError;
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
-use lockbook_shared::api::{AppStoreAccountState, CancelSubscriptionError, CancelSubscriptionRequest, CancelSubscriptionResponse, GetSubscriptionInfoError, GetSubscriptionInfoRequest, GetSubscriptionInfoResponse, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo, UpgradeAccountAppStoreError, UpgradeAccountAppStoreRequest, UpgradeAccountAppStoreResponse, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest, UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError, UpgradeAccountStripeRequest, UpgradeAccountStripeResponse};
+use lockbook_shared::api::{
+    AppStoreAccountState, CancelSubscriptionError, CancelSubscriptionRequest,
+    CancelSubscriptionResponse, GetSubscriptionInfoError, GetSubscriptionInfoRequest,
+    GetSubscriptionInfoResponse, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo,
+    UpgradeAccountAppStoreError, UpgradeAccountAppStoreRequest, UpgradeAccountAppStoreResponse,
+    UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,
+    UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError, UpgradeAccountStripeRequest,
+    UpgradeAccountStripeResponse,
+};
 use lockbook_shared::clock::get_time;
 use lockbook_shared::file_metadata::Owner;
 use std::collections::HashMap;
@@ -23,8 +35,6 @@ use std::sync::Arc;
 use tracing::*;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
-use crate::billing::app_store_service::verify_receipt;
-use crate::billing::app_store_model::{NotificationChange, Subtype};
 
 #[derive(Debug)]
 pub enum LockBillingWorkflowError {
@@ -80,17 +90,28 @@ pub async fn upgrade_account_app_store(
         return Err(ClientError(UpgradeAccountAppStoreError::AlreadyPremium));
     }
 
-    let expires = verify_receipt(&server_state.app_store_client, &server_state.config.billing.apple, &request.encoded_receipt, &request.app_account_token, &request.original_transaction_id).await?;
-
-    if server_state.index_db.app_store_ids.exists(&request.app_account_token)? {
+    if server_state
+        .index_db
+        .app_store_ids
+        .exists(&request.app_account_token)?
+    {
         return Err(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails));
     }
+
+    let expires = verify_receipt(
+        &server_state.app_store_client,
+        &server_state.config.billing.apple,
+        &request.encoded_receipt,
+        &request.app_account_token,
+        &request.original_transaction_id,
+    )
+    .await?;
 
     account.billing_info.billing_platform = Some(BillingPlatform::AppStore(AppStoreUserInfo {
         original_transaction_id: request.original_transaction_id.clone(),
         subscription_product_id: "".to_string(),
         expiration_time: expires,
-        account_state: AppStoreAccountState::Ok
+        account_state: AppStoreAccountState::Ok,
     }));
 
     server_state
@@ -225,14 +246,12 @@ pub async fn get_subscription_info(
                 },
                 period_end: info.expiration_time,
             },
-            BillingPlatform::AppStore(info) => {
-                SubscriptionInfo {
-                    payment_platform: PaymentPlatform::AppStore {
-                        account_state: info.account_state.clone(),
-                    },
-                    period_end: info.expiration_time,
-                }
-            }
+            BillingPlatform::AppStore(info) => SubscriptionInfo {
+                payment_platform: PaymentPlatform::AppStore {
+                    account_state: info.account_state.clone(),
+                },
+                period_end: info.expiration_time,
+            },
         });
 
     Ok(GetSubscriptionInfoResponse { subscription_info })
@@ -548,20 +567,22 @@ pub enum AppStoreNotificationError {
 }
 
 pub async fn app_store_notification_webhook(
-    server_state: &Arc<ServerState>, body: Bytes
+    server_state: &Arc<ServerState>, body: Bytes,
 ) -> Result<(), ServerError<AppStoreNotificationError>> {
-    let resp = app_store_service::decode_verify_notification(&server_state.config.billing.apple, &body)?;
+    let resp =
+        app_store_service::decode_verify_notification(&server_state.config.billing.apple, &body)?;
 
     if let NotificationChange::Subscribed = resp.notification_type {
         return Ok(());
     } else if let NotificationChange::Test = resp.notification_type {
-        println!("test notification hit");
-
         debug!(?resp, "This is a test notification.");
-        return Ok(())
+        return Ok(());
     }
 
-    let trans = app_store_service::decode_verify_transaction(&server_state.config.billing.apple, &resp.data.encoded_transaction_info)?;
+    let trans = app_store_service::decode_verify_transaction(
+        &server_state.config.billing.apple,
+        &resp.clone().data.encoded_transaction_info.unwrap(),
+    )?;
     let public_key = app_store_service::get_public_key(&server_state, &trans)?;
 
     let owner = Owner(public_key);
@@ -574,51 +595,54 @@ pub async fn app_store_notification_webhook(
     );
 
     save_subscription_profile(server_state, &public_key, |account| {
-        if let Some(BillingPlatform::AppStore(ref mut info)) = account.billing_info.billing_platform {
+        if let Some(BillingPlatform::AppStore(ref mut info)) = account.billing_info.billing_platform
+        {
             match resp.notification_type {
                 NotificationChange::DidFailToRenew => {
-                    info.account_state = if resp.subtype == Subtype::GracePeriod {
+                    info.account_state = if let Some(Subtype::GracePeriod) = resp.subtype {
                         AppStoreAccountState::GracePeriod
                     } else {
                         AppStoreAccountState::FailedToRenew
                     };
                 }
-                NotificationChange::Expired => {
-                    match resp.subtype {
-                        Subtype::BillingRetry => {
-                            info.account_state = AppStoreAccountState::FailedToRenew;
-                        }
-                        Subtype::Voluntary => {
-                            debug!(?owner, "Subscription cancelled");
-                        }
-                        _ => {
-                            return Err(internal!(
-                                "Unexpected price increase: {:?} {:?}, public_key: {:?}",
-                                resp.notification_type,
-                                resp.subtype,
-                                public_key
-                            ))
-                        }
+                NotificationChange::Expired => match resp.subtype {
+                    Some(Subtype::BillingRetry) => {
+                        info!(?owner, ?resp, "Subscription failed to renew due to billing issues.");
                     }
-                }
+                    Some(Subtype::Voluntary) => {
+                        info!(?owner, ?resp, "Subscription cancelled");
+                    }
+                    _ => {
+                        return Err(internal!(
+                            "Unexpected price increase: {:?} {:?}, public_key: {:?}",
+                            resp.notification_type,
+                            resp.subtype,
+                            public_key
+                        ))
+                    }
+                },
                 NotificationChange::GracePeriodExpired => {
                     account.billing_info.billing_platform = None;
                 }
                 NotificationChange::Refund => {
-                    debug!(?resp, "A user has requested a refund.");
+                    info!(?resp, "A user has requested a refund.");
                 }
                 NotificationChange::RefundDeclined => {
-                    debug!(?resp, "A user's refund request has been denied.");
+                    info!(?resp, "A user's refund request has been denied.");
                 }
-                NotificationChange::RenewalExtended => {}
-                NotificationChange::Subscribed
-                | NotificationChange::DidRenew => {
-                    info.account_state = AppStoreAccountState::Ok;
-                    info.expiration_time = trans.revocation_date
+                NotificationChange::DidChangeRenewalStatus => {
+                    info!(?resp, "A user changed their renewal status.")
+                }
+                NotificationChange::RenewalExtended => info.expiration_time = trans.expires_date,
+                NotificationChange::DidRenew => {
+                    if let Some(Subtype::BillingRecovery) = resp.subtype {
+                        info.account_state = AppStoreAccountState::Ok;
+                    }
+                    info.expiration_time = trans.expires_date
                 }
                 NotificationChange::ConsumptionRequest
+                | NotificationChange::Subscribed
                 | NotificationChange::DidChangeRenewalPref
-                | NotificationChange::DidChangeRenewalStatus
                 | NotificationChange::OfferRedeemed
                 | NotificationChange::PriceIncrease
                 | NotificationChange::Revoke
@@ -636,7 +660,8 @@ pub async fn app_store_notification_webhook(
         } else {
             Err(internal!("Cannot get any billing info for user. public_key: {:?}", public_key))
         }
-    }).await?;
+    })
+    .await?;
 
     Ok(())
 }

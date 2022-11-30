@@ -7,7 +7,10 @@ use hmdb::log::{LogCompacter, Reader};
 use hmdb::transaction::Transaction;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::config::Config;
-use lockbook_server_lib::router_service::{app_store_notification_webhooks, app_store_send_test_notification, build_info, core_routes, get_metrics, google_play_notification_webhooks, stripe_webhooks};
+use lockbook_server_lib::router_service::{
+    app_store_notification_webhooks, app_store_send_test_notification, build_info, core_routes,
+    get_metrics, google_play_notification_webhooks, stripe_webhooks,
+};
 use lockbook_server_lib::schema::v2;
 use lockbook_server_lib::*;
 use std::sync::Arc;
@@ -46,8 +49,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .start_background_compacter(cfg.index_db.time_between_compacts)
         .unwrap();
 
-    let server_state =
-        Arc::new(ServerState { config, index_db, stripe_client, google_play_client, app_store_client });
+    let server_state = Arc::new(ServerState {
+        config,
+        index_db,
+        stripe_client,
+        google_play_client,
+        app_store_client,
+    });
 
     let routes = core_routes(&server_state)
         .or(build_info())

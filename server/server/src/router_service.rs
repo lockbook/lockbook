@@ -1,6 +1,6 @@
 use crate::account_service::*;
-use crate::billing::{app_store_client, billing_service};
 use crate::billing::billing_service::*;
+use crate::billing::{app_store_client, billing_service};
 use crate::file_service::*;
 use crate::utils::get_build_info;
 use crate::{router_service, verify_auth, verify_client_version, ServerError, ServerState};
@@ -128,6 +128,7 @@ pub fn core_routes(
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
         .or(core_req!(UpgradeAccountGooglePlayRequest, upgrade_account_google_play, server_state))
         .or(core_req!(UpgradeAccountStripeRequest, upgrade_account_stripe, server_state))
+        .or(core_req!(UpgradeAccountAppStoreRequest, upgrade_account_app_store, server_state))
         .or(core_req!(CancelSubscriptionRequest, cancel_subscription, server_state))
         .or(core_req!(GetSubscriptionInfoRequest, get_subscription_info, server_state))
         .or(core_req!(DeleteAccountRequest, delete_account, server_state))
@@ -279,8 +280,12 @@ pub fn app_store_notification_webhooks(
         .and(warp::any().map(move || cloned_state.clone()))
         .and(warp::body::bytes())
         .then(|state: Arc<ServerState>, body: Bytes| async move {
-            let span =
-                span!(Level::INFO, "matched_request", method = "POST", route = format!("/{}", APP_STORE_WEBHOOK_ROUTE).as_str());
+            let span = span!(
+                Level::INFO,
+                "matched_request",
+                method = "POST",
+                route = format!("/{}", APP_STORE_WEBHOOK_ROUTE).as_str()
+            );
             let _enter = span.enter();
             info!("webhook routed");
             let response = span
@@ -293,7 +298,9 @@ pub fn app_store_notification_webhooks(
                     error!("{:?}", e);
 
                     let status_code = match e {
-                        ServerError::ClientError(AppStoreNotificationError::InvalidJWS) => StatusCode::BAD_REQUEST,
+                        ServerError::ClientError(AppStoreNotificationError::InvalidJWS) => {
+                            StatusCode::BAD_REQUEST
+                        }
                         ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
                     };
 
@@ -312,7 +319,14 @@ pub fn app_store_send_test_notification(
         .and(warp::path("test-notif"))
         .and(warp::any().map(move || cloned_state.clone()))
         .then(|state: Arc<ServerState>| async move {
-            println!("{}", app_store_client::request_test_notif(&state.app_store_client, &state.config.billing.apple).await);
+            println!(
+                "{}",
+                app_store_client::request_test_notif(
+                    &state.app_store_client,
+                    &state.config.billing.apple
+                )
+                .await
+            );
 
             warp::reply::with_status("".to_string(), StatusCode::OK)
         })

@@ -100,7 +100,7 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
                 match billing_platform {
                     BillingPlatform::GooglePlay { .. } => premium_google_play_users += 1,
                     BillingPlatform::Stripe { .. } => premium_stripe_users += 1,
-                    BillingPlatform::AppStore{ .. } => premium_app_store_users += 1,
+                    BillingPlatform::AppStore { .. } => premium_app_store_users += 1,
                 }
             }
 

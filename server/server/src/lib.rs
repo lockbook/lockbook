@@ -1,3 +1,5 @@
+extern crate core;
+
 use google_androidpublisher3::AndroidPublisher;
 use hmdb::errors::Error;
 use std::env;
@@ -24,7 +26,7 @@ pub struct ServerState {
     pub index_db: Server,
     pub stripe_client: stripe::Client,
     pub google_play_client: AndroidPublisher,
-    pub app_store_client: reqwest::Client
+    pub app_store_client: reqwest::Client,
 }
 
 #[derive(Clone)]
