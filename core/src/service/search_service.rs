@@ -4,7 +4,7 @@ use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::filename::DocumentType;
-use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
+use lockbook_shared::tree_like::TreeLike;
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::sync::atomic::{self, AtomicBool};
@@ -50,10 +50,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             return Ok(Vec::new());
         }
 
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
+        let mut tree = (&self.tx.base_metadata)
+            .stage(&self.tx.local_metadata)
             .to_lazy();
 
         let account = self
@@ -84,10 +82,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn start_search(&mut self) -> CoreResult<StartSearchInfo> {
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
+        let mut tree = (&self.tx.base_metadata)
+            .stage(&self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx
