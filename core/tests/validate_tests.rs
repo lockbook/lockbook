@@ -33,11 +33,24 @@ fn create_two_files_with_same_path() {
             let tree = base_metadata.stage(local_metadata).to_lazy();
 
             let mut tree = tree.stage(Vec::new());
-            tree.create_unvalidated(&root.id, "document", FileType::Document, &account)
-                .unwrap();
-            tree.create_unvalidated(&root.id, "document", FileType::Document, &account)
-                .unwrap();
-            tree.validate(owner)?.promote();
+            tree.create_unvalidated(
+                Uuid::new_v4(),
+                &root.id,
+                "document",
+                FileType::Document,
+                &account,
+            )
+            .unwrap();
+            tree.create_unvalidated(
+                Uuid::new_v4(),
+                &root.id,
+                "document",
+                FileType::Document,
+                &account,
+            )
+            .unwrap();
+            tree.validate(owner)?;
+            tree.promote();
 
             Ok(())
         }),
