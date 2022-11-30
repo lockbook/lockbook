@@ -5,7 +5,7 @@ use hmdb::transaction::TransactionTable;
 use std::collections::HashSet;
 use uuid::Uuid;
 
-impl<F, Log> TreeLike for &mut TransactionTable<'_, Uuid, F, Log>
+impl<F, Log> TreeLike for TransactionTable<'_, Uuid, F, Log>
 where
     F: FileLike,
     Log: SchemaEvent<Uuid, F>,
@@ -21,7 +21,7 @@ where
     }
 }
 
-impl<F, Log> TreeLikeMut for &mut TransactionTable<'_, Uuid, F, Log>
+impl<F, Log> TreeLikeMut for TransactionTable<'_, Uuid, F, Log>
 where
     F: FileLike,
     Log: SchemaEvent<Uuid, F>,

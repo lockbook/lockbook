@@ -40,6 +40,22 @@ pub trait TreeLike: Sized {
         Ok(all)
     }
 
+    fn stage<Staged>(&self, staged: Staged) -> StagedTree<&Self, Staged>
+    where
+        Staged: TreeLike<F = Self::F>,
+        Self: Sized,
+    {
+        StagedTree::new(self, staged)
+    }
+
+    fn to_staged<Staged>(self, staged: Staged) -> StagedTree<Self, Staged>
+    where
+        Staged: TreeLike<F = Self::F>,
+        Self: Sized,
+    {
+        StagedTree::new(self, staged)
+    }
+
     fn as_lazy(&self) -> LazyTree<&Self> {
         LazyTree::new(self)
     }
@@ -52,14 +68,6 @@ pub trait TreeLike: Sized {
 pub trait TreeLikeMut: TreeLike {
     fn insert(&mut self, f: Self::F) -> Option<Self::F>;
     fn remove(&mut self, id: Uuid) -> Option<Self::F>;
-
-    fn stage<Staged>(self, staged: Staged) -> StagedTree<Self, Staged>
-    where
-        Staged: TreeLikeMut<F = Self::F>,
-        Self: Sized,
-    {
-        StagedTree::new(self, staged)
-    }
 }
 
 impl<T> TreeLike for &T
@@ -74,6 +82,34 @@ where
 
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
         T::maybe_find(self, id)
+    }
+}
+
+impl<T> TreeLike for &mut T
+where
+    T: TreeLike,
+{
+    type F = T::F;
+
+    fn ids(&self) -> HashSet<&Uuid> {
+        T::ids(self)
+    }
+
+    fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
+        T::maybe_find(self, id)
+    }
+}
+
+impl<T> TreeLikeMut for &mut T
+where
+    T: TreeLikeMut,
+{
+    fn insert(&mut self, f: Self::F) -> Option<Self::F> {
+        T::insert(self, f)
+    }
+
+    fn remove(&mut self, id: Uuid) -> Option<Self::F> {
+        T::remove(self, id)
     }
 }
 

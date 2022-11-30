@@ -15,20 +15,21 @@ use crate::file::{File, Share, ShareMode};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileMetadata, FileType, Owner};
 use crate::filename::{DocumentType, NameComponents};
-use crate::lazy::{LazyStage2, LazyStaged1, LazyTree, Stage1};
+use crate::lazy::{LazyStage2, LazyTree};
 use crate::secret_filename::{HmacSha256, SecretFileName};
 use crate::signed_file::SignedFile;
-use crate::staged::StagedTree;
+use crate::staged::{StagedTree, StagedTreeLike};
 use crate::tree_like::{TreeLike, TreeLikeMut};
 use crate::{compression_service, document_repo, symkey, validate, SharedError, SharedResult};
 
-pub type TreeWithOp<Base, Local> = LazyTree<StagedTree<Stage1<Base, Local>, Option<SignedFile>>>;
-pub type TreeWithOps<Base, Local> = LazyTree<StagedTree<Stage1<Base, Local>, Vec<SignedFile>>>;
+pub type TreeWithOp<Staged> = LazyTree<StagedTree<Staged, Option<SignedFile>>>;
+pub type TreeWithOps<Staged> = LazyTree<StagedTree<Staged, Vec<SignedFile>>>;
 
-impl<Base, Local> LazyStaged1<Base, Local>
+impl<Base, Local, Staged> LazyTree<Staged>
 where
-    Base: TreeLike<F = SignedFile>,
-    Local: TreeLikeMut<F = Base::F>,
+    Staged: StagedTreeLike<Base = Base, Staged = Local, F = SignedFile>,
+    Base: TreeLike<F = Staged::F>,
+    Local: TreeLike<F = Staged::F>,
 {
     pub fn finalize<PublicKeyCache: SchemaEvent<Owner, String>>(
         &mut self, id: &Uuid, account: &Account,
@@ -146,22 +147,6 @@ where
         Ok((Some(file), id))
     }
 
-    pub fn create_unvalidated(
-        &mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
-    ) -> SharedResult<Uuid> {
-        let (op, id) = self.create_op(parent, name, file_type, account)?;
-        self.stage_and_promote(op);
-        Ok(id)
-    }
-
-    pub fn create(
-        &mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
-    ) -> SharedResult<Uuid> {
-        let (op, id) = self.create_op(parent, name, file_type, account)?;
-        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
-        Ok(id)
-    }
-
     fn rename_op(
         &mut self, id: &Uuid, name: &str, account: &Account,
     ) -> SharedResult<Option<SignedFile>> {
@@ -177,20 +162,6 @@ where
         let file = file.sign(account)?;
 
         Ok(Some(file))
-    }
-
-    pub fn rename_unvalidated(
-        &mut self, id: &Uuid, name: &str, account: &Account,
-    ) -> SharedResult<()> {
-        let op = self.rename_op(id, name, account)?;
-        self.stage_and_promote(op);
-        Ok(())
-    }
-
-    pub fn rename(&mut self, id: &Uuid, name: &str, account: &Account) -> SharedResult<()> {
-        let op = self.rename_op(id, name, account)?;
-        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
-        Ok(())
     }
 
     fn move_op(
@@ -219,22 +190,6 @@ where
         Ok(result)
     }
 
-    pub fn move_unvalidated(
-        &mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
-    ) -> SharedResult<()> {
-        let op = self.move_op(id, new_parent, account)?;
-        self.stage_and_promote(op);
-        Ok(())
-    }
-
-    pub fn move_file(
-        &mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
-    ) -> SharedResult<()> {
-        let op = self.move_op(id, new_parent, account)?;
-        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
-        Ok(())
-    }
-
     fn delete_op(&self, id: &Uuid, account: &Account) -> SharedResult<Option<SignedFile>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
 
@@ -242,18 +197,6 @@ where
         let file = file.sign(account)?;
 
         Ok(Some(file))
-    }
-
-    pub fn delete_unvalidated(&mut self, id: &Uuid, account: &Account) -> SharedResult<()> {
-        let op = self.delete_op(id, account)?;
-        self.stage_and_promote(op);
-        Ok(())
-    }
-
-    pub fn delete(&mut self, id: &Uuid, account: &Account) -> SharedResult<()> {
-        let op = self.delete_op(id, account)?;
-        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
-        Ok(())
     }
 
     fn delete_share_op(
@@ -291,22 +234,6 @@ where
         }
 
         Ok(result)
-    }
-
-    pub fn delete_share_unvalidated(
-        &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
-    ) -> SharedResult<()> {
-        let op = self.delete_share_op(id, maybe_encrypted_for, account)?;
-        self.stage_and_promote(op);
-        Ok(())
-    }
-
-    pub fn delete_share(
-        &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
-    ) -> SharedResult<()> {
-        let op = self.delete_share_op(id, maybe_encrypted_for, account)?;
-        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
-        Ok(())
     }
 
     pub fn read_document(
@@ -363,6 +290,87 @@ where
 
         Ok((Some(file), document))
     }
+}
+
+impl<Base, Local, Staged> LazyTree<Staged>
+where
+    Staged: StagedTreeLike<Base = Base, Staged = Local, F = SignedFile> + TreeLikeMut,
+    Base: TreeLike<F = Staged::F>,
+    Local: TreeLikeMut<F = Staged::F>,
+{
+    pub fn create_unvalidated(
+        &mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
+    ) -> SharedResult<Uuid> {
+        let (op, id) = self.create_op(parent, name, file_type, account)?;
+        self.stage_and_promote(op);
+        Ok(id)
+    }
+
+    pub fn create(
+        &mut self, parent: &Uuid, name: &str, file_type: FileType, account: &Account,
+    ) -> SharedResult<Uuid> {
+        let (op, id) = self.create_op(parent, name, file_type, account)?;
+        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
+        Ok(id)
+    }
+
+    pub fn rename_unvalidated(
+        &mut self, id: &Uuid, name: &str, account: &Account,
+    ) -> SharedResult<()> {
+        let op = self.rename_op(id, name, account)?;
+        self.stage_and_promote(op);
+        Ok(())
+    }
+
+    pub fn rename(&mut self, id: &Uuid, name: &str, account: &Account) -> SharedResult<()> {
+        let op = self.rename_op(id, name, account)?;
+        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
+        Ok(())
+    }
+
+    pub fn move_unvalidated(
+        &mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
+    ) -> SharedResult<()> {
+        let op = self.move_op(id, new_parent, account)?;
+        self.stage_and_promote(op);
+        Ok(())
+    }
+
+    pub fn move_file(
+        &mut self, id: &Uuid, new_parent: &Uuid, account: &Account,
+    ) -> SharedResult<()> {
+        let op = self.move_op(id, new_parent, account)?;
+        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
+        Ok(())
+    }
+
+    pub fn delete_unvalidated(&mut self, id: &Uuid, account: &Account) -> SharedResult<()> {
+        let op = self.delete_op(id, account)?;
+        self.stage_and_promote(op);
+        Ok(())
+    }
+
+    pub fn delete(&mut self, id: &Uuid, account: &Account) -> SharedResult<()> {
+        let op = self.delete_op(id, account)?;
+        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
+        Ok(())
+    }
+
+    pub fn delete_share_unvalidated(
+        &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
+    ) -> SharedResult<()> {
+        let op = self.delete_share_op(id, maybe_encrypted_for, account)?;
+        self.stage_and_promote(op);
+        Ok(())
+    }
+
+    pub fn delete_share(
+        &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, account: &Account,
+    ) -> SharedResult<()> {
+        let op = self.delete_share_op(id, maybe_encrypted_for, account)?;
+        self.stage_validate_and_promote(op, Owner(account.public_key()))?;
+        Ok(())
+    }
 
     pub fn update_document_unvalidated(
         &mut self, id: &Uuid, document: &[u8], account: &Account,
@@ -381,7 +389,7 @@ where
     }
 
     pub fn delete_unreferenced_file_versions(&self, config: &Config) -> SharedResult<()> {
-        let base_files = self.tree.base.all_files()?.into_iter();
+        let base_files = self.tree.base().all_files()?.into_iter();
         let local_files = self.tree.all_files()?.into_iter();
         let file_hmacs = base_files
             .chain(local_files)
@@ -396,7 +404,7 @@ where
     // todo: incrementalism
     pub fn unmove_moved_files_in_cycles(
         self, account: &Account,
-    ) -> SharedResult<TreeWithOps<Base, Local>> {
+    ) -> SharedResult<TreeWithOps<Staged>> {
         let mut result = self.stage(Vec::new());
 
         let mut root_found = false;
@@ -438,7 +446,7 @@ where
 
         for id in to_revert {
             if let (Some(base), Some(_)) =
-                (result.tree.base.base.maybe_find(&id), result.tree.base.staged.maybe_find(&id))
+                (result.tree.base.base().maybe_find(&id), result.tree.base.staged().maybe_find(&id))
             {
                 let parent_id = *base.parent();
                 // modified version of stage_move where we use keys from base instead of local (which has a cycle)
@@ -448,7 +456,7 @@ where
                     let mut file = result.find(id)?.timestamped_value.value.clone();
 
                     let (key, parent_key) = {
-                        let mut base = result.tree.base.base.as_lazy();
+                        let mut base = result.tree.base.base().as_lazy();
                         let key = base.decrypt_key(id, account)?;
                         let parent_key = base.decrypt_key(&parent_id, account)?;
                         (key, parent_key)
@@ -474,7 +482,7 @@ where
     // todo: incrementalism
     pub fn rename_files_with_path_conflicts(
         self, account: &Account,
-    ) -> SharedResult<TreeWithOps<Base, Local>> {
+    ) -> SharedResult<TreeWithOps<Staged>> {
         let mut result = self.stage(Vec::new());
 
         for (_, sibling_ids) in result.all_children()?.clone() {
@@ -486,7 +494,7 @@ where
             }
             for sibling_id in not_deleted_sibling_ids.iter() {
                 // todo: check for renames specifically
-                if result.tree.base.staged.maybe_find(sibling_id).is_none() {
+                if result.tree.base.staged().maybe_find(sibling_id).is_none() {
                     continue;
                 }
                 let mut name = result.name(sibling_id, account)?;
@@ -510,11 +518,11 @@ where
         Ok(result)
     }
 
-    pub fn deduplicate_links(self, account: &Account) -> SharedResult<TreeWithOps<Base, Local>> {
+    pub fn deduplicate_links(self, account: &Account) -> SharedResult<TreeWithOps<Staged>> {
         let mut result = self.stage(Vec::new());
 
         let mut base_link_targets = HashSet::new();
-        for id in result.tree.base.base.owned_ids() {
+        for id in result.tree.base.base().owned_ids() {
             if result.calculate_deleted(&id)? {
                 continue;
             }
@@ -523,7 +531,7 @@ where
             }
         }
 
-        for id in result.tree.base.staged.owned_ids() {
+        for id in result.tree.base.staged().owned_ids() {
             if result.calculate_deleted(&id)? {
                 continue;
             }
@@ -536,11 +544,11 @@ where
         Ok(result)
     }
 
-    pub fn resolve_shared_links(self, account: &Account) -> SharedResult<TreeWithOps<Base, Local>> {
+    pub fn resolve_shared_links(self, account: &Account) -> SharedResult<TreeWithOps<Staged>> {
         let mut base_shared_files = HashSet::new();
         let mut base_links = HashSet::new();
-        for id in self.tree.base.owned_ids() {
-            let file = self.tree.base.find(&id)?;
+        for id in self.tree.base().owned_ids() {
+            let file = self.tree.base().find(&id)?;
             if file.is_shared() {
                 base_shared_files.insert(id);
             }
@@ -550,7 +558,7 @@ where
         }
 
         let mut result = self.stage(Vec::new());
-        for id in result.tree.base.staged.owned_ids() {
+        for id in result.tree.base.staged().owned_ids() {
             if result.find(&id)?.is_shared() {
                 for descendant in result.descendants(&id)? {
                     if base_links.contains(&descendant) {
@@ -569,10 +577,10 @@ where
         Ok(result)
     }
 
-    pub fn resolve_owned_links(self, account: &Account) -> SharedResult<TreeWithOps<Base, Local>> {
+    pub fn resolve_owned_links(self, account: &Account) -> SharedResult<TreeWithOps<Staged>> {
         let mut result = self.stage(Vec::new());
 
-        for id in result.tree.base.staged.owned_ids() {
+        for id in result.tree.base.staged().owned_ids() {
             if let FileType::Link { target } = result.find(&id)?.file_type() {
                 if result.find(&target)?.owner().0 == account.public_key() {
                     // delete new link to owned file
@@ -581,7 +589,7 @@ where
             }
             if result.find(&id)?.owner().0 == account.public_key() && result.link(&id)?.is_some() {
                 // unmove newly owned file with a link targeting it
-                let old_parent = *result.tree.base.base.find(&id)?.parent();
+                let old_parent = *result.tree.base.base().find(&id)?.parent();
                 result.move_unvalidated(&id, &old_parent, account)?;
             }
         }
@@ -590,7 +598,7 @@ where
 
     pub fn delete_links_to_deleted_files(
         self, account: &Account,
-    ) -> SharedResult<TreeWithOps<Base, Local>> {
+    ) -> SharedResult<TreeWithOps<Staged>> {
         let mut result = self.stage(Vec::new());
 
         for id in result.owned_ids() {
@@ -618,12 +626,7 @@ where
     /// Applies changes to local such that this is a valid tree.
     pub fn merge(
         self, config: &Config, account: &Account, remote_document_changes: &HashSet<Uuid>,
-    ) -> SharedResult<Self>
-    where
-        Base: TreeLikeMut<F = SignedFile>,
-        Remote: TreeLikeMut<F = SignedFile>,
-        Local: TreeLikeMut<F = SignedFile>,
-    {
+    ) -> SharedResult<Self> {
         let mut result = self.stage(Vec::new());
 
         // merge files on an individual basis
@@ -812,10 +815,16 @@ where
         // merge documents
         {
             for id in remote_document_changes {
-                let remote_document_change_hmac =
-                    result.tree.base.base.staged.find(id)?.document_hmac();
+                let remote_document_change_hmac = result
+                    .tree
+                    .base
+                    .base
+                    .staged
+                    .find(id)?
+                    .document_hmac()
+                    .cloned();
                 let remote_document_change =
-                    document_repo::get(config, id, remote_document_change_hmac)?;
+                    document_repo::get(config, id, remote_document_change_hmac.as_ref())?;
                 if result.calculate_deleted(id)? {
                     // cannot modify locally deleted documents; local changes to deleted documents are reset anyway
                     continue;
@@ -890,7 +899,7 @@ where
                         document_repo::insert(config, id, hmac, &encrypted_document)?;
                         result
                     }
-                    // non-text files always duplicated
+                    // non-text files duplicated unless changes are identical
                     (Some(local_document_change), DocumentType::Drawing | DocumentType::Other) => {
                         let (decrypted_remote_document, decrypted_local_document) = {
                             let (local, merge_changes) = result.unstage();
@@ -912,6 +921,10 @@ where
                         )?;
                         let hmac = result.find(id)?.document_hmac();
                         document_repo::insert(config, id, hmac, &encrypted_document)?;
+
+                        if remote_document_change_hmac == local_document_hmac {
+                            continue;
+                        }
 
                         // create copied document (todo: avoid decrypting and re-encrypting document)
                         let (&existing_parent, existing_file_type) = {

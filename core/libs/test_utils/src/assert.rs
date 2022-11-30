@@ -5,7 +5,8 @@ use lockbook_core::OneKey;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::path_ops::Filter::DocumentsOnly;
-use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
+use lockbook_shared::staged::StagedTreeLikeMut;
+use lockbook_shared::tree_like::TreeLike;
 use uuid::Uuid;
 
 #[macro_export]
@@ -206,7 +207,12 @@ pub fn server_work_paths(db: &Core, expected_paths: &[&'static str]) {
             let context = db.context(tx).unwrap();
             let account = context.tx.account.get(&OneKey {}).unwrap();
             let remote_changes = context.get_updates().unwrap().file_metadata;
-            let mut remote = context.tx.base_metadata.stage(remote_changes).to_lazy();
+            let mut remote = context
+                .tx
+                .base_metadata
+                .stage(remote_changes)
+                .pruned()
+                .to_lazy();
             remote
                 .tree
                 .staged

@@ -8,7 +8,7 @@ use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::filename::NameComponents;
 use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::signed_file::SignedFile;
-use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
+use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::{document_repo, SharedError};
 use std::collections::HashSet;
 use std::fs;
@@ -30,7 +30,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     ) -> CoreResult<()> {
         update_status(ImportStatus::CalculatedTotal(get_total_child_count(sources)?));
 
-        let tree = self.tx.base_metadata.stage(&mut self.tx.local_metadata);
+        let tree = (&self.tx.base_metadata).stage(&self.tx.local_metadata);
         let parent = tree.find(&dest)?;
         if !parent.is_folder() {
             return Err(CoreError::FileNotFolder);
@@ -51,10 +51,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             return Err(CoreError::DiskPathInvalid);
         }
 
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
+        let mut tree = (&self.tx.base_metadata)
+            .stage(&self.tx.local_metadata)
             .to_lazy();
 
         let file = tree.find(&id)?.clone();
@@ -84,8 +82,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
     ) -> CoreResult<()>
     where
-        Base: TreeLikeMut<F = SignedFile>,
-        Local: TreeLikeMut<F = Base::F>,
+        Base: TreeLike<F = SignedFile>,
+        Local: TreeLike<F = Base::F>,
     {
         let dest_with_new = disk_path.join(&tree.name(this_file.id(), account)?);
 
@@ -156,9 +154,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     fn import_file_recursively<F: Fn(ImportStatus)>(
         &mut self, disk_path: &Path, dest: &Uuid, update_status: &F,
     ) -> CoreResult<()> {
-        let mut tree = self
-            .tx
-            .base_metadata
+        let mut tree = (&self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
@@ -230,8 +226,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         tree: &mut LazyStaged1<Base, Local>, account: &Account, parent: &Uuid, proposed_name: &str,
     ) -> CoreResult<String>
     where
-        Base: TreeLikeMut<F = SignedFile>,
-        Local: TreeLikeMut<F = Base::F>,
+        Base: TreeLike<F = SignedFile>,
+        Local: TreeLike<F = Base::F>,
     {
         let maybe_siblings = tree.children(parent)?;
         let mut new_name = NameComponents::from(proposed_name);

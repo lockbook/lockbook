@@ -3,7 +3,7 @@ use crate::file_like::FileLike;
 use crate::file_metadata::{Diff, FileDiff, FileType, Owner};
 use crate::lazy::LazyTree;
 use crate::staged::StagedTreeLike;
-use crate::tree_like::{TreeLike, TreeLikeMut};
+use crate::tree_like::TreeLike;
 use crate::{SharedError, SharedResult, ValidationFailure};
 use std::collections::{HashMap, HashSet};
 
@@ -53,7 +53,7 @@ impl<T, Base, Local> LazyTree<T>
 where
     T: StagedTreeLike<Base = Base, Staged = Local>,
     Base: TreeLike<F = T::F>,
-    Local: TreeLikeMut<F = T::F>,
+    Local: TreeLike<F = T::F>,
 {
     pub fn validate(mut self, owner: Owner) -> SharedResult<Self> {
         // point checks
