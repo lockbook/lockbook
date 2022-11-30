@@ -187,6 +187,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             // changeset constraints - these evolve as we try to assemble changes and face validation failures
             let mut files_to_revert_moves: HashSet<Uuid> = HashSet::new();
             let mut files_to_rename: HashSet<Uuid> = HashSet::new();
+            let mut links_to_delete: HashSet<Uuid> = HashSet::new();
 
             println!(
                 "merge conflict resolution; local changes: {:?}",
@@ -287,6 +288,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                     for id in self.tx.local_metadata.owned_ids() {
                         if !deletions.calculate_deleted(&id)?
                             && self.tx.base_metadata.maybe_find(&id).is_none()
+                            && !links_to_delete.contains(&id)
                         {
                             creations.insert(id);
                         }
@@ -505,10 +507,21 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                                 "shared link resolution unimplemented".to_string(),
                             ));
                         }
-                        ValidationFailure::DuplicateLink { .. } => {
-                            return Err(CoreError::Unexpected(
-                                "duplicate link resolution unimplemented".to_string(),
-                            ));
+                        ValidationFailure::DuplicateLink { target } => {
+                            // delete local link with this target
+                            println!("duplicate link: target: {:?}", target);
+                            let mut progress = false;
+                            if let Some(link) = local.link(target)? {
+                                if links_to_delete.insert(link) {
+                                    progress = true;
+                                }
+                            }
+                            if !progress {
+                                return Err(CoreError::Unexpected(format!(
+                                    "sync failed to resolve duplicate link: target: {:?}",
+                                    target
+                                )));
+                            }
                         }
                         ValidationFailure::BrokenLink(_) => {
                             return Err(CoreError::Unexpected(
