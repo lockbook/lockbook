@@ -3,6 +3,7 @@ use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileMetadata, FileType};
 use lockbook_shared::tree_like::TreeLike;
 use test_utils::*;
+use uuid::Uuid;
 
 #[test]
 fn test_create() {
@@ -14,7 +15,7 @@ fn test_create() {
     let files = vec![root.clone()].to_lazy();
     let mut files = files.stage(vec![]);
     let id = files
-        .create(root.id(), "test-doc", FileType::Document, account)
+        .create(Uuid::new_v4(), root.id(), "test-doc", FileType::Document, account)
         .unwrap();
 
     assert_eq!(files.name(&id, account).unwrap(), "test-doc");
@@ -30,7 +31,7 @@ fn test_rename() {
     let files = vec![root.clone()].to_lazy();
     let mut files = files.stage(vec![]);
     let id = files
-        .create(root.id(), "test-doc", FileType::Document, account)
+        .create(Uuid::new_v4(), root.id(), "test-doc", FileType::Document, account)
         .unwrap();
 
     files.rename(&id, "new-name", account).unwrap();
@@ -50,10 +51,10 @@ fn test_children_and_move() {
     let tree = vec![root.clone()].to_lazy();
     let mut tree = tree.stage(vec![]);
     let doc = tree
-        .create(root.id(), "test-doc", FileType::Document, account)
+        .create(Uuid::new_v4(), root.id(), "test-doc", FileType::Document, account)
         .unwrap();
     let dir = tree
-        .create(root.id(), "dir", FileType::Folder, account)
+        .create(Uuid::new_v4(), root.id(), "dir", FileType::Folder, account)
         .unwrap();
 
     // Root should have 2 children and dir should have 0 child right now
