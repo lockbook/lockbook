@@ -3,7 +3,7 @@ use crate::account::Account;
 use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileType, Owner};
-use crate::staged::{StagedTree, StagedTreeRef};
+use crate::staged::StagedTree;
 use crate::tree_like::{TreeLike, TreeLikeMut};
 use crate::{compression_service, symkey, SharedError, SharedResult};
 use serde::{Deserialize, Serialize};
@@ -364,9 +364,9 @@ where
     }
 
     pub fn stage_validate_and_promote<S: TreeLikeMut<F = T::F>>(
-        &mut self, staged: S, owner: Owner,
+        &mut self, mut staged: S, owner: Owner,
     ) -> SharedResult<()> {
-        StagedTreeRef::new(&self.tree, &staged)
+        StagedTree::new(&self.tree, &mut staged)
             .to_lazy()
             .validate(owner)?;
         self.stage_and_promote(staged);
