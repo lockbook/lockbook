@@ -1,6 +1,7 @@
 use lockbook_shared::account::Account;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileMetadata, FileType};
+use lockbook_shared::symkey;
 use lockbook_shared::tree_like::TreeLike;
 use test_utils::*;
 use uuid::Uuid;
@@ -21,6 +22,7 @@ fn decrypt_child_name_basic() {
     let key = files.decrypt_key(root.id(), &account).unwrap();
     let child = FileMetadata::create(
         Uuid::new_v4(),
+        symkey::generate_key(),
         &account.public_key(),
         root.id,
         &key,
@@ -40,6 +42,7 @@ fn decrypt_child_name_staged() {
     let key = files.decrypt_key(root.id(), &account).unwrap();
     let child = FileMetadata::create(
         Uuid::new_v4(),
+        symkey::generate_key(),
         &account.public_key(),
         root.id,
         &key,
@@ -59,6 +62,7 @@ fn decrypt_child_name_stage_promote() {
     let key = files.decrypt_key(root.id(), &account).unwrap();
     let child = FileMetadata::create(
         Uuid::new_v4(),
+        symkey::generate_key(),
         &account.public_key(),
         root.id,
         &key,
@@ -78,6 +82,7 @@ fn decrypt_child_name_insert() {
     let key = files.decrypt_key(root.id(), &account).unwrap();
     let child = FileMetadata::create(
         Uuid::new_v4(),
+        symkey::generate_key(),
         &account.public_key(),
         root.id,
         &key,
@@ -97,6 +102,7 @@ fn name_2dirs() {
     let key = files.decrypt_key(root.id(), &account).unwrap();
     let child = FileMetadata::create(
         Uuid::new_v4(),
+        symkey::generate_key(),
         &account.public_key(),
         root.id,
         &key,
@@ -108,6 +114,7 @@ fn name_2dirs() {
     let key = files.decrypt_key(child.id(), &account).unwrap();
     let child_of_child = FileMetadata::create(
         Uuid::new_v4(),
+        symkey::generate_key(),
         &account.public_key(),
         child.id,
         &key,
@@ -129,6 +136,7 @@ fn deleted_2dirs() {
     let key = files.decrypt_key(root.id(), &account).unwrap();
     let mut child = FileMetadata::create(
         Uuid::new_v4(),
+        symkey::generate_key(),
         &account.public_key(),
         root.id,
         &key,
@@ -141,6 +149,7 @@ fn deleted_2dirs() {
     let key = files.decrypt_key(child.id(), &account).unwrap();
     let child_of_child = FileMetadata::create(
         Uuid::new_v4(),
+        symkey::generate_key(),
         &account.public_key(),
         child.id,
         &key,
@@ -162,6 +171,7 @@ fn deleted_2dirs2() {
     let key = files.decrypt_key(root.id(), &account).unwrap();
     let child = FileMetadata::create(
         Uuid::new_v4(),
+        symkey::generate_key(),
         &account.public_key(),
         root.id,
         &key,
@@ -173,6 +183,7 @@ fn deleted_2dirs2() {
     let key = files.decrypt_key(child.id(), &account).unwrap();
     let mut child_of_child = FileMetadata::create(
         Uuid::new_v4(),
+        symkey::generate_key(),
         &account.public_key(),
         child.id,
         &key,

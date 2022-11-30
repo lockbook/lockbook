@@ -1,6 +1,7 @@
 use lockbook_shared::account::Account;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileMetadata, FileType};
+use lockbook_shared::symkey;
 use lockbook_shared::tree_like::TreeLike;
 use test_utils::*;
 use uuid::Uuid;
@@ -24,7 +25,14 @@ fn test_stage_promote() {
 
     let mut files = vec![root.clone()].to_lazy().stage(vec![]);
     let (op, _) = files
-        .create_op(Uuid::new_v4(), root.id(), "test", FileType::Folder, account)
+        .create_op(
+            Uuid::new_v4(),
+            symkey::generate_key(),
+            root.id(),
+            "test",
+            FileType::Folder,
+            account,
+        )
         .unwrap();
     let files = files.tree.to_staged(Some(op)).to_lazy();
 
@@ -47,7 +55,14 @@ fn test_stage_unstage() {
 
     let mut files = vec![root.clone()].to_lazy().stage(vec![]);
     let (op, _) = files
-        .create_op(Uuid::new_v4(), root.id(), "test", FileType::Folder, account)
+        .create_op(
+            Uuid::new_v4(),
+            symkey::generate_key(),
+            root.id(),
+            "test",
+            FileType::Folder,
+            account,
+        )
         .unwrap();
     let files = files.tree.stage(Some(op)).to_lazy();
 
