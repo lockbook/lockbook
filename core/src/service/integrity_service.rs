@@ -2,7 +2,7 @@ use std::path::Path;
 
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
-use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
+use lockbook_shared::tree_like::TreeLike;
 
 use crate::model::drawing;
 use crate::model::errors::{TestRepoError, Warning};
@@ -13,10 +13,8 @@ const UTF8_SUFFIXES: [&str; 12] =
 
 impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn test_repo_integrity(&mut self) -> Result<Vec<Warning>, TestRepoError> {
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
+        let mut tree = (&self.tx.base_metadata)
+            .stage(&self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx
