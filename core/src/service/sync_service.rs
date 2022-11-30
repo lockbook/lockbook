@@ -178,8 +178,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         let merge_changes = {
             // assemble trees
             let mut base = (&self.tx.base_metadata).to_lazy();
-            let remote = (&self.tx.base_metadata).to_staged(&remote_changes);
-            let mut remote_lazy = remote.as_lazy();
+            let remote_unlazy = (&self.tx.base_metadata).to_staged(&remote_changes);
+            let mut remote = remote_unlazy.as_lazy();
             let mut local = (&self.tx.base_metadata)
                 .to_staged(&self.tx.local_metadata)
                 .to_lazy();
@@ -196,7 +196,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 // process just the edits which allow us to check deletions in the result
                 println!("* processing deletions *");
                 let mut deletions = {
-                    let mut deletions = remote.stage(Vec::new()).to_lazy();
+                    let mut deletions = remote_unlazy.stage(Vec::new()).to_lazy();
 
                     // creations
                     let mut deletion_creations = HashSet::new();
@@ -276,7 +276,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 // process all edits, dropping non-deletion edits for files that will be implicitly deleted
                 println!("* processing all edits *");
                 let mut merge = {
-                    let mut merge = remote.stage(Vec::new()).to_lazy();
+                    let mut merge = remote_unlazy.stage(Vec::new()).to_lazy();
 
                     for id in self.tx.local_metadata.owned_ids() {
                         println!("local change: {:?} {:?}", id, local.name(&id, account)?);
@@ -329,8 +329,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                     for id in self.tx.local_metadata.owned_ids() {
                         // skip files that are already deleted or will be deleted
                         if deletions.calculate_deleted(&id)?
-                            || (remote.maybe_find(&id).is_some()
-                                && remote_lazy.calculate_deleted(&id)?)
+                            || (remote_unlazy.maybe_find(&id).is_some()
+                                && remote.calculate_deleted(&id)?)
                         {
                             println!(
                                 "skipped edits for {:?} because it's deleted on remote or local",
@@ -343,8 +343,13 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         let local_name = local.name(&id, account)?;
                         let maybe_base_file = self.tx.base_metadata.maybe_find(&id).cloned();
                         if let Some(ref base_file) = maybe_base_file {
+                            let base_name = base.name(&id, account)?;
+                            let remote_file = remote.find(&id)?.clone();
+                            let remote_name = remote.name(&id, account)?;
+
                             // move
                             if local_file.parent() != base_file.parent()
+                                && remote_file.parent() == base_file.parent()
                                 && !files_to_revert_moves.contains(&id)
                             {
                                 println!(
@@ -358,8 +363,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             }
 
                             // rename
-                            let base_name = base.name(&id, account)?;
-                            if local_name != base_name {
+                            if local_name != base_name && remote_name == base_name {
                                 println!("name {:?} -> {:?}", base_name, local_name);
                                 merge.rename_unvalidated(&id, &local_name, account)?;
                                 println!("\tdone");
