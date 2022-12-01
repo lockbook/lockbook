@@ -1,5 +1,6 @@
 use lockbook_core::Core;
 use lockbook_shared::file::ShareMode;
+use lockbook_shared::file_metadata::FileType;
 use test_utils::*;
 
 /// Tests that setup two synced devices, operate on both devices, then sync both twice (work
@@ -985,6 +986,86 @@ fn create_link_then_move_to_owned_folder() {
     sync_and_assert(&cores[1][0], &cores[1][1]);
 
     assert::all_paths(&cores[1][0], &["/", "/link"]);
+}
+
+#[test]
+fn create_link_then_move_to_owned_folder_and_move_prior_parent_into_it() {
+    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let new_client = another_client(&cores[1][0]);
+    cores[1].push(new_client);
+    let accounts = cores
+        .iter()
+        .map(|cores| cores[0].get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let grandparent = cores[0][0].create_at_path("/grandparent/").unwrap();
+    let parent = cores[0][0].create_at_path("/grandparent/parent/").unwrap();
+    let folder = cores[0][0]
+        .create_at_path("/grandparent/parent/child/")
+        .unwrap();
+    cores[0][0]
+        .share_file(grandparent.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0][0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0][0].sync(None).unwrap();
+
+    cores[1][0].sync(None).unwrap();
+    cores[1][0].create_link_at_path("/link", folder.id).unwrap();
+
+    cores[1][1].sync(None).unwrap();
+    cores[1][1]
+        .move_file(folder.id, cores[1][1].get_root().unwrap().id)
+        .unwrap();
+    cores[1][1].move_file(parent.id, folder.id).unwrap();
+
+    sync_and_assert(&cores[1][0], &cores[1][1]);
+
+    assert::all_paths(&cores[1][0], &["/", "/link/"]);
+}
+
+#[test]
+fn create_link_then_move_to_owned_folder_and_create_file_with_conflicting_name_in_prior_parent() {
+    let mut cores = vec![vec![test_core_with_account()], vec![test_core_with_account()]];
+    let new_client = another_client(&cores[1][0]);
+    cores[1].push(new_client);
+    let accounts = cores
+        .iter()
+        .map(|cores| cores[0].get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let grandparent = cores[0][0].create_at_path("/grandparent/").unwrap();
+    let parent = cores[0][0].create_at_path("/grandparent/parent/").unwrap();
+    let folder = cores[0][0]
+        .create_at_path("/grandparent/parent/folder/")
+        .unwrap();
+    cores[0][0]
+        .share_file(grandparent.id, &accounts[1].username, ShareMode::Write)
+        .unwrap();
+    cores[0][0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0][0].sync(None).unwrap();
+
+    cores[1][0].sync(None).unwrap();
+    cores[1][0].create_link_at_path("/link", folder.id).unwrap();
+
+    cores[1][1].sync(None).unwrap();
+    cores[1][1]
+        .move_file(folder.id, cores[1][1].get_root().unwrap().id)
+        .unwrap();
+    let _new_folder = cores[1][1]
+        .create_file("folder", parent.id, FileType::Folder)
+        .unwrap();
+
+    sync_and_assert(&cores[1][0], &cores[1][1]);
+
+    assert::all_paths(&cores[1][0], &["/", "/link/"]);
+    assert::all_paths(
+        &cores[0][0],
+        &["/", "/grandparent/", "/grandparent/parent/", "/grandparent/parent/folder/"],
+    );
 }
 
 #[test]

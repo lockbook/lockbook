@@ -858,6 +858,25 @@ fn move_two_cycle_with_children() {
 }
 
 #[test]
+fn move_two_cycle_with_modified_document_children() {
+    let c1 = test_core_with_account();
+    c1.create_at_path("/a/child").unwrap();
+    c1.create_at_path("/b/").unwrap();
+    c1.sync(None).unwrap();
+
+    let c2 = another_client(&c1);
+    c2.sync(None).unwrap();
+
+    write_path(&c1, "/a/child", b"document content").unwrap();
+    move_by_path(&c1, "/a/", "/b/").unwrap();
+    move_by_path(&c2, "/b/", "/a/").unwrap();
+
+    sync_and_assert_stuff(&c1, &c2);
+    assert::all_paths(&c2, &["/", "/b/", "/b/a/", "/b/a/child"]);
+    assert::all_document_contents(&c2, &[("/b/a/child", b"document content")]);
+}
+
+#[test]
 fn three_cycle_one_move_reverted_with_children() {
     let c1 = test_core_with_account();
     c1.create_at_path("/a/child/").unwrap();
