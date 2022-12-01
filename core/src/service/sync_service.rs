@@ -7,7 +7,7 @@ use lockbook_shared::api::{
 use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{DocumentHmac, FileDiff, FileType, Owner};
-use lockbook_shared::filename::NameComponents;
+use lockbook_shared::filename::{DocumentType, NameComponents};
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::staged::StagedTreeLikeMut;
 use lockbook_shared::tree_like::TreeLike;
@@ -435,17 +435,66 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         }
 
                         // edit
-                        if local_file.document_hmac()
-                            != maybe_base_file
-                                .as_ref()
-                                .and_then(|f| f.document_hmac().cloned())
-                                .as_ref()
-                        {
-                            // todo: avoid reading/decrypting/encrypting document
-                            let document = local.read_document(self.config, &id, account)?;
-                            println!("document ? -> {:?}", local_file.document_hmac());
-                            merge.update_document_unvalidated(&id, &document, account)?;
-                            println!("\tdone");
+                        let base_hmac = maybe_base_file.and_then(|f| f.document_hmac().cloned());
+                        let remote_hmac =
+                            maybe_remote_file.and_then(|f| f.document_hmac().cloned());
+                        let local_hmac = local_file.document_hmac().cloned();
+                        if local_hmac != base_hmac {
+                            if remote_hmac != base_hmac && remote_hmac != local_hmac {
+                                let document_type = DocumentType::from_file_name_using_extension(
+                                    &merge.name(&id, account)?,
+                                );
+                                let base_document = if base_hmac.is_some() {
+                                    base.read_document(self.config, &id, account)?
+                                } else {
+                                    Vec::new()
+                                };
+                                let remote_document = if remote_hmac.is_some() {
+                                    remote.read_document(self.config, &id, account)?
+                                } else {
+                                    Vec::new()
+                                };
+                                let local_document = if local_hmac.is_some() {
+                                    local.read_document(self.config, &id, account)?
+                                } else {
+                                    Vec::new()
+                                };
+                                match document_type {
+                                    DocumentType::Text => {
+                                        // 3-way merge
+                                        let merged_document = match diffy::merge_bytes(
+                                            &base_document,
+                                            &remote_document,
+                                            &local_document,
+                                        ) {
+                                            Ok(without_conflicts) => without_conflicts,
+                                            Err(with_conflicts) => with_conflicts,
+                                        };
+                                        let encrypted_document = merge.update_document(
+                                            &id,
+                                            &merged_document,
+                                            account,
+                                        )?;
+                                        let hmac = merge.find(&id)?.document_hmac();
+                                        document_repo::insert(
+                                            self.config,
+                                            &id,
+                                            hmac,
+                                            &encrypted_document,
+                                        )?;
+                                    }
+                                    DocumentType::Drawing | DocumentType::Other => {
+                                        // duplicate file
+                                        todo!()
+                                    }
+                                }
+                            } else {
+                                // overwrite (todo: avoid reading/decrypting/encrypting document)
+                                let document = local.read_document(self.config, &id, account)?;
+                                println!("document ? -> {:?}", local_file.document_hmac());
+                                merge.update_document_unvalidated(&id, &document, account)?;
+                                println!("\tdone");
+                            }
                         }
                     }
 
