@@ -454,6 +454,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                     for id in self.tx.local_metadata.owned_ids() {
                         if self.tx.base_metadata.maybe_find(&id).is_some()
                             && deletions.calculate_deleted(&id)?
+                            && !merge.calculate_deleted(&id)?
                         {
                             // delete
                             println!("delete: {:?}", local.name(&id, account)?);
@@ -463,7 +464,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                     }
                     for &id in &links_to_delete {
                         // delete
-                        if merge.maybe_find(&id).is_some() {
+                        if merge.maybe_find(&id).is_some() && !merge.calculate_deleted(&id)? {
                             println!("delete link: {:?}", id);
                             merge.delete_unvalidated(&id, account)?;
                             println!("\tdone");
