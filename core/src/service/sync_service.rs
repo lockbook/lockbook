@@ -194,7 +194,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 "merge conflict resolution; local changes: {:?}",
                 self.tx.local_metadata.owned_ids()
             );
-            loop {
+            'merge_construction: loop {
                 // process just the edits which allow us to check deletions in the result
                 println!("* processing deletions *");
                 let mut deletions = {
@@ -207,8 +207,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             deletion_creations.insert(id);
                         }
                     }
-                    'outer: while !deletion_creations.is_empty() {
-                        'inner: for id in &deletion_creations {
+                    'drain_creations: while !deletion_creations.is_empty() {
+                        'choose_a_creation: for id in &deletion_creations {
                             // create
                             let id = *id;
                             let local_file = local.find(&id)?.clone();
@@ -225,10 +225,10 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             match result {
                                 Ok(_) => {
                                     deletion_creations.remove(&id);
-                                    continue 'outer;
+                                    continue 'drain_creations;
                                 }
                                 Err(SharedError::FileParentNonexistent) => {
-                                    continue 'inner;
+                                    continue 'choose_a_creation;
                                 }
                                 Err(_) => {
                                     result?;
@@ -294,8 +294,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             creations.insert(id);
                         }
                     }
-                    'outer: while !creations.is_empty() {
-                        'inner: for id in &creations {
+                    'drain_creations: while !creations.is_empty() {
+                        'choose_a_creation: for id in &creations {
                             // create
                             let id = *id;
                             let local_file = local.find(&id)?.clone();
@@ -311,10 +311,10 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             match result {
                                 Ok(_) => {
                                     creations.remove(&id);
-                                    continue 'outer;
+                                    continue 'drain_creations;
                                 }
                                 Err(SharedError::FileParentNonexistent) => {
-                                    continue 'inner;
+                                    continue 'choose_a_creation;
                                 }
                                 Err(_) => {
                                     result?;
@@ -475,6 +475,28 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
                 // validate; handle failures by introducing changeset constraints
                 println!("validate");
+
+                for link in merge.owned_ids() {
+                    if !merge.calculate_deleted(&link)? {
+                        if let FileType::Link { target } = merge.find(&link)?.file_type() {
+                            if merge.maybe_find(&target).is_some()
+                                && merge.calculate_deleted(&target)?
+                            {
+                                // delete links to deleted files
+                                println!("broken link (deletion): {:?}", link);
+                                if links_to_delete.insert(link) {
+                                    continue 'merge_construction;
+                                } else {
+                                    return Err(CoreError::Unexpected(format!(
+                                        "sync failed to resolve broken link (deletion): {:?}",
+                                        link
+                                    )));
+                                }
+                            }
+                        }
+                    }
+                }
+
                 let validate_result = merge.validate(owner);
                 match validate_result {
                     // merge changeset is valid
@@ -561,13 +583,19 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                                 )));
                             }
                         }
-                        ValidationFailure::BrokenLink(_) => {
-                            return Err(CoreError::Unexpected(
-                                "broken link resolution unimplemented".to_string(),
-                            ));
+                        ValidationFailure::BrokenLink(link) => {
+                            // delete local link with this target
+                            println!("broken link: {:?}", link);
+                            if !links_to_delete.insert(*link) {
+                                return Err(CoreError::Unexpected(format!(
+                                    "sync failed to resolve broken link: {:?}",
+                                    link
+                                )));
+                            }
                         }
                         ValidationFailure::OwnedLink(link) => {
                             // if target is newly owned, unmove target, otherwise delete link
+                            println!("owned link: {:?}", link);
                             let mut progress = false;
                             if let Some(remote_link) = remote.maybe_find(link) {
                                 if let FileType::Link { target } = remote_link.file_type() {
