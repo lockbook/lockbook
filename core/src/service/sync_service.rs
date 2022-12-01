@@ -6,7 +6,7 @@ use lockbook_shared::api::{
 };
 use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{DocumentHmac, FileDiff, Owner};
+use lockbook_shared::file_metadata::{DocumentHmac, FileDiff, FileType, Owner};
 use lockbook_shared::filename::NameComponents;
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::staged::StagedTreeLikeMut;
@@ -185,7 +185,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 .to_lazy();
 
             // changeset constraints - these evolve as we try to assemble changes and face validation failures
-            let mut files_to_revert_moves: HashSet<Uuid> = HashSet::new();
+            let mut files_to_unmove: HashSet<Uuid> = HashSet::new();
             let mut files_to_rename: HashSet<Uuid> = HashSet::new();
             let mut links_to_delete: HashSet<Uuid> = HashSet::new();
             let mut files_to_unshare: HashSet<Uuid> = HashSet::new();
@@ -247,7 +247,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         if let Some(base_file) = self.tx.base_metadata.maybe_find(&id).cloned() {
                             if !local_file.explicitly_deleted()
                                 && local_file.parent() != base_file.parent()
-                                && !files_to_revert_moves.contains(&id)
+                                && !files_to_unmove.contains(&id)
                             {
                                 // move
                                 println!(
@@ -354,7 +354,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             // move
                             if local_file.parent() != base_file.parent()
                                 && remote_file.parent() == base_file.parent()
-                                && !files_to_revert_moves.contains(&id)
+                                && !files_to_unmove.contains(&id)
                             {
                                 println!(
                                     "parent of {:?}: {:?} -> {:?}",
@@ -490,7 +490,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             let mut progress = false;
                             for &id in ids {
                                 if self.tx.local_metadata.maybe_find(&id).is_some()
-                                    && files_to_revert_moves.insert(id)
+                                    && files_to_unmove.insert(id)
                                 {
                                     progress = true;
                                 }
@@ -566,10 +566,28 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                                 "broken link resolution unimplemented".to_string(),
                             ));
                         }
-                        ValidationFailure::OwnedLink(_) => {
-                            return Err(CoreError::Unexpected(
-                                "owned link resolution unimplemented".to_string(),
-                            ));
+                        ValidationFailure::OwnedLink(link) => {
+                            // if target is newly owned, unmove target, otherwise delete link
+                            let mut progress = false;
+                            if let Some(remote_link) = remote.maybe_find(link) {
+                                if let FileType::Link { target } = remote_link.file_type() {
+                                    let remote_target = remote.find(&target)?;
+                                    if remote_target.owner() != owner
+                                        && files_to_unmove.insert(target)
+                                    {
+                                        progress = true;
+                                    }
+                                }
+                            }
+                            if !progress && links_to_delete.insert(*link) {
+                                progress = true;
+                            }
+                            if !progress {
+                                return Err(CoreError::Unexpected(format!(
+                                    "sync failed to resolve owned link: {:?}",
+                                    link
+                                )));
+                            }
                         }
                         // merge changeset has unexpected validation errors
                         ValidationFailure::Orphan(_)
