@@ -164,7 +164,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
                 if let Some(remote_hmac) = remote_hmac {
                     update_sync_progress(SyncProgressOperation::StartWorkUnit(
-                        ClientWorkUnit::PullDocument(remote.name(&id, account)?),
+                        ClientWorkUnit::PullDocument(remote.name_using_links(&id, account)?),
                     ));
                     let remote_document = self
                         .client
@@ -197,15 +197,18 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             println!("local changes: {:?}", self.tx.local_metadata.owned_ids());
             println!("remote changes: {:?}", remote_changes.owned_ids());
             'merge_construction: loop {
+                println!(
+                    "// process just the edits which allow us to check deletions in the result"
+                );
                 // process just the edits which allow us to check deletions in the result
-                println!("* processing deletions *");
                 let mut deletions = {
                     let mut deletions = remote_unlazy.stage(Vec::new()).to_lazy();
 
+                    println!("// creations");
                     // creations
                     let mut deletion_creations = HashSet::new();
                     for id in self.tx.local_metadata.owned_ids() {
-                        if self.tx.base_metadata.maybe_find(&id).is_none() {
+                        if remote.maybe_find(&id).is_none() && !links_to_delete.contains(&id) {
                             deletion_creations.insert(id);
                         }
                     }
@@ -214,7 +217,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             // create
                             let id = *id;
                             let local_file = local.find(&id)?.clone();
-                            println!("deletions - create: {:?}", id);
                             let result = deletions.create_unvalidated(
                                 id,
                                 symkey::generate_key(),
@@ -223,7 +225,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                                 local_file.file_type(),
                                 account,
                             );
-                            println!("\tdone");
                             match result {
                                 Ok(_) => {
                                     deletion_creations.remove(&id);
@@ -243,6 +244,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         )));
                     }
 
+                    println!("// moves (creations happen first in case a file is moved into a new folder)");
                     // moves (creations happen first in case a file is moved into a new folder)
                     for id in self.tx.local_metadata.owned_ids() {
                         let local_file = local.find(&id)?.clone();
@@ -252,45 +254,35 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                                 && !files_to_unmove.contains(&id)
                             {
                                 // move
-                                println!(
-                                    "deletions - parent of {:?}: {:?} -> {:?}",
-                                    local.name(&id, account)?,
-                                    local.name(base_file.parent(), account)?,
-                                    local.name(local_file.parent(), account)?,
-                                );
                                 deletions.move_unvalidated(&id, local_file.parent(), account)?;
-                                println!("\tdone");
                             }
                         }
                     }
 
+                    println!("// deletions (moves happen first in case a file is moved into a deleted folder)");
                     // deletions (moves happen first in case a file is moved into a deleted folder)
                     for id in self.tx.local_metadata.owned_ids() {
                         let local_file = local.find(&id)?.clone();
                         if local_file.explicitly_deleted() {
                             // delete
-                            println!("deletions - delete: {:?}", local.name(&id, account)?);
                             deletions.delete_unvalidated(&id, account)?;
-                            println!("\tdone");
                         }
                     }
                     deletions
                 };
 
+                println!("// process all edits, dropping non-deletion edits for files that will be implicitly deleted");
                 // process all edits, dropping non-deletion edits for files that will be implicitly deleted
-                println!("* processing all edits *");
                 let mut merge = {
                     let mut merge = remote_unlazy.stage(Vec::new()).to_lazy();
 
-                    for id in self.tx.local_metadata.owned_ids() {
-                        println!("local change: {:?} {:?}", id, local.name(&id, account)?);
-                    }
-
+                    println!("// creations and edits of created documents");
                     // creations and edits of created documents
                     let mut creations = HashSet::new();
                     for id in self.tx.local_metadata.owned_ids() {
-                        if !deletions.calculate_deleted(&id)?
-                            && self.tx.base_metadata.maybe_find(&id).is_none()
+                        if deletions.maybe_find(&id).is_some()
+                            && !deletions.calculate_deleted(&id)?
+                            && remote.maybe_find(&id).is_none()
                             && !links_to_delete.contains(&id)
                         {
                             creations.insert(id);
@@ -310,6 +302,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                                 local_file.file_type(),
                                 account,
                             );
+                            println!("\tdone");
                             match result {
                                 Ok(_) => {
                                     creations.remove(&id);
@@ -329,12 +322,17 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         )));
                     }
 
+                    println!("// moves, renames, edits, and shares");
                     // moves, renames, edits, and shares
                     // creations happen first in case a file is moved into a new folder
                     for id in self.tx.local_metadata.owned_ids() {
+                        println!("local change: {:?} {:?}", id, local.name(&id, account)?);
+
+                        println!("// skip files that are already deleted or will be deleted");
                         // skip files that are already deleted or will be deleted
-                        if deletions.calculate_deleted(&id)?
-                            || (remote_unlazy.maybe_find(&id).is_some()
+                        if deletions.maybe_find(&id).is_none()
+                            || deletions.calculate_deleted(&id)?
+                            || (remote.maybe_find(&id).is_some()
                                 && remote.calculate_deleted(&id)?)
                         {
                             println!(
@@ -376,6 +374,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             }
                         }
 
+                        println!("// share");
                         // share
                         let mut remote_keys = HashMap::new();
                         if let Some(ref remote_file) = maybe_remote_file {
@@ -421,6 +420,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             }
                         }
 
+                        println!("// share deletion due to conflicts");
                         // share deletion due to conflicts
                         if files_to_unshare.contains(&id) {
                             println!("unshare");
@@ -428,6 +428,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             println!("\tdone");
                         }
 
+                        println!("// rename due to path conflict");
                         // rename due to path conflict
                         if let Some(&rename_increment) = rename_increments.get(&id) {
                             let name = NameComponents::from(&local_name)
@@ -438,6 +439,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             println!("\tdone");
                         }
 
+                        println!("// edit");
                         // edit
                         let base_hmac = maybe_base_file.and_then(|f| f.document_hmac().cloned());
                         let remote_hmac =
@@ -447,6 +449,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             && local_hmac != base_hmac
                         {
                             if remote_hmac != base_hmac && remote_hmac != local_hmac {
+                                // merge
                                 let merge_name = merge.name(&id, account)?;
                                 let document_type =
                                     DocumentType::from_file_name_using_extension(&merge_name);
@@ -504,7 +507,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                                             duplicate_id
                                         };
 
-                                        // rename due to path conflict
                                         let mut merge_name = merge_name;
                                         merge_name = NameComponents::from(&merge_name)
                                             .generate_incremented(
@@ -553,7 +555,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         }
                     }
 
-                    // deletions
+                    println!("// deletes");
+                    // deletes
                     // moves happen first in case a file is moved into a deleted folder
                     for id in self.tx.local_metadata.owned_ids() {
                         if self.tx.base_metadata.maybe_find(&id).is_some()
@@ -944,7 +947,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 document_repo::get(self.config, &id, local_change.document_hmac())?;
 
             update_sync_progress(SyncProgressOperation::StartWorkUnit(
-                ClientWorkUnit::PushDocument(local.name(&id, account)?),
+                ClientWorkUnit::PushDocument(local.name_using_links(&id, account)?),
             ));
 
             // base = local (document)

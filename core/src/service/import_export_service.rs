@@ -85,7 +85,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         Base: TreeLike<F = SignedFile>,
         Local: TreeLike<F = Base::F>,
     {
-        let dest_with_new = disk_path.join(&tree.name(this_file.id(), account)?);
+        let dest_with_new = disk_path.join(&tree.name_using_links(this_file.id(), account)?);
 
         if let Some(ref func) = export_progress {
             func(ImportExportFileInfo {
@@ -247,8 +247,10 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             }
         }
 
-        let siblings: Result<Vec<String>, SharedError> =
-            siblings.iter().map(|id| tree.name(id, account)).collect();
+        let siblings: Result<Vec<String>, SharedError> = siblings
+            .iter()
+            .map(|id| tree.name_using_links(id, account))
+            .collect();
         let siblings = siblings?;
 
         loop {

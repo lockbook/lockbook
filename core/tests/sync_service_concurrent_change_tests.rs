@@ -7,7 +7,9 @@ use test_utils::*;
 
 fn sync_and_assert(c1: &Core, c2: &Core) {
     c1.sync(None).unwrap();
+    println!("----------");
     c2.sync(None).unwrap();
+    println!("----------");
     c1.sync(None).unwrap();
     c2.sync(None).unwrap();
 

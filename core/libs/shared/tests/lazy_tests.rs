@@ -11,7 +11,7 @@ fn decrypt_basic_name() {
     let account = Account::new(random_name(), url());
     let root = FileMetadata::create_root(&account).unwrap();
     let mut files = vec![root.clone()].to_lazy();
-    assert_eq!(files.name(&root.id, &account).unwrap(), account.username);
+    assert_eq!(files.name_using_links(&root.id, &account).unwrap(), account.username);
 }
 
 #[test]
@@ -31,7 +31,7 @@ fn decrypt_child_name_basic() {
     )
     .unwrap();
     let mut files = vec![root.clone(), child.clone()].to_lazy();
-    assert_eq!(files.name(child.id(), &account).unwrap(), "test");
+    assert_eq!(files.name_using_links(child.id(), &account).unwrap(), "test");
 }
 
 #[test]
@@ -51,7 +51,7 @@ fn decrypt_child_name_staged() {
     )
     .unwrap();
     let mut files = files.stage(Some(child.clone()));
-    assert_eq!(files.name(child.id(), &account).unwrap(), "test");
+    assert_eq!(files.name_using_links(child.id(), &account).unwrap(), "test");
 }
 
 #[test]
@@ -71,7 +71,7 @@ fn decrypt_child_name_stage_promote() {
     )
     .unwrap();
     let mut files = files.stage(Some(child.clone())).promote();
-    assert_eq!(files.name(child.id(), &account).unwrap(), "test");
+    assert_eq!(files.name_using_links(child.id(), &account).unwrap(), "test");
 }
 
 #[test]
@@ -91,7 +91,7 @@ fn decrypt_child_name_insert() {
     )
     .unwrap();
     files = files.stage(Some(child.clone())).promote();
-    assert_eq!(files.name(child.id(), &account).unwrap(), "test");
+    assert_eq!(files.name_using_links(child.id(), &account).unwrap(), "test");
 }
 
 #[test]
@@ -123,9 +123,14 @@ fn name_2dirs() {
     )
     .unwrap();
     files = files.stage(Some(child_of_child.clone())).promote();
-    assert_eq!(files.name(root.id(), &account).unwrap(), account.username);
-    assert_eq!(files.name(child.id(), &account).unwrap(), "dir1");
-    assert_eq!(files.name(child_of_child.id(), &account).unwrap(), "dir2");
+    assert_eq!(files.name_using_links(root.id(), &account).unwrap(), account.username);
+    assert_eq!(files.name_using_links(child.id(), &account).unwrap(), "dir1");
+    assert_eq!(
+        files
+            .name_using_links(child_of_child.id(), &account)
+            .unwrap(),
+        "dir2"
+    );
 }
 
 #[test]

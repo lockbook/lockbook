@@ -31,7 +31,7 @@ where
                     continue 'child;
                 }
 
-                if self.name(&child, account)? == name {
+                if self.name_using_links(&child, account)? == name {
                     current = child;
                     continue 'path;
                 }
@@ -74,7 +74,7 @@ where
                 return Ok(path);
             }
             let next = *current_meta.parent();
-            let current_name = self.name(&current, account)?;
+            let current_name = self.name_using_links(&current, account)?;
             path = format!("/{}{}", current_name, path);
             current = next;
         }
@@ -169,7 +169,7 @@ where
                     continue 'child;
                 }
 
-                if self.name(&child, account)? == path_components[index] {
+                if self.name_using_links(&child, account)? == path_components[index] {
                     if index == path_components.len() - 1 {
                         return Err(SharedError::PathTaken);
                     }

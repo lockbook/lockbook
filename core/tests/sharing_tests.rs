@@ -390,8 +390,10 @@ fn write_document_write_share_by_link() {
     cores[0]
         .share_file(document.id, &accounts[1].username, ShareMode::Write)
         .unwrap();
+    println!("----- cores[0].sync(None).unwrap(); -----");
     cores[0].sync(None).unwrap();
 
+    println!("----- cores[1].sync(None).unwrap(); -----");
     cores[1].sync(None).unwrap();
     let link = cores[1]
         .create_file("link", roots[1].id, FileType::Link { target: document.id })
@@ -402,7 +404,9 @@ fn write_document_write_share_by_link() {
 
     assert_eq!(cores[1].read_document(document.id).unwrap(), b"document content by sharee");
     assert_eq!(cores[1].read_document(link.id).unwrap(), b"document content by sharee");
+    println!("----- cores[1].sync(None).unwrap(); -----");
     cores[1].sync(None).unwrap();
+    println!("----- cores[0].sync(None).unwrap(); -----");
     cores[0].sync(None).unwrap();
     assert_eq!(cores[0].read_document(document.id).unwrap(), b"document content by sharee");
 }

@@ -37,7 +37,7 @@ where
         let file_type = meta.file_type();
         let parent = *meta.parent();
         let last_modified = meta.timestamped_value.timestamp as u64;
-        let name = self.name(id, account)?;
+        let name = self.name_using_links(id, account)?;
         let id = *id;
         let last_modified_by = account.username.clone();
 
