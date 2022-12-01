@@ -78,6 +78,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             }
         };
 
+        println!("### self.prune()?;");
+        self.prune()?;
         println!("### self.pull(&mut update_sync_progress)?;");
         self.pull(&mut update_sync_progress)?;
         println!("### self.push_metadata(&mut update_sync_progress)?;");
@@ -192,10 +194,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             let mut rename_increments: HashMap<Uuid, usize> = HashMap::new();
             let mut duplicate_file_ids: HashMap<Uuid, Uuid> = HashMap::new();
 
-            println!(
-                "merge conflict resolution; local changes: {:?}",
-                self.tx.local_metadata.owned_ids()
-            );
+            println!("local changes: {:?}", self.tx.local_metadata.owned_ids());
+            println!("remote changes: {:?}", remote_changes.owned_ids());
             'merge_construction: loop {
                 // process just the edits which allow us to check deletions in the result
                 println!("* processing deletions *");
