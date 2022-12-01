@@ -392,7 +392,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                                 remote_keys.get(&(by, for_))
                             {
                                 // upgrade share
-                                if key.mode > remote_mode {
+                                if key.mode > remote_mode || !key.deleted && remote_deleted {
                                     let mode = match key.mode {
                                         UserAccessMode::Read => ShareMode::Read,
                                         UserAccessMode::Write => ShareMode::Write,
