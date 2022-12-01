@@ -344,7 +344,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
                         let local_file = local.find(&id)?.clone();
                         let local_name = local.name(&id, account)?;
-                        let maybe_base_file = self.tx.base_metadata.maybe_find(&id).cloned();
+                        let maybe_base_file = base.maybe_find(&id).cloned();
+                        let maybe_remote_file = remote.maybe_find(&id).cloned();
                         if let Some(ref base_file) = maybe_base_file {
                             let base_name = base.name(&id, account)?;
                             let remote_file = remote.find(&id)?.clone();
@@ -374,10 +375,10 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         }
 
                         // share
-                        let mut base_keys = HashMap::new();
-                        if let Some(ref base_file) = maybe_base_file {
-                            for key in base_file.user_access_keys() {
-                                base_keys.insert(
+                        let mut remote_keys = HashMap::new();
+                        if let Some(ref remote_file) = maybe_remote_file {
+                            for key in remote_file.user_access_keys() {
+                                remote_keys.insert(
                                     (Owner(key.encrypted_by), Owner(key.encrypted_for)),
                                     (key.mode, key.deleted),
                                 );
@@ -385,9 +386,11 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         }
                         for key in local_file.user_access_keys() {
                             let (by, for_) = (Owner(key.encrypted_by), Owner(key.encrypted_for));
-                            if let Some(&(base_mode, base_deleted)) = base_keys.get(&(by, for_)) {
+                            if let Some(&(remote_mode, remote_deleted)) =
+                                remote_keys.get(&(by, for_))
+                            {
                                 // upgrade share
-                                if key.mode > base_mode {
+                                if key.mode > remote_mode {
                                     let mode = match key.mode {
                                         UserAccessMode::Read => ShareMode::Read,
                                         UserAccessMode::Write => ShareMode::Write,
@@ -398,7 +401,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                                     println!("\tdone");
                                 }
                                 // delete share
-                                if key.deleted && !base_deleted {
+                                if key.deleted && !remote_deleted {
                                     println!("delete share");
                                     merge.delete_share_unvalidated(&id, Some(for_.0), account)?;
                                     println!("\tdone");
