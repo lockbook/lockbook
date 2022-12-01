@@ -443,7 +443,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         let remote_hmac =
                             maybe_remote_file.and_then(|f| f.document_hmac().cloned());
                         let local_hmac = local_file.document_hmac().cloned();
-                        if local_hmac != base_hmac {
+                        if merge.access_mode(owner, &id)? >= Some(UserAccessMode::Write)
+                            && local_hmac != base_hmac
+                        {
                             if remote_hmac != base_hmac && remote_hmac != local_hmac {
                                 let merge_name = merge.name(&id, account)?;
                                 let document_type =
