@@ -188,6 +188,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             let mut files_to_revert_moves: HashSet<Uuid> = HashSet::new();
             let mut files_to_rename: HashSet<Uuid> = HashSet::new();
             let mut links_to_delete: HashSet<Uuid> = HashSet::new();
+            let mut files_to_unshare: HashSet<Uuid> = HashSet::new();
 
             println!(
                 "merge conflict resolution; local changes: {:?}",
@@ -415,6 +416,13 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             }
                         }
 
+                        // share deletion due to conflicts
+                        if files_to_unshare.contains(&id) {
+                            println!("unshare");
+                            merge.delete_share_unvalidated(&id, None, account)?;
+                            println!("\tdone");
+                        }
+
                         // rename due to path conflict
                         if files_to_rename.contains(&id) {
                             let name = NameComponents::from(&local_name).generate_next().to_name();
@@ -446,6 +454,14 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         {
                             // delete
                             println!("delete: {:?}", local.name(&id, account)?);
+                            merge.delete_unvalidated(&id, account)?;
+                            println!("\tdone");
+                        }
+                    }
+                    for &id in &links_to_delete {
+                        // delete
+                        if merge.maybe_find(&id).is_some() {
+                            println!("delete link: {:?}", id);
                             merge.delete_unvalidated(&id, account)?;
                             println!("\tdone");
                         }
@@ -502,10 +518,29 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                                 )));
                             }
                         }
-                        ValidationFailure::SharedLink { .. } => {
-                            return Err(CoreError::Unexpected(
-                                "shared link resolution unimplemented".to_string(),
-                            ));
+                        ValidationFailure::SharedLink { link, shared_ancestor } => {
+                            // if ancestor is newly shared, delete share, otherwise delete link
+                            println!(
+                                "shared link: link: {:?}, shared_ancestor: {:?}",
+                                link, shared_ancestor
+                            );
+                            let mut progress = false;
+                            if let Some(base_shared_ancestor) = base.maybe_find(shared_ancestor) {
+                                if !base_shared_ancestor.is_shared()
+                                    && files_to_unshare.insert(*shared_ancestor)
+                                {
+                                    progress = true;
+                                }
+                            }
+                            if !progress && links_to_delete.insert(*link) {
+                                progress = true;
+                            }
+                            if !progress {
+                                return Err(CoreError::Unexpected(format!(
+                                    "sync failed to resolve shared link: link: {:?}, shared_ancestor: {:?}",
+                                    link, shared_ancestor
+                                )));
+                            }
                         }
                         ValidationFailure::DuplicateLink { target } => {
                             // delete local link with this target
