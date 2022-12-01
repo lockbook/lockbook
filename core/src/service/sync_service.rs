@@ -1,4 +1,5 @@
 use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
+use itertools::Itertools;
 use lockbook_shared::access_info::UserAccessMode;
 use lockbook_shared::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
@@ -184,11 +185,12 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 .to_staged(&self.tx.local_metadata)
                 .to_lazy();
 
-            // changeset constraints - these evolve as we try to assemble changes and face validation failures
+            // changeset constraints - these evolve as we try to assemble changes and encounter validation failures
             let mut files_to_unmove: HashSet<Uuid> = HashSet::new();
-            let mut files_to_rename: HashSet<Uuid> = HashSet::new();
-            let mut links_to_delete: HashSet<Uuid> = HashSet::new();
             let mut files_to_unshare: HashSet<Uuid> = HashSet::new();
+            let mut links_to_delete: HashSet<Uuid> = HashSet::new();
+            let mut rename_increments: HashMap<Uuid, usize> = HashMap::new();
+            let mut duplicate_file_ids: HashMap<Uuid, Uuid> = HashMap::new();
 
             println!(
                 "merge conflict resolution; local changes: {:?}",
@@ -427,9 +429,11 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         }
 
                         // rename due to path conflict
-                        if files_to_rename.contains(&id) {
-                            let name = NameComponents::from(&local_name).generate_next().to_name();
-                            println!("name {:?} -> {:?}", local_name, name);
+                        if let Some(&rename_increment) = rename_increments.get(&id) {
+                            let name = NameComponents::from(&local_name)
+                                .generate_incremented(rename_increment)
+                                .to_name();
+                            println!("name (conflict) {:?} -> {:?}", local_name, name);
                             merge.rename_unvalidated(&id, &name, account)?;
                             println!("\tdone");
                         }
@@ -441,9 +445,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         let local_hmac = local_file.document_hmac().cloned();
                         if local_hmac != base_hmac {
                             if remote_hmac != base_hmac && remote_hmac != local_hmac {
-                                let document_type = DocumentType::from_file_name_using_extension(
-                                    &merge.name(&id, account)?,
-                                );
+                                let merge_name = merge.name(&id, account)?;
+                                let document_type =
+                                    DocumentType::from_file_name_using_extension(&merge_name);
                                 let base_document = if base_hmac.is_some() {
                                     base.read_document(self.config, &id, account)?
                                 } else {
@@ -470,11 +474,12 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                                             Ok(without_conflicts) => without_conflicts,
                                             Err(with_conflicts) => with_conflicts,
                                         };
-                                        let encrypted_document = merge.update_document(
-                                            &id,
-                                            &merged_document,
-                                            account,
-                                        )?;
+                                        let encrypted_document = merge
+                                            .update_document_unvalidated(
+                                                &id,
+                                                &merged_document,
+                                                account,
+                                            )?;
                                         let hmac = merge.find(&id)?.document_hmac();
                                         document_repo::insert(
                                             self.config,
@@ -485,7 +490,55 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                                     }
                                     DocumentType::Drawing | DocumentType::Other => {
                                         // duplicate file
-                                        todo!()
+                                        let merge_parent = *merge.find(&id)?.parent();
+                                        let duplicate_id = if let Some(&duplicate_id) =
+                                            duplicate_file_ids.get(&id)
+                                        {
+                                            duplicate_id
+                                        } else {
+                                            let duplicate_id = Uuid::new_v4();
+                                            duplicate_file_ids.insert(id, duplicate_id);
+                                            rename_increments.insert(duplicate_id, 1);
+                                            duplicate_id
+                                        };
+
+                                        // rename due to path conflict
+                                        let mut merge_name = merge_name;
+                                        merge_name = NameComponents::from(&merge_name)
+                                            .generate_incremented(
+                                                rename_increments
+                                                    .get(&duplicate_id)
+                                                    .copied()
+                                                    .unwrap_or_default(),
+                                            )
+                                            .to_name();
+
+                                        println!("create duplicate: {:?}", merge_name);
+                                        merge.create_unvalidated(
+                                            duplicate_id,
+                                            symkey::generate_key(),
+                                            &merge_parent,
+                                            &merge_name,
+                                            FileType::Document,
+                                            account,
+                                        )?;
+                                        println!("\tdone");
+                                        println!("edit duplicate");
+                                        let encrypted_document = merge
+                                            .update_document_unvalidated(
+                                                &duplicate_id,
+                                                &local_document,
+                                                account,
+                                            )?;
+                                        println!("\tdone");
+                                        let duplicate_hmac =
+                                            merge.find(&duplicate_id)?.document_hmac();
+                                        document_repo::insert(
+                                            self.config,
+                                            &duplicate_id,
+                                            duplicate_hmac,
+                                            &encrypted_document,
+                                        )?;
                                     }
                                 }
                             } else {
@@ -579,11 +632,19 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             println!("path conflict: {:?}", ids);
                             let mut progress = false;
                             for &id in ids {
-                                if self.tx.local_metadata.maybe_find(&id).is_some()
-                                    && files_to_rename.insert(id)
-                                {
+                                if duplicate_file_ids.values().contains(&id) {
+                                    *rename_increments.entry(id).or_insert(0) += 1;
                                     progress = true;
                                     break;
+                                }
+                            }
+                            if !progress {
+                                for &id in ids {
+                                    if self.tx.local_metadata.maybe_find(&id).is_some() {
+                                        *rename_increments.entry(id).or_insert(0) += 1;
+                                        progress = true;
+                                        break;
+                                    }
                                 }
                             }
                             if !progress {

@@ -60,8 +60,12 @@ impl NameComponents {
     }
 
     pub fn generate_next(&self) -> NameComponents {
+        self.generate_incremented(1)
+    }
+
+    pub fn generate_incremented(&self, n: usize) -> NameComponents {
         let mut next = self.clone();
-        next.variant = Some(self.variant.unwrap_or(0) + 1);
+        next.variant = Some(self.variant.unwrap_or(0) + n);
         next
     }
 
