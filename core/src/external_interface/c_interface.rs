@@ -381,17 +381,6 @@ pub unsafe extern "C" fn upgrade_account_app_store(
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
-pub unsafe extern "C" fn get_subscription_info() -> *const c_char {
-    c_string(match static_state::get() {
-        Ok(core) => translate(core.get_subscription_info()),
-        e => translate(e.map(|_| ())),
-    })
-}
-
-/// # Safety
-///
-/// Be sure to call `release_pointer` on the result of this function to free the data.
-#[no_mangle]
 pub unsafe extern "C" fn cancel_subscription() -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.cancel_subscription()),

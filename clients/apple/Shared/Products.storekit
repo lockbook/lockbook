@@ -1,5 +1,5 @@
 {
-  "identifier" : "6411B2CF",
+  "identifier" : "76C29336",
   "nonRenewingSubscriptions" : [
 
   ],
@@ -7,15 +7,17 @@
 
   ],
   "settings" : {
-
+    "_applicationInternalID" : "1526775001",
+    "_developerTeamID" : "39ZS78S25U",
+    "_lastSynchronizedDate" : 691652904.05583096
   },
   "subscriptionGroups" : [
     {
-      "id" : "118A8047",
+      "id" : "20974986",
       "localizations" : [
 
       ],
-      "name" : "premium",
+      "name" : "monthly",
       "subscriptions" : [
         {
           "adHocOffers" : [
@@ -27,19 +29,15 @@
           "displayPrice" : "2.99",
           "familyShareable" : false,
           "groupNumber" : 1,
-          "internalID" : "86BCD515",
+          "internalID" : "6444598711",
           "introductoryOffer" : null,
           "localizations" : [
-            {
-              "description" : "",
-              "displayName" : "",
-              "locale" : "en_US"
-            }
+
           ],
-          "productID" : "subscription.monthly",
+          "productID" : "basic.premium",
           "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "Monthly subscription",
-          "subscriptionGroupID" : "118A8047",
+          "referenceName" : "Basic premium",
+          "subscriptionGroupID" : "20974986",
           "type" : "RecurringSubscription"
         }
       ]

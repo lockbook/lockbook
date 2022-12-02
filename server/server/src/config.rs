@@ -232,7 +232,7 @@ pub struct AppleConfig {
 
 impl AppleConfig {
     pub fn from_env_vars() -> Self {
-        let apple_root_cert_dest = env_or_panic("APPLE_ROOT_CERT_PATH");
+        let apple_root_cert_dest = env_or_empty("APPLE_ROOT_CERT_PATH");
 
         Self {
             iap_key: env_or_panic("APPLE_IAP_KEY"),
@@ -241,7 +241,9 @@ impl AppleConfig {
             issuer_id: env_or_panic("APPLE_ISSUER_ID"),
             subscription_product_id: env_or_panic("APPLE_SUBSCRIPTION_PRODUCT_ID"),
             asc_shared_secret: env_or_panic("APP_STORE_CONNECT_SHARED_SECRET"),
-            apple_root_cert: fs::read(apple_root_cert_dest).unwrap(),
+            apple_root_cert: apple_root_cert_dest
+                .map(|cert_path| fs::read(cert_path).unwrap())
+                .unwrap_or_default(),
         }
     }
 }

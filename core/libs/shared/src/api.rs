@@ -401,6 +401,7 @@ pub struct UpgradeAccountAppStoreResponse {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum UpgradeAccountAppStoreError {
+    AppStoreAccountAlreadyLinked,
     AlreadyPremium,
     InvalidAuthDetails,
     ExistingRequestPending,

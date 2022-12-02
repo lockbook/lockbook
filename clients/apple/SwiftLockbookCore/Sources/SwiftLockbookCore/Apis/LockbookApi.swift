@@ -32,6 +32,5 @@ public protocol LockbookApi {
     
     // Billing
     func upgradeAccountAppStore(originalTransactionId: String, appAccountToken: String, encodedReceipt: String) -> FfiResult<Empty, UpgradeAccountAppStoreError>
-    func getSubscriptionInfo() -> FfiResult<SubscriptionInfo?, GetSubscriptionInfoError>
     func cancelSubscription() -> FfiResult<Empty, CancelSubscriptionError>
 }

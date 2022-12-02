@@ -13,8 +13,6 @@ use lockbook_shared::api::*;
 use lockbook_shared::SharedError;
 use std::fmt::Debug;
 use std::io::Error;
-use x509_parser::error::X509Error;
-use x509_parser::nom;
 
 impl<T: Debug> From<Error> for ServerError<T> {
     fn from(err: Error) -> Self {
@@ -164,17 +162,14 @@ impl From<jsonwebtoken::errors::Error> for ServerError<AppStoreNotificationError
             | ErrorKind::MissingAlgorithm
             | ErrorKind::Base64(_)
             | ErrorKind::Json(_)
-            | ErrorKind::Utf8(_) => {
-                println!("KIND: {:?}", err.kind());
-                ClientError(AppStoreNotificationError::InvalidJWS)
-            }
+            | ErrorKind::Utf8(_) => ClientError(AppStoreNotificationError::InvalidJWS),
             ErrorKind::InvalidEcdsaKey
             | ErrorKind::InvalidRsaKey(_)
             | ErrorKind::RsaFailedSigning
             | ErrorKind::InvalidAlgorithmName
             | ErrorKind::InvalidKeyFormat
             | ErrorKind::Crypto(_)
-            | _ => internal!("JWT error: {:?}", err),
+            | &_ => internal!("JWT error: {:?}", err),
         }
     }
 }

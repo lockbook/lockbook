@@ -218,14 +218,10 @@ public enum ExportDrawingError: String, UiError {
 }
 
 public enum UpgradeAccountAppStoreError: String, UiError {
+    case AppStoreAccountAlreadyLinked
     case AlreadyPremium
     case InvalidAuthDetails
     case ExistingRequestPending
-    case CouldNotReachServer
-    case ClientUpdateRequired
-}
-
-public enum GetSubscriptionInfoError: String, UiError {
     case CouldNotReachServer
     case ClientUpdateRequired
 }

@@ -114,6 +114,7 @@ pub enum CoreError {
     AccountStringCorrupted,
     AlreadyCanceled,
     AlreadyPremium,
+    AppStoreAccountAlreadyLinked,
     CannotCancelSubscriptionForAppStore,
     CardDecline,
     CardHasInsufficientFunds,
@@ -947,6 +948,7 @@ impl From<CoreError> for Error<UpgradeAccountStripeError> {
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum UpgradeAccountGooglePlayError {
+    AppStoreAccountAlreadyLinked,
     AlreadyPremium,
     InvalidAuthDetails,
     ExistingRequestPending,
@@ -970,6 +972,9 @@ impl From<CoreError> for Error<UpgradeAccountGooglePlayError> {
             CoreError::ClientUpdateRequired => {
                 UiError(UpgradeAccountGooglePlayError::ClientUpdateRequired)
             }
+            CoreError::AppStoreAccountAlreadyLinked => {
+                UiError(UpgradeAccountGooglePlayError::AppStoreAccountAlreadyLinked)
+            }
             _ => unexpected!("{:#?}", e),
         }
     }
@@ -977,6 +982,7 @@ impl From<CoreError> for Error<UpgradeAccountGooglePlayError> {
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum UpgradeAccountAppStoreError {
+    AppStoreAccountAlreadyLinked,
     AlreadyPremium,
     InvalidPurchaseToken,
     ExistingRequestPending,
@@ -999,6 +1005,9 @@ impl From<CoreError> for Error<UpgradeAccountAppStoreError> {
             }
             CoreError::ClientUpdateRequired => {
                 UiError(UpgradeAccountAppStoreError::ClientUpdateRequired)
+            }
+            CoreError::AppStoreAccountAlreadyLinked => {
+                UiError(UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked)
             }
             _ => unexpected!("{:#?}", e),
         }

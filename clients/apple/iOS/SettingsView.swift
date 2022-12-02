@@ -73,7 +73,6 @@ struct SettingsView: View, Equatable {
                             case .Unknown: Text("Unknown")
                             }
                         }
-                        
                         if settingsState.tier == .Trial {
                             NavigationLink(destination: ManageSubscription()) {
                                 switch settingsState.tier {
@@ -97,7 +96,6 @@ struct SettingsView: View, Equatable {
                                 Text("Please cancel your subscription via the App Store.")
                             }
                         }
-                        
                     } else {
                         Text("Calculating...")
                     }

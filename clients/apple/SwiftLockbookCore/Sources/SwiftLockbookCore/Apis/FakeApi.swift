@@ -107,10 +107,6 @@ Vestibulum ante ipsum primis in vel.
         .failure(.init(unexpected: "LAZY"))
     }
     
-    public func getSubscriptionInfo() -> FfiResult<SubscriptionInfo?, GetSubscriptionInfoError> {
-        .failure(.init(unexpected: "LAZY"))
-    }
-    
     public func cancelSubscription() -> FfiResult<Empty, CancelSubscriptionError> {
         .failure(.init(unexpected: "LAZY"))
     }

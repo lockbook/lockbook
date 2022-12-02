@@ -6,8 +6,7 @@ use crate::billing::billing_service::AppStoreNotificationError;
 use crate::config::AppleConfig;
 use crate::ServerError::InternalError;
 use crate::{ClientError, ServerError, ServerState};
-use itertools::Itertools;
-use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, TokenData, Validation};
+use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
 use libsecp256k1::PublicKey;
 use lockbook_shared::api::{UnixTimeMillis, UpgradeAccountAppStoreError};
 use lockbook_shared::clock::get_time;
@@ -46,8 +45,19 @@ pub async fn verify_receipt(
             )
         })?;
 
-    let latest_receipt = validated_receipts.get(0).unwrap();
-    let expires_date_ms: i64 = latest_receipt.expires_date_ms.parse().unwrap();
+    let latest_receipt = validated_receipts
+        .get(0)
+        .ok_or(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails))?;
+    let expires_date_ms: i64 = latest_receipt
+        .expires_date_ms
+        .parse()
+        .map_err::<ServerError<UpgradeAccountAppStoreError>, _>(|err| {
+            internal!(
+                "Cannot parse expires_date_ms into i64, latest_receipt: {:?}, err: {:?}",
+                latest_receipt,
+                err
+            )
+        })?;
 
     if latest_receipt.app_account_token != app_account_token
         || latest_receipt.original_transaction_id != original_transaction_id
@@ -65,17 +75,16 @@ pub fn decode_verify_notification(
     let encoded_resp: EncodedNotificationResponseBody = serde_json::from_slice(request_body)
         .map_err(|_| ClientError(AppStoreNotificationError::InvalidJWS))?;
 
-    Ok(validate_jwt(&config, &encoded_resp.signed_payload)?)
+    validate_jwt(config, &encoded_resp.signed_payload)
 }
 
 fn validate_jwt<T: Serialize + DeserializeOwned>(
     config: &AppleConfig, token: &str,
 ) -> Result<T, ServerError<AppStoreNotificationError>> {
-    let header = decode_header(token).unwrap();
+    let header = decode_header(token)?;
     let cert_chain: Vec<Vec<u8>> = header
         .x5c
-        .clone()
-        .unwrap()
+        .ok_or(ClientError(AppStoreNotificationError::InvalidJWS))?
         .into_iter()
         .map(|cert| base64::decode(cert.as_bytes()))
         .collect::<Result<Vec<Vec<u8>>, base64::DecodeError>>()?;
@@ -95,7 +104,7 @@ fn validate_jwt<T: Serialize + DeserializeOwned>(
             certs[i]
                 .verify_signature(Some(
                     &parse_x509_certificate(config.apple_root_cert.as_slice())
-                        .unwrap()
+                        .map_err(|err| internal!("{:?}", err))?
                         .1
                         .subject_pki,
                 ))
@@ -112,11 +121,11 @@ fn validate_jwt<T: Serialize + DeserializeOwned>(
     let mut validate = Validation::new(Algorithm::ES256);
     validate.required_spec_claims.remove("exp");
 
-    Ok(decode::<T>(&token, &key, &validate)?.claims)
+    Ok(decode::<T>(token, &key, &validate)?.claims)
 }
 
 pub fn decode_verify_transaction(
     config: &AppleConfig, encoded_transaction: &str,
 ) -> Result<TransactionInfo, ServerError<AppStoreNotificationError>> {
-    Ok(validate_jwt(config, encoded_transaction)?)
+    validate_jwt(config, encoded_transaction)
 }

@@ -65,7 +65,7 @@ pub enum Environment {
     Production,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Subtype {
     InitialBuy,

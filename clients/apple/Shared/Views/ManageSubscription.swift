@@ -24,7 +24,7 @@ struct ManageSubscription: View {
             case .Unknown: trial
             }
             
-            Text("Expand your storage to **30GB** for just **2.99** a month.")
+            Text("Expand your storage to **30GB** for just **\(billing.maybeMonthlySubscription!.displayPrice)** a month.")
                 .padding(.vertical)
             
             HStack {
@@ -38,10 +38,10 @@ struct ManageSubscription: View {
                             error = true
                         } else if result == .success || result == .pending {
                             DispatchQueue.global(qos: .userInitiated).async {
-                                Thread.sleep(forTimeInterval: 1)
+                                Thread.sleep(forTimeInterval: 2)
                                 DispatchQueue.main.async {
-                                    settings.calculateUsage()
                                     presentationMode.wrappedValue.dismiss()
+                                    settings.calculateUsage()
                                 }
                             }
                         }

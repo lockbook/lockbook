@@ -102,6 +102,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 ApiError::Endpoint(UpgradeAccountAppStoreError::ExistingRequestPending) => {
                     CoreError::ExistingRequestPending
                 }
+                ApiError::Endpoint(UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked) => {
+                    CoreError::AppStoreAccountAlreadyLinked
+                }
                 ApiError::SendFailed(_) => CoreError::ServerUnreachable,
                 ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
                 _ => core_err_unexpected(err),

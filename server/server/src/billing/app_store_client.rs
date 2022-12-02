@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 const VERIFY_PROD: &str = "https://buy.itunes.apple.com/verifyReceipt";
 const VERIFY_SANDBOX: &str = "https://sandbox.itunes.apple.com/verifyReceipt";
 
+const ALG: &str = "ES256";
+const TYP: &str = "JWT";
 const AUDIENCE: &str = "appstoreconnect-v1";
 const BUNDLE_ID: &str = "app.lockbook";
 
@@ -44,23 +46,10 @@ pub fn gen_auth_req(
 
     let token = encode(&header, &claims, &EncodingKey::from_ec_pem(config.iap_key.as_bytes())?)?;
     Ok(request
-        .header("alg", "ES256")
+        .header("alg", ALG)
         .header("kid", &config.iap_key_id)
-        .header("typ", "JWT")
+        .header("typ", TYP)
         .bearer_auth(token))
-}
-
-pub async fn request_test_notif(client: &reqwest::Client, config: &AppleConfig) -> u16 {
-    let resp = gen_auth_req(
-        config,
-        client.post("https://api.storekit-sandbox.itunes.apple.com/inApps/v1/notifications/test"),
-    )
-    .unwrap()
-    .send()
-    .await
-    .unwrap();
-
-    return resp.status().as_u16();
 }
 
 pub async fn verify_receipt(
@@ -75,7 +64,7 @@ pub async fn verify_receipt(
         AppStoreError::Other(format!("Cannot parse verify receipt request body: {:?}", e))
     })?;
 
-    let resp = gen_auth_req(config, client.post(VERIFY_PROD))? // TODO: switch to VERIFY_PROD
+    let resp = gen_auth_req(config, client.post(VERIFY_PROD))?
         .body(req_body.clone())
         .send()
         .await?;

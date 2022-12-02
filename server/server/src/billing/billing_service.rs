@@ -95,7 +95,7 @@ pub async fn upgrade_account_app_store(
         .app_store_ids
         .exists(&request.app_account_token)?
     {
-        return Err(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails));
+        return Err(ClientError(UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked));
     }
 
     let expires = verify_receipt(
@@ -109,7 +109,12 @@ pub async fn upgrade_account_app_store(
 
     account.billing_info.billing_platform = Some(BillingPlatform::AppStore(AppStoreUserInfo {
         original_transaction_id: request.original_transaction_id.clone(),
-        subscription_product_id: "".to_string(),
+        subscription_product_id: server_state
+            .config
+            .billing
+            .apple
+            .subscription_product_id
+            .clone(),
         expiration_time: expires,
         account_state: AppStoreAccountState::Ok,
     }));
@@ -583,7 +588,7 @@ pub async fn app_store_notification_webhook(
         &server_state.config.billing.apple,
         &resp.clone().data.encoded_transaction_info.unwrap(),
     )?;
-    let public_key = app_store_service::get_public_key(&server_state, &trans)?;
+    let public_key = app_store_service::get_public_key(server_state, &trans)?;
 
     let owner = Owner(public_key);
 
