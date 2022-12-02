@@ -135,6 +135,9 @@ fn cancel_subscription(core: &Core) -> Result<(), CliError> {
         ),
         LbError::UiError(CouldNotReachServer) => CliError::network_issue(),
         LbError::UiError(ClientUpdateRequired) => CliError::update_required(),
+        LbError::UiError(CannotCancelForAppStore) => CliError::billing(
+            "Cannot cancel App Store subscription from CLI, please manage your subscription on the App Store."
+        ),
         LbError::Unexpected(msg) => CliError::unexpected(msg),
     })?;
 

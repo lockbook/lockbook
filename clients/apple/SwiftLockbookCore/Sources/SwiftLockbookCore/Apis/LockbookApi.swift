@@ -8,7 +8,7 @@ public protocol LockbookApi {
     func exportAccount() -> FfiResult<String, AccountExportError>
     func getUsage() -> FfiResult<UsageMetrics, GetUsageError>
     func getUncompressedUsage() -> FfiResult<UsageItemMetric, GetUsageError>
-    
+
     // Work
     func syncAll() -> FfiResult<Empty, SyncAllError>
     func calculateWork() -> FfiResult<WorkMetadata, CalculateWorkError>
