@@ -8,7 +8,7 @@ use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::filename::NameComponents;
 use lockbook_shared::lazy::LazyStaged1;
 use lockbook_shared::signed_file::SignedFile;
-use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::{document_repo, SharedError};
 use std::collections::HashSet;
 use std::fs;
@@ -30,12 +30,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     ) -> CoreResult<()> {
         update_status(ImportStatus::CalculatedTotal(get_total_child_count(sources)?));
 
-        let tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
-
+        let tree = (&self.tx.base_metadata).stage(&self.tx.local_metadata);
         let parent = tree.find(&dest)?;
         if !parent.is_folder() {
             return Err(CoreError::FileNotFolder);
@@ -56,10 +51,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             return Err(CoreError::DiskPathInvalid);
         }
 
-        let tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
+        let mut tree = (&self.tx.base_metadata)
+            .stage(&self.tx.local_metadata)
             .to_lazy();
 
         let file = tree.find(&id)?.clone();
@@ -73,7 +66,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         Self::export_file_recursively(
             self.config,
             account,
-            tree,
+            &mut tree,
             &file,
             &destination,
             edit,
@@ -84,13 +77,13 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     fn export_file_recursively<Base, Local>(
-        config: &Config, account: &Account, mut tree: LazyStaged1<Base, Local>,
+        config: &Config, account: &Account, tree: &mut LazyStaged1<Base, Local>,
         this_file: &Base::F, disk_path: &Path, edit: bool,
         export_progress: &Option<Box<dyn Fn(ImportExportFileInfo)>>,
-    ) -> CoreResult<LazyStaged1<Base, Local>>
+    ) -> CoreResult<()>
     where
-        Base: Stagable<F = SignedFile>,
-        Local: Stagable<F = Base::F>,
+        Base: TreeLike<F = SignedFile>,
+        Local: TreeLike<F = Base::F>,
     {
         let dest_with_new = disk_path.join(&tree.name(this_file.id(), account)?);
 
@@ -109,7 +102,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 for id in children {
                     if !tree.calculate_deleted(&id)? {
                         let file = tree.find(&id)?.clone();
-                        tree = RequestContext::<Client>::export_file_recursively(
+                        RequestContext::<Client>::export_file_recursively(
                             config,
                             account,
                             tree,
@@ -135,16 +128,14 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 }
                 .map_err(CoreError::from)?;
 
-                let doc_read = tree.read_document(config, this_file.id(), account)?;
-                tree = doc_read.0;
-                let doc = doc_read.1;
+                let doc = tree.read_document(config, this_file.id(), account)?;
 
                 file.write_all(doc.as_slice()).map_err(CoreError::from)?;
             }
             FileType::Link { target } => {
                 if !tree.calculate_deleted(&target)? {
                     let file = tree.find(&target)?.clone();
-                    tree = RequestContext::<Client>::export_file_recursively(
+                    RequestContext::<Client>::export_file_recursively(
                         config,
                         account,
                         tree,
@@ -157,16 +148,13 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             }
         }
 
-        Ok(tree)
+        Ok(())
     }
 
     fn import_file_recursively<F: Fn(ImportStatus)>(
         &mut self, disk_path: &Path, dest: &Uuid, update_status: &F,
     ) -> CoreResult<()> {
-        let public_key = self.get_public_key()?;
-        let mut tree = self
-            .tx
-            .base_metadata
+        let mut tree = (&self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
@@ -205,14 +193,13 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 disk_file_name,
             )?;
 
-            let (tmp_tree, id) = tree.create(&dest, &file_name, ftype, account, &public_key)?;
-            tree = tmp_tree;
+            let id = tree.create(&dest, &file_name, ftype, account)?;
             let file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
 
             tree = if ftype == FileType::Document {
                 let doc = fs::read(&disk_path).map_err(CoreError::from)?;
 
-                let (tree, encrypted_document) = tree.update_document(&id, &doc, account)?;
+                let encrypted_document = tree.update_document(&id, &doc, account)?;
                 let hmac = tree.find(&id)?.document_hmac();
                 document_repo::insert(self.config, &id, hmac, &encrypted_document)?;
 
@@ -239,8 +226,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         tree: &mut LazyStaged1<Base, Local>, account: &Account, parent: &Uuid, proposed_name: &str,
     ) -> CoreResult<String>
     where
-        Base: Stagable<F = SignedFile>,
-        Local: Stagable<F = Base::F>,
+        Base: TreeLike<F = SignedFile>,
+        Local: TreeLike<F = Base::F>,
     {
         let maybe_siblings = tree.children(parent)?;
         let mut new_name = NameComponents::from(proposed_name);

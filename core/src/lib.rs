@@ -32,8 +32,8 @@ pub use lockbook_shared::lazy;
 pub use lockbook_shared::lazy::LazyTree;
 pub use lockbook_shared::path_ops::Filter;
 pub use lockbook_shared::server_file::ServerFile;
-pub use lockbook_shared::tree_like::Stagable;
 pub use lockbook_shared::tree_like::TreeLike;
+pub use lockbook_shared::tree_like::TreeLikeMut;
 pub use lockbook_shared::usage::bytes_to_human;
 pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 

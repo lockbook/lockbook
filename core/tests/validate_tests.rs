@@ -4,7 +4,7 @@ use lockbook_shared::account::Account;
 use lockbook_shared::file::File;
 use lockbook_shared::file_metadata::{FileType, Owner};
 use lockbook_shared::signed_file::SignedFile;
-use lockbook_shared::tree_like::Stagable;
+use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::{SharedError, SharedResult, ValidationFailure};
 use test_utils::*;
 use uuid::Uuid;
@@ -33,14 +33,10 @@ fn create_two_files_with_same_path() {
             let tree = base_metadata.stage(local_metadata).to_lazy();
 
             let mut tree = tree.stage(Vec::new());
-            let (staged_tree, _) = tree
-                .stage_create(&root.id, "document", FileType::Document, &account)
+            tree.create_unvalidated(&root.id, "document", FileType::Document, &account)
                 .unwrap();
-            tree = staged_tree.promote();
-            let (staged_tree, _) = tree
-                .stage_create(&root.id, "document", FileType::Document, &account)
+            tree.create_unvalidated(&root.id, "document", FileType::Document, &account)
                 .unwrap();
-            tree = staged_tree.promote();
             tree.validate(owner)?.promote();
 
             Ok(())

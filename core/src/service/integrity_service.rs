@@ -2,7 +2,7 @@ use std::path::Path;
 
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
-use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::tree_like::TreeLike;
 
 use crate::model::drawing;
 use crate::model::errors::{TestRepoError, Warning};
@@ -13,10 +13,8 @@ const UTF8_SUFFIXES: [&str; 12] =
 
 impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn test_repo_integrity(&mut self) -> Result<Vec<Warning>, TestRepoError> {
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
+        let mut tree = (&self.tx.base_metadata)
+            .stage(&self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx
@@ -49,9 +47,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             let cont = file.document_hmac().is_some();
             let not_deleted = !tree.calculate_deleted(&id)?;
             if not_deleted && doc && cont {
-                let read_doc = tree.read_document(self.config, &id, account)?;
-                tree = read_doc.0;
-                let doc = read_doc.1;
+                let doc = tree.read_document(self.config, &id, account)?;
 
                 if doc.len() as u64 == 0 {
                     warnings.push(Warning::EmptyFile(id));

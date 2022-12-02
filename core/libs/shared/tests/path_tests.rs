@@ -1,7 +1,7 @@
 use lockbook_shared::account::Account;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileMetadata, FileType};
-use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::tree_like::TreeLike;
 use test_utils::*;
 
 #[test]
@@ -13,18 +13,13 @@ fn test_create_path() {
         .sign(account)
         .unwrap();
 
-    let mut tree = vec![root.clone()]
-        .to_lazy()
-        .stage(vec![])
-        .create_at_path("test1", root.id(), account, pk)
-        .unwrap()
-        .0
-        .create_at_path("test2", root.id(), account, pk)
-        .unwrap()
-        .0
-        .create_at_path("test3", root.id(), account, pk)
-        .unwrap()
-        .0;
+    let mut tree = vec![root.clone()].to_lazy().stage(vec![]);
+    tree.create_at_path("test1", root.id(), account, pk)
+        .unwrap();
+    tree.create_at_path("test2", root.id(), account, pk)
+        .unwrap();
+    tree.create_at_path("test3", root.id(), account, pk)
+        .unwrap();
 
     let paths = tree.list_paths(None, account).unwrap();
     assert_eq!(paths.len(), 4);
@@ -43,16 +38,11 @@ fn test_path2() {
         .sign(account)
         .unwrap();
 
-    let mut tree = vec![root.clone()]
-        .to_lazy()
-        .stage(vec![])
-        .create_at_path("test1/2/3", root.id(), account, pk)
-        .unwrap()
-        .0;
+    let mut tree = vec![root.clone()].to_lazy().stage(vec![]);
+    tree.create_at_path("test1/2/3", root.id(), account, pk)
+        .unwrap();
 
     let paths = tree.list_paths(None, account).unwrap();
-
-    println!("{:#?}", paths);
 
     assert_eq!(paths.len(), 4);
     assert!(paths.contains(&"/".to_string()));
@@ -70,12 +60,9 @@ fn test_path_to_id() {
         .sign(account)
         .unwrap();
 
-    let mut tree = vec![root.clone()]
-        .to_lazy()
-        .stage(vec![])
-        .create_at_path("test1/2/3", root.id(), account, pk)
-        .unwrap()
-        .0;
+    let mut tree = vec![root.clone()].to_lazy().stage(vec![]);
+    tree.create_at_path("test1/2/3", root.id(), account, pk)
+        .unwrap();
 
     assert_eq!(tree.path_to_id("/", root.id(), account), Ok(*root.id()));
 
@@ -98,12 +85,9 @@ fn test_path_file_types() {
         .sign(account)
         .unwrap();
 
-    let mut tree = vec![root.clone()]
-        .to_lazy()
-        .stage(vec![])
-        .create_at_path("test1/2/3", root.id(), account, pk)
-        .unwrap()
-        .0;
+    let mut tree = vec![root.clone()].to_lazy().stage(vec![]);
+    tree.create_at_path("test1/2/3", root.id(), account, pk)
+        .unwrap();
 
     assert_eq!(tree.path_to_id("/", root.id(), account), Ok(*root.id()));
 

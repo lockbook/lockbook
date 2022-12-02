@@ -4,7 +4,7 @@ use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::filename::DocumentType;
-use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::tree_like::TreeLike;
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::sync::atomic::{self, AtomicBool};
@@ -50,10 +50,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             return Ok(Vec::new());
         }
 
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
+        let mut tree = (&self.tx.base_metadata)
+            .stage(&self.tx.local_metadata)
             .to_lazy();
 
         let account = self
@@ -84,10 +82,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn start_search(&mut self) -> CoreResult<StartSearchInfo> {
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
+        let mut tree = (&self.tx.base_metadata)
+            .stage(&self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx
@@ -105,9 +101,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                         &tree.name(&id, account)?,
                     ) {
                         DocumentType::Text => {
-                            let doc_read = tree.read_document(self.config, &id, account)?;
-                            tree = doc_read.0;
-                            match String::from_utf8(doc_read.1) {
+                            let doc = tree.read_document(self.config, &id, account)?;
+                            match String::from_utf8(doc) {
                                 Ok(str) => Some(str),
                                 Err(utf_8) => {
                                     error!("failed to read {id}, {utf_8}");

@@ -5,7 +5,7 @@ use lockbook_shared::api::GetPublicKeyRequest;
 use lockbook_shared::file::{File, ShareMode};
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::Owner;
-use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::validate;
 use uuid::Uuid;
 
@@ -18,9 +18,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             ShareMode::Write => UserAccessMode::Write,
             ShareMode::Read => UserAccessMode::Read,
         };
-        let mut tree = self
-            .tx
-            .base_metadata
+        let mut tree = (&self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let mut file = tree.find(&id)?.timestamped_value.value.clone();
@@ -79,10 +77,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn get_pending_shares(&mut self) -> CoreResult<Vec<File>> {
         let account = &self.get_account()?.clone(); // todo: don't clone
         let owner = Owner(self.get_public_key()?);
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
+        let mut tree = (&self.tx.base_metadata)
+            .stage(&self.tx.local_metadata)
             .to_lazy();
 
         let mut result = Vec::new();
@@ -112,9 +108,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn delete_share(
         &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>,
     ) -> CoreResult<()> {
-        let tree = self
-            .tx
-            .base_metadata
+        let mut tree = (&self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self

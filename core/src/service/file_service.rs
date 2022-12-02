@@ -2,7 +2,7 @@ use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
 use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileType, Owner};
-use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::tree_like::TreeLike;
 use std::iter;
 use uuid::Uuid;
 
@@ -10,10 +10,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn create_file(
         &mut self, name: &str, parent: &Uuid, file_type: FileType,
     ) -> CoreResult<File> {
-        let pub_key = self.get_public_key()?;
-        let tree = self
-            .tx
-            .base_metadata
+        let mut tree = (&self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
@@ -22,7 +19,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let (mut tree, id) = tree.create(parent, name, file_type, account, &pub_key)?;
+        let id = tree.create(parent, name, file_type, account)?;
 
         let ui_file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
 
@@ -32,9 +29,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn rename_file(&mut self, id: &Uuid, new_name: &str) -> CoreResult<()> {
-        let tree = self
-            .tx
-            .base_metadata
+        let mut tree = (&self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
@@ -49,9 +44,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn move_file(&mut self, id: &Uuid, new_parent: &Uuid) -> CoreResult<()> {
-        let tree = self
-            .tx
-            .base_metadata
+        let mut tree = (&self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
@@ -65,9 +58,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn delete(&mut self, id: &Uuid) -> CoreResult<()> {
-        let tree = self
-            .tx
-            .base_metadata
+        let mut tree = (&self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
@@ -82,10 +73,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn root(&mut self) -> CoreResult<File> {
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
+        let mut tree = (&self.tx.base_metadata)
+            .stage(&self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx
@@ -105,10 +94,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn list_metadatas(&mut self) -> CoreResult<Vec<File>> {
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
+        let mut tree = (&self.tx.base_metadata)
+            .stage(&self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx
@@ -122,10 +109,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn get_children(&mut self, id: &Uuid) -> CoreResult<Vec<File>> {
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
+        let mut tree = (&self.tx.base_metadata)
+            .stage(&self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx
@@ -138,10 +123,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn get_and_get_children_recursively(&mut self, id: &Uuid) -> CoreResult<Vec<File>> {
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
+        let mut tree = (&self.tx.base_metadata)
+            .stage(&self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx
@@ -158,10 +141,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn get_file_by_id(&mut self, id: &Uuid) -> CoreResult<File> {
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
+        let mut tree = (&self.tx.base_metadata)
+            .stage(&self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx

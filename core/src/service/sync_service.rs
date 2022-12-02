@@ -9,7 +9,8 @@ use lockbook_shared::document_repo;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{DocumentHmac, FileDiff, Owner};
 use lockbook_shared::signed_file::SignedFile;
-use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::staged::StagedTreeLikeMut;
+use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 use serde::Serialize;
 use std::collections::HashSet;
@@ -109,10 +110,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         // track work
         {
-            let base = self
-                .tx
-                .base_metadata
-                .stage(&mut self.tx.local_metadata)
+            let base = (&self.tx.base_metadata)
+                .stage(&self.tx.local_metadata)
                 .to_lazy();
             let mut num_documents_to_pull = 0;
             for id in remote_changes.owned_ids() {
@@ -136,7 +135,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .ok_or(CoreError::AccountNonexistent)?;
         let mut remote_document_changes = HashSet::new();
         remote_changes = {
-            let mut remote = self.tx.base_metadata.to_lazy().stage(remote_changes);
+            let mut remote = (&self.tx.base_metadata).stage(remote_changes).to_lazy();
             for id in remote.tree.staged.owned_ids() {
                 if remote.calculate_deleted(&id)? {
                     continue;
@@ -170,11 +169,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         // base = remote; local = merge
         let remote_changes = {
-            let local = self
-                .tx
-                .base_metadata
-                .stage(remote_changes)
-                .stage(&mut self.tx.local_metadata)
+            let local = (&mut self.tx.base_metadata)
+                .to_staged(remote_changes)
+                .to_staged(&mut self.tx.local_metadata)
                 .to_lazy();
 
             let local = local.merge(self.config, account, &remote_document_changes)?;
@@ -183,11 +180,11 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             remote_changes
         };
 
-        self.tx
-            .base_metadata
-            .stage(remote_changes)
+        (&mut self.tx.base_metadata)
+            .to_staged(remote_changes)
             .to_lazy()
             .promote();
+        self.cleanup_local_metadata();
 
         self.reset_deleted_files()?;
 
@@ -216,7 +213,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         &mut self, remote_changes: Vec<SignedFile>,
     ) -> CoreResult<Vec<SignedFile>> {
         let me = Owner(self.get_public_key()?);
-        let remote = self.tx.base_metadata.to_lazy().stage(remote_changes);
+        let remote = (&self.tx.base_metadata).stage(remote_changes).to_lazy();
         let mut result = Vec::new();
         for id in remote.tree.staged.owned_ids() {
             let meta = remote.find(&id)?;
@@ -238,7 +235,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         // we must explicitly delete a file which is moved into a deleted folder because otherwise resetting it makes it no longer deleted
         let account = self.get_account()?.clone();
 
-        let mut tree = self.tx.base_metadata.to_lazy();
+        let mut tree = (&self.tx.base_metadata).to_lazy();
         let mut already_deleted = HashSet::new();
         for id in tree.owned_ids() {
             if tree.calculate_deleted(&id)? {
@@ -246,9 +243,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             }
         }
 
-        let mut tree = self
-            .tx
-            .base_metadata
+        let mut tree = (&self.tx.base_metadata)
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let mut local_change_removals = HashSet::new();
@@ -271,9 +266,10 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             }
         }
 
-        for id in local_change_removals {
-            tree.remove(id);
-        }
+        let mut staged = tree.stage(None);
+        staged.tree.removed = local_change_removals;
+        tree = staged.promote();
+
         tree.stage(local_change_resets).promote();
 
         Ok(())
@@ -281,10 +277,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
     fn prune(&mut self) -> CoreResult<()> {
         let account = self.get_account()?.clone();
-        let mut local = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
+        let mut local = (&self.tx.base_metadata)
+            .stage(&self.tx.local_metadata)
             .to_lazy();
         let base_ids = local.tree.base.owned_ids();
         let server_ids = self.client.request(&account, GetFileIdsRequest {})?.ids;
@@ -295,15 +289,23 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             prunable_ids.extend(local.descendants(&id)?.into_iter());
         }
 
-        for id in prunable_ids {
-            local.remove(id);
-            if let Some(base_file) = local.tree.base.maybe_find(&id) {
-                document_repo::delete(self.config, &id, base_file.document_hmac())?;
+        for id in &prunable_ids {
+            if let Some(base_file) = local.tree.base.maybe_find(id) {
+                document_repo::delete(self.config, id, base_file.document_hmac())?;
             }
-            if let Some(local_file) = local.maybe_find(&id) {
-                document_repo::delete(self.config, &id, local_file.document_hmac())?;
+            if let Some(local_file) = local.maybe_find(id) {
+                document_repo::delete(self.config, id, local_file.document_hmac())?;
             }
         }
+
+        let mut base_staged = (&mut self.tx.base_metadata).to_lazy().stage(None);
+        base_staged.tree.removed = prunable_ids.clone();
+        base_staged.promote();
+
+        let mut local_staged = (&mut self.tx.local_metadata).to_lazy().stage(None);
+        local_staged.tree.removed = prunable_ids;
+        local_staged.promote();
+
         Ok(())
     }
 
@@ -316,10 +318,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         // remote = local
         let mut local_changes_no_digests = Vec::new();
         let mut updates = Vec::new();
-        let local = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
+        let local = (&self.tx.base_metadata)
+            .stage(&self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx
@@ -346,11 +346,11 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         }
 
         // base = local
-        self.tx
-            .base_metadata
+        (&mut self.tx.base_metadata)
             .to_lazy()
             .stage(local_changes_no_digests)
             .promote();
+        self.cleanup_local_metadata();
 
         Ok(())
     }
@@ -361,10 +361,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     where
         F: FnMut(SyncProgressOperation),
     {
-        let mut local = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
+        let mut local = (&self.tx.base_metadata)
+            .stage(&self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx
@@ -415,11 +413,11 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         }
 
         // base = local (metadata)
-        self.tx
-            .base_metadata
+        (&mut self.tx.base_metadata)
             .to_lazy()
             .stage(local_changes_digests_only)
             .promote();
+        self.cleanup_local_metadata();
 
         Ok(())
     }
@@ -441,18 +439,22 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .ok_or(CoreError::AccountNonexistent)?;
         let mut work_units: Vec<WorkUnit> = Vec::new();
         {
-            let mut remote = self.tx.base_metadata.to_lazy().stage(remote_changes);
+            let mut remote = (&self.tx.base_metadata).stage(remote_changes).to_lazy();
             for id in remote.tree.staged.owned_ids() {
-                work_units.push(WorkUnit::ServerChange {
-                    metadata: remote.finalize(&id, account, &mut self.tx.username_by_public_key)?,
-                });
+                if remote.tree.staged.maybe_find(&id) != remote.tree.base.maybe_find(&id) {
+                    work_units.push(WorkUnit::ServerChange {
+                        metadata: remote.finalize(
+                            &id,
+                            account,
+                            &mut self.tx.username_by_public_key,
+                        )?,
+                    });
+                }
             }
         }
         {
-            let mut local = self
-                .tx
-                .base_metadata
-                .stage(&mut self.tx.local_metadata)
+            let mut local = (&self.tx.base_metadata)
+                .stage(&self.tx.local_metadata)
                 .to_lazy();
             for id in local.tree.staged.owned_ids() {
                 work_units.push(WorkUnit::LocalChange {
@@ -499,5 +501,12 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         }
 
         Ok(())
+    }
+
+    // todo: check only necessary ids
+    fn cleanup_local_metadata(&mut self) {
+        (&self.tx.base_metadata)
+            .stage(&mut self.tx.local_metadata)
+            .prune();
     }
 }

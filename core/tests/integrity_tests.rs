@@ -5,7 +5,7 @@ use lockbook_core::Warning::*;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType::Document;
 use lockbook_shared::secret_filename::SecretFileName;
-use lockbook_shared::tree_like::{Stagable, TreeLike};
+use lockbook_shared::tree_like::TreeLike;
 use rand::Rng;
 use test_utils::*;
 
@@ -64,7 +64,7 @@ fn test_invalid_file_name_slash() {
             let new_name = SecretFileName::from_str("te/st", &key, &parent).unwrap();
             let mut doc = tree.find(&doc.id).unwrap().clone();
             doc.timestamped_value.value.name = new_name;
-            tree.insert(doc);
+            tree.stage(Some(doc)).promote();
         })
         .unwrap();
 
@@ -87,7 +87,7 @@ fn empty_filename() {
             let new_name = SecretFileName::from_str("", &key, &parent).unwrap();
             let mut doc = tree.find(&doc.id).unwrap().clone();
             doc.timestamped_value.value.name = new_name;
-            tree.insert(doc);
+            tree.stage(Some(doc)).promote();
         })
         .unwrap();
 
@@ -134,7 +134,7 @@ fn test_name_conflict() {
             let new_name = SecretFileName::from_str("document2.md", &key, &parent).unwrap();
             let mut doc = tree.find(&doc.id).unwrap().clone();
             doc.timestamped_value.value.name = new_name;
-            tree.insert(doc);
+            tree.stage(Some(doc)).promote();
         })
         .unwrap();
     assert_matches!(core.validate(), Err(PathConflict(_)));

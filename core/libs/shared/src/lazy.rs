@@ -4,14 +4,14 @@ use crate::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::file_like::FileLike;
 use crate::file_metadata::{FileType, Owner};
 use crate::staged::StagedTree;
-use crate::tree_like::{Stagable, TreeLike};
+use crate::tree_like::{TreeLike, TreeLikeMut};
 use crate::{compression_service, symkey, SharedError, SharedResult};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 #[derive(Debug)]
-pub struct LazyTree<T: Stagable> {
+pub struct LazyTree<T: TreeLike> {
     pub tree: T,
     pub name: HashMap<Uuid, String>,
     pub key: HashMap<Uuid, AESKey>,
@@ -19,7 +19,7 @@ pub struct LazyTree<T: Stagable> {
     pub children: HashMap<Uuid, HashSet<Uuid>>,
 }
 
-impl<T: Stagable> LazyTree<T> {
+impl<T: TreeLike> LazyTree<T> {
     pub fn new(tree: T) -> Self {
         Self {
             name: HashMap::new(),
@@ -31,7 +31,7 @@ impl<T: Stagable> LazyTree<T> {
     }
 }
 
-impl<T: Stagable> LazyTree<T> {
+impl<T: TreeLike> LazyTree<T> {
     pub fn access_mode(&self, owner: Owner, id: &Uuid) -> SharedResult<Option<UserAccessMode>> {
         let mut file = self.find(id)?;
         let mut max_access_mode = None;
@@ -293,13 +293,24 @@ impl<T: Stagable> LazyTree<T> {
         compression_service::decompress(&compressed)
     }
 
-    pub fn stage<T2: Stagable<F = T::F>>(self, staged: T2) -> LazyTree<StagedTree<T, T2>> {
+    pub fn stage<T2: TreeLikeMut<F = T::F>>(self, staged: T2) -> LazyTree<StagedTree<T, T2>> {
         // todo: optimize by performing minimal updates on self caches
         LazyTree::<StagedTree<T, T2>> {
+            tree: StagedTree::new(self.tree, staged),
             name: HashMap::new(),
             key: self.key,
             implicit_deleted: HashMap::new(),
-            tree: StagedTree::new(self.tree, staged),
+            children: HashMap::new(),
+        }
+    }
+
+    pub fn stage_removals(self, removed: HashSet<Uuid>) -> LazyTree<StagedTree<T, Option<T::F>>> {
+        // todo: optimize by performing minimal updates on self caches
+        LazyTree::<StagedTree<T, Option<T::F>>> {
+            tree: StagedTree::removal(self.tree, removed),
+            name: HashMap::new(),
+            key: self.key,
+            implicit_deleted: HashMap::new(),
             children: HashMap::new(),
         }
     }
@@ -336,10 +347,47 @@ pub enum ValidationFailure {
     OwnedLink(Uuid),
 }
 
+impl<T> LazyTree<T>
+where
+    T: TreeLikeMut,
+{
+    pub fn stage_and_promote<S: TreeLikeMut<F = T::F>>(&mut self, mut staged: S) {
+        for id in staged.owned_ids() {
+            if let Some(removed) = staged.remove(id) {
+                self.tree.insert(removed);
+            }
+        }
+        // todo: incremental cache update
+        self.name = HashMap::new();
+        self.implicit_deleted = HashMap::new();
+        self.children = HashMap::new();
+    }
+
+    pub fn stage_validate_and_promote<S: TreeLikeMut<F = T::F>>(
+        &mut self, mut staged: S, owner: Owner,
+    ) -> SharedResult<()> {
+        StagedTree::new(&self.tree, &mut staged)
+            .to_lazy()
+            .validate(owner)?;
+        self.stage_and_promote(staged);
+        Ok(())
+    }
+
+    pub fn stage_removals_and_promote(&mut self, removed: HashSet<Uuid>) {
+        for id in removed {
+            self.tree.remove(id);
+        }
+        // todo: incremental cache update
+        self.name = HashMap::new();
+        self.implicit_deleted = HashMap::new();
+        self.children = HashMap::new();
+    }
+}
+
 impl<Base, Staged> LazyStaged1<Base, Staged>
 where
-    Base: Stagable,
-    Staged: Stagable<F = Base::F>,
+    Base: TreeLikeMut,
+    Staged: TreeLikeMut<F = Base::F>,
 {
     // todo: incrementalism
     pub fn promote(self) -> LazyTree<Base> {
@@ -350,23 +398,32 @@ where
                 base.insert(removed);
             }
         }
+        for id in self.tree.removed {
+            base.remove(id);
+        }
 
         LazyTree {
             tree: base,
             name: HashMap::new(),
-            key: HashMap::new(),
+            key: self.key,
             implicit_deleted: HashMap::new(),
             children: HashMap::new(),
         }
     }
+}
 
+impl<Base, Staged> LazyStaged1<Base, Staged>
+where
+    Base: TreeLike,
+    Staged: TreeLikeMut<F = Base::F>,
+{
     // todo: incrementalism
     pub fn unstage(self) -> (LazyTree<Base>, Staged) {
         (
             LazyTree {
                 tree: self.tree.base,
                 name: HashMap::new(),
-                key: HashMap::new(),
+                key: self.key,
                 implicit_deleted: HashMap::new(),
                 children: HashMap::new(),
             },
@@ -375,7 +432,7 @@ where
     }
 }
 
-impl<T: Stagable> TreeLike for LazyTree<T> {
+impl<T: TreeLike> TreeLike for LazyTree<T> {
     type F = T::F;
 
     fn ids(&self) -> HashSet<&Uuid> {
@@ -384,13 +441,5 @@ impl<T: Stagable> TreeLike for LazyTree<T> {
 
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
         self.tree.maybe_find(id)
-    }
-
-    fn insert(&mut self, f: Self::F) -> Option<Self::F> {
-        self.tree.insert(f)
-    }
-
-    fn remove(&mut self, id: Uuid) -> Option<Self::F> {
-        self.tree.remove(id)
     }
 }

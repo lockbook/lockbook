@@ -9,11 +9,9 @@ use uuid::Uuid;
 pub trait TreeLike: Sized {
     type F: FileLike + Debug;
 
-    // TODO perf, it would be nice to make this a reference type, some point in the future
+    // todo: iterator using const generics
     fn ids(&self) -> HashSet<&Uuid>;
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F>;
-    fn insert(&mut self, f: Self::F) -> Option<Self::F>;
-    fn remove(&mut self, id: Uuid) -> Option<Self::F>;
 
     fn find(&self, id: &Uuid) -> SharedResult<&Self::F> {
         self.maybe_find(id).ok_or(SharedError::FileNonexistent)
@@ -41,19 +39,77 @@ pub trait TreeLike: Sized {
 
         Ok(all)
     }
-}
 
-pub trait Stagable: TreeLike {
-    fn stage<Staged>(self, staged: Staged) -> StagedTree<Self, Staged>
+    fn stage<Staged>(&self, staged: Staged) -> StagedTree<&Self, Staged>
     where
-        Staged: Stagable<F = Self::F>,
+        Staged: TreeLike<F = Self::F>,
         Self: Sized,
     {
         StagedTree::new(self, staged)
     }
 
+    fn to_staged<Staged>(self, staged: Staged) -> StagedTree<Self, Staged>
+    where
+        Staged: TreeLike<F = Self::F>,
+        Self: Sized,
+    {
+        StagedTree::new(self, staged)
+    }
+
+    fn as_lazy(&self) -> LazyTree<&Self> {
+        LazyTree::new(self)
+    }
+
     fn to_lazy(self) -> LazyTree<Self> {
         LazyTree::new(self)
+    }
+}
+
+pub trait TreeLikeMut: TreeLike {
+    fn insert(&mut self, f: Self::F) -> Option<Self::F>;
+    fn remove(&mut self, id: Uuid) -> Option<Self::F>;
+}
+
+impl<T> TreeLike for &T
+where
+    T: TreeLike,
+{
+    type F = T::F;
+
+    fn ids(&self) -> HashSet<&Uuid> {
+        T::ids(self)
+    }
+
+    fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
+        T::maybe_find(self, id)
+    }
+}
+
+impl<T> TreeLike for &mut T
+where
+    T: TreeLike,
+{
+    type F = T::F;
+
+    fn ids(&self) -> HashSet<&Uuid> {
+        T::ids(self)
+    }
+
+    fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
+        T::maybe_find(self, id)
+    }
+}
+
+impl<T> TreeLikeMut for &mut T
+where
+    T: TreeLikeMut,
+{
+    fn insert(&mut self, f: Self::F) -> Option<Self::F> {
+        T::insert(self, f)
+    }
+
+    fn remove(&mut self, id: Uuid) -> Option<Self::F> {
+        T::remove(self, id)
     }
 }
 
@@ -70,7 +126,12 @@ where
     fn maybe_find(&self, id: &Uuid) -> Option<&F> {
         self.iter().find(|f| f.id() == id)
     }
+}
 
+impl<F> TreeLikeMut for Vec<F>
+where
+    F: FileLike,
+{
     fn insert(&mut self, f: F) -> Option<F> {
         for (i, value) in self.iter().enumerate() {
             if value.id() == f.id() {
