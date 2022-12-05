@@ -1,11 +1,14 @@
 use crate::account_service::DeleteAccountHelperError;
-use crate::billing::billing_service::LockBillingWorkflowError;
+use crate::billing::app_store_client::AppStoreError;
+use crate::billing::billing_service::{AppStoreNotificationError, LockBillingWorkflowError};
 use crate::billing::google_play_client::SimpleGCPError;
 use crate::metrics::MetricsError;
 use crate::ServerError::InternalError;
 use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
+use base64::DecodeError;
+use jsonwebtoken::errors::ErrorKind;
 use lockbook_shared::api::*;
 use lockbook_shared::SharedError;
 use std::fmt::Debug;
@@ -118,6 +121,59 @@ impl From<stripe::WebhookError> for ServerError<StripeWebhookError> {
     }
 }
 
+impl From<reqwest::Error> for AppStoreError {
+    fn from(e: reqwest::Error) -> Self {
+        AppStoreError::Other(format!("{:?}", e))
+    }
+}
+
+impl From<AppStoreError> for ServerError<UpgradeAccountAppStoreError> {
+    fn from(e: AppStoreError) -> Self {
+        match e {
+            AppStoreError::Other(msg) => internal!("{}", msg),
+        }
+    }
+}
+
+impl From<jsonwebtoken::errors::Error> for AppStoreError {
+    fn from(err: jsonwebtoken::errors::Error) -> Self {
+        AppStoreError::Other(format!("JWT error: {:?}", err))
+    }
+}
+
+impl From<base64::DecodeError> for ServerError<AppStoreNotificationError> {
+    fn from(_: DecodeError) -> Self {
+        ClientError(AppStoreNotificationError::InvalidJWS)
+    }
+}
+
+impl From<jsonwebtoken::errors::Error> for ServerError<AppStoreNotificationError> {
+    fn from(err: jsonwebtoken::errors::Error) -> Self {
+        match err.kind() {
+            ErrorKind::InvalidToken
+            | ErrorKind::InvalidSignature
+            | ErrorKind::MissingRequiredClaim(_)
+            | ErrorKind::ExpiredSignature
+            | ErrorKind::InvalidIssuer
+            | ErrorKind::InvalidAudience
+            | ErrorKind::InvalidSubject
+            | ErrorKind::ImmatureSignature
+            | ErrorKind::InvalidAlgorithm
+            | ErrorKind::MissingAlgorithm
+            | ErrorKind::Base64(_)
+            | ErrorKind::Json(_)
+            | ErrorKind::Utf8(_) => ClientError(AppStoreNotificationError::InvalidJWS),
+            ErrorKind::InvalidEcdsaKey
+            | ErrorKind::InvalidRsaKey(_)
+            | ErrorKind::RsaFailedSigning
+            | ErrorKind::InvalidAlgorithmName
+            | ErrorKind::InvalidKeyFormat
+            | ErrorKind::Crypto(_)
+            | &_ => internal!("JWT error: {:?}", err),
+        }
+    }
+}
+
 impl From<ServerError<LockBillingWorkflowError>> for ServerError<UpgradeAccountGooglePlayError> {
     fn from(err: ServerError<LockBillingWorkflowError>) -> Self {
         match err {
@@ -126,6 +182,20 @@ impl From<ServerError<LockBillingWorkflowError>> for ServerError<UpgradeAccountG
             }
             ClientError(LockBillingWorkflowError::UserNotFound) => {
                 ClientError(UpgradeAccountGooglePlayError::UserNotFound)
+            }
+            InternalError(msg) => InternalError(msg),
+        }
+    }
+}
+
+impl From<ServerError<LockBillingWorkflowError>> for ServerError<UpgradeAccountAppStoreError> {
+    fn from(err: ServerError<LockBillingWorkflowError>) -> Self {
+        match err {
+            ClientError(LockBillingWorkflowError::ExistingRequestPending) => {
+                ClientError(UpgradeAccountAppStoreError::ExistingRequestPending)
+            }
+            ClientError(LockBillingWorkflowError::UserNotFound) => {
+                ClientError(UpgradeAccountAppStoreError::UserNotFound)
             }
             InternalError(msg) => InternalError(msg),
         }

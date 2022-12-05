@@ -5,6 +5,9 @@ import SwiftLockbookCore
 struct UsageSettingsView: View {
     
     @EnvironmentObject var settingsState: SettingsService
+    @EnvironmentObject var billing: BillingService
+    
+    @State var cancelSubscriptionConfirmation = false
     
     var body: some View {
         VStack (spacing: 20){
@@ -13,15 +16,7 @@ struct UsageSettingsView: View {
                     .frame(maxWidth: 175, alignment: .trailing)
                 if let usage = settingsState.usages {
                     VStack {
-                        if settingsState.usageProgress < 0.8 {
-                            ProgressView(value: settingsState.usageProgress)
-                        } else if settingsState.usageProgress < 0.9 {
-                            ProgressView(value: settingsState.usageProgress)
-                                .accentColor(Color.orange)
-                        } else {
-                            ProgressView(value: settingsState.usageProgress)
-                                .accentColor(Color.red)
-                        }
+                        ColorProgressBar(value: settingsState.usageProgress)
                         Text("\(usage.serverUsages.serverUsage.readable) / \(usage.serverUsages.dataCap.readable)")
                     }
                 } else {
@@ -46,10 +41,47 @@ struct UsageSettingsView: View {
                 }
                 
             }
+            
+            HStack (alignment: .top) {
+                Text("Current tier")
+                    .frame(maxWidth: 175, alignment: .trailing)
+
+                switch settingsState.tier {
+                case .Premium: Text("Premium")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                case .Trial: Text("Trial")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                case .Unknown: Text("Unknown")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            
+            if settingsState.tier == .Trial {
+                NavigationLink(destination: ManageSubscription()) {
+                    switch settingsState.tier {
+                    case .Premium: Text("Manage Subscription")
+                    default: Text("Upgrade to premium")
+                    }
+                }
+            }
+            
+            if settingsState.tier == .Premium {
+                if billing.cancelSubscriptionResult != .appstoreActionRequired {
+                    Button("Cancel", role: .destructive) {
+                        cancelSubscriptionConfirmation = true
+                    }
+                    .confirmationDialog("Are you sure you want to cancel your subscription", isPresented: $cancelSubscriptionConfirmation) {
+                        Button("Cancel subscription", role: .destructive) {
+                            billing.cancelSubscription()
+                        }
+                    }
+                } else {
+                    Text("Please cancel your subscription via the App Store.")
+                }
+            }
         }
         .padding(20)
         .onAppear(perform: settingsState.calculateUsage)
     }
-    
     
 }

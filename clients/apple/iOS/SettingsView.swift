@@ -3,8 +3,11 @@ import SwiftLockbookCore
 
 struct SettingsView: View, Equatable {
     
+    @EnvironmentObject var billing: BillingService
     @EnvironmentObject var settingsState: SettingsService
     @EnvironmentObject var accounts: AccountService
+    
+    @State var cancelSubscriptionConfirmation = false
     
     var body: some View {
         switch accounts.account {
@@ -36,10 +39,8 @@ struct SettingsView: View, Equatable {
                             Text(settingsState.copyToClipboardText)
                         }
                     }
-                    HStack {
-                        NavigationLink(destination: settingsState.accountCode()) {
-                            Text("Reveal QR")
-                        }
+                    NavigationLink(destination: settingsState.accountCode()) {
+                        Text("Reveal QR")
                     }
                 }
                 Section(header:  Text("Usage")) {
@@ -50,16 +51,7 @@ struct SettingsView: View, Equatable {
                                 Spacer()
                                 Text("\(usage.serverUsages.serverUsage.readable) / \(usage.serverUsages.dataCap.readable)")
                             }
-                            if settingsState.usageProgress < 0.8 {
-                                ProgressView(value: settingsState.usageProgress)
-                            } else if settingsState.usageProgress < 0.9 {
-                                ProgressView(value: settingsState.usageProgress)
-                                    .accentColor(Color.orange)
-                            } else {
-                                ProgressView(value: settingsState.usageProgress)
-                                    .accentColor(Color.red)
-                            }
-                            
+                            ColorProgressBar(value: settingsState.usageProgress)
                         }
                         HStack {
                             Text("Uncompressed usage:")
@@ -70,8 +62,39 @@ struct SettingsView: View, Equatable {
                             Text("Compression ratio:")
                             Spacer()
                             Text(usage.compressionRatio)
-                                .frame(maxWidth: .infinity, alignment: .leading)
                             
+                        }
+                        HStack {
+                            Text("Current tier")
+                            Spacer()
+                            switch settingsState.tier {
+                            case .Premium: Text("Premium")
+                            case .Trial: Text("Trial")
+                            case .Unknown: Text("Unknown")
+                            }
+                        }
+                        if settingsState.tier == .Trial {
+                            NavigationLink(destination: ManageSubscription()) {
+                                switch settingsState.tier {
+                                case .Premium: Text("Manage Subscription")
+                                default: Text("Upgrade to premium")
+                                }
+                            }
+                        }
+                        
+                        if settingsState.tier == .Premium {
+                            if billing.cancelSubscriptionResult != .appstoreActionRequired {
+                                Button("Cancel", role: .destructive) {
+                                    cancelSubscriptionConfirmation = true
+                                }
+                                .confirmationDialog("Are you sure you want to cancel your subscription", isPresented: $cancelSubscriptionConfirmation) {
+                                    Button("Cancel subscription", role: .destructive) {
+                                        billing.cancelSubscription()
+                                    }
+                                }
+                            } else {
+                                Text("Please cancel your subscription via the App Store.")
+                            }
                         }
                     } else {
                         Text("Calculating...")
@@ -87,12 +110,106 @@ struct SettingsView: View, Equatable {
     
 }
 
-struct SettingsViewPreview: PreviewProvider {
+struct Loading: PreviewProvider {
     
     static var previews: some View {
         NavigationView {
             SettingsView()
                 .mockDI()
+        }
+    }
+}
+
+
+struct FreeUser: PreviewProvider {
+    
+    static var previews: some View {
+        NavigationView {
+            SettingsView()
+                .mockDI()
+                .onAppear {
+                    let info = PrerequisiteInformation(
+                        serverUsages: UsageMetrics(
+                            usages: [],
+                            serverUsage: UsageItemMetric(
+                                exact: 3,
+                                readable: "3 bytes"
+                            ),
+                            dataCap: UsageItemMetric(
+                                exact: 1000000,
+                                readable: "10 Mb"
+                            )
+                        ),
+                        uncompressedUsage: UsageItemMetric(
+                            exact: 60,
+                            readable: "60 bytes"
+                        )
+                    )
+                    
+                    Mock.settings.usages = info
+                }
+        }
+    }
+}
+
+struct FreeUserRunningOutOfSpace: PreviewProvider {
+    
+    static var previews: some View {
+        NavigationView {
+            SettingsView()
+                .mockDI()
+                .onAppear {
+                    let info = PrerequisiteInformation(
+                        serverUsages: UsageMetrics(
+                            usages: [],
+                            serverUsage: UsageItemMetric(
+                                exact: 850000,
+                                readable: "8.5 Mb"
+                            ),
+                            dataCap: UsageItemMetric(
+                                exact: 1000000,
+                                readable: "10 Mb"
+                            )
+                        ),
+                        uncompressedUsage: UsageItemMetric(
+                            exact: 60,
+                            readable: "60 bytes"
+                        )
+                    )
+                    
+                    Mock.settings.usages = info
+                }
+        }
+    }
+}
+
+struct PremiumUser: PreviewProvider {
+    
+    static var previews: some View {
+        NavigationView {
+            SettingsView()
+                .mockDI()
+                .onAppear {
+                    let info = PrerequisiteInformation(
+                        serverUsages: UsageMetrics(
+                            usages: [],
+                            serverUsage: UsageItemMetric(
+                                exact: 17,
+                                readable: "17 bytes"
+                            ),
+                            dataCap: UsageItemMetric(
+                                exact: 3000000000,
+                                readable: "30 Gb"
+                            )
+                        ),
+                        uncompressedUsage: UsageItemMetric(
+                            exact: 60,
+                            readable: "60 bytes"
+                        )
+                    )
+                    
+                    Mock.settings.usages = info
+                }
         }
     }
 }

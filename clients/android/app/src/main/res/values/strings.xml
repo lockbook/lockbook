@@ -183,6 +183,7 @@
     <string name="link_target_nonexistent">You cannot link to a file that does not exist.</string>
     <string name="multiple_links_to_same_file">You cannot link to a file that is already linked to.</string>
     <string name="insufficient_permissions">Error, you have insufficient permissions.</string>
+    <string name="cannot_cancel_for_app_store">Cannot cancel App Store subscription from Android. Please manage your subscription on the App Store.</string>
 
     <string name="unexpected_error">An unexpected error has occurred!</string>
     <string name="basic_error">An error has occurred.</string>

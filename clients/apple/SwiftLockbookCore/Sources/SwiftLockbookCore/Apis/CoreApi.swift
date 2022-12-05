@@ -20,7 +20,7 @@ public struct CoreApi: LockbookApi {
     }
     
     public func createAccount(username: String, apiLocation: String) -> FfiResult<Empty, CreateAccountError> {
-        fromPrimitiveResult(result: create_account(username, apiLocation))
+        return fromPrimitiveResult(result: create_account(username, apiLocation))
     }
     
     public func importAccount(accountString: String) -> FfiResult<Empty, ImportError> {
@@ -106,5 +106,13 @@ public struct CoreApi: LockbookApi {
     
     public func getLastSyncedHumanString() -> FfiResult<String, GetLastSyncedError> {
         fromPrimitiveResult(result: get_last_synced_human_string())
+    }
+    
+    public func upgradeAccountAppStore(originalTransactionId: String, appAccountToken: String, encodedReceipt: String) -> FfiResult<Empty, UpgradeAccountAppStoreError> {
+        fromPrimitiveResult(result: upgrade_account_app_store(originalTransactionId, appAccountToken, encodedReceipt))
+    }
+
+    public func cancelSubscription() -> FfiResult<Empty, CancelSubscriptionError> {
+        fromPrimitiveResult(result: cancel_subscription())
     }
 }
