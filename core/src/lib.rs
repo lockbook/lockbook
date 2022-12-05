@@ -346,7 +346,9 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>> {
+    pub fn sync(
+        &self, f: Option<Box<dyn Fn(SyncProgress)>>,
+    ) -> Result<WorkCalculated, Error<SyncAllError>> {
         let val = self.db.transaction(|tx| self.context(tx)?.sync(f))?;
         self.db.transaction(|tx| self.context(tx)?.cleanup())??;
         Ok(val?)
