@@ -25,6 +25,7 @@ class DrawingViewModel(
     val persistentDrawingInfo: PersistentDrawingInfo
 ) : AndroidViewModel(application) {
     var selectedTool: Tool = Tool.Pen(ColorAlias.Black)
+    var isFingerDrawing = false
 
     private val handler = Handler(Looper.myLooper()!!)
     var lastEdit = 0L

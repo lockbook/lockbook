@@ -65,18 +65,30 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
         GestureDetectorCompat(
             context,
             object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: MotionEvent?): Boolean {
+                    if (drawing.model.isFingerDrawing && e != null) {
+                        handleStylusEvent(e)
+                    }
+
+                    return super.onDown(e)
+                }
+
                 override fun onScroll(
                     e1: MotionEvent,
                     e2: MotionEvent,
                     distanceX: Float,
                     distanceY: Float
                 ): Boolean {
-                    drawing.translationX -= distanceX / drawing.scale
-                    drawing.translationY -= distanceY / drawing.scale
+                    if (drawing.model.isFingerDrawing) {
+                        handleStylusEvent(e2)
+                    } else {
+                        drawing.translationX -= distanceX / drawing.scale
+                        drawing.translationY -= distanceY / drawing.scale
 
-                    alignViewPortWithBitmap()
+                        alignViewPortWithBitmap()
 
-                    drawing.justEdited()
+                        drawing.justEdited()
+                    }
 
                     return true
                 }
@@ -398,7 +410,9 @@ class DrawingView(context: Context, attributeSet: AttributeSet?) :
 
     private fun handleFingerEvent(event: MotionEvent) {
         gestureDetector.onTouchEvent(event)
-        scaleGestureDetector.onTouchEvent(event)
+        if (!drawing.model.isFingerDrawing) {
+            scaleGestureDetector.onTouchEvent(event)
+        }
     }
 
     private fun handleStylusEvent(event: MotionEvent) {
