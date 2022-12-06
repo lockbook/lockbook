@@ -35,6 +35,7 @@ class DrawingFragment : Fragment() {
     private val redButton get() = binding.drawingToolbar.drawingColorRed
 
     private val eraser get() = binding.drawingToolbar.drawingErase
+    private val fingerDrawing get() = binding.drawingToolbar.fingerDrawing
     private val penSizeChooser get() = binding.drawingToolbar.drawingPenSize
 
     private val toolbar get() = binding.drawingToolbar.drawingToolsMenu
@@ -149,6 +150,14 @@ class DrawingFragment : Fragment() {
         model.selectedTool = newTool
     }
 
+    private fun updateFingerDrawingButton() {
+        if (model.isFingerDrawing) {
+            fingerDrawing.setImageResource(R.drawable.ic_baseline_touch_app_24)
+        } else {
+            fingerDrawing.setImageResource(R.drawable.ic_outline_touch_app_24)
+        }
+    }
+
     private fun setUpToolbarDefaults() {
         val colorButtons = listOf(
             whiteButton,
@@ -165,6 +174,7 @@ class DrawingFragment : Fragment() {
         }
 
         selectNewTool(model.selectedTool)
+        updateFingerDrawingButton()
     }
 
     private fun changeToolsVisibility(currentVisibility: Int) {
@@ -267,6 +277,11 @@ class DrawingFragment : Fragment() {
 
         eraser.setOnClickListener {
             selectNewTool(DrawingView.Tool.Eraser)
+        }
+
+        fingerDrawing.setOnClickListener {
+            model.isFingerDrawing = !model.isFingerDrawing
+            updateFingerDrawingButton()
         }
 
         penSizeChooser?.addOnChangeListener { _, value, _ ->

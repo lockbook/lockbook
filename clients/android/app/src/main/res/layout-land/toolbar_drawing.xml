@@ -14,6 +14,14 @@
         android:orientation="horizontal">
 
         <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/finger_drawing"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:contentDescription="@string/drawing_finger_description"
+            app:srcCompat="@drawable/ic_outline_touch_app_24" />
+
+        <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/drawing_erase"
             style="@style/Widget.Material3.Button.IconButton"
             android:layout_width="50dp"

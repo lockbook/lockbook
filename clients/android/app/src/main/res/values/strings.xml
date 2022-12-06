@@ -99,6 +99,8 @@
     <string name="drawing_eraser_description">Eraser</string>
     <string name="settings_open_new_document_automatically">Automatically open new files.</string>
 
+    <string name="drawing_finger_description">Finger drawing</string>
+
     <string name="pdf_page_indicator">%1$d / %2$d</string>
     <string name="could_not_load_pdf">This PDF could not be loaded.</string>
 
