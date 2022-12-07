@@ -693,7 +693,7 @@ fn two_cycle_with_deletes_second_device() {
     delete_path(&c2, "/a/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert::all_paths(&c2, &["/", "/b/"]);
+    assert::all_paths(&c2, &["/"]);
     assert::all_document_contents(&c2, &[]);
 }
 
@@ -715,7 +715,7 @@ fn three_cycle_one_move_reverted_with_deletes_second_device() {
     delete_path(&c2, "/b/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert::all_paths(&c2, &["/", "/c/"]);
+    assert::all_paths(&c2, &["/"]);
     assert::all_document_contents(&c2, &[]);
 }
 
@@ -736,7 +736,7 @@ fn three_cycle_two_moves_reverted_with_deletes_second_device() {
     delete_path(&c2, "/a/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert::all_paths(&c2, &["/", "/b/", "/c/"]);
+    assert::all_paths(&c2, &["/"]);
     assert::all_document_contents(&c2, &[]);
 }
 
@@ -762,7 +762,7 @@ fn four_cycle_one_move_reverted_with_deletes_second_device() {
     delete_path(&c2, "/c/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert::all_paths(&c2, &["/", "/d/"]);
+    assert::all_paths(&c2, &["/"]);
     assert::all_document_contents(&c2, &[]);
 }
 
@@ -787,7 +787,7 @@ fn four_cycle_two_moves_reverted_adjacent_with_deletes_second_device() {
     delete_path(&c2, "/b/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert::all_paths(&c2, &["/", "/c/", "/d/"]);
+    assert::all_paths(&c2, &["/"]);
     assert::all_document_contents(&c2, &[]);
 }
 
@@ -812,7 +812,7 @@ fn four_cycle_two_moves_reverted_alternating_with_deletes_second_device() {
     delete_path(&c2, "/c/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert::all_paths(&c2, &["/", "/b/", "/d/"]);
+    assert::all_paths(&c2, &["/"]);
     assert::all_document_contents(&c2, &[]);
 }
 
@@ -835,7 +835,7 @@ fn four_cycle_three_moves_reverted_with_deletes_second_device() {
     delete_path(&c2, "/a/").unwrap();
 
     sync_and_assert_stuff(&c1, &c2);
-    assert::all_paths(&c2, &["/", "/b/", "/c/", "/d/"]);
+    assert::all_paths(&c2, &["/"]);
     assert::all_document_contents(&c2, &[]);
 }
 
@@ -855,6 +855,25 @@ fn move_two_cycle_with_children() {
     sync_and_assert_stuff(&c1, &c2);
     assert::all_paths(&c2, &["/", "/b/", "/b/a/", "/b/child/", "/b/a/child/"]);
     assert::all_document_contents(&c2, &[]);
+}
+
+#[test]
+fn move_two_cycle_with_modified_document_children() {
+    let c1 = test_core_with_account();
+    c1.create_at_path("/a/child").unwrap();
+    c1.create_at_path("/b/").unwrap();
+    c1.sync(None).unwrap();
+
+    let c2 = another_client(&c1);
+    c2.sync(None).unwrap();
+
+    write_path(&c1, "/a/child", b"document content").unwrap();
+    move_by_path(&c1, "/a/", "/b/").unwrap();
+    move_by_path(&c2, "/b/", "/a/").unwrap();
+
+    sync_and_assert_stuff(&c1, &c2);
+    assert::all_paths(&c2, &["/", "/b/", "/b/a/", "/b/a/child"]);
+    assert::all_document_contents(&c2, &[("/b/a/child", b"document content")]);
 }
 
 #[test]

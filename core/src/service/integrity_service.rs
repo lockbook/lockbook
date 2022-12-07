@@ -28,7 +28,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             return Err(TestRepoError::NoRootFolder);
         }
 
-        tree = tree.validate(Owner(account.public_key()))?;
+        tree.validate(Owner(account.public_key()))?;
 
         for id in tree.owned_ids() {
             let name = tree.name(&id, account)?;
