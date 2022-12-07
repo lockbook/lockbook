@@ -217,7 +217,7 @@ impl From<SharedError> for ServerError<UpsertError> {
             SharedError::NotPermissioned => ClientError(NotPermissioned),
             SharedError::DiffMalformed => ClientError(DiffMalformed),
             SharedError::HmacModificationInvalid => ClientError(HmacModificationInvalid),
-            SharedError::DeletedFileUpdated => ClientError(DeletedFileUpdated),
+            SharedError::DeletedFileUpdated(_) => ClientError(DeletedFileUpdated),
             SharedError::RootModificationInvalid => ClientError(RootModificationInvalid),
             SharedError::ValidationFailure(fail) => ClientError(Validation(fail)),
             SharedError::Unexpected(msg) => InternalError(String::from(msg)),

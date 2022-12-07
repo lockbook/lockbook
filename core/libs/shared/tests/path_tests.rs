@@ -67,13 +67,13 @@ fn test_path_to_id() {
     assert_eq!(tree.path_to_id("/", root.id(), account), Ok(*root.id()));
 
     let test1_id = tree.path_to_id("/test1", root.id(), account).unwrap();
-    assert_eq!(tree.name(&test1_id, account).unwrap(), "test1");
+    assert_eq!(tree.name_using_links(&test1_id, account).unwrap(), "test1");
 
     let two_id = tree.path_to_id("/test1/2", root.id(), account).unwrap();
-    assert_eq!(tree.name(&two_id, account).unwrap(), "2");
+    assert_eq!(tree.name_using_links(&two_id, account).unwrap(), "2");
 
     let three_id = tree.path_to_id("/test1/2/3", root.id(), account).unwrap();
-    assert_eq!(tree.name(&three_id, account).unwrap(), "3");
+    assert_eq!(tree.name_using_links(&three_id, account).unwrap(), "3");
 }
 
 #[test]

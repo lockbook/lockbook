@@ -2,6 +2,7 @@ use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
 use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileType, Owner};
+use lockbook_shared::symkey;
 use lockbook_shared::tree_like::TreeLike;
 use std::iter;
 use uuid::Uuid;
@@ -19,7 +20,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
 
-        let id = tree.create(parent, name, file_type, account)?;
+        let id =
+            tree.create(Uuid::new_v4(), symkey::generate_key(), parent, name, file_type, account)?;
 
         let ui_file = tree.finalize(&id, account, &mut self.tx.username_by_public_key)?;
 
