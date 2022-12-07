@@ -56,11 +56,9 @@ impl FileMetadata {
     }
 
     pub fn create(
-        owner: &PublicKey, parent: Uuid, parent_key: &AESKey, name: &str, file_type: FileType,
+        id: Uuid, key: AESKey, owner: &PublicKey, parent: Uuid, parent_key: &AESKey, name: &str,
+        file_type: FileType,
     ) -> SharedResult<Self> {
-        let id = Uuid::new_v4();
-        let key = symkey::generate_key();
-
         Ok(FileMetadata {
             id,
             file_type,
@@ -151,7 +149,6 @@ impl<F: FileLike> fmt::Debug for FileDiff<F> {
         for diff in self.diff() {
             result = match diff {
                 Diff::New => result.field("is_new", &true),
-                Diff::Id => result.field("new_id", &self.new.id()),
                 Diff::Parent => result.field("new_parent", &self.new.parent()),
                 Diff::Name => result.field("new_name", &self.new.secret_name()),
                 Diff::Owner => result.field("new_owner", &self.new.owner()),
@@ -167,7 +164,6 @@ impl<F: FileLike> fmt::Debug for FileDiff<F> {
 #[derive(PartialEq, Eq, Debug)]
 pub enum Diff {
     New,
-    Id,
     Parent,
     Name,
     Owner,
@@ -178,10 +174,7 @@ pub enum Diff {
 
 impl<F: FileLike> FileDiff<F> {
     pub fn id(&self) -> &Uuid {
-        match &self.old {
-            Some(old) => old.id(),
-            None => self.new.id(),
-        }
+        self.new.id()
     }
 
     pub fn diff(&self) -> Vec<Diff> {
@@ -191,9 +184,6 @@ impl<F: FileLike> FileDiff<F> {
             None => vec![New],
             Some(old) => {
                 let mut changes = vec![];
-                if old.id() != new.id() {
-                    changes.push(Id)
-                }
 
                 if old.parent() != new.parent() {
                     changes.push(Parent)

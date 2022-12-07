@@ -98,7 +98,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
                 if file.is_document() {
                     let content = match DocumentType::from_file_name_using_extension(
-                        &tree.name(&id, account)?,
+                        &tree.name_using_links(&id, account)?,
                     ) {
                         DocumentType::Text => {
                             let doc = tree.read_document(self.config, &id, account)?;

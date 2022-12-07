@@ -10,7 +10,7 @@ use crate::file_metadata::{FileType, Owner};
 use crate::lazy::LazyStaged1;
 use crate::signed_file::SignedFile;
 use crate::tree_like::{TreeLike, TreeLikeMut};
-use crate::{validate, SharedError, SharedResult};
+use crate::{symkey, validate, SharedError, SharedResult};
 
 impl<Base, Local> LazyStaged1<Base, Local>
 where
@@ -31,7 +31,7 @@ where
                     continue 'child;
                 }
 
-                if self.name(&child, account)? == name {
+                if self.name_using_links(&child, account)? == name {
                     current = child;
                     continue 'path;
                 }
@@ -74,7 +74,7 @@ where
                 return Ok(path);
             }
             let next = *current_meta.parent();
-            let current_name = self.name(&current, account)?;
+            let current_name = self.name_using_links(&current, account)?;
             path = format!("/{}{}", current_name, path);
             current = next;
         }
@@ -169,7 +169,7 @@ where
                     continue 'child;
                 }
 
-                if self.name(&child, account)? == path_components[index] {
+                if self.name_using_links(&child, account)? == path_components[index] {
                     if index == path_components.len() - 1 {
                         return Err(SharedError::PathTaken);
                     }
@@ -195,7 +195,14 @@ where
             let this_file_type =
                 if index != path_components.len() - 1 { FileType::Folder } else { file_type };
 
-            current = self.create(&current, path_components[index], this_file_type, account)?;
+            current = self.create(
+                Uuid::new_v4(),
+                symkey::generate_key(),
+                &current,
+                path_components[index],
+                this_file_type,
+                account,
+            )?;
         }
 
         Ok(current)

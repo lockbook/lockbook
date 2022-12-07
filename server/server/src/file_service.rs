@@ -43,10 +43,9 @@ pub async fn upsert_file_metadata(
                 }
             }
 
-            let mut tree = tree
-                .stage_diff(request.updates.clone())?
-                .validate(req_owner)?
-                .promote();
+            let mut tree = tree.stage_diff(request.updates.clone())?;
+            tree.validate(req_owner)?;
+            let mut tree = tree.promote();
 
             for id in tree.owned_ids() {
                 if tree.find(&id)?.is_document()

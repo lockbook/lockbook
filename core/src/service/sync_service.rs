@@ -1,19 +1,22 @@
-use crate::OneKey;
-use crate::{CoreError, RequestContext};
-use crate::{CoreResult, Requester};
+use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
+use itertools::Itertools;
+use lockbook_shared::access_info::UserAccessMode;
 use lockbook_shared::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
     GetUsernameRequest, UpsertRequest,
 };
-use lockbook_shared::document_repo;
+use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::{DocumentHmac, FileDiff, Owner};
+use lockbook_shared::file_metadata::{DocumentHmac, FileDiff, FileType, Owner};
+use lockbook_shared::filename::{DocumentType, NameComponents};
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::staged::StagedTreeLikeMut;
 use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
+use lockbook_shared::{document_repo, symkey, SharedError, ValidationFailure};
 use serde::Serialize;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use uuid::Uuid;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct WorkCalculated {
@@ -75,6 +78,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             }
         };
 
+        self.prune()?;
         self.pull(&mut update_sync_progress)?;
         self.push_metadata(&mut update_sync_progress)?;
         self.prune()?;
@@ -127,13 +131,13 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         // pre-process changes
         remote_changes = self.prune_remote_orphans(remote_changes)?;
 
-        // fetch document updates and local documents for merge (todo: don't hold these all in memory at the same time)
+        // fetch document updates and local documents for merge
         let account = self
             .tx
             .account
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
-        let mut remote_document_changes = HashSet::new();
+        let owner = Owner(account.public_key());
         remote_changes = {
             let mut remote = (&self.tx.base_metadata).stage(remote_changes).to_lazy();
             for id in remote.tree.staged.owned_ids() {
@@ -153,40 +157,536 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
                 if let Some(remote_hmac) = remote_hmac {
                     update_sync_progress(SyncProgressOperation::StartWorkUnit(
-                        ClientWorkUnit::PullDocument(remote.name(&id, account)?),
+                        ClientWorkUnit::PullDocument(remote.name_using_links(&id, account)?),
                     ));
                     let remote_document = self
                         .client
                         .request(account, GetDocRequest { id, hmac: remote_hmac })?
                         .content;
                     document_repo::insert(self.config, &id, Some(&remote_hmac), &remote_document)?;
-                    remote_document_changes.insert(id);
                 }
             }
             let (_, remote_changes) = remote.unstage();
             remote_changes
         };
 
-        // base = remote; local = merge
-        let remote_changes = {
-            let local = (&mut self.tx.base_metadata)
-                .to_staged(remote_changes)
-                .to_staged(&mut self.tx.local_metadata)
+        // compute merge changes
+        let merge_changes = {
+            // assemble trees
+            let mut base = (&self.tx.base_metadata).to_lazy();
+            let remote_unlazy = (&self.tx.base_metadata).to_staged(&remote_changes);
+            let mut remote = remote_unlazy.as_lazy();
+            let mut local = (&self.tx.base_metadata)
+                .to_staged(&self.tx.local_metadata)
                 .to_lazy();
 
-            let local = local.merge(self.config, account, &remote_document_changes)?;
-            let (remote, _) = local.unstage();
-            let (_, remote_changes) = remote.unstage();
-            remote_changes
+            // changeset constraints - these evolve as we try to assemble changes and encounter validation failures
+            let mut files_to_unmove: HashSet<Uuid> = HashSet::new();
+            let mut files_to_unshare: HashSet<Uuid> = HashSet::new();
+            let mut links_to_delete: HashSet<Uuid> = HashSet::new();
+            let mut rename_increments: HashMap<Uuid, usize> = HashMap::new();
+            let mut duplicate_file_ids: HashMap<Uuid, Uuid> = HashMap::new();
+
+            'merge_construction: loop {
+                // process just the edits which allow us to check deletions in the result
+                let mut deletions = {
+                    let mut deletions = remote_unlazy.stage(Vec::new()).to_lazy();
+
+                    // creations
+                    let mut deletion_creations = HashSet::new();
+                    for id in self.tx.local_metadata.owned_ids() {
+                        if remote.maybe_find(&id).is_none() && !links_to_delete.contains(&id) {
+                            deletion_creations.insert(id);
+                        }
+                    }
+                    'drain_creations: while !deletion_creations.is_empty() {
+                        'choose_a_creation: for id in &deletion_creations {
+                            // create
+                            let id = *id;
+                            let local_file = local.find(&id)?.clone();
+                            let result = deletions.create_unvalidated(
+                                id,
+                                symkey::generate_key(),
+                                local_file.parent(),
+                                &local.name(&id, account)?,
+                                local_file.file_type(),
+                                account,
+                            );
+                            match result {
+                                Ok(_) => {
+                                    deletion_creations.remove(&id);
+                                    continue 'drain_creations;
+                                }
+                                Err(SharedError::FileParentNonexistent) => {
+                                    continue 'choose_a_creation;
+                                }
+                                Err(_) => {
+                                    result?;
+                                }
+                            }
+                        }
+                        return Err(CoreError::Unexpected(format!(
+                            "sync failed to find a topological order for file creations: {:?}",
+                            deletion_creations
+                        )));
+                    }
+
+                    // moves (creations happen first in case a file is moved into a new folder)
+                    for id in self.tx.local_metadata.owned_ids() {
+                        let local_file = local.find(&id)?.clone();
+                        if let Some(base_file) = self.tx.base_metadata.maybe_find(&id).cloned() {
+                            if !local_file.explicitly_deleted()
+                                && local_file.parent() != base_file.parent()
+                                && !files_to_unmove.contains(&id)
+                            {
+                                // move
+                                deletions.move_unvalidated(&id, local_file.parent(), account)?;
+                            }
+                        }
+                    }
+
+                    // deletions (moves happen first in case a file is moved into a deleted folder)
+                    for id in self.tx.local_metadata.owned_ids() {
+                        let local_file = local.find(&id)?.clone();
+                        if local_file.explicitly_deleted() {
+                            // delete
+                            deletions.delete_unvalidated(&id, account)?;
+                        }
+                    }
+                    deletions
+                };
+
+                // process all edits, dropping non-deletion edits for files that will be implicitly deleted
+                let mut merge = {
+                    let mut merge = remote_unlazy.stage(Vec::new()).to_lazy();
+
+                    // creations and edits of created documents
+                    let mut creations = HashSet::new();
+                    for id in self.tx.local_metadata.owned_ids() {
+                        if deletions.maybe_find(&id).is_some()
+                            && !deletions.calculate_deleted(&id)?
+                            && remote.maybe_find(&id).is_none()
+                            && !links_to_delete.contains(&id)
+                        {
+                            creations.insert(id);
+                        }
+                    }
+                    'drain_creations: while !creations.is_empty() {
+                        'choose_a_creation: for id in &creations {
+                            // create
+                            let id = *id;
+                            let local_file = local.find(&id)?.clone();
+                            let result = merge.create_unvalidated(
+                                id,
+                                local.decrypt_key(&id, account)?,
+                                local_file.parent(),
+                                &local.name(&id, account)?,
+                                local_file.file_type(),
+                                account,
+                            );
+                            match result {
+                                Ok(_) => {
+                                    creations.remove(&id);
+                                    continue 'drain_creations;
+                                }
+                                Err(SharedError::FileParentNonexistent) => {
+                                    continue 'choose_a_creation;
+                                }
+                                Err(_) => {
+                                    result?;
+                                }
+                            }
+                        }
+                        return Err(CoreError::Unexpected(format!(
+                            "sync failed to find a topological order for file creations: {:?}",
+                            creations
+                        )));
+                    }
+
+                    // moves, renames, edits, and shares
+                    // creations happen first in case a file is moved into a new folder
+                    for id in self.tx.local_metadata.owned_ids() {
+                        // skip files that are already deleted or will be deleted
+                        if deletions.maybe_find(&id).is_none()
+                            || deletions.calculate_deleted(&id)?
+                            || (remote.maybe_find(&id).is_some()
+                                && remote.calculate_deleted(&id)?)
+                        {
+                            continue;
+                        }
+
+                        let local_file = local.find(&id)?.clone();
+                        let local_name = local.name(&id, account)?;
+                        let maybe_base_file = base.maybe_find(&id).cloned();
+                        let maybe_remote_file = remote.maybe_find(&id).cloned();
+                        if let Some(ref base_file) = maybe_base_file {
+                            let base_name = base.name(&id, account)?;
+                            let remote_file = remote.find(&id)?.clone();
+                            let remote_name = remote.name(&id, account)?;
+
+                            // move
+                            if local_file.parent() != base_file.parent()
+                                && remote_file.parent() == base_file.parent()
+                                && !files_to_unmove.contains(&id)
+                            {
+                                merge.move_unvalidated(&id, local_file.parent(), account)?;
+                            }
+
+                            // rename
+                            if local_name != base_name && remote_name == base_name {
+                                merge.rename_unvalidated(&id, &local_name, account)?;
+                            }
+                        }
+
+                        // share
+                        let mut remote_keys = HashMap::new();
+                        if let Some(ref remote_file) = maybe_remote_file {
+                            for key in remote_file.user_access_keys() {
+                                remote_keys.insert(
+                                    (Owner(key.encrypted_by), Owner(key.encrypted_for)),
+                                    (key.mode, key.deleted),
+                                );
+                            }
+                        }
+                        for key in local_file.user_access_keys() {
+                            let (by, for_) = (Owner(key.encrypted_by), Owner(key.encrypted_for));
+                            if let Some(&(remote_mode, remote_deleted)) =
+                                remote_keys.get(&(by, for_))
+                            {
+                                // upgrade share
+                                if key.mode > remote_mode || !key.deleted && remote_deleted {
+                                    let mode = match key.mode {
+                                        UserAccessMode::Read => ShareMode::Read,
+                                        UserAccessMode::Write => ShareMode::Write,
+                                        UserAccessMode::Owner => continue,
+                                    };
+                                    merge.add_share_unvalidated(id, for_, mode, account)?;
+                                }
+                                // delete share
+                                if key.deleted && !remote_deleted {
+                                    merge.delete_share_unvalidated(&id, Some(for_.0), account)?;
+                                }
+                            } else {
+                                // add share
+                                let mode = match key.mode {
+                                    UserAccessMode::Read => ShareMode::Read,
+                                    UserAccessMode::Write => ShareMode::Write,
+                                    UserAccessMode::Owner => continue,
+                                };
+                                merge.add_share_unvalidated(id, for_, mode, account)?;
+                            }
+                        }
+
+                        // share deletion due to conflicts
+                        if files_to_unshare.contains(&id) {
+                            merge.delete_share_unvalidated(&id, None, account)?;
+                        }
+
+                        // rename due to path conflict
+                        if let Some(&rename_increment) = rename_increments.get(&id) {
+                            let name = NameComponents::from(&local_name)
+                                .generate_incremented(rename_increment)
+                                .to_name();
+                            merge.rename_unvalidated(&id, &name, account)?;
+                        }
+
+                        // edit
+                        let base_hmac = maybe_base_file.and_then(|f| f.document_hmac().cloned());
+                        let remote_hmac =
+                            maybe_remote_file.and_then(|f| f.document_hmac().cloned());
+                        let local_hmac = local_file.document_hmac().cloned();
+                        if merge.access_mode(owner, &id)? >= Some(UserAccessMode::Write)
+                            && local_hmac != base_hmac
+                        {
+                            if remote_hmac != base_hmac && remote_hmac != local_hmac {
+                                // merge
+                                let merge_name = merge.name(&id, account)?;
+                                let document_type =
+                                    DocumentType::from_file_name_using_extension(&merge_name);
+                                let base_document = if base_hmac.is_some() {
+                                    base.read_document(self.config, &id, account)?
+                                } else {
+                                    Vec::new()
+                                };
+                                let remote_document = if remote_hmac.is_some() {
+                                    remote.read_document(self.config, &id, account)?
+                                } else {
+                                    Vec::new()
+                                };
+                                let local_document = if local_hmac.is_some() {
+                                    local.read_document(self.config, &id, account)?
+                                } else {
+                                    Vec::new()
+                                };
+                                match document_type {
+                                    DocumentType::Text => {
+                                        // 3-way merge
+                                        let merged_document = match diffy::merge_bytes(
+                                            &base_document,
+                                            &remote_document,
+                                            &local_document,
+                                        ) {
+                                            Ok(without_conflicts) => without_conflicts,
+                                            Err(with_conflicts) => with_conflicts,
+                                        };
+                                        let encrypted_document = merge
+                                            .update_document_unvalidated(
+                                                &id,
+                                                &merged_document,
+                                                account,
+                                            )?;
+                                        let hmac = merge.find(&id)?.document_hmac();
+                                        document_repo::insert(
+                                            self.config,
+                                            &id,
+                                            hmac,
+                                            &encrypted_document,
+                                        )?;
+                                    }
+                                    DocumentType::Drawing | DocumentType::Other => {
+                                        // duplicate file
+                                        let merge_parent = *merge.find(&id)?.parent();
+                                        let duplicate_id = if let Some(&duplicate_id) =
+                                            duplicate_file_ids.get(&id)
+                                        {
+                                            duplicate_id
+                                        } else {
+                                            let duplicate_id = Uuid::new_v4();
+                                            duplicate_file_ids.insert(id, duplicate_id);
+                                            rename_increments.insert(duplicate_id, 1);
+                                            duplicate_id
+                                        };
+
+                                        let mut merge_name = merge_name;
+                                        merge_name = NameComponents::from(&merge_name)
+                                            .generate_incremented(
+                                                rename_increments
+                                                    .get(&duplicate_id)
+                                                    .copied()
+                                                    .unwrap_or_default(),
+                                            )
+                                            .to_name();
+
+                                        merge.create_unvalidated(
+                                            duplicate_id,
+                                            symkey::generate_key(),
+                                            &merge_parent,
+                                            &merge_name,
+                                            FileType::Document,
+                                            account,
+                                        )?;
+                                        let encrypted_document = merge
+                                            .update_document_unvalidated(
+                                                &duplicate_id,
+                                                &local_document,
+                                                account,
+                                            )?;
+                                        let duplicate_hmac =
+                                            merge.find(&duplicate_id)?.document_hmac();
+                                        document_repo::insert(
+                                            self.config,
+                                            &duplicate_id,
+                                            duplicate_hmac,
+                                            &encrypted_document,
+                                        )?;
+                                    }
+                                }
+                            } else {
+                                // overwrite (todo: avoid reading/decrypting/encrypting document)
+                                let document = local.read_document(self.config, &id, account)?;
+                                merge.update_document_unvalidated(&id, &document, account)?;
+                            }
+                        }
+                    }
+
+                    // deletes
+                    // moves happen first in case a file is moved into a deleted folder
+                    for id in self.tx.local_metadata.owned_ids() {
+                        if self.tx.base_metadata.maybe_find(&id).is_some()
+                            && deletions.calculate_deleted(&id)?
+                            && !merge.calculate_deleted(&id)?
+                        {
+                            // delete
+                            merge.delete_unvalidated(&id, account)?;
+                        }
+                    }
+                    for &id in &links_to_delete {
+                        // delete
+                        if merge.maybe_find(&id).is_some() && !merge.calculate_deleted(&id)? {
+                            merge.delete_unvalidated(&id, account)?;
+                        }
+                    }
+
+                    merge
+                };
+
+                // validate; handle failures by introducing changeset constraints
+                for link in merge.owned_ids() {
+                    if !merge.calculate_deleted(&link)? {
+                        if let FileType::Link { target } = merge.find(&link)?.file_type() {
+                            if merge.maybe_find(&target).is_some()
+                                && merge.calculate_deleted(&target)?
+                            {
+                                // delete links to deleted files
+                                if links_to_delete.insert(link) {
+                                    continue 'merge_construction;
+                                } else {
+                                    return Err(CoreError::Unexpected(format!(
+                                        "sync failed to resolve broken link (deletion): {:?}",
+                                        link
+                                    )));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let validate_result = merge.validate(owner);
+                match validate_result {
+                    // merge changeset is valid
+                    Ok(_) => {
+                        let (_, merge_changes) = merge.unstage();
+                        break merge_changes;
+                    }
+                    Err(SharedError::ValidationFailure(ref vf)) => match vf {
+                        // merge changeset has resolvable validation errors and needs modification
+                        ValidationFailure::Cycle(ids) => {
+                            // revert all local moves in the cycle
+                            let mut progress = false;
+                            for &id in ids {
+                                if self.tx.local_metadata.maybe_find(&id).is_some()
+                                    && files_to_unmove.insert(id)
+                                {
+                                    progress = true;
+                                }
+                            }
+                            if !progress {
+                                return Err(CoreError::Unexpected(format!(
+                                    "sync failed to resolve cycle: {:?}",
+                                    ids
+                                )));
+                            }
+                        }
+                        ValidationFailure::PathConflict(ids) => {
+                            // pick one local id and generate a non-conflicting filename
+                            let mut progress = false;
+                            for &id in ids {
+                                if duplicate_file_ids.values().contains(&id) {
+                                    *rename_increments.entry(id).or_insert(0) += 1;
+                                    progress = true;
+                                    break;
+                                }
+                            }
+                            if !progress {
+                                for &id in ids {
+                                    if self.tx.local_metadata.maybe_find(&id).is_some() {
+                                        *rename_increments.entry(id).or_insert(0) += 1;
+                                        progress = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if !progress {
+                                return Err(CoreError::Unexpected(format!(
+                                    "sync failed to resolve path conflict: {:?}",
+                                    ids
+                                )));
+                            }
+                        }
+                        ValidationFailure::SharedLink { link, shared_ancestor } => {
+                            // if ancestor is newly shared, delete share, otherwise delete link
+                            let mut progress = false;
+                            if let Some(base_shared_ancestor) = base.maybe_find(shared_ancestor) {
+                                if !base_shared_ancestor.is_shared()
+                                    && files_to_unshare.insert(*shared_ancestor)
+                                {
+                                    progress = true;
+                                }
+                            }
+                            if !progress && links_to_delete.insert(*link) {
+                                progress = true;
+                            }
+                            if !progress {
+                                return Err(CoreError::Unexpected(format!(
+                                    "sync failed to resolve shared link: link: {:?}, shared_ancestor: {:?}",
+                                    link, shared_ancestor
+                                )));
+                            }
+                        }
+                        ValidationFailure::DuplicateLink { target } => {
+                            // delete local link with this target
+                            let mut progress = false;
+                            if let Some(link) = local.link(target)? {
+                                if links_to_delete.insert(link) {
+                                    progress = true;
+                                }
+                            }
+                            if !progress {
+                                return Err(CoreError::Unexpected(format!(
+                                    "sync failed to resolve duplicate link: target: {:?}",
+                                    target
+                                )));
+                            }
+                        }
+                        ValidationFailure::BrokenLink(link) => {
+                            // delete local link with this target
+                            if !links_to_delete.insert(*link) {
+                                return Err(CoreError::Unexpected(format!(
+                                    "sync failed to resolve broken link: {:?}",
+                                    link
+                                )));
+                            }
+                        }
+                        ValidationFailure::OwnedLink(link) => {
+                            // if target is newly owned, unmove target, otherwise delete link
+                            let mut progress = false;
+                            if let Some(remote_link) = remote.maybe_find(link) {
+                                if let FileType::Link { target } = remote_link.file_type() {
+                                    let remote_target = remote.find(&target)?;
+                                    if remote_target.owner() != owner
+                                        && files_to_unmove.insert(target)
+                                    {
+                                        progress = true;
+                                    }
+                                }
+                            }
+                            if !progress && links_to_delete.insert(*link) {
+                                progress = true;
+                            }
+                            if !progress {
+                                return Err(CoreError::Unexpected(format!(
+                                    "sync failed to resolve owned link: {:?}",
+                                    link
+                                )));
+                            }
+                        }
+                        // merge changeset has unexpected validation errors
+                        ValidationFailure::Orphan(_)
+                        | ValidationFailure::NonFolderWithChildren(_)
+                        | ValidationFailure::FileWithDifferentOwnerParent(_)
+                        | ValidationFailure::NonDecryptableFileName(_) => {
+                            validate_result?;
+                        }
+                    },
+                    // merge changeset has unexpected errors
+                    Err(_) => {
+                        validate_result?;
+                    }
+                }
+            }
         };
 
+        // base = remote; local = merge
         (&mut self.tx.base_metadata)
             .to_staged(remote_changes)
             .to_lazy()
             .promote();
+        self.tx.local_metadata.clear();
+        (&mut self.tx.local_metadata)
+            .to_staged(merge_changes)
+            .to_lazy()
+            .promote();
         self.cleanup_local_metadata();
-
-        self.reset_deleted_files()?;
 
         Ok(update_as_of as i64)
     }
@@ -227,52 +727,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             }
         }
         Ok(result)
-    }
-
-    fn reset_deleted_files(&mut self) -> CoreResult<()> {
-        // resets all changes to files that are implicitly deleted, then explicitly deletes them
-        // we don't want to push updates to deleted documents and we might as well not push updates to deleted metadata
-        // we must explicitly delete a file which is moved into a deleted folder because otherwise resetting it makes it no longer deleted
-        let account = self.get_account()?.clone();
-
-        let mut tree = (&self.tx.base_metadata).to_lazy();
-        let mut already_deleted = HashSet::new();
-        for id in tree.owned_ids() {
-            if tree.calculate_deleted(&id)? {
-                already_deleted.insert(id);
-            }
-        }
-
-        let mut tree = (&self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
-            .to_lazy();
-        let mut local_change_removals = HashSet::new();
-        let mut local_change_resets = Vec::new();
-
-        for id in tree.tree.staged.owned_ids() {
-            if let Some(base_file) = tree.tree.base.maybe_find(&id) {
-                let mut base_file = base_file.timestamped_value.value.clone();
-                if already_deleted.contains(&id) {
-                    // reset file
-                    local_change_resets.push(base_file.sign(&account)?);
-                } else if tree.calculate_deleted(&id)? {
-                    // reset everything but set deleted=true
-                    base_file.is_deleted = true;
-                    local_change_resets.push(base_file.sign(&account)?);
-                }
-            } else if tree.calculate_deleted(&id)? {
-                // delete
-                local_change_removals.insert(id);
-            }
-        }
-
-        let mut staged = tree.stage(None);
-        staged.tree.removed = local_change_removals;
-        tree = staged.promote();
-
-        tree.stage(local_change_resets).promote();
-
-        Ok(())
     }
 
     fn prune(&mut self) -> CoreResult<()> {
@@ -389,10 +843,11 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 document_repo::get(self.config, &id, local_change.document_hmac())?;
 
             update_sync_progress(SyncProgressOperation::StartWorkUnit(
-                ClientWorkUnit::PushDocument(local.name(&id, account)?),
+                ClientWorkUnit::PushDocument(local.name_using_links(&id, account)?),
             ));
 
             // base = local (document)
+            // todo: remove?
             document_repo::insert(
                 self.config,
                 &id,

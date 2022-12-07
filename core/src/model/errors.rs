@@ -182,13 +182,14 @@ impl From<SharedError> for CoreError {
             PathTaken => CoreError::PathTaken,
             FileNameContainsSlash => CoreError::FileNameContainsSlash,
             RootModificationInvalid => CoreError::RootModificationInvalid,
-            DeletedFileUpdated => CoreError::FileNonexistent,
+            DeletedFileUpdated(_) => CoreError::FileNonexistent,
             FileNameEmpty => CoreError::FileNameEmpty,
             FileNotFolder => CoreError::FileNotFolder,
             FileNotDocument => CoreError::FileNotDocument,
             InsufficientPermission => CoreError::InsufficientPermission,
             NotPermissioned => CoreError::InsufficientPermission,
             ShareNonexistent => CoreError::ShareNonexistent,
+            DuplicateShare => CoreError::ShareAlreadyExists,
             ValidationFailure(lockbook_shared::ValidationFailure::Cycle(_)) => {
                 CoreError::FolderMovedIntoSelf
             }

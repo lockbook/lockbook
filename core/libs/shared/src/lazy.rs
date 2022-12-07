@@ -35,7 +35,9 @@ impl<T: TreeLike> LazyTree<T> {
     pub fn access_mode(&self, owner: Owner, id: &Uuid) -> SharedResult<Option<UserAccessMode>> {
         let mut file = self.find(id)?;
         let mut max_access_mode = None;
-        loop {
+        let mut visited_ids = vec![];
+        while !visited_ids.contains(file.id()) {
+            visited_ids.push(*file.id());
             let access_mode = file.access_mode(&owner);
             if access_mode > max_access_mode {
                 max_access_mode = access_mode;
@@ -90,7 +92,7 @@ impl<T: TreeLike> LazyTree<T> {
 
             while !file.is_root()
                 && self.maybe_find(file.parent()).is_some()
-                && !visited_ids.contains(file.parent())
+                && !visited_ids.contains(file.id())
             {
                 visited_ids.push(*file.id());
                 if let Some(&implicit) = self.implicit_deleted.get(file.id()) {
@@ -177,11 +179,15 @@ impl<T: TreeLike> LazyTree<T> {
         if let Some(name) = self.name.get(id) {
             return Ok(name.clone());
         }
-        let id = if let Some(link) = self.link(id)? { link } else { *id };
-        let key = self.decrypt_key(&id, account)?;
-        let name = self.find(&id)?.secret_name().to_string(&key)?;
-        self.name.insert(id, name.clone());
+        let key = self.decrypt_key(id, account)?;
+        let name = self.find(id)?.secret_name().to_string(&key)?;
+        self.name.insert(*id, name.clone());
         Ok(name)
+    }
+
+    pub fn name_using_links(&mut self, id: &Uuid, account: &Account) -> SharedResult<String> {
+        let id = if let Some(link) = self.link(id)? { link } else { *id };
+        self.name(&id, account)
     }
 
     pub fn link(&mut self, id: &Uuid) -> SharedResult<Option<Uuid>> {
