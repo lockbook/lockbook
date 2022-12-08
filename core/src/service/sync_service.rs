@@ -1,4 +1,7 @@
+use crate::repo::schema_v2::helper_log::{base_metadata, local_metadata};
 use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
+use hmdb::log::SchemaEvent;
+use hmdb::transaction::TransactionTable;
 use itertools::Itertools;
 use lockbook_shared::access_info::UserAccessMode;
 use lockbook_shared::api::{
@@ -10,7 +13,7 @@ use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileDiff, FileType, Owner};
 use lockbook_shared::filename::{DocumentType, NameComponents};
 use lockbook_shared::signed_file::SignedFile;
-use lockbook_shared::staged::StagedTreeLikeMut;
+use lockbook_shared::staged::{StagedTree, StagedTreeLikeMut};
 use lockbook_shared::tree_like::TreeLike;
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 use lockbook_shared::{document_repo, symkey, SharedError, ValidationFailure};
@@ -65,7 +68,7 @@ fn get_work_units(op: &SyncOperation) -> Vec<WorkUnit> {
     work_units
 }
 
-impl<Client: Requester> RequestContext<'_, '_, Client> {
+impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn calculate_work(&mut self) -> CoreResult<WorkCalculated> {
         let mut work_units: Vec<WorkUnit> = Vec::new();
@@ -121,6 +124,64 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         Ok(WorkCalculated { work_units, most_recent_update_from_server: update_as_of as u64 })
     }
 
+    fn sync_context(
+        &'a mut self, dry_run: bool,
+    ) -> SyncContext<'a, 'b, base_metadata, local_metadata>
+    where
+        Client: Requester,
+    {
+        let staged_root = self.tx.root.get(&OneKey {}).cloned();
+        let staged_last_synced = self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64);
+        let base = (&self.tx.base_metadata).to_staged(Vec::new());
+        let local = (&self.tx.local_metadata).to_staged(Vec::new());
+        SyncContext { dry_run, staged_root, staged_last_synced, base, local }
+    }
+
+    fn commit_sync_context<Base, Local>(&mut self, sync_context: SyncContext<'_, '_, Base, Local>)
+    where
+        Client: Requester,
+        Base: SchemaEvent<Uuid, SignedFile>,
+        Local: SchemaEvent<Uuid, SignedFile>,
+    {
+        if !sync_context.dry_run {
+            if let Some(root) = sync_context.staged_root {
+                self.tx.root.insert(OneKey {}, root);
+            }
+            if let Some(last_synced) = sync_context.staged_last_synced {
+                self.tx.last_synced.insert(OneKey {}, last_synced as i64);
+            }
+            (&mut self.tx.base_metadata)
+                .to_staged(sync_context.base.staged)
+                .to_lazy()
+                .promote();
+            (&mut self.tx.local_metadata)
+                .to_staged(sync_context.local.staged)
+                .to_lazy()
+                .promote();
+        }
+    }
+}
+
+struct SyncContext<'a, 'b, Base, Local>
+where
+    Base: SchemaEvent<Uuid, SignedFile>,
+    Local: SchemaEvent<Uuid, SignedFile>,
+{
+    dry_run: bool,
+    staged_root: Option<Uuid>,
+    staged_last_synced: Option<u64>,
+    base: StagedTree<&'a TransactionTable<'b, Uuid, SignedFile, Base>, Vec<SignedFile>>,
+    local: StagedTree<&'a TransactionTable<'b, Uuid, SignedFile, Local>, Vec<SignedFile>>,
+}
+
+impl<'a, 'b, Base, Local> SyncContext<'a, 'b, Base, Local>
+where
+    Base: SchemaEvent<Uuid, SignedFile>,
+    Local: SchemaEvent<Uuid, SignedFile>,
+{
+}
+
+impl<Client: Requester> RequestContext<'_, '_, Client> {
     fn sync_helper<F>(&mut self, dry_run: bool, report_sync_operation: &mut F) -> CoreResult<i64>
     where
         F: FnMut(SyncOperation),

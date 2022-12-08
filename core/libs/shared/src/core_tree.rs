@@ -33,4 +33,8 @@ where
     fn remove(&mut self, id: Uuid) -> Option<F> {
         self.delete(id)
     }
+
+    fn clear(&mut self) {
+        self.clear()
+    }
 }

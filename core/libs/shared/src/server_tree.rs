@@ -176,4 +176,8 @@ where
         error!("remove metadata called in server!");
         None
     }
+
+    fn clear(&mut self) {
+        error!("clear called in server!");
+    }
 }
