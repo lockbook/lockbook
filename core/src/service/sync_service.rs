@@ -1,20 +1,24 @@
-use crate::repo::schema_v2::helper_log::{base_metadata, local_metadata};
+use crate::repo::schema_v2::helper_log::{
+    base_metadata, local_metadata, public_key_by_username, username_by_public_key,
+};
 use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
 use hmdb::log::SchemaEvent;
 use hmdb::transaction::TransactionTable;
 use itertools::Itertools;
 use lockbook_shared::access_info::UserAccessMode;
+use lockbook_shared::account::Account;
 use lockbook_shared::api::{
     ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
     GetUsernameRequest, UpsertRequest,
 };
+use lockbook_shared::core_config::Config;
 use lockbook_shared::file::{File, ShareMode};
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileDiff, FileType, Owner};
 use lockbook_shared::filename::{DocumentType, NameComponents};
 use lockbook_shared::signed_file::SignedFile;
 use lockbook_shared::staged::{StagedTree, StagedTreeLikeMut};
-use lockbook_shared::tree_like::TreeLike;
+use lockbook_shared::tree_like::{TreeLike, TreeLikeMut};
 use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
 use lockbook_shared::{document_repo, symkey, SharedError, ValidationFailure};
 use serde::Serialize;
@@ -72,8 +76,9 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn calculate_work(&mut self) -> CoreResult<WorkCalculated> {
         let mut work_units: Vec<WorkUnit> = Vec::new();
-        let update_as_of = self
-            .sync_helper(true, &mut |op: SyncOperation| work_units.extend(get_work_units(&op)))?;
+        let mut sync_context = self.sync_context(true)?;
+        let update_as_of =
+            sync_context.sync(&mut |op: SyncOperation| work_units.extend(get_work_units(&op)))?;
 
         Ok(WorkCalculated { work_units, most_recent_update_from_server: update_as_of as u64 })
     }
@@ -89,10 +94,11 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
                 progress: 0,
                 current_work_unit: ClientWorkUnit::PullMetadata,
             };
-            self.sync_helper(true, &mut |op: SyncOperation| {
-                sync_progress.total += get_work_units(&op).len()
-            })?;
-            self.sync_helper(false, &mut |op: SyncOperation| {
+            self.sync_context(true)?
+                .sync(&mut |op: SyncOperation| sync_progress.total += get_work_units(&op).len())?;
+
+            let mut sync_context = self.sync_context(false)?;
+            let update_as_of = sync_context.sync(&mut |op: SyncOperation| {
                 work_units.extend(get_work_units(&op));
                 match op {
                     SyncOperation::PullMetadataStart => {
@@ -115,39 +121,77 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
                     }
                 }
                 update_sync_progress(sync_progress.clone());
-            })?
+            })?;
+            self.commit_sync_context(sync_context);
+            update_as_of
         } else {
-            self.sync_helper(false, &mut |op: SyncOperation| {
-                work_units.extend(get_work_units(&op))
-            })?
+            let mut sync_context = self.sync_context(false)?;
+            let update_as_of = sync_context
+                .sync(&mut |op: SyncOperation| work_units.extend(get_work_units(&op)))?;
+            self.commit_sync_context(sync_context);
+            update_as_of
         };
         Ok(WorkCalculated { work_units, most_recent_update_from_server: update_as_of as u64 })
     }
 
     fn sync_context(
         &'a mut self, dry_run: bool,
-    ) -> SyncContext<'a, 'b, base_metadata, local_metadata>
-    where
-        Client: Requester,
-    {
-        let staged_root = self.tx.root.get(&OneKey {}).cloned();
-        let staged_last_synced = self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64);
+    ) -> CoreResult<
+        SyncContext<
+            'a,
+            'b,
+            base_metadata,
+            local_metadata,
+            username_by_public_key,
+            public_key_by_username,
+            Client,
+        >,
+    > {
+        let account = self.get_account()?.clone();
+        let root = self.tx.root.get(&OneKey {}).cloned();
+        let last_synced = self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64);
         let base = (&self.tx.base_metadata).to_staged(Vec::new());
         let local = (&self.tx.local_metadata).to_staged(Vec::new());
-        SyncContext { dry_run, staged_root, staged_last_synced, base, local }
+        let username_by_public_key = &mut self.tx.username_by_public_key;
+        let public_key_by_username = &mut self.tx.public_key_by_username;
+        let client = self.client;
+        let config = self.config;
+        Ok(SyncContext {
+            dry_run,
+            root,
+            last_synced,
+            base,
+            local,
+            username_by_public_key,
+            public_key_by_username,
+            account,
+            client,
+            config,
+        })
     }
 
-    fn commit_sync_context<Base, Local>(&mut self, sync_context: SyncContext<'_, '_, Base, Local>)
-    where
-        Client: Requester,
+    fn commit_sync_context<Base, Local, UsernameByPublicKey, PublicKeyByUsername>(
+        &mut self,
+        sync_context: SyncContext<
+            '_,
+            '_,
+            Base,
+            Local,
+            UsernameByPublicKey,
+            PublicKeyByUsername,
+            Client,
+        >,
+    ) where
         Base: SchemaEvent<Uuid, SignedFile>,
         Local: SchemaEvent<Uuid, SignedFile>,
+        UsernameByPublicKey: SchemaEvent<Owner, String>,
+        PublicKeyByUsername: SchemaEvent<String, Owner>,
     {
         if !sync_context.dry_run {
-            if let Some(root) = sync_context.staged_root {
+            if let Some(root) = sync_context.root {
                 self.tx.root.insert(OneKey {}, root);
             }
-            if let Some(last_synced) = sync_context.staged_last_synced {
+            if let Some(last_synced) = sync_context.last_synced {
                 self.tx.last_synced.insert(OneKey {}, last_synced as i64);
             }
             (&mut self.tx.base_metadata)
@@ -162,38 +206,57 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
     }
 }
 
-struct SyncContext<'a, 'b, Base, Local>
+struct SyncContext<'a, 'b, Base, Local, UsernameByPublicKey, PublicKeyByUsername, Client>
 where
     Base: SchemaEvent<Uuid, SignedFile>,
     Local: SchemaEvent<Uuid, SignedFile>,
+    UsernameByPublicKey: SchemaEvent<Owner, String>,
+    PublicKeyByUsername: SchemaEvent<String, Owner>,
+    Client: Requester,
 {
+    // when dry_run is true, sync skips document downloads/uploads and disk reads/writes
     dry_run: bool,
-    staged_root: Option<Uuid>,
-    staged_last_synced: Option<u64>,
+
+    // root, last_synced, base metadata, and local metadata have values pre-loaded, are read from
+    // and written to here, and are "committed" if we are not doing a dry run
+    root: Option<Uuid>,
+    last_synced: Option<u64>,
     base: StagedTree<&'a TransactionTable<'b, Uuid, SignedFile, Base>, Vec<SignedFile>>,
     local: StagedTree<&'a TransactionTable<'b, Uuid, SignedFile, Local>, Vec<SignedFile>>,
+
+    // public key cache is written to, dry run or not
+    username_by_public_key: &'a mut TransactionTable<'b, Owner, String, UsernameByPublicKey>,
+    public_key_by_username: &'a mut TransactionTable<'b, String, Owner, PublicKeyByUsername>,
+
+    // account pre-loaded for convenience
+    account: Account,
+
+    // client for network requests and config for disk i/o
+    client: &'a Client,
+    config: &'a Config,
 }
 
-impl<'a, 'b, Base, Local> SyncContext<'a, 'b, Base, Local>
+impl<'a, 'b, Base, Local, UsernameByPublicKey, PublicKeyByUsername, Client>
+    SyncContext<'a, 'b, Base, Local, UsernameByPublicKey, PublicKeyByUsername, Client>
 where
     Base: SchemaEvent<Uuid, SignedFile>,
     Local: SchemaEvent<Uuid, SignedFile>,
+    UsernameByPublicKey: SchemaEvent<Owner, String>,
+    PublicKeyByUsername: SchemaEvent<String, Owner>,
+    Client: Requester,
 {
-}
-
-impl<Client: Requester> RequestContext<'_, '_, Client> {
-    fn sync_helper<F>(&mut self, dry_run: bool, report_sync_operation: &mut F) -> CoreResult<i64>
+    fn sync<F>(&mut self, report_sync_operation: &mut F) -> CoreResult<i64>
     where
         F: FnMut(SyncOperation),
     {
         self.prune()?;
         let update_as_of = self.pull(report_sync_operation)?;
-        self.tx.last_synced.insert(OneKey {}, update_as_of);
+        self.last_synced = Some(update_as_of as u64);
         self.push_metadata(report_sync_operation)?;
         self.prune()?;
         self.push_documents(report_sync_operation)?;
         let update_as_of = self.pull(report_sync_operation)?;
-        self.tx.last_synced.insert(OneKey {}, update_as_of);
+        self.last_synced = Some(update_as_of as u64);
         Ok(update_as_of)
     }
 
@@ -215,20 +278,16 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         // populate key cache
         self.populate_public_key_cache(&remote_changes)?;
 
-        let account = self
-            .tx
-            .account
-            .get(&OneKey {})
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = &self.account;
 
         // track work
         remote_changes = {
-            let mut remote = self.tx.base_metadata.stage(remote_changes).to_lazy();
+            let mut remote = self.base.stage(remote_changes).to_lazy();
 
             let finalized_remote_changes = remote.resolve_and_finalize(
                 account,
                 remote.tree.staged.owned_ids().into_iter(),
-                &mut self.tx.username_by_public_key,
+                self.username_by_public_key,
             )?;
             report_sync_operation(SyncOperation::PullMetadataEnd(finalized_remote_changes));
 
@@ -237,24 +296,20 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         };
 
         // initialize root if this is the first pull on this device
-        if self.tx.root.get(&OneKey {}).is_none() {
+        if self.root.is_none() {
             let root = remote_changes
                 .all_files()?
                 .into_iter()
                 .find(|f| f.is_root())
                 .ok_or(CoreError::RootNonexistent)?;
-            self.tx.root.insert(OneKey {}, *root.id());
+            self.root = Some(*root.id());
         }
 
         // fetch document updates and local documents for merge
-        let account = self
-            .tx
-            .account
-            .get(&OneKey {})
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = &self.account;
         let owner = Owner(account.public_key());
         remote_changes = {
-            let mut remote = (&self.tx.base_metadata).stage(remote_changes).to_lazy();
+            let mut remote = (&self.base).stage(remote_changes).to_lazy();
             for id in remote.tree.staged.owned_ids() {
                 if remote.calculate_deleted(&id)? {
                     continue;
@@ -274,7 +329,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                     report_sync_operation(SyncOperation::PullDocumentStart(remote.finalize(
                         &id,
                         account,
-                        &mut self.tx.username_by_public_key,
+                        self.username_by_public_key,
                     )?));
                     let remote_document = self
                         .client
@@ -291,12 +346,10 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         // compute merge changes
         let merge_changes = {
             // assemble trees
-            let mut base = (&self.tx.base_metadata).to_lazy();
-            let remote_unlazy = (&self.tx.base_metadata).to_staged(&remote_changes);
+            let mut base = (&self.base).to_lazy();
+            let remote_unlazy = (&self.base).to_staged(&remote_changes);
             let mut remote = remote_unlazy.as_lazy();
-            let mut local = (&self.tx.base_metadata)
-                .to_staged(&self.tx.local_metadata)
-                .to_lazy();
+            let mut local = (&self.base).to_staged(&self.local).to_lazy();
 
             // changeset constraints - these evolve as we try to assemble changes and encounter validation failures
             let mut files_to_unmove: HashSet<Uuid> = HashSet::new();
@@ -312,7 +365,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
                     // creations
                     let mut deletion_creations = HashSet::new();
-                    for id in self.tx.local_metadata.owned_ids() {
+                    for id in self.local.owned_ids() {
                         if remote.maybe_find(&id).is_none() && !links_to_delete.contains(&id) {
                             deletion_creations.insert(id);
                         }
@@ -350,9 +403,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                     }
 
                     // moves (creations happen first in case a file is moved into a new folder)
-                    for id in self.tx.local_metadata.owned_ids() {
+                    for id in self.local.owned_ids() {
                         let local_file = local.find(&id)?.clone();
-                        if let Some(base_file) = self.tx.base_metadata.maybe_find(&id).cloned() {
+                        if let Some(base_file) = self.base.maybe_find(&id).cloned() {
                             if !local_file.explicitly_deleted()
                                 && local_file.parent() != base_file.parent()
                                 && !files_to_unmove.contains(&id)
@@ -364,7 +417,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                     }
 
                     // deletions (moves happen first in case a file is moved into a deleted folder)
-                    for id in self.tx.local_metadata.owned_ids() {
+                    for id in self.local.owned_ids() {
                         let local_file = local.find(&id)?.clone();
                         if local_file.explicitly_deleted() {
                             // delete
@@ -380,7 +433,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
                     // creations and edits of created documents
                     let mut creations = HashSet::new();
-                    for id in self.tx.local_metadata.owned_ids() {
+                    for id in self.local.owned_ids() {
                         if deletions.maybe_find(&id).is_some()
                             && !deletions.calculate_deleted(&id)?
                             && remote.maybe_find(&id).is_none()
@@ -423,7 +476,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
                     // moves, renames, edits, and shares
                     // creations happen first in case a file is moved into a new folder
-                    for id in self.tx.local_metadata.owned_ids() {
+                    for id in self.local.owned_ids() {
                         // skip files that are already deleted or will be deleted
                         if deletions.maybe_find(&id).is_none()
                             || deletions.calculate_deleted(&id)?
@@ -619,8 +672,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
                     // deletes
                     // moves happen first in case a file is moved into a deleted folder
-                    for id in self.tx.local_metadata.owned_ids() {
-                        if self.tx.base_metadata.maybe_find(&id).is_some()
+                    for id in self.local.owned_ids() {
+                        if self.base.maybe_find(&id).is_some()
                             && deletions.calculate_deleted(&id)?
                             && !merge.calculate_deleted(&id)?
                         {
@@ -672,7 +725,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             // revert all local moves in the cycle
                             let mut progress = false;
                             for &id in ids {
-                                if self.tx.local_metadata.maybe_find(&id).is_some()
+                                if self.local.maybe_find(&id).is_some()
                                     && files_to_unmove.insert(id)
                                 {
                                     progress = true;
@@ -697,7 +750,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                             }
                             if !progress {
                                 for &id in ids {
-                                    if self.tx.local_metadata.maybe_find(&id).is_some() {
+                                    if self.local.maybe_find(&id).is_some() {
                                         *rename_increments.entry(id).or_insert(0) += 1;
                                         progress = true;
                                         break;
@@ -795,12 +848,12 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         };
 
         // base = remote; local = merge
-        (&mut self.tx.base_metadata)
+        (&mut self.base)
             .to_staged(remote_changes)
             .to_lazy()
             .promote();
-        self.tx.local_metadata.clear();
-        (&mut self.tx.local_metadata)
+        self.local.clear();
+        (&mut self.local)
             .to_staged(merge_changes)
             .to_lazy()
             .promote();
@@ -810,17 +863,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn get_updates(&self) -> CoreResult<GetUpdatesResponse> {
-        let account = self
-            .tx
-            .account
-            .get(&OneKey {})
-            .ok_or(CoreError::AccountNonexistent)?;
-        let last_synced = self
-            .tx
-            .last_synced
-            .get(&OneKey {})
-            .copied()
-            .unwrap_or_default() as u64;
+        let account = &self.account;
+        let last_synced = self.last_synced.unwrap_or_default();
         let remote_changes = self
             .client
             .request(account, GetUpdatesRequest { since_metadata_version: last_synced })?;
@@ -830,8 +874,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn prune_remote_orphans(
         &mut self, remote_changes: Vec<SignedFile>,
     ) -> CoreResult<Vec<SignedFile>> {
-        let me = Owner(self.get_public_key()?);
-        let remote = (&self.tx.base_metadata).stage(remote_changes).to_lazy();
+        let me = Owner(self.account.public_key());
+        let remote = (&self.base).stage(remote_changes).to_lazy();
         let mut result = Vec::new();
         for id in remote.tree.staged.owned_ids() {
             let meta = remote.find(&id)?;
@@ -848,10 +892,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     fn prune(&mut self) -> CoreResult<()> {
-        let account = self.get_account()?.clone();
-        let mut local = (&self.tx.base_metadata)
-            .stage(&self.tx.local_metadata)
-            .to_lazy();
+        let account = &self.account;
+        let mut local = (&self.base).stage(&self.local).to_lazy();
         let base_ids = local.tree.base.owned_ids();
         let server_ids = self.client.request(&account, GetFileIdsRequest {})?.ids;
 
@@ -870,11 +912,11 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             }
         }
 
-        let mut base_staged = (&mut self.tx.base_metadata).to_lazy().stage(None);
+        let mut base_staged = (&mut self.base).to_lazy().stage(None);
         base_staged.tree.removed = prunable_ids.clone();
         base_staged.promote();
 
-        let mut local_staged = (&mut self.tx.local_metadata).to_lazy().stage(None);
+        let mut local_staged = (&mut self.local).to_lazy().stage(None);
         local_staged.tree.removed = prunable_ids;
         local_staged.promote();
 
@@ -890,19 +932,13 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         // remote = local
         let mut local_changes_no_digests = Vec::new();
         let mut updates = Vec::new();
-        let mut local = (&self.tx.base_metadata)
-            .stage(&self.tx.local_metadata)
-            .to_lazy();
-        let account = self
-            .tx
-            .account
-            .get(&OneKey {})
-            .ok_or(CoreError::AccountNonexistent)?;
+        let mut local = (&self.base).stage(&self.local).to_lazy();
+        let account = &self.account;
 
         let finalized_local_changes = local.resolve_and_finalize(
             account,
             local.tree.staged.owned_ids().into_iter(),
-            &mut self.tx.username_by_public_key,
+            self.username_by_public_key,
         )?;
         report_sync_operation(SyncOperation::PushMetadataStart(finalized_local_changes));
 
@@ -926,7 +962,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         report_sync_operation(SyncOperation::PushMetadataEnd);
 
         // base = local
-        (&mut self.tx.base_metadata)
+        (&mut self.base)
             .to_lazy()
             .stage(local_changes_no_digests)
             .promote();
@@ -941,14 +977,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     where
         F: FnMut(SyncOperation),
     {
-        let mut local = (&self.tx.base_metadata)
-            .stage(&self.tx.local_metadata)
-            .to_lazy();
-        let account = self
-            .tx
-            .account
-            .get(&OneKey {})
-            .ok_or(CoreError::AccountNonexistent)?;
+        let mut local = (&self.base).stage(&self.local).to_lazy();
+        let account = &self.account;
 
         let mut local_changes_digests_only = Vec::new();
         for id in local.tree.staged.owned_ids() {
@@ -971,7 +1001,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             report_sync_operation(SyncOperation::PushDocumentStart(local.finalize(
                 &id,
                 account,
-                &mut self.tx.username_by_public_key,
+                self.username_by_public_key,
             )?));
 
             // base = local (document)
@@ -998,7 +1028,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         }
 
         // base = local (metadata)
-        (&mut self.tx.base_metadata)
+        (&mut self.base)
             .to_lazy()
             .stage(local_changes_digests_only)
             .promote();
@@ -1008,11 +1038,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     fn populate_public_key_cache(&mut self, files: &[SignedFile]) -> CoreResult<()> {
-        let account = self
-            .tx
-            .account
-            .get(&OneKey {})
-            .ok_or(CoreError::AccountNonexistent)?;
+        let account = &self.account;
 
         let mut all_owners = HashSet::new();
         for file in files {
@@ -1023,15 +1049,13 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         }
 
         for owner in all_owners {
-            if !self.tx.username_by_public_key.exists(&owner) {
+            if !self.username_by_public_key.exists(&owner) {
                 let username = self
                     .client
                     .request(account, GetUsernameRequest { key: owner.0 })?
                     .username;
-                self.tx
-                    .username_by_public_key
-                    .insert(owner, username.clone());
-                self.tx.public_key_by_username.insert(username, owner);
+                self.username_by_public_key.insert(owner, username.clone());
+                self.public_key_by_username.insert(username, owner);
             }
         }
 
@@ -1040,8 +1064,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
     // todo: check only necessary ids
     fn cleanup_local_metadata(&mut self) {
-        (&self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
-            .prune();
+        (&self.base).stage(&mut self.local).prune();
     }
 }
