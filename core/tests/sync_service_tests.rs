@@ -293,3 +293,24 @@ fn fuzzer_delete_concurrently_edited_document() {
     core2.delete_file(document.id).unwrap();
     core2.sync(None).unwrap();
 }
+
+#[test]
+fn test_move_folder_with_deleted_file() {
+    let mut cores = vec![
+        vec![test_core_with_account()],
+        vec![test_core_with_account()],
+        vec![test_core_with_account()],
+    ];
+    let c = another_client(&cores[1][0]);
+    cores[1].push(c);
+    let c = another_client(&cores[1][0]);
+    cores[1].push(c);
+    let c = another_client(&cores[2][0]);
+    cores[2].push(c);
+
+    let us6 = cores[0][0].create_at_path("US62E5M/").unwrap();
+    let voe = cores[0][0].create_at_path("US62E5M/voey6qi.md").unwrap();
+    cores[0][0].delete_file(voe.id).unwrap();
+    let us7 = cores[0][0].create_at_path("US7/").unwrap();
+    cores[0][0].move_file(us6.id, us7.id).unwrap();
+}

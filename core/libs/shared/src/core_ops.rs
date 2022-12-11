@@ -193,6 +193,9 @@ where
 
         let mut result = vec![file];
         for id in self.descendants(id)? {
+            if self.calculate_deleted(&id)? {
+                continue;
+            }
             let mut descendant = self.find(&id)?.timestamped_value.value.clone();
             descendant.owner = owner;
             result.push(descendant.sign(account)?);

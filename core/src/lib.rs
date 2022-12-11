@@ -345,6 +345,7 @@ impl<Client: Requester> CoreLib<Client> {
         Ok(val?)
     }
 
+    // todo: expose work calculated (return value)
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync(
         &self, f: Option<Box<dyn Fn(SyncProgress)>>,
