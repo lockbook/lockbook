@@ -99,12 +99,12 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
             SyncProgress { total: 0, progress: 0, current_work_unit: ClientWorkUnit::PullMetadata };
         if maybe_update_sync_progress.is_some() {
             let mut sync_context = SyncContext {
-                dry_run: false,
+                dry_run: true,
                 account: self.get_account()?.clone(),
                 root: self.tx.root.get(&OneKey {}).cloned(),
                 last_synced: self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64),
-                base: (&mut self.tx.base_metadata).to_staged(Vec::new()),
-                local: (&mut self.tx.local_metadata).to_staged(Vec::new()),
+                base: (&self.tx.base_metadata).to_staged(Vec::new()),
+                local: (&self.tx.local_metadata).to_staged(Vec::new()),
                 username_by_public_key: &mut self.tx.username_by_public_key,
                 public_key_by_username: &mut self.tx.public_key_by_username,
                 client: self.client,
