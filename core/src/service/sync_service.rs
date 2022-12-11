@@ -236,6 +236,7 @@ where
         F: FnMut(SyncOperation),
     {
         // fetch metadata updates
+        // todo: use a single fetch of metadata updates for calculating sync progress total and for running the sync
         let (mut remote_changes, update_as_of) = {
             report_sync_operation(SyncOperation::PullMetadataStart);
 
@@ -269,8 +270,7 @@ where
         }
 
         // fetch document updates and local documents for merge
-        let account = &self.account;
-        let owner = Owner(account.public_key());
+        let me = Owner(self.account.public_key());
         remote_changes = {
             let mut remote = (&self.base).stage(remote_changes).to_lazy();
             for id in remote.tree.staged.owned_ids() {
@@ -291,14 +291,14 @@ where
                 if let Some(remote_hmac) = remote_hmac {
                     report_sync_operation(SyncOperation::PullDocumentStart(remote.finalize(
                         &id,
-                        account,
+                        &self.account,
                         self.username_by_public_key,
                     )?));
 
                     if !self.dry_run {
                         let remote_document = self
                             .client
-                            .request(account, GetDocRequest { id, hmac: remote_hmac })?
+                            .request(&self.account, GetDocRequest { id, hmac: remote_hmac })?
                             .content;
                         document_repo::insert(
                             self.config,
@@ -351,9 +351,9 @@ where
                                 id,
                                 symkey::generate_key(),
                                 local_file.parent(),
-                                &local.name(&id, account)?,
+                                &local.name(&id, &self.account)?,
                                 local_file.file_type(),
-                                account,
+                                &self.account,
                             );
                             match result {
                                 Ok(_) => {
@@ -383,7 +383,11 @@ where
                                 && !files_to_unmove.contains(&id)
                             {
                                 // move
-                                deletions.move_unvalidated(&id, local_file.parent(), account)?;
+                                deletions.move_unvalidated(
+                                    &id,
+                                    local_file.parent(),
+                                    &self.account,
+                                )?;
                             }
                         }
                     }
@@ -393,7 +397,7 @@ where
                         let local_file = local.find(&id)?.clone();
                         if local_file.explicitly_deleted() {
                             // delete
-                            deletions.delete_unvalidated(&id, account)?;
+                            deletions.delete_unvalidated(&id, &self.account)?;
                         }
                     }
                     deletions
@@ -421,11 +425,11 @@ where
                             let local_file = local.find(&id)?.clone();
                             let result = merge.create_unvalidated(
                                 id,
-                                local.decrypt_key(&id, account)?,
+                                local.decrypt_key(&id, &self.account)?,
                                 local_file.parent(),
-                                &local.name(&id, account)?,
+                                &local.name(&id, &self.account)?,
                                 local_file.file_type(),
-                                account,
+                                &self.account,
                             );
                             match result {
                                 Ok(_) => {
@@ -459,25 +463,25 @@ where
                         }
 
                         let local_file = local.find(&id)?.clone();
-                        let local_name = local.name(&id, account)?;
+                        let local_name = local.name(&id, &self.account)?;
                         let maybe_base_file = base.maybe_find(&id).cloned();
                         let maybe_remote_file = remote.maybe_find(&id).cloned();
                         if let Some(ref base_file) = maybe_base_file {
-                            let base_name = base.name(&id, account)?;
+                            let base_name = base.name(&id, &self.account)?;
                             let remote_file = remote.find(&id)?.clone();
-                            let remote_name = remote.name(&id, account)?;
+                            let remote_name = remote.name(&id, &self.account)?;
 
                             // move
                             if local_file.parent() != base_file.parent()
                                 && remote_file.parent() == base_file.parent()
                                 && !files_to_unmove.contains(&id)
                             {
-                                merge.move_unvalidated(&id, local_file.parent(), account)?;
+                                merge.move_unvalidated(&id, local_file.parent(), &self.account)?;
                             }
 
                             // rename
                             if local_name != base_name && remote_name == base_name {
-                                merge.rename_unvalidated(&id, &local_name, account)?;
+                                merge.rename_unvalidated(&id, &local_name, &self.account)?;
                             }
                         }
 
@@ -503,11 +507,15 @@ where
                                         UserAccessMode::Write => ShareMode::Write,
                                         UserAccessMode::Owner => continue,
                                     };
-                                    merge.add_share_unvalidated(id, for_, mode, account)?;
+                                    merge.add_share_unvalidated(id, for_, mode, &self.account)?;
                                 }
                                 // delete share
                                 if key.deleted && !remote_deleted {
-                                    merge.delete_share_unvalidated(&id, Some(for_.0), account)?;
+                                    merge.delete_share_unvalidated(
+                                        &id,
+                                        Some(for_.0),
+                                        &self.account,
+                                    )?;
                                 }
                             } else {
                                 // add share
@@ -516,13 +524,13 @@ where
                                     UserAccessMode::Write => ShareMode::Write,
                                     UserAccessMode::Owner => continue,
                                 };
-                                merge.add_share_unvalidated(id, for_, mode, account)?;
+                                merge.add_share_unvalidated(id, for_, mode, &self.account)?;
                             }
                         }
 
                         // share deletion due to conflicts
                         if files_to_unshare.contains(&id) {
-                            merge.delete_share_unvalidated(&id, None, account)?;
+                            merge.delete_share_unvalidated(&id, None, &self.account)?;
                         }
 
                         // rename due to path conflict
@@ -530,7 +538,7 @@ where
                             let name = NameComponents::from(&local_name)
                                 .generate_incremented(rename_increment)
                                 .to_name();
-                            merge.rename_unvalidated(&id, &name, account)?;
+                            merge.rename_unvalidated(&id, &name, &self.account)?;
                         }
 
                         // edit
@@ -538,26 +546,26 @@ where
                         let remote_hmac =
                             maybe_remote_file.and_then(|f| f.document_hmac().cloned());
                         let local_hmac = local_file.document_hmac().cloned();
-                        if merge.access_mode(owner, &id)? >= Some(UserAccessMode::Write)
+                        if merge.access_mode(me, &id)? >= Some(UserAccessMode::Write)
                             && local_hmac != base_hmac
                         {
                             if remote_hmac != base_hmac && remote_hmac != local_hmac {
                                 // merge
-                                let merge_name = merge.name(&id, account)?;
+                                let merge_name = merge.name(&id, &self.account)?;
                                 let document_type =
                                     DocumentType::from_file_name_using_extension(&merge_name);
                                 let base_document = if base_hmac.is_some() {
-                                    base.read_document(self.config, &id, account)?
+                                    base.read_document(self.config, &id, &self.account)?
                                 } else {
                                     Vec::new()
                                 };
                                 let remote_document = if remote_hmac.is_some() {
-                                    remote.read_document(self.config, &id, account)?
+                                    remote.read_document(self.config, &id, &self.account)?
                                 } else {
                                     Vec::new()
                                 };
                                 let local_document = if local_hmac.is_some() {
-                                    local.read_document(self.config, &id, account)?
+                                    local.read_document(self.config, &id, &self.account)?
                                 } else {
                                     Vec::new()
                                 };
@@ -576,7 +584,7 @@ where
                                             .update_document_unvalidated(
                                                 &id,
                                                 &merged_document,
-                                                account,
+                                                &self.account,
                                             )?;
                                         if !self.dry_run {
                                             let hmac = merge.find(&id)?.document_hmac();
@@ -618,13 +626,13 @@ where
                                             &merge_parent,
                                             &merge_name,
                                             FileType::Document,
-                                            account,
+                                            &self.account,
                                         )?;
                                         let encrypted_document = merge
                                             .update_document_unvalidated(
                                                 &duplicate_id,
                                                 &local_document,
-                                                account,
+                                                &self.account,
                                             )?;
                                         if !self.dry_run {
                                             let duplicate_hmac =
@@ -640,8 +648,9 @@ where
                                 }
                             } else {
                                 // overwrite (todo: avoid reading/decrypting/encrypting document)
-                                let document = local.read_document(self.config, &id, account)?;
-                                merge.update_document_unvalidated(&id, &document, account)?;
+                                let document =
+                                    local.read_document(self.config, &id, &self.account)?;
+                                merge.update_document_unvalidated(&id, &document, &self.account)?;
                             }
                         }
                     }
@@ -654,13 +663,13 @@ where
                             && !merge.calculate_deleted(&id)?
                         {
                             // delete
-                            merge.delete_unvalidated(&id, account)?;
+                            merge.delete_unvalidated(&id, &self.account)?;
                         }
                     }
                     for &id in &links_to_delete {
                         // delete
                         if merge.maybe_find(&id).is_some() && !merge.calculate_deleted(&id)? {
-                            merge.delete_unvalidated(&id, account)?;
+                            merge.delete_unvalidated(&id, &self.account)?;
                         }
                     }
 
@@ -688,7 +697,7 @@ where
                     }
                 }
 
-                let validate_result = merge.validate(owner);
+                let validate_result = merge.validate(me);
                 match validate_result {
                     // merge changeset is valid
                     Ok(_) => {
@@ -790,8 +799,7 @@ where
                             if let Some(remote_link) = remote.maybe_find(link) {
                                 if let FileType::Link { target } = remote_link.file_type() {
                                     let remote_target = remote.find(&target)?;
-                                    if remote_target.owner() != owner
-                                        && files_to_unmove.insert(target)
+                                    if remote_target.owner() != me && files_to_unmove.insert(target)
                                     {
                                         progress = true;
                                     }
@@ -839,11 +847,10 @@ where
     }
 
     pub fn get_updates(&self) -> CoreResult<GetUpdatesResponse> {
-        let account = &self.account;
         let last_synced = self.last_synced.unwrap_or_default();
         let remote_changes = self
             .client
-            .request(account, GetUpdatesRequest { since_metadata_version: last_synced })?;
+            .request(&self.account, GetUpdatesRequest { since_metadata_version: last_synced })?;
         Ok(remote_changes)
     }
 
@@ -868,10 +875,12 @@ where
     }
 
     fn prune(&mut self) -> CoreResult<()> {
-        let account = &self.account;
         let mut local = (&self.base).stage(&self.local).to_lazy();
         let base_ids = local.tree.base.owned_ids();
-        let server_ids = self.client.request(account, GetFileIdsRequest {})?.ids;
+        let server_ids = self
+            .client
+            .request(&self.account, GetFileIdsRequest {})?
+            .ids;
 
         let mut prunable_ids = base_ids;
         prunable_ids.retain(|id| !server_ids.contains(id));
@@ -910,7 +919,6 @@ where
         let mut local_changes_no_digests = Vec::new();
         let mut updates = Vec::new();
         let mut local = (&self.base).stage(&self.local).to_lazy();
-        let account = &self.account;
 
         for id in local.tree.staged.owned_ids() {
             let mut local_change = local.tree.staged.find(&id)?.timestamped_value.value.clone();
@@ -919,7 +927,7 @@ where
             // change everything but document hmac and re-sign
             local_change.document_hmac =
                 maybe_base_file.and_then(|f| f.timestamped_value.value.document_hmac);
-            let local_change = local_change.sign(account)?;
+            let local_change = local_change.sign(&self.account)?;
 
             local_changes_no_digests.push(local_change.clone());
             let file_diff = FileDiff { old: maybe_base_file.cloned(), new: local_change };
@@ -927,13 +935,14 @@ where
         }
 
         report_sync_operation(SyncOperation::PushMetadataStart(local.resolve_and_finalize_all(
-            account,
+            &self.account,
             local.tree.staged.owned_ids().into_iter(),
             self.username_by_public_key,
         )?));
 
         if !self.dry_run && !updates.is_empty() {
-            self.client.request(account, UpsertRequest { updates })?;
+            self.client
+                .request(&self.account, UpsertRequest { updates })?;
         }
 
         report_sync_operation(SyncOperation::PushMetadataEnd);
@@ -955,7 +964,6 @@ where
         F: FnMut(SyncOperation),
     {
         let mut local = (&self.base).stage(&self.local).to_lazy();
-        let account = &self.account;
 
         let mut local_changes_digests_only = Vec::new();
         for id in local.tree.staged.owned_ids() {
@@ -971,11 +979,11 @@ where
                 continue;
             }
 
-            let local_change = local_change.sign(account)?;
+            let local_change = local_change.sign(&self.account)?;
 
             report_sync_operation(SyncOperation::PushDocumentStart(local.finalize(
                 &id,
-                account,
+                &self.account,
                 self.username_by_public_key,
             )?));
 
@@ -994,7 +1002,7 @@ where
 
                 // remote = local
                 self.client.request(
-                    account,
+                    &self.account,
                     ChangeDocRequest {
                         diff: FileDiff { old: Some(base_file), new: local_change.clone() },
                         new_content: local_document_change,
@@ -1018,8 +1026,6 @@ where
     }
 
     fn populate_public_key_cache(&mut self, files: &[SignedFile]) -> CoreResult<()> {
-        let account = &self.account;
-
         let mut all_owners = HashSet::new();
         for file in files {
             for user_access_key in file.user_access_keys() {
@@ -1032,7 +1038,7 @@ where
             if !self.username_by_public_key.exists(&owner) {
                 let username = self
                     .client
-                    .request(account, GetUsernameRequest { key: owner.0 })?
+                    .request(&self.account, GetUsernameRequest { key: owner.0 })?
                     .username;
                 self.username_by_public_key.insert(owner, username.clone());
                 self.public_key_by_username.insert(username, owner);
