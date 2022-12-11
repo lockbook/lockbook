@@ -78,8 +78,8 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
             account: self.get_account()?.clone(),
             root: self.tx.root.get(&OneKey {}).cloned(),
             last_synced: self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64),
-            base: (&self.tx.base_metadata).to_staged(Vec::new()),
-            local: (&self.tx.local_metadata).to_staged(Vec::new()),
+            base: (&mut self.tx.base_metadata).to_staged(Vec::new()),
+            local: (&mut self.tx.local_metadata).to_staged(Vec::new()),
             username_by_public_key: &mut self.tx.username_by_public_key,
             public_key_by_username: &mut self.tx.public_key_by_username,
             client: self.client,
@@ -106,8 +106,8 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
                 account: self.get_account()?.clone(),
                 root: self.tx.root.get(&OneKey {}).cloned(),
                 last_synced: self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64),
-                base: (&self.tx.base_metadata).to_staged(Vec::new()),
-                local: (&self.tx.local_metadata).to_staged(Vec::new()),
+                base: (&mut self.tx.base_metadata).to_staged(Vec::new()),
+                local: (&mut self.tx.local_metadata).to_staged(Vec::new()),
                 username_by_public_key: &mut self.tx.username_by_public_key,
                 public_key_by_username: &mut self.tx.public_key_by_username,
                 client: self.client,
@@ -120,8 +120,8 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
                 account: self.get_account()?.clone(),
                 root: self.tx.root.get(&OneKey {}).cloned(),
                 last_synced: self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64),
-                base: (&self.tx.base_metadata).to_staged(Vec::new()),
-                local: (&self.tx.local_metadata).to_staged(Vec::new()),
+                base: (&mut self.tx.base_metadata).to_staged(Vec::new()),
+                local: (&mut self.tx.local_metadata).to_staged(Vec::new()),
                 username_by_public_key: &mut self.tx.username_by_public_key,
                 public_key_by_username: &mut self.tx.public_key_by_username,
                 client: self.client,
@@ -176,8 +176,8 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
                 account: self.get_account()?.clone(),
                 root: self.tx.root.get(&OneKey {}).cloned(),
                 last_synced: self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64),
-                base: (&self.tx.base_metadata).to_staged(Vec::new()),
-                local: (&self.tx.local_metadata).to_staged(Vec::new()),
+                base: (&mut self.tx.base_metadata).to_staged(Vec::new()),
+                local: (&mut self.tx.local_metadata).to_staged(Vec::new()),
                 username_by_public_key: &mut self.tx.username_by_public_key,
                 public_key_by_username: &mut self.tx.public_key_by_username,
                 client: self.client,
@@ -186,22 +186,14 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
             let update_as_of =
                 sync_context.sync(&mut |op| work_units.extend(get_work_units(&op)))?;
 
-            let base_staged = sync_context.base.staged.clone();
-            let local_staged = sync_context.local.staged.clone();
             if let Some(root) = sync_context.root {
                 self.tx.root.insert(OneKey {}, root);
             }
             if let Some(last_synced) = sync_context.last_synced {
                 self.tx.last_synced.insert(OneKey {}, last_synced as i64);
             }
-            (&mut self.tx.base_metadata)
-                .to_staged(base_staged)
-                .to_lazy()
-                .promote();
-            (&mut self.tx.local_metadata)
-                .to_staged(local_staged)
-                .to_lazy()
-                .promote();
+            sync_context.base.to_lazy().promote();
+            sync_context.local.to_lazy().promote();
 
             update_as_of
         };
@@ -224,8 +216,8 @@ where
     // and written to here, and are "committed" if we are not doing a dry run
     root: Option<Uuid>,
     last_synced: Option<u64>,
-    base: StagedTree<&'a TransactionTable<'b, Uuid, SignedFile, Base>, Vec<SignedFile>>,
-    local: StagedTree<&'a TransactionTable<'b, Uuid, SignedFile, Local>, Vec<SignedFile>>,
+    base: StagedTree<&'a mut TransactionTable<'b, Uuid, SignedFile, Base>, Vec<SignedFile>>,
+    local: StagedTree<&'a mut TransactionTable<'b, Uuid, SignedFile, Local>, Vec<SignedFile>>,
 
     // public key cache is written to, dry run or not
     username_by_public_key: &'a mut TransactionTable<'b, Owner, String, UsernameByPublicKey>,
@@ -256,10 +248,7 @@ where
         let update_as_of = self.pull(report_sync_operation)?;
         self.last_synced = Some(update_as_of as u64);
         self.push_metadata(report_sync_operation)?;
-        self.prune()?;
         self.push_documents(report_sync_operation)?;
-        let update_as_of = self.pull(report_sync_operation)?;
-        self.last_synced = Some(update_as_of as u64);
         Ok(update_as_of)
     }
 
@@ -270,32 +259,26 @@ where
         F: FnMut(SyncOperation),
     {
         // fetch metadata updates
-        report_sync_operation(SyncOperation::PullMetadataStart);
-        let updates = self.get_updates()?;
-        let mut remote_changes = updates.file_metadata;
-        let update_as_of = updates.as_of_metadata_version;
+        let (mut remote_changes, update_as_of) = {
+            report_sync_operation(SyncOperation::PullMetadataStart);
 
-        // pre-process changes
-        remote_changes = self.prune_remote_orphans(remote_changes)?;
+            let updates = self.get_updates()?;
+            let mut remote_changes = updates.file_metadata;
+            let update_as_of = updates.as_of_metadata_version;
 
-        // populate key cache
-        self.populate_public_key_cache(&remote_changes)?;
+            remote_changes = self.prune_remote_orphans(remote_changes)?;
+            self.populate_public_key_cache(&remote_changes)?;
 
-        let account = &self.account;
-
-        // track work
-        remote_changes = {
             let mut remote = self.base.stage(remote_changes).to_lazy();
-
-            let finalized_remote_changes = remote.resolve_and_finalize(
-                account,
-                remote.tree.staged.owned_ids().into_iter(),
-                self.username_by_public_key,
-            )?;
-            report_sync_operation(SyncOperation::PullMetadataEnd(finalized_remote_changes));
-
+            report_sync_operation(SyncOperation::PullMetadataEnd(
+                remote.resolve_and_finalize_all(
+                    &self.account,
+                    remote.tree.staged.owned_ids().into_iter(),
+                    self.username_by_public_key,
+                )?,
+            ));
             let (_, remote_changes) = remote.unstage();
-            remote_changes
+            (remote_changes, update_as_of)
         };
 
         // initialize root if this is the first pull on this device
@@ -334,11 +317,20 @@ where
                         account,
                         self.username_by_public_key,
                     )?));
-                    let remote_document = self
-                        .client
-                        .request(account, GetDocRequest { id, hmac: remote_hmac })?
-                        .content;
-                    document_repo::insert(self.config, &id, Some(&remote_hmac), &remote_document)?;
+
+                    if !self.dry_run {
+                        let remote_document = self
+                            .client
+                            .request(account, GetDocRequest { id, hmac: remote_hmac })?
+                            .content;
+                        document_repo::insert(
+                            self.config,
+                            &id,
+                            Some(&remote_hmac),
+                            &remote_document,
+                        )?;
+                    }
+
                     report_sync_operation(SyncOperation::PullDocumentEnd);
                 }
             }
@@ -609,13 +601,15 @@ where
                                                 &merged_document,
                                                 account,
                                             )?;
-                                        let hmac = merge.find(&id)?.document_hmac();
-                                        document_repo::insert(
-                                            self.config,
-                                            &id,
-                                            hmac,
-                                            &encrypted_document,
-                                        )?;
+                                        if !self.dry_run {
+                                            let hmac = merge.find(&id)?.document_hmac();
+                                            document_repo::insert(
+                                                self.config,
+                                                &id,
+                                                hmac,
+                                                &encrypted_document,
+                                            )?;
+                                        }
                                     }
                                     DocumentType::Drawing | DocumentType::Other => {
                                         // duplicate file
@@ -655,14 +649,16 @@ where
                                                 &local_document,
                                                 account,
                                             )?;
-                                        let duplicate_hmac =
-                                            merge.find(&duplicate_id)?.document_hmac();
-                                        document_repo::insert(
-                                            self.config,
-                                            &duplicate_id,
-                                            duplicate_hmac,
-                                            &encrypted_document,
-                                        )?;
+                                        if !self.dry_run {
+                                            let duplicate_hmac =
+                                                merge.find(&duplicate_id)?.document_hmac();
+                                            document_repo::insert(
+                                                self.config,
+                                                &duplicate_id,
+                                                duplicate_hmac,
+                                                &encrypted_document,
+                                            )?;
+                                        }
                                     }
                                 }
                             } else {
@@ -905,13 +901,14 @@ where
         for id in prunable_ids.clone() {
             prunable_ids.extend(local.descendants(&id)?.into_iter());
         }
-
-        for id in &prunable_ids {
-            if let Some(base_file) = local.tree.base.maybe_find(id) {
-                document_repo::delete(self.config, id, base_file.document_hmac())?;
-            }
-            if let Some(local_file) = local.maybe_find(id) {
-                document_repo::delete(self.config, id, local_file.document_hmac())?;
+        if !self.dry_run {
+            for id in &prunable_ids {
+                if let Some(base_file) = local.tree.base.maybe_find(id) {
+                    document_repo::delete(self.config, id, base_file.document_hmac())?;
+                }
+                if let Some(local_file) = local.maybe_find(id) {
+                    document_repo::delete(self.config, id, local_file.document_hmac())?;
+                }
             }
         }
 
@@ -938,13 +935,6 @@ where
         let mut local = (&self.base).stage(&self.local).to_lazy();
         let account = &self.account;
 
-        let finalized_local_changes = local.resolve_and_finalize(
-            account,
-            local.tree.staged.owned_ids().into_iter(),
-            self.username_by_public_key,
-        )?;
-        report_sync_operation(SyncOperation::PushMetadataStart(finalized_local_changes));
-
         for id in local.tree.staged.owned_ids() {
             let mut local_change = local.tree.staged.find(&id)?.timestamped_value.value.clone();
             let maybe_base_file = local.tree.base.maybe_find(&id);
@@ -958,7 +948,14 @@ where
             let file_diff = FileDiff { old: maybe_base_file.cloned(), new: local_change };
             updates.push(file_diff);
         }
-        if !updates.is_empty() {
+
+        report_sync_operation(SyncOperation::PushMetadataStart(local.resolve_and_finalize_all(
+            account,
+            local.tree.staged.owned_ids().into_iter(),
+            self.username_by_public_key,
+        )?));
+
+        if !self.dry_run && !updates.is_empty() {
             self.client.request(account, UpsertRequest { updates })?;
         }
 
@@ -998,8 +995,6 @@ where
             }
 
             let local_change = local_change.sign(account)?;
-            let local_document_change =
-                document_repo::get(self.config, &id, local_change.document_hmac())?;
 
             report_sync_operation(SyncOperation::PushDocumentStart(local.finalize(
                 &id,
@@ -1007,23 +1002,28 @@ where
                 self.username_by_public_key,
             )?));
 
-            // base = local (document)
-            // todo: remove?
-            document_repo::insert(
-                self.config,
-                &id,
-                local_change.document_hmac(),
-                &local_document_change,
-            )?;
+            if !self.dry_run {
+                let local_document_change =
+                    document_repo::get(self.config, &id, local_change.document_hmac())?;
 
-            // remote = local
-            self.client.request(
-                account,
-                ChangeDocRequest {
-                    diff: FileDiff { old: Some(base_file), new: local_change.clone() },
-                    new_content: local_document_change,
-                },
-            )?;
+                // base = local (document)
+                // todo: remove?
+                document_repo::insert(
+                    self.config,
+                    &id,
+                    local_change.document_hmac(),
+                    &local_document_change,
+                )?;
+
+                // remote = local
+                self.client.request(
+                    account,
+                    ChangeDocRequest {
+                        diff: FileDiff { old: Some(base_file), new: local_change.clone() },
+                        new_content: local_document_change,
+                    },
+                )?;
+            }
 
             report_sync_operation(SyncOperation::PushDocumentEnd);
 

@@ -82,9 +82,7 @@ where
         I: Iterator<Item = Uuid>,
         PublicKeyCache: SchemaEvent<Owner, String>,
     {
-        let mut files = Vec::new();
-        let mut parent_substitutions = HashMap::new();
-
+        let mut user_visible_ids = Vec::new();
         for id in ids {
             if self.calculate_deleted(&id)? {
                 continue;
@@ -95,7 +93,23 @@ where
             if self.link(&id)?.is_some() {
                 continue;
             }
+            user_visible_ids.push(id);
+        }
+        self.resolve_and_finalize_all(account, user_visible_ids.into_iter(), public_key_cache)
+    }
 
+    pub fn resolve_and_finalize_all<I, PublicKeyCache>(
+        &mut self, account: &Account, ids: I,
+        public_key_cache: &mut TransactionTable<Owner, String, PublicKeyCache>,
+    ) -> SharedResult<Vec<File>>
+    where
+        I: Iterator<Item = Uuid>,
+        PublicKeyCache: SchemaEvent<Owner, String>,
+    {
+        let mut files = Vec::new();
+        let mut parent_substitutions = HashMap::new();
+
+        for id in ids {
             let finalized = self.finalize(&id, account, public_key_cache)?;
 
             match finalized.file_type {
