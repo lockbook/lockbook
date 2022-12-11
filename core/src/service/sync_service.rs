@@ -78,8 +78,8 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
             account: self.get_account()?.clone(),
             root: self.tx.root.get(&OneKey {}).cloned(),
             last_synced: self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64),
-            base: (&mut self.tx.base_metadata).to_staged(Vec::new()),
-            local: (&mut self.tx.local_metadata).to_staged(Vec::new()),
+            base: (&self.tx.base_metadata).to_staged(Vec::new()),
+            local: (&self.tx.local_metadata).to_staged(Vec::new()),
             username_by_public_key: &mut self.tx.username_by_public_key,
             public_key_by_username: &mut self.tx.public_key_by_username,
             client: self.client,
@@ -157,8 +157,8 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
 
 struct SyncContext<'a, 'b, Base, Local, UsernameByPublicKey, PublicKeyByUsername, Client>
 where
-    Base: SchemaEvent<Uuid, SignedFile>,
-    Local: SchemaEvent<Uuid, SignedFile>,
+    Base: TreeLike<F = SignedFile>,
+    Local: TreeLike<F = SignedFile>,
     UsernameByPublicKey: SchemaEvent<Owner, String>,
     PublicKeyByUsername: SchemaEvent<String, Owner>,
     Client: Requester,
@@ -170,8 +170,8 @@ where
     // and written to here, and are "committed" if we are not doing a dry run
     root: Option<Uuid>,
     last_synced: Option<u64>,
-    base: StagedTree<&'a mut TransactionTable<'b, Uuid, SignedFile, Base>, Vec<SignedFile>>,
-    local: StagedTree<&'a mut TransactionTable<'b, Uuid, SignedFile, Local>, Vec<SignedFile>>,
+    base: StagedTree<Base, Vec<SignedFile>>,
+    local: StagedTree<Local, Vec<SignedFile>>,
 
     // public key cache is written to, dry run or not
     username_by_public_key: &'a mut TransactionTable<'b, Owner, String, UsernameByPublicKey>,
@@ -188,8 +188,8 @@ where
 impl<'a, 'b, Base, Local, UsernameByPublicKey, PublicKeyByUsername, Client>
     SyncContext<'a, 'b, Base, Local, UsernameByPublicKey, PublicKeyByUsername, Client>
 where
-    Base: SchemaEvent<Uuid, SignedFile>,
-    Local: SchemaEvent<Uuid, SignedFile>,
+    Base: TreeLike<F = SignedFile>,
+    Local: TreeLike<F = SignedFile>,
     UsernameByPublicKey: SchemaEvent<Owner, String>,
     PublicKeyByUsername: SchemaEvent<String, Owner>,
     Client: Requester,
