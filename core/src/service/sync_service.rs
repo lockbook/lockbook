@@ -1,6 +1,3 @@
-use crate::repo::schema_v2::helper_log::{
-    base_metadata, local_metadata, public_key_by_username, username_by_public_key,
-};
 use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
 use hmdb::log::SchemaEvent;
 use hmdb::transaction::TransactionTable;
@@ -76,9 +73,19 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn calculate_work(&mut self) -> CoreResult<WorkCalculated> {
         let mut work_units: Vec<WorkUnit> = Vec::new();
-        let mut sync_context = self.sync_context(true)?;
-        let update_as_of =
-            sync_context.sync(&mut |op: SyncOperation| work_units.extend(get_work_units(&op)))?;
+        let mut sync_context = SyncContext {
+            dry_run: true,
+            account: self.get_account()?.clone(),
+            root: self.tx.root.get(&OneKey {}).cloned(),
+            last_synced: self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64),
+            base: (&self.tx.base_metadata).to_staged(Vec::new()),
+            local: (&self.tx.local_metadata).to_staged(Vec::new()),
+            username_by_public_key: &mut self.tx.username_by_public_key,
+            public_key_by_username: &mut self.tx.public_key_by_username,
+            client: self.client,
+            config: self.config,
+        };
+        let update_as_of = sync_context.sync(&mut |op| work_units.extend(get_work_units(&op)))?;
 
         Ok(WorkCalculated { work_units, most_recent_update_from_server: update_as_of as u64 })
     }
@@ -94,11 +101,33 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
                 progress: 0,
                 current_work_unit: ClientWorkUnit::PullMetadata,
             };
-            self.sync_context(true)?
-                .sync(&mut |op: SyncOperation| sync_progress.total += get_work_units(&op).len())?;
+            SyncContext {
+                dry_run: true,
+                account: self.get_account()?.clone(),
+                root: self.tx.root.get(&OneKey {}).cloned(),
+                last_synced: self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64),
+                base: (&self.tx.base_metadata).to_staged(Vec::new()),
+                local: (&self.tx.local_metadata).to_staged(Vec::new()),
+                username_by_public_key: &mut self.tx.username_by_public_key,
+                public_key_by_username: &mut self.tx.public_key_by_username,
+                client: self.client,
+                config: self.config,
+            }
+            .sync(&mut |op| sync_progress.total += get_work_units(&op).len())?;
 
-            let mut sync_context = self.sync_context(false)?;
-            let update_as_of = sync_context.sync(&mut |op: SyncOperation| {
+            let mut sync_context = SyncContext {
+                dry_run: false,
+                account: self.get_account()?.clone(),
+                root: self.tx.root.get(&OneKey {}).cloned(),
+                last_synced: self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64),
+                base: (&self.tx.base_metadata).to_staged(Vec::new()),
+                local: (&self.tx.local_metadata).to_staged(Vec::new()),
+                username_by_public_key: &mut self.tx.username_by_public_key,
+                public_key_by_username: &mut self.tx.public_key_by_username,
+                client: self.client,
+                config: self.config,
+            };
+            let update_as_of = sync_context.sync(&mut |op| {
                 work_units.extend(get_work_units(&op));
                 match op {
                     SyncOperation::PullMetadataStart => {
@@ -122,72 +151,9 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
                 }
                 update_sync_progress(sync_progress.clone());
             })?;
-            self.commit_sync_context(sync_context);
-            update_as_of
-        } else {
-            let mut sync_context = self.sync_context(false)?;
-            let update_as_of = sync_context
-                .sync(&mut |op: SyncOperation| work_units.extend(get_work_units(&op)))?;
-            self.commit_sync_context(sync_context);
-            update_as_of
-        };
-        Ok(WorkCalculated { work_units, most_recent_update_from_server: update_as_of as u64 })
-    }
 
-    fn sync_context(
-        &'a mut self, dry_run: bool,
-    ) -> CoreResult<
-        SyncContext<
-            'a,
-            'b,
-            base_metadata,
-            local_metadata,
-            username_by_public_key,
-            public_key_by_username,
-            Client,
-        >,
-    > {
-        let account = self.get_account()?.clone();
-        let root = self.tx.root.get(&OneKey {}).cloned();
-        let last_synced = self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64);
-        let base = (&self.tx.base_metadata).to_staged(Vec::new());
-        let local = (&self.tx.local_metadata).to_staged(Vec::new());
-        let username_by_public_key = &mut self.tx.username_by_public_key;
-        let public_key_by_username = &mut self.tx.public_key_by_username;
-        let client = self.client;
-        let config = self.config;
-        Ok(SyncContext {
-            dry_run,
-            root,
-            last_synced,
-            base,
-            local,
-            username_by_public_key,
-            public_key_by_username,
-            account,
-            client,
-            config,
-        })
-    }
-
-    fn commit_sync_context<Base, Local, UsernameByPublicKey, PublicKeyByUsername>(
-        &mut self,
-        sync_context: SyncContext<
-            '_,
-            '_,
-            Base,
-            Local,
-            UsernameByPublicKey,
-            PublicKeyByUsername,
-            Client,
-        >,
-    ) where
-        Base: SchemaEvent<Uuid, SignedFile>,
-        Local: SchemaEvent<Uuid, SignedFile>,
-        UsernameByPublicKey: SchemaEvent<Owner, String>,
-        PublicKeyByUsername: SchemaEvent<String, Owner>,
-    {
-        if !sync_context.dry_run {
+            let base_staged = sync_context.base.staged.clone();
+            let local_staged = sync_context.local.staged.clone();
             if let Some(root) = sync_context.root {
                 self.tx.root.insert(OneKey {}, root);
             }
@@ -195,14 +161,51 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
                 self.tx.last_synced.insert(OneKey {}, last_synced as i64);
             }
             (&mut self.tx.base_metadata)
-                .to_staged(sync_context.base.staged)
+                .to_staged(base_staged)
                 .to_lazy()
                 .promote();
             (&mut self.tx.local_metadata)
-                .to_staged(sync_context.local.staged)
+                .to_staged(local_staged)
                 .to_lazy()
                 .promote();
-        }
+
+            update_as_of
+        } else {
+            let mut sync_context = SyncContext {
+                dry_run: false,
+                account: self.get_account()?.clone(),
+                root: self.tx.root.get(&OneKey {}).cloned(),
+                last_synced: self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64),
+                base: (&self.tx.base_metadata).to_staged(Vec::new()),
+                local: (&self.tx.local_metadata).to_staged(Vec::new()),
+                username_by_public_key: &mut self.tx.username_by_public_key,
+                public_key_by_username: &mut self.tx.public_key_by_username,
+                client: self.client,
+                config: self.config,
+            };
+            let update_as_of =
+                sync_context.sync(&mut |op| work_units.extend(get_work_units(&op)))?;
+
+            let base_staged = sync_context.base.staged.clone();
+            let local_staged = sync_context.local.staged.clone();
+            if let Some(root) = sync_context.root {
+                self.tx.root.insert(OneKey {}, root);
+            }
+            if let Some(last_synced) = sync_context.last_synced {
+                self.tx.last_synced.insert(OneKey {}, last_synced as i64);
+            }
+            (&mut self.tx.base_metadata)
+                .to_staged(base_staged)
+                .to_lazy()
+                .promote();
+            (&mut self.tx.local_metadata)
+                .to_staged(local_staged)
+                .to_lazy()
+                .promote();
+
+            update_as_of
+        };
+        Ok(WorkCalculated { work_units, most_recent_update_from_server: update_as_of as u64 })
     }
 }
 
