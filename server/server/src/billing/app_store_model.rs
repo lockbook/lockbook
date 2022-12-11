@@ -29,9 +29,6 @@ pub struct EncodedNotificationResponseBody {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Cookie {}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationResponseBody {
     pub notification_type: NotificationChange,

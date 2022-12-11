@@ -1,6 +1,8 @@
 use crate::billing::app_store_model::{VerifyReceiptRequest, VerifyReceiptResponse};
 use crate::config::AppleConfig;
+use crate::{ClientError, ServerError};
 use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+use lockbook_shared::api::UpgradeAccountAppStoreError;
 use lockbook_shared::clock::get_time;
 use reqwest::RequestBuilder;
 use serde::{Deserialize, Serialize};
@@ -13,11 +15,6 @@ const TYP: &str = "JWT";
 const AUDIENCE: &str = "appstoreconnect-v1";
 const BUNDLE_ID: &str = "app.lockbook";
 
-#[derive(Debug)]
-pub enum AppStoreError {
-    Other(String),
-}
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Claims {
     iss: String,
@@ -29,7 +26,7 @@ pub struct Claims {
 
 pub fn gen_auth_req(
     config: &AppleConfig, request: RequestBuilder,
-) -> Result<RequestBuilder, AppStoreError> {
+) -> Result<RequestBuilder, ServerError<UpgradeAccountAppStoreError>> {
     let mut header = Header::new(Algorithm::ES256);
     header.kid = Some(config.iap_key_id.clone());
 
@@ -54,14 +51,11 @@ pub fn gen_auth_req(
 
 pub async fn verify_receipt(
     client: &reqwest::Client, config: &AppleConfig, encoded_receipt: &str,
-) -> Result<VerifyReceiptResponse, AppStoreError> {
+) -> Result<VerifyReceiptResponse, ServerError<UpgradeAccountAppStoreError>> {
     let req_body = serde_json::to_string(&VerifyReceiptRequest {
         encoded_receipt: encoded_receipt.to_string(),
         password: config.asc_shared_secret.clone(),
         exclude_old_transactions: true,
-    })
-    .map_err(|e| {
-        AppStoreError::Other(format!("Cannot parse verify receipt request body: {:?}", e))
     })?;
 
     let resp = gen_auth_req(config, client.post(VERIFY_PROD))?
@@ -81,12 +75,15 @@ pub async fn verify_receipt(
 
             let resp_body: VerifyReceiptResponse = resp.json().await?;
 
-            if resp_body.status == 0 {
-                Ok(resp_body)
-            } else {
-                Err(AppStoreError::Other(format!("Unexpected response: {:?}", resp_body)))
+            match resp_body.status {
+                0 => Ok(resp_body),
+                21002 | 21006 | 21010 => {
+                    Err(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails))
+                }
+                _ => Err(internal!("Unexpected response: {:?}", resp_body)),
             }
         }
-        _ => Err(AppStoreError::Other(format!("Unexpected response: {:?}", resp_body))),
+        21002 | 21006 | 21010 => Err(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails)),
+        _ => Err(internal!("Unexpected response: {:?}", resp_body)),
     }
 }

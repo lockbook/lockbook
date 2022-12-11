@@ -31,6 +31,6 @@ public protocol LockbookApi {
     func exportDrawing(id: UUID) -> FfiResult<Data, ExportDrawingError>
     
     // Billing
-    func upgradeAccountAppStore(originalTransactionId: String, appAccountToken: String, encodedReceipt: String) -> FfiResult<Empty, UpgradeAccountAppStoreError>
-    func cancelSubscription() -> FfiResult<Empty, CancelSubscriptionError>
+    func newAppleSub(originalTransactionId: String, appAccountToken: String, encodedReceipt: String) -> FfiResult<Empty, UpgradeAccountAppStoreError>
+    func cancelSub() -> FfiResult<Empty, CancelSubscriptionError>
 }

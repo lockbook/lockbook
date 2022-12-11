@@ -44,6 +44,10 @@ fn status(core: &Core) -> Result<(), CliError> {
                     println!("Type: Google Play");
                     println!("State: {:?}", account_state);
                 }
+                PaymentPlatform::AppStore { account_state } => {
+                    println!("Type: Apple App Store");
+                    println!("State: {:?}", account_state);
+                }
             }
 
             println!("Renews on: {}", info.period_end);
@@ -73,7 +77,7 @@ fn subscribe(core: &Core) -> Result<(), CliError> {
     let info = core.get_subscription_info()?;
     let existing_credit_card = info.and_then(|info| match info.payment_platform {
         PaymentPlatform::Stripe { card_last_4_digits } => Some(card_last_4_digits),
-        PaymentPlatform::GooglePlay { .. } => None,
+        PaymentPlatform::GooglePlay { .. } | PaymentPlatform::AppStore { .. } => None,
     });
 
     let payment_method = match existing_credit_card {

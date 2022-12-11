@@ -1,5 +1,4 @@
 use crate::account_service::DeleteAccountHelperError;
-use crate::billing::app_store_client::AppStoreError;
 use crate::billing::billing_service::{AppStoreNotificationError, LockBillingWorkflowError};
 use crate::billing::google_play_client::SimpleGCPError;
 use crate::metrics::MetricsError;
@@ -121,23 +120,15 @@ impl From<stripe::WebhookError> for ServerError<StripeWebhookError> {
     }
 }
 
-impl From<reqwest::Error> for AppStoreError {
-    fn from(e: reqwest::Error) -> Self {
-        AppStoreError::Other(format!("{:?}", e))
-    }
-}
-
-impl From<AppStoreError> for ServerError<UpgradeAccountAppStoreError> {
-    fn from(e: AppStoreError) -> Self {
-        match e {
-            AppStoreError::Other(msg) => internal!("{}", msg),
-        }
-    }
-}
-
-impl From<jsonwebtoken::errors::Error> for AppStoreError {
+impl From<jsonwebtoken::errors::Error> for ServerError<UpgradeAccountAppStoreError> {
     fn from(err: jsonwebtoken::errors::Error) -> Self {
-        AppStoreError::Other(format!("JWT error: {:?}", err))
+        internal!("JWT error: {:?}", err)
+    }
+}
+
+impl From<reqwest::Error> for ServerError<UpgradeAccountAppStoreError> {
+    fn from(err: reqwest::Error) -> Self {
+        internal!("reqwest error: {:?}", err)
     }
 }
 

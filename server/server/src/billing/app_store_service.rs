@@ -114,7 +114,13 @@ fn validate_jwt<T: Serialize + DeserializeOwned>(
 
     let pem = format!(
         "-----BEGIN PUBLIC KEY-----\n{}\n-----END PUBLIC KEY-----",
-        base64::encode(certs[0].public_key().raw)
+        base64::encode(
+            certs
+                .get(0)
+                .ok_or(ClientError(AppStoreNotificationError::InvalidJWS))?
+                .public_key()
+                .raw
+        )
     );
     let key = DecodingKey::from_ec_pem(pem.as_bytes())?;
 

@@ -24,7 +24,7 @@ let MONTHLY_SUBSCRIPTION_PRODUCT_ID = "basic.premium"
 class BillingService: ObservableObject {
     let core: LockbookApi
     
-    var updateListenerTask: Task<Void, Error>? = nil
+    var pendingTransactionsListener: Task<Void, Error>? = nil
 
     var maybeMonthlySubscription: Product? = nil
     var purchaseResult: PurchaseResult? = nil
@@ -35,7 +35,7 @@ class BillingService: ObservableObject {
     
     init(_ core: LockbookApi) {
         self.core = core
-        updateListenerTask = listenForTransactions()
+        pendingTransactionsListener = listenForTransactions()
 
         Task {
             await requestProducts()
@@ -43,7 +43,7 @@ class BillingService: ObservableObject {
     }
     
     deinit {
-        updateListenerTask?.cancel()
+        pendingTransactionsListener?.cancel()
     }
     
     func listenForTransactions() -> Task<Void, Error> {
@@ -59,7 +59,7 @@ class BillingService: ObservableObject {
                                     throw StoreError.failedVerification
                                 }
                                 
-                                let result = self.core.upgradeAccountAppStore(originalTransactionId: String(transaction.originalID), appAccountToken: appAccountToken.uuidString.lowercased(), encodedReceipt: receipt)
+                                let result = self.core.newAppleSub(originalTransactionId: String(transaction.originalID), appAccountToken: appAccountToken.uuidString.lowercased(), encodedReceipt: receipt)
                                 
                                 switch result {
                                 case .success(_):
@@ -91,17 +91,19 @@ class BillingService: ObservableObject {
             guard let monthlySubscription = maybeMonthlySubscription else {
                 throw StoreError.noProduct
             }
+            
             let result = try await monthlySubscription.purchase(options: purchaseOpt)
             SKReceiptRefreshRequest().start()
             
             switch result {
             case .success(let verification):
+                
                 while true {
                     if let receipt = getReceipt() {
                         makingPurchaseAttempt = true
                         let transaction = try checkVerified(verification)
                         
-                        let result = self.core.upgradeAccountAppStore(originalTransactionId: String(transaction.originalID), appAccountToken: accountToken.uuidString.lowercased(), encodedReceipt: receipt)
+                        let result = self.core.newAppleSub(originalTransactionId: String(transaction.originalID), appAccountToken: accountToken.uuidString.lowercased(), encodedReceipt: receipt)
                         
                         switch result {
                         case .success(_):
@@ -124,8 +126,7 @@ class BillingService: ObservableObject {
             default:
                 return .failure
             }
-        }
-        catch {
+        } catch {
             print("Couldn't read receipt data with error: " + error.localizedDescription)
         }
 
@@ -173,7 +174,7 @@ class BillingService: ObservableObject {
     
     func cancelSubscription() {
         DispatchQueue.global(qos: .userInteractive).async {
-            let result = self.core.cancelSubscription()
+            let result = self.core.cancelSub()
             
             DispatchQueue.main.async {
                 switch result {

@@ -239,8 +239,8 @@ impl AppleConfig {
             iap_key_id: env_or_panic("APPLE_IAP_KEY_ID"),
             asc_public_key: env_or_panic("APPLE_APP_STORE_CONNECT_PUBLIC_KEY"),
             issuer_id: env_or_panic("APPLE_ISSUER_ID"),
-            subscription_product_id: env_or_panic("APPLE_SUBSCRIPTION_PRODUCT_ID"),
-            asc_shared_secret: env_or_panic("APP_STORE_CONNECT_SHARED_SECRET"),
+            subscription_product_id: env_or_panic("APPLE_SUB_PROD_ID"),
+            asc_shared_secret: env_or_panic("APPLE_ASC_SHARED_SECRET"),
             apple_root_cert: apple_root_cert_dest
                 .map(|cert_path| fs::read(cert_path).unwrap())
                 .unwrap_or_default(),

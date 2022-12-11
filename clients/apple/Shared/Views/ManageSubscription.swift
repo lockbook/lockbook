@@ -7,7 +7,7 @@ struct ManageSubscription: View {
     
     @Environment(\.presentationMode) var presentationMode
         
-    @State var isLoading = false
+    @State var isPurchasing = false
     @State var error = false
     
     var body: some View {
@@ -24,7 +24,7 @@ struct ManageSubscription: View {
             case .Unknown: trial
             }
             
-            Text("Expand your storage to **30GB** for just **\(billing.maybeMonthlySubscription!.displayPrice)** a month.")
+            Text("Expand your storage to **30GB** for **\(billing.maybeMonthlySubscription?.displayPrice ?? "$2.99")** a month.")
                 .padding(.vertical)
             
             HStack {
@@ -32,7 +32,7 @@ struct ManageSubscription: View {
                 Button("Subscribe")
                 {
                     Task {
-                        isLoading = true
+                        isPurchasing = true
                         let result = try await billing.purchasePremium()
                         if result == .failure {
                             error = true
@@ -46,18 +46,18 @@ struct ManageSubscription: View {
                             }
                         }
                         
-                        isLoading = false
+                        isPurchasing = false
                     }
                 }
                 .buttonStyle(.borderedProminent)
                 .font(.title2)
                 .padding(.top)
-                .disabled(isLoading)
+                .disabled(isPurchasing)
                 
                 Spacer()
             }
             
-            if(isLoading) {
+            if(isPurchasing) {
                 HStack {
                     Spacer()
                     ProgressView()

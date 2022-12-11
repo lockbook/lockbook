@@ -103,11 +103,11 @@ Vestibulum ante ipsum primis in vel.
         .failure(.init(unexpected: "LAZY"))
     }
     
-    public func upgradeAccountAppStore(originalTransactionId: String, appAccountToken: String, encodedReceipt: String) -> FfiResult<Empty, UpgradeAccountAppStoreError> {
+    public func newAppleSub(originalTransactionId: String, appAccountToken: String, encodedReceipt: String) -> FfiResult<Empty, UpgradeAccountAppStoreError> {
         .failure(.init(unexpected: "LAZY"))
     }
     
-    public func cancelSubscription() -> FfiResult<Empty, CancelSubscriptionError> {
+    public func cancelSub() -> FfiResult<Empty, CancelSubscriptionError> {
         .failure(.init(unexpected: "LAZY"))
     }
     
