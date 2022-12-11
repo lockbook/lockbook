@@ -894,7 +894,7 @@ where
         let account = &self.account;
         let mut local = (&self.base).stage(&self.local).to_lazy();
         let base_ids = local.tree.base.owned_ids();
-        let server_ids = self.client.request(&account, GetFileIdsRequest {})?.ids;
+        let server_ids = self.client.request(account, GetFileIdsRequest {})?.ids;
 
         let mut prunable_ids = base_ids;
         prunable_ids.retain(|id| !server_ids.contains(id));
