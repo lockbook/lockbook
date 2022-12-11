@@ -98,7 +98,30 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
         let mut sync_progress =
             SyncProgress { total: 0, progress: 0, current_work_unit: ClientWorkUnit::PullMetadata };
         if maybe_update_sync_progress.is_some() {
-            sync_progress.total = self.calculate_work()?.work_units.len();
+            let mut sync_context = SyncContext {
+                dry_run: false,
+                account: self.get_account()?.clone(),
+                root: self.tx.root.get(&OneKey {}).cloned(),
+                last_synced: self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64),
+                base: (&mut self.tx.base_metadata).to_staged(Vec::new()),
+                local: (&mut self.tx.local_metadata).to_staged(Vec::new()),
+                username_by_public_key: &mut self.tx.username_by_public_key,
+                public_key_by_username: &mut self.tx.public_key_by_username,
+                client: self.client,
+                config: self.config,
+            };
+            sync_context.sync(&mut |op| match op {
+                SyncOperation::PullMetadataStart
+                | SyncOperation::PushMetadataStart(_)
+                | SyncOperation::PullDocumentStart(_)
+                | SyncOperation::PushDocumentStart(_) => {}
+                SyncOperation::PullMetadataEnd(_)
+                | SyncOperation::PushMetadataEnd
+                | SyncOperation::PullDocumentEnd
+                | SyncOperation::PushDocumentEnd => {
+                    sync_progress.total += 1;
+                }
+            })?;
         }
         let mut update_sync_progress = |op| {
             work_units.extend(get_work_units(&op));
