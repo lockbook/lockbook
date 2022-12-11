@@ -95,40 +95,14 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
         &mut self, maybe_update_sync_progress: Option<F>,
     ) -> CoreResult<WorkCalculated> {
         let mut work_units: Vec<WorkUnit> = Vec::new();
-        let update_as_of = if let Some(update_sync_progress) = maybe_update_sync_progress {
-            let mut sync_progress = SyncProgress {
-                total: 0,
-                progress: 0,
-                current_work_unit: ClientWorkUnit::PullMetadata,
-            };
-            SyncContext {
-                dry_run: true,
-                account: self.get_account()?.clone(),
-                root: self.tx.root.get(&OneKey {}).cloned(),
-                last_synced: self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64),
-                base: (&mut self.tx.base_metadata).to_staged(Vec::new()),
-                local: (&mut self.tx.local_metadata).to_staged(Vec::new()),
-                username_by_public_key: &mut self.tx.username_by_public_key,
-                public_key_by_username: &mut self.tx.public_key_by_username,
-                client: self.client,
-                config: self.config,
-            }
-            .sync(&mut |op| sync_progress.total += get_work_units(&op).len())?;
-
-            let mut sync_context = SyncContext {
-                dry_run: false,
-                account: self.get_account()?.clone(),
-                root: self.tx.root.get(&OneKey {}).cloned(),
-                last_synced: self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64),
-                base: (&mut self.tx.base_metadata).to_staged(Vec::new()),
-                local: (&mut self.tx.local_metadata).to_staged(Vec::new()),
-                username_by_public_key: &mut self.tx.username_by_public_key,
-                public_key_by_username: &mut self.tx.public_key_by_username,
-                client: self.client,
-                config: self.config,
-            };
-            let update_as_of = sync_context.sync(&mut |op| {
-                work_units.extend(get_work_units(&op));
+        let mut sync_progress =
+            SyncProgress { total: 0, progress: 0, current_work_unit: ClientWorkUnit::PullMetadata };
+        if maybe_update_sync_progress.is_some() {
+            sync_progress.total = self.calculate_work()?.work_units.len();
+        }
+        let mut update_sync_progress = |op| {
+            work_units.extend(get_work_units(&op));
+            if let Some(ref update_sync_progress) = maybe_update_sync_progress {
                 match op {
                     SyncOperation::PullMetadataStart => {
                         sync_progress.current_work_unit = ClientWorkUnit::PullMetadata;
@@ -150,53 +124,33 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
                     }
                 }
                 update_sync_progress(sync_progress.clone());
-            })?;
-
-            let base_staged = sync_context.base.staged.clone();
-            let local_staged = sync_context.local.staged.clone();
-            if let Some(root) = sync_context.root {
-                self.tx.root.insert(OneKey {}, root);
             }
-            if let Some(last_synced) = sync_context.last_synced {
-                self.tx.last_synced.insert(OneKey {}, last_synced as i64);
-            }
-            (&mut self.tx.base_metadata)
-                .to_staged(base_staged)
-                .to_lazy()
-                .promote();
-            (&mut self.tx.local_metadata)
-                .to_staged(local_staged)
-                .to_lazy()
-                .promote();
-
-            update_as_of
-        } else {
-            let mut sync_context = SyncContext {
-                dry_run: false,
-                account: self.get_account()?.clone(),
-                root: self.tx.root.get(&OneKey {}).cloned(),
-                last_synced: self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64),
-                base: (&mut self.tx.base_metadata).to_staged(Vec::new()),
-                local: (&mut self.tx.local_metadata).to_staged(Vec::new()),
-                username_by_public_key: &mut self.tx.username_by_public_key,
-                public_key_by_username: &mut self.tx.public_key_by_username,
-                client: self.client,
-                config: self.config,
-            };
-            let update_as_of =
-                sync_context.sync(&mut |op| work_units.extend(get_work_units(&op)))?;
-
-            if let Some(root) = sync_context.root {
-                self.tx.root.insert(OneKey {}, root);
-            }
-            if let Some(last_synced) = sync_context.last_synced {
-                self.tx.last_synced.insert(OneKey {}, last_synced as i64);
-            }
-            sync_context.base.to_lazy().promote();
-            sync_context.local.to_lazy().promote();
-
-            update_as_of
         };
+
+        let mut sync_context = SyncContext {
+            dry_run: false,
+            account: self.get_account()?.clone(),
+            root: self.tx.root.get(&OneKey {}).cloned(),
+            last_synced: self.tx.last_synced.get(&OneKey {}).map(|s| *s as u64),
+            base: (&mut self.tx.base_metadata).to_staged(Vec::new()),
+            local: (&mut self.tx.local_metadata).to_staged(Vec::new()),
+            username_by_public_key: &mut self.tx.username_by_public_key,
+            public_key_by_username: &mut self.tx.public_key_by_username,
+            client: self.client,
+            config: self.config,
+        };
+
+        let update_as_of = sync_context.sync(&mut update_sync_progress)?;
+
+        if let Some(root) = sync_context.root {
+            self.tx.root.insert(OneKey {}, root);
+        }
+        if let Some(last_synced) = sync_context.last_synced {
+            self.tx.last_synced.insert(OneKey {}, last_synced as i64);
+        }
+        sync_context.base.to_lazy().promote();
+        sync_context.local.to_lazy().promote();
+
         Ok(WorkCalculated { work_units, most_recent_update_from_server: update_as_of as u64 })
     }
 }
