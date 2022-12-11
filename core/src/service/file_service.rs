@@ -1,4 +1,5 @@
 use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
+use lockbook_shared::access_info::UserAccessMode;
 use lockbook_shared::file::File;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileType, Owner};
@@ -152,6 +153,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
         if tree.calculate_deleted(id)? {
+            return Err(CoreError::FileNonexistent);
+        }
+        if tree.access_mode(Owner(account.public_key()), id)? < Some(UserAccessMode::Read) {
             return Err(CoreError::FileNonexistent);
         }
 
