@@ -1,7 +1,9 @@
 use crate::{get_dirty_ids, slices_equal_ignore_order, test_core_from};
 use hmdb::transaction::Transaction;
+use lockbook_core::service::api_service::Requester;
 use lockbook_core::Core;
 use lockbook_core::OneKey;
+use lockbook_shared::api::GetUpdatesRequest;
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::path_ops::Filter::DocumentsOnly;
@@ -206,7 +208,22 @@ pub fn server_work_paths(db: &Core, expected_paths: &[&'static str]) {
         .transaction(|tx| {
             let context = db.context(tx).unwrap();
             let account = context.tx.account.get(&OneKey {}).unwrap();
-            let remote_changes = context.get_updates().unwrap().file_metadata;
+            let remote_changes = context
+                .client
+                .request(
+                    account,
+                    GetUpdatesRequest {
+                        since_metadata_version: context
+                            .tx
+                            .last_synced
+                            .get(&OneKey {})
+                            .copied()
+                            .unwrap_or_default()
+                            as u64,
+                    },
+                )
+                .unwrap()
+                .file_metadata;
             let mut remote = context
                 .tx
                 .base_metadata
