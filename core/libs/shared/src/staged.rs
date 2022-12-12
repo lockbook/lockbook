@@ -125,6 +125,10 @@ where
             self.base.maybe_find(&id).cloned()
         }
     }
+
+    fn clear(&mut self) {
+        self.removed.extend(self.owned_ids());
+    }
 }
 
 impl<Base, Staged> StagedTreeLike for StagedTree<Base, Staged>

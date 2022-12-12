@@ -28,6 +28,7 @@ impl<T> LazyTree<T>
 where
     T: TreeLike<F = SignedFile>,
 {
+    // todo: revisit logic for what files can be finalized and how e.g. link substitutions, deleted files, files in pending shares, linked files
     pub fn finalize<PublicKeyCache: SchemaEvent<Owner, String>>(
         &mut self, id: &Uuid, account: &Account,
         public_key_cache: &mut TransactionTable<Owner, String, PublicKeyCache>,
@@ -74,7 +75,33 @@ where
         Ok(File { id, parent, name, file_type, last_modified, last_modified_by, shares })
     }
 
+    // this variant used when we want to skip certain files e.g. when listing paths
     pub fn resolve_and_finalize<I, PublicKeyCache>(
+        &mut self, account: &Account, ids: I,
+        public_key_cache: &mut TransactionTable<Owner, String, PublicKeyCache>,
+    ) -> SharedResult<Vec<File>>
+    where
+        I: Iterator<Item = Uuid>,
+        PublicKeyCache: SchemaEvent<Owner, String>,
+    {
+        let mut user_visible_ids = Vec::new();
+        for id in ids {
+            if self.calculate_deleted(&id)? {
+                continue;
+            }
+            if self.in_pending_share(&id)? {
+                continue;
+            }
+            if self.link(&id)?.is_some() {
+                continue;
+            }
+            user_visible_ids.push(id);
+        }
+        self.resolve_and_finalize_all(account, user_visible_ids.into_iter(), public_key_cache)
+    }
+
+    // this variant used when we must include all files e.g. work calculated
+    pub fn resolve_and_finalize_all<I, PublicKeyCache>(
         &mut self, account: &Account, ids: I,
         public_key_cache: &mut TransactionTable<Owner, String, PublicKeyCache>,
     ) -> SharedResult<Vec<File>>
@@ -86,16 +113,6 @@ where
         let mut parent_substitutions = HashMap::new();
 
         for id in ids {
-            if self.calculate_deleted(&id)? {
-                continue;
-            }
-            if self.in_pending_share(&id)? {
-                continue;
-            }
-            if self.link(&id)?.is_some() {
-                continue;
-            }
-
             let finalized = self.finalize(&id, account, public_key_cache)?;
 
             match finalized.file_type {
@@ -179,6 +196,9 @@ where
 
         let mut result = vec![file];
         for id in self.descendants(id)? {
+            if self.calculate_deleted(&id)? {
+                continue;
+            }
             let mut descendant = self.find(&id)?.timestamped_value.value.clone();
             descendant.owner = owner;
             result.push(descendant.sign(account)?);

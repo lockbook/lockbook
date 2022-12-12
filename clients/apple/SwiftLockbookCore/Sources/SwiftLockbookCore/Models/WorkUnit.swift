@@ -5,7 +5,7 @@ public struct WorkUnit: Decodable {
     public var tag: String
 }
 
-public struct WorkMetadata: Decodable {
-    public var mostRecentUpdateFromServer: Date
+public struct WorkCalculated: Decodable {
+    public var mostRecentUpdateFromServer: UInt64
     public var workUnits: [WorkUnit]
 }

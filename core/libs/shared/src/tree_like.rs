@@ -68,6 +68,7 @@ pub trait TreeLike: Sized {
 pub trait TreeLikeMut: TreeLike {
     fn insert(&mut self, f: Self::F) -> Option<Self::F>;
     fn remove(&mut self, id: Uuid) -> Option<Self::F>;
+    fn clear(&mut self);
 }
 
 impl<T> TreeLike for &T
@@ -111,6 +112,10 @@ where
     fn remove(&mut self, id: Uuid) -> Option<Self::F> {
         T::remove(self, id)
     }
+
+    fn clear(&mut self) {
+        T::clear(self)
+    }
 }
 
 impl<F> TreeLike for Vec<F>
@@ -153,5 +158,9 @@ where
         }
 
         None
+    }
+
+    fn clear(&mut self) {
+        self.clear()
     }
 }

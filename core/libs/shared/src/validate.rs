@@ -105,8 +105,14 @@ where
         Ok(())
     }
 
-    pub fn assert_all_files_same_owner_as_parent(&self) -> SharedResult<()> {
-        for file in self.all_files()? {
+    // note: deleted files exempt because otherwise moving a folder with a deleted file in it
+    // to/from a folder with a different owner would require updating a deleted file
+    pub fn assert_all_files_same_owner_as_parent(&mut self) -> SharedResult<()> {
+        for id in self.owned_ids() {
+            if self.calculate_deleted(&id)? {
+                continue;
+            }
+            let file = self.find(&id)?;
             if let Some(parent) = self.maybe_find(file.parent()) {
                 if parent.owner() != file.owner() {
                     return Err(SharedError::ValidationFailure(

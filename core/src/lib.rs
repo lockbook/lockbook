@@ -345,11 +345,13 @@ impl<Client: Requester> CoreLib<Client> {
         Ok(val?)
     }
 
+    // todo: expose work calculated (return value)
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress)>>) -> Result<(), Error<SyncAllError>> {
         let val = self.db.transaction(|tx| self.context(tx)?.sync(f))?;
         self.db.transaction(|tx| self.context(tx)?.cleanup())??;
-        Ok(val?)
+        val?;
+        Ok(())
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]

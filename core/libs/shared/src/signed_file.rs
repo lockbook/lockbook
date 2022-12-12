@@ -68,4 +68,8 @@ where
             None
         }
     }
+
+    fn clear(&mut self) {
+        *self = None
+    }
 }

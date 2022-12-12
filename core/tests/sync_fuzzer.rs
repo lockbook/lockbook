@@ -68,7 +68,7 @@ impl Actions {
             SyncAndCheck => {
                 for _ in 0..2 {
                     for client in clients {
-                        client.sync(None).unwrap()
+                        client.sync(None).unwrap();
                     }
                 }
 
