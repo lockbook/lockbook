@@ -28,6 +28,7 @@ impl<T> LazyTree<T>
 where
     T: TreeLike<F = SignedFile>,
 {
+    // todo: revisit logic for what files can be finalized and how e.g. link substitutions, deleted files, files in pending shares, linked files
     pub fn finalize<PublicKeyCache: SchemaEvent<Owner, String>>(
         &mut self, id: &Uuid, account: &Account,
         public_key_cache: &mut TransactionTable<Owner, String, PublicKeyCache>,
@@ -74,6 +75,7 @@ where
         Ok(File { id, parent, name, file_type, last_modified, last_modified_by, shares })
     }
 
+    // this variant used when we want to skip certain files e.g. when listing paths
     pub fn resolve_and_finalize<I, PublicKeyCache>(
         &mut self, account: &Account, ids: I,
         public_key_cache: &mut TransactionTable<Owner, String, PublicKeyCache>,
@@ -98,6 +100,7 @@ where
         self.resolve_and_finalize_all(account, user_visible_ids.into_iter(), public_key_cache)
     }
 
+    // this variant used when we must include all files e.g. work calculated
     pub fn resolve_and_finalize_all<I, PublicKeyCache>(
         &mut self, account: &Account, ids: I,
         public_key_cache: &mut TransactionTable<Owner, String, PublicKeyCache>,

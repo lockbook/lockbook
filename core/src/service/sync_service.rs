@@ -97,6 +97,11 @@ impl<'a, 'b, Client: Requester> RequestContext<'a, 'b, Client> {
         let mut work_units: Vec<WorkUnit> = Vec::new();
         let mut sync_progress =
             SyncProgress { total: 0, progress: 0, current_work_unit: ClientWorkUnit::PullMetadata };
+
+        // if sync progress is requested, calculate total work using a dry run
+        // this is not the same as the length of work units from work_calculated because e.g.
+        // all the metadata pushes are considered one unit of progress, whereas in work calculated
+        // each changed file is modeled as a separate work unit
         if maybe_update_sync_progress.is_some() {
             let mut sync_context = SyncContext {
                 dry_run: true,
