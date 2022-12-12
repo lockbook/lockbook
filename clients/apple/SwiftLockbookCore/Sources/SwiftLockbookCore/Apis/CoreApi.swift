@@ -43,7 +43,7 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: sync_all())
     }
     
-    public func calculateWork() -> FfiResult<WorkMetadata, CalculateWorkError> {
+    public func calculateWork() -> FfiResult<WorkCalculated, CalculateWorkError> {
         fromPrimitiveResult(result: calculate_work())
     }
     

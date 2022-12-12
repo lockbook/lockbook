@@ -11,7 +11,7 @@ public protocol LockbookApi {
 
     // Work
     func syncAll() -> FfiResult<Empty, SyncAllError>
-    func calculateWork() -> FfiResult<WorkMetadata, CalculateWorkError>
+    func calculateWork() -> FfiResult<WorkCalculated, CalculateWorkError>
     func getLastSyncedHumanString() -> FfiResult<String, GetLastSyncedError>
     func getLocalChanges() -> FfiResult<[UUID], GetLocalChangesError>
     

@@ -32,7 +32,7 @@ public struct FakeApi: LockbookApi {
         .failure(.init(unexpected: "LAZY"))
     }
     
-    public func calculateWork() -> FfiResult<WorkMetadata, CalculateWorkError> {
+    public func calculateWork() -> FfiResult<WorkCalculated, CalculateWorkError> {
         .failure(.init(unexpected: "LAZY"))
     }
     
