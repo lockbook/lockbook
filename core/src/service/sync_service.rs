@@ -252,7 +252,7 @@ where
             remote_changes = self.prune_remote_orphans(remote_changes)?;
             self.populate_public_key_cache(&remote_changes)?;
 
-            let mut remote = self.base.stage(remote_changes).to_lazy();
+            let mut remote = self.base.stage(remote_changes).pruned().to_lazy();
             report_sync_operation(SyncOperation::PullMetadataEnd(
                 remote.resolve_and_finalize_all(
                     &self.account,
