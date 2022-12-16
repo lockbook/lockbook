@@ -49,7 +49,7 @@ fn import_file_successfully() {
     let child_name = Uuid::new_v4().to_string();
     let child_path = parent_path.join(&child_name);
 
-    std::fs::write(&child_path, rand::thread_rng().gen::<[u8; 32]>()).unwrap();
+    std::fs::write(child_path, rand::thread_rng().gen::<[u8; 32]>()).unwrap();
 
     core.import_files(&[parent_path], root.id, &f).unwrap();
 

@@ -127,7 +127,7 @@ fn list_files(db: &Config) -> Vec<String> {
     let path = document_repo::namespace_path(&db.writeable_path);
     let path = Path::new(&path);
 
-    match fs::read_dir(&path) {
+    match fs::read_dir(path) {
         Ok(rd) => {
             let mut file_names = rd
                 .map(|dir_entry| {

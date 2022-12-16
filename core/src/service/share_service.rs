@@ -9,7 +9,9 @@ use uuid::Uuid;
 
 impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn share_file(&mut self, id: Uuid, username: &str, mode: ShareMode) -> CoreResult<()> {
-        let mut tree = (&self.tx.base_metadata)
+        let mut tree = self
+            .tx
+            .base_metadata
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
@@ -40,7 +42,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn get_pending_shares(&mut self) -> CoreResult<Vec<File>> {
         let account = &self.get_account()?.clone(); // todo: don't clone
         let owner = Owner(self.get_public_key()?);
-        let mut tree = (&self.tx.base_metadata)
+        let mut tree = self
+            .tx
+            .base_metadata
             .stage(&self.tx.local_metadata)
             .to_lazy();
 
@@ -71,7 +75,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn delete_share(
         &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>,
     ) -> CoreResult<()> {
-        let mut tree = (&self.tx.base_metadata)
+        let mut tree = self
+            .tx
+            .base_metadata
             .stage(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self

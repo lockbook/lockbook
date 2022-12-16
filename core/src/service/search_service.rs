@@ -50,7 +50,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             return Ok(Vec::new());
         }
 
-        let mut tree = (&self.tx.base_metadata)
+        let mut tree = self
+            .tx
+            .base_metadata
             .stage(&self.tx.local_metadata)
             .to_lazy();
 
@@ -82,7 +84,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn start_search(&mut self) -> CoreResult<StartSearchInfo> {
-        let mut tree = (&self.tx.base_metadata)
+        let mut tree = self
+            .tx
+            .base_metadata
             .stage(&self.tx.local_metadata)
             .to_lazy();
         let account = self
@@ -352,7 +356,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 .chain("...".chars())
                 .collect();
         } else {
-            if *first_match > CONTENT_MATCH_PADDING as usize {
+            if *first_match > CONTENT_MATCH_PADDING {
                 let at_least_take = new_paragraph.len() - first_match + CONTENT_MATCH_PADDING;
 
                 let deleted_chars_len = if at_least_take > IDEAL_CONTENT_MATCH_LENGTH {
@@ -392,10 +396,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                     .chain("...".chars())
                     .collect();
 
-                new_indices = new_indices
-                    .into_iter()
-                    .filter(|index| (*index - index_offset) < MAX_CONTENT_MATCH_LENGTH)
-                    .collect()
+                new_indices.retain(|index| (*index - index_offset) < MAX_CONTENT_MATCH_LENGTH)
             }
         }
 

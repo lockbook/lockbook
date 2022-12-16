@@ -68,7 +68,7 @@ impl CoreV2 {
         if base_path.is_dir() {
             fs::create_dir_all(&docs_path)?;
 
-            for entry in fs::read_dir(&base_path)? {
+            for entry in fs::read_dir(base_path)? {
                 let path = entry?.path();
                 let id_str = path
                     .file_name()
@@ -91,7 +91,7 @@ impl CoreV2 {
         if local_path.is_dir() {
             fs::create_dir_all(&docs_path)?;
 
-            for entry in fs::read_dir(&local_path)? {
+            for entry in fs::read_dir(local_path)? {
                 let path = entry?.path();
                 let id_str = path
                     .file_name()

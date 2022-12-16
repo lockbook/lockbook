@@ -13,7 +13,9 @@ const UTF8_SUFFIXES: [&str; 12] =
 
 impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn test_repo_integrity(&mut self) -> Result<Vec<Warning>, TestRepoError> {
-        let mut tree = (&self.tx.base_metadata)
+        let mut tree = self
+            .tx
+            .base_metadata
             .stage(&self.tx.local_metadata)
             .to_lazy();
         let account = self
