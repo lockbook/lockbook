@@ -243,11 +243,8 @@ where
             }
         }
         if found {
-            file.user_access_keys = file
-                .user_access_keys
-                .into_iter()
-                .filter(|k| k.encrypted_for != sharee.0)
-                .collect();
+            file.user_access_keys
+                .retain(|k| k.encrypted_for != sharee.0);
         }
         file.user_access_keys.push(UserAccessInfo::encrypt(
             account,
