@@ -36,7 +36,7 @@ impl Settings {
 
     pub fn to_file(&self) -> io::Result<()> {
         let content = serde_json::to_string(&self).ok().unwrap();
-        fs::write(&self.path, &content)
+        fs::write(&self.path, content)
     }
 }
 

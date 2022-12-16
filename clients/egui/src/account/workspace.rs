@@ -35,12 +35,7 @@ impl Workspace {
     }
 
     pub fn get_mut_tab_by_id(&mut self, id: lb::Uuid) -> Option<&mut Tab> {
-        for tab in &mut self.tabs {
-            if tab.id == id {
-                return Some(tab);
-            }
-        }
-        None
+        self.tabs.iter_mut().find(|tab| tab.id == id)
     }
 
     pub fn is_empty(&self) -> bool {
