@@ -28,7 +28,6 @@ pub use lockbook_shared::file::ShareMode;
 pub use lockbook_shared::file_like::FileLike;
 pub use lockbook_shared::file_metadata::{FileType, Owner};
 pub use lockbook_shared::filename::NameComponents;
-pub use lockbook_shared::lazy;
 pub use lockbook_shared::lazy::LazyTree;
 pub use lockbook_shared::path_ops::Filter;
 pub use lockbook_shared::server_file::ServerFile;

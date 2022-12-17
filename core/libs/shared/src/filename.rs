@@ -51,7 +51,7 @@ impl NameComponents {
         let name = {
             let name_right_bound =
                 variant_location.unwrap_or_else(|| extension_location.unwrap_or(file_name.len()));
-            (&file_name[0..name_right_bound]).to_string()
+            file_name[0..name_right_bound].to_string()
         };
 
         let extension = extension_location.map(|location| file_name[location + 1..].to_string());

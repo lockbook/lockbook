@@ -11,7 +11,7 @@ pub fn run_server_detached(tool_env: &ToolEnvironment) {
     let server_log = File::create(utils::server_log(&tool_env.root_dir)).unwrap();
     let out = Stdio::from(server_log);
     let port = env::var("SERVER_PORT").unwrap();
-    let build_info_address = utils::build_info_address(&port);
+    let build_info_address = &utils::build_info_address(&port);
 
     let mut run_result = Command::new("cargo")
         .args(["run", "-p", "lockbook-server", "--release"])
@@ -26,7 +26,7 @@ pub fn run_server_detached(tool_env: &ToolEnvironment) {
             panic!("Server failed to start.")
         }
 
-        if reqwest::blocking::get(&build_info_address).is_ok() {
+        if reqwest::blocking::get(build_info_address).is_ok() {
             println!("Server running on '{}'", utils::api_url(&port));
             break;
         }

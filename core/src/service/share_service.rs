@@ -10,7 +10,7 @@ use uuid::Uuid;
 impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn share_file(&mut self, id: Uuid, username: &str, mode: ShareMode) -> CoreResult<()> {
         let mut tree = (&self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
+            .to_staged(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx
@@ -41,7 +41,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         let account = &self.get_account()?.clone(); // todo: don't clone
         let owner = Owner(self.get_public_key()?);
         let mut tree = (&self.tx.base_metadata)
-            .stage(&self.tx.local_metadata)
+            .to_staged(&self.tx.local_metadata)
             .to_lazy();
 
         let mut result = Vec::new();
@@ -72,7 +72,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>,
     ) -> CoreResult<()> {
         let mut tree = (&self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
+            .to_staged(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx

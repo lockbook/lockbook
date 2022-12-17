@@ -42,7 +42,7 @@ pub fn core_version() -> String {
 
 pub fn android_version_code() -> String {
     let version_bytes = Command::new("./gradlew")
-        .args(&["-q", "printVersionCode"])
+        .args(["-q", "printVersionCode"])
         .current_dir("clients/android")
         .stdout(Stdio::piped())
         .stderr(Stdio::null())

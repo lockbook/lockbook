@@ -277,7 +277,7 @@ where
         // fetch document updates and local documents for merge
         let me = Owner(self.account.public_key());
         remote_changes = {
-            let mut remote = (&self.base).stage(remote_changes).to_lazy();
+            let mut remote = self.base.stage(remote_changes).to_lazy();
             for id in remote.tree.staged.owned_ids() {
                 if remote.calculate_deleted(&id)? {
                     continue;
@@ -863,7 +863,7 @@ where
         &mut self, remote_changes: Vec<SignedFile>,
     ) -> CoreResult<Vec<SignedFile>> {
         let me = Owner(self.account.public_key());
-        let remote = (&self.base).stage(remote_changes).to_lazy();
+        let remote = self.base.stage(remote_changes).to_lazy();
         let mut result = Vec::new();
         for id in remote.tree.staged.owned_ids() {
             let meta = remote.find(&id)?;
@@ -880,7 +880,7 @@ where
     }
 
     fn prune(&mut self) -> CoreResult<()> {
-        let mut local = (&self.base).stage(&self.local).to_lazy();
+        let mut local = self.base.stage(&self.local).to_lazy();
         let base_ids = local.tree.base.owned_ids();
         let server_ids = self
             .client
@@ -923,7 +923,7 @@ where
         // remote = local
         let mut local_changes_no_digests = Vec::new();
         let mut updates = Vec::new();
-        let mut local = (&self.base).stage(&self.local).to_lazy();
+        let mut local = self.base.stage(&self.local).to_lazy();
 
         for id in local.tree.staged.owned_ids() {
             let mut local_change = local.tree.staged.find(&id)?.timestamped_value.value.clone();
@@ -968,7 +968,7 @@ where
     where
         F: FnMut(SyncOperation),
     {
-        let mut local = (&self.base).stage(&self.local).to_lazy();
+        let mut local = self.base.stage(&self.local).to_lazy();
 
         let mut local_changes_digests_only = Vec::new();
         for id in local.tree.staged.owned_ids() {
@@ -1055,6 +1055,6 @@ where
 
     // todo: check only necessary ids
     fn cleanup_local_metadata(&mut self) {
-        (&self.base).stage(&mut self.local).prune();
+        self.base.stage(&mut self.local).prune();
     }
 }

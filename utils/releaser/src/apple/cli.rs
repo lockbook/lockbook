@@ -62,7 +62,7 @@ fn upload(gh: &Github) {
     client
         .upload_release_asset(
             &lb_repo(),
-            release.id as u64,
+            release.id,
             "lockbook-cli-macos.tar.gz",
             "application/gzip",
             file,

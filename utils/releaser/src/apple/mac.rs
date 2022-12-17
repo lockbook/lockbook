@@ -90,7 +90,7 @@ fn upload(gh: &Github) {
     client
         .upload_release_asset(
             &lb_repo(),
-            release.id as u64,
+            release.id,
             "lockbook-macos.app.zip",
             "application/zip",
             file,

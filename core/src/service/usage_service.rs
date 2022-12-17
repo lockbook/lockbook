@@ -46,7 +46,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
     pub fn get_uncompressed_usage(&mut self) -> CoreResult<UsageItemMetric> {
         let mut tree = (&self.tx.base_metadata)
-            .stage(&self.tx.local_metadata)
+            .to_staged(&self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx

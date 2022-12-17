@@ -39,7 +39,7 @@ fn upload<P: AsRef<Path>>(gh: &Github, name: &str, fpath: P) {
     client
         .upload_release_asset(
             &lb_repo(),
-            release.id as u64,
+            release.id,
             name,
             "application/vnd.microsoft.portable-executable",
             file,

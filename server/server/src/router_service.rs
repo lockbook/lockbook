@@ -116,7 +116,7 @@ macro_rules! core_req {
 
 pub fn core_routes(
     server_state: &Arc<ServerState>,
-) -> impl Filter<Extract = impl warp::Reply, Error = Rejection> + Clone {
+) -> impl Filter<Extract = (impl warp::Reply,), Error = Rejection> + Clone {
     core_req!(NewAccountRequest, new_account, server_state)
         .or(core_req!(ChangeDocRequest, change_doc, server_state))
         .or(core_req!(UpsertRequest, upsert_file_metadata, server_state))
@@ -140,7 +140,7 @@ pub fn core_routes(
         .or(core_req!(AdminFileInfoRequest, admin_file_info, server_state))
 }
 
-pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+pub fn build_info() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     warp::get()
         .and(warp::path(&GetBuildInfoRequest::ROUTE[1..]))
         .map(|| {
@@ -162,7 +162,8 @@ pub fn build_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rej
         })
 }
 
-pub fn get_metrics() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+pub fn get_metrics() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
+{
     warp::get().and(warp::path("metrics")).map(|| {
         let span = span!(Level::INFO, "matched_request", method = "GET", route = "/metrics",);
         let _enter = span.enter();
@@ -180,9 +181,10 @@ pub fn get_metrics() -> impl Filter<Extract = impl warp::Reply, Error = warp::Re
 }
 
 static STRIPE_WEBHOOK_ROUTE: &str = "stripe-webhooks";
+
 pub fn stripe_webhooks(
     server_state: &Arc<ServerState>,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     let cloned_state = server_state.clone();
 
     warp::post()
@@ -225,9 +227,10 @@ pub fn stripe_webhooks(
 }
 
 static PLAY_WEBHOOK_ROUTE: &str = "google_play_notification_webhook";
+
 pub fn google_play_notification_webhooks(
     server_state: &Arc<ServerState>,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     let cloned_state = server_state.clone();
 
     warp::post()

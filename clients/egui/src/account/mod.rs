@@ -243,7 +243,7 @@ impl AccountScreen {
             let d = &mut self.modals.help;
             *d = match d {
                 Some(_) => None,
-                None => Some(Box::new(HelpModal::default())),
+                None => Some(Box::default()),
             };
         }
 

@@ -111,10 +111,11 @@ impl super::SettingsModal {
                     }
                     None => {}
                 },
-                UpgradingStage::Paying => match u.show_paying(ui) {
-                    Some(()) => self.usage.upgrading = None,
-                    None => {}
-                },
+                UpgradingStage::Paying => {
+                    if let Some(()) = u.show_paying(ui) {
+                        self.usage.upgrading = None;
+                    }
+                }
             }
         } else {
             let metrics = match &self.usage.metrics_result {
