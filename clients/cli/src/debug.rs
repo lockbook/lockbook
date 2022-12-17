@@ -103,7 +103,7 @@ fn validate(core: &Core) -> Result<(), CliError> {
                 CliError::file_name_has_slash(core.get_path_by_id(id)?)
             }
             TestRepoError::PathConflict(ids) => {
-                CliError::name_conflict_detected(&format!("{:?}", ids))
+                CliError::name_conflict_detected(format!("{:?}", ids))
             }
             TestRepoError::DocumentReadError(id, err) => {
                 CliError::validate_doc_read(core.get_path_by_id(id)?, format!("{:#?}", err))

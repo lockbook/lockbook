@@ -42,7 +42,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             return Err(CoreError::AccountExists);
         }
 
-        let decoded = match base64::decode(&account_string) {
+        let decoded = match base64::decode(account_string) {
             Ok(d) => d,
             Err(_) => {
                 return Err(CoreError::AccountStringCorrupted);
@@ -80,12 +80,12 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             .get(&OneKey {})
             .ok_or(CoreError::AccountNonexistent)?;
         let encoded: Vec<u8> = bincode::serialize(&account).map_err(core_err_unexpected)?;
-        Ok(base64::encode(&encoded))
+        Ok(base64::encode(encoded))
     }
 
     pub fn export_account_qr(&self) -> CoreResult<Vec<u8>> {
         let acct_secret = self.export_account()?;
-        qrcode_generator::to_png_to_vec(&acct_secret, QrCodeEcc::Low, 1024)
+        qrcode_generator::to_png_to_vec(acct_secret, QrCodeEcc::Low, 1024)
             .map_err(core_err_unexpected)
     }
 

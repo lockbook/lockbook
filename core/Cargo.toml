@@ -25,15 +25,12 @@ diffy = "0.2.0"
 fuzzy-matcher = "0.3.7"
 image = "0.24.3"
 jni = { version = "0.13.1", default-features = false }
-rand = "0.8.4"
 raqote = { version = "0.8.0", default-features = false }
 reqwest = { version = "0.11.1", default-features = false, features = ["blocking", "json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.44"
-sha2 = "0.9.9"
 strum = "0.19.5"
 strum_macros = "0.19.4"
-tempfile = { version = "3.1.0" }
 uuid = { version = "0.8.1", features = ["v4", "serde"] }
 itertools = "0.10.1"
 backtrace = "0.3"
@@ -58,9 +55,10 @@ debug = true
 cpuprofiler = "0.0.4"
 criterion = "0.3.5"
 indicatif = "=0.17.0-rc.11"
-libsecp256k1 = "0.7.1"
 variant_count = "1.1.0"
 num_cpus = "1.13.0"
+rand = "0.8.4"
+tempfile = { version = "3.1.0" }
 test_utils = { path = "libs/test_utils" }
 
 [[bench]]

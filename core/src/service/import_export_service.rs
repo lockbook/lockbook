@@ -30,7 +30,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     ) -> CoreResult<()> {
         update_status(ImportStatus::CalculatedTotal(get_total_child_count(sources)?));
 
-        let tree = (&self.tx.base_metadata).stage(&self.tx.local_metadata);
+        let tree = self.tx.base_metadata.stage(&self.tx.local_metadata);
         let parent = tree.find(&dest)?;
         if !parent.is_folder() {
             return Err(CoreError::FileNotFolder);
@@ -52,7 +52,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         }
 
         let mut tree = (&self.tx.base_metadata)
-            .stage(&self.tx.local_metadata)
+            .to_staged(&self.tx.local_metadata)
             .to_lazy();
 
         let file = tree.find(&id)?.clone();
@@ -85,7 +85,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         Base: TreeLike<F = SignedFile>,
         Local: TreeLike<F = Base::F>,
     {
-        let dest_with_new = disk_path.join(&tree.name_using_links(this_file.id(), account)?);
+        let dest_with_new = disk_path.join(tree.name_using_links(this_file.id(), account)?);
 
         if let Some(ref func) = export_progress {
             func(ImportExportFileInfo {
@@ -155,7 +155,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         &mut self, disk_path: &Path, dest: &Uuid, update_status: &F,
     ) -> CoreResult<()> {
         let mut tree = (&self.tx.base_metadata)
-            .stage(&mut self.tx.local_metadata)
+            .to_staged(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx

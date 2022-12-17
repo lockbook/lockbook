@@ -101,7 +101,7 @@ pub fn import_file(
     new_file_tx.send(file_meta.clone()).unwrap();
 
     if file_type == lb::FileType::Document {
-        let content = fs::read(&disk_path).map_err(|e| format!("{:?}", e))?;
+        let content = fs::read(disk_path).map_err(|e| format!("{:?}", e))?;
         core.write_document(file_meta.id, &content)
             .map_err(|e| format!("{:?}", e))?;
     } else {
