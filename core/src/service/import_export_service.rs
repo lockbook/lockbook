@@ -51,10 +51,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             return Err(CoreError::DiskPathInvalid);
         }
 
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&self.tx.local_metadata)
+        let mut tree = (&self.tx.base_metadata)
+            .to_staged(&self.tx.local_metadata)
             .to_lazy();
 
         let file = tree.find(&id)?.clone();
@@ -156,10 +154,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     fn import_file_recursively<F: Fn(ImportStatus)>(
         &mut self, disk_path: &Path, dest: &Uuid, update_status: &F,
     ) -> CoreResult<()> {
-        let mut tree = self
-            .tx
-            .base_metadata
-            .stage(&mut self.tx.local_metadata)
+        let mut tree = (&self.tx.base_metadata)
+            .to_staged(&mut self.tx.local_metadata)
             .to_lazy();
         let account = self
             .tx
