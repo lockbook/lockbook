@@ -1,7 +1,8 @@
 use std::collections::HashSet;
-use std::fmt::{Display, Formatter};
+use std::fmt::{self, Display, Formatter};
 use std::io::ErrorKind;
 
+use itertools::Itertools;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use strum_macros::EnumIter;
@@ -1222,6 +1223,33 @@ impl From<SharedError> for TestRepoError {
                 }
             },
             _ => TestRepoError::Shared(err),
+        }
+    }
+}
+
+impl fmt::Display for TestRepoError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use TestRepoError::*;
+        match self {
+            NoAccount => write!(f, "no account"),
+            NoRootFolder => write!(f, "no root folder"),
+            DocumentTreatedAsFolder(id) => write!(f, "doc '{}' treated as folder", id),
+            FileOrphaned(id) => write!(f, "orphaned file '{}'", id),
+            CycleDetected(ids) => write!(f, "cycle for files: {}", ids.iter().join(", ")),
+            FileNameEmpty(id) => write!(f, "file '{}' name is empty", id),
+            FileNameContainsSlash(id) => write!(f, "file '{}' name contains slash", id),
+            PathConflict(ids) => write!(f, "path conflict between: {}", ids.iter().join(", ")),
+            NonDecryptableFileName(id) => write!(f, "can't decrypt file '{}' name", id),
+            FileWithDifferentOwnerParent(id) => write!(f, "file '{}' different owner parent", id),
+            SharedLink { link, shared_ancestor } => {
+                write!(f, "shared link: {}, ancestor: {}", link, shared_ancestor)
+            }
+            DuplicateLink { target } => write!(f, "duplicate link '{}'", target),
+            BrokenLink(id) => write!(f, "broken link '{}'", id),
+            OwnedLink(id) => write!(f, "owned link '{}'", id),
+            DocumentReadError(id, err) => write!(f, "doc '{}' read err: {:#?}", id, err),
+            Core(err) => write!(f, "core err: {:#?}", err),
+            Shared(err) => write!(f, "shared err: {:#?}", err),
         }
     }
 }
