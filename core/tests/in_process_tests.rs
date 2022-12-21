@@ -14,9 +14,9 @@ mod ip_tests {
         let core1 = CoreIP::init_in_process(&test_config(), server.clone());
         let core2 = CoreIP::init_in_process(&test_config(), server);
         let name = random_name();
-        core1.create_account(&name, "not used").unwrap();
+        core1.create_account(&name, "not used", false).unwrap();
         assert_matches!(
-            core2.create_account(&name, "not used"),
+            core2.create_account(&name, "not used", false),
             Err(UiError(CreateAccountError::UsernameTaken))
         );
     }
@@ -26,7 +26,7 @@ mod ip_tests {
         let server = InProcess::init(test_config(), Default::default());
         let core1 = CoreIP::init_in_process(&test_config(), server.clone());
         let core2 = CoreIP::init_in_process(&test_config(), server);
-        core1.create_account(&random_name(), "unused af").unwrap();
+        core1.create_account(&random_name(), "unused af", false).unwrap();
         core2
             .import_account(&core1.export_account().unwrap())
             .unwrap();
@@ -50,7 +50,7 @@ mod ip_tests {
             let core1 = CoreIP::init_in_process(&test_config(), server.clone());
             let core2 = CoreIP::init_in_process(&test_config(), server.clone());
 
-            core1.create_account(&random_name(), "unused af").unwrap();
+            core1.create_account(&random_name(), "unused af", false).unwrap();
             core2
                 .import_account(&core1.export_account().unwrap())
                 .unwrap();
