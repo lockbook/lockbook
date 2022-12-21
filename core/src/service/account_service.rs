@@ -23,10 +23,6 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         let root = FileMetadata::create_root(&account)?.sign(&account)?;
         let root_id = *root.id();
 
-        let welcome_doc = self.create_file("welcome.md", &root_id, FileType::Document)?;
-        self.write_document(welcome_doc.id, &Self::welcome_message(&username))?;
-        self.sync(Some(Box::new(|_| ())))?;
-
         let last_synced = self
             .client
             .request(&account, NewAccountRequest::new(&account, &root))?
@@ -36,6 +32,11 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         self.tx.base_metadata.insert(root_id, root);
         self.tx.last_synced.insert(OneKey {}, last_synced as i64);
         self.tx.root.insert(OneKey {}, root_id);
+
+        let welcome_doc = self.create_file("welcome.md", &root_id, FileType::Document)?;
+        self.write_document(welcome_doc.id, &Self::welcome_message(&username))?;
+        self.sync(Some(Box::new(|_| ())))?;
+
         Ok(account)
     }
 
