@@ -13,7 +13,7 @@ impl super::App {
             let uname = uname.clone();
 
             move || {
-                let result = core.create_account(&uname, &url);
+                let result = core.create_account(&uname, &url, false);
                 tx.send(result).unwrap();
             }
         });
