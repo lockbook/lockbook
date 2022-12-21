@@ -20,7 +20,7 @@ public struct CoreApi: LockbookApi {
     }
     
     public func createAccount(username: String, apiLocation: String, welcomeDoc: Bool) -> FfiResult<Empty, CreateAccountError> {
-        fromPrimitiveResult(result: create_account(username, "http://localhost:8000", welcomeDoc))
+        fromPrimitiveResult(result: create_account(username, apiLocation, welcomeDoc))
     }
     
     public func importAccount(accountString: String) -> FfiResult<Empty, ImportError> {
