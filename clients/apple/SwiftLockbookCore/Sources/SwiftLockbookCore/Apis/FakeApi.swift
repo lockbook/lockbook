@@ -1,6 +1,7 @@
 import Foundation
 
 public struct FakeApi: LockbookApi {
+    
     public init() {
     }
     
@@ -8,7 +9,7 @@ public struct FakeApi: LockbookApi {
         .success(.fake(username: username))
     }
     
-    public func createAccount(username: String, apiLocation: String) -> FfiResult<Empty, CreateAccountError> {
+    public func createAccount(username: String, apiLocation: String, welcomeDoc: Bool) -> FfiResult<Empty, CreateAccountError> {
         .failure(.init(unexpected: "LAZY"))
     }
     
