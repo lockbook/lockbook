@@ -242,7 +242,9 @@ fn create_clients() -> Vec<Core> {
         cores.push(test_core());
     }
 
-    cores[0].create_account(&random_name(), &url(), false).unwrap();
+    cores[0]
+        .create_account(&random_name(), &url(), false)
+        .unwrap();
     let account_string = cores[0].export_account().unwrap();
 
     for client in &cores[1..] {
