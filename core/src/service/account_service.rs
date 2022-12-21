@@ -163,6 +163,6 @@ Numbered list items
 4. and
 5. periods
 
-Happy note taking! You can report any issues to our [Github project](https://github.com/lockbook/lockbook/issues/new) or join our [Discord server](https://discord.gg/qs9gJQxP)."#).into()
+Happy note taking! You can report any issues to our [Github project](https://github.com/lockbook/lockbook/issues/new) or join our [Discord server](https://discord.gg/qv9fmAZCm6)."#).into()
     }
 }
