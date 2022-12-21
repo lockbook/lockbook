@@ -26,7 +26,9 @@ mod ip_tests {
         let server = InProcess::init(test_config(), Default::default());
         let core1 = CoreIP::init_in_process(&test_config(), server.clone());
         let core2 = CoreIP::init_in_process(&test_config(), server);
-        core1.create_account(&random_name(), "unused af", false).unwrap();
+        core1
+            .create_account(&random_name(), "unused af", false)
+            .unwrap();
         core2
             .import_account(&core1.export_account().unwrap())
             .unwrap();
@@ -50,7 +52,9 @@ mod ip_tests {
             let core1 = CoreIP::init_in_process(&test_config(), server.clone());
             let core2 = CoreIP::init_in_process(&test_config(), server.clone());
 
-            core1.create_account(&random_name(), "unused af", false).unwrap();
+            core1
+                .create_account(&random_name(), "unused af", false)
+                .unwrap();
             core2
                 .import_account(&core1.export_account().unwrap())
                 .unwrap();
