@@ -74,9 +74,11 @@ pub unsafe extern "C" fn create_account(
     username: *const c_char, api_url: *const c_char, welcome_doc: bool,
 ) -> *const c_char {
     c_string(match static_state::get() {
-        Ok(core) => {
-            translate(core.create_account(&str_from_ptr(username), &str_from_ptr(api_url), welcome_doc))
-        }
+        Ok(core) => translate(core.create_account(
+            &str_from_ptr(username),
+            &str_from_ptr(api_url),
+            welcome_doc,
+        )),
         e => translate(e.map(|_| ())),
     })
 }

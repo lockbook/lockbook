@@ -121,11 +121,12 @@ impl Core {
 impl<Client: Requester> CoreLib<Client> {
     #[instrument(level = "info", skip_all, err(Debug))]
     pub fn create_account(
-        &self, username: &str, api_url: &str, welcome_doc: bool
+        &self, username: &str, api_url: &str, welcome_doc: bool,
     ) -> Result<Account, Error<CreateAccountError>> {
-        let val = self
-            .db
-            .transaction(|tx| self.context(tx)?.create_account(username, api_url, welcome_doc))?;
+        let val = self.db.transaction(|tx| {
+            self.context(tx)?
+                .create_account(username, api_url, welcome_doc)
+        })?;
         Ok(val?)
     }
 
