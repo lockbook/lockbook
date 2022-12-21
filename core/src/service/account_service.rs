@@ -5,7 +5,7 @@ use libsecp256k1::PublicKey;
 use lockbook_shared::account::Account;
 use lockbook_shared::api::{GetPublicKeyRequest, NewAccountRequest};
 use lockbook_shared::file_like::FileLike;
-use lockbook_shared::file_metadata::FileMetadata;
+use lockbook_shared::file_metadata::{FileMetadata, FileType};
 use qrcode_generator::QrCodeEcc;
 
 impl<Client: Requester> RequestContext<'_, '_, Client> {
@@ -16,19 +16,23 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             return Err(CoreError::AccountExists);
         }
 
-        let account = Account::new(username, api_url.to_string());
+        let account = Account::new(username.clone(), api_url.to_string());
         let public_key = account.public_key();
         self.data_cache.public_key = Some(public_key);
 
         let root = FileMetadata::create_root(&account)?.sign(&account)?;
+        let root_id = *root.id();
+
+        let welcome_doc = self.create_file("welcome.md", &root_id, FileType::Document)?;
+        self.write_document(welcome_doc.id, &Self::welcome_message(&username))?;
+        self.sync(Some(Box::new(|_|())))?;
 
         let last_synced = self
             .client
             .request(&account, NewAccountRequest::new(&account, &root))?
             .last_synced;
-
-        let root_id = *root.id();
-
+        
+            
         self.tx.account.insert(OneKey {}, account.clone());
         self.tx.base_metadata.insert(root_id, root);
         self.tx.last_synced.insert(OneKey {}, last_synced as i64);
@@ -107,4 +111,57 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
             }
         }
     }
+
+     fn welcome_message (username: &str) -> Vec<u8>{
+        format!(r#"# Hello {username}
+
+        Welcome to Lockbook! This is an example note to help you get started with our note editor. You can keep it to use as a cheat sheet or delete it anytime.
+        
+        Lockbook uses Markdown, a lightweight language for formatting plain text. You can use all our supported formatting just by typing. Here’s how it works:
+        
+        # This is a heading
+        
+        ## This is a smaller heading
+        
+        ### This is an even smaller heading
+        
+        ###### Headings have 6 levels
+        
+        For italic, use single *asterisks* or _underscores_.
+        
+        For bold, use double **asterisks** or __underscores__.
+        
+        For inline code, use single `backticks`
+        
+        For code blocks, use
+        ```
+        triple
+        backticks
+        ```
+        
+        >For block quotes,
+        use a greater-than sign
+        
+        Bulleted list items
+        * start
+        * with
+        * asterisks
+        - or
+        - hyphens
+        + or
+        + plus
+        + signs
+        
+        Numbered list items
+        1. start
+        2. with
+        3. numbers
+        4. and
+        5. periods
+        
+        Happy note taking! You can report any issues to our [Github project](https://github.com/lockbook/lockbook/issues/new) or join our [Discord server](https://discord.gg/qs9gJQxP).
+        "#).into()
+    }
 }
+
+
