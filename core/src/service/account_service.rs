@@ -9,7 +9,9 @@ use lockbook_shared::file_metadata::{FileMetadata, FileType};
 use qrcode_generator::QrCodeEcc;
 
 impl<Client: Requester> RequestContext<'_, '_, Client> {
-    pub fn create_account(&mut self, username: &str, api_url: &str) -> CoreResult<Account> {
+    pub fn create_account(
+        &mut self, username: &str, api_url: &str, welcome_doc: bool,
+    ) -> CoreResult<Account> {
         let username = String::from(username).to_lowercase();
 
         if self.tx.account.get(&OneKey {}).is_some() {
@@ -33,9 +35,11 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         self.tx.last_synced.insert(OneKey {}, last_synced as i64);
         self.tx.root.insert(OneKey {}, root_id);
 
-        let welcome_doc = self.create_file("welcome.md", &root_id, FileType::Document)?;
-        self.write_document(welcome_doc.id, &Self::welcome_message(&username))?;
-        self.sync(Some(Box::new(|_| ())))?;
+        if welcome_doc {
+            let welcome_doc = self.create_file("welcome.md", &root_id, FileType::Document)?;
+            self.write_document(welcome_doc.id, &Self::welcome_message(&username))?;
+            self.sync(Some(Box::new(|_| ())))?;
+        }
 
         Ok(account)
     }
