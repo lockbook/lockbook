@@ -15,7 +15,7 @@ fn create_account_success() {
 fn create_account_success_with_welcome() {
     let core = test_core();
     core.create_account(&random_name(), &url(), true).unwrap();
-    let welcome_doc = core.get_by_path("welome.md").unwrap().id;
+    let welcome_doc = core.get_by_path("welcome.md").unwrap().id;
     assert!(String::from_utf8_lossy(&core.read_document(welcome_doc).unwrap())
         .to_lowercase()
         .contains("welcome"));
