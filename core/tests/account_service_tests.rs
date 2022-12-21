@@ -12,6 +12,30 @@ fn create_account_success() {
 }
 
 #[test]
+fn create_account_success_with_welcome() {
+    let core = test_core();
+    core.create_account(&random_name(), &url(), true).unwrap();
+    let welcome_doc = core.get_by_path("welome.md").unwrap().id;
+    assert!(String::from_utf8_lossy(&core.read_document(welcome_doc).unwrap())
+        .to_lowercase()
+        .contains("welcome"));
+}
+
+#[test]
+fn create_account_invalid_url() {
+    let core = test_core();
+    let result = core.create_account(&random_name(), "https://bad-url.net", false);
+    assert!(matches!(result.unwrap_err(), Error::UiError(CreateAccountError::CouldNotReachServer)))
+}
+
+#[test]
+fn create_account_invalid_url_with_welcome() {
+    let core = test_core();
+    let result = core.create_account(&random_name(), "https://bad-url.net", true);
+    assert!(matches!(result.unwrap_err(), Error::UiError(CreateAccountError::CouldNotReachServer)))
+}
+
+#[test]
 fn create_account_username_taken() {
     let core1 = test_core();
     let core2 = test_core();
