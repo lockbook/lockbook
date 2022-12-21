@@ -95,7 +95,7 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_init(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
-    env: JNIEnv, _: JClass, jusername: JString, japi_url: JString,
+    env: JNIEnv, _: JClass, jusername: JString, japi_url: JString, jwelcome_doc: jboolean,
 ) -> jstring {
     let username = match jstring_to_string(&env, jusername, "username") {
         Ok(ok) => ok,
@@ -106,10 +106,11 @@ pub extern "system" fn Java_app_lockbook_core_CoreKt_createAccount(
         Err(err) => return err,
     };
 
+    let welcome_doc = jwelcome_doc == 1;
     string_to_jstring(
         &env,
         match static_state::get() {
-            Ok(core) => translate(core.create_account(&username, &api_url)),
+            Ok(core) => translate(core.create_account(&username, &api_url, welcome_doc)),
             e => translate(e.map(|_| ())),
         },
     )

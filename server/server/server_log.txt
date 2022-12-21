@@ -1,0 +1,12 @@
+  [2m2022-12-21T21:40:35.147735Z[0m [31mERROR[0m  [31mserver started successfully[0m
+    [2;3mat[0m server/server/src/main.rs:61
+
+  [2m2022-12-21T21:40:35.148165Z[0m [32m INFO[0m  [32mbinding to http://0.0.0.0:8000 without tls for local development[0m
+    [2;3mat[0m server/server/src/main.rs:77
+
+  [2m2022-12-21T21:40:35.148177Z[0m [32m INFO[0m  [32mStarted capturing metrics[0m
+    [2;3mat[0m server/server/src/metrics.rs:67
+
+  [2m2022-12-21T21:40:35.148225Z[0m [32m INFO[0m  [32mMetrics refresh started[0m
+    [2;3mat[0m server/server/src/metrics.rs:77
+

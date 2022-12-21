@@ -9,7 +9,7 @@ class FFITests: XCTestCase {
     
     func testSimple() throws {
         let core = freshCore()
-        let result = core.createAccount(username: randomName(), apiLocation: url())
+        let result = core.createAccount(username: randomName(), apiLocation: url(), welcomeDoc: false)
         let _ = try core.getAccount().get()
 
         assertSuccess(result)
@@ -17,13 +17,13 @@ class FFITests: XCTestCase {
     
     func testNoNetwork() throws {
         let core = freshCore()
-        let result = core.createAccount(username: randomName(), apiLocation: "ftp://localhost:6969")
+        let result = core.createAccount(username: randomName(), apiLocation: "ftp://localhost:6969", welcomeDoc: false)
         assertFailure(result) { $0 == .init(.CouldNotReachServer) }
     }
     
     func testDeepFileCreation() throws {
         let core = freshCore()
-        let _ = try core.createAccount(username: randomName(), apiLocation: url()).get()
+        let _ = try core.createAccount(username: randomName(), apiLocation: url(), welcomeDoc: false).get()
         var lastFolder = try core.getRoot().get()
         let numFolders = 5
         
@@ -35,7 +35,7 @@ class FFITests: XCTestCase {
     
     func testSimpleDelete() throws {
         let core = freshCore()
-        let _ = try core.createAccount(username: randomName(), apiLocation: url()).get()
+        let _ = try core.createAccount(username: randomName(), apiLocation: url(), welcomeDoc: false).get()
         let root = try core.getRoot().get()
         
         let newFile = try core.createFile(name: randomName(), dirId: root.id, isFolder: false).get()
@@ -46,7 +46,7 @@ class FFITests: XCTestCase {
     
     func testMissingFile() throws {
         let core = freshCore()
-        let _ = try core.createAccount(username: randomName(), apiLocation: url()).get()
+        let _ = try core.createAccount(username: randomName(), apiLocation: url(), welcomeDoc: false).get()
 
         let resultDelete = core.deleteFile(id: UUID())
         assertFailure(resultDelete) { $0 == .init(.FileDoesNotExist) }
@@ -54,7 +54,7 @@ class FFITests: XCTestCase {
     
     func testSimpleImportExport() throws {
         var core = freshCore()
-        let _ = try core.createAccount(username: randomName(), apiLocation: url()).get()
+        let _ = try core.createAccount(username: randomName(), apiLocation: url(), welcomeDoc: false).get()
         
         let resultExport = core.exportAccount()
         assertSuccess(resultExport)
@@ -75,7 +75,7 @@ class FFITests: XCTestCase {
     
     func testUpdateContent1KB() throws {
         let core = freshCore()
-        let _ = try core.createAccount(username: randomName(), apiLocation: url()).get()
+        let _ = try core.createAccount(username: randomName(), apiLocation: url(), welcomeDoc: false).get()
         let root = try core.getRoot().get()
 
         let resultCreateFile = core.createFile(name: randomName(), dirId: root.id, isFolder: false)
@@ -91,7 +91,7 @@ class FFITests: XCTestCase {
     
     func testUpdateContent1MB() throws {
         let core = freshCore()
-        let _ = try core.createAccount(username: randomName(), apiLocation: url()).get()
+        let _ = try core.createAccount(username: randomName(), apiLocation: url(), welcomeDoc: false).get()
         let root = try core.getRoot().get()
         
         let resultCreateFile = core.createFile(name: randomName(), dirId: root.id, isFolder: false)
@@ -106,7 +106,7 @@ class FFITests: XCTestCase {
     }
     func testUpdateContent10MB() throws {
         let core = freshCore()
-        let _ = try core.createAccount(username: randomName(), apiLocation: url()).get()
+        let _ = try core.createAccount(username: randomName(), apiLocation: url(), welcomeDoc: false).get()
         let root = try core.getRoot().get()
         
         let resultCreateFile = core.createFile(name: randomName(), dirId: root.id, isFolder: false)
@@ -122,7 +122,7 @@ class FFITests: XCTestCase {
     
     func testRename() throws {
         let core = freshCore()
-        let _ = try core.createAccount(username: randomName(), apiLocation: url()).get()
+        let _ = try core.createAccount(username: randomName(), apiLocation: url(), welcomeDoc: false).get()
         let root = try core.getRoot().get()
         
         let filename1 = randomName()
@@ -140,7 +140,7 @@ class FFITests: XCTestCase {
     
     func testBruteNoFiles() throws {
         let core = freshCore()
-        let _ = try core.createAccount(username: randomName(), apiLocation: url()).get()
+        let _ = try core.createAccount(username: randomName(), apiLocation: url(), welcomeDoc: false).get()
         
         let resultSync = core.syncAll()
         assertSuccess(resultSync)
@@ -148,7 +148,7 @@ class FFITests: XCTestCase {
     
     func testBruteSomeFiles() throws {
         let core = freshCore()
-        let _ = try core.createAccount(username: randomName(), apiLocation: url()).get()
+        let _ = try core.createAccount(username: randomName(), apiLocation: url(), welcomeDoc: false).get()
         let root = try core.getRoot().get()
         
         let numberOfFiles = 5
@@ -165,7 +165,7 @@ class FFITests: XCTestCase {
     
     func testIterativeNoFiles() throws {
         let core = freshCore()
-        let _ = try core.createAccount(username: randomName(), apiLocation: url()).get()
+        let _ = try core.createAccount(username: randomName(), apiLocation: url(), welcomeDoc: false).get()
         
         let resultCalculate = core.calculateWork()
         
@@ -174,7 +174,7 @@ class FFITests: XCTestCase {
     
     func testLocalChangesNoFiles() throws {
         let core = freshCore()
-        let _ = try core.createAccount(username: randomName(), apiLocation: url()).get()
+        let _ = try core.createAccount(username: randomName(), apiLocation: url(), welcomeDoc: false).get()
         
         let resultCalculate = core.getLocalChanges()
         
@@ -183,7 +183,7 @@ class FFITests: XCTestCase {
     
     func testBruteSomeFilesLocalChanges() throws {
         let core = freshCore()
-        let _ = try core.createAccount(username: randomName(), apiLocation: url()).get()
+        let _ = try core.createAccount(username: randomName(), apiLocation: url(), welcomeDoc: false).get()
         let root = try core.getRoot().get()
         
         let numberOfFiles = 5
@@ -208,7 +208,7 @@ class FFITests: XCTestCase {
     
     func testSimpleUsage() throws {
         let core = freshCore()
-        let _ = try core.createAccount(username: randomName(), apiLocation: url()).get()
+        let _ = try core.createAccount(username: randomName(), apiLocation: url(), welcomeDoc: false).get()
                 
         let resultUsage = core.getUsage()
         assertSuccess(resultUsage) { usages in

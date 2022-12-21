@@ -35,7 +35,7 @@ pub fn test_core_from(core: &Core) -> Core {
 
 pub fn test_core_with_account() -> Core {
     let core = test_core();
-    core.create_account(&random_name(), &url()).unwrap();
+    core.create_account(&random_name(), &url(), false).unwrap();
     core
 }
 

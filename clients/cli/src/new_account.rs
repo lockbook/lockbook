@@ -22,7 +22,7 @@ pub fn new_account(core: &Core) -> Result<(), CliError> {
 
     println!("Generating keys and checking for username availability...");
 
-    core.create_account(&username, &api_location)
+    core.create_account(&username, &api_location, true)
         .map_err(|err| match err {
             LbError::UiError(err) => match err {
                 CreateAccountError::UsernameTaken => CliError::username_taken(&username),
