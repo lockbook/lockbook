@@ -229,7 +229,7 @@ impl OnboardScreen {
                 std::env::var("API_URL").unwrap_or_else(|_| lb::DEFAULT_API_LOCATION.to_string());
 
             let result = core
-                .create_account(&uname, &api_url, false)
+                .create_account(&uname, &api_url, true)
                 .map_err(create_account_err_to_string)
                 .and_then(|_| load_account_data(&core));
 
