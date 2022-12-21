@@ -25,14 +25,13 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         let welcome_doc = self.create_file("welcome.md", &root_id, FileType::Document)?;
         self.write_document(welcome_doc.id, &Self::welcome_message(&username))?;
-        self.sync(Some(Box::new(|_|())))?;
+        self.sync(Some(Box::new(|_| ())))?;
 
         let last_synced = self
             .client
             .request(&account, NewAccountRequest::new(&account, &root))?
             .last_synced;
-        
-            
+
         self.tx.account.insert(OneKey {}, account.clone());
         self.tx.base_metadata.insert(root_id, root);
         self.tx.last_synced.insert(OneKey {}, last_synced as i64);
@@ -112,7 +111,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         }
     }
 
-     fn welcome_message (username: &str) -> Vec<u8>{
+    fn welcome_message(username: &str) -> Vec<u8> {
         format!(r#"# Hello {username}
 
         Welcome to Lockbook! This is an example note to help you get started with our note editor. You can keep it to use as a cheat sheet or delete it anytime.
@@ -163,5 +162,3 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         "#).into()
     }
 }
-
-
