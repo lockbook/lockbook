@@ -8,7 +8,31 @@ use test_utils::*;
 #[test]
 fn create_account_success() {
     let core = test_core();
-    core.create_account(&random_name(), &url()).unwrap();
+    core.create_account(&random_name(), &url(), false).unwrap();
+}
+
+#[test]
+fn create_account_success_with_welcome() {
+    let core = test_core();
+    core.create_account(&random_name(), &url(), true).unwrap();
+    let welcome_doc = core.get_by_path("welcome.md").unwrap().id;
+    assert!(String::from_utf8_lossy(&core.read_document(welcome_doc).unwrap())
+        .to_lowercase()
+        .contains("welcome"));
+}
+
+#[test]
+fn create_account_invalid_url() {
+    let core = test_core();
+    let result = core.create_account(&random_name(), "https://bad-url.net", false);
+    assert!(matches!(result.unwrap_err(), Error::UiError(CreateAccountError::CouldNotReachServer)))
+}
+
+#[test]
+fn create_account_invalid_url_with_welcome() {
+    let core = test_core();
+    let result = core.create_account(&random_name(), "https://bad-url.net", true);
+    assert!(matches!(result.unwrap_err(), Error::UiError(CreateAccountError::CouldNotReachServer)))
 }
 
 #[test]
@@ -17,9 +41,9 @@ fn create_account_username_taken() {
     let core2 = test_core();
     let name = random_name();
 
-    core1.create_account(&name, &url()).unwrap();
+    core1.create_account(&name, &url(), false).unwrap();
 
-    let err = core2.create_account(&name, &url()).unwrap_err();
+    let err = core2.create_account(&name, &url(), false).unwrap_err();
 
     assert!(
         matches!(err, Error::UiError(CreateAccountError::UsernameTaken)),
@@ -36,7 +60,7 @@ fn create_account_invalid_username() {
     let invalid_unames = ["", "i/o", "@me", "###", "+1", "💩"];
 
     for &uname in &invalid_unames {
-        let err = core.create_account(uname, &url()).unwrap_err();
+        let err = core.create_account(uname, &url(), false).unwrap_err();
 
         assert!(
             matches!(err, Error::UiError(CreateAccountError::InvalidUsername)),
@@ -51,11 +75,11 @@ fn create_account_invalid_username() {
 fn create_account_account_exists() {
     let core = &test_core();
 
-    core.create_account(&random_name(), &url()).unwrap();
+    core.create_account(&random_name(), &url(), false).unwrap();
 
     assert!(
         matches!(
-            core.create_account(&random_name(), &url()),
+            core.create_account(&random_name(), &url(), false),
             Err(Error::UiError(CreateAccountError::AccountExistsAlready))
         ),
         "This action should have failed with AccountAlreadyExists!",
@@ -67,11 +91,11 @@ fn create_account_account_exists_case() {
     let core = test_core();
     let name = random_name();
 
-    core.create_account(&name, &url()).unwrap();
+    core.create_account(&name, &url(), false).unwrap();
 
     let core = test_core();
     assert!(matches!(
-        core.create_account(&(name.to_uppercase()), &url()),
+        core.create_account(&(name.to_uppercase()), &url(), false),
         Err(Error::UiError(CreateAccountError::UsernameTaken))
     ));
 }
@@ -80,7 +104,7 @@ fn create_account_account_exists_case() {
 fn import_account_account_exists() {
     let core = test_core();
 
-    core.create_account(&random_name(), &url()).unwrap();
+    core.create_account(&random_name(), &url(), false).unwrap();
     let account_string = core.export_account().unwrap();
 
     assert!(matches!(
@@ -114,7 +138,7 @@ fn import_account_corrupted_base64() {
 fn import_account_nonexistent() {
     let core1 = test_core();
 
-    core1.create_account(&random_name(), &url()).unwrap();
+    core1.create_account(&random_name(), &url(), false).unwrap();
 
     let core2 = test_core();
     let account =
@@ -134,8 +158,8 @@ fn import_account_public_key_mismatch() {
     let bad_account_string = {
         let core1 = test_core();
         let core2 = test_core();
-        let account1 = core1.create_account(&random_name(), &url()).unwrap();
-        let mut account2 = core2.create_account(&random_name(), &url()).unwrap();
+        let account1 = core1.create_account(&random_name(), &url(), false).unwrap();
+        let mut account2 = core2.create_account(&random_name(), &url(), false).unwrap();
         account2.username = account1.username;
         core2.db.account.insert(OneKey {}, account2).unwrap();
         core2.export_account().unwrap()
@@ -152,7 +176,7 @@ fn import_account_public_key_mismatch() {
 #[test]
 fn export_account() {
     let core = test_core();
-    core.create_account(&random_name(), &url()).unwrap();
+    core.create_account(&random_name(), &url(), false).unwrap();
     core.export_account().unwrap();
     core.export_account_qr().unwrap();
 }
@@ -160,6 +184,6 @@ fn export_account() {
 #[test]
 fn nonzero_root_version() {
     let core = test_core();
-    core.create_account(&random_name(), &url()).unwrap();
+    core.create_account(&random_name(), &url(), false).unwrap();
     assert!(core.get_root().unwrap().last_modified > 0);
 }

@@ -71,10 +71,14 @@ pub unsafe extern "C" fn init(writeable_path: *const c_char, logs: bool) -> *con
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn create_account(
-    username: *const c_char, api_url: *const c_char,
+    username: *const c_char, api_url: *const c_char, welcome_doc: bool,
 ) -> *const c_char {
     c_string(match static_state::get() {
-        Ok(core) => translate(core.create_account(&str_from_ptr(username), &str_from_ptr(api_url))),
+        Ok(core) => translate(core.create_account(
+            &str_from_ptr(username),
+            &str_from_ptr(api_url),
+            welcome_doc,
+        )),
         e => translate(e.map(|_| ())),
     })
 }

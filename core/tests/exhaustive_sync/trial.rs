@@ -101,7 +101,7 @@ impl Trial {
                         .map_err(|err| Failed(format!("{:#?}", err)))?;
                 } else {
                     device
-                        .create_account(&usernames[user_index], &url())
+                        .create_account(&usernames[user_index], &url(), false)
                         .map_err(|err| Failed(format!("failed to create account: {:#?}", err)))?;
                     maybe_account_string = Some(device.export_account().unwrap());
                 }

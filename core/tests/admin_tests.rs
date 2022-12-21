@@ -4,7 +4,7 @@ use test_utils::*;
 #[ignore]
 fn admin_disappear_test() {
     let admin_core = test_core();
-    admin_core.create_account("admin1", &url()).unwrap();
+    admin_core.create_account("admin1", &url(), false).unwrap();
 
     let customer_core = test_core_with_account();
     let test1 = customer_core.create_at_path("test1.md").unwrap();
