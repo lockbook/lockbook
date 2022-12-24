@@ -10,4 +10,4 @@ Reach out to @parth to be added to our testflight. Once you're added download te
 
 ## App Store
 
-TBD
+[Install from App Store](https://apps.apple.com/us/app/lockbook/id1526775001)
