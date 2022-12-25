@@ -56,6 +56,16 @@ macro_rules! internal {
     }};
 }
 
+pub fn verify_client_version_header<Req: Request>(
+    version: &String
+) -> Result<(), ErrorWrapper<Req::Error>> {
+    match version as &str {
+        "0.5.5" => Ok(()),
+        "0.5.6" => Ok(()),
+        _ => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
+    }
+}
+
 pub fn verify_client_version<Req: Request>(
     request: &RequestWrapper<Req>,
 ) -> Result<(), ErrorWrapper<Req::Error>> {

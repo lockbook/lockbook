@@ -3,7 +3,7 @@ use crate::billing::billing_service;
 use crate::billing::billing_service::*;
 use crate::file_service::*;
 use crate::utils::get_build_info;
-use crate::{router_service, verify_auth, verify_client_version, ServerError, ServerState};
+use crate::{router_service, verify_auth, verify_client_version_header, verify_client_version, ServerError, ServerState};
 use lazy_static::lazy_static;
 use lockbook_shared::api::*;
 use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
@@ -42,7 +42,8 @@ macro_rules! core_req {
             .and(warp::path(&<$Req>::ROUTE[1..]))
             .and(warp::any().map(move || cloned_state.clone()))
             .and(warp::body::bytes())
-            .then(|state: Arc<ServerState>, request: Bytes| {
+            .and(warp::header::<String>("Accept"))
+            .then(|state: Arc<ServerState>, request: Bytes, version: String| {
                 let span1 = span!(
                     Level::INFO,
                     "matched_request",
@@ -55,14 +56,16 @@ macro_rules! core_req {
                         .with_label_values(&[<$Req>::ROUTE])
                         .start_timer();
 
-                    let request: RequestWrapper<$Req> = match deserialize_and_check(state, request)
-                    {
-                        Ok(req) => req,
-                        Err(err) => {
-                            warn!("request failed to parse: {:?}", err);
-                            return warp::reply::json::<Result<RequestWrapper<$Req>, _>>(&Err(err));
-                        }
-                    };
+                    let request: RequestWrapper<$Req> =
+                        match deserialize_and_check(state, request, version) {
+                            Ok(req) => req,
+                            Err(err) => {
+                                warn!("request failed to parse: {:?}", err);
+                                return warp::reply::json::<Result<RequestWrapper<$Req>, _>>(&Err(
+                                    err,
+                                ));
+                            }
+                        };
 
                     debug!("request verified successfully");
                     let req_pk = request.signed_request.public_key;
@@ -285,18 +288,23 @@ pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Cl
 }
 
 pub fn deserialize_and_check<Req>(
-    server_state: &ServerState, request: Bytes,
+    server_state: &ServerState, request: Bytes, version: String,
 ) -> Result<RequestWrapper<Req>, ErrorWrapper<Req::Error>>
 where
     Req: Request + DeserializeOwned + Serialize,
 {
+    match verify_client_version_header::<Req>(&version) {
+        Ok(_) => (),
+        Err(_) => warn!("Client update required"),
+    };
+
     let request = serde_json::from_slice(request.as_ref()).map_err(|err| {
         warn!("Request parsing failure: {}", err);
         ErrorWrapper::<Req::Error>::BadRequest
     })?;
 
     verify_client_version(&request)?;
-
+    
     verify_auth(server_state, &request).map_err(|err| match err {
         SharedError::SignatureExpired(_) | SharedError::SignatureInTheFuture(_) => {
             warn!("expired auth");
