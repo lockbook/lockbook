@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/materialToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:navigationIcon="@drawable/ic_baseline_arrow_back_24"
+        app:subtitle="apple.md"
+        app:title="Share file" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="20dp"
+        android:layout_marginTop="30dp"
+        android:orientation="vertical"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/materialToolbar">
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/username"
+            android:minWidth="250dp"
+            app:startIconDrawable="@drawable/ic_outline_person_add_alt_24">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/share_file_username"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:importantForAutofill="no"
+                android:inputType="text" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense.ExposedDropdownMenu"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:hint="@string/access_mode"
+            android:minWidth="250dp"
+            app:startIconDrawable="@drawable/ic_outline_lock_person_24">
+
+
+            <AutoCompleteTextView
+                android:id="@+id/share_file_access_mode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="none"
+                android:hint="@null"
+                app:simpleItems="@array/share_mode"
+                android:freezesText="false"/>
+
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/share_file_add_user"
+            style="@style/Widget.Material3.Button.ElevatedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@string/add"
+            app:layout_constraintBottom_toBottomOf="@+id/share_file_new"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/share_file_new"
+            app:layout_constraintTop_toTopOf="@+id/share_file_new" />
+
+    </LinearLayout>
+
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="20dp"
+        android:orientation="vertical"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <com.google.android.material.divider.MaterialDivider
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:dividerInsetEnd="8dp"
+            app:dividerInsetStart="8dp" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/share_file_read_access"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/read_access"
+            android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+            <HorizontalScrollView
+                android:id="@+id/share_file_users_with_read_access"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginBottom="15dp">
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/share_file_read_access_shares"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:singleLine="true">
+
+
+                </com.google.android.material.chip.ChipGroup>
+            </HorizontalScrollView>
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/share_file_write_access"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/write_access"
+            android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+            <HorizontalScrollView
+                android:id="@+id/horizontalScrollView"
+                android:layout_width="match_parent"
+                android:layout_height="50dp">
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/share_file_write_access_shares"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:singleLine="true" />
+
+            </HorizontalScrollView>
+
+    </LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
