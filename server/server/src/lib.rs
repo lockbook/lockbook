@@ -57,7 +57,7 @@ macro_rules! internal {
 }
 
 pub fn verify_client_version_header<Req: Request>(
-    version: &String
+    version: &String,
 ) -> Result<(), ErrorWrapper<Req::Error>> {
     match version as &str {
         "0.5.5" => Ok(()),

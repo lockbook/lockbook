@@ -3,7 +3,10 @@ use crate::billing::billing_service;
 use crate::billing::billing_service::*;
 use crate::file_service::*;
 use crate::utils::get_build_info;
-use crate::{router_service, verify_auth, verify_client_version_header, verify_client_version, ServerError, ServerState};
+use crate::{
+    router_service, verify_auth, verify_client_version, verify_client_version_header, ServerError,
+    ServerState,
+};
 use lazy_static::lazy_static;
 use lockbook_shared::api::*;
 use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
@@ -304,7 +307,7 @@ where
     })?;
 
     verify_client_version(&request)?;
-    
+
     verify_auth(server_state, &request).map_err(|err| match err {
         SharedError::SignatureExpired(_) | SharedError::SignatureInTheFuture(_) => {
             warn!("expired auth");
