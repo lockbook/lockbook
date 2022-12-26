@@ -40,7 +40,7 @@ enum Commands {
     /// Print server logs
     PrintServerLogs,
 
-    // Check if cargo.lock is in sync with cargo.toml 
+    // Check if cargo.lock is in sync with cargo.toml
     CheckLockFile,
 
     /// Kill the server for commit hash
