@@ -38,7 +38,7 @@ jobs:
       if: always()
       run: cargo run -p lockbook-dev -- print-server-logs
     - name: Check Lock File 
-      run: cargo run -p lockbook-dev -- check-lockfile
+      run: cargo run -p lockbook-dev -- check-lock-file
     - name: Cleanup
       if: always()
       run: cargo run -p lockbook-dev -- kill-server
