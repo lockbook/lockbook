@@ -59,15 +59,19 @@ impl Requester for Network {
     ) -> Result<T::Response, ApiError<T::Error>> {
         let signed_request =
             pubkey::sign(&account.private_key, request, self.get_time).map_err(ApiError::Sign)?;
+
+        let client_version = String::from((self.get_code_version)());
+
         let serialized_request = serde_json::to_vec(&RequestWrapper {
             signed_request,
-            client_version: String::from((self.get_code_version)()),
+            client_version: client_version.clone(),
         })
         .map_err(|err| ApiError::Serialize(err.to_string()))?;
         let serialized_response = self
             .client
             .request(T::METHOD, format!("{}{}", account.api_url, T::ROUTE).as_str())
             .body(serialized_request)
+            .header("Accept", client_version)
             .send()
             .map_err(|err| {
                 warn!("Send failed: {:#?}", err);
