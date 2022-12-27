@@ -71,7 +71,7 @@ impl Requester for Network {
             .client
             .request(T::METHOD, format!("{}{}", account.api_url, T::ROUTE).as_str())
             .body(serialized_request)
-            .header("Accept", client_version)
+            .header("Accept-Version", client_version)
             .send()
             .map_err(|err| {
                 warn!("Send failed: {:#?}", err);

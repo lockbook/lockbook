@@ -42,8 +42,8 @@ macro_rules! core_req {
             .and(warp::path(&<$Req>::ROUTE[1..]))
             .and(warp::any().map(move || cloned_state.clone()))
             .and(warp::body::bytes())
-            .and(warp::header::<String>("Accept"))
-            .then(|state: Arc<ServerState>, request: Bytes, version: String| {
+            .and(warp::header::optional::<String>("Accept-Version"))
+            .then(|state: Arc<ServerState>, request: Bytes, version: Option<String>| {
                 let span1 = span!(
                     Level::INFO,
                     "matched_request",
@@ -288,7 +288,7 @@ pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Cl
 }
 
 pub fn deserialize_and_check<Req>(
-    server_state: &ServerState, request: Bytes, version: String,
+    server_state: &ServerState, request: Bytes, version: Option<String>,
 ) -> Result<RequestWrapper<Req>, ErrorWrapper<Req::Error>>
 where
     Req: Request + DeserializeOwned + Serialize,
@@ -300,6 +300,7 @@ where
         ErrorWrapper::<Req::Error>::BadRequest
     })?;
 
+    
     verify_auth(server_state, &request).map_err(|err| match err {
         SharedError::SignatureExpired(_) | SharedError::SignatureInTheFuture(_) => {
             warn!("expired auth");
