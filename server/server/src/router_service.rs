@@ -25,6 +25,12 @@ lazy_static! {
         &["request"]
     )
     .unwrap();
+    pub static ref CORE_VERSION_HISTOGRAM: HistogramVec = register_histogram_vec!(
+        "lockbook_server_core_version",
+        "Lockbook server's supplied core version",
+        &["request"]
+    )
+    .unwrap();
 }
 
 #[macro_export]
