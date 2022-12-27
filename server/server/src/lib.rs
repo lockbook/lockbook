@@ -59,11 +59,10 @@ macro_rules! internal {
 pub fn verify_client_version<Req: Request>(
     version: &Option<String>,
 ) -> Result<(), ErrorWrapper<Req::Error>> {
-
     match version.as_deref() {
         Some("0.5.5") => Ok(()),
         Some("0.5.6") => Ok(()),
-        None => Ok(()), 
+        None => Ok(()),
         _ => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
     }
 }

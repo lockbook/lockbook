@@ -300,7 +300,6 @@ where
         ErrorWrapper::<Req::Error>::BadRequest
     })?;
 
-    
     verify_auth(server_state, &request).map_err(|err| match err {
         SharedError::SignatureExpired(_) | SharedError::SignatureInTheFuture(_) => {
             warn!("expired auth");
