@@ -1,4 +1,5 @@
 use eframe::egui;
+use lb::PaymentPlatform;
 
 use crate::widgets::ProgressBar;
 
@@ -32,6 +33,7 @@ fn subscription_info(
         Some(info) => match &info.payment_platform {
             Stripe { card_last_4_digits } => draw_stripe(ui, card_last_4_digits),
             GooglePlay { account_state } => draw_google_play(ui, account_state),
+            AppStore { .. } => todo!(),
         },
         None => {
             draw_free_tier(ui);

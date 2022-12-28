@@ -490,6 +490,23 @@ impl<Client: Requester> CoreLib<Client> {
         Ok(val?)
     }
 
+    #[instrument(
+        level = "debug",
+        skip(self, original_transaction_id, app_account_token),
+        err(Debug)
+    )]
+    pub fn upgrade_account_app_store(
+        &self, original_transaction_id: String, app_account_token: String,
+    ) -> Result<(), Error<UpgradeAccountGooglePlayError>> {
+        let val = self.db.transaction(|tx| {
+            self.context(tx)?.upgrade_account_app_store(
+                original_transaction_id,
+                app_account_token,
+            )
+        })?;
+        Ok(val?)
+    }
+
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn cancel_subscription(&self) -> Result<(), Error<CancelSubscriptionError>> {
         let val = self

@@ -5,6 +5,7 @@ use std::fmt::Display;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::{env, fmt, fs};
+use crate::billing::app_store_client::{SUB_STATUS_PROD, SUB_STATUS_SANDBOX};
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -198,6 +199,7 @@ pub struct BillingConfig {
     pub time_between_lock_attempts: Duration,
     pub google: GoogleConfig,
     pub stripe: StripeConfig,
+    pub apple: AppleConfig,
 }
 
 impl BillingConfig {
@@ -213,6 +215,44 @@ impl BillingConfig {
             ),
             google: GoogleConfig::from_env_vars(),
             stripe: StripeConfig::from_env_vars(),
+            apple: AppleConfig::from_env_vars(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct AppleConfig {
+    pub iap_key: String,
+    pub iap_key_id: String,
+    pub asc_public_key: String,
+    pub issuer_id: String,
+    pub subscription_product_id: String,
+    pub asc_shared_secret: String,
+    pub apple_root_cert: Vec<u8>,
+    pub sub_statuses_url: String,
+}
+
+impl AppleConfig {
+    pub fn from_env_vars() -> Self {
+        let apple_root_cert_dest = env_or_empty("APPLE_ROOT_CERT_PATH");
+        let is_apple_prod = env_or_empty("IS_APPLE_PROD").map(|is_apple_prod| is_apple_prod.parse().unwrap()).unwrap_or(false);
+        let sub_statuses_url = if is_apple_prod {
+            SUB_STATUS_PROD
+        } else {
+            SUB_STATUS_SANDBOX
+        }.to_string();
+
+        Self {
+            iap_key: env_or_panic("APPLE_IAP_KEY"),
+            iap_key_id: env_or_panic("APPLE_IAP_KEY_ID"),
+            asc_public_key: env_or_panic("APPLE_ASC_PUBLIC_KEY"),
+            issuer_id: env_or_panic("APPLE_ISSUER_ID"),
+            subscription_product_id: env_or_panic("APPLE_SUB_PROD_ID"),
+            asc_shared_secret: env_or_panic("APPLE_ASC_SHARED_SECRET"),
+            apple_root_cert: apple_root_cert_dest
+                .map(|cert_path| fs::read(cert_path).unwrap())
+                .unwrap_or_default(),
+            sub_statuses_url,
         }
     }
 }

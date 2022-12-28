@@ -216,3 +216,22 @@ public enum ExportDrawingError: String, UiError {
     case FileDoesNotExist
     case InvalidDrawing
 }
+
+public enum UpgradeAccountAppStoreError: String, UiError {
+    case AppStoreAccountAlreadyLinked
+    case AlreadyPremium
+    case InvalidAuthDetails
+    case ExistingRequestPending
+    case CouldNotReachServer
+    case ClientUpdateRequired
+}
+
+public enum CancelSubscriptionError: String, UiError {
+    case NotPremium
+    case AlreadyCanceled
+    case UsageIsOverFreeTierDataCap
+    case ExistingRequestPending
+    case CouldNotReachServer
+    case ClientUpdateRequired
+    case CannotCancelForAppStore
+}

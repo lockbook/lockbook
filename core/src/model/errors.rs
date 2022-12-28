@@ -115,6 +115,8 @@ pub enum CoreError {
     AccountStringCorrupted,
     AlreadyCanceled,
     AlreadyPremium,
+    AppStoreAccountAlreadyLinked,
+    CannotCancelSubscriptionForAppStore,
     CardDecline,
     CardHasInsufficientFunds,
     CardNotSupported,
@@ -142,6 +144,7 @@ pub enum CoreError {
     InvalidCardExpYear,
     InvalidCardNumber,
     InvalidPurchaseToken,
+    InvalidAuthDetails,
     LinkInSharedFolder,
     LinkTargetIsOwned,
     LinkTargetNonexistent,
@@ -947,8 +950,9 @@ impl From<CoreError> for Error<UpgradeAccountStripeError> {
 
 #[derive(Debug, Serialize, EnumIter)]
 pub enum UpgradeAccountGooglePlayError {
+    AppStoreAccountAlreadyLinked,
     AlreadyPremium,
-    InvalidPurchaseToken,
+    InvalidAuthDetails,
     ExistingRequestPending,
     CouldNotReachServer,
     ClientUpdateRequired,
@@ -958,8 +962,8 @@ impl From<CoreError> for Error<UpgradeAccountGooglePlayError> {
     fn from(e: CoreError) -> Self {
         match e {
             CoreError::AlreadyPremium => UiError(UpgradeAccountGooglePlayError::AlreadyPremium),
-            CoreError::InvalidPurchaseToken => {
-                UiError(UpgradeAccountGooglePlayError::InvalidPurchaseToken)
+            CoreError::InvalidAuthDetails => {
+                UiError(UpgradeAccountGooglePlayError::InvalidAuthDetails)
             }
             CoreError::ExistingRequestPending => {
                 UiError(UpgradeAccountGooglePlayError::ExistingRequestPending)
@@ -969,6 +973,43 @@ impl From<CoreError> for Error<UpgradeAccountGooglePlayError> {
             }
             CoreError::ClientUpdateRequired => {
                 UiError(UpgradeAccountGooglePlayError::ClientUpdateRequired)
+            }
+            CoreError::AppStoreAccountAlreadyLinked => {
+                UiError(UpgradeAccountGooglePlayError::AppStoreAccountAlreadyLinked)
+            }
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
+pub enum UpgradeAccountAppStoreError {
+    AppStoreAccountAlreadyLinked,
+    AlreadyPremium,
+    InvalidPurchaseToken,
+    ExistingRequestPending,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<UpgradeAccountAppStoreError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::AlreadyPremium => UiError(UpgradeAccountAppStoreError::AlreadyPremium),
+            CoreError::InvalidPurchaseToken => {
+                UiError(UpgradeAccountAppStoreError::InvalidPurchaseToken)
+            }
+            CoreError::ExistingRequestPending => {
+                UiError(UpgradeAccountAppStoreError::ExistingRequestPending)
+            }
+            CoreError::ServerUnreachable => {
+                UiError(UpgradeAccountAppStoreError::CouldNotReachServer)
+            }
+            CoreError::ClientUpdateRequired => {
+                UiError(UpgradeAccountAppStoreError::ClientUpdateRequired)
+            }
+            CoreError::AppStoreAccountAlreadyLinked => {
+                UiError(UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked)
             }
             _ => unexpected!("{:#?}", e),
         }
@@ -983,6 +1024,7 @@ pub enum CancelSubscriptionError {
     ExistingRequestPending,
     CouldNotReachServer,
     ClientUpdateRequired,
+    CannotCancelForAppStore,
 }
 
 impl From<CoreError> for Error<CancelSubscriptionError> {
@@ -995,6 +1037,9 @@ impl From<CoreError> for Error<CancelSubscriptionError> {
             }
             CoreError::ExistingRequestPending => {
                 UiError(CancelSubscriptionError::ExistingRequestPending)
+            }
+            CoreError::CannotCancelSubscriptionForAppStore => {
+                UiError(CancelSubscriptionError::CannotCancelForAppStore)
             }
             CoreError::ServerUnreachable => UiError(CancelSubscriptionError::CouldNotReachServer),
             CoreError::ClientUpdateRequired => {
