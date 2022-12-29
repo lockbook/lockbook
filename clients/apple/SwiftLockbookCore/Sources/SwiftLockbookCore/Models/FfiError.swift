@@ -24,7 +24,7 @@ public class ErrorWithTitle: AnyFfiError {
 public class FfiError<U: UiError>: AnyFfiError, Decodable {
     public let kind: Kind
     
-    public enum Kind {
+    public enum Kind: Equatable {
         case UiError(U)
         case Unexpected(String)
     }
@@ -62,7 +62,7 @@ extension FfiError: CustomStringConvertible {
     }
 }
 
-public protocol UiError: Decodable, Error {
+public protocol UiError: Decodable, Equatable, Error {
     
 }
 

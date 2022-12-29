@@ -1,6 +1,6 @@
 use crate::account_service::GetUsageHelperError;
 use crate::billing::app_store_model::{NotificationChange, Subtype};
-use crate::billing::app_store_service::verify_receipt;
+use crate::billing::app_store_service::verify_details;
 use crate::billing::billing_model::{AppStoreUserInfo, BillingPlatform};
 use crate::billing::billing_service::LockBillingWorkflowError::{
     ExistingRequestPending, UserNotFound,
@@ -90,22 +90,27 @@ pub async fn upgrade_account_app_store(
         return Err(ClientError(UpgradeAccountAppStoreError::AlreadyPremium));
     }
 
-    if server_state
+    debug!("Upgrading the account of a user through app store billing");
+
+    if let Some(owner) = server_state
         .index_db
         .app_store_ids
-        .exists(&request.app_account_token)?
+        .get(&request.app_account_token)?
     {
-        return Err(ClientError(UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked));
+        if owner.0 != context.public_key {
+            return Err(ClientError(UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked));
+        }
     }
 
-    let expires = verify_receipt(
+    let expires = verify_details(
         &server_state.app_store_client,
         &server_state.config.billing.apple,
-        &request.encoded_receipt,
         &request.app_account_token,
         &request.original_transaction_id,
     )
     .await?;
+
+    debug!("Successfully verified app store subscription");
 
     account.billing_info.billing_platform = Some(BillingPlatform::AppStore(AppStoreUserInfo {
         original_transaction_id: request.original_transaction_id.clone(),
@@ -619,9 +624,9 @@ pub async fn app_store_notification_webhook(
                     }
                     _ => {
                         return Err(internal!(
-                            "Unexpected price increase: {:?} {:?}, public_key: {:?}",
-                            resp.notification_type,
+                            "Unexpected subtype: {:?}, notification_type {:?}, public_key: {:?}",
                             resp.subtype,
+                            resp.notification_type,
                             public_key
                         ))
                     }
@@ -635,9 +640,23 @@ pub async fn app_store_notification_webhook(
                 NotificationChange::RefundDeclined => {
                     info!(?resp, "A user's refund request has been denied.");
                 }
-                NotificationChange::DidChangeRenewalStatus => {
-                    info!(?resp, "A user changed their renewal status.")
-                }
+                NotificationChange::DidChangeRenewalStatus => match resp.subtype {
+                    Some(Subtype::AutoRenewEnabled) => {
+                        info.account_state = AppStoreAccountState::Ok;
+                        info.expiration_time = trans.expires_date;
+                    }
+                    Some(Subtype::AutoRenewDisabled) => {
+                        account.billing_info.billing_platform = None;
+                    }
+                    _ => {
+                        return Err(internal!(
+                            "Unexpected subtype: {:?}, notification_type {:?}, public_key: {:?}",
+                            resp.subtype,
+                            resp.notification_type,
+                            public_key
+                        ))
+                    }
+                },
                 NotificationChange::RenewalExtended => info.expiration_time = trans.expires_date,
                 NotificationChange::DidRenew => {
                     if let Some(Subtype::BillingRecovery) = resp.subtype {

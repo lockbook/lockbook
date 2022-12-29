@@ -1,3 +1,4 @@
+use crate::billing::app_store_client::{SUB_STATUS_PROD, SUB_STATUS_SANDBOX};
 use crate::config::Environment::{Local, Prod, Unknown};
 use lockbook_shared::account::Username;
 use std::collections::HashSet;
@@ -5,7 +6,6 @@ use std::fmt::Display;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::{env, fmt, fs};
-use crate::billing::app_store_client::{SUB_STATUS_PROD, SUB_STATUS_SANDBOX};
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -229,18 +229,18 @@ pub struct AppleConfig {
     pub subscription_product_id: String,
     pub asc_shared_secret: String,
     pub apple_root_cert: Vec<u8>,
+    pub monthly_sub_group_id: String,
     pub sub_statuses_url: String,
 }
 
 impl AppleConfig {
     pub fn from_env_vars() -> Self {
         let apple_root_cert_dest = env_or_empty("APPLE_ROOT_CERT_PATH");
-        let is_apple_prod = env_or_empty("IS_APPLE_PROD").map(|is_apple_prod| is_apple_prod.parse().unwrap()).unwrap_or(false);
-        let sub_statuses_url = if is_apple_prod {
-            SUB_STATUS_PROD
-        } else {
-            SUB_STATUS_SANDBOX
-        }.to_string();
+        let is_apple_prod = env_or_empty("IS_APPLE_PROD")
+            .map(|is_apple_prod| is_apple_prod.parse().unwrap())
+            .unwrap_or(false);
+        let sub_statuses_url =
+            if is_apple_prod { SUB_STATUS_PROD } else { SUB_STATUS_SANDBOX }.to_string();
 
         Self {
             iap_key: env_or_panic("APPLE_IAP_KEY"),
@@ -253,6 +253,7 @@ impl AppleConfig {
                 .map(|cert_path| fs::read(cert_path).unwrap())
                 .unwrap_or_default(),
             sub_statuses_url,
+            monthly_sub_group_id: env_or_panic("APPLE_MONTHLY_SUB_GROUP_ID"),
         }
     }
 }

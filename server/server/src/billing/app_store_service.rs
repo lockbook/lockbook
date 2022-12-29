@@ -8,13 +8,15 @@ use crate::{ClientError, ServerError, ServerState};
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
 use libsecp256k1::PublicKey;
 use lockbook_shared::api::{UnixTimeMillis, UpgradeAccountAppStoreError};
-use lockbook_shared::clock::get_time;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use tracing::debug;
 use warp::hyper::body::Bytes;
 use x509_parser::error::X509Error;
 use x509_parser::parse_x509_certificate;
 use x509_parser::prelude::X509Certificate;
+
+const SUBSCRIBED: u16 = 1;
 
 pub fn get_public_key(
     state: &ServerState, trans: &TransactionInfo,
@@ -31,19 +33,36 @@ pub fn get_public_key(
     Ok(public_key)
 }
 
-pub async fn verify_receipt(
-    client: &reqwest::Client, config: &AppleConfig, encoded_receipt: &str, app_account_token: &str,
+pub async fn verify_details(
+    client: &reqwest::Client, config: &AppleConfig, app_account_token: &str,
     original_transaction_id: &str,
 ) -> Result<UnixTimeMillis, ServerError<UpgradeAccountAppStoreError>> {
-    let (receipt, receipt_info) = app_store_client::get_sub_status(client, config, original_transaction_id)
-        .await?;
+    let (transaction, transaction_info) =
+        app_store_client::get_sub_status(client, config, original_transaction_id).await?;
 
-    if receipt_info.app_account_token != app_account_token || receipt.status != 1 { // 1 means subscribed and in service
+    debug!(?transaction_info.app_account_token, ?app_account_token, "Comparing verified app account token and with unverified");
+    debug!(?transaction.original_transaction_id, ?original_transaction_id, "Comparing verified original transaction id and with unverified");
+
+    if transaction_info.app_account_token != app_account_token
+        || transaction.status != SUBSCRIBED
+        || transaction.original_transaction_id != original_transaction_id
+    {
+        println!("TOKENS {} {}", transaction_info.app_account_token, app_account_token);
+        println!(
+            "STATUS {} AND IDS {} {}",
+            transaction.status, transaction.original_transaction_id, original_transaction_id
+        );
+        println!(
+            "WHAT: {} {} {}",
+            transaction_info.app_account_token != app_account_token,
+            transaction.status != SUBSCRIBED,
+            transaction.original_transaction_id != original_transaction_id
+        );
 
         return Err(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails));
     }
 
-    Ok(receipt_info.expires_date as UnixTimeMillis)
+    Ok(transaction_info.expires_date as UnixTimeMillis)
 }
 
 pub fn decode_verify_notification(

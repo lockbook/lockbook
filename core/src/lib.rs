@@ -499,10 +499,8 @@ impl<Client: Requester> CoreLib<Client> {
         &self, original_transaction_id: String, app_account_token: String,
     ) -> Result<(), Error<UpgradeAccountGooglePlayError>> {
         let val = self.db.transaction(|tx| {
-            self.context(tx)?.upgrade_account_app_store(
-                original_transaction_id,
-                app_account_token,
-            )
+            self.context(tx)?
+                .upgrade_account_app_store(original_transaction_id, app_account_token)
         })?;
         Ok(val?)
     }

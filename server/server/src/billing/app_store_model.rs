@@ -103,7 +103,7 @@ pub enum NotificationChange {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SubsStatusesResponse {
-    pub data: Vec<SubGroupIdentifierItem>
+    pub data: Vec<SubGroupIdentifierItem>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -111,7 +111,7 @@ pub struct SubsStatusesResponse {
 pub struct SubGroupIdentifierItem {
     #[serde(rename = "subscriptionGroupIdentifier")]
     pub sub_group: String,
-    pub last_transactions: Vec<LastTransactionItem>
+    pub last_transactions: Vec<LastTransactionItem>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -119,5 +119,5 @@ pub struct SubGroupIdentifierItem {
 pub struct LastTransactionItem {
     pub original_transaction_id: String,
     pub status: u16,
-    pub signed_transaction_info: String
+    pub signed_transaction_info: String,
 }

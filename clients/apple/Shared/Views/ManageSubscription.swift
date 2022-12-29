@@ -8,21 +8,12 @@ struct ManageSubscription: View {
     @Environment(\.presentationMode) var presentationMode
         
     @State var isPurchasing = false
-    @State var error = false
+    @State var hasPurchaseError = false
     
     var body: some View {
         VStack(alignment: .leading) {
-            VStack (alignment: .leading) {
-                Text("Current Usage:")
-                ColorProgressBar(value: settings.usageProgress)
-            }
-            .padding(.vertical)
-                
-            switch settings.tier {
-            case .Trial: trial
-            case .Premium: trial
-            case .Unknown: trial
-            }
+            usage
+            trial
             
             Text("Expand your storage to **30GB** for **\(billing.maybeMonthlySubscription?.displayPrice ?? "$2.99")** a month.")
                 .padding(.vertical)
@@ -35,13 +26,14 @@ struct ManageSubscription: View {
                         isPurchasing = true
                         let result = try await billing.purchasePremium()
                         if result == .failure {
-                            error = true
+                            hasPurchaseError = true
                         } else if result == .success || result == .pending {
+                            settings.calculateUsage()
+                            
                             DispatchQueue.global(qos: .userInitiated).async {
                                 Thread.sleep(forTimeInterval: 2)
                                 DispatchQueue.main.async {
                                     presentationMode.wrappedValue.dismiss()
-                                    settings.calculateUsage()
                                 }
                             }
                         }
@@ -58,21 +50,11 @@ struct ManageSubscription: View {
             }
             
             if(isPurchasing) {
-                HStack {
-                    Spacer()
-                    ProgressView()
-                    Spacer()
-                }
+                loading
             }
             
-            if(error) {
-                HStack {
-                    Spacer()
-                    Text("Failed to complete purchase.")
-                        .padding(.vertical)
-                        .foregroundColor(.red)
-                    Spacer()
-                }
+            if(hasPurchaseError) {
+                error
             }
             
             Spacer()
@@ -100,10 +82,39 @@ struct ManageSubscription: View {
     }
     
     @ViewBuilder
+    var usage: some View {
+        VStack (alignment: .leading) {
+            Text("Current Usage:")
+            ColorProgressBar(value: settings.usageProgress)
+        }
+        .padding(.vertical)
+    }
+    
+    @ViewBuilder
     var trial: some View {
         VStack(alignment: .leading) {
             Text("If you upgraded, your usage would be:")
             ColorProgressBar(value: settings.premiumProgress)
+        }
+    }
+    
+    @ViewBuilder
+    var error: some View {
+        HStack {
+            Spacer()
+            Text("Failed to complete purchase.")
+                .padding(.vertical)
+                .foregroundColor(.red)
+            Spacer()
+        }
+    }
+    
+    @ViewBuilder
+    var loading: some View {
+        HStack {
+            Spacer()
+            ProgressView()
+            Spacer()
         }
     }
 }

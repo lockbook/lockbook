@@ -86,10 +86,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         self.client
             .request(
                 account,
-                UpgradeAccountAppStoreRequest {
-                    original_transaction_id,
-                    app_account_token,
-                },
+                UpgradeAccountAppStoreRequest { original_transaction_id, app_account_token },
             )
             .map_err(|err| match err {
                 ApiError::Endpoint(UpgradeAccountAppStoreError::AlreadyPremium) => {

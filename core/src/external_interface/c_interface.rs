@@ -368,7 +368,7 @@ pub unsafe extern "C" fn get_local_changes() -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn upgrade_account_app_store(
-    original_transaction_id: *const c_char, app_account_token: *const c_char
+    original_transaction_id: *const c_char, app_account_token: *const c_char,
 ) -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.upgrade_account_app_store(
@@ -389,7 +389,6 @@ pub unsafe extern "C" fn cancel_subscription() -> *const c_char {
         e => translate(e.map(|_| ())),
     })
 }
-
 
 // FOR INTEGRATION TESTS ONLY
 /// # Safety

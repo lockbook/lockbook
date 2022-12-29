@@ -30,15 +30,14 @@ class BillingService: ObservableObject {
     var purchaseResult: PurchaseResult? = nil
     @Published var cancelSubscriptionResult: CancelSubscriptionResult? = nil
     
-    var makingPurchaseAttempt = false
-    
-    
     init(_ core: LockbookApi) {
         self.core = core
-        pendingTransactionsListener = listenForTransactions()
-
-        Task {
-            await requestProducts()
+        
+        
+        if case .success(_) = core.getAccount() {
+            Task {
+                await launchBillingBackgroundTasks()
+            }
         }
     }
     
@@ -46,52 +45,44 @@ class BillingService: ObservableObject {
         pendingTransactionsListener?.cancel()
     }
     
-    func getReceipt() -> String? {
-        if let appStoreReceiptURL = Bundle.main.appStoreReceiptURL,
-            FileManager.default.fileExists(atPath: appStoreReceiptURL.path) {
-
-            do {
-                return try Data(contentsOf: appStoreReceiptURL, options: .alwaysMapped).base64EncodedString()
-            }
-            catch {
-                return nil
-            }
-        }
-        
-        return nil
+    func launchBillingBackgroundTasks() async {
+        await requestProducts()
+        pendingTransactionsListener = listenForTransactions()
     }
     
     func listenForTransactions() -> Task<Void, Error> {
         return Task.detached {
             for await verification in Transaction.updates {
-                do {
-                    let transaction = try self.checkVerified(verification)
-                    switch self.core.getUsage() {
-                    case .success(let usages):
-                        if usages.dataCap.exact == 1000000 {
-                            if let receipt = self.getReceipt(), !self.makingPurchaseAttempt, transaction.id == transaction.originalID {
-                                guard let appAccountToken = transaction.appAccountToken else {
-                                    throw StoreError.failedVerification
-                                }
-                                
-                                let result = self.core.newAppleSub(originalTransactionId: String(transaction.originalID), appAccountToken: appAccountToken.uuidString.lowercased())
-                                
-                                switch result {
-                                case .success(_):
-                                    await transaction.finish()
-                                    self.purchaseResult = .success
-                                case .failure(let error):
-                                    DI.errors.handleError(error)
-                                }
-                            }
-                        } else {
-                            await transaction.finish()
+                print("GOT TRANSACTION UPDATE")
+                
+                let transaction = try self.checkVerified(verification)
+                switch self.core.getUsage() {
+                case .success(let usages):
+                    if usages.dataCap.exact == 1000000 {
+                        guard let appAccountToken = transaction.appAccountToken else {
+                            DI.errors.errorWithTitle("Billing Error", "An unexpected error has occurred.")
+                            return
                         }
-                    case .failure(let error):
-                        DI.errors.handleError(error)
+                            
+                        let result = self.core.newAppleSub(originalTransactionId: String(transaction.originalID), appAccountToken: appAccountToken.uuidString.lowercased())
+                                
+                        switch result {
+                        case .success(_):
+                            await transaction.finish()
+                            self.purchaseResult = .success
+                        case .failure(let error):
+                            if error.kind == .UiError(.AppStoreAccountAlreadyLinked) {
+                                await transaction.finish()
+                                self.purchaseResult = .success
+                            } else {
+                                DI.errors.handleError(error)
+                            }
+                        }
+                    } else {
+                        await transaction.finish()
                     }
-                } catch {
-                    print("Transaction failed verification")
+                case .failure(let error):
+                    DI.errors.handleError(error)
                 }
             }
         }
@@ -99,53 +90,47 @@ class BillingService: ObservableObject {
 
     
     func purchasePremium() async throws -> PurchaseResult? {
-        let accountToken = UUID()
-        let purchaseOpt: Set<Product.PurchaseOption> = [Product.PurchaseOption.appAccountToken(accountToken)]
+        let purchaseOpt: Set<Product.PurchaseOption> = [Product.PurchaseOption.appAccountToken(UUID())]
         
-        do {
-            guard let monthlySubscription = maybeMonthlySubscription else {
-                throw StoreError.noProduct
-            }
-            
-            let result = try await monthlySubscription.purchase(options: purchaseOpt)
-            SKReceiptRefreshRequest().start()
-            
-            switch result {
-            case .success(let verification):
-                
-                while true {
-                    if let receipt = getReceipt() {
-                        makingPurchaseAttempt = true
-                        let transaction = try checkVerified(verification)
-                        
-                        let result = self.core.newAppleSub(originalTransactionId: String(transaction.originalID), appAccountToken: accountToken.uuidString.lowercased(), encodedReceipt: receipt)
-                        
-                        switch result {
-                        case .success(_):
-                            await transaction.finish()
-                            makingPurchaseAttempt = false
-                            purchaseResult = .success
-                            return .success
-                        case .failure(let error):
-                            makingPurchaseAttempt = false
-                            DI.errors.handleError(error)
-                            return .failure
-                        }
-                    }
-                }
-            case .pending:
-                purchaseResult = .pending
-                return .pending
-            case .userCancelled:
-                return nil
-            default:
-                return .failure
-            }
-        } catch {
-            print("Couldn't read receipt data with error: " + error.localizedDescription)
+        if case .none = maybeMonthlySubscription {
+            await launchBillingBackgroundTasks()
         }
-
-        return .failure
+        
+        guard let monthlySubscription = maybeMonthlySubscription else {
+            return .failure
+        }
+        
+        let result = try await monthlySubscription.purchase(options: purchaseOpt)
+            
+        switch result {
+        case .success(let verification):
+            while true {
+                let transaction = try checkVerified(verification)
+                
+                guard let accountToken = transaction.appAccountToken?.uuidString else {
+                    return .failure
+                }
+                
+                let result = self.core.newAppleSub(originalTransactionId: String(transaction.originalID), appAccountToken: accountToken.lowercased())
+                
+                switch result {
+                case .success(_):
+                    await transaction.finish()
+                    purchaseResult = .success
+                    return .success
+                case .failure(let error):
+                    DI.errors.handleError(error)
+                    return .failure
+                }
+            }
+        case .pending:
+            purchaseResult = .pending
+            return .pending
+        case .userCancelled:
+            return nil
+        default:
+            return .failure
+        }
     }
     
     func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
@@ -157,21 +142,6 @@ class BillingService: ObservableObject {
         }
     }
     
-    func getReceipt() -> String? {
-        if let appStoreReceiptURL = Bundle.main.appStoreReceiptURL,
-            FileManager.default.fileExists(atPath: appStoreReceiptURL.path) {
-
-            do {
-                return try Data(contentsOf: appStoreReceiptURL, options: .alwaysMapped).base64EncodedString()
-            }
-            catch {
-                return nil
-            }
-        }
-        
-        return nil
-    }
-    
     func requestProducts() async {
         do {
             let storeProducts = try await Product.products(for: [MONTHLY_SUBSCRIPTION_PRODUCT_ID])
@@ -179,11 +149,11 @@ class BillingService: ObservableObject {
             if storeProducts.count == 1 {
                 maybeMonthlySubscription = storeProducts[0]
             } else {
-                print("No products!")
+                DI.errors.errorWithTitle("App Store Error", "Cannot retrieve data from the app store.")
             }
             
         } catch {
-            print("Failed product request from the App Store server: \(error)")
+            DI.errors.errorWithTitle("App Store Error", "Cannot retrieve data from the app store.")
         }
     }
     
