@@ -1,11 +1,18 @@
 /* * * * Layout * * * */
-
+*{
+    box-sizing: border-box;
+}
 .icons {
     display: flex;
-    justify-content: center;
-    padding: 10px;
+    justify-content: flex-start;
+    font-size: 0.9em;
 }
-
+.icon-header-container{
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    margin-left: -5px;
+}
 .dev-icon {
     width: 65px;
     height: 30px
@@ -38,6 +45,24 @@ html, body {
     font-size: 16px;
     width: 100%;
     text-align: center;
+}
+nav {
+    display: flex;
+    justify-content: space-between;
+    position: fixed;
+    padding: 0 50px;
+    width: 100%;
+    align-items: center;
+    background: linear-gradient(var(--background) -50%, transparent);
+}
+.nav-links-container{
+    display: flex;
+    list-style: none;
+
+}
+.nav-links-container a {
+    display: block;
+    padding: 10px 20px;
 }
 
 @media (min-aspect-ratio: 1/1), (min-width: 800px) {
@@ -115,9 +140,10 @@ p {
 }
 
 /* * * * Colors * * * */
+
 .button {
     text-decoration: none;
-    color: white;
+    color: var(--foreground);
 }
 
 .link {
@@ -126,7 +152,7 @@ p {
 }
 
 #term-icon:hover {
-    color: black;
+    filter: invert(0.5);
     transition: color 250ms linear;
 
 }
@@ -153,33 +179,39 @@ p {
 }
 
 h1 {
-    background: black;
-    color: white;
+    color: var(--foreground);
+    font-size: 2em;
 }
 
-#native {
-    background: rgb(255, 45, 85);
-    color: white;
+#native, #pricing {
+    background: var(--background-900);
+    color: var(--foreground);
 }
 
-#pricing {
-    background: rgb(0, 122, 255);
-    color: white;
-}
 
 #intro-img {
     content: url(intro-dark.png);
 }
 
+*{
+    --background: white;
+    --background-900: rgb(225, 225, 225);
+    --foreground: black;
+}
+
 @media (prefers-color-scheme: dark) {
+    *{
+        --background: black;
+        --background-900: rgb(25, 25, 25);
+        --foreground: white;
+    }
     html {
         background: black;
         color: white;
     }
 
     h1 {
-        background: white;
-        color: black;
+        color: white;
     }
 
     #intro-img {
