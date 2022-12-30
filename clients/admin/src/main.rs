@@ -1,5 +1,3 @@
-extern crate core;
-
 mod account;
 mod disappear;
 mod error;

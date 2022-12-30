@@ -1,11 +1,9 @@
-extern crate rand;
-
-use self::rand::rngs::OsRng;
-use self::rand::RngCore;
 use crate::crypto::*;
 use crate::{SharedError, SharedResult};
 use aead::{generic_array::GenericArray, Aead, NewAead};
 use aes_gcm::Aes256Gcm;
+use rand::rngs::OsRng;
+use rand::RngCore;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
