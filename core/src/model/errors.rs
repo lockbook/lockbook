@@ -1189,28 +1189,22 @@ impl From<SharedError> for TestRepoError {
     fn from(err: SharedError) -> Self {
         match err {
             SharedError::ValidationFailure(validation) => match validation {
-                ValidationFailure::Orphan(id) => TestRepoError::FileOrphaned(id),
-                ValidationFailure::Cycle(ids) => TestRepoError::CycleDetected(ids),
-                ValidationFailure::PathConflict(ids) => TestRepoError::PathConflict(ids),
-                ValidationFailure::NonFolderWithChildren(id) => {
-                    TestRepoError::DocumentTreatedAsFolder(id)
-                }
-                ValidationFailure::NonDecryptableFileName(id) => {
-                    TestRepoError::NonDecryptableFileName(id)
-                }
+                ValidationFailure::Orphan(id) => Self::FileOrphaned(id),
+                ValidationFailure::Cycle(ids) => Self::CycleDetected(ids),
+                ValidationFailure::PathConflict(ids) => Self::PathConflict(ids),
+                ValidationFailure::NonFolderWithChildren(id) => Self::DocumentTreatedAsFolder(id),
+                ValidationFailure::NonDecryptableFileName(id) => Self::NonDecryptableFileName(id),
                 ValidationFailure::SharedLink { link, shared_ancestor } => {
-                    TestRepoError::SharedLink { link, shared_ancestor }
+                    Self::SharedLink { link, shared_ancestor }
                 }
-                ValidationFailure::DuplicateLink { target } => {
-                    TestRepoError::DuplicateLink { target }
-                }
-                ValidationFailure::BrokenLink(id) => TestRepoError::BrokenLink(id),
-                ValidationFailure::OwnedLink(id) => TestRepoError::OwnedLink(id),
+                ValidationFailure::DuplicateLink { target } => Self::DuplicateLink { target },
+                ValidationFailure::BrokenLink(id) => Self::BrokenLink(id),
+                ValidationFailure::OwnedLink(id) => Self::OwnedLink(id),
                 ValidationFailure::FileWithDifferentOwnerParent(id) => {
-                    TestRepoError::FileWithDifferentOwnerParent(id)
+                    Self::FileWithDifferentOwnerParent(id)
                 }
             },
-            _ => TestRepoError::Shared(err),
+            _ => Self::Shared(err),
         }
     }
 }
