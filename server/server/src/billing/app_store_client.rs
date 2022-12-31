@@ -7,7 +7,7 @@ use lockbook_shared::api::UpgradeAccountAppStoreError;
 use lockbook_shared::clock::get_time;
 use reqwest::RequestBuilder;
 use serde::{Deserialize, Serialize};
-use tracing::debug;
+use tracing::{debug, info};
 
 pub const SUB_STATUS_PROD: &str = "https://api.storekit.itunes.apple.com/inApps/v1/subscriptions";
 pub const SUB_STATUS_SANDBOX: &str =
@@ -71,12 +71,11 @@ pub async fn get_sub_status(
 
             for sub_group in &sub_status.data {
                 if sub_group.sub_group == config.monthly_sub_group_id {
-                    println!("GOT HERE");
                     let last_trans = sub_group
                         .last_transactions
                         .get(0)
                         .ok_or(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails))?;
-                    println!("AND NOW HERE");
+
                     let part = <&str>::clone(
                         last_trans
                             .signed_transaction_info
@@ -107,13 +106,17 @@ pub async fn get_sub_status(
                 }
             }
 
-            Err(internal!("No usable data returned from apple subscriptions statuses endpoint despite assumed match. resp_body: {:?}", sub_status))
+            Err(internal!("No usable data returned from apple subscriptions statuses endpoint despite assumed match. resp_body: {:?}, monthly_sub_group: {}", sub_status, config.monthly_sub_group_id))
         }
         400 | 404 => {
             let resp_body = resp.text().await.ok();
-            debug!(?resp_status, ?resp_body, "Failed to verify subscription");
+            info!(
+                ?resp_status,
+                ?resp_body,
+                ?original_transaction_id,
+                "Failed to verify subscription"
+            );
 
-            println!("FAILURE");
             Err(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails))
         }
         _ => Err(internal!("Unexpected response: {:?}", resp_status)),

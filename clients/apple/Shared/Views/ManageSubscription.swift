@@ -78,7 +78,6 @@ struct ManageSubscription: View {
             Text("Current Usage:")
             ColorProgressBar(value: settings.usageProgress)
         }
-        .padding(.vertical)
     }
     
     @ViewBuilder

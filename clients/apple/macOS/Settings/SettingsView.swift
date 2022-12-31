@@ -23,13 +23,10 @@ struct SettingsView: View {
                     .tabItem {
                         Label("Usage", systemImage: "externaldrive")
                     }
-                
-                if (settings.usages?.uncompressedUsage.exact ?? 1000000) == 1000000 {
-                    ManageSubscriptionView()
-                        .tabItem {
-                            Label("Premium", systemImage: "banknote")
-                        }
-                }
+                ManageSubscriptionView()
+                    .tabItem {
+                        Label("Premium", systemImage: "banknote")
+                    }
             }
             .padding(20)
             .frame(width: 600)
