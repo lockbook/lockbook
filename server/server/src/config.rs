@@ -245,7 +245,7 @@ impl AppleConfig {
         Self {
             iap_key: env_or_panic("APPLE_IAP_KEY"),
             iap_key_id: env_or_panic("APPLE_IAP_KEY_ID"),
-            asc_public_key: env_or_panic("APPLE_ASC_PUBLIC_KEY"),
+            asc_public_key: env_or_panic("APPLE_ASC_PUB_KEY"),
             issuer_id: env_or_panic("APPLE_ISSUER_ID"),
             subscription_product_id: env_or_panic("APPLE_SUB_PROD_ID"),
             asc_shared_secret: env_or_panic("APPLE_ASC_SHARED_SECRET"),
