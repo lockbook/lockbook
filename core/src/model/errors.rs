@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::fmt::{self, Display, Formatter};
-use std::io::ErrorKind;
+use std::io;
 
 use itertools::Itertools;
 use serde::ser::SerializeStruct;
@@ -229,13 +229,13 @@ impl<E: Serialize> From<hmdb::errors::Error> for Error<E> {
     }
 }
 
-impl From<std::io::Error> for CoreError {
-    fn from(e: std::io::Error) -> Self {
+impl From<io::Error> for CoreError {
+    fn from(e: io::Error) -> Self {
         match e.kind() {
-            ErrorKind::NotFound | ErrorKind::PermissionDenied | ErrorKind::InvalidInput => {
-                CoreError::DiskPathInvalid
-            }
-            ErrorKind::AlreadyExists => CoreError::DiskPathTaken,
+            io::ErrorKind::NotFound
+            | io::ErrorKind::PermissionDenied
+            | io::ErrorKind::InvalidInput => Self::DiskPathInvalid,
+            io::ErrorKind::AlreadyExists => Self::DiskPathTaken,
             _ => core_err_unexpected(e),
         }
     }
