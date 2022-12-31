@@ -35,6 +35,7 @@ class DrawingFragment : Fragment() {
     private val redButton get() = binding.drawingToolbar.drawingColorRed
 
     private val eraser get() = binding.drawingToolbar.drawingErase
+    private val fingerDrawing get() = binding.drawingToolbar.fingerDrawing
     private val penSizeChooser get() = binding.drawingToolbar.drawingPenSize
 
     private val toolbar get() = binding.drawingToolbar.drawingToolsMenu
