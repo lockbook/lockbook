@@ -99,7 +99,8 @@ struct SettingsView: View, Equatable {
                     } else {
                         Text("Calculating...")
                     }
-                }.onAppear(perform: settingsState.calculateUsage)
+                }
+                .onAppear(perform: settingsState.calculateUsage)
             }.navigationBarTitle("Settings")
         }
     }

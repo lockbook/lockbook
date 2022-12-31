@@ -47,18 +47,6 @@ pub async fn verify_details(
         || transaction.status != SUBSCRIBED
         || transaction.original_transaction_id != original_transaction_id
     {
-        println!("TOKENS {} {}", transaction_info.app_account_token, app_account_token);
-        println!(
-            "STATUS {} AND IDS {} {}",
-            transaction.status, transaction.original_transaction_id, original_transaction_id
-        );
-        println!(
-            "WHAT: {} {} {}",
-            transaction_info.app_account_token != app_account_token,
-            transaction.status != SUBSCRIBED,
-            transaction.original_transaction_id != original_transaction_id
-        );
-
         return Err(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails));
     }
 

@@ -1,7 +1,7 @@
 import SwiftUI
 import AlertToast
 
-struct ManageSubscription: View {    
+struct ManageSubscriptionView: View {
     @EnvironmentObject var billing: BillingService
     @EnvironmentObject var settings: SettingsService
     
@@ -19,7 +19,6 @@ struct ManageSubscription: View {
                 Spacer()
                 Button("Subscribe")
                 {
-                    print("PRESSED")
                     billing.purchasePremium()
                 }
                 .buttonStyle(.borderedProminent)
@@ -41,37 +40,8 @@ struct ManageSubscription: View {
         }
             .padding()
             .navigationTitle("Premium")
-            .toast(isPresenting: Binding(get: {
-                billing.showPurchaseToast
-            }, set: { _ in
-                billing.showPurchaseToast = false
-            }), duration: 2, tapToDismiss: true) {
-                purchaseToast()
-            }
-            .onChange(of: billing.purchaseResult) { newValue in
-                if case .some(.success) = newValue {
-                    DispatchQueue.global(qos: .userInitiated).async {
-                        Thread.sleep(forTimeInterval: 2)
-                        DispatchQueue.main.async {
-                            
-                            presentationMode.wrappedValue.dismiss()
-                        }
-                    }
-                }
-            }
     }
-    
-    func purchaseToast() -> AlertToast {
-        switch billing.purchaseResult {
-        case .some(.success):
-            return AlertToast(type: .regular, title: "You have successfully purchased premium!")
-        case .some(.pending):
-            return AlertToast(type: .regular, title: "Your purchase is pending.")
-        default:
-            return AlertToast(type: .regular, title: "ERROR")
-        }
-    }
-    
+        
     @ViewBuilder
     var usage: some View {
         VStack (alignment: .leading) {
@@ -110,10 +80,10 @@ struct ManageSubscription: View {
     }
 }
 
-struct ManageSubscriptionView_Previews: PreviewProvider {
+struct ManageSubscription_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            ManageSubscriptionView()
+            ManageSubscription()
                 .mockDI()
         }
     }

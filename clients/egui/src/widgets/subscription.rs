@@ -1,5 +1,4 @@
 use eframe::egui;
-use lb::PaymentPlatform;
 
 use crate::widgets::ProgressBar;
 

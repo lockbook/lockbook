@@ -97,8 +97,10 @@ pub async fn upgrade_account_app_store(
         .app_store_ids
         .get(&request.app_account_token)?
     {
-        if owner.0 != context.public_key {
-            return Err(ClientError(UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked));
+        if let Some(other_account) = server_state.index_db.accounts.get(&owner)? {
+            if other_account.billing_info.billing_platform.is_some() {
+                return Err(ClientError(UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked));
+            }
         }
     }
 
@@ -597,7 +599,7 @@ pub async fn app_store_notification_webhook(
 
     let owner = Owner(public_key);
 
-    debug!(
+    info!(
         ?owner,
         ?resp.notification_type,
         ?resp.subtype,
@@ -615,22 +617,30 @@ pub async fn app_store_notification_webhook(
                         AppStoreAccountState::FailedToRenew
                     };
                 }
-                NotificationChange::Expired => match resp.subtype {
-                    Some(Subtype::BillingRetry) => {
-                        info!(?owner, ?resp, "Subscription failed to renew due to billing issues.");
-                    }
-                    Some(Subtype::Voluntary) => {
-                        info!(?owner, ?resp, "Subscription cancelled");
-                    }
-                    _ => {
-                        return Err(internal!(
+                NotificationChange::Expired => {
+                    info.account_state = AppStoreAccountState::Expired;
+
+                    match resp.subtype {
+                        Some(Subtype::BillingRetry) => {
+                            info!(
+                                ?owner,
+                                ?resp,
+                                "Subscription failed to renew due to billing issues."
+                            );
+                        }
+                        Some(Subtype::Voluntary) => {
+                            info!(?owner, ?resp, "Subscription cancelled");
+                        }
+                        _ => {
+                            return Err(internal!(
                             "Unexpected subtype: {:?}, notification_type {:?}, public_key: {:?}",
                             resp.subtype,
                             resp.notification_type,
                             public_key
                         ))
+                        }
                     }
-                },
+                }
                 NotificationChange::GracePeriodExpired => {
                     account.billing_info.billing_platform = None;
                 }
@@ -645,9 +655,7 @@ pub async fn app_store_notification_webhook(
                         info.account_state = AppStoreAccountState::Ok;
                         info.expiration_time = trans.expires_date;
                     }
-                    Some(Subtype::AutoRenewDisabled) => {
-                        account.billing_info.billing_platform = None;
-                    }
+                    Some(Subtype::AutoRenewDisabled) => {}
                     _ => {
                         return Err(internal!(
                             "Unexpected subtype: {:?}, notification_type {:?}, public_key: {:?}",

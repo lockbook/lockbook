@@ -467,6 +467,7 @@ pub enum AppStoreAccountState {
     Ok,
     GracePeriod,
     FailedToRenew,
+    Expired,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]

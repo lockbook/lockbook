@@ -4,7 +4,8 @@ import SwiftLockbookCore
 struct SettingsView: View {
     
     @EnvironmentObject var accounts: AccountService
-    
+    @EnvironmentObject var settings: SettingsService
+
     var body: some View {
         switch accounts.account {
         case .none:
@@ -22,6 +23,13 @@ struct SettingsView: View {
                     .tabItem {
                         Label("Usage", systemImage: "externaldrive")
                     }
+                
+                if (settings.usages?.uncompressedUsage.exact ?? 1000000) == 1000000 {
+                    ManageSubscriptionView()
+                        .tabItem {
+                            Label("Premium", systemImage: "banknote")
+                        }
+                }
             }
             .padding(20)
             .frame(width: 600)

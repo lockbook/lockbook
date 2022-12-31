@@ -80,12 +80,14 @@ class SettingsService: ObservableObject {
     }
     
     func calculateUsage() {
-        if self.usages == nil {
+        print("Recalculated usage...")
+        
             DispatchQueue.global(qos: .userInteractive).async {
                 switch self.core.getUsage() {
                 case .success(let usages):
                     switch self.core.getUncompressedUsage() {
                     case .success(let uncompressedUsage):
+                        print("Recalculated usage with \(uncompressedUsage.exact)")
                         DispatchQueue.main.async {
                             self.usages = PrerequisiteInformation(serverUsages: usages, uncompressedUsage: uncompressedUsage)
                         }
@@ -109,7 +111,6 @@ class SettingsService: ObservableObject {
                     DI.errors.handleError(err)
                 }
             }
-        }
     }
     
     func accountCode() -> AnyView {

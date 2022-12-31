@@ -11,6 +11,7 @@ public enum PurchaseResult {
     case success
     case pending
     case failure
+    case inFlow
 }
 
 public enum CancelSubscriptionResult {
@@ -27,12 +28,13 @@ class BillingService: ObservableObject {
     var pendingTransactionsListener: Task<Void, Error>? = nil
 
     var maybeMonthlySubscription: Product? = nil
-    var purchaseResult: PurchaseResult? = nil
+    @Published var purchaseResult: PurchaseResult? = nil
     @Published var cancelSubscriptionResult: CancelSubscriptionResult? = nil
+    
+    var showPurchaseToast: Bool = false
     
     init(_ core: LockbookApi) {
         self.core = core
-        
         
         if case .success(_) = core.getAccount() {
             Task {
@@ -53,9 +55,11 @@ class BillingService: ObservableObject {
     func listenForTransactions() -> Task<Void, Error> {
         return Task.detached {
             for await verification in Transaction.updates {
-                print("GOT TRANSACTION UPDATE")
                 
-                let transaction = try self.checkVerified(verification)
+                guard let transaction = self.checkVerified(verification) else {
+                    return
+                }
+                
                 switch self.core.getUsage() {
                 case .success(let usages):
                     if usages.dataCap.exact == 1000000 {
@@ -64,6 +68,7 @@ class BillingService: ObservableObject {
                             return
                         }
                             
+                        
                         let result = self.core.newAppleSub(originalTransactionId: String(transaction.originalID), appAccountToken: appAccountToken.uuidString.lowercased())
                                 
                         switch result {
@@ -71,7 +76,7 @@ class BillingService: ObservableObject {
                             await transaction.finish()
                             self.purchaseResult = .success
                         case .failure(let error):
-                            if error.kind == .UiError(.AppStoreAccountAlreadyLinked) {
+                            if error.kind == .UiError(.AppStoreAccountAlreadyLinked) || error.kind == .UiError(.InvalidAuthDetails) || error.kind == .UiError(.AlreadyPremium) {
                                 await transaction.finish()
                                 self.purchaseResult = .success
                             } else {
@@ -88,55 +93,70 @@ class BillingService: ObservableObject {
         }
     }
 
-    
-    func purchasePremium() async throws -> PurchaseResult? {
-        let purchaseOpt: Set<Product.PurchaseOption> = [Product.PurchaseOption.appAccountToken(UUID())]
+    func purchasePremium() {
+        purchaseResult = .inFlow
         
-        if case .none = maybeMonthlySubscription {
-            await launchBillingBackgroundTasks()
-        }
-        
-        guard let monthlySubscription = maybeMonthlySubscription else {
-            return .failure
-        }
-        
-        let result = try await monthlySubscription.purchase(options: purchaseOpt)
+        Task {
+            let purchaseOpt: Set<Product.PurchaseOption> = [Product.PurchaseOption.appAccountToken(UUID())]
             
-        switch result {
-        case .success(let verification):
-            while true {
-                let transaction = try checkVerified(verification)
-                
-                guard let accountToken = transaction.appAccountToken?.uuidString else {
-                    return .failure
+            if case .none = maybeMonthlySubscription {
+                await launchBillingBackgroundTasks()
+            }
+            
+            guard let monthlySubscription = maybeMonthlySubscription else {
+                await updatePurchaseResult(.failure)
+                return
+            }
+            
+            guard let result = try? await monthlySubscription.purchase(options: purchaseOpt) else {
+                await updatePurchaseResult(.failure)
+                return
+            }
+            
+            switch result {
+            case .success(let verification):
+                guard let transaction = checkVerified(verification) else {
+                    await updatePurchaseResult(.failure)
+                    return
                 }
-                
+                    
+                guard let accountToken = transaction.appAccountToken?.uuidString else {
+                    await updatePurchaseResult(.failure)
+                    return
+                }
+                    
                 let result = self.core.newAppleSub(originalTransactionId: String(transaction.originalID), appAccountToken: accountToken.lowercased())
-                
+                    
                 switch result {
                 case .success(_):
+                    showPurchaseToast = true
                     await transaction.finish()
-                    purchaseResult = .success
-                    return .success
+                    await updatePurchaseResult(.success)
                 case .failure(let error):
+                    await updatePurchaseResult(.failure)
                     DI.errors.handleError(error)
-                    return .failure
                 }
+            case .pending:
+                showPurchaseToast = true
+                await updatePurchaseResult(.pending)
+            case .userCancelled:
+                await updatePurchaseResult(nil)
+            default:
+                await updatePurchaseResult(.failure)
             }
-        case .pending:
-            purchaseResult = .pending
-            return .pending
-        case .userCancelled:
-            return nil
-        default:
-            return .failure
         }
     }
     
-    func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
+    func updatePurchaseResult(_ newValue: PurchaseResult?) async {
+        await MainActor.run {
+            purchaseResult = newValue
+        }
+    }
+    
+    func checkVerified<T>(_ result: VerificationResult<T>) -> T? {
         switch result {
         case .unverified:
-            throw StoreError.failedVerification
+            return nil
         case .verified(let safe):
             return safe
         }
