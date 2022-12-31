@@ -64,8 +64,18 @@ nav {
 }
 #social{
     height: auto;
-    padding: 5em 0;
+    padding-top: 5em;
+    padding-bottom: 5em;
 }
+
+.cta-container{
+    display: flex;
+    justify-content: center;
+}
+.cta-container a, #social h2{
+    text-align: center;
+}
+
 @media (min-aspect-ratio: 1/1), (min-width: 800px) {
 
 
@@ -108,6 +118,12 @@ nav {
 @media (max-aspect-ratio: 1/1) and (max-width: 800px) {
     .container {
         padding: 30px 10%;
+    }
+    div.mockup-img-container{
+        justify-content: center;
+    }
+    nav{
+        display: none;
     }
 }
 
@@ -197,7 +213,16 @@ h1 {
 #intro-img {
     content: url(intro-dark.png);
 }
+.mockup-img-container{
+    display: flex;
+    justify-content: flex-end;
+}
 
+#mockup-img{
+    width: 80%;
+    object-fit: contain;
+    content: url(mockup-light.png)
+}
 *{
     --background: white;
     --background-900: rgb(225, 225, 225);
@@ -221,6 +246,9 @@ h1 {
 
     #intro-img {
         content: url(intro-light.png);
+    }
+    #mockup-img{
+        content: url(mockup-dark.png);
     }
 }
 
