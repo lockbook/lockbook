@@ -173,46 +173,34 @@ pub fn core_err_unexpected<T: std::fmt::Debug>(err: T) -> CoreError {
 
 impl From<SharedError> for CoreError {
     fn from(err: SharedError) -> Self {
-        use SharedError::*;
         match err {
-            RootNonexistent => CoreError::RootNonexistent,
-            FileNonexistent => CoreError::FileNonexistent,
-            FileParentNonexistent => CoreError::FileParentNonexistent,
-            Unexpected(err) => CoreError::Unexpected(err.to_string()),
-            PathContainsEmptyFileName => CoreError::PathContainsEmptyFileName,
-            PathTaken => CoreError::PathTaken,
-            FileNameContainsSlash => CoreError::FileNameContainsSlash,
-            RootModificationInvalid => CoreError::RootModificationInvalid,
-            DeletedFileUpdated(_) => CoreError::FileNonexistent,
-            FileNameEmpty => CoreError::FileNameEmpty,
-            FileNotFolder => CoreError::FileNotFolder,
-            FileNotDocument => CoreError::FileNotDocument,
-            InsufficientPermission => CoreError::InsufficientPermission,
-            NotPermissioned => CoreError::InsufficientPermission,
-            ShareNonexistent => CoreError::ShareNonexistent,
-            DuplicateShare => CoreError::ShareAlreadyExists,
-            ValidationFailure(lockbook_shared::ValidationFailure::Cycle(_)) => {
-                CoreError::FolderMovedIntoSelf
-            }
-            ValidationFailure(lockbook_shared::ValidationFailure::PathConflict(_)) => {
-                CoreError::PathTaken
-            }
-            ValidationFailure(lockbook_shared::ValidationFailure::SharedLink { .. }) => {
-                CoreError::LinkInSharedFolder
-            }
-            ValidationFailure(lockbook_shared::ValidationFailure::DuplicateLink { .. }) => {
-                CoreError::MultipleLinksToSameFile
-            }
-            ValidationFailure(lockbook_shared::ValidationFailure::BrokenLink(_)) => {
-                CoreError::LinkTargetNonexistent
-            }
-            ValidationFailure(lockbook_shared::ValidationFailure::OwnedLink(_)) => {
-                CoreError::LinkTargetIsOwned
-            }
-            ValidationFailure(lockbook_shared::ValidationFailure::NonFolderWithChildren(_)) => {
-                CoreError::FileNotFolder
-            }
-            _ => CoreError::Unexpected(format!("unexpected shared error {:?}", err)),
+            SharedError::RootNonexistent => Self::RootNonexistent,
+            SharedError::FileNonexistent => Self::FileNonexistent,
+            SharedError::FileParentNonexistent => Self::FileParentNonexistent,
+            SharedError::Unexpected(err) => Self::Unexpected(err.to_string()),
+            SharedError::PathContainsEmptyFileName => Self::PathContainsEmptyFileName,
+            SharedError::PathTaken => Self::PathTaken,
+            SharedError::FileNameContainsSlash => Self::FileNameContainsSlash,
+            SharedError::RootModificationInvalid => Self::RootModificationInvalid,
+            SharedError::DeletedFileUpdated(_) => Self::FileNonexistent,
+            SharedError::FileNameEmpty => Self::FileNameEmpty,
+            SharedError::FileNotFolder => Self::FileNotFolder,
+            SharedError::FileNotDocument => Self::FileNotDocument,
+            SharedError::InsufficientPermission => Self::InsufficientPermission,
+            SharedError::NotPermissioned => Self::InsufficientPermission,
+            SharedError::ShareNonexistent => Self::ShareNonexistent,
+            SharedError::DuplicateShare => Self::ShareAlreadyExists,
+            SharedError::ValidationFailure(failure) => match failure {
+                ValidationFailure::Cycle(_) => Self::FolderMovedIntoSelf,
+                ValidationFailure::PathConflict(_) => Self::PathTaken,
+                ValidationFailure::SharedLink { .. } => Self::LinkInSharedFolder,
+                ValidationFailure::DuplicateLink { .. } => Self::MultipleLinksToSameFile,
+                ValidationFailure::BrokenLink(_) => Self::LinkTargetNonexistent,
+                ValidationFailure::OwnedLink(_) => Self::LinkTargetIsOwned,
+                ValidationFailure::NonFolderWithChildren(_) => Self::FileNotFolder,
+                vf => Self::Unexpected(format!("unexpected validation failure {:?}", vf)),
+            },
+            _ => Self::Unexpected(format!("unexpected shared error {:?}", err)),
         }
     }
 }
