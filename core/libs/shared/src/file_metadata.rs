@@ -136,6 +136,12 @@ impl FromStr for FileType {
     }
 }
 
+impl fmt::Display for FileType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct FileDiff<F: FileLike> {
     pub old: Option<F>,
