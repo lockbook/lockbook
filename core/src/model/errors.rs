@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::fmt::{self, Display, Formatter};
+use std::fmt;
 use std::io;
 
 use itertools::Itertools;
@@ -19,8 +19,8 @@ use crate::UiError;
 #[derive(Debug)]
 pub struct UnexpectedError(pub String);
 
-impl Display for UnexpectedError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for UnexpectedError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "unexpected error: {}", self.0)
     }
 }
