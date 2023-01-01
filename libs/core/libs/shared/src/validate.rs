@@ -242,7 +242,9 @@ where
             if let FileType::Link { target } = self.find(&link)?.file_type() {
                 if let Some(target_owner) = self.maybe_find(&target).map(|f| f.owner()) {
                     if self.find(&link)?.owner() == target_owner {
-                        return Err(SharedError::ValidationFailure(ValidationFailure::OwnedLink(link)));
+                        return Err(SharedError::ValidationFailure(ValidationFailure::OwnedLink(
+                            link,
+                        )));
                     }
                 }
             }
