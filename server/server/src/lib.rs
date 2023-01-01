@@ -59,10 +59,14 @@ macro_rules! internal {
 pub fn verify_client_version<Req: Request>(
     version: &Option<String>,
 ) -> Result<(), ErrorWrapper<Req::Error>> {
+    let versions = vec!["0.5.5", "0.5.6"];
     match version.as_deref() {
-        Some("0.5.5") => Ok(()),
-        Some("0.5.6") => Ok(()),
-        None => Ok(()),
+        Some(x) if versions.contains(&x) => {
+            router_service::CORE_VERSION_COUNTER
+                .with_label_values(&[x])
+                .inc();
+            Ok(())
+        }
         _ => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
     }
 }

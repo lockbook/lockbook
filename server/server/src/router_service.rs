@@ -8,7 +8,9 @@ use lazy_static::lazy_static;
 use lockbook_shared::api::*;
 use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
 use lockbook_shared::SharedError;
-use prometheus::{register_histogram_vec, HistogramVec, TextEncoder};
+use prometheus::{
+    register_counter_vec, register_histogram_vec, CounterVec, HistogramVec, TextEncoder,
+};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -25,7 +27,7 @@ lazy_static! {
         &["request"]
     )
     .unwrap();
-    pub static ref CORE_VERSION_HISTOGRAM: HistogramVec = register_histogram_vec!(
+    pub static ref CORE_VERSION_COUNTER: CounterVec = register_counter_vec!(
         "lockbook_server_core_version",
         "Lockbook server's supplied core version",
         &["request"]
