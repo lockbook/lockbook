@@ -219,13 +219,18 @@ where
 
     // note: a link to a deleted file is not considered broken, because then you would not be able
     // to delete a file linked to by another user.
-    pub fn assert_no_broken_links(&self) -> SharedResult<()> {
+    // note: a deleted link to a nonexistent file is not considered broken, because targets of
+    // deleted links may have their shares deleted, would not appear in the server tree for a user,
+    // and would be pruned from client trees
+    pub fn assert_no_broken_links(&mut self) -> SharedResult<()> {
         for link in self.owned_ids() {
             if let FileType::Link { target } = self.find(&link)?.file_type() {
-                if self.maybe_find(&target).is_none() {
-                    return Err(SharedError::ValidationFailure(ValidationFailure::BrokenLink(
-                        link,
-                    )));
+                if !self.calculate_deleted(&link)? {
+                    if self.maybe_find(&target).is_none() {
+                        return Err(SharedError::ValidationFailure(ValidationFailure::BrokenLink(
+                            link,
+                        )));
+                    }
                 }
             }
         }
@@ -235,8 +240,10 @@ where
     pub fn assert_no_owned_links(&self) -> SharedResult<()> {
         for link in self.owned_ids() {
             if let FileType::Link { target } = self.find(&link)?.file_type() {
-                if self.find(&link)?.owner() == self.find(&target)?.owner() {
-                    return Err(SharedError::ValidationFailure(ValidationFailure::OwnedLink(link)));
+                if let Some(target_owner) = self.maybe_find(&target).map(|f| f.owner()) {
+                    if self.find(&link)?.owner() == target_owner {
+                        return Err(SharedError::ValidationFailure(ValidationFailure::OwnedLink(link)));
+                    }
                 }
             }
         }
