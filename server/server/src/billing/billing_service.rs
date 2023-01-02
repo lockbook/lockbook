@@ -97,10 +97,13 @@ pub async fn upgrade_account_app_store(
         .get(&request.app_account_token)?
     {
         if let Some(other_account) = server_state.index_db.accounts.get(&owner)? {
-            if let Some(BillingPlatform::AppStore(info)) = other_account.billing_info.billing_platform
+            if let Some(BillingPlatform::AppStore(info)) =
+                other_account.billing_info.billing_platform
             {
                 if info.account_token == request.app_account_token {
-                    return Err(ClientError(UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked));
+                    return Err(ClientError(
+                        UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked,
+                    ));
                 }
             }
         }
