@@ -157,13 +157,13 @@ pub async fn get_user_info(
         )?
         .to_lazy();
 
-        let metadatas = tree.all_files()?;
         let mut ids = Vec::new();
 
         let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
-        let is_user_active = metadatas
-            .iter()
-            .any(|metadata| metadata.version > time_two_days_ago);
+        let is_user_active = match tx.last_seen.get(&owner) {
+            Some(x) => *x > time_two_days_ago,
+            None => false,
+        };
 
         for id in tree.owned_ids() {
             if !tree.calculate_deleted(&id)? {
