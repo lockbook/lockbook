@@ -66,6 +66,7 @@ pub mod v3 {
             sizes: <Uuid, u64>,
             google_play_ids: <String, Owner>,
             stripe_ids: <String, Owner>,
+            app_store_ids: <String, Owner>,
             last_seen: <Owner, u64>
         }
     }
