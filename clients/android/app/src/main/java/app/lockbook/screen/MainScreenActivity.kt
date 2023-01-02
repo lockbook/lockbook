@@ -49,6 +49,11 @@ class MainScreenActivity : AppCompatActivity() {
 
     private val onShare =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            maybeGetFilesFragment()?.refreshFiles()
+        }
+
+    private val onExport =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             updateMainScreenUI(UpdateMainScreenUI.ShowHideProgressOverlay(false))
             model.shareModel.isLoadingOverlayVisible = false
 
@@ -62,7 +67,7 @@ class MainScreenActivity : AppCompatActivity() {
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        toggleTransparentLockbookLogo(model.detailsScreen)
+        toggleTransparentLockbookLogo(model.detailScreen)
 
         supportFragmentManager.registerFragmentLifecycleCallbacks(
             fragmentFinishedCallback,
@@ -91,8 +96,8 @@ class MainScreenActivity : AppCompatActivity() {
                 override fun onPanelSlide(panel: View, slideOffset: Float) {}
 
                 override fun onPanelOpened(panel: View) {
-                    if (model.detailsScreen is DetailsScreen.Loading) {
-                        (supportFragmentManager.findFragmentById(R.id.detail_container) as DetailsScreenLoaderFragment).addChecker()
+                    if (model.detailScreen is DetailScreen.Loading) {
+                        (supportFragmentManager.findFragmentById(R.id.detail_container) as DetailScreenLoaderFragment).addChecker()
                     }
                 }
 
@@ -101,10 +106,29 @@ class MainScreenActivity : AppCompatActivity() {
 
         slidingPaneLayout.lockMode = SlidingPaneLayout.LOCK_MODE_LOCKED
 
-        model.launchDetailsScreen.observe(
+        model.launchActivityScreen.observe(
             this
         ) { screen ->
-            launchDetailsScreen(screen)
+            when (screen) {
+                is ActivityScreen.Settings -> {
+                    val intent = Intent(applicationContext, SettingsActivity::class.java)
+
+                    if (screen.scrollToPreference != null) {
+                        intent.putExtra(SettingsFragment.SCROLL_TO_PREFERENCE_KEY, screen.scrollToPreference)
+                    }
+
+                    startActivity(intent)
+                }
+                ActivityScreen.Shares -> {
+                    onShare.launch(Intent(baseContext, SharesActivity::class.java))
+                }
+            }
+        }
+
+        model.launchDetailScreen.observe(
+            this
+        ) { screen ->
+            launchDetailScreen(screen)
         }
 
         model.launchTransientScreen.observe(
@@ -135,13 +159,13 @@ class MainScreenActivity : AppCompatActivity() {
                         RenameFileDialogFragment.RENAME_FILE_DIALOG_TAG
                     )
                 }
-                is TransientScreen.Share -> {
+                is TransientScreen.ShareExport -> {
                     finalizeShare(screen.files)
                 }
                 is TransientScreen.Delete -> {
                     DeleteFilesDialogFragment().show(
                         supportFragmentManager,
-                        DeleteFilesDialogFragment.DELETE_FILEs_DIALOG_FRAGMENT
+                        DeleteFilesDialogFragment.DELETE_FILES_DIALOG_FRAGMENT
                     )
                 }
             }.exhaustive
@@ -170,6 +194,7 @@ class MainScreenActivity : AppCompatActivity() {
             }
             UpdateMainScreenUI.ShowSearch -> navHost().navController.navigate(R.id.action_files_to_search)
             UpdateMainScreenUI.ShowFiles -> navHost().navController.popBackStack()
+            UpdateMainScreenUI.Sync -> maybeGetFilesFragment()?.sync(false)
         }
     }
 
@@ -199,7 +224,7 @@ class MainScreenActivity : AppCompatActivity() {
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
 
-        onShare.launch(Intent.createChooser(intent, "Send multiple files."))
+        onExport.launch(Intent.createChooser(intent, "Send multiple files."))
     }
 
     override fun onDestroy() {
@@ -208,32 +233,33 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     private fun onFileDeleted(filesFragment: FilesFragment) {
-        val openedFile = model.detailsScreen?.fileMetadata?.id
+        val openedFile = model.detailScreen?.getUsedFile()?.id
         if (openedFile != null) {
             val isDeletedFileOpen = (model.transientScreen as TransientScreen.Delete).files.any { file -> file.id == openedFile }
 
             if (isDeletedFileOpen) {
-                launchDetailsScreen(null)
+                launchDetailScreen(null)
             }
         }
 
         filesFragment.refreshFiles()
     }
 
-    private fun launchDetailsScreen(screen: DetailsScreen?) {
+    private fun launchDetailScreen(screen: DetailScreen?) {
         supportFragmentManager.commit {
             setReorderingAllowed(true)
-            doOnDetailsExit(screen)
+            doOnDetailExit(screen)
             toggleTransparentLockbookLogo(screen)
 
             when (screen) {
-                is DetailsScreen.Loading -> replace<DetailsScreenLoaderFragment>(R.id.detail_container)
-                is DetailsScreen.TextEditor -> replace<TextEditorFragment>(R.id.detail_container)
-                is DetailsScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
-                is DetailsScreen.ImageViewer -> replace<ImageViewerFragment>(R.id.detail_container)
-                is DetailsScreen.PdfViewer -> replace<PdfViewerFragment>(R.id.detail_container)
+                is DetailScreen.Loading -> replace<DetailScreenLoaderFragment>(R.id.detail_container)
+                is DetailScreen.TextEditor -> replace<TextEditorFragment>(R.id.detail_container)
+                is DetailScreen.Drawing -> replace<DrawingFragment>(R.id.detail_container)
+                is DetailScreen.ImageViewer -> replace<ImageViewerFragment>(R.id.detail_container)
+                is DetailScreen.PdfViewer -> replace<PdfViewerFragment>(R.id.detail_container)
+                is DetailScreen.Share -> replace<ShareFileFragment>(R.id.detail_container)
                 null -> {
-                    maybeGetFilesFragment()?.syncBasedOnPreferences()
+                    maybeGetFilesFragment()?.sync()
                     supportFragmentManager.findFragmentById(R.id.detail_container)?.let {
                         remove(it)
                     }
@@ -253,7 +279,7 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 
-    private fun toggleTransparentLockbookLogo(screen: DetailsScreen?) {
+    private fun toggleTransparentLockbookLogo(screen: DetailScreen?) {
         if (screen != null && binding.lockbookBackdrop.visibility == View.VISIBLE) {
             binding.lockbookBackdrop.visibility = View.GONE
         } else if (screen == null && binding.lockbookBackdrop.visibility == View.GONE) {
@@ -261,15 +287,15 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 
-    private fun doOnDetailsExit(newScreen: DetailsScreen?) {
+    private fun doOnDetailExit(newScreen: DetailScreen?) {
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? DrawingFragment)?.let { fragment ->
             fragment.binding.drawingView.stopThread()
             fragment.saveOnExit()
         }
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? TextEditorFragment)?.saveOnExit()
         (supportFragmentManager.findFragmentById(R.id.detail_container) as? PdfViewerFragment)?.deleteLocalPdfInstance()
-        (supportFragmentManager.findFragmentById(R.id.detail_container) as? DetailsScreenLoaderFragment)?.let { fragment ->
-            if (newScreen !is DetailsScreen.PdfViewer) {
+        (supportFragmentManager.findFragmentById(R.id.detail_container) as? DetailScreenLoaderFragment)?.let { fragment ->
+            if (newScreen !is DetailScreen.PdfViewer) {
                 fragment.deleteDownloadedFileIfExists()
             }
         }
@@ -277,7 +303,7 @@ class MainScreenActivity : AppCompatActivity() {
 
     override fun onBackPressed() {
         if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
-            launchDetailsScreen(null)
+            launchDetailScreen(null)
         } else if (maybeGetSearchFilesFragment() != null) {
             updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
         } else if (maybeGetFilesFragment()?.onBackPressed() == true) {

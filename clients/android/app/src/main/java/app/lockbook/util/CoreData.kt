@@ -1,11 +1,14 @@
 package app.lockbook.util
 
 import android.content.res.Resources
+import android.os.Parcelable
 import app.lockbook.R
+import kotlinx.parcelize.Parcelize
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonClassDiscriminator
 
+@Parcelize
 @Serializable
 data class File(
     val id: String = "",
@@ -18,10 +21,12 @@ data class File(
     @SerialName("last_modified_by")
     val lastModifiedBy: String = "",
     val shares: List<Share> = listOf()
-) {
+) : Parcelable {
     fun isRoot() = parent == id
+    fun isFolder() = fileType == FileType.Folder
 }
 
+@Parcelize
 @Serializable
 data class Share(
     val mode: ShareMode,
@@ -29,9 +34,10 @@ data class Share(
     val sharedBy: String,
     @SerialName("shared_with")
     val sharedWith: String,
-)
+) : Parcelable
 
-enum class ShareMode {
+@Parcelize
+enum class ShareMode : Parcelable {
     Write,
     Read,
 }

@@ -14,19 +14,19 @@ import app.lockbook.model.*
 import java.io.File
 import java.lang.ref.WeakReference
 
-class DetailsScreenLoaderFragment : Fragment() {
+class DetailScreenLoaderFragment : Fragment() {
     private var _binding: FragmentLoadingScreenBinding? = null
     private val binding get() = _binding!!
 
     private val activityModel: StateViewModel by activityViewModels()
-    private val model: DetailsScreenLoaderViewModel by viewModels(
+    private val model: DetailScreenLoaderViewModel by viewModels(
         factoryProducer = {
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    if (modelClass.isAssignableFrom(DetailsScreenLoaderViewModel::class.java))
-                        return DetailsScreenLoaderViewModel(
+                    if (modelClass.isAssignableFrom(DetailScreenLoaderViewModel::class.java))
+                        return DetailScreenLoaderViewModel(
                             requireActivity().application,
-                            activityModel.detailsScreen as DetailsScreen.Loading
+                            activityModel.detailScreen as DetailScreen.Loading
                         ) as T
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }
@@ -42,13 +42,13 @@ class DetailsScreenLoaderFragment : Fragment() {
         model.updateDetailScreenLoaderUI.observe(viewLifecycleOwner) {
             when (it) {
                 is UpdateDetailScreenLoaderUI.NotifyError -> alertModel.notifyError(it.error)
-                is UpdateDetailScreenLoaderUI.NotifyFinished -> activityModel.launchDetailsScreen(it.newScreen)
+                is UpdateDetailScreenLoaderUI.NotifyFinished -> activityModel.launchDetailScreen(it.newScreen)
             }
         }
     }
 
     fun deleteDownloadedFileIfExists() {
-        File(requireContext().cacheDir, OPENED_FILE_FOLDER + model.loadingInfo.fileMetadata.name).delete()
+        File(requireContext().cacheDir, OPENED_FILE_FOLDER + model.loadingInfo.file.name).delete()
     }
 
     override fun onCreateView(

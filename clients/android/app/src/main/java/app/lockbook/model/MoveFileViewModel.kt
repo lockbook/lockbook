@@ -66,8 +66,8 @@ class MoveFileViewModel(application: Application, private val startId: String) :
     private fun refreshOverFolder() {
         when (val getChildrenResult = CoreModel.getChildren(currentParent.id)) {
             is Ok -> {
-                val tempFiles = getChildrenResult.value.filter { fileMetadata ->
-                    fileMetadata.fileType == FileType.Folder && !ids.contains(fileMetadata.id)
+                val tempFiles = getChildrenResult.value.filter { file ->
+                    file.isFolder() && !ids.contains(file.id)
                 }.toMutableList()
 
                 if (!currentParent.isRoot()) {

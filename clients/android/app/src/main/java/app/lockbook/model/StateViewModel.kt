@@ -13,15 +13,20 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 class StateViewModel(application: Application) : AndroidViewModel(application) {
-    var detailsScreen: DetailsScreen? = null
+    var activityScreen: ActivityScreen? = null
+    var detailScreen: DetailScreen? = null
     var transientScreen: TransientScreen? = null
 
-    private val _launchDetailsScreen = SingleMutableLiveData<DetailsScreen?>()
+    private val _launchActivityScreen = SingleMutableLiveData<ActivityScreen>()
+    private val _launchDetailScreen = SingleMutableLiveData<DetailScreen?>()
     private val _launchTransientScreen = SingleMutableLiveData<TransientScreen>()
     private val _updateMainScreenUI = SingleMutableLiveData<UpdateMainScreenUI>()
 
-    val launchDetailsScreen: LiveData<DetailsScreen?>
-        get() = _launchDetailsScreen
+    val launchActivityScreen: LiveData<ActivityScreen?>
+        get() = _launchActivityScreen
+
+    val launchDetailScreen: LiveData<DetailScreen?>
+        get() = _launchDetailScreen
 
     val launchTransientScreen: LiveData<TransientScreen>
         get() = _launchTransientScreen
@@ -31,14 +36,19 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
 
     val shareModel = ShareModel(_updateMainScreenUI)
 
+    fun launchActivityScreen(screen: ActivityScreen) {
+        activityScreen = screen
+        _launchActivityScreen.postValue(activityScreen)
+    }
+
     fun launchTransientScreen(screen: TransientScreen) {
         transientScreen = screen
         _launchTransientScreen.postValue(transientScreen)
     }
 
-    fun launchDetailsScreen(screen: DetailsScreen?) {
-        detailsScreen = screen
-        _launchDetailsScreen.value = detailsScreen
+    fun launchDetailScreen(screen: DetailScreen?) {
+        detailScreen = screen
+        _launchDetailScreen.value = detailScreen
     }
 
     fun updateMainScreenUI(uiUpdate: UpdateMainScreenUI) {
@@ -119,25 +129,41 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
     }
 }
 
-sealed class DetailsScreen(open val fileMetadata: app.lockbook.util.File) {
-    data class Loading(override val fileMetadata: app.lockbook.util.File) : DetailsScreen(fileMetadata)
-    data class TextEditor(override val fileMetadata: app.lockbook.util.File, val text: String) :
-        DetailsScreen(fileMetadata)
+sealed class ActivityScreen {
+    data class Settings(val scrollToPreference: Int? = null) : ActivityScreen()
+    object Shares : ActivityScreen()
+}
+
+sealed class DetailScreen {
+    data class Loading(val file: app.lockbook.util.File) : DetailScreen()
+    data class TextEditor(val file: app.lockbook.util.File, val text: String) :
+        DetailScreen()
 
     data class Drawing(
-        override val fileMetadata: app.lockbook.util.File,
+        val file: app.lockbook.util.File,
         val drawing: app.lockbook.util.Drawing
-    ) : DetailsScreen(fileMetadata)
+    ) : DetailScreen()
 
     data class ImageViewer(
-        override val fileMetadata: app.lockbook.util.File,
+        val file: app.lockbook.util.File,
         val bitmap: Bitmap
-    ) : DetailsScreen(fileMetadata)
+    ) : DetailScreen()
 
     data class PdfViewer(
-        override val fileMetadata: app.lockbook.util.File,
+        val file: app.lockbook.util.File,
         val location: File
-    ) : DetailsScreen(fileMetadata)
+    ) : DetailScreen()
+
+    data class Share(val file: app.lockbook.util.File) : DetailScreen()
+
+    fun getUsedFile(): app.lockbook.util.File = when (this) {
+        is Drawing -> file
+        is ImageViewer -> file
+        is Loading -> file
+        is PdfViewer -> file
+        is TextEditor -> file
+        is Share -> file
+    }
 }
 
 sealed class TransientScreen {
@@ -145,7 +171,7 @@ sealed class TransientScreen {
     data class Rename(val file: app.lockbook.util.File) : TransientScreen()
     data class Create(val parentId: String, val extendedFileType: ExtendedFileType) : TransientScreen()
     data class Info(val file: app.lockbook.util.File) : TransientScreen()
-    data class Share(val files: List<File>) : TransientScreen()
+    data class ShareExport(val files: List<File>) : TransientScreen()
     data class Delete(val files: List<app.lockbook.util.File>) : TransientScreen()
 }
 
@@ -156,6 +182,7 @@ sealed class UpdateMainScreenUI {
     object ShowSubscriptionConfirmed : UpdateMainScreenUI()
     object ShowSearch : UpdateMainScreenUI()
     object ShowFiles : UpdateMainScreenUI()
+    object Sync : UpdateMainScreenUI()
 }
 
 sealed class ExtendedFileType {

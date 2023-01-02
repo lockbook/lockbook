@@ -50,40 +50,40 @@ class FilesListFragment : Fragment(), FilesFragment {
             override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean {
                 val selectedFiles = model.files.getSelectedItems()
 
-                return when (item?.itemId) {
+                when (item?.itemId) {
                     R.id.menu_list_files_rename -> {
                         if (selectedFiles.size == 1) {
                             activityModel.launchTransientScreen(TransientScreen.Rename(selectedFiles[0].fileMetadata))
                         }
-
-                        true
                     }
                     R.id.menu_list_files_delete -> {
                         activityModel.launchTransientScreen(TransientScreen.Delete(selectedFiles.intoFileMetadata()))
-
-                        true
                     }
                     R.id.menu_list_files_info -> {
                         if (model.files.getSelectionCount() == 1) {
                             activityModel.launchTransientScreen(TransientScreen.Info(selectedFiles[0].fileMetadata))
                         }
-
-                        true
                     }
                     R.id.menu_list_files_move -> {
                         activityModel.launchTransientScreen(
                             TransientScreen.Move(selectedFiles.intoFileMetadata())
                         )
-
-                        true
+                    }
+                    R.id.menu_list_files_export -> {
+                        (activity as MainScreenActivity).apply {
+                            model.shareSelectedFiles(selectedFiles.intoFileMetadata(), cacheDir)
+                        }
                     }
                     R.id.menu_list_files_share -> {
-                        (activity as MainScreenActivity).model.shareSelectedFiles(selectedFiles.intoFileMetadata(), requireActivity().cacheDir)
-
-                        true
+                        if (model.files.getSelectionCount() == 1) {
+                            activityModel.launchDetailScreen(DetailScreen.Share(selectedFiles[0].fileMetadata))
+                            unselectFiles()
+                        }
                     }
-                    else -> false
+                    else -> return false
                 }
+
+                return true
             }
 
             override fun onDestroyActionMode(mode: ActionMode?) {
@@ -239,12 +239,12 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
         binding.navigationView.setNavigationItemSelectedListener { item ->
             when (item.itemId) {
-                R.id.menu_files_list_settings -> startActivity(
-                    Intent(
-                        context,
-                        SettingsActivity::class.java
-                    )
-                )
+                R.id.menu_files_list_settings -> {
+                    activityModel.launchActivityScreen(ActivityScreen.Settings())
+                }
+                R.id.menu_files_list_sharing -> {
+                    activityModel.launchActivityScreen(ActivityScreen.Shares)
+                }
             }
 
             binding.drawerLayout.close()
@@ -404,7 +404,7 @@ class FilesListFragment : Fragment(), FilesFragment {
     private fun enterFile(item: File) {
         when (item.fileType) {
             FileType.Document -> {
-                activityModel.launchDetailsScreen(DetailsScreen.Loading(item))
+                activityModel.launchDetailScreen(DetailScreen.Loading(item))
             }
             FileType.Folder -> {
                 model.enterFolder(item)
@@ -477,9 +477,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 beforeYouStartDialog.findViewById<MaterialButton>(R.id.backup_my_secret)!!.setOnClickListener {
                     beforeYouStartDialog.dismiss()
 
-                    val intent = Intent(requireContext(), SettingsActivity::class.java)
-                    intent.putExtra(SettingsFragment.SCROLL_TO_PREFERENCE_KEY, R.string.export_account_raw_key)
-                    startActivity(intent)
+                    activityModel.launchActivityScreen(ActivityScreen.Settings(R.string.export_account_raw_key))
                 }
 
                 beforeYouStartDialog.findViewById<MaterialTextView>(R.id.before_you_start_description)!!.movementMethod = LinkMovementMethod.getInstance()
@@ -606,8 +604,8 @@ class FilesListFragment : Fragment(), FilesFragment {
         else -> true
     }
 
-    override fun syncBasedOnPreferences() {
-        model.syncBasedOnPreferences()
+    override fun sync(usePreferences: Boolean) {
+        model.sync(usePreferences)
     }
 
     override fun refreshFiles() {

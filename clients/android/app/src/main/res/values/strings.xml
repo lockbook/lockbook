@@ -75,12 +75,16 @@
     <string name="confirm">Confirm</string>
     <string name="move_file_move">Move</string>
     <string name="delete_file_delete">Delete</string>
+    <string name="delete_shared_reject">Reject</string>
     <string name="delete_1_file_message">Are you sure you want to delete \"%s\"?</string>
     <string name="delete_file_message">Are you sure you want to delete %d files?</string>
 
+    <string name="delete_shared_1_message">Are you sure you want to reject \"%1$s\"?</string>
+    <string name="delete_shared_message">Are you sure you want to reject %d files?</string>
+
     <string name="text_editor_hint">Type here</string>
     <string name="rename_file_rename">Rename</string>
-    <string name="create_file_create">Create</string>
+    <string name="create">Create</string>
     <string name="dialog_file_extension">Ext.</string>
     <string name="empty_folder">No files</string>
     <string name="bread_crumb_folder">Folder</string>
@@ -99,9 +103,10 @@
     <string name="drawing_eraser_description">Eraser</string>
     <string name="settings_open_new_document_automatically">Automatically open new files.</string>
 
+    <string name="pdf_page_indicator">%1$d / %2$d</string>
+
     <string name="drawing_finger_description">Finger drawing</string>
 
-    <string name="pdf_page_indicator">%1$d / %2$d</string>
     <string name="could_not_load_pdf">This PDF could not be loaded.</string>
 
     <string name="settings_protect_account_biometric_summary">Secure your account with biometrics.</string>
@@ -180,11 +185,14 @@
     <string name="already_canceled">You have already canceled your subscription.</string>
     <string name="usage_is_over_free_tier_data_cap">Your total data usage exceeds free tier. Please remove some data.</string>
     <string name="retry_sync">Please retry syncing.</string>
-    <string name="link_in_shared_folder">You cannot create a link in a shared folder.</string>
+    <string name="link_in_shared_folder">You cannot share a folder that contains a link.</string>
     <string name="link_target_is_owned">You cannot create a link to a file you own.</string>
     <string name="link_target_nonexistent">You cannot link to a file that does not exist.</string>
     <string name="multiple_links_to_same_file">You cannot link to a file that is already linked to.</string>
     <string name="insufficient_permissions">Error, you have insufficient permissions.</string>
+    <string name="cannot_share_root">You cannot share root.</string>
+    <string name="share_already_exists">Error, this file is already shared.</string>
+    <string name="share_non_existant">This pending share does not exist.</string>
 
     <string name="unexpected_error">An unexpected error has occurred!</string>
     <string name="basic_error">An error has occurred.</string>
@@ -266,5 +274,33 @@
     <string name="out_of_space">You are out of space!</string>
     <string name="more_info">More info</string>
     <string name="upgrade_now">Upgrade now</string>
+
+    <string name="pending_shares">Pending Shares</string>
+    <string name="shared_file_icon">Shared file icon</string>
+    <string name="reject_all_shared">Reject all</string>
+    <string name="create_link_file_for">Creating link for \"%s\".</string>
+    <string name="no_shared_files">No shared files.</string>
+    <string name="export">Export</string>
+    <string name="write_access">Write access:</string>
+    <string name="read_access">Read access:</string>
+    <string name="username">Username</string>
+    <string name="add">Add</string>
+
+    <string name="share_mode_read">Read</string>
+    <string name="share_mode_write">Write</string>
+    <string name="access_mode">Access Mode</string>
+    <string name="link_destination">Link destination</string>
+    <string name="created_link">Created link!</string>
+    <string name="no_pending_shares">You have no pending shares!</string>
+
+    <string name="no_username">Please enter a username.</string>
+    <string name="no_access_mode">Please choose an access mode.</string>
+    <string name="reject_pending_share">Reject pending share</string>
+    <string name="accept_pending_share">Accept pending share</string>
+
+    <array name="share_mode">
+        <item>@string/share_mode_read</item>
+        <item>@string/share_mode_write</item>
+    </array>
 
 </resources>

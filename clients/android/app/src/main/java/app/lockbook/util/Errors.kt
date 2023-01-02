@@ -396,6 +396,34 @@ enum class ExportFileError : UiCoreError {
 }
 
 @Serializable
+enum class ShareFileError : UiCoreError {
+    CannotShareRoot,
+    FileNonexistent,
+    ShareAlreadyExists,
+    LinkInSharedFolder,
+    InsufficientPermission;
+
+    override fun toLbError(res: Resources): LbError = when (this) {
+        CannotShareRoot -> LbError.newUserError(getString(res, R.string.cannot_share_root))
+        FileNonexistent -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
+        ShareAlreadyExists -> LbError.newUserError(getString(res, R.string.share_already_exists))
+        LinkInSharedFolder -> LbError.newUserError(getString(res, R.string.link_in_shared_folder))
+        InsufficientPermission -> LbError.newUserError(getString(res, R.string.insufficient_permissions))
+    }
+}
+
+@Serializable
+enum class DeletePendingShareError : UiCoreError {
+    FileNonexistent,
+    ShareNonexistent;
+
+    override fun toLbError(res: Resources): LbError = when (this) {
+        FileNonexistent -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
+        ShareNonexistent -> LbError.newUserError(getString(res, R.string.share_non_existant))
+    }
+}
+
+@Serializable
 enum class GetDrawingError : UiCoreError {
     FolderTreatedAsDrawing,
     InvalidDrawing,

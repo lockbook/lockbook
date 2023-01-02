@@ -1,8 +1,9 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: 'androidx.navigation.safeargs'
-apply plugin: "org.jmailen.kotlinter"
+apply plugin: 'org.jmailen.kotlinter'
 apply plugin: 'kotlinx-serialization'
+apply plugin: 'kotlin-parcelize'
 
 android {
     compileSdkVersion 32

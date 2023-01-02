@@ -15,10 +15,7 @@ import androidx.navigation.fragment.NavHostFragment
 import androidx.preference.Preference
 import app.lockbook.App
 import app.lockbook.R
-import app.lockbook.screen.MainScreenActivity
-import app.lockbook.screen.SearchDocumentsFragment
-import app.lockbook.screen.SettingsActivity
-import app.lockbook.screen.SettingsFragment
+import app.lockbook.screen.*
 
 fun AndroidViewModel.getString(
     @StringRes stringRes: Int,
@@ -72,3 +69,6 @@ fun MainScreenActivity.maybeGetFilesFragment(): FilesFragment? =
 
 fun MainScreenActivity.maybeGetSearchFilesFragment(): SearchDocumentsFragment? =
     (supportFragmentManager.findFragmentById(R.id.files_container) as? NavHostFragment)?.childFragmentManager?.fragments?.get(0) as? SearchDocumentsFragment
+
+fun SharesActivity.maybeGetCreateLinkFragment(): CreateLinkFragment? =
+    (supportFragmentManager.findFragmentById(R.id.shared_files_container) as? NavHostFragment)?.childFragmentManager?.fragments?.get(0) as? CreateLinkFragment

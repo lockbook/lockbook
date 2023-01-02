@@ -28,7 +28,7 @@ class DeleteFilesDialogFragment : AppCompatDialogFragment() {
     }
 
     companion object {
-        const val DELETE_FILEs_DIALOG_FRAGMENT = "DeleteFilesDialogFragment"
+        const val DELETE_FILES_DIALOG_FRAGMENT = "DeleteFilesDialogFragment"
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog = MaterialAlertDialogBuilder(requireContext())

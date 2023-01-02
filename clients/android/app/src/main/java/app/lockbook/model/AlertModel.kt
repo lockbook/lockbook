@@ -4,6 +4,7 @@ import android.app.Activity
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.widget.Toast
 import app.lockbook.R
 import app.lockbook.util.LbError
 import app.lockbook.util.LbErrorKind
@@ -77,5 +78,9 @@ class AlertModel(private val activity: WeakReference<Activity>, view: View? = nu
                 onFinish()
             }
         }
+    }
+
+    fun notifyWithToast(msg: String) {
+        Toast.makeText(activity.get()!!.applicationContext, msg, Toast.LENGTH_SHORT).show()
     }
 }
