@@ -1,16 +1,18 @@
 /* * * * Layout * * * */
-
+*{
+    box-sizing: border-box;
+}
 .icons {
     display: flex;
-    justify-content: center;
-    padding: 10px;
+    justify-content: flex-start;
+    font-size: 0.9em;
 }
-
-.dev-icon {
-    width: 65px;
-    height: 30px
+.icon-header-container{
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    margin-left: -5px;
 }
-
 .dev-p {
     margin: 0;
 }
@@ -33,10 +35,44 @@ html, body {
 #comparison-wrapper {
     overflow-x: scroll;
 }
-
+.vertical{
+    flex-direction: column;
+}
 #comparison {
     font-size: 16px;
     width: 100%;
+    text-align: center;
+}
+nav {
+    display: flex;
+    justify-content: space-between;
+    position: fixed;
+    padding: 0 50px;
+    width: 100%;
+    align-items: center;
+    background: linear-gradient(var(--background) -50%, transparent);
+    z-index: 2;
+}
+.nav-links-container{
+    display: flex;
+    list-style: none;
+
+}
+.padded-link{
+    display: block;
+    padding: 10px 20px;
+}
+#social{
+    height: auto;
+    padding-top: 5em;
+    padding-bottom: 5em;
+}
+
+.cta-container{
+    display: flex;
+    justify-content: center;
+}
+.cta-container a, #social h2{
     text-align: center;
 }
 
@@ -83,6 +119,12 @@ html, body {
     .container {
         padding: 30px 10%;
     }
+    div.mockup-img-container{
+        justify-content: center;
+    }
+    nav{
+        display: none;
+    }
 }
 
 /* * * * Font * * * */
@@ -115,18 +157,23 @@ p {
 }
 
 /* * * * Colors * * * */
+
 .button {
     text-decoration: none;
-    color: white;
+    color: var(--foreground);
 }
-
+.link.filled-link{
+    color: var(--background);
+    background-color:  rgb(0, 122, 255);
+    border-radius: 5px;
+}
 .link {
     color: rgb(0, 122, 255);
     text-decoration: none;
 }
 
 #term-icon:hover {
-    color: black;
+    filter: invert(0.5);
     transition: color 250ms linear;
 
 }
@@ -153,37 +200,55 @@ p {
 }
 
 h1 {
-    background: black;
-    color: white;
+    color: var(--foreground);
+    font-size: 2em;
 }
 
-#native {
-    background: rgb(255, 45, 85);
-    color: white;
+#native, #pricing, #social {
+    background: var(--background-900);
+    color: var(--foreground);
 }
 
-#pricing {
-    background: rgb(0, 122, 255);
-    color: white;
-}
 
 #intro-img {
     content: url(intro-dark.png);
 }
+.mockup-img-container{
+    display: flex;
+    justify-content: flex-end;
+}
+
+#mockup-img{
+    width: 80%;
+    object-fit: contain;
+    content: url(mockup-light.png)
+}
+*{
+    --background: white;
+    --background-900: rgb(225, 225, 225);
+    --foreground: black;
+}
 
 @media (prefers-color-scheme: dark) {
+    *{
+        --background: black;
+        --background-900: rgb(25, 25, 25);
+        --foreground: white;
+    }
     html {
         background: black;
         color: white;
     }
 
     h1 {
-        background: white;
-        color: black;
+        color: white;
     }
 
     #intro-img {
         content: url(intro-light.png);
+    }
+    #mockup-img{
+        content: url(mockup-dark.png);
     }
 }
 
