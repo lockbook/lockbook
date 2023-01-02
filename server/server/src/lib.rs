@@ -56,7 +56,7 @@ macro_rules! internal {
     }};
 }
 
-pub fn verify_client_version<Req: Request>(
+pub fn handle_version<Req: Request>(
     version: &Option<String>,
 ) -> Result<(), ErrorWrapper<Req::Error>> {
     let versions = vec!["0.5.5", "0.5.6"];
