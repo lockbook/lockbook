@@ -11,9 +11,7 @@ import androidx.fragment.app.activityViewModels
 import app.lockbook.R
 import app.lockbook.databinding.FragmentShareFileBinding
 import app.lockbook.model.*
-import app.lockbook.util.File
-import app.lockbook.util.LbError
-import app.lockbook.util.ShareMode
+import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.android.material.chip.Chip
@@ -27,6 +25,10 @@ class ShareFileFragment : Fragment() {
 
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
+    }
+
+    companion object {
+        val admittedUsernames = listOf("parth", "smail", "travis", "adam", "steve")
     }
 
     override fun onCreateView(
@@ -43,6 +45,17 @@ class ShareFileFragment : Fragment() {
 
         binding.materialToolbar.setNavigationOnClickListener {
             activityModel.launchDetailScreen(null)
+        }
+
+        when (val getAccountResult = CoreModel.getAccount()) {
+            is Ok ->
+                if (admittedUsernames.any { username ->
+                    username == getAccountResult.value.username
+                }
+                ) {
+                    binding.shareFileAddUser.visibility = View.VISIBLE
+                }
+            is Err -> alertModel.notifyError(getAccountResult.error.toLbError(requireContext().resources))
         }
 
         return binding.root
