@@ -17,8 +17,8 @@ pub use uuid::Uuid;
 
 pub use lockbook_shared::account::Account;
 pub use lockbook_shared::api::{
-    AccountFilter, AccountIdentifier, GooglePlayAccountState, PaymentMethod, PaymentPlatform,
-    StripeAccountTier, SubscriptionInfo,
+    AccountFilter, AccountIdentifier, AppStoreAccountState, GooglePlayAccountState, PaymentMethod,
+    PaymentPlatform, StripeAccountTier, SubscriptionInfo,
 };
 pub use lockbook_shared::core_config::Config;
 pub use lockbook_shared::crypto::DecryptedDocument;

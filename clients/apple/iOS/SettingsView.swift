@@ -65,7 +65,7 @@ struct SettingsView: View, Equatable {
                             
                         }
                         HStack {
-                            Text("Current tier")
+                            Text("Current tier:")
                             Spacer()
                             switch settingsState.tier {
                             case .Premium: Text("Premium")

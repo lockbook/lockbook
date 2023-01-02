@@ -7,7 +7,7 @@ use lockbook_shared::api::UpgradeAccountAppStoreError;
 use lockbook_shared::clock::get_time;
 use reqwest::RequestBuilder;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info};
+use tracing::{debug, error};
 
 pub const SUB_STATUS_PROD: &str = "https://api.storekit.itunes.apple.com/inApps/v1/subscriptions";
 pub const SUB_STATUS_SANDBOX: &str =
@@ -102,6 +102,7 @@ pub async fn get_sub_status(
                                 )
                             },
                         )?)?;
+
                     return Ok((last_trans.clone(), trans_info));
                 }
             }
@@ -110,7 +111,7 @@ pub async fn get_sub_status(
         }
         400 | 404 => {
             let resp_body = resp.text().await.ok();
-            info!(
+            error!(
                 ?resp_status,
                 ?resp_body,
                 ?original_transaction_id,

@@ -37,9 +37,7 @@ struct UsageSettingsView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-                
-            
-                        }
+        }
         .padding(20)
         .onAppear(perform: settingsState.calculateUsage)
     }

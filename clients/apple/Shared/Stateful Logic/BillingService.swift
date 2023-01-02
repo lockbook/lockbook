@@ -35,21 +35,17 @@ class BillingService: ObservableObject {
     
     init(_ core: LockbookApi) {
         self.core = core
-        
-        if case .success(_) = core.getAccount() {
-            Task {
-                await launchBillingBackgroundTasks()
-            }
-        }
     }
     
     deinit {
         pendingTransactionsListener?.cancel()
     }
     
-    func launchBillingBackgroundTasks() async {
-        await requestProducts()
-        pendingTransactionsListener = listenForTransactions()
+    func launchBillingBackgroundTasks() {
+        Task {
+            await requestProducts()
+            pendingTransactionsListener = listenForTransactions()
+        }
     }
     
     func listenForTransactions() -> Task<Void, Error> {

@@ -52,3 +52,11 @@
 ![img.png](settings-light.png)
 ![img.png](settings-dark.png)
 </details>
+
+## Billing
+
+<details>
+
+![img.png](billing-light.jpeg)
+![img.png](billing-dark.png)
+</details>

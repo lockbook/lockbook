@@ -50,7 +50,6 @@ struct ManageSubscriptionView: View {
                     }
                 } else {
                     Text("Please cancel your subscription via the App Store.")
-                        .frame(maxWidth: 500, alignment: .trailing)
                 }
             }
         }
@@ -67,6 +66,10 @@ struct ManageSubscriptionView: View {
                 if case .some(.success) = newValue {
                     settings.calculateUsage()
                 }
+            }
+            .onAppear {
+                settings.calculateUsage()
+                billing.launchBillingBackgroundTasks()
             }
     }
     
@@ -85,7 +88,7 @@ struct ManageSubscriptionView: View {
     @ViewBuilder
     var tier: some View {
         HStack (alignment: .top) {
-            Text("Current tier")
+            Text("Current tier:")
                 .frame(maxWidth: 250, alignment: .trailing)
                 
             switch settings.tier {
@@ -137,10 +140,10 @@ struct ManageSubscriptionView: View {
     }
 }
 
-struct ManageSubscription_Previews: PreviewProvider {
+struct ManageSubscriptionView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            ManageSubscription()
+            ManageSubscriptionView()
                 .mockDI()
         }
     }

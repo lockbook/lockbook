@@ -1,6 +1,5 @@
 use crate::account_service::GetUsageHelperError;
 use crate::billing::app_store_model::{NotificationChange, Subtype};
-use crate::billing::app_store_service::verify_details;
 use crate::billing::billing_model::{AppStoreUserInfo, BillingPlatform};
 use crate::billing::billing_service::LockBillingWorkflowError::{
     ExistingRequestPending, UserNotFound,
@@ -98,13 +97,14 @@ pub async fn upgrade_account_app_store(
         .get(&request.app_account_token)?
     {
         if let Some(other_account) = server_state.index_db.accounts.get(&owner)? {
-            if other_account.billing_info.billing_platform.is_some() {
+            if let Some(BillingPlatform::AppStore(_)) = other_account.billing_info.billing_platform
+            {
                 return Err(ClientError(UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked));
             }
         }
     }
 
-    let expires = verify_details(
+    let expires = app_store_service::verify_details(
         &server_state.app_store_client,
         &server_state.config.billing.apple,
         &request.app_account_token,

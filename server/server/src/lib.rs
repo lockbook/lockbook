@@ -1,5 +1,3 @@
-extern crate core;
-
 use google_androidpublisher3::AndroidPublisher;
 use hmdb::errors::Error;
 use std::env;

@@ -42,6 +42,7 @@ pub async fn verify_details(
 
     debug!(?transaction_info.app_account_token, ?app_account_token, "Comparing verified app account token and with unverified");
     debug!(?transaction.original_transaction_id, ?original_transaction_id, "Comparing verified original transaction id and with unverified");
+    debug!(?transaction.status, "Checking the subscription status.");
 
     if transaction_info.app_account_token != app_account_token
         || transaction.status != SUBSCRIBED

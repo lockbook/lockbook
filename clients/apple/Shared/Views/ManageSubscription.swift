@@ -19,7 +19,6 @@ struct ManageSubscription: View {
                 Spacer()
                 Button("Subscribe")
                 {
-                    print("PRESSED")
                     billing.purchasePremium()
                 }
                 .buttonStyle(.borderedProminent)
@@ -58,6 +57,9 @@ struct ManageSubscription: View {
                         }
                     }
                 }
+            }
+            .onAppear {
+                billing.launchBillingBackgroundTasks()
             }
     }
     
@@ -109,10 +111,10 @@ struct ManageSubscription: View {
     }
 }
 
-struct ManageSubscriptionView_Previews: PreviewProvider {
+struct ManageSubscription_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            ManageSubscriptionView()
+            ManageSubscription()
                 .mockDI()
         }
     }
