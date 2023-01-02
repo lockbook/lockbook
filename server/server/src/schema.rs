@@ -46,8 +46,6 @@ pub mod v2 {
             stripe_ids: <String, Owner>
         }
     }
-
-    
 }
 
 pub mod v3 {
