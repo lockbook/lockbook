@@ -96,6 +96,7 @@ pub struct StripeUserInfo {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AppStoreUserInfo {
+    pub account_token: String,
     pub original_transaction_id: String,
     pub subscription_product_id: String,
     pub expiration_time: UnixTimeMillis,

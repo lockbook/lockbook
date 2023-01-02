@@ -97,9 +97,11 @@ pub async fn upgrade_account_app_store(
         .get(&request.app_account_token)?
     {
         if let Some(other_account) = server_state.index_db.accounts.get(&owner)? {
-            if let Some(BillingPlatform::AppStore(_)) = other_account.billing_info.billing_platform
+            if let Some(BillingPlatform::AppStore(info)) = other_account.billing_info.billing_platform
             {
-                return Err(ClientError(UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked));
+                if info.account_token == request.app_account_token {
+                    return Err(ClientError(UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked));
+                }
             }
         }
     }
@@ -115,6 +117,7 @@ pub async fn upgrade_account_app_store(
     debug!("Successfully verified app store subscription");
 
     account.billing_info.billing_platform = Some(BillingPlatform::AppStore(AppStoreUserInfo {
+        account_token: request.app_account_token.clone(),
         original_transaction_id: request.original_transaction_id.clone(),
         subscription_product_id: server_state
             .config

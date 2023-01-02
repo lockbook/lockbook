@@ -1,2 +1,2 @@
 // Local development
-API_LOCATION = https:/$()/867c-108-5-138-50.ngrok.io
+API_LOCATION = http:/$()/localhost:8000
