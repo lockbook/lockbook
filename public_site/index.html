@@ -14,12 +14,21 @@
 		<link rel="stylesheet" href="styles.css">
 	</head>
 	<body>
+		<nav >
+			<div class="logo-container">
+				<p>Lockbook</p>
+			</div>
+			<ul class="nav-links-container">
+				<li><a class ="link padded-link" target="_blank" href="https://github.com/lockbook/"  >Github</a></li>
+				<li><a class ="link padded-link" href="#pricing"  >Pricing</a></li>
+				<li><a href="#" class ="link padded-link filled-link get-lockbook" >Get</a></li>
+			</ul>
+		</nav>
 		<div class="container">
 			<span class="left">
 				<div class="centered">
 					<div class="content">
-						<h1 id="text">LOCKBOOK</h1>
-						<h3>The private, polished note-taking platform.</h3>
+						<h1 id="text">The private, polished note-taking platform.</h1>
 						<p>
 							Privacy shouldn’t be a compromise. That’s why we made Lockbook, a secure companion to record,
 							sync, and share your thoughts with apps engineered to feel like home on every platform. We
@@ -77,9 +86,8 @@
 			</span>
 			<span class="right">
 				<div class="centered">
-					<div class="content">
-						<img style='height: 100%; width: 100%; object-fit: contain'
-							 src="screenshots.png">
+					<div class="content mockup-img-container">
+						<img id = "mockup-img" >
 					</div>
 				</div>
 			</span>
@@ -88,32 +96,38 @@
 			<span class="left">
 				<div class="centered">
 					<div class="content">
-						<h2>Secure</h2>
+						<div class="icon-header-container">
+							<div class="icons">
+								<i class="fas fa-lock"></i>
+							</div>
+							<h2>Secure</h2>
+						</div>
 						<p>
 							Keep your thoughts to yourself. Your notes are encrypted with keys that are generated on
 							your devices and stay on your devices. The people that can see your notes are you and the
 							users you share them with. The people that can't are everyone else, including infrastructure
 							providers, state actors, and Lockbook employees.
 						</p>
-						<div class="icons">
-							<i class="fas fa-lock"></i>
-						</div>
+
 					</div>
 				</div>
 			</span>
 			<span class="right">
 				<div class="centered">
 					<div class="content">
-						<h2>Private</h2>
+						<div class="icon-header-container">
+							<div class="icons">
+								<i class="fas fa-user-secret"></i>
+							</div>
+							<h2>Private</h2>
+						</div>
 						<p>
 							Know your customer? We sure don't. We don't collect your email, phone number, or name.
 							We don't need a password. We don't even want your credit card number: pay anonymously with
 							bitcoin and get a discount. Lockbook is for people with better things to worry about than
 							privacy.
 						</p>
-						<div class="icons">
-							<i class="fas fa-user-secret"></i>
-						</div>
+
 					</div>
 				</div>
 			</span>
@@ -256,25 +270,25 @@
 			<span class="right">
 				<div class="centered">
 					<div class="content">
-						<p class="dev-p">
+						<p class="icon-header-container">
 							<i class="dev-icon fas fa-terminal"></i>
 								<a class="link" target="_blank" href="https://github.com/lockbook/lockbook/blob/master/clients/cli/src/main.rs#L34">
 									Automate your workflow with our CLI.
 								</a>
 						</p>
-						<p class="dev-p">
+						<p class="icon-header-container">
 							<i class="dev-icon fas fa-stream"></i>
 								<a class="link" target="_blank" href="https://github.com/lockbook/lockbook/blob/master/clients/cli/src/utils.rs#L15">
 									Edit your notes in your favorite text editor.
 								</a>
 						</p>
-						<p class="dev-p">
+						<p class="icon-header-container">
 							<i class="dev-icon fab fa-rust"></i>
 								<a class="link" target="_blank" href="https://github.com/lockbook/lockbook/blob/master/core/src/lib.rs#L91">
 									Use our core library from any programming language.
 								</a>
 						</p>
-						<p class="dev-p">
+						<p class="icon-header-container">
 							<i class="dev-icon fab fa-github"></i>
 							<a class="link" target="_blank" href="https://github.com/lockbook/lockbook">
 								Contribute to our source code.
@@ -284,5 +298,17 @@
 				</div>
 			</span>
 		</div>
+		<div id="social" class="container">
+			<div class="centered vertical">
+				<h2>Join the Lockbook community</h2>
+				<div class="centered cta-container">
+					<a  class="link padded-link" target="_blank" href="https://discord.gg/kWgyhH3Ztu" >Discord</a>
+					<a  class="link padded-link" target="_blank" href="https://github.com/lockbook/">Github</a>
+				</div>
+			</div>
+		</div>
+
 	</body>
+	<script src="./index.js"></script>
+
 </html>
