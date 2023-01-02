@@ -29,7 +29,7 @@ lazy_static! {
     .unwrap();
     pub static ref CORE_VERSION_COUNTER: CounterVec = register_counter_vec!(
         "lockbook_server_core_version",
-        "Lockbook server's supplied core version",
+        "Core version request attempts",
         &["request"]
     )
     .unwrap();
