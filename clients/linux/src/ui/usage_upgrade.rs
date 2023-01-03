@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use gtk::glib;
 use gtk::prelude::*;
+use lb::PaymentPlatform;
 
 use crate::ui;
 
@@ -218,6 +219,10 @@ impl SelectPayMethod {
                 }
                 lb::PaymentPlatform::GooglePlay { account_state } => {
                     current_method.set_label(Some(&format!("Google Play ({:?})", account_state)));
+                }
+                PaymentPlatform::AppStore { account_state } => {
+                    current_method
+                        .set_label(Some(&format!("Apple App Store ({:?})", account_state)));
                 }
             }
 

@@ -107,4 +107,12 @@ public struct CoreApi: LockbookApi {
     public func getLastSyncedHumanString() -> FfiResult<String, GetLastSyncedError> {
         fromPrimitiveResult(result: get_last_synced_human_string())
     }
+    
+    public func newAppleSub(originalTransactionId: String, appAccountToken: String) -> FfiResult<Empty, UpgradeAccountAppStoreError> {
+        fromPrimitiveResult(result: upgrade_account_app_store(originalTransactionId, appAccountToken))
+    }
+
+    public func cancelSub() -> FfiResult<Empty, CancelSubscriptionError> {
+        fromPrimitiveResult(result: cancel_subscription())
+    }
 }

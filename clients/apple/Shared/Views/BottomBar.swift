@@ -121,7 +121,7 @@ struct SyncingPreview: PreviewProvider {
         }
         .mockDI()
         .onAppear {
-            Mock.sync.sync()
+            Mock.sync.syncing = true
         }
         
         

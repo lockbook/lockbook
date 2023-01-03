@@ -358,7 +358,8 @@ enum class CancelSubscriptionError : UiCoreError {
     UsageIsOverFreeTierDataCap,
     ExistingRequestPending,
     CouldNotReachServer,
-    ClientUpdateRequired;
+    ClientUpdateRequired,
+    CannotCancelForAppStore;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         NotPremium -> LbError.newUserError(getString(res, R.string.not_premium))
@@ -367,6 +368,7 @@ enum class CancelSubscriptionError : UiCoreError {
         ExistingRequestPending -> LbError.newUserError(getString(res, R.string.existing_request_pending))
         CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
         ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
+        CannotCancelForAppStore -> LbError.newUserError(getString(res, R.string.cannot_cancel_for_app_store))
     }
 }
 

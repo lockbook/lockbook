@@ -104,6 +104,14 @@ Vestibulum ante ipsum primis in vel.
         .failure(.init(unexpected: "LAZY"))
     }
     
+    public func newAppleSub(originalTransactionId: String, appAccountToken: String) -> FfiResult<Empty, UpgradeAccountAppStoreError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    
+    public func cancelSub() -> FfiResult<Empty, CancelSubscriptionError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    
     public let username: Account.Username = "jeff"
     public static let root = File(fileType: .Folder, id: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "jeff", lastModifiedBy: "jeff",  lastModified: 1587384000000)
     public static let fileMetas = [
