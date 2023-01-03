@@ -264,6 +264,25 @@ object CoreModel {
             )
         )
 
+    private val createLinkParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), CreateFileError.serializer())
+        }
+    }
+
+    fun createLink(
+        name: String,
+        id: String,
+        parentId: String
+    ): Result<Unit, CoreError<CreateFileError>> =
+        createLinkParser.tryParse(
+            app.lockbook.core.createLink(
+                name,
+                id,
+                parentId
+            )
+        )
+
     private val deleteFileParser = Json {
         serializersModule = SerializersModule {
             createPolyRelation(Unit.serializer(), FileDeleteError.serializer())
@@ -426,6 +445,39 @@ object CoreModel {
     fun stopCurrentSearch(): Result<Unit, CoreError<Empty>> =
         stopCurrentSearchParser.tryParse(
             app.lockbook.core.stopCurrentSearch()
+        )
+
+    private val shareFileParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(Unit.serializer(), ShareFileError.serializer())
+        }
+    }
+
+    fun shareFile(id: String, username: String, mode: ShareMode): Result<Unit, CoreError<ShareFileError>> =
+        shareFileParser.tryParse(
+            app.lockbook.core.shareFile(id, username, shareFileParser.encodeToString(mode))
+        )
+
+    private val getPendingSharesParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(ListSerializer(File.serializer()), Empty.serializer())
+        }
+    }
+
+    fun getPendingShares(): Result<List<File>, CoreError<Empty>> =
+        getPendingSharesParser.tryParse(
+            app.lockbook.core.getPendingShares()
+        )
+
+    private val deletePendingSharesParser = Json {
+        serializersModule = SerializersModule {
+            createPolyRelation(ListSerializer(File.serializer()), DeletePendingShareError.serializer())
+        }
+    }
+
+    fun deletePendingShare(id: String): Result<List<File>, CoreError<DeletePendingShareError>> =
+        deletePendingSharesParser.tryParse(
+            app.lockbook.core.deletePendingShare(id)
         )
 
     private val getDrawingParser = Json {

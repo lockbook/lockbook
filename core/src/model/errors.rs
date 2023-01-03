@@ -1,6 +1,6 @@
 use std::collections::HashSet;
-use std::fmt::{self, Display, Formatter};
-use std::io::ErrorKind;
+use std::fmt;
+use std::io;
 
 use itertools::Itertools;
 use serde::ser::SerializeStruct;
@@ -19,8 +19,8 @@ use crate::UiError;
 #[derive(Debug)]
 pub struct UnexpectedError(pub String);
 
-impl Display for UnexpectedError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for UnexpectedError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "unexpected error: {}", self.0)
     }
 }
@@ -176,46 +176,34 @@ pub fn core_err_unexpected<T: std::fmt::Debug>(err: T) -> CoreError {
 
 impl From<SharedError> for CoreError {
     fn from(err: SharedError) -> Self {
-        use SharedError::*;
         match err {
-            RootNonexistent => CoreError::RootNonexistent,
-            FileNonexistent => CoreError::FileNonexistent,
-            FileParentNonexistent => CoreError::FileParentNonexistent,
-            Unexpected(err) => CoreError::Unexpected(err.to_string()),
-            PathContainsEmptyFileName => CoreError::PathContainsEmptyFileName,
-            PathTaken => CoreError::PathTaken,
-            FileNameContainsSlash => CoreError::FileNameContainsSlash,
-            RootModificationInvalid => CoreError::RootModificationInvalid,
-            DeletedFileUpdated(_) => CoreError::FileNonexistent,
-            FileNameEmpty => CoreError::FileNameEmpty,
-            FileNotFolder => CoreError::FileNotFolder,
-            FileNotDocument => CoreError::FileNotDocument,
-            InsufficientPermission => CoreError::InsufficientPermission,
-            NotPermissioned => CoreError::InsufficientPermission,
-            ShareNonexistent => CoreError::ShareNonexistent,
-            DuplicateShare => CoreError::ShareAlreadyExists,
-            ValidationFailure(lockbook_shared::ValidationFailure::Cycle(_)) => {
-                CoreError::FolderMovedIntoSelf
-            }
-            ValidationFailure(lockbook_shared::ValidationFailure::PathConflict(_)) => {
-                CoreError::PathTaken
-            }
-            ValidationFailure(lockbook_shared::ValidationFailure::SharedLink { .. }) => {
-                CoreError::LinkInSharedFolder
-            }
-            ValidationFailure(lockbook_shared::ValidationFailure::DuplicateLink { .. }) => {
-                CoreError::MultipleLinksToSameFile
-            }
-            ValidationFailure(lockbook_shared::ValidationFailure::BrokenLink(_)) => {
-                CoreError::LinkTargetNonexistent
-            }
-            ValidationFailure(lockbook_shared::ValidationFailure::OwnedLink(_)) => {
-                CoreError::LinkTargetIsOwned
-            }
-            ValidationFailure(lockbook_shared::ValidationFailure::NonFolderWithChildren(_)) => {
-                CoreError::FileNotFolder
-            }
-            _ => CoreError::Unexpected(format!("unexpected shared error {:?}", err)),
+            SharedError::RootNonexistent => Self::RootNonexistent,
+            SharedError::FileNonexistent => Self::FileNonexistent,
+            SharedError::FileParentNonexistent => Self::FileParentNonexistent,
+            SharedError::Unexpected(err) => Self::Unexpected(err.to_string()),
+            SharedError::PathContainsEmptyFileName => Self::PathContainsEmptyFileName,
+            SharedError::PathTaken => Self::PathTaken,
+            SharedError::FileNameContainsSlash => Self::FileNameContainsSlash,
+            SharedError::RootModificationInvalid => Self::RootModificationInvalid,
+            SharedError::DeletedFileUpdated(_) => Self::FileNonexistent,
+            SharedError::FileNameEmpty => Self::FileNameEmpty,
+            SharedError::FileNotFolder => Self::FileNotFolder,
+            SharedError::FileNotDocument => Self::FileNotDocument,
+            SharedError::InsufficientPermission => Self::InsufficientPermission,
+            SharedError::NotPermissioned => Self::InsufficientPermission,
+            SharedError::ShareNonexistent => Self::ShareNonexistent,
+            SharedError::DuplicateShare => Self::ShareAlreadyExists,
+            SharedError::ValidationFailure(failure) => match failure {
+                ValidationFailure::Cycle(_) => Self::FolderMovedIntoSelf,
+                ValidationFailure::PathConflict(_) => Self::PathTaken,
+                ValidationFailure::SharedLink { .. } => Self::LinkInSharedFolder,
+                ValidationFailure::DuplicateLink { .. } => Self::MultipleLinksToSameFile,
+                ValidationFailure::BrokenLink(_) => Self::LinkTargetNonexistent,
+                ValidationFailure::OwnedLink(_) => Self::LinkTargetIsOwned,
+                ValidationFailure::NonFolderWithChildren(_) => Self::FileNotFolder,
+                vf => Self::Unexpected(format!("unexpected validation failure {:?}", vf)),
+            },
+            _ => Self::Unexpected(format!("unexpected shared error {:?}", err)),
         }
     }
 }
@@ -232,13 +220,13 @@ impl<E: Serialize> From<hmdb::errors::Error> for Error<E> {
     }
 }
 
-impl From<std::io::Error> for CoreError {
-    fn from(e: std::io::Error) -> Self {
+impl From<io::Error> for CoreError {
+    fn from(e: io::Error) -> Self {
         match e.kind() {
-            ErrorKind::NotFound | ErrorKind::PermissionDenied | ErrorKind::InvalidInput => {
-                CoreError::DiskPathInvalid
-            }
-            ErrorKind::AlreadyExists => CoreError::DiskPathTaken,
+            io::ErrorKind::NotFound
+            | io::ErrorKind::PermissionDenied
+            | io::ErrorKind::InvalidInput => Self::DiskPathInvalid,
+            io::ErrorKind::AlreadyExists => Self::DiskPathTaken,
             _ => core_err_unexpected(e),
         }
     }
@@ -1246,28 +1234,22 @@ impl From<SharedError> for TestRepoError {
     fn from(err: SharedError) -> Self {
         match err {
             SharedError::ValidationFailure(validation) => match validation {
-                ValidationFailure::Orphan(id) => TestRepoError::FileOrphaned(id),
-                ValidationFailure::Cycle(ids) => TestRepoError::CycleDetected(ids),
-                ValidationFailure::PathConflict(ids) => TestRepoError::PathConflict(ids),
-                ValidationFailure::NonFolderWithChildren(id) => {
-                    TestRepoError::DocumentTreatedAsFolder(id)
-                }
-                ValidationFailure::NonDecryptableFileName(id) => {
-                    TestRepoError::NonDecryptableFileName(id)
-                }
+                ValidationFailure::Orphan(id) => Self::FileOrphaned(id),
+                ValidationFailure::Cycle(ids) => Self::CycleDetected(ids),
+                ValidationFailure::PathConflict(ids) => Self::PathConflict(ids),
+                ValidationFailure::NonFolderWithChildren(id) => Self::DocumentTreatedAsFolder(id),
+                ValidationFailure::NonDecryptableFileName(id) => Self::NonDecryptableFileName(id),
                 ValidationFailure::SharedLink { link, shared_ancestor } => {
-                    TestRepoError::SharedLink { link, shared_ancestor }
+                    Self::SharedLink { link, shared_ancestor }
                 }
-                ValidationFailure::DuplicateLink { target } => {
-                    TestRepoError::DuplicateLink { target }
-                }
-                ValidationFailure::BrokenLink(id) => TestRepoError::BrokenLink(id),
-                ValidationFailure::OwnedLink(id) => TestRepoError::OwnedLink(id),
+                ValidationFailure::DuplicateLink { target } => Self::DuplicateLink { target },
+                ValidationFailure::BrokenLink(id) => Self::BrokenLink(id),
+                ValidationFailure::OwnedLink(id) => Self::OwnedLink(id),
                 ValidationFailure::FileWithDifferentOwnerParent(id) => {
-                    TestRepoError::FileWithDifferentOwnerParent(id)
+                    Self::FileWithDifferentOwnerParent(id)
                 }
             },
-            _ => TestRepoError::Shared(err),
+            _ => Self::Shared(err),
         }
     }
 }

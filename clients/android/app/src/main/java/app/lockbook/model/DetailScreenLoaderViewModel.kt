@@ -12,7 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
 
-class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: DetailsScreen.Loading) :
+class DetailScreenLoaderViewModel(application: Application, val loadingInfo: DetailScreen.Loading) :
     AndroidViewModel(application) {
     private val _updateDetailScreenLoaderUI = SingleMutableLiveData<UpdateDetailScreenLoaderUI>()
 
@@ -25,16 +25,16 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
         }
     }
 
-    private fun loadContent(loadingInfo: DetailsScreen.Loading) {
-        val extensionHelper = ExtensionHelper(loadingInfo.fileMetadata.name)
+    private fun loadContent(loadingInfo: DetailScreen.Loading) {
+        val extensionHelper = ExtensionHelper(loadingInfo.file.name)
 
         val updateUI = when {
             extensionHelper.isDrawing -> {
-                when (val getDrawingResult = CoreModel.getDrawing(loadingInfo.fileMetadata.id)) {
+                when (val getDrawingResult = CoreModel.getDrawing(loadingInfo.file.id)) {
                     is Ok -> {
                         UpdateDetailScreenLoaderUI.NotifyFinished(
-                            DetailsScreen.Drawing(
-                                loadingInfo.fileMetadata,
+                            DetailScreen.Drawing(
+                                loadingInfo.file,
                                 getDrawingResult.value
                             )
                         )
@@ -48,14 +48,14 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
                 }
             }
             extensionHelper.isImage -> {
-                val bytes = CoreModel.readDocumentBytes(loadingInfo.fileMetadata.id)
+                val bytes = CoreModel.readDocumentBytes(loadingInfo.file.id)
 
                 if (bytes == null) {
                     UpdateDetailScreenLoaderUI.NotifyError(LbError.basicError(getRes()))
                 } else {
                     UpdateDetailScreenLoaderUI.NotifyFinished(
-                        DetailsScreen.ImageViewer(
-                            loadingInfo.fileMetadata,
+                        DetailScreen.ImageViewer(
+                            loadingInfo.file,
                             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                         )
                     )
@@ -66,15 +66,15 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
                 child.deleteRecursively()
                 child.mkdir()
 
-                when (val exportFileResult = CoreModel.exportFile(loadingInfo.fileMetadata.id, child.toString(), true)) {
-                    is Ok -> UpdateDetailScreenLoaderUI.NotifyFinished(DetailsScreen.PdfViewer(loadingInfo.fileMetadata, child))
+                when (val exportFileResult = CoreModel.exportFile(loadingInfo.file.id, child.toString(), true)) {
+                    is Ok -> UpdateDetailScreenLoaderUI.NotifyFinished(DetailScreen.PdfViewer(loadingInfo.file, child))
                     is Err -> {
                         UpdateDetailScreenLoaderUI.NotifyError(exportFileResult.error.toLbError(getRes()))
                     }
                 }
             }
             else -> {
-                val text = when (val readDocumentResult = CoreModel.readDocument(loadingInfo.fileMetadata.id)) {
+                val text = when (val readDocumentResult = CoreModel.readDocument(loadingInfo.file.id)) {
                     is Ok -> readDocumentResult.value
                     is Err ->
                         return _updateDetailScreenLoaderUI.postValue(
@@ -85,7 +85,7 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
                 }
 
                 UpdateDetailScreenLoaderUI.NotifyFinished(
-                    DetailsScreen.TextEditor(loadingInfo.fileMetadata, text)
+                    DetailScreen.TextEditor(loadingInfo.file, text)
                 )
             }
         }
@@ -95,7 +95,7 @@ class DetailsScreenLoaderViewModel(application: Application, val loadingInfo: De
 }
 
 sealed class UpdateDetailScreenLoaderUI {
-    data class NotifyFinished(val newScreen: DetailsScreen) : UpdateDetailScreenLoaderUI()
+    data class NotifyFinished(val newScreen: DetailScreen) : UpdateDetailScreenLoaderUI()
     data class NotifyError(val error: LbError) : UpdateDetailScreenLoaderUI()
 }
 

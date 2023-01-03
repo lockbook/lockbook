@@ -10,7 +10,7 @@
 
 ## Play Store
 
-TBD
+[Install from Play Store](https://play.google.com/store/apps/details?id=app.lockbook)
 
 ## F-Droid
 
