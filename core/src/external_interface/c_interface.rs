@@ -197,6 +197,17 @@ pub unsafe extern "C" fn get_and_get_children_recursively(id: *const c_char) -> 
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
+pub unsafe extern "C" fn get_path_by_id(id: *const c_char) -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.get_path_by_id(uuid_from_ptr(id))),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
 pub unsafe extern "C" fn get_by_path(path: *const c_char) -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.get_by_path(&str_from_ptr(path))),
