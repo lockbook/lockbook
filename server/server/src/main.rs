@@ -5,7 +5,8 @@ use hmdb::transaction::Transaction;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::router_service::{
-    build_info, core_routes, get_metrics, google_play_notification_webhooks, stripe_webhooks,
+    app_store_notification_webhooks, build_info, core_routes, get_metrics,
+    google_play_notification_webhooks, stripe_webhooks,
 };
 use lockbook_server_lib::schema::v2;
 use lockbook_server_lib::*;
@@ -22,6 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let stripe_client = stripe::Client::new(&cfg.billing.stripe.stripe_secret);
     let google_play_client = get_google_play_client(&cfg.billing.google.service_account_key).await;
     let index_db = v2::Server::init(&cfg.index_db.db_location).expect("Failed to load index_db");
+    let app_store_client = reqwest::Client::new();
 
     if index_db.accounts.get_all().unwrap().is_empty() {
         info!("starting migration");
@@ -44,14 +46,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .start_background_compacter(cfg.index_db.time_between_compacts)
         .unwrap();
 
-    let server_state =
-        Arc::new(ServerState { config, index_db, stripe_client, google_play_client });
+    let server_state = Arc::new(ServerState {
+        config,
+        index_db,
+        stripe_client,
+        google_play_client,
+        app_store_client,
+    });
 
     let routes = core_routes(&server_state)
         .or(build_info())
         .or(get_metrics())
         .or(stripe_webhooks(&server_state))
-        .or(google_play_notification_webhooks(&server_state));
+        .or(google_play_notification_webhooks(&server_state))
+        .or(app_store_notification_webhooks(&server_state));
 
     let server = warp::serve(routes);
 

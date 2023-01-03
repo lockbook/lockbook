@@ -136,6 +136,7 @@ pub mod no_network {
             let google_play_client = runtime.block_on(get_google_play_client(
                 &server_config.billing.google.service_account_key,
             ));
+            let app_store_client = reqwest::Client::new();
 
             let index_db = v2::Server::init(&server_config.index_db.db_location)
                 .expect("Failed to load index_db");
@@ -146,6 +147,7 @@ pub mod no_network {
                     index_db,
                     stripe_client,
                     google_play_client,
+                    app_store_client,
                 },
                 runtime,
             };

@@ -128,6 +128,7 @@ pub fn core_routes(
         .or(core_req!(GetUpdatesRequest, get_updates, server_state))
         .or(core_req!(UpgradeAccountGooglePlayRequest, upgrade_account_google_play, server_state))
         .or(core_req!(UpgradeAccountStripeRequest, upgrade_account_stripe, server_state))
+        .or(core_req!(UpgradeAccountAppStoreRequest, upgrade_account_app_store, server_state))
         .or(core_req!(CancelSubscriptionRequest, cancel_subscription, server_state))
         .or(core_req!(GetSubscriptionInfoRequest, get_subscription_info, server_state))
         .or(core_req!(DeleteAccountRequest, delete_account, server_state))
@@ -263,6 +264,47 @@ pub fn google_play_notification_webhooks(
                         )
                         | ServerError::ClientError(GooglePlayWebhookError::CannotParseTime)
                         | ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                    };
+
+                    warp::reply::with_status("".to_string(), status_code)
+                }
+            }
+        })
+}
+
+static APP_STORE_WEBHOOK_ROUTE: &str = "app_store_notification_webhook";
+pub fn app_store_notification_webhooks(
+    server_state: &Arc<ServerState>,
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+    let cloned_state = server_state.clone();
+
+    warp::post()
+        .and(warp::path(APP_STORE_WEBHOOK_ROUTE))
+        .and(warp::any().map(move || cloned_state.clone()))
+        .and(warp::body::bytes())
+        .then(|state: Arc<ServerState>, body: Bytes| async move {
+            let span = span!(
+                Level::INFO,
+                "matched_request",
+                method = "POST",
+                route = format!("/{}", APP_STORE_WEBHOOK_ROUTE).as_str()
+            );
+            let _enter = span.enter();
+            info!("webhook routed");
+            let response = span
+                .in_scope(|| billing_service::app_store_notification_webhook(&state, body))
+                .await;
+
+            match response {
+                Ok(_) => warp::reply::with_status("".to_string(), StatusCode::OK),
+                Err(e) => {
+                    error!("{:?}", e);
+
+                    let status_code = match e {
+                        ServerError::ClientError(AppStoreNotificationError::InvalidJWS) => {
+                            StatusCode::BAD_REQUEST
+                        }
+                        ServerError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
                     };
 
                     warp::reply::with_status("".to_string(), status_code)

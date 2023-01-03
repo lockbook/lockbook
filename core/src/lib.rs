@@ -17,8 +17,8 @@ pub use uuid::Uuid;
 
 pub use lockbook_shared::account::Account;
 pub use lockbook_shared::api::{
-    AccountFilter, AccountIdentifier, GooglePlayAccountState, PaymentMethod, PaymentPlatform,
-    StripeAccountTier, SubscriptionInfo,
+    AccountFilter, AccountIdentifier, AppStoreAccountState, GooglePlayAccountState, PaymentMethod,
+    PaymentPlatform, StripeAccountTier, SubscriptionInfo,
 };
 pub use lockbook_shared::core_config::Config;
 pub use lockbook_shared::crypto::DecryptedDocument;
@@ -486,6 +486,21 @@ impl<Client: Requester> CoreLib<Client> {
         let val = self.db.transaction(|tx| {
             self.context(tx)?
                 .upgrade_account_google_play(purchase_token, account_id)
+        })?;
+        Ok(val?)
+    }
+
+    #[instrument(
+        level = "debug",
+        skip(self, original_transaction_id, app_account_token),
+        err(Debug)
+    )]
+    pub fn upgrade_account_app_store(
+        &self, original_transaction_id: String, app_account_token: String,
+    ) -> Result<(), Error<UpgradeAccountGooglePlayError>> {
+        let val = self.db.transaction(|tx| {
+            self.context(tx)?
+                .upgrade_account_app_store(original_transaction_id, app_account_token)
         })?;
         Ok(val?)
     }

@@ -1,11 +1,11 @@
 import SwiftUI
 import SwiftLockbookCore
 
-
 struct UsageSettingsView: View {
     
     @EnvironmentObject var settingsState: SettingsService
-    
+    @EnvironmentObject var billing: BillingService
+        
     var body: some View {
         VStack (spacing: 20){
             HStack (alignment: .top) {
@@ -13,15 +13,7 @@ struct UsageSettingsView: View {
                     .frame(maxWidth: 175, alignment: .trailing)
                 if let usage = settingsState.usages {
                     VStack {
-                        if settingsState.usageProgress < 0.8 {
-                            ProgressView(value: settingsState.usageProgress)
-                        } else if settingsState.usageProgress < 0.9 {
-                            ProgressView(value: settingsState.usageProgress)
-                                .accentColor(Color.orange)
-                        } else {
-                            ProgressView(value: settingsState.usageProgress)
-                                .accentColor(Color.red)
-                        }
+                        ColorProgressBar(value: settingsState.usageProgress)
                         Text("\(usage.serverUsages.serverUsage.readable) / \(usage.serverUsages.dataCap.readable)")
                     }
                 } else {
@@ -36,7 +28,7 @@ struct UsageSettingsView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            
+                
             HStack (alignment: .top) {
                 Text("Compression ratio:")
                     .frame(maxWidth: 175, alignment: .trailing)
@@ -44,12 +36,9 @@ struct UsageSettingsView: View {
                     Text(usage.compressionRatio)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                
             }
         }
         .padding(20)
         .onAppear(perform: settingsState.calculateUsage)
     }
-    
-    
 }
