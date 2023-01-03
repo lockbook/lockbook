@@ -20,6 +20,7 @@ make_static_metric! {
     pub struct MetricsStatistics: IntGauge {
         "type" => {
             total_users,
+            share_feature_users,
             premium_users,
             active_users,
             total_documents,
@@ -84,6 +85,7 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
         let mut total_documents = 0;
         let mut total_bytes = 0;
         let mut active_users = 0;
+        let mut share_feature_users = 0;
 
         let mut premium_users = 0;
         let mut premium_stripe_users = 0;
@@ -101,12 +103,16 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
                 }
             }
 
-            let (user_total_documents, user_total_bytes, is_user_active) =
+            let (user_total_documents, user_total_bytes, is_user_active, is_user_sharer_or_sharee) =
                 get_user_info(&state, owner).await?;
 
             if is_user_active {
                 active_users += 1;
             }
+            if is_user_sharer_or_sharee {
+                share_feature_users += 1;
+            }
+
             total_documents += user_total_documents;
             total_bytes += user_total_bytes;
 
@@ -120,6 +126,9 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
         METRICS_STATISTICS.total_documents.set(total_documents);
         METRICS_STATISTICS.active_users.set(active_users);
         METRICS_STATISTICS.total_document_bytes.set(total_bytes);
+        METRICS_STATISTICS
+            .share_feature_users
+            .set(share_feature_users);
         METRICS_STATISTICS.premium_users.set(premium_users);
 
         METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC
@@ -146,7 +155,7 @@ pub async fn get_user_billing_platform(
 
 pub async fn get_user_info(
     state: &ServerState, owner: Owner,
-) -> Result<(i64, i64, bool), ServerError<MetricsError>> {
+) -> Result<(i64, i64, bool, bool), ServerError<MetricsError>> {
     state.index_db.transaction(|tx| {
         let mut tree = ServerTree::new(
             owner,
@@ -165,6 +174,11 @@ pub async fn get_user_info(
             None => false,
         };
 
+        let is_user_sharing_or_sharee = tree
+            .all_files()?
+            .iter()
+            .any(|k| k.owner() != owner || k.is_shared());
+
         for id in tree.owned_ids() {
             if !tree.calculate_deleted(&id)? {
                 ids.push(id);
@@ -173,7 +187,7 @@ pub async fn get_user_info(
 
         let (total_documents, total_bytes) = get_bytes_and_documents_count(tx, owner, ids)?;
 
-        Ok((total_documents, total_bytes as i64, is_user_active))
+        Ok((total_documents, total_bytes as i64, is_user_active, is_user_sharing_or_sharee))
     })?
 }
 

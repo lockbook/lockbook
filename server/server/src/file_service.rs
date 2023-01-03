@@ -216,9 +216,6 @@ pub async fn change_doc(
             return Err(ClientError(DocumentDeleted));
         }
 
-        if tx.last_seen.exists(&owner) {
-            tx.last_seen.delete(owner);
-        }
         tx.last_seen.insert(owner, get_time().0 as u64);
         // Here is where you would check if the person is out of space as a result of the new file.
         // You could make this a transaction and che™ck whether or not this is an increase in size or
