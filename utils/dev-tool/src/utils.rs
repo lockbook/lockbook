@@ -48,7 +48,7 @@ pub fn swift_lib<P: AsRef<Path>>(root: P) -> PathBuf {
 }
 
 pub fn core_dir<P: AsRef<Path>>(root: P) -> PathBuf {
-    root.as_ref().join("core")
+    root.as_ref().join("libs/core")
 }
 
 pub fn local_env_path<P: AsRef<Path>>(root: P) -> PathBuf {
