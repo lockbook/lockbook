@@ -454,10 +454,11 @@ mod tests {
     #[test]
     fn ffi_api_location_matches() {
         unsafe {
-            let _ffi_val = std::ffi::CStr::from_ptr(super::default_api_location())
+            let ffi_val = std::ffi::CStr::from_ptr(super::default_api_location())
                 .to_str()
                 .expect("Could not C String -> Rust str");
-            assert_eq!(crate::DEFAULT_API_LOCATION, "not the value")
+            let with_zero = format!("{}\0", crate::DEFAULT_API_LOCATION);
+            assert_eq!(&with_zero, ffi_val)
         }
     }
 }
