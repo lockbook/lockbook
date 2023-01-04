@@ -182,6 +182,17 @@ pub unsafe extern "C" fn get_root() -> *const c_char {
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
+pub unsafe extern "C" fn get_file_by_id(id: *const c_char) -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.get_file_by_id(uuid_from_ptr(id))),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
 pub unsafe extern "C" fn get_children(id: *const c_char) -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.get_children(uuid_from_ptr(id))),
