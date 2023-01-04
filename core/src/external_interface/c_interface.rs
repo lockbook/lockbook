@@ -457,8 +457,7 @@ mod tests {
             let ffi_val = std::ffi::CStr::from_ptr(super::default_api_location())
                 .to_str()
                 .expect("Could not C String -> Rust str");
-            let with_zero = format!("{}\0", crate::DEFAULT_API_LOCATION);
-            assert_eq!(&with_zero, ffi_val)
+            assert_eq!(crate::DEFAULT_API_LOCATION, ffi_val)
         }
     }
 }
