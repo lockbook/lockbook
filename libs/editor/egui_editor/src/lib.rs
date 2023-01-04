@@ -36,7 +36,7 @@ pub struct WgpuEditor {
 }
 
 impl WgpuEditor {
-    fn frame(&mut self) {
+    pub fn frame(&mut self) {
         self.configure_surface();
         let output_frame = match self.surface.get_current_texture() {
             Ok(frame) => frame,
@@ -94,7 +94,7 @@ impl WgpuEditor {
             .expect("remove texture ok");
     }
 
-    fn set_egui_screen(&mut self) {
+    pub fn set_egui_screen(&mut self) {
         self.raw_input.screen_rect = Some(Rect {
             min: Pos2::ZERO,
             max: Pos2::new(
@@ -105,13 +105,13 @@ impl WgpuEditor {
         self.raw_input.pixels_per_point = Some(self.screen.scale_factor);
     }
 
-    fn surface_format(&self) -> wgpu::TextureFormat {
+    pub fn surface_format(&self) -> wgpu::TextureFormat {
         // todo: is this really fine?
         // from here: https://github.com/hasenbanck/egui_example/blob/master/src/main.rs#L65
         self.surface.get_supported_formats(&self.adapter)[0]
     }
 
-    fn configure_surface(&self) {
+    pub fn configure_surface(&self) {
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: self.surface_format(),
