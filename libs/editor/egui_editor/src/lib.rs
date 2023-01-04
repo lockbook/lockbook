@@ -111,16 +111,6 @@ impl WgpuEditor {
         self.surface.get_supported_formats(&self.adapter)[0]
     }
 
-    fn screen_size(&self) -> egui::Rect {
-        let rect = self
-            .raw_input
-            .screen_rect
-            .unwrap_or(self.context.input().screen_rect);
-        // rect.max.x *= 2.0;
-        // rect.max.y *= 2.0;
-        rect
-    }
-
     fn configure_surface(&self) {
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,

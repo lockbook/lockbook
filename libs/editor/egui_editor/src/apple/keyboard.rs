@@ -203,7 +203,7 @@ impl NSKeys {
             Backspace => egui::Key::Backspace,
             Apostrophe | Comma | BackApostrophe | Backslash | CapsLock | Command | Control
             | Equals | FrontSlash | LeftBracket | Minus | Option | Period | RightBracket
-            | Semicolon | Shift | Delete => return None,
+            | Semicolon | Shift => return None,
         };
 
         Some(key)

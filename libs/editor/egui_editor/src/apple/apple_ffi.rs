@@ -1,6 +1,6 @@
 use crate::apple::keyboard::NSKeys;
 use crate::{Editor, WgpuEditor};
-use egui::{Context, Event, Rect};
+use egui::{Context, Event};
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use std::ffi::{c_char, c_void, CStr};
 

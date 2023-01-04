@@ -1,7 +1,16 @@
-use eframe::egui;
-use egui_editor::editor::Editor;
-
+#[cfg(feature = "debug-window")]
 fn main() {
+    #[derive(Default)]
+    struct TestApp {
+        editor: egui_editor::editor::Editor,
+    }
+
+    impl eframe::App for TestApp {
+        fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+            self.editor.draw(ctx);
+        }
+    }
+
     let options = eframe::NativeOptions::default();
     eframe::run_native(
         "My egui App",
@@ -14,13 +23,5 @@ fn main() {
     );
 }
 
-#[derive(Default)]
-struct TestApp {
-    editor: Editor,
-}
-
-impl eframe::App for TestApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        self.editor.draw(ctx);
-    }
-}
+#[cfg(not(feature = "debug-window"))]
+fn main() {}
