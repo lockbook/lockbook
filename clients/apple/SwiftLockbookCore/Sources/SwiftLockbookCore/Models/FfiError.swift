@@ -24,7 +24,7 @@ public class ErrorWithTitle: AnyFfiError {
 public class FfiError<U: UiError>: AnyFfiError, Decodable {
     public let kind: Kind
     
-    public enum Kind {
+    public enum Kind: Equatable {
         case UiError(U)
         case Unexpected(String)
     }
@@ -62,7 +62,7 @@ extension FfiError: CustomStringConvertible {
     }
 }
 
-public protocol UiError: Decodable, Error {
+public protocol UiError: Decodable, Equatable, Error {
     
 }
 
@@ -215,4 +215,23 @@ public enum ExportDrawingError: String, UiError {
     case FolderTreatedAsDrawing
     case FileDoesNotExist
     case InvalidDrawing
+}
+
+public enum UpgradeAccountAppStoreError: String, UiError {
+    case AppStoreAccountAlreadyLinked
+    case AlreadyPremium
+    case InvalidAuthDetails
+    case ExistingRequestPending
+    case CouldNotReachServer
+    case ClientUpdateRequired
+}
+
+public enum CancelSubscriptionError: String, UiError {
+    case NotPremium
+    case AlreadyCanceled
+    case UsageIsOverFreeTierDataCap
+    case ExistingRequestPending
+    case CouldNotReachServer
+    case ClientUpdateRequired
+    case CannotCancelForAppStore
 }

@@ -6,6 +6,8 @@
     android:paddingHorizontal="30dp"
     android:paddingVertical="10dp">
 
+<!--    add who has access to this file -->
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

@@ -55,6 +55,7 @@ lazy_static! {
 
 const STRIPE_LABEL_NAME: &str = "stripe";
 const GOOGLE_PLAY_LABEL_NAME: &str = "google-play";
+const APP_STORE_LABEL_NAME: &str = "app-store";
 
 #[derive(Debug)]
 pub enum MetricsError {}
@@ -90,6 +91,7 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
         let mut premium_users = 0;
         let mut premium_stripe_users = 0;
         let mut premium_google_play_users = 0;
+        let mut premium_app_store_users = 0;
 
         for (username, owner) in public_keys_and_usernames {
             let maybe_billing_platform = get_user_billing_platform(&state.index_db, &owner).await?;
@@ -100,6 +102,7 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
                 match billing_platform {
                     BillingPlatform::GooglePlay { .. } => premium_google_play_users += 1,
                     BillingPlatform::Stripe { .. } => premium_stripe_users += 1,
+                    BillingPlatform::AppStore { .. } => premium_app_store_users += 1,
                 }
             }
 
@@ -137,6 +140,9 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
         METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC
             .with_label_values(&[GOOGLE_PLAY_LABEL_NAME])
             .set(premium_google_play_users);
+        METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC
+            .with_label_values(&[APP_STORE_LABEL_NAME])
+            .set(premium_app_store_users);
 
         tokio::time::sleep(state.config.metrics.time_between_metrics_refresh).await;
     }

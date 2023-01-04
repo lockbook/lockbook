@@ -5,5 +5,5 @@ interface FilesFragment {
     fun unselectFiles()
     fun onNewFileCreated(newDocument: File?)
     fun onBackPressed(): Boolean
-    fun syncBasedOnPreferences()
+    fun sync(usePreferences: Boolean = true)
 }

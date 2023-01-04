@@ -186,6 +186,28 @@ pub unsafe extern "C" fn get_children(id: *const c_char) -> *const c_char {
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
+pub unsafe extern "C" fn get_and_get_children_recursively(id: *const c_char) -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.get_and_get_children_recursively(uuid_from_ptr(id))),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn get_path_by_id(id: *const c_char) -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.get_path_by_id(uuid_from_ptr(id))),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
 pub unsafe extern "C" fn get_by_path(path: *const c_char) -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.get_by_path(&str_from_ptr(path))),
@@ -359,6 +381,54 @@ pub unsafe extern "C" fn get_drawing(id: *const c_char) -> *const c_char {
 pub unsafe extern "C" fn get_local_changes() -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.get_local_changes()),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn upgrade_account_app_store(
+    original_transaction_id: *const c_char, app_account_token: *const c_char,
+) -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.upgrade_account_app_store(
+            str_from_ptr(original_transaction_id),
+            str_from_ptr(app_account_token),
+        )),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn cancel_subscription() -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.cancel_subscription()),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn validate() -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(
+            // Map any warnings to Strings as well as any errors using Debug impl text.
+            core.validate()
+                .map(|warnings| {
+                    warnings
+                        .into_iter()
+                        .map(|w| w.to_string())
+                        .collect::<Vec<String>>()
+                })
+                .map_err(|err| err.to_string()),
+        ),
         e => translate(e.map(|_| ())),
     })
 }

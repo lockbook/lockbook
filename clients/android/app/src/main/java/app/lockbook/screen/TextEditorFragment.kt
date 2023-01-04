@@ -13,7 +13,6 @@ import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.databinding.FragmentTextEditorBinding
 import app.lockbook.model.*
-import io.noties.markwon.editor.*
 import java.lang.ref.WeakReference
 
 class TextEditorFragment : Fragment() {
@@ -27,8 +26,10 @@ class TextEditorFragment : Fragment() {
         factoryProducer = {
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    val detailScreen = activityModel.detailScreen as DetailScreen.TextEditor
+
                     if (modelClass.isAssignableFrom(TextEditorViewModel::class.java))
-                        return TextEditorViewModel(requireActivity().application, activityModel.detailsScreen!!.fileMetadata, (activityModel.detailsScreen as DetailsScreen.TextEditor).text, binding.textEditorTextField.textSize) as T
+                        return TextEditorViewModel(requireActivity().application, detailScreen.file, detailScreen.text, binding.textEditorTextField.textSize) as T
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }
             }
@@ -51,7 +52,7 @@ class TextEditorFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentTextEditorBinding.inflate(inflater, container, false)
-        val name = (activityModel.detailsScreen as DetailsScreen.TextEditor).fileMetadata.name
+        val name = (activityModel.detailScreen as DetailScreen.TextEditor).file.name
 
         textEditorToolbar.title = name
         textEditorToolbar.setOnMenuItemClickListener { item ->
@@ -68,7 +69,7 @@ class TextEditorFragment : Fragment() {
             true
         }
         textEditorToolbar.setNavigationOnClickListener {
-            activityModel.launchDetailsScreen(null)
+            activityModel.launchDetailScreen(null)
         }
 
         textEditorToolbar.menu?.findItem(R.id.menu_text_editor_view_md)?.isVisible = name.endsWith(".md")

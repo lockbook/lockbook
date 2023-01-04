@@ -1,3 +1,6 @@
+pub mod app_store_client;
+pub mod app_store_model;
+pub mod app_store_service;
 pub mod billing_model;
 pub mod billing_service;
 pub mod google_play_client;

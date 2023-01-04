@@ -10,7 +10,7 @@ import androidx.fragment.app.activityViewModels
 import app.lockbook.R
 import app.lockbook.databinding.FragmentPdfViewerBinding
 import app.lockbook.model.AlertModel
-import app.lockbook.model.DetailsScreen
+import app.lockbook.model.DetailScreen
 import app.lockbook.model.OPENED_FILE_FOLDER
 import app.lockbook.model.StateViewModel
 import app.lockbook.util.Animate
@@ -46,8 +46,8 @@ class PdfViewerFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentPdfViewerBinding.inflate(inflater, container, false)
-        val pdfViewerInfo = activityModel.detailsScreen as DetailsScreen.PdfViewer
-        fileName = pdfViewerInfo.fileMetadata.name
+        val pdfViewerInfo = activityModel.detailScreen as DetailScreen.PdfViewer
+        fileName = pdfViewerInfo.file.name
 
         initializePdfRenderer(savedInstanceState, pdfViewerInfo)
         setUpAfterConfigurationChange(savedInstanceState)
@@ -58,14 +58,14 @@ class PdfViewerFragment : Fragment() {
 
     private fun initializePdfRenderer(
         savedInstanceState: Bundle?,
-        pdfViewerInfo: DetailsScreen.PdfViewer
+        pdfViewerInfo: DetailScreen.PdfViewer
     ) {
         oldPage = savedInstanceState?.getInt(PDF_PAGE_KEY)
 
         try {
             binding.pdfViewToolbar.title = fileName
             binding.pdfViewToolbar.setNavigationOnClickListener {
-                activityModel.launchDetailsScreen(null)
+                activityModel.launchDetailScreen(null)
             }
             binding.pdfViewToolbar.background.alpha = TOOLBAR_ALPHA
             binding.pdfViewer.fromFile(File(pdfViewerInfo.location, fileName))
@@ -102,13 +102,13 @@ class PdfViewerFragment : Fragment() {
                 }
                 .onError {
                     alertModel.notify(getString(R.string.could_not_load_pdf)) {
-                        activityModel.launchDetailsScreen(null)
+                        activityModel.launchDetailScreen(null)
                     }
                 }
                 .load()
         } catch (e: Exception) {
             alertModel.notify(getString(R.string.could_not_load_pdf)) {
-                activityModel.launchDetailsScreen(null)
+                activityModel.launchDetailScreen(null)
             }
         }
     }

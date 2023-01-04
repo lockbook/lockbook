@@ -29,4 +29,8 @@ public protocol LockbookApi {
     func readDrawing(id: UUID) -> FfiResult<Drawing, GetDrawingError>
     func writeDrawing(id: UUID, content: Drawing) -> FfiResult<Empty, WriteToDocumentError>
     func exportDrawing(id: UUID) -> FfiResult<Data, ExportDrawingError>
+    
+    // Billing
+    func newAppleSub(originalTransactionId: String, appAccountToken: String) -> FfiResult<Empty, UpgradeAccountAppStoreError>
+    func cancelSub() -> FfiResult<Empty, CancelSubscriptionError>
 }

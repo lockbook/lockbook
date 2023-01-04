@@ -59,15 +59,19 @@ impl Requester for Network {
     ) -> Result<T::Response, ApiError<T::Error>> {
         let signed_request =
             pubkey::sign(&account.private_key, request, self.get_time).map_err(ApiError::Sign)?;
+
+        let client_version = String::from((self.get_code_version)());
+
         let serialized_request = serde_json::to_vec(&RequestWrapper {
             signed_request,
-            client_version: String::from((self.get_code_version)()),
+            client_version: client_version.clone(),
         })
         .map_err(|err| ApiError::Serialize(err.to_string()))?;
         let serialized_response = self
             .client
             .request(T::METHOD, format!("{}{}", account.api_url, T::ROUTE).as_str())
             .body(serialized_request)
+            .header("Accept-Version", client_version)
             .send()
             .map_err(|err| {
                 warn!("Send failed: {:#?}", err);
@@ -136,6 +140,7 @@ pub mod no_network {
             let google_play_client = runtime.block_on(get_google_play_client(
                 &server_config.billing.google.service_account_key,
             ));
+            let app_store_client = reqwest::Client::new();
 
             let index_db = v3::Server::init(&server_config.index_db.db_location)
                 .expect("Failed to load index_db");
@@ -146,6 +151,7 @@ pub mod no_network {
                     index_db,
                     stripe_client,
                     google_play_client,
+                    app_store_client,
                 },
                 runtime,
             };

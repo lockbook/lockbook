@@ -32,6 +32,7 @@ fn subscription_info(
         Some(info) => match &info.payment_platform {
             Stripe { card_last_4_digits } => draw_stripe(ui, card_last_4_digits),
             GooglePlay { account_state } => draw_google_play(ui, account_state),
+            AppStore { account_state } => draw_app_store(ui, account_state),
         },
         None => {
             draw_free_tier(ui);
@@ -53,6 +54,13 @@ fn draw_google_play(
     ui: &mut egui::Ui, account_state: &lb::GooglePlayAccountState,
 ) -> Option<SubscriptionResponse> {
     ui.heading(&format!("Google Play ({:?})", account_state));
+    None
+}
+
+fn draw_app_store(
+    ui: &mut egui::Ui, account_state: &lb::AppStoreAccountState,
+) -> Option<SubscriptionResponse> {
+    ui.heading(&format!("App Store ({:?})", account_state));
     None
 }
 
