@@ -41,6 +41,7 @@ class FrameManager: NSObject, MTKViewDelegate {
     
     init(_ parent: CustomMTK) {
         self.parent = parent
+        print(self.parent.window?.backingScaleFactor)
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passRetained(self.parent.layer!).toOpaque())
         self.editorHandle = init_editor(metalLayer)
         
@@ -48,14 +49,16 @@ class FrameManager: NSObject, MTKViewDelegate {
     }
     
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+        print("size")
 //        print( Float(size.width), Float(size.height), Float(view.layer!.contentsScale))
-        
         let scale = self.parent.window?.backingScaleFactor ?? 1.0
-        
+        print(Float(size.width), Float(size.height), Float(scale))
         resize_editor(editorHandle, Float(size.width), Float(size.height), Float(scale))
     }
     
     func draw(in view: MTKView) { // Ask for frame here?
+        let scale = Float(self.parent.window?.backingScaleFactor ?? 1.0)
+        set_scale(editorHandle, scale)
         draw_editor(editorHandle)
     }
 }

@@ -62,6 +62,12 @@ pub extern "C" fn resize_editor(obj: *mut c_void, width: f32, height: f32, scale
     obj.screen.scale_factor = scale;
 }
 
+#[no_mangle]
+pub extern "C" fn set_scale(obj: *mut c_void, scale: f32) {
+    let obj = unsafe { &mut *(obj as *mut WgpuEditor) };
+    obj.screen.scale_factor = scale;
+}
+
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn key_event(
