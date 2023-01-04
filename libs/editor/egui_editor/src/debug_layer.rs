@@ -1,4 +1,4 @@
-use crate::ast::AST;
+use crate::ast::Ast;
 use crate::editor::Editor;
 use crate::theme::YELLOW;
 use egui::{Align2, Color32, FontId, Pos2, Rounding, Stroke, Ui};
@@ -96,7 +96,7 @@ impl Editor {
         Self::print_ast_helper(&self.ast, self.ast.root, &self.raw, 0);
     }
 
-    pub fn print_ast_helper(ast: &AST, node: usize, raw: &str, nest: usize) {
+    pub fn print_ast_helper(ast: &Ast, node: usize, raw: &str, nest: usize) {
         let node = &ast.nodes[node];
         let indent = "->".repeat(nest);
         println!("{indent}element: {:?}", node.element);

@@ -4,7 +4,7 @@ use pulldown_cmark::{Event, OffsetIter, Options, Parser};
 use std::ops::Range;
 
 #[derive(Default, Debug)]
-pub struct AST {
+pub struct Ast {
     pub nodes: Vec<ASTNode>,
     pub root: usize,
 }
@@ -16,7 +16,7 @@ pub struct ASTNode {
     pub children: Vec<usize>,
 }
 
-impl AST {
+impl Ast {
     pub fn parse(raw: &str) -> Self {
         let mut options = Options::empty();
         options.insert(Options::ENABLE_STRIKETHROUGH);

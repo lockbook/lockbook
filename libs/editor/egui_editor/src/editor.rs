@@ -1,4 +1,4 @@
-use crate::ast::AST;
+use crate::ast::Ast;
 use crate::cursor::Cursor;
 use crate::cursor_types::DocByteOffset;
 use crate::debug_layer::DebugLayer;
@@ -19,7 +19,7 @@ pub struct Editor {
     pub text_unprocessed: bool,
     pub cursor_unprocessed: bool,
     pub gr_ind: Vec<DocByteOffset>,
-    pub ast: AST,
+    pub ast: Ast,
     pub styled: Vec<StyledChunk>,
     pub layout: Vec<LayoutJobInfo>,
     pub galleys: Vec<GalleyInfo>,
@@ -35,7 +35,7 @@ impl Default for Editor {
             text_unprocessed: true,
             cursor_unprocessed: true,
             gr_ind: vec![],
-            ast: AST::default(),
+            ast: Ast::default(),
             styled: vec![],
             layout: vec![],
             galleys: vec![],
@@ -63,7 +63,7 @@ impl Editor {
         self.mouse_events(ui);
 
         if self.text_unprocessed {
-            self.ast = AST::parse(&self.raw);
+            self.ast = Ast::parse(&self.raw);
             self.calc_unicode_segs();
         }
         if self.text_unprocessed || self.cursor_unprocessed {
