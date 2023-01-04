@@ -49,9 +49,7 @@ struct DocumentView: View {
                 
                 case .Markdown:
                     GeometryReader { geo in
-                        EditorView(
-                            frame: geo.frame(in: .local)
-                        )
+                        EditorView()
                     }
                     .title(meta.name)
                         

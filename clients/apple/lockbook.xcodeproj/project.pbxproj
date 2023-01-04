@@ -69,6 +69,7 @@
 		87F78F7A27094A040001E159 /* BeforeYouStart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F78F7927094A040001E159 /* BeforeYouStart.swift */; };
 		87F78F7B27094A040001E159 /* BeforeYouStart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F78F7927094A040001E159 /* BeforeYouStart.swift */; };
 		B2063A4F27D01BF900A0783C /* EditorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2063A4E27D01BF900A0783C /* EditorTests.swift */; };
+		B217A97629661F3A002339E0 /* SwiftEditor in Frameworks */ = {isa = PBXBuildFile; productRef = B217A97529661F3A002339E0 /* SwiftEditor */; };
 		B21AF22B28204D460098C2AB /* CustomNSTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B21AF22A28204D460098C2AB /* CustomNSTextView.swift */; };
 		B21AF22D282058FC0098C2AB /* TypeAssist.swift in Sources */ = {isa = PBXBuildFile; fileRef = B21AF22C282058FC0098C2AB /* TypeAssist.swift */; };
 		B21AF22E282058FC0098C2AB /* TypeAssist.swift in Sources */ = {isa = PBXBuildFile; fileRef = B21AF22C282058FC0098C2AB /* TypeAssist.swift */; };
@@ -167,7 +168,8 @@
 		87F78F7927094A040001E159 /* BeforeYouStart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeforeYouStart.swift; sourceTree = "<group>"; };
 		B2063A4C27D01BF900A0783C /* EditorTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EditorTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B2063A4E27D01BF900A0783C /* EditorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTests.swift; sourceTree = "<group>"; };
-		B217A977296E0D06002339E0 /* Lockbook (macOS)Release.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Lockbook (macOS)Release.entitlements"; sourceTree = "<group>"; };
+		B2063A5627D01CAA00A0783C /* Lockbook (macOS)Release.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Lockbook (macOS)Development.entitlements"; sourceTree = "<group>"; };
+		B217A97429661F21002339E0 /* SwiftEditor */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = SwiftEditor; path = ../../libs/editor/SwiftEditor; sourceTree = "<group>"; };
 		B21AF22A28204D460098C2AB /* CustomNSTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomNSTextView.swift; sourceTree = "<group>"; };
 		B21AF22C282058FC0098C2AB /* TypeAssist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypeAssist.swift; sourceTree = "<group>"; };
 		B21AF22F28218B4E0098C2AB /* CustomUITextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomUITextView.swift; sourceTree = "<group>"; };
@@ -230,6 +232,7 @@
 				47B041F52905BFF100A02DA7 /* AlertToast in Frameworks */,
 				B2ADC2492835451000DB8D3D /* Introspect in Frameworks */,
 				EA9EEFD525FC058200E8C790 /* SwiftLockbookCore in Frameworks */,
+				B217A97629661F3A002339E0 /* SwiftEditor in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -340,6 +343,14 @@
 			path = EditorTests;
 			sourceTree = "<group>";
 		};
+		B217A97329661F21002339E0 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				B217A97429661F21002339E0 /* SwiftEditor */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
 		B249B9F3282FE532004F5300 /* TreeView */ = {
 			isa = PBXGroup;
 			children = (
@@ -362,7 +373,8 @@
 		EA5C7D622516605F00F7F358 = {
 			isa = PBXGroup;
 			children = (
-				B217A977296E0D06002339E0 /* Lockbook (macOS)Release.entitlements */,
+				B217A97329661F21002339E0 /* Packages */,
+				B2063A5627D01CAA00A0783C /* Lockbook (macOS)Release.entitlements */,
 				87E1C5D527B47F570029833D /* Editor */,
 				EA5C7D672516605F00F7F358 /* Shared */,
 				EA5C7D712516606000F7F358 /* iOS */,
@@ -516,6 +528,7 @@
 				8794F43727D9525200B1B7EB /* Down */,
 				B2ADC2482835451000DB8D3D /* Introspect */,
 				47B041F42905BFF100A02DA7 /* AlertToast */,
+				B217A97529661F3A002339E0 /* SwiftEditor */,
 			);
 			productName = "Lockbook (macOS)";
 			productReference = EA5C7D772516606000F7F358 /* Lockbook.app */;
@@ -1239,6 +1252,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 8794F43627D9525200B1B7EB /* XCRemoteSwiftPackageReference "Down" */;
 			productName = Down;
+		};
+		B217A97529661F3A002339E0 /* SwiftEditor */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SwiftEditor;
 		};
 		B2ADC2482835451000DB8D3D /* Introspect */ = {
 			isa = XCSwiftPackageProductDependency;
