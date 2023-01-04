@@ -77,4 +77,21 @@ class SheetState: ObservableObject {
             }
         }
     }
+    
+    @Published var acceptingShare: Bool = false {
+        didSet {
+            if !acceptingShare && acceptingShareInfo != nil {
+                acceptingShareInfo = nil
+            }
+        }
+    }
+    @Published var acceptingShareInfo: File? {
+        didSet {
+            if acceptingShareInfo == nil {
+                acceptingShare = false
+            } else {
+                acceptingShare = true
+            }
+        }
+    }
 }

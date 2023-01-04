@@ -34,7 +34,6 @@ struct ManageSubscription: View {
             } else if case .some(.failure) = billing.purchaseResult {
                 error
             }
-
             
             Spacer()
         }

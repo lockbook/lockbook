@@ -80,6 +80,10 @@ Vestibulum ante ipsum primis in vel.
         return .success(File(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parent: dirId, name: "new_file.md", lastModifiedBy: username, lastModified: UInt64(now)))
     }
     
+    public func createLink(name: String, dirId: UUID, target: UUID) -> FfiResult<Empty, CreateFileError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    
     public func updateFile(id: UUID, content: String) -> FfiResult<Empty, WriteToDocumentError> {
         .success(Empty())
     }
@@ -109,6 +113,18 @@ Vestibulum ante ipsum primis in vel.
     }
     
     public func cancelSub() -> FfiResult<Empty, CancelSubscriptionError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    
+    public func shareFile(id: UUID, username: String, isRead: Bool) -> FfiResult<Empty, ShareFileError> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    
+    public func getPendingShares() -> FfiResult<[File], GetPendingShares> {
+        .failure(.init(unexpected: "LAZY"))
+    }
+    
+    public func deletePendingShare(id: UUID) ->FfiResult<Empty, DeletePendingShareError> {
         .failure(.init(unexpected: "LAZY"))
     }
     

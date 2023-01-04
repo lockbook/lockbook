@@ -53,12 +53,17 @@ struct BookView: View {
         NavigationView {
             FileListView(currentFolder: currentFolder, account: account)
                     .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
+                        ToolbarItemGroup {
                             NavigationLink(
-                                    destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
-                                Image(systemName: "gearshape.fill")
-                                        .foregroundColor(.blue)
-                            }
+                                destination: PendingSharesView(), isActive: $onboarding.theyChoseToBackup) {
+                                    Image(systemName: "shared.with.you").foregroundColor(.blue)
+                                }
+                            
+                            NavigationLink(
+                                destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
+                                    Image(systemName: "gearshape.fill").foregroundColor(.blue)
+                                        .padding(.horizontal, 10)
+                                    }
                         }
                     }
         }
