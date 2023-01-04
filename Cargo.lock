@@ -1460,25 +1460,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "egui_demo_lib"
-version = "0.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c22edd72717f8eeeaa4fc0c8ba417d5a897781e4f164bfb19ac7ee6557bd11d"
-dependencies = [
- "egui",
- "egui_extras",
- "enum-map",
- "tracing",
- "unicode_names2",
-]
-
-[[package]]
 name = "egui_editor"
 version = "0.1.0"
 dependencies = [
  "eframe",
  "egui",
- "egui_demo_lib",
  "egui_wgpu_backend",
  "libc",
  "pollster",
@@ -1550,27 +1536,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9852635589dc9f9ea1b6fe9f05b50ef208c85c834a562f0c6abb1c475736ec2b"
 dependencies = [
  "cfg-if 1.0.0",
-]
-
-[[package]]
-name = "enum-map"
-version = "2.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50c25992259941eb7e57b936157961b217a4fc8597829ddef0596d6c3cd86e1a"
-dependencies = [
- "enum-map-derive",
- "serde",
-]
-
-[[package]]
-name = "enum-map-derive"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a4da76b3b6116d758c7ba93f7ec6a35d2e2cf24feda76c6e38a375f4d5c59f2"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -5958,12 +5923,6 @@ name = "unicode-xid"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f962df74c8c05a667b5ee8bcf162993134c104e96440b663c8daa176dc772d8c"
-
-[[package]]
-name = "unicode_names2"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "029df4cc8238cefc911704ff8fa210853a0f3bce2694d8f51181dd41ee0f3301"
 
 [[package]]
 name = "universal-hash"
