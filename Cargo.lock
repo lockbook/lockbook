@@ -1418,7 +1418,6 @@ dependencies = [
  "bytemuck",
  "dark-light",
  "egui",
- "egui-wgpu",
  "egui-winit",
  "egui_glow",
  "getrandom 0.2.7",
@@ -1430,7 +1429,6 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "wgpu",
  "winit",
 ]
 
@@ -1444,21 +1442,6 @@ dependencies = [
  "epaint",
  "nohash-hasher",
  "tracing",
-]
-
-[[package]]
-name = "egui-wgpu"
-version = "0.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f12a8d8f92a429e2e9399003bc01d48f54aefa6fec126cbd3462e313c0ee0e91"
-dependencies = [
- "bytemuck",
- "egui",
- "pollster",
- "tracing",
- "type-map",
- "wgpu",
- "winit",
 ]
 
 [[package]]
@@ -5898,15 +5881,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59b11b2b5241ba34be09c3cc85a36e56e48f9888862e19cedf23336d35316ed1"
 dependencies = [
  "memchr",
-]
-
-[[package]]
-name = "type-map"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "deb68604048ff8fa93347f02441e4487594adc20bb8a084f9e564d2b827a0a9f"
-dependencies = [
- "rustc-hash",
 ]
 
 [[package]]
