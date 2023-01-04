@@ -103,3 +103,5 @@ lockbook-server.prod
 lockbook-server
 
 !docs/guides/build
+
+libs/editor/SwiftEditor/Libs/
