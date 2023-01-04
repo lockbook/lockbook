@@ -105,3 +105,4 @@ lockbook-server
 !docs/guides/build
 
 libs/editor/SwiftEditor/Libs/
+libs/editor/egui_editor/include
