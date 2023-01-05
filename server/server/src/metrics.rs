@@ -16,6 +16,13 @@ use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::server_tree::ServerTree;
 use lockbook_shared::tree_like::TreeLike;
 
+pub struct UserInfo {
+    total_documents: i64,
+    total_bytes: i64,
+    is_user_active: bool,
+    is_user_sharer_or_sharee: bool,
+}
+
 make_static_metric! {
     pub struct MetricsStatistics: IntGauge {
         "type" => {
@@ -106,22 +113,21 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
                 }
             }
 
-            let (user_total_documents, user_total_bytes, is_user_active, is_user_sharer_or_sharee) =
-                get_user_info(&state, owner).await?;
+            let user_info = get_user_info(&state, owner).await?;
 
-            if is_user_active {
+            if user_info.is_user_active {
                 active_users += 1;
             }
-            if is_user_sharer_or_sharee {
+            if user_info.is_user_sharer_or_sharee {
                 share_feature_users += 1;
             }
 
-            total_documents += user_total_documents;
-            total_bytes += user_total_bytes;
+            total_documents += user_info.total_documents;
+            total_bytes += user_info.total_bytes;
 
             METRICS_USAGE_BY_USER_VEC
                 .with_label_values(&[&username])
-                .set(user_total_bytes);
+                .set(user_info.total_bytes);
 
             tokio::time::sleep(state.config.metrics.time_between_metrics).await;
         }
@@ -161,7 +167,7 @@ pub async fn get_user_billing_platform(
 
 pub async fn get_user_info(
     state: &ServerState, owner: Owner,
-) -> Result<(i64, i64, bool, bool), ServerError<MetricsError>> {
+) -> Result<UserInfo, ServerError<MetricsError>> {
     state.index_db.transaction(|tx| {
         let mut tree = ServerTree::new(
             owner,
@@ -180,7 +186,7 @@ pub async fn get_user_info(
             None => false,
         };
 
-        let is_user_sharing_or_sharee = tree
+        let is_user_sharer_or_sharee = tree
             .all_files()?
             .iter()
             .any(|k| k.owner() != owner || k.is_shared());
@@ -193,7 +199,12 @@ pub async fn get_user_info(
 
         let (total_documents, total_bytes) = get_bytes_and_documents_count(tx, owner, ids)?;
 
-        Ok((total_documents, total_bytes as i64, is_user_active, is_user_sharing_or_sharee))
+        Ok(UserInfo {
+            total_documents,
+            total_bytes: total_bytes as i64,
+            is_user_active,
+            is_user_sharer_or_sharee,
+        })
     })?
 }
 

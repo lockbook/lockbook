@@ -59,6 +59,8 @@ pub async fn upsert_file_metadata(
                     }
                 }
             }
+
+            tx.last_seen.insert(req_owner, get_time().0 as u64);
             Ok(())
         })??;
 
@@ -216,9 +218,8 @@ pub async fn change_doc(
             return Err(ClientError(DocumentDeleted));
         }
 
-        tx.last_seen.insert(owner, get_time().0 as u64);
         // Here is where you would check if the person is out of space as a result of the new file.
-        // You could make this a transaction and che™ck whether or not this is an increase in size or
+        // You could make this a transaction and check whether or not this is an increase in size or
         // a reduction
         Ok(())
     })??;
@@ -262,6 +263,7 @@ pub async fn change_doc(
 
         tx.sizes.insert(*meta.id(), new_size);
         tree.stage(vec![new]).promote();
+        tx.last_seen.insert(owner, get_time().0 as u64);
 
         Ok(())
     })?;
