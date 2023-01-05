@@ -55,15 +55,15 @@ struct BookView: View {
                     .toolbar {
                         ToolbarItemGroup {
                             NavigationLink(
-                                destination: PendingSharesView(), isActive: $onboarding.theyChoseToBackup) {
-                                    Image(systemName: "shared.with.you").foregroundColor(.blue)
-                                }
-                            
-                            NavigationLink(
                                 destination: SettingsView().equatable(), isActive: $onboarding.theyChoseToBackup) {
                                     Image(systemName: "gearshape.fill").foregroundColor(.blue)
                                         .padding(.horizontal, 10)
                                     }
+                            
+                            NavigationLink(
+                                destination: PendingSharesView(), isActive: $onboarding.theyChoseToBackup) {
+                                    Image(systemName: "shared.with.you").foregroundColor(.blue)
+                                }
                         }
                     }
         }

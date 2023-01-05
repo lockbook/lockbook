@@ -150,12 +150,9 @@ class SettingsService: ObservableObject {
         calculatePendingShares()
     }
     
-    func acceptShare(targetMeta: File, parent: UUID) -> Bool {
+    func acceptShare(targetMeta: File, parent: UUID) {
         if case .failure(let err) = core.createLink(name: targetMeta.name, dirId: targetMeta.id, target: parent) {
             DI.errors.handleError(err)
-            return false
-        } else {
-            return true
         }
     }
 }

@@ -35,11 +35,7 @@ class SheetState: ObservableObject {
     }
     @Published var creatingInfo: CreatingInfo? {
         didSet {
-            if creatingInfo == nil {
-                creating = false
-            } else {
-                creating = true
-            }
+            creating = creatingInfo != nil
         }
     }
     @Published var created: File?
@@ -53,11 +49,7 @@ class SheetState: ObservableObject {
     }
     @Published var movingInfo: File? {
         didSet {
-            if movingInfo == nil {
-                moving = false
-            } else {
-                moving = true
-            }
+            moving = movingInfo != nil
         }
     }
     
@@ -70,11 +62,7 @@ class SheetState: ObservableObject {
     }
     @Published var renamingInfo: File? {
         didSet {
-            if renamingInfo == nil {
-                renaming = false
-            } else {
-                renaming = true
-            }
+            renaming = renamingInfo != nil
         }
     }
     
@@ -87,11 +75,7 @@ class SheetState: ObservableObject {
     }
     @Published var acceptingShareInfo: File? {
         didSet {
-            if acceptingShareInfo == nil {
-                acceptingShare = false
-            } else {
-                acceptingShare = true
-            }
+            acceptingShare = acceptingShareInfo != nil
         }
     }
 }

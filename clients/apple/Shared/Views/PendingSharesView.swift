@@ -5,6 +5,7 @@ import SwiftLockbookCore
 struct PendingSharesView: View {
     
     @EnvironmentObject var settings: SettingsService
+    @EnvironmentObject var sheets: SheetState
     
     var body: some View {
         if settings.pendingShares.isEmpty {
@@ -12,9 +13,7 @@ struct PendingSharesView: View {
         } else {
             pendingShares
         }
-        
     }
-    
     
     @ViewBuilder
     var pendingShares: some View {
@@ -29,6 +28,9 @@ struct PendingSharesView: View {
         .onAppear {
                 settings.calculatePendingShares()
             }
+        .sheet(isPresented: $sheets.acceptingShare) {
+            AcceptShareSheet()
+        }
     }
     
     @ViewBuilder
@@ -45,9 +47,7 @@ struct PendingSharesView: View {
         .onAppear {
                 settings.calculatePendingShares()
             }
-
     }
-    
 }
 
 struct SharedFileCell: View {
@@ -67,7 +67,6 @@ struct SharedFileCell: View {
                 
             Spacer()
             
-            
             Button {
                 sheets.acceptingShareInfo = meta
             } label: {
@@ -86,9 +85,6 @@ struct SharedFileCell: View {
         }
                 .padding(.vertical, 10)
                 .contentShape(Rectangle())
-                .sheet(isPresented: $sheets.acceptingShare) {
-                    AcceptShareSheet()
-                }
     }
 }
 

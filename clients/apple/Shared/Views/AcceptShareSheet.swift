@@ -21,9 +21,9 @@ struct AcceptShareSheet: View {
                         node: wc,
                         row: { dest in
                             Button(action: {
-                                if settings.acceptShare(targetMeta: meta, parent: dest.id) {
-                                    presentationMode.wrappedValue.dismiss()
-                                }
+                                settings.acceptShare(targetMeta: meta, parent: dest.id)
+                                print("HERE 3")
+                                presentationMode.wrappedValue.dismiss()
                             }, label: {
                                 Label(dest.name, systemImage: "folder")
                             })
