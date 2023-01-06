@@ -155,6 +155,12 @@ class SettingsService: ObservableObject {
             DI.errors.handleError(err)
         }
     }
+    
+    func shareFile(id: UUID, username: String, isWrite: Bool) {
+        if case .failure(let err) = core.shareFile(id: id, username: username, isWrite: isWrite) {
+            DI.errors.handleError(err)
+        }
+    }
 }
 
 struct PrerequisiteInformation {

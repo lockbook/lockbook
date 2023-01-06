@@ -26,9 +26,7 @@ struct NewFileSheet: View {
                         .bold()
                         .font(.title)
                     Spacer()
-                    Button(action: {
-                        print("HERE 4")
-                        presentationMode.wrappedValue.dismiss() }) {
+                    Button(action: { presentationMode.wrappedValue.dismiss() }) {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.gray)
                             .imageScale(.large)

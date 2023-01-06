@@ -18,7 +18,9 @@ struct PendingSharesView: View {
     @ViewBuilder
     var pendingShares: some View {
         VStack {
-            List(settings.pendingShares) { meta in
+            List(settings.pendingShares.sorted { meta1, meta2 in
+                meta1 > meta2
+            }) { meta in
                 SharedFileCell(meta: meta)
             }
             
@@ -28,9 +30,7 @@ struct PendingSharesView: View {
         .onAppear {
                 settings.calculatePendingShares()
             }
-        .sheet(isPresented: $sheets.acceptingShare) {
-            AcceptShareSheet()
-        }
+        .sheet(isPresented: $sheets.acceptingShare, content: AcceptShareSheet.init)
     }
     
     @ViewBuilder
@@ -83,7 +83,7 @@ struct SharedFileCell: View {
                     .foregroundColor(.red)
             }
         }
-                .padding(.vertical, 10)
+                .padding(.vertical, 7)
                 .contentShape(Rectangle())
     }
 }

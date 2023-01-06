@@ -23,11 +23,9 @@ struct BeforeYouStart: View {
                     #else
                     NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
                     #endif
-                    print("HERE 1")
                     presentationMode.wrappedValue.dismiss()
                 }.foregroundColor(.blue)
                 Button("I'll do this later") {
-                    print("HERE 2")
                     presentationMode.wrappedValue.dismiss()
                 }.foregroundColor(.red)
                 

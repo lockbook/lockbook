@@ -78,4 +78,17 @@ class SheetState: ObservableObject {
             acceptingShare = acceptingShareInfo != nil
         }
     }
+    
+    @Published var sharingFile: Bool = false {
+        didSet {
+            if !sharingFile && sharingFileInfo != nil {
+                sharingFileInfo = nil
+            }
+        }
+    }
+    @Published var sharingFileInfo: File? {
+        didSet {
+            sharingFile = sharingFileInfo != nil
+        }
+    }
 }

@@ -120,8 +120,8 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: cancel_subscription())
     }
     
-    public func shareFile(id: UUID, username: String, isRead: Bool) -> FfiResult<Empty, ShareFileError> {
-        let shareMode = isRead ? "Read" : "Write"
+    public func shareFile(id: UUID, username: String, isWrite: Bool) -> FfiResult<Empty, ShareFileError> {
+        let shareMode = isWrite ? "Read" : "Write"
         return fromPrimitiveResult(result: share_file(id.uuidString, username, shareMode))
     }
     

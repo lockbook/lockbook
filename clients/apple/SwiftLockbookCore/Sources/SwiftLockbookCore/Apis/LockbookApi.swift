@@ -30,7 +30,7 @@ public protocol LockbookApi {
     func readDrawing(id: UUID) -> FfiResult<Drawing, GetDrawingError>
     func writeDrawing(id: UUID, content: Drawing) -> FfiResult<Empty, WriteToDocumentError>
     func exportDrawing(id: UUID) -> FfiResult<Data, ExportDrawingError>
-    func shareFile(id: UUID, username: String, isRead: Bool) -> FfiResult<Empty, ShareFileError>
+    func shareFile(id: UUID, username: String, isWrite: Bool) -> FfiResult<Empty, ShareFileError>
     func getPendingShares() -> FfiResult<[File], GetPendingShares>
     func deletePendingShare(id: UUID) ->FfiResult<Empty, DeletePendingShareError>
     

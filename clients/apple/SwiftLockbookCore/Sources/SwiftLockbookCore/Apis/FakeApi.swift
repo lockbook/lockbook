@@ -116,7 +116,7 @@ Vestibulum ante ipsum primis in vel.
         .failure(.init(unexpected: "LAZY"))
     }
     
-    public func shareFile(id: UUID, username: String, isRead: Bool) -> FfiResult<Empty, ShareFileError> {
+    public func shareFile(id: UUID, username: String, isWrite: Bool) -> FfiResult<Empty, ShareFileError> {
         .failure(.init(unexpected: "LAZY"))
     }
     
