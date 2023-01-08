@@ -187,7 +187,14 @@ where
 
     pub fn assert_no_shared_links(&self) -> SharedResult<()> {
         for link in self.owned_ids() {
-            if let FileType::Link { target: _ } = self.find(&link)?.file_type() {
+            let meta = self.find(&link)?;
+            if let FileType::Link { target: _ } = meta.file_type() {
+                if meta.is_shared() {
+                    return Err(SharedError::ValidationFailure(ValidationFailure::SharedLink {
+                        link,
+                        shared_ancestor: link,
+                    }));
+                }
                 for ancestor in self.ancestors(&link)? {
                     if self.find(&ancestor)?.is_shared() {
                         return Err(SharedError::ValidationFailure(
