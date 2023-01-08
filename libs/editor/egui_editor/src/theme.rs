@@ -107,11 +107,7 @@ impl VisualAppearance {
     }
 
     pub fn update(&mut self, ui: &egui::Ui) {
-        self.current_theme = if ui.visuals().dark_mode {
-            Theme::Dark
-        } else {
-            Theme::Light
-        }
+        self.current_theme = if ui.visuals().dark_mode { Theme::Dark } else { Theme::Light }
     }
 }
 

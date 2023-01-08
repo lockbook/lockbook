@@ -118,6 +118,6 @@ async fn request_device(
         Err(err) => {
             panic!("request_device failed: {:?}", err);
         }
-        Ok(tuple) => (adapter, tuple.0, tuple.1),
+        Ok((device, queue)) => (adapter, device, queue),
     }
 }

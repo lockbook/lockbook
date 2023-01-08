@@ -44,7 +44,7 @@ impl WgpuEditor {
                 // This error occurs when the app is minimized on Windows.
                 // Silently return here to prevent spamming the console with:
                 // "The underlying surface has changed, and therefore the swap chain must be updated"
-                panic!()
+                panic!("wgpu surface outdated")
             }
             Err(e) => {
                 eprintln!("Dropped frame with error: {}", e);
@@ -122,9 +122,3 @@ impl WgpuEditor {
         self.surface.configure(&self.device, &surface_config);
     }
 }
-
-// standup
-// + [x] made scrolling nicer
-// + [x] cleaned up a bit
-// + [x] added types for the various cursors going on
-// + [ ] up down navigation

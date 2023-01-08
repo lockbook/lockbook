@@ -36,20 +36,20 @@ impl PartialOrd<usize> for DocByteOffset {
 }
 
 impl Add<usize> for DocByteOffset {
-    type Output = DocByteOffset;
+    type Output = Self;
 
     fn add(self, rhs: usize) -> Self::Output {
         let sum = self.0 + rhs;
-        DocByteOffset(sum)
+        Self(sum)
     }
 }
 
 impl Sub<usize> for DocByteOffset {
-    type Output = DocByteOffset;
+    type Output = Self;
 
     fn sub(self, rhs: usize) -> Self::Output {
         let sum = self.0 - rhs;
-        DocByteOffset(sum)
+        Self(sum)
     }
 }
 
@@ -78,20 +78,20 @@ impl PartialOrd<usize> for DocCharOffset {
 }
 
 impl Add<usize> for DocCharOffset {
-    type Output = DocCharOffset;
+    type Output = Self;
 
     fn add(self, rhs: usize) -> Self::Output {
         let sum = self.0 + rhs;
-        DocCharOffset(sum)
+        Self(sum)
     }
 }
 
 impl Sub<usize> for DocCharOffset {
-    type Output = DocCharOffset;
+    type Output = Self;
 
     fn sub(self, rhs: usize) -> Self::Output {
         let sum = self.0 - rhs;
-        DocCharOffset(sum)
+        Self(sum)
     }
 }
 
@@ -110,7 +110,7 @@ impl SubAssign<usize> for DocCharOffset {
 impl Sub<DocCharOffset> for DocCharOffset {
     type Output = RelCharOffset;
 
-    fn sub(self, rhs: DocCharOffset) -> Self::Output {
+    fn sub(self, rhs: Self) -> Self::Output {
         let rel = self.0 - rhs.0;
         RelCharOffset(rel)
     }
@@ -129,7 +129,7 @@ impl PartialOrd<usize> for RelCharOffset {
 }
 
 impl Sub<usize> for RelCharOffset {
-    type Output = RelCharOffset;
+    type Output = Self;
 
     fn sub(self, rhs: usize) -> Self::Output {
         let rel = self.0 - rhs;
