@@ -13,3 +13,4 @@ pub mod search_service;
 pub mod share_service;
 pub mod sync_service;
 pub mod usage_service;
+pub mod activity_service;

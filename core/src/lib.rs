@@ -373,6 +373,14 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn get_most_active_documents(&self) -> Result<Vec<(Uuid, usize)>, Error<GetUsageError>> {
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.most_active_documents())?;
+        Ok(val?)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn get_usage(&self) -> Result<UsageMetrics, Error<GetUsageError>> {
         let val = self.db.transaction(|tx| self.context(tx)?.get_usage())?;
         Ok(val?)
