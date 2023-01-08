@@ -1,5 +1,6 @@
 use lockbook_core::Core;
 use lockbook_shared::file::ShareMode;
+use lockbook_core::{Error, ShareFileError};
 use test_utils::*;
 
 /// Tests that setup one device each on two accounts, share a file from one to the other, sync both, then accept
@@ -482,4 +483,59 @@ fn move_file_out_of_shared_folder_and_create_path_conflict() {
 
         assert_stuff(&cores[0], &cores[1]); // originally, if the test did make it here, validation would fail with a path conflict
     }
+}
+
+#[test]
+fn test_share_link_write() {
+    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+    cores[2].sync(None).unwrap();
+
+    let passalong = cores[0].create_at_path("/passalong.md").unwrap();
+    cores[0].share_file(passalong.id, &accounts[1].username, ShareMode::Write).unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    assert::all_pending_shares(&cores[1], &["passalong.md"]);
+    let link = cores[1].create_link_at_path("/passalong.md", passalong.id).unwrap();
+    assert::all_paths(&cores[1], &["/", "/passalong.md"]);
+    assert_matches!(
+        cores[1].share_file(link.id, &accounts[2].username, ShareMode::Write), // this succeeded and now correctly fails (was sharing link instead of target)
+        Err(Error::UiError(ShareFileError::InsufficientPermission))
+    );
+    cores[1].sync(None).unwrap();
+
+    cores[2].sync(None).unwrap(); // this failed with FileNonexistent
+}
+
+#[test]
+fn test_share_link_read() {
+    let cores = vec![test_core_with_account(), test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    cores[0].sync(None).unwrap();
+    cores[1].sync(None).unwrap();
+    cores[2].sync(None).unwrap();
+
+    let passalong = cores[0].create_at_path("/passalong.md").unwrap();
+    cores[0].share_file(passalong.id, &accounts[1].username, ShareMode::Read).unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    assert::all_pending_shares(&cores[1], &["passalong.md"]);
+    let link = cores[1].create_link_at_path("/passalong.md", passalong.id).unwrap();
+    assert::all_paths(&cores[1], &["/", "/passalong.md"]);
+    cores[1].share_file(link.id, &accounts[2].username, ShareMode::Read).unwrap();
+    cores[1].sync(None).unwrap();
+
+    cores[2].sync(None).unwrap();
 }
