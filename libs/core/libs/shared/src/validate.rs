@@ -225,12 +225,10 @@ where
     pub fn assert_no_broken_links(&mut self) -> SharedResult<()> {
         for link in self.owned_ids() {
             if let FileType::Link { target } = self.find(&link)?.file_type() {
-                if !self.calculate_deleted(&link)? {
-                    if self.maybe_find(&target).is_none() {
-                        return Err(SharedError::ValidationFailure(ValidationFailure::BrokenLink(
-                            link,
-                        )));
-                    }
+                if !self.calculate_deleted(&link)? && self.maybe_find(&target).is_none() {
+                    return Err(SharedError::ValidationFailure(ValidationFailure::BrokenLink(
+                        link,
+                    )));
                 }
             }
         }
