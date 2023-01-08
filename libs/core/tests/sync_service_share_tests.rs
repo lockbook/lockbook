@@ -186,6 +186,34 @@ fn move_file_with_child() {
 }
 
 #[test]
+fn delete_accepted_share() {
+    let cores = vec![test_core_with_account(), test_core_with_account()];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    let folder = cores[0].create_at_path("folder/").unwrap();
+    cores[0]
+        .share_file(folder.id, &accounts[1].username, ShareMode::Read)
+        .unwrap();
+    cores[0].sync(None).unwrap();
+
+    cores[1].sync(None).unwrap();
+    let shares = cores[1].get_pending_shares().unwrap();
+    cores[1].create_link_at_path("link", shares[0].id).unwrap();
+    cores[1].sync(None).unwrap();
+
+    cores[1].delete_pending_share(folder.id).unwrap();
+    cores[1].sync(None).unwrap(); // this succeeds...
+    cores[1].sync(None).unwrap(); // ...and this fails (before being fixed)
+    cores[0].sync(None).unwrap();
+
+    assert_stuff(&cores[0], &cores[1]);
+    assert::all_paths(&cores[1], &["/"]);
+}
+
+#[test]
 fn synced_files() {
     let cores = vec![test_core_with_account(), test_core_with_account()];
     let accounts = cores
