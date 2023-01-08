@@ -20,12 +20,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         let doc = tree.read_document(self.config, &id, account)?;
 
-        let read_count = self
-            .tx
-            .read_activity
-            .get(&id)
-            .ok_or(CoreError::FileNonexistent)?;
-        self.tx.read_activity.insert(id, *read_count + 1);
+        let read_count = *self.tx.write_activity.get(&id).unwrap_or(&1);
+        self.tx.read_activity.insert(id, read_count + 1);
 
         Ok(doc)
     }
@@ -48,12 +44,8 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         let hmac = tree.find(&id)?.document_hmac();
         document_repo::insert(self.config, &id, hmac, &encrypted_document)?;
 
-        let write_count = self
-            .tx
-            .write_activity
-            .get(&id)
-            .ok_or(CoreError::FileNonexistent)?;
-        self.tx.write_activity.insert(id, *write_count + 1);
+        let write_count = *self.tx.write_activity.get(&id).unwrap_or(&1);
+        self.tx.write_activity.insert(id, write_count + 1);
 
         Ok(())
     }
