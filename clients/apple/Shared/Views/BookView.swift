@@ -10,7 +10,7 @@ struct BookView: View {
 
     let currentFolder: File
     let account: Account
-
+    
     #if os(iOS)
     @Environment(\.horizontalSizeClass) var horizontal
     @Environment(\.verticalSizeClass) var vertical
@@ -63,8 +63,6 @@ struct BookView: View {
                                     Image(systemName: "gearshape.fill").foregroundColor(.blue)
                                         .padding(.horizontal, 10)
                                     }
-                            
-                            
                         }
                     }
         }

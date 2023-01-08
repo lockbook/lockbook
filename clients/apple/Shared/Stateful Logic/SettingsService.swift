@@ -11,7 +11,6 @@ class SettingsService: ObservableObject {
     
     let core: LockbookApi
     @Published var offline: Bool = false
-    @Published var pendingShares: [File] = []
     @Published var usages: PrerequisiteInformation?
 
     var usageProgress: Double {
@@ -114,15 +113,6 @@ class SettingsService: ObservableObject {
             }
     }
     
-    func calculatePendingShares() {
-        switch core.getPendingShares() {
-        case .success(let shares):
-            pendingShares = shares
-        case .failure(let err):
-            DI.errors.handleError(err)
-        }
-    }
-    
     func accountCode() -> AnyView {
         switch core.exportAccount() {
         case .success(let accountString):
@@ -140,26 +130,6 @@ class SettingsService: ObservableObject {
             DI.errors.handleError(err)
         }
         return AnyView(Text("Failed to generate QR Code"))
-    }
-    
-    func rejectShare(id: UUID) {
-        if case .failure(let err) = core.deletePendingShare(id: id) {
-            DI.errors.handleError(err)
-        }
-        
-        calculatePendingShares()
-    }
-    
-    func acceptShare(targetMeta: File, parent: UUID) {
-        if case .failure(let err) = core.createLink(name: targetMeta.name, dirId: targetMeta.id, target: parent) {
-            DI.errors.handleError(err)
-        }
-    }
-    
-    func shareFile(id: UUID, username: String, isWrite: Bool) {
-        if case .failure(let err) = core.shareFile(id: id, username: username, isWrite: isWrite) {
-            DI.errors.handleError(err)
-        }
     }
 }
 

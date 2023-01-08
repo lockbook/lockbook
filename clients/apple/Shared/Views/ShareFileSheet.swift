@@ -4,7 +4,7 @@ import SwiftLockbookCore
 
 struct ShareFileSheet: View {
     
-    @EnvironmentObject var settings: SettingsService
+    @EnvironmentObject var share: ShareService
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var sync: SyncService
     
@@ -18,37 +18,110 @@ struct ShareFileSheet: View {
             VStack(alignment: .leading, spacing: 15) {
                 HStack(alignment: .center) {
                     Text("Sharing: \(meta.name)")
-                            .bold()
-                            .font(.title)
+                        .bold()
+                        .font(.title)
+                    
                     Spacer()
+                    
                     Button(action: { presentationMode.wrappedValue.dismiss() }) {
                         Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.gray)
-                                .imageScale(.large)
-                                .frame(width: 50, height: 50, alignment: .center)
+                            .foregroundColor(.gray)
+                            .imageScale(.large)
+                            .frame(width: 50, height: 50, alignment: .center)
                     }
                 }
+                
                 TextField("Username", text: $username)
                     .disableAutocorrection(true)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                 
-                Picker("Share mode", selection: $isWriteSelected) {
-                    Text("Write").tag(true)
-                    Text("Read").tag(false)
-                }
+                #if os(macOS)
+                shareMode
+                    .pickerStyle(.radioGroup)
+                #elseif os(iOS)
+                shareMode
+                #endif
                 
                 Button("Share") {
-                    settings.shareFile(id: meta.id, username: username, isWrite: isWriteSelected)
-                    presentationMode.wrappedValue.dismiss()
+                    share.shareFile(id: meta.id, username: username, isWrite: isWriteSelected)
                     sync.sync()
+                    presentationMode.wrappedValue.dismiss()
                 }
-                    .buttonStyle(.borderedProminent)
+                .buttonStyle(.borderedProminent)
+                
                 Spacer()
+                
+                Text("Write Access:")
+                if let shareInfo = share.shareInfos[meta] {
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 40) {
+                            ForEach(shareInfo.writeAccessUsers, id: \.self) { username in
+                                SharedUserCell(username: username)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+                
+                
+                Text("Read Access:")
+                if let shareInfo = share.shareInfos[meta] {
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 40) {
+                            ForEach(shareInfo.readAccessUsers, id: \.self) { username in
+                                SharedUserCell(username: username)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+//                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
-                    .padding()
+            .frameForMacOS()
+            .padding()
+            .onAppear {
+                share.calculateShareInfo(file: meta)
+            }
         }
     }
     
-//    @ViewBuilder
-//    var pendingShares: some View {}
+    @ViewBuilder
+    var shareMode: some View {
+        Picker("Share mode", selection: $isWriteSelected) {
+            Text("Write").tag(true)
+            Text("Read").tag(false)
+        }
+    }
+}
+    
+struct SharedUserCell: View {
+    let username: String
+    
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "person.circle")
+                .foregroundColor(.blue)
+                
+            Text(username)
+                .font(.body)
+                .frame(width: 50)
+        }
+            .contentShape(Rectangle())
+            .frame(maxWidth: 50)
+    }
+}
+
+let usernames = ["smail", "parth", "travis", "steve"]
+
+struct SharedUserCell_Previews: PreviewProvider {
+    static var previews: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 40) {
+                ForEach(usernames, id: \.self) {username in
+                    SharedUserCell(username: username)
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
 }

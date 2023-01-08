@@ -12,6 +12,7 @@ class DI {
     static let status = StatusService(core)
     static let files = FileService(core)
     static let sync = SyncService(core)
+    static let share = ShareService(core)
     static let onboarding = OnboardingService(core)
     static let documentLoader = DocumentLoader(core)
     static let sheets: SheetState = SheetState()
@@ -33,6 +34,7 @@ class Mock {
     static let status = StatusService(core)
     static let files = FileService(core)
     static let sync = SyncService(core)
+    static let share = ShareService(core)
     static let onboarding = OnboardingService(core)
     static let documentLoader = DocumentLoader(core)
     static let sheets: SheetState = SheetState()
@@ -66,6 +68,7 @@ extension View {
             .environmentObject(DI.sheets)
             .environmentObject(DI.currentDoc)
             .environmentObject(DI.billing)
+            .environmentObject(DI.share)
     }
     
     public func mockiOSDI() -> some View {
@@ -92,5 +95,6 @@ extension View {
             .environmentObject(Mock.sheets)
             .environmentObject(Mock.currentDoc)
             .environmentObject(Mock.billing)
+            .environmentObject(Mock.share)
     }
 }

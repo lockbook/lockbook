@@ -77,7 +77,7 @@ Vestibulum ante ipsum primis in vel.
     
     public func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<File, CreateFileError> {
         let now = Date().timeIntervalSince1970
-        return .success(File(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parent: dirId, name: "new_file.md", lastModifiedBy: username, lastModified: UInt64(now)))
+        return .success(File(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parent: dirId, name: "new_file.md", lastModifiedBy: username, lastModified: UInt64(now), shares: []))
     }
     
     public func createLink(name: String, dirId: UUID, target: UUID) -> FfiResult<Empty, CreateFileError> {
@@ -129,16 +129,16 @@ Vestibulum ante ipsum primis in vel.
     }
     
     public let username: Account.Username = "jeff"
-    public static let root = File(fileType: .Folder, id: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "jeff", lastModifiedBy: "jeff",  lastModified: 1587384000000)
+    public static let root = File(fileType: .Folder, id: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "jeff", lastModifiedBy: "jeff",  lastModified: 1587384000000, shares: [])
     public static let fileMetas = [
         root,
-        File(fileType: .Document, id: UUID(uuidString: "e956c7a2-db7f-4f9d-98c3-217847acf23a").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "first_file.md", lastModifiedBy: "jeff", lastModified: 1587384000000),
-        File(fileType: .Document, id: UUID(uuidString: "644d1d56-8e24-4a32-8304-e906435f95db").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "another_file.md", lastModifiedBy: "jeff", lastModified: 1587384000000),
-        File(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "third_file.md", lastModifiedBy: "jeff", lastModified: 1587384000000),
-        File(fileType: .Folder, id: UUID(uuidString: "53470907-5628-49eb-a8b0-8212cf9c8a91").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "nice_stuff", lastModifiedBy: "jeff", lastModified: 1587384000000),
-        File(fileType: .Document, id: UUID(uuidString: "7578bedd-6429-47ad-b03d-a8d9eebaec0c").unsafelyUnwrapped, parent: UUID(uuidString: "53470907-5628-49eb-a8b0-8212cf9c8a91").unsafelyUnwrapped, name: "nice_1.txt", lastModifiedBy: "jeff", lastModified: 1587384000000),
-        File(fileType: .Document, id: UUID(uuidString: "c27e3c81-a2cb-4638-8ab5-c395bc119b92").unsafelyUnwrapped, parent: UUID(uuidString: "53470907-5628-49eb-a8b0-8212cf9c8a91").unsafelyUnwrapped, name: "nice_2.txt", lastModifiedBy: "jeff", lastModified: 1587384000000),
-        File(fileType: .Folder, id: UUID(uuidString: "7ca0d23a-4d17-478c-9152-c37683761ce2").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "other_stuff", lastModifiedBy: "jeff", lastModified: 1587384000000),
-        File(fileType: .Folder, id: UUID(uuidString: "5e828f37-4695-477d-8157-7434cea29474").unsafelyUnwrapped, parent: UUID(uuidString: "7ca0d23a-4d17-478c-9152-c37683761ce2").unsafelyUnwrapped, name: "deep_other_stuff", lastModifiedBy: "jeff", lastModified: 1587384000000),
+        File(fileType: .Document, id: UUID(uuidString: "e956c7a2-db7f-4f9d-98c3-217847acf23a").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "first_file.md", lastModifiedBy: "jeff", lastModified: 1587384000000, shares: []),
+        File(fileType: .Document, id: UUID(uuidString: "644d1d56-8e24-4a32-8304-e906435f95db").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "another_file.md", lastModifiedBy: "jeff", lastModified: 1587384000000, shares: []),
+        File(fileType: .Document, id: UUID(uuidString: "c30a513a-0d75-4f10-ba1e-7a261ebbbe05").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "third_file.md", lastModifiedBy: "jeff", lastModified: 1587384000000, shares: []),
+        File(fileType: .Folder, id: UUID(uuidString: "53470907-5628-49eb-a8b0-8212cf9c8a91").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "nice_stuff", lastModifiedBy: "jeff", lastModified: 1587384000000, shares: []),
+        File(fileType: .Document, id: UUID(uuidString: "7578bedd-6429-47ad-b03d-a8d9eebaec0c").unsafelyUnwrapped, parent: UUID(uuidString: "53470907-5628-49eb-a8b0-8212cf9c8a91").unsafelyUnwrapped, name: "nice_1.txt", lastModifiedBy: "jeff", lastModified: 1587384000000, shares: []),
+        File(fileType: .Document, id: UUID(uuidString: "c27e3c81-a2cb-4638-8ab5-c395bc119b92").unsafelyUnwrapped, parent: UUID(uuidString: "53470907-5628-49eb-a8b0-8212cf9c8a91").unsafelyUnwrapped, name: "nice_2.txt", lastModifiedBy: "jeff", lastModified: 1587384000000, shares: []),
+        File(fileType: .Folder, id: UUID(uuidString: "7ca0d23a-4d17-478c-9152-c37683761ce2").unsafelyUnwrapped, parent: UUID(uuidString: "aa9c473b-79d3-4d11-b6c7-7c82d6fb94cc").unsafelyUnwrapped, name: "other_stuff", lastModifiedBy: "jeff", lastModified: 1587384000000, shares: []),
+        File(fileType: .Folder, id: UUID(uuidString: "5e828f37-4695-477d-8157-7434cea29474").unsafelyUnwrapped, parent: UUID(uuidString: "7ca0d23a-4d17-478c-9152-c37683761ce2").unsafelyUnwrapped, name: "deep_other_stuff", lastModifiedBy: "jeff", lastModified: 1587384000000, shares: []),
     ]
 }

@@ -4,11 +4,11 @@ import SwiftLockbookCore
 
 struct PendingSharesView: View {
     
-    @EnvironmentObject var settings: SettingsService
     @EnvironmentObject var sheets: SheetState
-    
+    @EnvironmentObject var share: ShareService
+        
     var body: some View {
-        if settings.pendingShares.isEmpty {
+        if share.pendingShares.isEmpty {
             noPendingShares
         } else {
             pendingShares
@@ -18,7 +18,7 @@ struct PendingSharesView: View {
     @ViewBuilder
     var pendingShares: some View {
         VStack {
-            List(settings.pendingShares.sorted { meta1, meta2 in
+            List(share.pendingShares.sorted { meta1, meta2 in
                 meta1 > meta2
             }) { meta in
                 SharedFileCell(meta: meta)
@@ -26,9 +26,9 @@ struct PendingSharesView: View {
             
             Spacer()
         }
-        .navigationBarTitle("Pending Shares")
+        .navigationTitle("Pending Shares")
         .onAppear {
-                settings.calculatePendingShares()
+                share.calculatePendingShares()
             }
         .sheet(isPresented: $sheets.acceptingShare, content: AcceptShareSheet.init)
     }
@@ -43,19 +43,21 @@ struct PendingSharesView: View {
             Text("You have no pending shares.")
             Spacer()
         }
-        .navigationBarTitle("Pending Shares")
+        .navigationTitle("Pending Shares")
         .onAppear {
-                settings.calculatePendingShares()
+                share.calculatePendingShares()
             }
     }
 }
 
 struct SharedFileCell: View {
     
-    @EnvironmentObject var settings: SettingsService
     @EnvironmentObject var sheets: SheetState
+    @EnvironmentObject var share: ShareService
     
     let meta: File
+    
+    @State var showRejectConfirmation = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -76,7 +78,7 @@ struct SharedFileCell: View {
             }
             
             Button {
-                settings.rejectShare(id: meta.id)
+                showRejectConfirmation = true
             } label: {
                 Image(systemName: "minus.circle")
                     .imageScale(.large)
@@ -85,6 +87,12 @@ struct SharedFileCell: View {
         }
                 .padding(.vertical, 7)
                 .contentShape(Rectangle())
+                .confirmationDialog("Are you sure you want to reject \(meta.name)", isPresented: $showRejectConfirmation) {
+                    Button("Reject \(meta.name)", role: .destructive) {
+                        share.rejectShare(id: meta.id)
+                    }
+                }
+
     }
 }
 
