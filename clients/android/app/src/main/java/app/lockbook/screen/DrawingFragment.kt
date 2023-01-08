@@ -49,9 +49,9 @@ class DrawingFragment : Fragment() {
                     if (modelClass.isAssignableFrom(DrawingViewModel::class.java))
                         return DrawingViewModel(
                             requireActivity().application,
-                            activityModel.detailsScreen!!.fileMetadata.id,
+                            activityModel.detailScreen!!.getUsedFile().id,
                             PersistentDrawingInfo(
-                                drawing = (activityModel.detailsScreen as DetailsScreen.Drawing).drawing
+                                drawing = (activityModel.detailScreen as DetailScreen.Drawing).drawing
                             )
                         ) as T
                     throw IllegalArgumentException("Unknown ViewModel class")

@@ -37,3 +37,11 @@
 ![settings-2.png](settings-2.png)
 
 </details>
+
+## Billing
+<details>
+
+![billing-light.png](billing-light.png)
+![billing-dark.png](billing-dark.png)
+
+</details>

@@ -358,7 +358,8 @@ enum class CancelSubscriptionError : UiCoreError {
     UsageIsOverFreeTierDataCap,
     ExistingRequestPending,
     CouldNotReachServer,
-    ClientUpdateRequired;
+    ClientUpdateRequired,
+    CannotCancelForAppStore;
 
     override fun toLbError(res: Resources): LbError = when (this) {
         NotPremium -> LbError.newUserError(getString(res, R.string.not_premium))
@@ -367,6 +368,7 @@ enum class CancelSubscriptionError : UiCoreError {
         ExistingRequestPending -> LbError.newUserError(getString(res, R.string.existing_request_pending))
         CouldNotReachServer -> LbError.newUserError(getString(res, R.string.could_not_reach_server))
         ClientUpdateRequired -> LbError.newUserError(getString(res, R.string.client_update_required))
+        CannotCancelForAppStore -> LbError.newUserError(getString(res, R.string.cannot_cancel_for_app_store))
     }
 }
 
@@ -392,6 +394,34 @@ enum class ExportFileError : UiCoreError {
         // Used basic errors since specific errors are not useful to the user
         DiskPathTaken -> LbError.newUserError(getString(res, R.string.basic_error))
         DiskPathInvalid -> LbError.newUserError(getString(res, R.string.basic_error))
+    }
+}
+
+@Serializable
+enum class ShareFileError : UiCoreError {
+    CannotShareRoot,
+    FileNonexistent,
+    ShareAlreadyExists,
+    LinkInSharedFolder,
+    InsufficientPermission;
+
+    override fun toLbError(res: Resources): LbError = when (this) {
+        CannotShareRoot -> LbError.newUserError(getString(res, R.string.cannot_share_root))
+        FileNonexistent -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
+        ShareAlreadyExists -> LbError.newUserError(getString(res, R.string.share_already_exists))
+        LinkInSharedFolder -> LbError.newUserError(getString(res, R.string.link_in_shared_folder))
+        InsufficientPermission -> LbError.newUserError(getString(res, R.string.insufficient_permissions))
+    }
+}
+
+@Serializable
+enum class DeletePendingShareError : UiCoreError {
+    FileNonexistent,
+    ShareNonexistent;
+
+    override fun toLbError(res: Resources): LbError = when (this) {
+        FileNonexistent -> LbError.newUserError(getString(res, R.string.file_does_not_exist))
+        ShareNonexistent -> LbError.newUserError(getString(res, R.string.share_non_existant))
     }
 }
 
