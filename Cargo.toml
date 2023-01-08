@@ -1,9 +1,9 @@
 [workspace]
 
 members = [
-	"core",
-	"core/libs/shared",
-	"core/libs/test_utils",
+	"libs/core",
+	"libs/core/libs/shared",
+	"libs/core/libs/test_utils",
 	"server/server",
 	"clients/cli",
 	"clients/egui",

@@ -47,6 +47,13 @@ unsafe fn filter_from_ptr(s: *const c_char) -> Option<Filter> {
     filter_from_str(&str_from_ptr(s)).expect("Could not String -> Option<Filter>")
 }
 
+#[no_mangle]
+pub extern "C" fn default_api_location() -> *const c_char {
+    static C_DEFAULT_API_LOCATION: &str = "https://api.prod.lockbook.net\0";
+
+    C_DEFAULT_API_LOCATION.as_ptr() as *const c_char
+}
+
 /// # Safety
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
@@ -167,6 +174,17 @@ pub unsafe extern "C" fn create_file(
 pub unsafe extern "C" fn get_root() -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.get_root()),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn get_file_by_id(id: *const c_char) -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.get_file_by_id(uuid_from_ptr(id))),
         e => translate(e.map(|_| ())),
     })
 }
@@ -440,4 +458,17 @@ pub unsafe extern "C" fn validate() -> *const c_char {
 #[no_mangle]
 pub unsafe extern "C" fn get_variants() -> *const c_char {
     json_c_string(get_all_error_variants())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn ffi_api_location_matches() {
+        unsafe {
+            let ffi_val = std::ffi::CStr::from_ptr(super::default_api_location())
+                .to_str()
+                .expect("Could not C String -> Rust str");
+            assert_eq!(crate::DEFAULT_API_LOCATION, ffi_val)
+        }
+    }
 }
