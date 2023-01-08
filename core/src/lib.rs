@@ -62,10 +62,10 @@ use crate::service::api_service::{Network, Requester};
 use crate::service::log_service;
 use crate::service::search_service::{SearchResultItem, StartSearchInfo};
 
-type CoreDb = repo::schema_v2::CoreV2;
-pub type OneKey = repo::schema_v2::OneKey;
-type Tx<'a> = repo::schema_v2::Tx<'a>;
-type Transaction<'a> = repo::schema_v2::transaction::CoreV2<'a>;
+type CoreDb = repo::schema_v3::CoreV3;
+pub type OneKey = repo::schema_v3::OneKey;
+type Tx<'a> = repo::schema_v3::Tx<'a>;
+type Transaction<'a> = repo::schema_v3::transaction::CoreV3<'a>;
 
 #[derive(Clone, Debug, Default)]
 pub struct DataCache {
