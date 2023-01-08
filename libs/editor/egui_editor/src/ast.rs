@@ -5,12 +5,12 @@ use std::ops::Range;
 
 #[derive(Default, Debug)]
 pub struct Ast {
-    pub nodes: Vec<ASTNode>,
+    pub nodes: Vec<AstNode>,
     pub root: usize,
 }
 
 #[derive(Default, Debug)]
-pub struct ASTNode {
+pub struct AstNode {
     pub element: Element,
     pub range: Range<DocByteOffset>,
     pub children: Vec<usize>,
@@ -22,7 +22,7 @@ impl Ast {
         options.insert(Options::ENABLE_STRIKETHROUGH);
         let parser = Parser::new_ext(raw, options);
         let mut result = Self {
-            nodes: vec![ASTNode::new(
+            nodes: vec![AstNode::new(
                 Element::Document,
                 Range { start: DocByteOffset(0), end: DocByteOffset(raw.len()) },
             )],
@@ -48,12 +48,12 @@ impl Ast {
                         }
 
                         let new_child_idx =
-                            self.push_child(current_idx, ASTNode::new(new_child, range));
+                            self.push_child(current_idx, AstNode::new(new_child, range));
                         self.push_children(new_child_idx, iter, raw);
                     }
                 }
                 Event::Code(_) => {
-                    self.push_child(current_idx, ASTNode::new(Element::InlineCode, range));
+                    self.push_child(current_idx, AstNode::new(Element::InlineCode, range));
                 }
                 Event::End(done) => {
                     if let Some(done) = Element::from_tag(done) {
@@ -67,7 +67,7 @@ impl Ast {
         }
     }
 
-    fn push_child(&mut self, parent_idx: usize, node: ASTNode) -> usize {
+    fn push_child(&mut self, parent_idx: usize, node: AstNode) -> usize {
         let new_child_idx = self.nodes.len();
         self.nodes.push(node);
         self.nodes[parent_idx].children.push(new_child_idx);
@@ -77,7 +77,7 @@ impl Ast {
     fn look_back_whitespace(s: &str, index: DocByteOffset) -> usize {
         if index == 0 {
             return 0;
-        };
+        }
 
         let mut modification = 0;
         loop {
@@ -115,7 +115,7 @@ impl Ast {
     }
 }
 
-impl ASTNode {
+impl AstNode {
     pub fn new(element: Element, range: Range<DocByteOffset>) -> Self {
         Self { element, range, children: vec![] }
     }
