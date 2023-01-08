@@ -227,11 +227,8 @@ where
         if self.calculate_deleted(&id)? {
             return Err(SharedError::FileNonexistent);
         }
-        let id = if let FileType::Link { target } = self.find(&id)?.file_type() {
-            target
-        } else {
-            id
-        };
+        let id =
+            if let FileType::Link { target } = self.find(&id)?.file_type() { target } else { id };
         let mut file = self.find(&id)?.timestamped_value.value.clone();
         validate::not_root(&file)?;
         if mode == ShareMode::Write && file.owner.0 != owner.0 {

@@ -190,9 +190,10 @@ where
             let meta = self.find(&link)?;
             if let FileType::Link { target: _ } = meta.file_type() {
                 if meta.is_shared() {
-                    return Err(SharedError::ValidationFailure(
-                        ValidationFailure::SharedLink { link, shared_ancestor: link },
-                    ));
+                    return Err(SharedError::ValidationFailure(ValidationFailure::SharedLink {
+                        link,
+                        shared_ancestor: link,
+                    }));
                 }
                 for ancestor in self.ancestors(&link)? {
                     if self.find(&ancestor)?.is_shared() {
