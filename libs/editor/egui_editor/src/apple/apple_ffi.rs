@@ -100,8 +100,12 @@ pub unsafe extern "C" fn key_event(
 #[no_mangle]
 pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_wheel: f32) {
     let obj = &mut *(obj as *mut WgpuEditor);
-    obj.raw_input.events.push(Event::PointerMoved(Pos2::new(250.0, 250.0)));
-    obj.raw_input.events.push(Event::Scroll(Vec2::new(0.0, scroll_wheel*2.0)))
+    obj.raw_input
+        .events
+        .push(Event::PointerMoved(Pos2::new(250.0, 250.0)));
+    obj.raw_input
+        .events
+        .push(Event::Scroll(Vec2::new(0.0, scroll_wheel * 2.0)))
 }
 
 async fn request_device(
