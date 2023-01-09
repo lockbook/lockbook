@@ -10,10 +10,10 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         let mut result: HashMap<Uuid, usize> = HashMap::new();
 
         for (k, v) in self.tx.read_activity.get_all() {
-            result.insert(*k, if result.contains_key(k) { *v } else { *v + result[k] });
+            result.insert(*k, result.get(k).unwrap_or(&0) + *v);
         }
         for (k, v) in self.tx.write_activity.get_all() {
-            result.insert(*k, if result.contains_key(k) { *v } else { *v + result[k] });
+            result.insert(*k, result.get(k).unwrap_or(&0) + *v);
         }
 
         let result = result
