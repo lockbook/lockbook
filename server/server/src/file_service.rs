@@ -59,6 +59,8 @@ pub async fn upsert_file_metadata(
                     }
                 }
             }
+
+            tx.last_seen.insert(req_owner, get_time().0 as u64);
             Ok(())
         })??;
 
@@ -261,6 +263,7 @@ pub async fn change_doc(
 
         tx.sizes.insert(*meta.id(), new_size);
         tree.stage(vec![new]).promote();
+        tx.last_seen.insert(owner, get_time().0 as u64);
 
         Ok(())
     })?;

@@ -12,7 +12,7 @@ use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_service::StripeWebhookError;
 use crate::billing::stripe_client::SimplifiedStripeError;
 use crate::billing::stripe_model::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
-use crate::schema::v2::{transaction, Server};
+use crate::schema::v3::{transaction, Server};
 use crate::ServerError::ClientError;
 pub use stripe;
 
