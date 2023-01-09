@@ -1,9 +1,9 @@
 use crate::CoreError;
 use hmdb::transaction::Transaction;
+use lockbook_shared;
 use lockbook_shared::account::Account;
 use lockbook_shared::file_metadata::Owner;
 use lockbook_shared::signed_file::SignedFile;
-use lockbook_shared;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
