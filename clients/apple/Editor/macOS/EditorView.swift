@@ -7,6 +7,6 @@ struct EditorView: View {
     @EnvironmentObject var model: DocumentLoader
 
     var body: some View {
-        MetalView()
+        MetalView(text: model.textDocument!)
     }
 }

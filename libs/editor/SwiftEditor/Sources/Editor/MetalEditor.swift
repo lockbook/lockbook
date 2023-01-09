@@ -5,8 +5,8 @@ public struct MetalView: NSViewRepresentable {
     let mtkView = CustomMTK()
     let frameManager: FrameManager
 
-    public init() {
-        self.frameManager = FrameManager(mtkView)
+    public init(text: String) {
+        self.frameManager = FrameManager(mtkView, text: text)
     }
     
     public func makeNSView(context: NSViewRepresentableContext<MetalView>) -> MTKView {

@@ -15,7 +15,7 @@ class CustomMTK: MTKView  {
     }
     
     override func scrollWheel(with event: NSEvent) {
-        print(event.scrollingDeltaY)
+        scroll_wheel(obj(), Float(event.scrollingDeltaY)) // todo: get x too
     }
     
     override func keyDown(with event: NSEvent) {
@@ -39,18 +39,16 @@ class FrameManager: NSObject, MTKViewDelegate {
     var metalDevice: MTLDevice!
     var metalCommandQueue: MTLCommandQueue!
     
-    init(_ parent: CustomMTK) {
+    init(_ parent: CustomMTK, text: String) {
         self.parent = parent
         print(self.parent.window?.backingScaleFactor)
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passRetained(self.parent.layer!).toOpaque())
-        self.editorHandle = init_editor(metalLayer)
+        self.editorHandle = init_editor(metalLayer, text)
         
         super.init()
     }
     
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-        print("size")
-//        print( Float(size.width), Float(size.height), Float(view.layer!.contentsScale))
         let scale = self.parent.window?.backingScaleFactor ?? 1.0
         print(Float(size.width), Float(size.height), Float(scale))
         resize_editor(editorHandle, Float(size.width), Float(size.height), Float(scale))

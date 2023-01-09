@@ -1,13 +1,13 @@
 use crate::apple::keyboard::NSKeys;
 use crate::{Editor, WgpuEditor};
-use egui::{Context, Event};
+use egui::{Context, Event, Pos2, Vec2};
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use std::ffi::{c_char, c_void, CStr};
 
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn init_editor(
-    metal_layer: *mut c_void, //, width: u32, height: u32, scaling: u32,
+    metal_layer: *mut c_void, content: *const c_char,
 ) -> *mut c_void {
     let backend = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
     let instance = wgpu::Instance::new(backend);
@@ -27,8 +27,9 @@ pub unsafe extern "C" fn init_editor(
     let rpass = egui_wgpu_backend::RenderPass::new(&device, surface_format, 1);
 
     let context = Context::default();
-    let editor = Editor::default();
+    let mut editor = Editor::default();
     editor.set_font(&context);
+    editor.raw = CStr::from_ptr(content).to_str().unwrap().to_string();
 
     let mut obj = WgpuEditor {
         device,
@@ -93,6 +94,14 @@ pub unsafe extern "C" fn key_event(
     obj.raw_input
         .events
         .push(Event::Key { key, pressed, modifiers });
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_wheel: f32) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+    obj.raw_input.events.push(Event::PointerMoved(Pos2::new(250.0, 250.0)));
+    obj.raw_input.events.push(Event::Scroll(Vec2::new(0.0, scroll_wheel*2.0)))
 }
 
 async fn request_device(
