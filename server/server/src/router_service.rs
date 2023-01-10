@@ -343,14 +343,15 @@ pub fn deserialize_and_check<Req>(
 where
     Req: Request + DeserializeOwned + Serialize,
 {
-    handle_version_header::<Req>(&version)?;
-
     let request = serde_json::from_slice(request.as_ref()).map_err(|err| {
         warn!("Request parsing failure: {}", err);
         ErrorWrapper::<Req::Error>::BadRequest
     })?;
 
-    handle_version_body::<Req>(&request)?;
+    // todo: get rid of body checking and just rely on header check.
+    if let Err(_) = handle_version_header::<Req>(&version) {
+        handle_version_body::<Req>(&request)?;
+    };
 
     verify_auth(server_state, &request).map_err(|err| match err {
         SharedError::SignatureExpired(_) | SharedError::SignatureInTheFuture(_) => {

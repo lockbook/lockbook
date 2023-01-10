@@ -68,7 +68,7 @@ pub fn handle_version_header<Req: Request>(
                 .inc();
             Ok(())
         }
-        _ => Ok(()),
+        _ => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
     }
 }
 
