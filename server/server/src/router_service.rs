@@ -349,8 +349,8 @@ where
     })?;
 
     // todo: get rid of body checking and just rely on header check.
-    if let Err(_) = handle_version_header::<Req>(&version) {
-        handle_version_body::<Req>(&request)?;
+    if handle_version_header::<Req>(&server_state.config, &version).is_err() {
+        handle_version_body::<Req>(&server_state.config, &request)?;
     };
 
     verify_auth(server_state, &request).map_err(|err| match err {

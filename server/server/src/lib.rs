@@ -58,11 +58,11 @@ macro_rules! internal {
 }
 
 pub fn handle_version_header<Req: Request>(
-    version: &Option<String>,
+    config: &config::Config, version: &Option<String>,
 ) -> Result<(), ErrorWrapper<Req::Error>> {
-    let versions = vec!["0.5.5", "0.5.6"];
-    match version.as_deref() {
-        Some(x) if versions.contains(&x) => {
+    let versions = &config.server.compatible_core_versions;
+    match version {
+        Some(x) if versions.contains(x) => {
             router_service::CORE_VERSION_COUNTER
                 .with_label_values(&[x])
                 .inc();
@@ -73,15 +73,15 @@ pub fn handle_version_header<Req: Request>(
 }
 
 pub fn handle_version_body<Req: Request>(
-    request: &RequestWrapper<Req>,
+    config: &config::Config, request: &RequestWrapper<Req>,
 ) -> Result<(), ErrorWrapper<Req::Error>> {
-    let versions = vec!["0.5.5", "0.5.6"];
-    let client_version = request.client_version.as_str();
+    let versions = &config.server.compatible_core_versions;
+    let client_version = &request.client_version;
 
-    match versions.contains(&client_version) {
+    match versions.contains(client_version) {
         true => {
             router_service::CORE_VERSION_COUNTER
-                .with_label_values(&[client_version])
+                .with_label_values(&[client_version.as_str()])
                 .inc();
             Ok(())
         }
