@@ -66,6 +66,9 @@ pub async fn upsert_file_metadata(
 
     for update in request.updates {
         let new = update.new;
+        if new.secret_name().encrypted_value.value.len() > 508 {
+            return Err(ServerError::ClientError(UpsertError::InvalidFileName));
+        }
         let id = *new.id();
         match update.old {
             None => {
@@ -161,6 +164,10 @@ pub async fn change_doc(
             .metas
             .get(request.diff.new.id())
             .ok_or(ClientError(DocumentNotFound))?;
+
+        if meta.file.secret_name().encrypted_value.value.len() > 508 {
+            return Err(ClientError(InvalidFileName));
+        }
 
         let meta_owner = meta.owner();
 

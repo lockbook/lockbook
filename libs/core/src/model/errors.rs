@@ -145,6 +145,7 @@ pub enum CoreError {
     InvalidCardNumber,
     InvalidPurchaseToken,
     InvalidAuthDetails,
+    InvalidFileName,
     LinkInSharedFolder,
     LinkTargetIsOwned,
     LinkTargetNonexistent,
