@@ -97,7 +97,7 @@ pub mod no_network {
     use lockbook_server_lib::billing::google_play_client::get_google_play_client;
     use lockbook_server_lib::config::*;
     use lockbook_server_lib::file_service::*;
-    use lockbook_server_lib::schema::v2;
+    use lockbook_server_lib::schema::v3;
     use lockbook_server_lib::{stripe, ServerError, ServerState};
     use lockbook_shared::account::Account;
     use lockbook_shared::api::*;
@@ -142,7 +142,7 @@ pub mod no_network {
             ));
             let app_store_client = reqwest::Client::new();
 
-            let index_db = v2::Server::init(&server_config.index_db.db_location)
+            let index_db = v3::Server::init(&server_config.index_db.db_location)
                 .expect("Failed to load index_db");
 
             let internals = InProcessInternals {
