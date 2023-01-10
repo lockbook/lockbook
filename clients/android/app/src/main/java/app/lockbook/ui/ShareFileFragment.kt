@@ -35,6 +35,11 @@ class ShareFileFragment : Fragment() {
     ): View {
         binding = FragmentShareFileBinding.inflate(inflater, container, false)
 
+        val file = (activityModel.detailScreen as DetailScreen.Share).file
+
+        binding.materialToolbar.subtitle = file.name
+        populateShares(file)
+
         binding.materialToolbar.setNavigationOnClickListener {
             activityModel.launchDetailScreen(null)
         }
@@ -51,13 +56,6 @@ class ShareFileFragment : Fragment() {
         }
 
         return binding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        val file = (activityModel.detailScreen as DetailScreen.Share).file
-
-        binding.materialToolbar.subtitle = file.name
-        populateShares(file)
     }
 
     private fun populateShares(file: File) {
