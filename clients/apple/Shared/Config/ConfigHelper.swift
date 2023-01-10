@@ -6,6 +6,7 @@ public enum ConfigHelper {
         case lockbookLocation = "LOCKBOOK_LOCATION"
     }
     private static let infoDictionary: [String: Any] = {
+        print(NSHomeDirectory())
         guard let dict = Bundle.main.infoDictionary else {
             fatalError("Plist file not found")
         }
@@ -25,7 +26,7 @@ public enum ConfigHelper {
     }
 
     #if os(macOS)
-    static let location: String =  FileManager.default.homeDirectoryForCurrentUser.path + "/.lockbook"
+    static let location: String =  NSHomeDirectory() + "/.lockbook"
     #else
     static let location: String =  FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).last!.path
     #endif
