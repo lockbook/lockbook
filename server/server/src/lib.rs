@@ -57,7 +57,7 @@ macro_rules! internal {
     }};
 }
 
-pub fn handle_version<Req: Request>(
+pub fn handle_version_header<Req: Request>(
     version: &Option<String>,
 ) -> Result<(), ErrorWrapper<Req::Error>> {
     let versions = vec!["0.5.5", "0.5.6"];
@@ -68,10 +68,26 @@ pub fn handle_version<Req: Request>(
                 .inc();
             Ok(())
         }
-        _ => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
+        _ => Ok(()),
     }
 }
 
+pub fn handle_version_body<Req: Request>(
+    request: &RequestWrapper<Req>,
+) -> Result<(), ErrorWrapper<Req::Error>> {
+    let versions = vec!["0.5.5", "0.5.6"];
+    let client_version = request.client_version.as_str();
+
+    match versions.contains(&client_version) {
+        true => {
+            router_service::CORE_VERSION_COUNTER
+                .with_label_values(&[client_version])
+                .inc();
+            Ok(())
+        }
+        false => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
+    }
+}
 pub fn verify_auth<TRequest: Request + Serialize>(
     server_state: &ServerState, request: &RequestWrapper<TRequest>,
 ) -> Result<(), SharedError> {

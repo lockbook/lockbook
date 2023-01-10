@@ -1,9 +1,9 @@
-use crate::account_service::*;
 use crate::billing::billing_service;
 use crate::billing::billing_service::*;
 use crate::file_service::*;
 use crate::utils::get_build_info;
-use crate::{handle_version, router_service, verify_auth, ServerError, ServerState};
+use crate::{account_service::*, handle_version_body};
+use crate::{handle_version_header, router_service, verify_auth, ServerError, ServerState};
 use lazy_static::lazy_static;
 use lockbook_shared::api::*;
 use lockbook_shared::api::{ErrorWrapper, Request, RequestWrapper};
@@ -343,12 +343,14 @@ pub fn deserialize_and_check<Req>(
 where
     Req: Request + DeserializeOwned + Serialize,
 {
-    handle_version::<Req>(&version)?;
+    handle_version_header::<Req>(&version)?;
 
     let request = serde_json::from_slice(request.as_ref()).map_err(|err| {
         warn!("Request parsing failure: {}", err);
         ErrorWrapper::<Req::Error>::BadRequest
     })?;
+
+    handle_version_body::<Req>(&request)?;
 
     verify_auth(server_state, &request).map_err(|err| match err {
         SharedError::SignatureExpired(_) | SharedError::SignatureInTheFuture(_) => {
