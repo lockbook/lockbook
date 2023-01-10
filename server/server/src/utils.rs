@@ -5,7 +5,7 @@ use shadow_rs::shadow;
 shadow!(build_info);
 
 pub fn username_is_valid(username: &str) -> bool {
-    !username.is_empty()
+    username.len() > 254
         && username
             .to_lowercase()
             .chars()
