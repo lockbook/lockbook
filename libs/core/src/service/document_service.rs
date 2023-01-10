@@ -20,7 +20,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
 
         let doc = tree.read_document(self.config, &id, account)?;
 
-        let read_count = *self.tx.write_activity.get(&id).unwrap_or(&1);
+        let read_count = *self.tx.read_activity.get(&id).unwrap_or(&1);
         self.tx.read_activity.insert(id, read_count + 1);
 
         Ok(doc)
