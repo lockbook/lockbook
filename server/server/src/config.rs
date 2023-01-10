@@ -241,23 +241,39 @@ pub struct AppleConfig {
 
 impl AppleConfig {
     pub fn from_env_vars() -> Self {
-        let apple_root_cert_dest = env_or_empty("APPLE_ROOT_CERT_PATH");
         let is_apple_prod = env_or_empty("IS_APPLE_PROD")
             .map(|is_apple_prod| is_apple_prod.parse().unwrap())
             .unwrap_or(false);
         let sub_statuses_url =
             if is_apple_prod { SUB_STATUS_PROD } else { SUB_STATUS_SANDBOX }.to_string();
 
+        let apple_root_cert =
+            env_or_empty("APPLE_ROOT_CERT_PATH").map(|cert_path| fs::read(cert_path).unwrap());
+        let apple_iap_key = env_or_empty("APPLE_IAP_KEY_PATH")
+            .map(|key_path| fs::read_to_string(key_path).unwrap());
+        let apple_asc_pub_key = env_or_empty("APPLE_ASC_PUB_KEY_PATH")
+            .map(|key_path| fs::read_to_string(key_path).unwrap());
+
         Self {
-            iap_key: env_or_panic("APPLE_IAP_KEY"),
+            iap_key: if is_apple_prod {
+                apple_iap_key.unwrap()
+            } else {
+                apple_iap_key.unwrap_or_default()
+            },
             iap_key_id: env_or_panic("APPLE_IAP_KEY_ID"),
-            asc_public_key: env_or_panic("APPLE_ASC_PUB_KEY"),
+            asc_public_key: if is_apple_prod {
+                apple_asc_pub_key.unwrap()
+            } else {
+                apple_asc_pub_key.unwrap_or_default()
+            },
             issuer_id: env_or_panic("APPLE_ISSUER_ID"),
             subscription_product_id: env_or_panic("APPLE_SUB_PROD_ID"),
             asc_shared_secret: env_or_panic("APPLE_ASC_SHARED_SECRET"),
-            apple_root_cert: apple_root_cert_dest
-                .map(|cert_path| fs::read(cert_path).unwrap())
-                .unwrap_or_default(),
+            apple_root_cert: if is_apple_prod {
+                apple_root_cert.unwrap()
+            } else {
+                apple_root_cert.unwrap_or_default()
+            },
             sub_statuses_url,
             monthly_sub_group_id: env_or_panic("APPLE_MONTHLY_SUB_GROUP_ID"),
         }
