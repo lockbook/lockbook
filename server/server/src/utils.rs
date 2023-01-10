@@ -3,9 +3,10 @@ use lockbook_shared::api::{GetBuildInfoError, GetBuildInfoResponse};
 use shadow_rs::shadow;
 
 shadow!(build_info);
+const USERNAME_MAX_SIZE: u32 = 254;
 
 pub fn username_is_valid(username: &str) -> bool {
-    username.len() > 254
+    username.len() > USERNAME_MAX_SIZE as usize
         && username
             .to_lowercase()
             .chars()
