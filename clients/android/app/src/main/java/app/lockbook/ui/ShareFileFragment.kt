@@ -4,8 +4,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.animation.AlphaAnimation
-import android.view.animation.Animation
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import app.lockbook.R
@@ -15,7 +13,6 @@ import app.lockbook.util.*
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.google.android.material.chip.Chip
-import com.google.android.material.chip.ChipGroup
 import java.lang.ref.WeakReference
 
 class ShareFileFragment : Fragment() {
@@ -28,7 +25,7 @@ class ShareFileFragment : Fragment() {
     }
 
     companion object {
-        val admittedUsernames = listOf("parth", "smail", "travis", "adam", "steve")
+        val admittedUsernames = listOf("parth", "smail", "travis", "adam", "steve", "krishma")
     }
 
     override fun onCreateView(
@@ -37,11 +34,6 @@ class ShareFileFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         binding = FragmentShareFileBinding.inflate(inflater, container, false)
-
-        val file = (activityModel.detailScreen as DetailScreen.Share).file
-
-        binding.materialToolbar.subtitle = file.name
-        populateShares(file)
 
         binding.materialToolbar.setNavigationOnClickListener {
             activityModel.launchDetailScreen(null)
@@ -59,6 +51,13 @@ class ShareFileFragment : Fragment() {
         }
 
         return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        val file = (activityModel.detailScreen as DetailScreen.Share).file
+
+        binding.materialToolbar.subtitle = file.name
+        populateShares(file)
     }
 
     private fun populateShares(file: File) {
@@ -100,33 +99,17 @@ class ShareFileFragment : Fragment() {
                 ShareMode.Read -> binding.shareFileReadAccessShares
             }
 
-            val chip = createShareChip(chipGroup, share.sharedWith)
+            val chip = createShareChip(share.sharedWith)
 
             chipGroup.addView(chip)
         }
     }
 
-    private fun createShareChip(chipGroup: ChipGroup, username: String): Chip = (
+    private fun createShareChip(username: String): Chip = (
         LayoutInflater.from(requireActivity())
-            .inflate(R.layout.chip_share, binding.root) as Chip
-        ).apply {
-        setOnClickListener {
-
-            val anim = AlphaAnimation(1f, 0f)
-            anim.duration = 250
-            anim.setAnimationListener(object : Animation.AnimationListener {
-                override fun onAnimationRepeat(animation: Animation?) {}
-
-                override fun onAnimationEnd(animation: Animation?) {
-                    chipGroup.removeView(it)
-                }
-
-                override fun onAnimationStart(animation: Animation?) {}
-            })
-
-            it.startAnimation(anim)
+            .inflate(R.layout.chip_share, null) as Chip
+        )
+        .apply {
+            text = username
         }
-
-        text = username
-    }
 }
