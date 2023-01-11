@@ -52,6 +52,11 @@ nav {
     align-items: center;
     background: linear-gradient(var(--background) -50%, transparent);
     z-index: 2;
+    top: 0;
+}
+.lockbook-link{
+    text-decoration: none;
+    color: var(--foreground)
 }
 .nav-links-container{
     display: flex;
@@ -75,7 +80,16 @@ nav {
 .cta-container a, #social h2{
     text-align: center;
 }
+article#eula, article#privacy-policy{
+    max-width: 700px;
+    padding: 0 2vw;
+    margin: 5em auto;
+}
 
+p.code{
+    font-family: monospace;
+    font-size: 0.7em;
+}
 @media (min-aspect-ratio: 1/1), (min-width: 800px) {
 
 
@@ -167,7 +181,7 @@ p {
     background-color:  rgb(0, 122, 255);
     border-radius: 5px;
 }
-.link {
+.link, a {
     color: rgb(0, 122, 255);
     text-decoration: none;
 }
