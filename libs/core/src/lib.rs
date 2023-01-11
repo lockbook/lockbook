@@ -23,8 +23,7 @@ pub use lockbook_shared::api::{
 pub use lockbook_shared::core_config::Config;
 pub use lockbook_shared::crypto::DecryptedDocument;
 pub use lockbook_shared::drawing::{ColorAlias, ColorRGB, Drawing, Stroke};
-pub use lockbook_shared::file::File;
-pub use lockbook_shared::file::ShareMode;
+pub use lockbook_shared::file::{File, Share, ShareMode};
 pub use lockbook_shared::file_like::FileLike;
 pub use lockbook_shared::file_metadata::{FileType, Owner};
 pub use lockbook_shared::filename::NameComponents;
