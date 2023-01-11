@@ -1,4 +1,6 @@
-use crate::billing::app_store_model::{LastTransactionItem, SubsStatusesResponse, TransactionInfo};
+use crate::billing::app_store_model::{
+    ErrorBody, LastTransactionItem, SubGroupIdentifierItem, SubsStatusesResponse, TransactionInfo,
+};
 use crate::config::AppleConfig;
 use crate::{ClientError, ServerError};
 use itertools::Itertools;
@@ -57,7 +59,7 @@ pub async fn get_sub_status(
 ) -> Result<(LastTransactionItem, TransactionInfo), ServerError<UpgradeAccountAppStoreError>> {
     let resp = gen_auth_req(
         config,
-        client.get(format!("{}/{}", config.sub_statuses_url, original_transaction_id)),
+        client.get(format!("{}/{}", SUB_STATUS_PROD, original_transaction_id)),
     )?
     .send()
     .await?;
@@ -65,61 +67,99 @@ pub async fn get_sub_status(
     let resp_status = resp.status().as_u16();
     match resp_status {
         200 => {
-            debug!("Successfully retrieved subscription status");
+            debug!("Successfully retrieved subscription status from production apple url");
 
             let sub_status: SubsStatusesResponse = resp.json().await?;
 
             for sub_group in &sub_status.data {
                 if sub_group.sub_group == config.monthly_sub_group_id {
-                    let last_trans = sub_group
-                        .last_transactions
-                        .get(0)
-                        .ok_or(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails))?;
-
-                    let part = <&str>::clone(
-                        last_trans
-                            .signed_transaction_info
-                            .split('.')
-                            .collect_vec()
-                            .get(1)
-                            .ok_or_else::<ServerError<UpgradeAccountAppStoreError>, _>(|| {
-                                internal!(
-                                    "There should be a payload in apple jwt: {:?}",
-                                    sub_status
-                                )
-                            })?,
-                    );
-
-                    let trans_info =
-                        serde_json::from_slice(&base64::decode(part).map_err::<ServerError<
-                            UpgradeAccountAppStoreError,
-                        >, _>(
-                            |err| {
-                                internal!(
-                                    "Cannot decode apple jwt payload: {:?}, err: {:?}",
-                                    part,
-                                    err
-                                )
-                            },
-                        )?)?;
-
-                    return Ok((last_trans.clone(), trans_info));
+                    return get_trans(&sub_status, sub_group);
                 }
             }
 
-            Err(internal!("No usable data returned from apple subscriptions statuses endpoint despite assumed match. resp_body: {:?}, monthly_sub_group: {}", sub_status, config.monthly_sub_group_id))
+            Err(internal!("No usable data returned from apple's production subscriptions statuses endpoint despite assumed match. resp_body: {:?}, monthly_sub_group: {}", sub_status, config.monthly_sub_group_id))
         }
         400 | 404 => {
-            let resp_body = resp.text().await.ok();
+            let error: ErrorBody = resp.json().await?;
+
+            if error.error_code == 4040005 {
+                debug!(
+                    "Could not verify subscription from apple's production servers, trying sandbox"
+                );
+
+                let resp = gen_auth_req(
+                    config,
+                    client.get(format!("{}/{}", SUB_STATUS_SANDBOX, original_transaction_id)),
+                )?
+                .send()
+                .await?;
+
+                let resp_status = resp.status().as_u16();
+                match resp_status {
+                    200 => {
+                        debug!("Successfully retrieved subscription status from sandbox apple url");
+
+                        let sub_status: SubsStatusesResponse = resp.json().await?;
+
+                        for sub_group in &sub_status.data {
+                            if sub_group.sub_group == config.monthly_sub_group_id {
+                                return get_trans(&sub_status, sub_group);
+                            }
+                        }
+
+                        return Err(internal!("No usable data returned from apple's sandbox subscriptions statuses endpoint despite assumed match. resp_body: {:?}, monthly_sub_group: {}", sub_status, config.monthly_sub_group_id));
+                    }
+                    400 | 404 => {
+                        error!(
+                            ?resp_status,
+                            ?error,
+                            ?original_transaction_id,
+                            "Failed to verify possible sandbox subscription"
+                        );
+
+                        return Err(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails));
+                    }
+                    _ => return Err(internal!("Unexpected response: {:?}", resp_status)),
+                }
+            }
+
             error!(
                 ?resp_status,
-                ?resp_body,
+                ?error,
                 ?original_transaction_id,
-                "Failed to verify subscription"
+                "Failed to verify possible production subscription"
             );
 
             Err(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails))
         }
         _ => Err(internal!("Unexpected response: {:?}", resp_status)),
     }
+}
+
+fn get_trans(
+    sub_status: &SubsStatusesResponse, sub_group: &SubGroupIdentifierItem,
+) -> Result<(LastTransactionItem, TransactionInfo), ServerError<UpgradeAccountAppStoreError>> {
+    let last_trans = sub_group
+        .last_transactions
+        .get(0)
+        .ok_or(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails))?;
+
+    let part = <&str>::clone(
+        last_trans
+            .signed_transaction_info
+            .split('.')
+            .collect_vec()
+            .get(1)
+            .ok_or_else::<ServerError<UpgradeAccountAppStoreError>, _>(|| {
+                internal!("There should be a payload in apple jwt: {:?}", sub_status)
+            })?,
+    );
+
+    let trans_info = serde_json::from_slice(&base64::decode(part).map_err::<ServerError<
+        UpgradeAccountAppStoreError,
+    >, _>(|err| {
+        internal!("Cannot decode apple jwt payload: {:?}, err: {:?}", part, err)
+    })?)?;
+
+    Ok((last_trans.clone(), trans_info))
 }
