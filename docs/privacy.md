@@ -11,3 +11,5 @@ We can see the shape of your file tree we know when a file is updated. We can te
 When you sign up for our premium tiers, some information is sent to a payment processor, and we only store the ids that the payment processor replies with.
 
 We do not store emails, credit cards, addresses, or any personally identifiable information.
+
+We do not co-operate with state actors unless we are ordered by a court to do so.
