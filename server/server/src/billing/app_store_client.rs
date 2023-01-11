@@ -20,6 +20,8 @@ const TYP: &str = "JWT";
 const AUDIENCE: &str = "appstoreconnect-v1";
 const BUNDLE_ID: &str = "app.lockbook";
 
+pub const ORIGINAL_TRANS_ID_NOT_FOUND_ERR_CODE: u64 = 4040005;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Claims {
     iss: String,
@@ -82,7 +84,7 @@ pub async fn get_sub_status(
         400 | 404 => {
             let error: ErrorBody = resp.json().await?;
 
-            if error.error_code == 4040005 {
+            if error.error_code == ORIGINAL_TRANS_ID_NOT_FOUND_ERR_CODE {
                 debug!(
                     "Could not verify subscription from apple's production servers, trying sandbox"
                 );
