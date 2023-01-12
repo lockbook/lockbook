@@ -43,7 +43,7 @@ struct SettingsView: View, Equatable {
                         Text("Reveal QR")
                     }
                 }
-                Section(header:  Text("Usage")) {
+                Section(header:  Text("USAGE")) {
                     if let usage = settingsState.usages {
                         VStack (alignment: .leading) {
                             HStack {
@@ -101,6 +101,16 @@ struct SettingsView: View, Equatable {
                     }
                 }
                 .onAppear(perform: settingsState.calculateUsage)
+                
+                Section(header: Text("PRIVACY")) {
+                    Link("Privacy Policy", destination: URL(string: "https://lockbook.net/privacy-policy")!)
+                        .foregroundColor(.blue)
+                        .padding(.leading, 3)
+                    
+                    Link("End User License Agreement", destination: URL(string: "https://lockbook.net/eula")!)
+                        .foregroundColor(.blue)
+                        .padding(.leading, 3)
+                }
             }.navigationBarTitle("Settings")
         }
     }
