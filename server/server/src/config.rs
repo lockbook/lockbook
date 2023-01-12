@@ -1,4 +1,3 @@
-use crate::billing::app_store_client::{SUB_STATUS_PROD, SUB_STATUS_SANDBOX};
 use crate::config::Environment::{Local, Prod, Unknown};
 use lockbook_shared::account::Username;
 use std::collections::HashSet;
@@ -236,7 +235,6 @@ pub struct AppleConfig {
     pub asc_shared_secret: String,
     pub apple_root_cert: Vec<u8>,
     pub monthly_sub_group_id: String,
-    pub sub_statuses_url: String,
 }
 
 impl AppleConfig {
@@ -244,8 +242,6 @@ impl AppleConfig {
         let is_apple_prod = env_or_empty("IS_APPLE_PROD")
             .map(|is_apple_prod| is_apple_prod.parse().unwrap())
             .unwrap_or(false);
-        let sub_statuses_url =
-            if is_apple_prod { SUB_STATUS_PROD } else { SUB_STATUS_SANDBOX }.to_string();
 
         let apple_root_cert =
             env_or_empty("APPLE_ROOT_CERT_PATH").map(|cert_path| fs::read(cert_path).unwrap());
@@ -274,7 +270,6 @@ impl AppleConfig {
             } else {
                 apple_root_cert.unwrap_or_default()
             },
-            sub_statuses_url,
             monthly_sub_group_id: env_or_panic("APPLE_MONTHLY_SUB_GROUP_ID"),
         }
     }

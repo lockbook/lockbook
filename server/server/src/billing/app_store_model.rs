@@ -121,3 +121,10 @@ pub struct LastTransactionItem {
     pub status: u16,
     pub signed_transaction_info: String,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorBody {
+    pub error_code: u64,
+    pub error_message: String,
+}
