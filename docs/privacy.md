@@ -6,7 +6,7 @@ Your username is visible to us in plain text.
 
 File names & documents are encrypted so only you or your collaborators can see them. We can see the size of your documents after they’ve been compressed and encrypted.
 
-We can see the shape of your file tree we know when a file is updated. We can tell which version of the code you’re running.
+We can see the shape of your file tree, and we know when a file is updated. We can tell which version of the code you’re running.
 
 When you sign up for our premium tiers, some information is sent to a payment processor, and we only store the ids that the payment processor replies with.
 
