@@ -1,37 +1,38 @@
-use crate::cursor_types::DocByteOffset;
+use crate::buffer::Buffer;
 use crate::element::Element;
+use crate::offset_types::DocByteOffset;
 use pulldown_cmark::{Event, OffsetIter, Options, Parser};
 use std::ops::Range;
 
 #[derive(Default, Debug)]
-pub struct Ast {
-    pub nodes: Vec<AstNode>,
+pub struct AST {
+    pub nodes: Vec<ASTNode>,
     pub root: usize,
 }
 
 #[derive(Default, Debug)]
-pub struct AstNode {
+pub struct ASTNode {
     pub element: Element,
     pub range: Range<DocByteOffset>,
     pub children: Vec<usize>,
 }
 
-impl Ast {
-    pub fn parse(raw: &str) -> Self {
-        let mut options = Options::empty();
-        options.insert(Options::ENABLE_STRIKETHROUGH);
-        let parser = Parser::new_ext(raw, options);
-        let mut result = Self {
-            nodes: vec![AstNode::new(
-                Element::Document,
-                Range { start: DocByteOffset(0), end: DocByteOffset(raw.len()) },
-            )],
-            root: 0,
-        };
-        result.push_children(result.root, &mut parser.into_offset_iter(), raw);
-        result
-    }
+pub fn calc(buffer: &Buffer) -> AST {
+    let mut options = Options::empty();
+    options.insert(Options::ENABLE_STRIKETHROUGH);
+    let parser = Parser::new_ext(&buffer.raw, options);
+    let mut result = AST {
+        nodes: vec![ASTNode::new(
+            Element::Document,
+            Range { start: DocByteOffset(0), end: DocByteOffset(buffer.len()) },
+        )],
+        root: 0,
+    };
+    result.push_children(result.root, &mut parser.into_offset_iter(), &buffer.raw);
+    result
+}
 
+impl AST {
     fn push_children(&mut self, current_idx: usize, iter: &mut OffsetIter, raw: &str) {
         while let Some((event, range)) = iter.next() {
             let mut range =
@@ -48,12 +49,12 @@ impl Ast {
                         }
 
                         let new_child_idx =
-                            self.push_child(current_idx, AstNode::new(new_child, range));
+                            self.push_child(current_idx, ASTNode::new(new_child, range));
                         self.push_children(new_child_idx, iter, raw);
                     }
                 }
                 Event::Code(_) => {
-                    self.push_child(current_idx, AstNode::new(Element::InlineCode, range));
+                    self.push_child(current_idx, ASTNode::new(Element::InlineCode, range));
                 }
                 Event::End(done) => {
                     if let Some(done) = Element::from_tag(done) {
@@ -67,7 +68,7 @@ impl Ast {
         }
     }
 
-    fn push_child(&mut self, parent_idx: usize, node: AstNode) -> usize {
+    fn push_child(&mut self, parent_idx: usize, node: ASTNode) -> usize {
         let new_child_idx = self.nodes.len();
         self.nodes.push(node);
         self.nodes[parent_idx].children.push(new_child_idx);
@@ -113,9 +114,24 @@ impl Ast {
 
         0
     }
+
+    pub fn print(&self, raw: &str) {
+        Self::print_recursive(self, self.root, raw, 0);
+    }
+
+    fn print_recursive(ast: &AST, node: usize, raw: &str, nest: usize) {
+        let node = &ast.nodes[node];
+        let indent = "->".repeat(nest);
+        println!("{indent}element: {:?}", node.element);
+        println!("{indent}range: {}", &raw[node.range.start.0..node.range.end.0]);
+
+        for &child in &node.children {
+            Self::print_recursive(ast, child, raw, nest + 1);
+        }
+    }
 }
 
-impl AstNode {
+impl ASTNode {
     pub fn new(element: Element, range: Range<DocByteOffset>) -> Self {
         Self { element, range, children: vec![] }
     }

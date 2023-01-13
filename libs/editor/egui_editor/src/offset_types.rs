@@ -23,6 +23,12 @@ pub struct RelCharOffset(pub usize);
 #[derive(Default, Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub struct GalleyOffset(pub usize);
 
+impl From<usize> for DocByteOffset {
+    fn from(value: usize) -> Self {
+        Self(value)
+    }
+}
+
 impl PartialEq<usize> for DocByteOffset {
     fn eq(&self, other: &usize) -> bool {
         &self.0 == other
@@ -62,6 +68,12 @@ impl AddAssign<usize> for DocByteOffset {
 impl SubAssign<usize> for DocByteOffset {
     fn sub_assign(&mut self, rhs: usize) {
         self.0 -= rhs
+    }
+}
+
+impl From<usize> for DocCharOffset {
+    fn from(value: usize) -> Self {
+        Self(value)
     }
 }
 
@@ -116,6 +128,21 @@ impl Sub<DocCharOffset> for DocCharOffset {
     }
 }
 
+impl Sub<RelCharOffset> for DocCharOffset {
+    type Output = Self;
+
+    fn sub(self, rhs: RelCharOffset) -> Self::Output {
+        let rel = self.0 - rhs.0;
+        Self(rel)
+    }
+}
+
+impl From<usize> for RelCharOffset {
+    fn from(value: usize) -> Self {
+        Self(value)
+    }
+}
+
 impl PartialEq<usize> for RelCharOffset {
     fn eq(&self, other: &usize) -> bool {
         &self.0 == other
@@ -133,7 +160,7 @@ impl Sub<usize> for RelCharOffset {
 
     fn sub(self, rhs: usize) -> Self::Output {
         let rel = self.0 - rhs;
-        RelCharOffset(rel)
+        Self(rel)
     }
 }
 

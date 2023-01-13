@@ -1,4 +1,4 @@
-use crate::theme::VisualAppearance;
+use crate::appearance::Appearance;
 use egui::{FontFamily, Stroke, TextFormat};
 use pulldown_cmark::{HeadingLevel, LinkType, Tag};
 use std::sync::Arc;
@@ -71,7 +71,7 @@ impl Element {
         matches!(self, Element::Item)
     }
 
-    pub fn apply_style(&self, text_format: &mut TextFormat, vis: &VisualAppearance) {
+    pub fn apply_style(&self, text_format: &mut TextFormat, vis: &Appearance) {
         match &self {
             Element::Document => {
                 text_format.font_id.size = 20.0;
@@ -122,7 +122,7 @@ impl Element {
 #[derive(Clone, PartialEq, Eq)]
 pub enum ItemType {
     Bulleted,
-    Numbered,
+    Numbered(usize),
     Todo(bool),
 }
 

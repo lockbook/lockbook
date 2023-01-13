@@ -1,46 +1,52 @@
-use crate::ast::Ast;
+use crate::appearance::{Appearance, Theme};
+use crate::ast::AST;
+use crate::buffer::Buffer;
 use crate::cursor::Cursor;
-use crate::cursor_types::DocByteOffset;
-use crate::debug_layer::DebugLayer;
-use crate::galley::GalleyInfo;
-use crate::layout_job::LayoutJobInfo;
-use crate::styled_chunk::StyledChunk;
+use crate::debug::DebugInfo;
+use crate::galleys::Galleys;
+use crate::layouts::LayoutJobInfo;
+use crate::styles::StyleInfo;
 use crate::test_input::TEST_MARKDOWN;
-use crate::theme::VisualAppearance;
+use crate::unicode_segs::UnicodeSegs;
+use crate::{ast, events, galleys, layouts, styles, unicode_segs};
 use egui::{Context, FontData, FontDefinitions, FontFamily, Ui, Vec2};
 use std::sync::Arc;
 
 pub struct Editor {
-    pub raw: String,
+    pub initialized: bool,
 
-    pub visual_appearance: VisualAppearance,
+    // config
+    pub appearance: Appearance,
 
-    pub debug: DebugLayer,
-    pub text_unprocessed: bool,
-    pub cursor_unprocessed: bool,
-    pub gr_ind: Vec<DocByteOffset>,
-    pub ast: Ast,
-    pub styled: Vec<StyledChunk>,
-    pub layout: Vec<LayoutJobInfo>,
-    pub galleys: Vec<GalleyInfo>,
+    // state
+    pub buffer: Buffer,
     pub cursor: Cursor,
+    pub debug: DebugInfo,
+
+    // cached intermediate state
+    pub segs: UnicodeSegs,
+    pub ast: AST,
+    pub styles: Vec<StyleInfo>,
+    pub layouts: Vec<LayoutJobInfo>,
+    pub galleys: Galleys,
 }
 
 impl Default for Editor {
     fn default() -> Self {
         Self {
-            debug: DebugLayer::default(),
+            initialized: Default::default(),
 
-            raw: TEST_MARKDOWN.to_string(),
-            text_unprocessed: true,
-            cursor_unprocessed: true,
-            gr_ind: vec![],
-            ast: Ast::default(),
-            styled: vec![],
-            layout: vec![],
-            galleys: vec![],
-            cursor: Cursor::default(),
-            visual_appearance: Default::default(),
+            appearance: Default::default(),
+
+            buffer: TEST_MARKDOWN.into(),
+            cursor: Default::default(),
+            debug: Default::default(),
+
+            segs: Default::default(),
+            ast: Default::default(),
+            styles: Default::default(),
+            layouts: Default::default(),
+            galleys: Default::default(),
         }
     }
 }
@@ -58,24 +64,43 @@ impl Editor {
     pub fn ui(&mut self, ui: &mut Ui) {
         self.debug.frame_start();
 
-        self.visual_appearance.update(ui);
-        self.key_events(ui);
-        self.mouse_events(ui);
+        // update theme
+        self.appearance.current_theme =
+            if ui.visuals().dark_mode { Theme::Dark } else { Theme::Light };
 
-        if self.text_unprocessed {
-            self.ast = Ast::parse(&self.raw);
-            self.calc_unicode_segs();
-        }
-        if self.text_unprocessed || self.cursor_unprocessed {
-            self.populate_styled();
-            self.populate_layouts();
-        }
-        self.text_unprocessed = false;
-        self.cursor_unprocessed = false;
+        // process events
+        let (text_updated, selection_updated) = if self.initialized {
+            events::process(
+                &ui.ctx().input().events,
+                &self.galleys,
+                &mut self.buffer,
+                &mut self.segs,
+                &mut self.cursor,
+                &mut self.debug,
+            )
+        } else {
+            self.segs = unicode_segs::calc(&self.buffer);
+            (true, true)
+        };
 
-        self.present_text(ui);
+        // recalculate dependent state
+        if text_updated {
+            self.ast = ast::calc(&self.buffer);
+        }
+        if text_updated || selection_updated {
+            self.styles = styles::calc(&self.ast, &self.cursor.selection_bytes(&self.segs));
+            self.layouts = layouts::calc(&self.buffer, &self.styles, &self.appearance);
+        }
+        self.galleys = galleys::calc(&self.layouts, &self.appearance, ui);
+
+        self.initialized = true;
+
+        // draw
+        self.draw_text(ui);
         self.draw_cursor(ui);
-        self.debug_layer(ui);
+        if self.debug.draw_enabled {
+            self.draw_debug(ui);
+        }
     }
 
     pub fn set_font(&self, ctx: &Context) {

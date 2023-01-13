@@ -46,9 +46,10 @@ pub const WHITE: ThemedColor = ThemedColor { light: Color32::WHITE, dark: Color3
 /// provides a mechanism for the application developer to override colors for dark mode and light
 /// mode and for us to provide defaults
 #[derive(Default)]
-pub struct VisualAppearance {
+pub struct Appearance {
     pub current_theme: Theme,
 
+    // colors
     pub text: Option<ThemedColor>,
     pub selection_bg: Option<ThemedColor>,
     pub heading: Option<ThemedColor>,
@@ -58,9 +59,13 @@ pub struct VisualAppearance {
     pub italics: Option<ThemedColor>,
     pub strikethrough: Option<ThemedColor>,
     pub link: Option<ThemedColor>,
+
+    // sizes
+    pub bullet_radius: Option<f32>,
+    pub rule_height: Option<f32>,
 }
 
-impl VisualAppearance {
+impl Appearance {
     pub fn text(&self) -> Color32 {
         self.text.unwrap_or(BLACK).get(self.current_theme)
     }
@@ -106,8 +111,12 @@ impl VisualAppearance {
         self.link.unwrap_or(BLUE).get(self.current_theme)
     }
 
-    pub fn update(&mut self, ui: &egui::Ui) {
-        self.current_theme = if ui.visuals().dark_mode { Theme::Dark } else { Theme::Light }
+    pub fn bullet_radius(&self) -> f32 {
+        self.bullet_radius.unwrap_or(2.5)
+    }
+
+    pub fn rule_height(&self) -> f32 {
+        self.rule_height.unwrap_or(10.0)
     }
 }
 

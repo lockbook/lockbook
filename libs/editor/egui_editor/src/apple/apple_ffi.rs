@@ -29,7 +29,7 @@ pub unsafe extern "C" fn init_editor(
     let context = Context::default();
     let mut editor = Editor::default();
     editor.set_font(&context);
-    editor.raw = CStr::from_ptr(content).to_str().unwrap().to_string();
+    editor.buffer = CStr::from_ptr(content).to_str().unwrap().into();
 
     let mut obj = WgpuEditor {
         device,
