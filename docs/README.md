@@ -1,5 +1,7 @@
 # Lockbook
 
+![Discord](https://img.shields.io/discord/1014184997751619664?label=Discord&style=plastic)
+
 ## About
 _The private, polished note-taking platform._
 
