@@ -6,10 +6,9 @@ An account’s data or private keys cannot be recovered by Lockbook staff. Lockb
 
 You may not juggle multiple free accounts to avoid paying for our free tier. If your premium account enters a delinquent state, files in the premium tier are subject to deletion.
 
-All software written by Lockbook is released under the [Unlicense license](unlicense.org). A copy of it is attached at the bottom of this agreement.
+All software written by Lockbook is released under the [Unlicense license](https://unlicense.org/). A copy of it is attached at the bottom of this agreement.
 
-Any data transmitted to Lockbook servers are outlined in our [privacy policy](privacy-policy.md). Lockbook will only engage with authorities when ordered to by a court that has jurisdiction over our employees, see our [annual warrant canary](canary.md). All source code is open source and [auditable](https://github.com/lockbook/lockbook) by the public.
-
+Any data transmitted to Lockbook servers are outlined in our [privacy policy](https://lockbook.net/privacy-policy). Lockbook will only engage with authorities when ordered to by a court that has jurisdiction over our employees, see our [annual warrant canary](https://github.com/lockbook/lockbook/blob/master/docs/canary.md). All source code is open source and [auditable](https://github.com/lockbook/lockbook) by the public.
 
 ```
 The Unlicense
