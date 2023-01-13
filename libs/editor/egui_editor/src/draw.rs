@@ -1,7 +1,7 @@
 use crate::appearance::YELLOW;
 use crate::cursor::Cursor;
 use crate::element::ItemType;
-use crate::layout_job::Annotation;
+use crate::layouts::Annotation;
 use crate::Editor;
 use egui::text::LayoutJob;
 use egui::{Align2, Color32, FontId, Pos2, Rect, Rounding, Stroke, Ui, Vec2};

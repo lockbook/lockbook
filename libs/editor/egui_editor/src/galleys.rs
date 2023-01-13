@@ -1,6 +1,6 @@
 use crate::appearance::Appearance;
 use crate::buffer::Buffer;
-use crate::layout_job::{Annotation, LayoutJobInfo};
+use crate::layouts::{Annotation, LayoutJobInfo};
 use crate::offset_types::{DocByteOffset, DocCharOffset};
 use crate::unicode_segs::UnicodeSegs;
 use egui::epaint::text::cursor::Cursor;
