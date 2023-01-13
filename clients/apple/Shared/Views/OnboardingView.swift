@@ -74,7 +74,6 @@ struct OnboardingView: View {
                         .font(.caption)
                         .padding()
                 }
-
             }
             .padding()
             .frame(maxWidth: 600)
