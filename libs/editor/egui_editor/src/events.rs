@@ -35,7 +35,7 @@ fn apply_modifications(
     let mut text_updated = false;
     let mut selection_updated = false;
 
-    let mut cur_cursor = cursor.clone();
+    let mut cur_cursor = *cursor;
     modifications.reverse();
     while let Some(modification) = modifications.pop() {
         match modification {
@@ -496,9 +496,9 @@ mod test {
 
         assert_eq!(buffer.raw, "");
         assert_eq!(cursor, Default::default());
-        assert_eq!(debug.draw_enabled, false);
-        assert_eq!(text_updated, false);
-        assert_eq!(selection_updated, false);
+        assert!(!debug.draw_enabled);
+        assert!(!text_updated);
+        assert!(!selection_updated);
     }
 
     #[test]
@@ -515,9 +515,9 @@ mod test {
 
         assert_eq!(buffer.raw, "document content");
         assert_eq!(cursor, 9.into());
-        assert_eq!(debug.draw_enabled, false);
-        assert_eq!(text_updated, false);
-        assert_eq!(selection_updated, false);
+        assert!(!debug.draw_enabled);
+        assert!(!text_updated);
+        assert!(!selection_updated);
     }
 
     #[test]
@@ -534,9 +534,9 @@ mod test {
 
         assert_eq!(buffer.raw, "document new content");
         assert_eq!(cursor, 13.into());
-        assert_eq!(debug.draw_enabled, false);
-        assert_eq!(text_updated, true);
-        assert_eq!(selection_updated, false);
+        assert!(!debug.draw_enabled);
+        assert!(text_updated);
+        assert!(!selection_updated);
     }
 
     #[test]
@@ -623,9 +623,9 @@ mod test {
             assert_eq!(buffer.raw, case.expected_buffer);
             assert_eq!(cursor.pos.0, case.expected_cursor.0);
             assert_eq!(cursor.selection_origin, Some(case.expected_cursor.1.into()));
-            assert_eq!(debug.draw_enabled, false);
-            assert_eq!(text_updated, true);
-            assert_eq!(selection_updated, true);
+            assert!(!debug.draw_enabled);
+            assert!(text_updated);
+            assert!(selection_updated);
         }
     }
 }
