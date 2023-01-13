@@ -3,10 +3,14 @@ import SwiftUI
 import SwiftEditor
 
 struct EditorView: View {
-
-    @EnvironmentObject var model: DocumentLoader
-
+    
+    @FocusState var focused: Bool
+    
     var body: some View {
-        MetalView(text: model.textDocument!)
+        MetalView(DI.documentLoader)
+            .focused($focused)
+            .onAppear {
+                focused = true
+            }
     }
 }

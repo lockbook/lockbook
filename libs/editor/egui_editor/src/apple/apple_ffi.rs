@@ -2,7 +2,7 @@ use crate::apple::keyboard::NSKeys;
 use crate::{Editor, WgpuEditor};
 use egui::{Context, Event, Pos2, Vec2};
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
-use std::ffi::{c_char, c_void, CStr};
+use std::ffi::{c_char, c_void, CStr, CString};
 
 /// # Safety
 #[no_mangle]
@@ -106,6 +106,18 @@ pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_wheel: f32) {
     obj.raw_input
         .events
         .push(Event::Scroll(Vec2::new(0.0, scroll_wheel * 2.0)))
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
+    let obj = &mut *(obj as *mut WgpuEditor);
+
+    let value = obj.editor.buffer.raw.as_str();
+
+    CString::new(value)
+        .expect("Could not Rust String -> C String")
+        .into_raw()
 }
 
 async fn request_device(

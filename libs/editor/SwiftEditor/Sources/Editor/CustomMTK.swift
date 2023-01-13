@@ -15,37 +15,52 @@ class CustomMTK: MTKView  {
     }
     
     override func scrollWheel(with event: NSEvent) {
-        scroll_wheel(obj(), Float(event.scrollingDeltaY)) // todo: get x too
+        scroll_wheel(editor(), Float(event.scrollingDeltaY)) // todo: get x too
     }
     
     override func keyDown(with event: NSEvent) {
         print("down \(event.keyCode), \(event.modifierFlags), \(event.characters)")
-        key_event(obj(), event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
+        key_event(editor(), event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, event.characters)
     }
     
     override func keyUp(with event: NSEvent) {
-        print("up \(event.keyCode), \(event.modifierFlags), \(event.characters)")
-        key_event(obj(), event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), false, event.characters)
+        key_event(editor(), event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), false, event.characters)
+        delegate().maybeDirty()
     }
     
-    func obj() -> UnsafeMutableRawPointer {
-        (self.delegate as! FrameManager).editorHandle
+    func delegate() -> FrameManager {
+        (self.delegate as! FrameManager)
     }
+    
+    func editor() -> UnsafeMutableRawPointer {
+        delegate().editorHandle
+    }
+}
+
+public protocol TextLoader {
+    func initialText() -> String
+    func documentChanged(s: String)
 }
 
 class FrameManager: NSObject, MTKViewDelegate {
     var editorHandle: UnsafeMutableRawPointer
+    var loader: TextLoader
     var parent: CustomMTK
     var metalDevice: MTLDevice!
     var metalCommandQueue: MTLCommandQueue!
     
-    init(_ parent: CustomMTK, text: String) {
+    init(_ parent: CustomMTK, _ loader: TextLoader) {
         self.parent = parent
-        print(self.parent.window?.backingScaleFactor)
+        self.loader = loader
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passRetained(self.parent.layer!).toOpaque())
-        self.editorHandle = init_editor(metalLayer, text)
+        self.editorHandle = init_editor(metalLayer, self.loader.initialText())
         
         super.init()
+    }
+    
+    deinit {
+        // TODO handle freeing editor here
+        print("de-init")
     }
     
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -58,5 +73,17 @@ class FrameManager: NSObject, MTKViewDelegate {
         let scale = Float(self.parent.window?.backingScaleFactor ?? 1.0)
         set_scale(editorHandle, scale)
         draw_editor(editorHandle)
+    }
+    
+    func maybeDirty() {
+        let string = self.getText()
+        self.loader.documentChanged(s: string)
+    }
+    
+    func getText() -> String {
+        let result: UnsafePointer<Int8> = get_text(editorHandle)
+        // todo free me
+        let str = String(cString: result)
+        return str
     }
 }

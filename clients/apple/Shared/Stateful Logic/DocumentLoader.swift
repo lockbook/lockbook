@@ -3,6 +3,7 @@ import SwiftLockbookCore
 import Combine
 import PencilKit
 import SwiftUI
+import SwiftEditor
 
 public enum ViewType {
     case Markdown
@@ -13,7 +14,15 @@ public enum ViewType {
     case Unknown
 }
 
-class DocumentLoader: ObservableObject {
+class DocumentLoader: ObservableObject, TextLoader {
+    func initialText() -> String {
+        self.textDocument!
+    }
+    
+    func documentChanged(s: String) {
+        self.textDocument = s
+    }
+    
     let core: LockbookApi
 
     @Published var meta: File?

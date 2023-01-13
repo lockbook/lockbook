@@ -1,6 +1,6 @@
-pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_0;
+pub static TEST_MARKDOWN: &str = TEST_MARKDOWN_28;
 
-pub static TEST_MARKDOWN_0: &str = "";
+pub static TEST_MARKDOWN_0: &str = "# test";
 pub static TEST_MARKDOWN_1: &str = "a";
 pub static TEST_MARKDOWN_2: &str = "a\n";
 pub static TEST_MARKDOWN_3: &str = "a\na";
@@ -34,10 +34,8 @@ pub static TEST_MARKDOWN_23: &str = "test\n+ test\n+ test2";
 pub static TEST_MARKDOWN_24: &str = "+ test\n\t+ test2";
 pub static TEST_MARKDOWN_25: &str = "+ a\n\t+ b\n\t+ c";
 pub static TEST_MARKDOWN_26: &str = "+ t\n\t. test2\n  + test3";
-// todo: and you start at the end of 1. and arrow down you'll get clamped at 2 (obviously), and will stay at that position (for now) and end up somewhere between another. Target behavior is to end up within long.
 pub static TEST_MARKDOWN_27: &str = "Test\n+ a very long line\n+ short\n+ another very long line";
 
-// todo: rendering bug, text is getting split across galleys
 pub static TEST_MARKDOWN_28: &str = "# bold\nTest *test* _test_ **test** __test__";
 
 pub static TEST_MARKDOWN_29: &str = "```\nfn test() {\n}\n```";
