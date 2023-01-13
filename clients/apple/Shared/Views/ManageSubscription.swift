@@ -115,7 +115,7 @@ struct ManageSubscription: View {
     var legal: some View {
         VStack {
             Spacer()
-            Text("Please review our [End User License Agreement](https://lockbook.net/eula) and our [Privacy Policy](https://lockbook.net/privacy-policy).")
+            Text("Please review our [Terms of Service](https://lockbook.net/tos) and our [Privacy Policy](https://lockbook.net/privacy-policy).")
                 .foregroundColor(.gray)
                 .font(.caption)
                 .padding()

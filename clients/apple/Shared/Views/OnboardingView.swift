@@ -69,7 +69,7 @@ struct OnboardingView: View {
                 
                 VStack {
                     Spacer()
-                    Text("By using Lockbook, you acknowledge our [Privacy Policy](https://lockbook.net/privacy-policy) and accept our [End User License Agreement](https://lockbook.net/eula).")
+                    Text("By using Lockbook, you acknowledge our [Privacy Policy](https://lockbook.net/privacy-policy) and accept our [Terms of Service](https://lockbook.net/tos).")
                         .foregroundColor(.gray)
                         .font(.caption)
                         .padding()

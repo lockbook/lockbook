@@ -107,7 +107,7 @@ struct SettingsView: View, Equatable {
                         .foregroundColor(.blue)
                         .padding(.leading, 3)
                     
-                    Link("End User License Agreement", destination: URL(string: "https://lockbook.net/eula")!)
+                    Link("Terms of Service", destination: URL(string: "https://lockbook.net/tos")!)
                         .foregroundColor(.blue)
                         .padding(.leading, 3)
                 }
