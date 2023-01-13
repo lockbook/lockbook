@@ -9,7 +9,7 @@ use shadow_rs::shadow;
 shadow!(build_info);
 
 pub fn username_is_valid(username: &str) -> bool {
-    username.len() > get_encryption_overhead(MAX_USERNAME_LENGTH)
+    username.len() <= get_encryption_overhead(MAX_USERNAME_LENGTH)
         && username
             .to_lowercase()
             .chars()

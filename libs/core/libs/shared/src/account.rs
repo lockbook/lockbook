@@ -2,7 +2,7 @@ use crate::pubkey;
 use libsecp256k1::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
 
-pub const MAX_USERNAME_LENGTH: usize = 20;
+pub const MAX_USERNAME_LENGTH: usize = 32;
 
 pub type Username = String;
 pub type ApiUrl = String;
