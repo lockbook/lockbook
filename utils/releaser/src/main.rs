@@ -46,7 +46,6 @@ fn from_args(releaser: Releaser) {
                     Releaser::DeployServer,
                     Releaser::ReleaseLinux,
                     Releaser::ReleaseAndroid,
-                    Releaser::ReleaseWindows,
                     Releaser::ReleasePublicSite,
                 ]
             } else {
