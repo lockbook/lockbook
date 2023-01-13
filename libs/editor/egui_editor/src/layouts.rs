@@ -94,7 +94,7 @@ impl LayoutJobInfo {
 
     fn tail_size(style: &StyleInfo, src: &str, absorb_terminal_nl: bool) -> usize {
         usize::from(
-            style.range.end.0 > 0
+            style.range.end > style.range.start
                 && absorb_terminal_nl
                 && &src[style.range.end.0 - 1..style.range.end.0] == "\n",
         )
