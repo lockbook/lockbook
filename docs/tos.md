@@ -1,6 +1,6 @@
-# End User License Agreement
+# Terms of Service
 
-This End-User License Agreement is a legal agreement between you and Lockbook LLC regarding your use of Lockbook’s Servers. You agree to this policy by creating an account on our server.
+This is a legal agreement between you and Lockbook LLC regarding your use of Lockbook’s Servers. You agree to this policy by creating an account on our server.
 
 An account’s data or private keys cannot be recovered by Lockbook staff. Lockbook servers can undergo maintenance at any time. In the rare event of a failure, Lockbook’s server administrators may need to delete data to restore system integrity. Lockbook administrators may, in our sole discretion, suspend or delete accounts engaging in malicious usage of our server.
 
