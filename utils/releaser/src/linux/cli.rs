@@ -3,7 +3,7 @@ use crate::Github;
 use gh_release::ReleaseClient;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 pub fn release(gh: &Github) {
     update_aur();
@@ -87,7 +87,7 @@ pub fn update_aur() {
 pub fn overwrite_lockbook_pkg() {
     let version = core_version();
 
-    let new_content = format!(
+    let new_makepkg_content = format!(
         r#"
 pkgname='lockbook'
 _pkgname="lockbook"
@@ -121,21 +121,36 @@ package_lockbook() {{
 "#
     );
 
+    let new_src_info_content = format!(
+        r#"
+pkgbase = lockbook
+	pkgdesc = A secure, private, minimal, cross-platform document editor.
+	pkgver = {version}
+	pkgrel = 1
+	url = https://github.com/lockbook/lockbook
+	arch = x86_64
+	arch = i686
+	groups = lockbook
+	license = BSD-3-Clause
+	makedepends = rust
+	makedepends = cargo
+	makedepends = git
+	provides = lockbook
+	conflicts = lockbook
+	source = git+https://github.com/lockbook/lockbook.git
+	sha256sums = SKIP
+
+pkgname = lockbook
+        "#
+    );
+
     let mut file = OpenOptions::new()
         .write(true)
         .create(false)
         .truncate(true)
         .open("../aur-lockbook/PKGBUILD")
         .unwrap();
-    file.write_all(new_content.as_bytes()).unwrap();
-
-    let src_info = Command::new("makepkg")
-        .args(["--printsrcinfo"])
-        .current_dir("../aur-lockbook/")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .success_output()
-        .stdout;
+    file.write_all(new_makepkg_content.as_bytes()).unwrap();
 
     let mut file = OpenOptions::new()
         .write(true)
@@ -143,7 +158,7 @@ package_lockbook() {{
         .truncate(true)
         .open("../aur-lockbook/.SRCINFO")
         .unwrap();
-    file.write_all(src_info.as_slice()).unwrap();
+    file.write_all(new_src_info_content.as_bytes()).unwrap();
 }
 
 pub fn push_aur() {
