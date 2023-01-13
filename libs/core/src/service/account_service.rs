@@ -14,6 +14,10 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     ) -> CoreResult<Account> {
         let username = String::from(username).to_lowercase();
 
+        if username.len() > 254 {
+            return Err(CoreError::UsernameInvalid);
+        }
+
         if self.tx.account.get(&OneKey {}).is_some() {
             return Err(CoreError::AccountExists);
         }

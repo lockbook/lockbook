@@ -137,6 +137,7 @@ pub enum CoreError {
     FileNotDocument,
     FileNotFolder,
     FileParentNonexistent,
+    FileNameTooLong,
     FolderMovedIntoSelf,
     InsufficientPermission,
     InvalidCardCvc,

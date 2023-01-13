@@ -11,6 +11,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn create_file(
         &mut self, name: &str, parent: &Uuid, file_type: FileType,
     ) -> CoreResult<File> {
+        if name.len() > 508 {
+            return Err(CoreError::FileNameTooLong);
+        }
         let mut tree = (&self.tx.base_metadata)
             .to_staged(&mut self.tx.local_metadata)
             .to_lazy();
@@ -31,6 +34,9 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn rename_file(&mut self, id: &Uuid, new_name: &str) -> CoreResult<()> {
+        if new_name.len() > 508 {
+            return Err(CoreError::FileNameTooLong);
+        }
         let mut tree = (&self.tx.base_metadata)
             .to_staged(&mut self.tx.local_metadata)
             .to_lazy();
