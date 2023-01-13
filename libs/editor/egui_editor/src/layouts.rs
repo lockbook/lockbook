@@ -2,7 +2,7 @@ use crate::appearance::Appearance;
 use crate::buffer::Buffer;
 use crate::element::{Element, IndentLevel, ItemType, Title, Url};
 use crate::offset_types::DocByteOffset;
-use crate::styled_chunk::StyleInfo;
+use crate::styles::StyleInfo;
 use egui::text::LayoutJob;
 use egui::TextFormat;
 use pulldown_cmark::{HeadingLevel, LinkType};

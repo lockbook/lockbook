@@ -1,5 +1,5 @@
 use crate::buffer::Buffer;
-use crate::galley::{GalleyInfo, Galleys};
+use crate::galleys::{GalleyInfo, Galleys};
 use crate::offset_types::*;
 use crate::unicode_segs::UnicodeSegs;
 use egui::epaint::text::cursor::Cursor as EguiCursor;

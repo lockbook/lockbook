@@ -1,7 +1,7 @@
 use crate::buffer::Buffer;
 use crate::cursor::Cursor;
-use crate::debug_layer::DebugInfo;
-use crate::galley::Galleys;
+use crate::debug::DebugInfo;
+use crate::galleys::Galleys;
 use crate::offset_types::DocCharOffset;
 use crate::unicode_segs;
 use crate::unicode_segs::UnicodeSegs;

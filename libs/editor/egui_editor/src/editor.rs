@@ -2,13 +2,13 @@ use crate::appearance::{Appearance, Theme};
 use crate::ast::AST;
 use crate::buffer::Buffer;
 use crate::cursor::Cursor;
-use crate::debug_layer::DebugInfo;
-use crate::galley::Galleys;
-use crate::layout_job::LayoutJobInfo;
-use crate::styled_chunk::StyleInfo;
+use crate::debug::DebugInfo;
+use crate::galleys::Galleys;
+use crate::layouts::LayoutJobInfo;
+use crate::styles::StyleInfo;
 use crate::test_input::TEST_MARKDOWN;
 use crate::unicode_segs::UnicodeSegs;
-use crate::{ast, events, galley, layout_job, styled_chunk, unicode_segs};
+use crate::{ast, events, galleys, layouts, styles, unicode_segs};
 use egui::{Context, FontData, FontDefinitions, FontFamily, Ui, Vec2};
 use std::sync::Arc;
 
@@ -88,10 +88,10 @@ impl Editor {
             self.ast = ast::calc(&self.buffer);
         }
         if text_updated || selection_updated {
-            self.styles = styled_chunk::calc(&self.ast, &self.cursor.selection_bytes(&self.segs));
-            self.layouts = layout_job::calc(&self.buffer, &self.styles, &self.appearance);
+            self.styles = styles::calc(&self.ast, &self.cursor.selection_bytes(&self.segs));
+            self.layouts = layouts::calc(&self.buffer, &self.styles, &self.appearance);
         }
-        self.galleys = galley::calc(&self.layouts, &self.appearance, ui);
+        self.galleys = galleys::calc(&self.layouts, &self.appearance, ui);
 
         self.initialized = true;
 
