@@ -2,7 +2,7 @@ use crate::model::errors::core_err_unexpected;
 use crate::OneKey;
 use crate::{CoreError, CoreResult, RequestContext, Requester};
 use libsecp256k1::PublicKey;
-use lockbook_shared::account::{Account, ALLOWED_USERNAME_LENGTH};
+use lockbook_shared::account::{Account, MAX_USERNAME_LENGTH};
 use lockbook_shared::api::{GetPublicKeyRequest, NewAccountRequest};
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileMetadata, FileType};
@@ -14,7 +14,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     ) -> CoreResult<Account> {
         let username = String::from(username).to_lowercase();
 
-        if username.len() > ALLOWED_USERNAME_LENGTH {
+        if username.len() > MAX_USERNAME_LENGTH {
             return Err(CoreError::UsernameInvalid);
         }
 

@@ -1,4 +1,4 @@
-pub const ALLOWED_FILENAME_LENGTH: usize = 100;
+pub const MAX_FILENAME_LENGTH: usize = 50;
 
 #[derive(Debug)]
 pub enum DocumentType {
