@@ -1,5 +1,5 @@
 use crate::appearance::Appearance;
-use crate::ast::AST;
+use crate::ast::Ast;
 use crate::editor::Editor;
 use crate::element::Element;
 use crate::offset_types::DocByteOffset;
@@ -42,14 +42,14 @@ impl StyleInfo {
 ///
 /// parent_empty_block serves as a way to signal that the parent is a block, but there was no
 /// text before we traversed into the first child (think: + *first child* tail).
-pub fn calc(ast: &AST, selection: &Option<Range<DocByteOffset>>) -> Vec<StyleInfo> {
+pub fn calc(ast: &Ast, selection: &Option<Range<DocByteOffset>>) -> Vec<StyleInfo> {
     let mut styles = Vec::new();
     calc_recursive(ast, selection, ast.root, &[], false, &mut styles);
     styles
 }
 
 fn calc_recursive(
-    ast: &AST, selection: &Option<Range<DocByteOffset>>, node_idx: usize,
+    ast: &Ast, selection: &Option<Range<DocByteOffset>>, node_idx: usize,
     parent_elements: &[Element], parent_empty_block: bool, styles: &mut Vec<StyleInfo>,
 ) {
     let node = &ast.nodes[node_idx];

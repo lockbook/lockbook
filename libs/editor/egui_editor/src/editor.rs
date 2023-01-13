@@ -1,5 +1,5 @@
 use crate::appearance::{Appearance, Theme};
-use crate::ast::AST;
+use crate::ast::Ast;
 use crate::buffer::Buffer;
 use crate::cursor::Cursor;
 use crate::debug::DebugInfo;
@@ -25,7 +25,7 @@ pub struct Editor {
 
     // cached intermediate state
     pub segs: UnicodeSegs,
-    pub ast: AST,
+    pub ast: Ast,
     pub styles: Vec<StyleInfo>,
     pub layouts: Vec<LayoutJobInfo>,
     pub galleys: Galleys,
