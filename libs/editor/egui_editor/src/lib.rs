@@ -3,18 +3,21 @@ use egui::{Pos2, Rect};
 use egui_wgpu_backend::wgpu;
 use std::iter;
 
+pub mod appearance;
 pub mod ast;
+pub mod buffer;
 pub mod cursor;
-pub mod cursor_types;
 pub mod debug_layer;
+pub mod draw;
 pub mod editor;
 pub mod element;
 pub mod events;
 pub mod galley;
 pub mod layout_job;
+pub mod offset_types;
 pub mod styled_chunk;
 pub mod test_input;
-pub mod theme;
+pub mod unicode_segs;
 
 #[cfg(target_vendor = "apple")]
 pub mod apple;

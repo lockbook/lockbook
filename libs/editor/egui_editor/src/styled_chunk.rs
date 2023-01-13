@@ -1,20 +1,20 @@
-use crate::cursor_types::DocByteOffset;
+use crate::appearance::Appearance;
+use crate::ast::AST;
 use crate::editor::Editor;
 use crate::element::Element;
-use crate::element::Element::Item;
-use crate::theme::VisualAppearance;
+use crate::offset_types::DocByteOffset;
 use egui::TextFormat;
 use std::cmp::{max, min};
 use std::ops::Range;
 
 #[derive(Debug, Clone)]
-pub struct StyledChunk {
+pub struct StyleInfo {
     pub block_start: bool,
     pub range: Range<DocByteOffset>,
     pub elements: Vec<Element>, // maybe a good tiny_vec candidate
 }
 
-impl StyledChunk {
+impl StyleInfo {
     pub fn item_count(&self) -> usize {
         self.elements
             .iter()
@@ -22,7 +22,7 @@ impl StyledChunk {
             .count()
     }
 
-    pub fn text_format(&self, visual: &VisualAppearance) -> TextFormat {
+    pub fn text_format(&self, visual: &Appearance) -> TextFormat {
         let mut text_format = TextFormat::default();
         for element in &self.elements {
             element.apply_style(&mut text_format, visual);
@@ -32,143 +32,154 @@ impl StyledChunk {
     }
 }
 
-impl Editor {
-    /// Traverse an AST and determine 2 key things:
-    /// * The elements that a region of text is impacted by
-    /// * Which regions of text should be in their own galley
-    ///
-    /// This is a recursive function that processes a given node, and it's children. It has to
-    /// capture text that may occur before the first child, between children, and after the last
-    /// child. The rest is handled by recursion.
-    ///
-    /// parent_empty_block serves as a way to signal that the parent is a block, but there was no
-    /// text before we traversed into the first child (think: + *first child* tail).
-    fn region_helper(
-        &mut self, node_idx: usize, parent_elements: &[Element], parent_empty_block: bool,
-    ) {
-        let node = &self.ast.nodes[node_idx];
-        let mut elements = Vec::from(parent_elements);
-        elements.push(node.element.clone());
+/// Traverse an AST and determine 2 key things:
+/// * The elements that a region of text is impacted by
+/// * Which regions of text should be in their own galley
+///
+/// This is a recursive function that processes a given node, and it's children. It has to
+/// capture text that may occur before the first child, between children, and after the last
+/// child. The rest is handled by recursion.
+///
+/// parent_empty_block serves as a way to signal that the parent is a block, but there was no
+/// text before we traversed into the first child (think: + *first child* tail).
+pub fn calc(ast: &AST, selection: &Option<Range<DocByteOffset>>) -> Vec<StyleInfo> {
+    let mut styles = Vec::new();
+    calc_recursive(ast, selection, ast.root, &[], false, &mut styles);
+    styles
+}
 
-        let is_block = node.element.is_block() || parent_empty_block;
+fn calc_recursive(
+    ast: &AST, selection: &Option<Range<DocByteOffset>>, node_idx: usize,
+    parent_elements: &[Element], parent_empty_block: bool, styles: &mut Vec<StyleInfo>,
+) {
+    let node = &ast.nodes[node_idx];
+    let mut elements = Vec::from(parent_elements);
+    elements.push(node.element.clone());
 
-        if node.children.is_empty() {
-            self.styled.extend(self.cursor_split(StyledChunk {
-                block_start: is_block,
-                range: node.range.clone(),
-                elements,
-            }));
-            return;
-        }
+    let is_block = node.element.is_block() || parent_empty_block;
 
-        let head_range =
-            Range { start: node.range.start, end: self.ast.nodes[node.children[0]].range.start };
+    if node.children.is_empty() {
+        styles.extend(cursor_split(
+            selection,
+            StyleInfo { block_start: is_block, range: node.range.clone(), elements },
+        ));
+        return;
+    }
 
-        let tail_range = Range {
-            start: self.ast.nodes[*node.children.last().unwrap()].range.end,
-            end: node.range.end,
-        };
+    let head_range =
+        Range { start: node.range.start, end: ast.nodes[node.children[0]].range.start };
 
-        if !head_range.is_empty() {
-            self.styled.extend(self.cursor_split(StyledChunk {
+    let tail_range =
+        Range { start: ast.nodes[*node.children.last().unwrap()].range.end, end: node.range.end };
+
+    if !head_range.is_empty() {
+        styles.extend(cursor_split(
+            selection,
+            StyleInfo {
                 block_start: is_block,
                 range: head_range.clone(),
                 elements: elements.clone(),
-            }));
-        }
+            },
+        ));
+    }
 
-        for index in 0..self.ast.nodes[node_idx].children.len() {
-            let child_idx = self.ast.nodes[node_idx].children[index];
-            let first_index = index == 0;
-            self.region_helper(
-                child_idx,
-                &elements,
-                is_block && first_index && head_range.is_empty(),
-            );
-            // collect any regions in between children
-            let node = &self.ast.nodes[node_idx];
-            let child = &self.ast.nodes[child_idx];
-            if let Some(&next_idx) = node.children.get(index + 1) {
-                let next = &self.ast.nodes[next_idx];
-                let range = Range { start: child.range.end, end: next.range.start };
-                // only collect if non empty & not between items
-                // todo: this may not be needed anymore because of `look_back_whitespace(...)`
-                if !(range.is_empty() || child.element == Item && next.element == Item) {
-                    self.styled.extend(self.cursor_split(StyledChunk {
+    for index in 0..ast.nodes[node_idx].children.len() {
+        let child_idx = ast.nodes[node_idx].children[index];
+        let first_index = index == 0;
+        calc_recursive(
+            ast,
+            selection,
+            child_idx,
+            &elements,
+            is_block && first_index && head_range.is_empty(),
+            styles,
+        );
+        // collect any regions in between children
+        let node = &ast.nodes[node_idx];
+        let child = &ast.nodes[child_idx];
+        if let Some(&next_idx) = node.children.get(index + 1) {
+            let next = &ast.nodes[next_idx];
+            let range = Range { start: child.range.end, end: next.range.start };
+            // only collect if non empty & not between items
+            // todo: this may not be needed anymore because of `look_back_whitespace(...)`
+            if !(range.is_empty()
+                || child.element == Element::Item && next.element == Element::Item)
+            {
+                styles.extend(cursor_split(
+                    selection,
+                    StyleInfo {
                         block_start: elements == vec![Element::Document],
                         range,
                         elements: elements.clone(),
-                    }));
-                }
+                    },
+                ));
             }
         }
+    }
 
-        if !tail_range.is_empty() {
-            self.styled.extend(self.cursor_split(StyledChunk {
+    if !tail_range.is_empty() {
+        styles.extend(cursor_split(
+            selection,
+            StyleInfo {
                 block_start: elements == vec![Element::Document],
                 range: tail_range,
                 elements,
-            }));
+            },
+        ));
+    }
+}
+
+fn cursor_split(
+    selection_range_bytes: &Option<Range<DocByteOffset>>, style: StyleInfo,
+) -> Vec<StyleInfo> {
+    if let Some(cursor_selection) = selection_range_bytes {
+        // split region based on cursor selection
+        let mut result = Vec::new();
+        let mut block_start = style.block_start;
+        if style.range.start < cursor_selection.start {
+            let mut pre_selection = style.clone();
+            pre_selection.range = Range {
+                start: style.range.start,
+                end: min(style.range.end, cursor_selection.start),
+            };
+            pre_selection.block_start = block_start;
+            block_start = false;
+
+            result.push(pre_selection);
         }
-    }
+        if cursor_selection.start < style.range.end && style.range.start < cursor_selection.end {
+            let mut in_selection = style.clone();
+            in_selection.range = Range {
+                start: max(style.range.start, cursor_selection.start),
+                end: min(style.range.end, cursor_selection.end),
+            };
+            in_selection.elements.push(Element::Selection);
+            in_selection.block_start = block_start;
+            block_start = false;
 
-    fn cursor_split(&self, styled: StyledChunk) -> Vec<StyledChunk> {
-        if let Some(cursor_selection) = self.selection_range_bytes() {
-            // split region based on cursor selection
-            let mut result = Vec::new();
-            let mut block_start = styled.block_start;
-            if styled.range.start < cursor_selection.start {
-                let mut pre_selection = styled.clone();
-                pre_selection.range = Range {
-                    start: styled.range.start,
-                    end: min(styled.range.end, cursor_selection.start),
-                };
-                pre_selection.block_start = block_start;
-                block_start = false;
-
-                result.push(pre_selection);
-            }
-            if cursor_selection.start < styled.range.end
-                && styled.range.start < cursor_selection.end
-            {
-                let mut in_selection = styled.clone();
-                in_selection.range = Range {
-                    start: max(styled.range.start, cursor_selection.start),
-                    end: min(styled.range.end, cursor_selection.end),
-                };
-                in_selection.elements.push(Element::Selection);
-                in_selection.block_start = block_start;
-                block_start = false;
-
-                result.push(in_selection);
-            }
-            if cursor_selection.end < styled.range.end {
-                let mut post_selection = styled.clone();
-                post_selection.range = Range {
-                    start: max(styled.range.start, cursor_selection.end),
-                    end: styled.range.end,
-                };
-                post_selection.block_start = block_start;
-
-                result.push(post_selection);
-            }
-            result
-        } else {
-            // single region
-            vec![styled]
+            result.push(in_selection);
         }
-    }
+        if cursor_selection.end < style.range.end {
+            let mut post_selection = style.clone();
+            post_selection.range =
+                Range { start: max(style.range.start, cursor_selection.end), end: style.range.end };
+            post_selection.block_start = block_start;
 
-    pub fn populate_styled(&mut self) {
-        self.styled.clear();
-        self.region_helper(self.ast.root, &[], false);
+            result.push(post_selection);
+        }
+        result
+    } else {
+        // single region
+        vec![style]
     }
+}
 
-    pub fn print_styled(&self) {
-        for styled in &self.styled {
-            println!("elements: {:?}", styled.elements);
-            println!("range: {}", &self.raw[styled.range.start.0..styled.range.end.0]);
-            if styled.block_start {
+impl Editor {
+    pub fn print_styles(&self) {
+        for style in &self.styles {
+            println!("elements: {:?}", style.elements);
+            println!("range: {}", &self.buffer.raw[style.range.start.0..style.range.end.0]);
+            if style.block_start {
                 println!("start")
             }
             println!();

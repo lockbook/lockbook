@@ -1,36 +1,113 @@
-use crate::cursor_types::{DocByteOffset, DocCharOffset};
-use crate::editor::Editor;
+use crate::appearance::Appearance;
+use crate::buffer::Buffer;
 use crate::layout_job::{Annotation, LayoutJobInfo};
+use crate::offset_types::{DocByteOffset, DocCharOffset};
+use crate::unicode_segs::UnicodeSegs;
 use egui::epaint::text::cursor::Cursor;
-use egui::{Color32, Galley, Pos2, Rect, Sense, Stroke, Ui, Vec2};
-use std::ops::Range;
+use egui::text::CCursor;
+use egui::{Galley, Pos2, Rect, Sense, TextFormat, Ui, Vec2};
+use std::ops::{Index, Range};
 use std::sync::Arc;
 
-// todo: maybe a nice VisualAppearence struct is in order?
-pub static BULLET_RADIUS: f32 = 2.5;
-pub static RULE_HEIGHT: f32 = 10.0;
+#[derive(Default)]
+pub struct Galleys {
+    pub galleys: Vec<GalleyInfo>,
+}
 
 pub struct GalleyInfo {
     pub range: Range<DocByteOffset>,
     pub galley: Arc<Galley>,
     pub annotation: Option<Annotation>,
+
     // is it better to store this information in Annotation?
-    pub head_modification: usize,
-    pub tail_modification: usize,
+    pub head_size: usize,
+    pub tail_size: usize,
     pub text_location: Pos2,
     pub ui_location: Rect,
+
+    pub annotation_text_format: TextFormat,
+}
+
+pub fn calc(layouts: &[LayoutJobInfo], appearance: &Appearance, ui: &mut Ui) -> Galleys {
+    Galleys {
+        galleys: layouts
+            .iter()
+            .map(|layout| GalleyInfo::from(layout.clone(), appearance, ui))
+            .collect(),
+    }
+}
+
+impl Index<usize> for Galleys {
+    type Output = GalleyInfo;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.galleys[index]
+    }
+}
+
+// todo: simplify by storing DocByteOffset in GalleyInfo range
+// todo: simplify fn and parameter names
+impl Galleys {
+    pub fn is_empty(&self) -> bool {
+        self.galleys.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.galleys.len()
+    }
+
+    pub fn galley_at_char(&self, char_index: DocCharOffset, segs: &UnicodeSegs) -> usize {
+        let byte_offset = segs.char_offset_to_byte(char_index);
+        for i in 0..self.galleys.len() {
+            let galley = &self.galleys[i];
+            if galley.range.start <= byte_offset && byte_offset < galley.range.end {
+                return i;
+            }
+        }
+        self.galleys.len() - 1
+    }
+
+    pub fn galley_and_cursor_by_char_offset(
+        &self, char_offset: DocCharOffset, segs: &UnicodeSegs,
+    ) -> (usize, Cursor) {
+        let galley_index = self.galley_at_char(char_offset, segs);
+        let galley = &self.galleys[galley_index];
+        let galley_text_range = galley.text_range(segs);
+        let cursor = galley.galley.from_ccursor(CCursor {
+            index: (char_offset - galley_text_range.start).0,
+            prefer_next_row: true,
+        });
+
+        (galley_index, cursor)
+    }
+
+    pub fn char_offset_by_galley_and_cursor(
+        &self, galley_idx: usize, cursor: &Cursor, segs: &UnicodeSegs,
+    ) -> DocCharOffset {
+        let galley = &self.galleys[galley_idx];
+        let galley_text_range = galley.text_range(segs);
+        let mut result = galley_text_range.start + cursor.ccursor.index;
+
+        // correct for prefer_next_row behavior
+        let read_cursor = galley.galley.from_ccursor(CCursor {
+            index: (result - galley_text_range.start).0,
+            prefer_next_row: true,
+        });
+        if read_cursor.rcursor.row > cursor.rcursor.row {
+            result -= 1;
+        }
+
+        result
+    }
 }
 
 impl GalleyInfo {
-    pub fn from(mut job: LayoutJobInfo, ui: &mut Ui) -> Self {
-        let offset = Self::annotation_offset(&job.annotation);
+    pub fn from(mut job: LayoutJobInfo, appearance: &Appearance, ui: &mut Ui) -> Self {
+        let offset = Self::annotation_offset(&job.annotation, appearance);
         job.job.wrap.max_width = ui.available_width() - offset.x;
-        let range = job.range;
-        let annotation = job.annotation;
-        let head_modification = job.head_modification;
-        let tail_modification = job.tail_modification;
 
         let galley = ui.ctx().fonts().layout_job(job.job);
+        // todo: do this during draw
         let (ui_location, _) = ui.allocate_exact_size(
             Vec2::new(ui.available_width(), galley.size().y + offset.y),
             Sense::click_and_drag(),
@@ -39,26 +116,27 @@ impl GalleyInfo {
         let text_location = Pos2::new(offset.x + ui_location.min.x, ui_location.min.y);
 
         Self {
-            range,
+            range: job.range,
             galley,
-            annotation,
-            head_modification,
-            tail_modification,
+            annotation: job.annotation,
+            head_size: job.head_size,
+            tail_size: job.tail_size,
             text_location,
             ui_location,
+            annotation_text_format: job.annotation_text_format,
         }
     }
 
     // todo: weird thing here, x dim refers to area before the text, y dim refers to area after the
     // text
-    fn annotation_offset(annotation: &Option<Annotation>) -> Vec2 {
+    fn annotation_offset(annotation: &Option<Annotation>, appearance: &Appearance) -> Vec2 {
         let mut offset = Vec2::ZERO;
         if let Some(Annotation::Item(_, indent_level)) = annotation {
             offset.x = *indent_level as f32 * 20.0
         }
 
         if let Some(Annotation::Rule) = annotation {
-            offset.y = RULE_HEIGHT;
+            offset.y = appearance.rule_height();
         }
 
         offset
@@ -75,15 +153,16 @@ impl GalleyInfo {
         point
     }
 
-    pub fn bullet_bounds(&self) -> Rect {
+    pub fn bullet_bounds(&self, appearance: &Appearance) -> Rect {
         let bullet_center = self.bullet_center();
         let mut min = bullet_center;
         let mut max = bullet_center;
 
         let bullet_padding = 2.0;
 
-        min.x -= BULLET_RADIUS + bullet_padding;
-        max.x += BULLET_RADIUS + bullet_padding;
+        let bullet_radius = appearance.bullet_radius();
+        min.x -= bullet_radius + bullet_padding;
+        max.x += bullet_radius + bullet_padding;
 
         let cursor_height = self.cursor_height();
         min.y -= cursor_height / 2.0;
@@ -92,69 +171,18 @@ impl GalleyInfo {
         Rect { min, max }
     }
 
-    pub fn text<'a>(&self, doc_text: &'a str) -> &'a str {
-        let text_start = self.range.start + self.head_modification;
-        let text_end = self.range.end - self.tail_modification;
-        &doc_text[text_start.0..text_end.0]
+    pub fn text<'a>(&self, buffer: &'a Buffer) -> &'a str {
+        let text_start = self.range.start + self.head_size;
+        let text_end = self.range.end - self.tail_size;
+        &buffer.raw[text_start.0..text_end.0]
     }
 
-    pub fn text_range(&self, editor: &Editor) -> Range<DocCharOffset> {
-        let text_start = self.range.start + self.head_modification;
-        let text_end = self.range.end - self.tail_modification;
+    pub fn text_range(&self, segs: &UnicodeSegs) -> Range<DocCharOffset> {
+        let text_start = self.range.start + self.head_size;
+        let text_end = self.range.end - self.tail_size;
         Range {
-            start: editor.byte_offset_to_char(text_start),
-            end: editor.byte_offset_to_char(text_end),
-        }
-    }
-}
-
-impl Editor {
-    pub fn present_text(&mut self, ui: &mut Ui) {
-        self.galleys.clear();
-        for block in &self.layout {
-            self.galleys.push(GalleyInfo::from(block.clone(), ui));
-        }
-
-        for galley in &self.galleys {
-            // Draw Annotations
-            if let Some(annotation) = &galley.annotation {
-                match annotation {
-                    Annotation::Item(_, indent_level) => {
-                        let bullet_point = galley.bullet_center();
-
-                        match indent_level {
-                            1 => ui.painter().circle_filled(
-                                bullet_point,
-                                BULLET_RADIUS,
-                                Color32::WHITE,
-                            ),
-                            _ => ui.painter().circle_stroke(
-                                bullet_point,
-                                BULLET_RADIUS,
-                                Stroke::new(1.0, Color32::WHITE),
-                            ),
-                        }
-                    }
-                    Annotation::Rule => {
-                        let mut max = galley.ui_location.max;
-                        max.y -= 7.0;
-
-                        let mut min = galley.ui_location.max;
-                        min.y -= 7.0;
-                        min.x = galley.ui_location.min.x;
-
-                        ui.painter().line_segment(
-                            [min, max],
-                            Stroke::new(0.1, self.visual_appearance.heading_line()),
-                        );
-                    }
-                    _ => {}
-                }
-            }
-
-            // Draw Text
-            ui.painter()
-                .galley(galley.text_location, galley.galley.clone());
+            start: segs.byte_offset_to_char(text_start),
+            end: segs.byte_offset_to_char(text_end),
         }
     }
 }
