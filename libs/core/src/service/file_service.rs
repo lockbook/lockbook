@@ -2,6 +2,7 @@ use crate::{CoreError, CoreResult, OneKey, RequestContext, Requester};
 use lockbook_shared::access_info::UserAccessMode;
 use lockbook_shared::file::File;
 use lockbook_shared::file_metadata::{FileType, Owner};
+use lockbook_shared::filename::ALLOWED_FILENAME_LENGTH;
 use lockbook_shared::symkey;
 use lockbook_shared::tree_like::TreeLike;
 use std::iter;
@@ -11,7 +12,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn create_file(
         &mut self, name: &str, parent: &Uuid, file_type: FileType,
     ) -> CoreResult<File> {
-        if name.len() > 508 {
+        if name.len() > ALLOWED_FILENAME_LENGTH {
             return Err(CoreError::FileNameTooLong);
         }
         let mut tree = (&self.tx.base_metadata)
@@ -34,7 +35,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
     }
 
     pub fn rename_file(&mut self, id: &Uuid, new_name: &str) -> CoreResult<()> {
-        if new_name.len() > 508 {
+        if new_name.len() > ALLOWED_FILENAME_LENGTH {
             return Err(CoreError::FileNameTooLong);
         }
         let mut tree = (&self.tx.base_metadata)

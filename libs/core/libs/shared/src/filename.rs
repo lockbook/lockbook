@@ -1,3 +1,5 @@
+pub const ALLOWED_FILENAME_LENGTH: usize = 100;
+
 #[derive(Debug)]
 pub enum DocumentType {
     Text,

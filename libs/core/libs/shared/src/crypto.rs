@@ -39,3 +39,7 @@ pub struct ECSigned<T> {
     pub signature: Vec<u8>,
     pub public_key: PublicKey,
 }
+
+pub fn get_encryption_overhead(decrypted_length: usize) -> usize {
+    (decrypted_length / 16 + 1) * 16
+}

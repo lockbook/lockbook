@@ -1,11 +1,15 @@
 use crate::ServerError;
-use lockbook_shared::api::{GetBuildInfoError, GetBuildInfoResponse};
+use lockbook_shared::{
+    account::ALLOWED_USERNAME_LENGTH,
+    api::{GetBuildInfoError, GetBuildInfoResponse},
+    crypto::get_encryption_overhead,
+};
 use shadow_rs::shadow;
 
 shadow!(build_info);
 
 pub fn username_is_valid(username: &str) -> bool {
-    !username.is_empty()
+    username.len() > get_encryption_overhead(ALLOWED_USERNAME_LENGTH)
         && username
             .to_lowercase()
             .chars()
