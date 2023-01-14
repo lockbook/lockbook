@@ -1,5 +1,6 @@
 use lockbook_core::Error::UiError;
 use lockbook_core::{FileDeleteError, MoveFileError, RenameFileError};
+use lockbook_shared::filename::MAX_FILENAME_LENGTH;
 use test_utils::{assert_matches, test_core_with_account};
 use uuid::Uuid;
 
@@ -53,6 +54,13 @@ fn name_empty() {
     core.create_at_path("doc1.md").unwrap();
     let id = core.create_at_path("doc2.md").unwrap().id;
     assert_matches!(core.rename_file(id, ""), Err(UiError(RenameFileError::NewNameEmpty)));
+}
+
+#[test]
+fn name_invalid() {
+    let core = test_core_with_account();
+    let result = core.create_at_path(&"x".repeat(MAX_FILENAME_LENGTH + 1));
+    assert!(result.is_err());
 }
 
 #[test]

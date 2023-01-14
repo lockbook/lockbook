@@ -1,5 +1,6 @@
 use lockbook_core::service::api_service::{ApiError, Requester};
 use lockbook_shared::file_metadata::FileDiff;
+use lockbook_shared::filename::MAX_FILENAME_LENGTH;
 use lockbook_shared::{api::*, ValidationFailure};
 use test_utils::*;
 use uuid::Uuid;
@@ -15,7 +16,22 @@ fn create_document() {
         .request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] })
         .unwrap();
 }
+#[test]
+fn create_document_invalid_name() {
+    let core = test_core_with_account();
+    let account = core.get_account().unwrap();
+    let id = core
+        .create_at_path(&"x".repeat(MAX_FILENAME_LENGTH + 1))
+        .unwrap()
+        .id;
+    let doc = core.db.local_metadata.get(&id).unwrap().unwrap();
 
+    let result = core
+        .client
+        .request(&account, UpsertRequest { updates: vec![FileDiff::new(&doc)] });
+
+    assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::FileNameTooLong)));
+}
 #[test]
 fn create_document_duplicate_id() {
     let core = test_core_with_account();
