@@ -1,6 +1,5 @@
 use lockbook_core::service::api_service::{ApiError, Requester};
 use lockbook_shared::file_metadata::FileDiff;
-use lockbook_shared::filename::MAX_FILENAME_LENGTH;
 use lockbook_shared::{api::*, ValidationFailure};
 use test_utils::*;
 use uuid::Uuid;
