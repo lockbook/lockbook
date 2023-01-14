@@ -4,7 +4,7 @@ use crate::buffer::Buffer;
 use crate::cursor::Cursor;
 use crate::debug::DebugInfo;
 use crate::galleys::Galleys;
-use crate::layouts::LayoutJobInfo;
+use crate::layouts::Layouts;
 use crate::styles::StyleInfo;
 use crate::test_input::TEST_MARKDOWN;
 use crate::unicode_segs::UnicodeSegs;
@@ -27,7 +27,7 @@ pub struct Editor {
     pub segs: UnicodeSegs,
     pub ast: Ast,
     pub styles: Vec<StyleInfo>,
-    pub layouts: Vec<LayoutJobInfo>,
+    pub layouts: Layouts,
     pub galleys: Galleys,
 }
 
@@ -72,6 +72,7 @@ impl Editor {
         let (text_updated, selection_updated) = if self.initialized {
             events::process(
                 &ui.ctx().input().events,
+                &self.layouts,
                 &self.galleys,
                 &mut self.buffer,
                 &mut self.segs,

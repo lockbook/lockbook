@@ -1,7 +1,9 @@
 use crate::buffer::Buffer;
 use crate::cursor::Cursor;
 use crate::debug::DebugInfo;
+use crate::element::ItemType;
 use crate::galleys::Galleys;
+use crate::layouts::{Annotation, Layouts};
 use crate::offset_types::DocCharOffset;
 use crate::unicode_segs;
 use crate::unicode_segs::UnicodeSegs;
@@ -13,18 +15,19 @@ use unicode_segmentation::UnicodeSegmentation;
 /// represents a modification made as a result of event processing
 #[derive(Debug)]
 enum Modification<'a> {
-    Cursor { cur: Cursor },   // modify the cursor state
-    Insert { text: &'a str }, // insert text at cursor location
-    Delete,                   // delete selection or character before cursor
-    DebugToggle,              // toggle debug overlay
+    Cursor { cur: Cursor },       // modify the cursor state
+    Insert { text: &'a str },     // insert text at cursor location
+    InsertOwned { text: String }, // insert text at cursor location
+    Delete,                       // delete selection or character before cursor
+    DebugToggle,                  // toggle debug overlay
 }
 
 /// processes `events` and returns a boolean pair representing (text_updated, selection_updated)
 pub fn process(
-    events: &[Event], galleys: &Galleys, buffer: &mut Buffer, segs: &mut UnicodeSegs,
-    cursor: &mut Cursor, debug: &mut DebugInfo,
+    events: &[Event], layouts: &Layouts, galleys: &Galleys, buffer: &mut Buffer,
+    segs: &mut UnicodeSegs, cursor: &mut Cursor, debug: &mut DebugInfo,
 ) -> (bool, bool) {
-    let modifications = calc_modifications(events, segs, galleys, buffer, *cursor);
+    let modifications = calc_modifications(events, segs, layouts, galleys, buffer, *cursor);
     apply_modifications(modifications, buffer, segs, cursor, debug)
 }
 
@@ -38,6 +41,7 @@ fn apply_modifications(
     let mut cur_cursor = *cursor;
     modifications.reverse();
     while let Some(modification) = modifications.pop() {
+        // todo: reduce duplication
         match modification {
             Modification::Cursor { cur } => {
                 cur_cursor = cur;
@@ -56,6 +60,22 @@ fn apply_modifications(
                 );
 
                 buffer.replace_range(replaced_text_range, text_replacement, segs);
+                *segs = unicode_segs::calc(buffer);
+                text_updated = true;
+            }
+            Modification::InsertOwned { text: text_replacement } => {
+                let replaced_text_range = cur_cursor
+                    .selection()
+                    .unwrap_or(Range { start: cur_cursor.pos, end: cur_cursor.pos });
+
+                modify_subsequent_cursors(
+                    replaced_text_range.clone(),
+                    &text_replacement,
+                    &mut modifications,
+                    &mut cur_cursor,
+                );
+
+                buffer.replace_range(replaced_text_range, &text_replacement, segs);
                 *segs = unicode_segs::calc(buffer);
                 text_updated = true;
             }
@@ -218,7 +238,8 @@ fn modify_subsequent_cursors(
 }
 
 fn calc_modifications<'a>(
-    events: &'a [Event], segs: &UnicodeSegs, galleys: &Galleys, buffer: &Buffer, cursor: Cursor,
+    events: &'a [Event], segs: &UnicodeSegs, layouts: &Layouts, galleys: &Galleys, buffer: &Buffer,
+    cursor: Cursor,
 ) -> Vec<Modification<'a>> {
     let mut modifications = Vec::new();
     let mut previous_cursor = cursor;
@@ -398,6 +419,31 @@ fn calc_modifications<'a>(
                 cursor.x_target = None;
 
                 modifications.push(Modification::Insert { text: "\n" });
+
+                // auto-insertion of bullets
+                let layout = &layouts[layouts.layout_at_char(cursor.pos, segs)];
+                match layout.annotation {
+                    Some(Annotation::Item(ItemType::Bulleted, _indent_level)) => {
+                        modifications.push(Modification::InsertOwned {
+                            text: layout.head(buffer).to_string(),
+                        });
+                    }
+                    Some(Annotation::Item(ItemType::Numbered(number), indent_level)) => {
+                        let text = "  ".to_string().repeat((indent_level - 1) as usize)
+                            + &(number + 1).to_string()
+                            + ". ";
+                        modifications.push(Modification::InsertOwned { text });
+                    }
+                    Some(Annotation::Item(ItemType::Todo(checked), indent_level)) => {
+                        // todo: todo lists currently act very strangely; revisit this once that's fixed
+                        let text = "  ".to_string().repeat((indent_level - 1) as usize)
+                            + if checked { "- [x]" } else { "- [ ]" };
+                        modifications.push(Modification::InsertOwned { text });
+                    }
+                    Some(Annotation::Image(_, _, _)) => {}
+                    Some(Annotation::Rule) => {}
+                    None => {}
+                }
 
                 cursor.selection_origin = None;
             }

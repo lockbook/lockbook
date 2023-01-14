@@ -1,13 +1,19 @@
 use crate::appearance::Appearance;
 use crate::buffer::Buffer;
 use crate::element::{Element, IndentLevel, ItemType, Title, Url};
-use crate::offset_types::DocByteOffset;
+use crate::offset_types::{DocByteOffset, DocCharOffset};
 use crate::styles::StyleInfo;
+use crate::unicode_segs::UnicodeSegs;
 use egui::text::LayoutJob;
 use egui::TextFormat;
 use pulldown_cmark::{HeadingLevel, LinkType};
 use std::cmp::max;
-use std::ops::Range;
+use std::ops::{Index, Range};
+
+#[derive(Default)]
+pub struct Layouts {
+    pub layouts: Vec<LayoutJobInfo>,
+}
 
 #[derive(Clone, Default, PartialEq)]
 pub struct LayoutJobInfo {
@@ -27,6 +33,84 @@ pub enum Annotation {
     Item(ItemType, IndentLevel),
     Image(LinkType, Url, Title),
     Rule,
+}
+
+pub fn calc(buffer: &Buffer, styles: &[StyleInfo], vis: &Appearance) -> Layouts {
+    let mut layout = Layouts::default();
+    let mut current: Option<LayoutJobInfo> = None;
+
+    for (index, style) in styles.iter().enumerate() {
+        let last_item = index == styles.len() - 1;
+        if style.block_start {
+            if let Some(block) = current.take() {
+                layout.layouts.push(block);
+            }
+        }
+
+        // If the next range starts a new block, absorb the terminal newline in this block
+        let absorb_terminal_newline = last_item
+            || if let Some(next) = styles.get(index + 1) { next.block_start } else { false };
+
+        match &mut current {
+            Some(block) => block.append(&buffer.raw, vis, style, absorb_terminal_newline),
+            None => {
+                current = Some(LayoutJobInfo::new(&buffer.raw, vis, style, absorb_terminal_newline))
+            }
+        };
+
+        if last_item {
+            if let Some(block) = current.take() {
+                layout.layouts.push(block);
+            }
+        }
+    }
+
+    if buffer.raw.ends_with('\n') {
+        layout.layouts.push(LayoutJobInfo::new(
+            &buffer.raw,
+            vis,
+            &StyleInfo {
+                block_start: true,
+                range: Range {
+                    start: DocByteOffset(buffer.len()),
+                    end: DocByteOffset(buffer.len()),
+                },
+                elements: vec![Element::Document, Element::Paragraph],
+            },
+            true,
+        ))
+    }
+
+    layout
+}
+
+impl Index<usize> for Layouts {
+    type Output = LayoutJobInfo;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.layouts[index]
+    }
+}
+
+impl Layouts {
+    pub fn is_empty(&self) -> bool {
+        self.layouts.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.layouts.len()
+    }
+
+    pub fn layout_at_char(&self, char_index: DocCharOffset, segs: &UnicodeSegs) -> usize {
+        let byte_offset = segs.char_offset_to_byte(char_index);
+        for i in 0..self.layouts.len() {
+            let galley = &self.layouts[i];
+            if galley.range.start <= byte_offset && byte_offset < galley.range.end {
+                return i;
+            }
+        }
+        self.layouts.len() - 1
+    }
 }
 
 impl LayoutJobInfo {
@@ -99,53 +183,8 @@ impl LayoutJobInfo {
                 && &src[style.range.end.0 - 1..style.range.end.0] == "\n",
         )
     }
-}
 
-pub fn calc(buffer: &Buffer, styles: &[StyleInfo], vis: &Appearance) -> Vec<LayoutJobInfo> {
-    let mut layout = Vec::new();
-    let mut current: Option<LayoutJobInfo> = None;
-
-    for (index, style) in styles.iter().enumerate() {
-        let last_item = index == styles.len() - 1;
-        if style.block_start {
-            if let Some(block) = current.take() {
-                layout.push(block);
-            }
-        }
-
-        // If the next range starts a new block, absorb the terminal newline in this block
-        let absorb_terminal_newline = last_item
-            || if let Some(next) = styles.get(index + 1) { next.block_start } else { false };
-
-        match &mut current {
-            Some(block) => block.append(&buffer.raw, vis, style, absorb_terminal_newline),
-            None => {
-                current = Some(LayoutJobInfo::new(&buffer.raw, vis, style, absorb_terminal_newline))
-            }
-        };
-
-        if last_item {
-            if let Some(block) = current.take() {
-                layout.push(block);
-            }
-        }
+    pub fn head<'b>(&self, buffer: &'b Buffer) -> &'b str {
+        &buffer.raw[(self.range.start).0..(self.range.start + self.head_size).0]
     }
-
-    if buffer.raw.ends_with('\n') {
-        layout.push(LayoutJobInfo::new(
-            &buffer.raw,
-            vis,
-            &StyleInfo {
-                block_start: true,
-                range: Range {
-                    start: DocByteOffset(buffer.len()),
-                    end: DocByteOffset(buffer.len()),
-                },
-                elements: vec![Element::Document, Element::Paragraph],
-            },
-            true,
-        ))
-    }
-
-    layout
 }
