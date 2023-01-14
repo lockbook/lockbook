@@ -1,7 +1,7 @@
 use crate::appearance::Appearance;
 use crate::buffer::Buffer;
 use crate::element::{Element, IndentLevel, ItemType, Title, Url};
-use crate::offset_types::{DocByteOffset, DocCharOffset};
+use crate::offset_types::{DocByteOffset, DocCharOffset, RelByteOffset, RelCharOffset};
 use crate::styles::StyleInfo;
 use crate::unicode_segs::UnicodeSegs;
 use egui::text::LayoutJob;
@@ -9,6 +9,7 @@ use egui::TextFormat;
 use pulldown_cmark::{HeadingLevel, LinkType};
 use std::cmp::max;
 use std::ops::{Index, Range};
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Default)]
 pub struct Layouts {
@@ -22,8 +23,8 @@ pub struct LayoutJobInfo {
     pub annotation: Option<Annotation>,
 
     // is it better to store this information in Annotation?
-    pub head_size: usize,
-    pub tail_size: usize,
+    pub head_size: RelByteOffset,
+    pub tail_size: RelByteOffset,
 
     pub annotation_text_format: TextFormat,
 }
@@ -138,7 +139,7 @@ impl LayoutJobInfo {
         self.range.end = max(self.range.end, style.range.end);
         self.tail_size = Self::tail_size(style, src, absorb_terminal_nl);
         self.job.append(
-            &src[style.range.start.0..style.range.end.0 - self.tail_size],
+            &src[style.range.start.0..(style.range.end - self.tail_size).0],
             0.0,
             style.text_format(vis),
         );
@@ -146,8 +147,8 @@ impl LayoutJobInfo {
 
     fn annotation_and_head_tail_size(
         style: &StyleInfo, src: &str, absorb_terminal_nl: bool,
-    ) -> (Option<Annotation>, usize, usize) {
-        let (mut annotation, mut head_size) = (None, 0);
+    ) -> (Option<Annotation>, RelByteOffset, RelByteOffset) {
+        let (mut annotation, mut head_size) = (None, RelByteOffset(0));
         let text = &src[style.range.start.0..style.range.end.0];
         if style.elements.contains(&Element::Item) {
             let indent_level = style
@@ -157,7 +158,7 @@ impl LayoutJobInfo {
                 .count() as IndentLevel;
             let text = {
                 let trimmed_text = text.trim_start();
-                head_size = text.len() - trimmed_text.len();
+                head_size = RelByteOffset(text.len() - trimmed_text.len());
                 trimmed_text
             };
             if text.starts_with("+ ") || text.starts_with("* ") || text.starts_with("- ") {
@@ -176,15 +177,26 @@ impl LayoutJobInfo {
         (annotation, head_size, Self::tail_size(style, src, absorb_terminal_nl))
     }
 
-    fn tail_size(style: &StyleInfo, src: &str, absorb_terminal_nl: bool) -> usize {
+    fn tail_size(style: &StyleInfo, src: &str, absorb_terminal_nl: bool) -> RelByteOffset {
         usize::from(
             style.range.end > style.range.start
                 && absorb_terminal_nl
                 && &src[style.range.end.0 - 1..style.range.end.0] == "\n",
         )
+        .into()
+    }
+
+    pub fn size(&self) -> RelByteOffset {
+        self.range.end - self.range.start
     }
 
     pub fn head<'b>(&self, buffer: &'b Buffer) -> &'b str {
         &buffer.raw[(self.range.start).0..(self.range.start + self.head_size).0]
+    }
+
+    pub fn head_size_chars(&self, buffer: &Buffer) -> RelCharOffset {
+        UnicodeSegmentation::grapheme_indices(self.head(buffer), true)
+            .count()
+            .into()
     }
 }

@@ -1,7 +1,7 @@
 use crate::appearance::Appearance;
 use crate::buffer::Buffer;
 use crate::layouts::{Annotation, LayoutJobInfo, Layouts};
-use crate::offset_types::{DocByteOffset, DocCharOffset};
+use crate::offset_types::{DocByteOffset, DocCharOffset, RelByteOffset};
 use crate::unicode_segs::UnicodeSegs;
 use egui::epaint::text::cursor::Cursor;
 use egui::text::CCursor;
@@ -20,8 +20,8 @@ pub struct GalleyInfo {
     pub annotation: Option<Annotation>,
 
     // is it better to store this information in Annotation?
-    pub head_size: usize,
-    pub tail_size: usize,
+    pub head_size: RelByteOffset,
+    pub tail_size: RelByteOffset,
     pub text_location: Pos2,
     pub ui_location: Rect,
 

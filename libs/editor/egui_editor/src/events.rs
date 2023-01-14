@@ -4,7 +4,7 @@ use crate::debug::DebugInfo;
 use crate::element::ItemType;
 use crate::galleys::Galleys;
 use crate::layouts::{Annotation, Layouts};
-use crate::offset_types::DocCharOffset;
+use crate::offset_types::{DocCharOffset, RelCharOffset};
 use crate::unicode_segs;
 use crate::unicode_segs::UnicodeSegs;
 use egui::{Event, Key, PointerButton, Vec2};
@@ -18,7 +18,7 @@ enum Modification<'a> {
     Cursor { cur: Cursor },       // modify the cursor state
     Insert { text: &'a str },     // insert text at cursor location
     InsertOwned { text: String }, // insert text at cursor location
-    Delete,                       // delete selection or character before cursor
+    Delete(RelCharOffset),        // delete selection or characters before cursor
     DebugToggle,                  // toggle debug overlay
 }
 
@@ -79,13 +79,13 @@ fn apply_modifications(
                 *segs = unicode_segs::calc(buffer);
                 text_updated = true;
             }
-            Modification::Delete => {
+            Modification::Delete(n_chars) => {
                 let text_replacement = "";
                 let replaced_text_range = cur_cursor.selection().unwrap_or(Range {
                     start: if cur_cursor.pos.0 == 0 {
                         DocCharOffset(0)
                     } else {
-                        cur_cursor.pos - 1
+                        cur_cursor.pos - n_chars
                     },
                     end: cur_cursor.pos,
                 });
@@ -411,7 +411,14 @@ fn calc_modifications<'a>(
             Event::Key { key: Key::Backspace, pressed: true, modifiers: _modifiers } => {
                 cursor.x_target = None;
 
-                modifications.push(Modification::Delete);
+                let layout = &layouts[layouts.layout_at_char(cursor.pos, segs)];
+                if layout.head_size > 0 && layout.head_size == layout.size() {
+                    // delete layout head (e.g. bullet) or one character
+                    modifications.push(Modification::Delete(layout.head_size_chars(buffer)));
+                } else {
+                    // delete selected text or one character
+                    modifications.push(Modification::Delete(1.into()));
+                }
 
                 cursor.selection_origin = None;
             }
@@ -420,7 +427,7 @@ fn calc_modifications<'a>(
 
                 modifications.push(Modification::Insert { text: "\n" });
 
-                // auto-insertion of bullets
+                // auto-insertion of list items
                 let layout = &layouts[layouts.layout_at_char(cursor.pos, segs)];
                 match layout.annotation {
                     Some(Annotation::Item(ItemType::Bulleted, _indent_level)) => {
