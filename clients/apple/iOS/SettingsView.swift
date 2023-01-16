@@ -65,7 +65,7 @@ struct SettingsView: View, Equatable {
                             Text("Compression ratio:")
                             Spacer()
                             Text(usage.compressionRatio)
-
+                            
                         }
                         HStack {
                             Text("Current tier:")
@@ -84,7 +84,7 @@ struct SettingsView: View, Equatable {
                                 }
                             }
                         }
-
+                        
                         if settingsState.tier == .Premium {
                             if billing.cancelSubscriptionResult != .appstoreActionRequired {
                                 Button("Cancel", role: .destructive) {
