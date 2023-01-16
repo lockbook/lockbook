@@ -41,14 +41,13 @@ struct FileTreeView: View {
                             .padding(.bottom, 10)
 
                         
-                        Text("No document is open. Expand the file tree by swiping from the left edge of the screen or clicking the button on the top left corner of the screen.")
+                        Text("No document is open. Expand the file tree by swiping from the left edge of the screen or clicking the button on the top left corner.")
                             .font(.title2)
                             .multilineTextAlignment(.center)
                             .frame(maxWidth: 350)
                     }
                     .padding(.horizontal)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-
                 }
             }
         }
