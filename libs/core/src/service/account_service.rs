@@ -1,4 +1,5 @@
 use crate::model::errors::core_err_unexpected;
+use crate::service::api_service::ApiError;
 use crate::OneKey;
 use crate::{CoreError, CoreResult, RequestContext, Requester};
 use libsecp256k1::PublicKey;
@@ -7,7 +8,6 @@ use lockbook_shared::api::{DeleteAccountRequest, GetPublicKeyRequest, NewAccount
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileMetadata, FileType};
 use qrcode_generator::QrCodeEcc;
-use crate::service::api_service::ApiError;
 
 impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn create_account(
@@ -121,10 +121,7 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
         let account = self.get_account()?;
 
         self.client
-            .request(
-                account,
-                DeleteAccountRequest { },
-            )
+            .request(account, DeleteAccountRequest {})
             .map_err(|err| match err {
                 ApiError::SendFailed(_) => CoreError::ServerUnreachable,
                 ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,

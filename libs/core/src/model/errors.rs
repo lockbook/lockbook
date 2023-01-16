@@ -1066,9 +1066,7 @@ impl From<CoreError> for Error<DeleteAccountError> {
     fn from(e: CoreError) -> Self {
         match e {
             CoreError::ServerUnreachable => UiError(DeleteAccountError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => {
-                UiError(DeleteAccountError::ClientUpdateRequired)
-            }
+            CoreError::ClientUpdateRequired => UiError(DeleteAccountError::ClientUpdateRequired),
             _ => unexpected!("{:#?}", e),
         }
     }

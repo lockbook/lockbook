@@ -523,9 +523,7 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn delete_account(
-        &self,
-    ) -> Result<(), Error<DeleteAccountError>> {
+    pub fn delete_account(&self) -> Result<(), Error<DeleteAccountError>> {
         let val = self
             .db
             .transaction(|tx| self.context(tx)?.delete_account())?;
