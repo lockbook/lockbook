@@ -12,7 +12,10 @@ class FileService: ObservableObject {
     func childrenOf(_ meta: File?) -> [File] {
         var file: File
         if meta == nil {
-            file = root!
+            guard let theRoot = root else {
+                return []
+            }
+            file = theRoot
         } else {
             file = meta!
         }

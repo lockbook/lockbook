@@ -88,6 +88,11 @@ public enum AccountExportError: String, UiError {
     case NoAccount
 }
 
+public enum DeleteAccountError: String, UiError {
+    case CouldNotReachServer
+    case ClientUpdateRequired
+}
+
 public enum GetAccountError: String, UiError {
     case NoAccount
 }

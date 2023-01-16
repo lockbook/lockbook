@@ -43,4 +43,13 @@ class AccountService: ObservableObject {
             }
         }
     }
+    
+    func deleteAccount() {
+        switch core.deleteAccount() {
+        case .success(_):
+            DI.accountDeleted()
+        case .failure(let error):
+            DI.errors.handleError(error)
+        }
+    }
 }
