@@ -1,16 +1,25 @@
+import Foundation
 import SwiftUI
 import SwiftLockbookCore
+
+#if os(macOS)
+import AppKit
+#endif
 
 @main struct LockbookApp: App {
 
     @Environment(\.scenePhase) private var scenePhase
+    
+    #if os(macOS)
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    #endif
     
     var body: some Scene {
 
         WindowGroup {
             AppView()
                 .realDI()
-                .buttonStyle(PlainButtonStyle())    
+                .buttonStyle(PlainButtonStyle())
                 .ignoresSafeArea()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onBackground {
@@ -82,3 +91,11 @@ extension View {
     }
     #endif
 }
+
+#if os(macOS)
+class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        return true
+    }
+}
+#endif
