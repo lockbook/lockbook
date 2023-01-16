@@ -6,7 +6,7 @@ import SwiftLockbookCore
     @Environment(\.scenePhase) private var scenePhase
     
     var body: some Scene {
-
+        
         WindowGroup {
             AppView()
                 .realDI()

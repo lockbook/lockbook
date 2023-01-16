@@ -19,6 +19,18 @@ class DI {
     #if os(iOS)
     static let toolbarModel = ToolbarModel()
     #endif
+    
+    public static func accountDeleted() {
+        DI.accounts.account = nil
+        DI.settings.usages = nil
+        DI.files.root = nil
+        DI.files.files = []
+        DI.onboarding.theyChoseToBackup = false
+        DI.onboarding.username = ""
+        DI.documentLoader.meta = nil
+        DI.documentLoader.type = nil
+        DI.currentDoc.selectedItem = nil
+    }
 }
 
 class Mock {
