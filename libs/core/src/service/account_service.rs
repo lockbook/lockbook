@@ -3,10 +3,11 @@ use crate::OneKey;
 use crate::{CoreError, CoreResult, RequestContext, Requester};
 use libsecp256k1::PublicKey;
 use lockbook_shared::account::Account;
-use lockbook_shared::api::{GetPublicKeyRequest, NewAccountRequest};
+use lockbook_shared::api::{DeleteAccountRequest, GetPublicKeyRequest, NewAccountRequest};
 use lockbook_shared::file_like::FileLike;
 use lockbook_shared::file_metadata::{FileMetadata, FileType};
 use qrcode_generator::QrCodeEcc;
+use crate::service::api_service::ApiError;
 
 impl<Client: Requester> RequestContext<'_, '_, Client> {
     pub fn create_account(
@@ -114,6 +115,33 @@ impl<Client: Requester> RequestContext<'_, '_, Client> {
                 Ok(pk)
             }
         }
+    }
+
+    pub fn delete_account(&mut self) -> CoreResult<()> {
+        let account = self.get_account()?;
+
+        self.client
+            .request(
+                account,
+                DeleteAccountRequest { },
+            )
+            .map_err(|err| match err {
+                ApiError::SendFailed(_) => CoreError::ServerUnreachable,
+                ApiError::ClientUpdateRequired => CoreError::ClientUpdateRequired,
+                _ => core_err_unexpected(err),
+            })?;
+
+        self.tx.account.clear();
+        self.tx.last_synced.clear();
+        self.tx.base_metadata.clear();
+        self.tx.root.clear();
+        self.tx.local_metadata.clear();
+        self.tx.public_key_by_username.clear();
+        self.tx.username_by_public_key.clear();
+
+        self.data_cache.public_key = None;
+
+        Ok(())
     }
 
     fn welcome_message(username: &str) -> Vec<u8> {

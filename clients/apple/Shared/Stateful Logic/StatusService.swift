@@ -18,7 +18,7 @@ class StatusService: ObservableObject {
     func startLastSyncedTimer() {
         lastSyncedTimer = Timer.scheduledTimer(timeInterval: 60, target: self, selector: #selector(setLastSynced), userInfo: nil, repeats: true)
     }
-    
+        
     func checkForLocalWork() {
         DispatchQueue.global(qos: .userInitiated).async {
             let localChanges = self.core.getLocalChanges()

@@ -51,7 +51,6 @@ struct ManageSubscription: View {
                     DispatchQueue.global(qos: .userInitiated).async {
                         Thread.sleep(forTimeInterval: 2)
                         DispatchQueue.main.async {
-                            
                             presentationMode.wrappedValue.dismiss()
                         }
                     }

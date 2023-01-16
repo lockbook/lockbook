@@ -30,6 +30,7 @@ make_static_metric! {
             share_feature_users,
             premium_users,
             active_users,
+            deleted_users,
             total_documents,
             total_document_bytes,
         },
@@ -86,13 +87,12 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
         info!("Metrics refresh started");
 
         let public_keys_and_usernames = state.index_db.usernames.get_all()?;
-        METRICS_STATISTICS
-            .total_users
-            .set(public_keys_and_usernames.len() as i64);
 
+        let total_users_ever = public_keys_and_usernames.len() as i64;
         let mut total_documents = 0;
         let mut total_bytes = 0;
         let mut active_users = 0;
+        let mut deleted_users = 0;
         let mut share_feature_users = 0;
 
         let mut premium_users = 0;
@@ -101,19 +101,15 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
         let mut premium_app_store_users = 0;
 
         for (username, owner) in public_keys_and_usernames {
-            let maybe_billing_platform = get_user_billing_platform(&state.index_db, &owner).await?;
+            let maybe_user_info = get_user_info(&state, owner).await?;
 
-            if let Some(billing_platform) = maybe_billing_platform {
-                premium_users += 1;
-
-                match billing_platform {
-                    BillingPlatform::GooglePlay { .. } => premium_google_play_users += 1,
-                    BillingPlatform::Stripe { .. } => premium_stripe_users += 1,
-                    BillingPlatform::AppStore { .. } => premium_app_store_users += 1,
+            let user_info = match maybe_user_info {
+                None => {
+                    deleted_users += 1;
+                    continue;
                 }
-            }
-
-            let user_info = get_user_info(&state, owner).await?;
+                Some(user_info) => user_info,
+            };
 
             if user_info.is_user_active {
                 active_users += 1;
@@ -129,11 +125,28 @@ pub async fn start(state: ServerState) -> Result<(), ServerError<MetricsError>> 
                 .with_label_values(&[&username])
                 .set(user_info.total_bytes);
 
+            let maybe_billing_platform = get_user_billing_platform(&state.index_db, &owner).await?;
+
+            if let Some(billing_platform) = maybe_billing_platform {
+                premium_users += 1;
+
+                match billing_platform {
+                    BillingPlatform::GooglePlay { .. } => premium_google_play_users += 1,
+                    BillingPlatform::Stripe { .. } => premium_stripe_users += 1,
+                    BillingPlatform::AppStore { .. } => premium_app_store_users += 1,
+                }
+            }
+
             tokio::time::sleep(state.config.metrics.time_between_metrics).await;
         }
 
+        METRICS_STATISTICS
+            .total_users
+            .set(total_users_ever - deleted_users);
+
         METRICS_STATISTICS.total_documents.set(total_documents);
         METRICS_STATISTICS.active_users.set(active_users);
+        METRICS_STATISTICS.deleted_users.set(deleted_users);
         METRICS_STATISTICS.total_document_bytes.set(total_bytes);
         METRICS_STATISTICS
             .share_feature_users
@@ -167,8 +180,12 @@ pub async fn get_user_billing_platform(
 
 pub async fn get_user_info(
     state: &ServerState, owner: Owner,
-) -> Result<UserInfo, ServerError<MetricsError>> {
+) -> Result<Option<UserInfo>, ServerError<MetricsError>> {
     state.index_db.transaction(|tx| {
+        if tx.owned_files.get_all().is_empty() {
+            return Ok(None);
+        }
+
         let mut tree = ServerTree::new(
             owner,
             &mut tx.owned_files,
@@ -199,12 +216,12 @@ pub async fn get_user_info(
 
         let (total_documents, total_bytes) = get_bytes_and_documents_count(tx, owner, ids)?;
 
-        Ok(UserInfo {
+        Ok(Some(UserInfo {
             total_documents,
             total_bytes: total_bytes as i64,
             is_user_active,
             is_user_sharer_or_sharee,
-        })
+        }))
     })?
 }
 

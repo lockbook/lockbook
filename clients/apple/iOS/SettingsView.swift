@@ -7,7 +7,10 @@ struct SettingsView: View, Equatable {
     @EnvironmentObject var settingsState: SettingsService
     @EnvironmentObject var accounts: AccountService
     
+    @Environment(\.presentationMode) var presentationMode
+    
     @State var cancelSubscriptionConfirmation = false
+    @State var deleteAccountConfirmation = false
     
     var body: some View {
         switch accounts.account {
@@ -62,7 +65,7 @@ struct SettingsView: View, Equatable {
                             Text("Compression ratio:")
                             Spacer()
                             Text(usage.compressionRatio)
-                            
+
                         }
                         HStack {
                             Text("Current tier:")
@@ -81,7 +84,7 @@ struct SettingsView: View, Equatable {
                                 }
                             }
                         }
-                        
+
                         if settingsState.tier == .Premium {
                             if billing.cancelSubscriptionResult != .appstoreActionRequired {
                                 Button("Cancel", role: .destructive) {
@@ -103,13 +106,21 @@ struct SettingsView: View, Equatable {
                 .onAppear(perform: settingsState.calculateUsage)
                 
                 Section(header: Text("PRIVACY")) {
-                    Link("Privacy Policy", destination: URL(string: "https://lockbook.net/privacy-policy")!)
+                    Text("[Privacy Policy](https://lockbook.net/privacy-policy)")
                         .foregroundColor(.blue)
-                        .padding(.leading, 3)
-                    
-                    Link("End User License Agreement", destination: URL(string: "https://lockbook.net/eula")!)
+
+                    Text("[End User License Agreement](https://lockbook.net/eula)")
                         .foregroundColor(.blue)
-                        .padding(.leading, 3)
+
+                    Button("Delete Account", role: .destructive) {
+                        deleteAccountConfirmation = true
+                    }
+                    .foregroundColor(.red)
+                    .confirmationDialog("Are you sure you want to delete your account?", isPresented: $deleteAccountConfirmation) {
+                        Button("Delete account", role: .destructive) {
+                            accounts.deleteAccount()
+                        }
+                    }
                 }
             }.navigationBarTitle("Settings")
         }
