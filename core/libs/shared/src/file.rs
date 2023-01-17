@@ -18,7 +18,7 @@ impl FromStr for ShareMode {
         match s {
             "Write" => Ok(ShareMode::Write),
             "Read" => Ok(ShareMode::Read),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }

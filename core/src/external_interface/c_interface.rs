@@ -1,10 +1,10 @@
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
+use lockbook_shared::file::ShareMode;
 use serde::Serialize;
 use serde_json::json;
 use uuid::Uuid;
-use lockbook_shared::file::ShareMode;
 
 use lockbook_shared::file_metadata::FileType;
 use lockbook_shared::path_ops::{filter_from_str, Filter};
@@ -182,11 +182,14 @@ pub unsafe extern "C" fn create_link(
     name: *const c_char, parent: *const c_char, target: *const c_char,
 ) -> *const c_char {
     c_string(match static_state::get() {
-        Ok(core) => translate(core.create_file(
-            &str_from_ptr(name),
-            uuid_from_ptr(parent),
-            FileType::Link { target: uuid_from_ptr(target) },
-        ).map(|_| ())),
+        Ok(core) => translate(
+            core.create_file(
+                &str_from_ptr(name),
+                uuid_from_ptr(parent),
+                FileType::Link { target: uuid_from_ptr(target) },
+            )
+            .map(|_| ()),
+        ),
         e => translate(e.map(|_| ())),
     })
 }
@@ -448,13 +451,13 @@ pub unsafe extern "C" fn cancel_subscription() -> *const c_char {
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
 pub unsafe extern "C" fn share_file(
-    id: *const c_char, username: *const c_char, share_mode: *const c_char
+    id: *const c_char, username: *const c_char, share_mode: *const c_char,
 ) -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.share_file(
             uuid_from_ptr(id),
             &str_from_ptr(username),
-            share_mode_from_ptr(share_mode)
+            share_mode_from_ptr(share_mode),
         )),
         e => translate(e.map(|_| ())),
     })
@@ -477,9 +480,7 @@ pub unsafe extern "C" fn get_pending_shares() -> *const c_char {
 #[no_mangle]
 pub unsafe extern "C" fn delete_pending_share(id: *const c_char) -> *const c_char {
     c_string(match static_state::get() {
-        Ok(core) => translate(core.delete_pending_share(
-            uuid_from_ptr(id)
-        )),
+        Ok(core) => translate(core.delete_pending_share(uuid_from_ptr(id))),
         e => translate(e.map(|_| ())),
     })
 }
