@@ -1014,7 +1014,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib";
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 0.5.8;
+				MARKETING_VERSION = 0.5.9;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = macosx;
@@ -1045,7 +1045,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib";
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 0.5.8;
+				MARKETING_VERSION = 0.5.9;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = macosx;
@@ -1164,7 +1164,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib";
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 0.5.8;
+				MARKETING_VERSION = 0.5.9;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = macosx;
