@@ -26,6 +26,7 @@ struct PendingSharesView: View {
             
             Spacer()
         }
+        .background(.clear)
         .navigationTitle("Pending Shares")
         .onAppear {
                 share.calculatePendingShares()

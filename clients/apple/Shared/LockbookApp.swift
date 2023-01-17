@@ -31,8 +31,6 @@ import SwiftLockbookCore
         #if os(macOS)
         Settings {
             SettingsView().realDI()
-            
-            PendingSharesView().realDI()
         }
         
         #endif

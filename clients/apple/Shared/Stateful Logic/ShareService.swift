@@ -35,7 +35,7 @@ class ShareService: ObservableObject {
     }
     
     func acceptShare(targetMeta: File, parent: UUID) {
-        if case .failure(let err) = core.createLink(name: targetMeta.name, dirId: targetMeta.id, target: parent) {
+        if case .failure(let err) = core.createLink(name: targetMeta.name, dirId: parent, target: targetMeta.id) {
             DI.errors.handleError(err)
         }
     }

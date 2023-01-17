@@ -7,6 +7,7 @@ struct ShareFileSheet: View {
     @EnvironmentObject var share: ShareService
     @EnvironmentObject var sheets: SheetState
     @EnvironmentObject var sync: SyncService
+    @EnvironmentObject var fileService: FileService
     
     @Environment(\.presentationMode) var presentationMode
     
@@ -31,9 +32,16 @@ struct ShareFileSheet: View {
                     }
                 }
                 
+                #if os(iOS)
+                TextField("Username", text: $username)
+                    .disableAutocorrection(true)
+                    .textInputAutocapitalization(.never)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                #else
                 TextField("Username", text: $username)
                     .disableAutocorrection(true)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
+                #endif
                 
                 #if os(macOS)
                 shareMode
@@ -45,6 +53,7 @@ struct ShareFileSheet: View {
                 Button("Share") {
                     share.shareFile(id: meta.id, username: username, isWrite: isWriteSelected)
                     sync.sync()
+
                     presentationMode.wrappedValue.dismiss()
                 }
                 .buttonStyle(.borderedProminent)
@@ -74,7 +83,6 @@ struct ShareFileSheet: View {
                         }
                         .padding(.horizontal)
                     }
-//                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .frameForMacOS()

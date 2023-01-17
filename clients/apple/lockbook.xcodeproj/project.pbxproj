@@ -11,8 +11,6 @@
 		1F7E4FC02521297D0045F606 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7E4FBE2521297D0045F606 /* Colors.swift */; };
 		4709DC38296609F100426106 /* PendingSharesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC37296609F100426106 /* PendingSharesView.swift */; };
 		4709DC39296609F100426106 /* PendingSharesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC37296609F100426106 /* PendingSharesView.swift */; };
-		4709DC3B29661B6800426106 /* SharedFileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3A29661B6800426106 /* SharedFileView.swift */; };
-		4709DC3C29661B6800426106 /* SharedFileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3A29661B6800426106 /* SharedFileView.swift */; };
 		4709DC3E2966260500426106 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3D2966260500426106 /* AcceptShareSheet.swift */; };
 		4709DC3F2966260500426106 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4709DC3D2966260500426106 /* AcceptShareSheet.swift */; };
 		477CC4902967A53C00714456 /* ShareFileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477CC48F2967A53C00714456 /* ShareFileSheet.swift */; };
@@ -137,7 +135,6 @@
 /* Begin PBXFileReference section */
 		1F7E4FBE2521297D0045F606 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
 		4709DC37296609F100426106 /* PendingSharesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingSharesView.swift; sourceTree = "<group>"; };
-		4709DC3A29661B6800426106 /* SharedFileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedFileView.swift; sourceTree = "<group>"; };
 		4709DC3D2966260500426106 /* AcceptShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcceptShareSheet.swift; sourceTree = "<group>"; };
 		4741C7902939C9220073F24F /* Products.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Products.storekit; sourceTree = "<group>"; };
 		477CC48F2967A53C00714456 /* ShareFileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareFileSheet.swift; sourceTree = "<group>"; };
@@ -450,7 +447,6 @@
 				477CC48F2967A53C00714456 /* ShareFileSheet.swift */,
 				4709DC3D2966260500426106 /* AcceptShareSheet.swift */,
 				EA9079C22569960A00E04F5D /* ListFileCell.swift */,
-				4709DC3A29661B6800426106 /* SharedFileView.swift */,
 				87AA99F2269610D8009E5591 /* NewFileSheet.swift */,
 				872175EF26F2850600A77C59 /* DocumentView.swift */,
 				87F78F762709352C0001E159 /* LogoView.swift */,
@@ -635,7 +631,6 @@
 				EA380B262561FAEF0021C4FA /* FileListView.swift in Sources */,
 				87AA99F3269610D8009E5591 /* NewFileSheet.swift in Sources */,
 				B249B9EF282C37AD004F5300 /* RenamingSheet.swift in Sources */,
-				4709DC3B29661B6800426106 /* SharedFileView.swift in Sources */,
 				877FB54A26D1788D0008AB3F /* CoreService.swift in Sources */,
 				872A61DA27BD8A8900AEA1D3 /* Storage.swift in Sources */,
 				877FB55926D18EC80008AB3F /* FileService.swift in Sources */,
@@ -726,7 +721,6 @@
 				870DC0A426BF37C0002E9A92 /* UsageSettingsView.swift in Sources */,
 				87E1C5DB27B480D70029833D /* EditorView.swift in Sources */,
 				B2459BEE28DBB43100756D71 /* ColorProgressBar.swift in Sources */,
-				4709DC3C29661B6800426106 /* SharedFileView.swift in Sources */,
 				872175F426F2858400A77C59 /* DocumentLoader.swift in Sources */,
 				EAF96D0D252E8ED000AA1A14 /* ConfigHelper.swift in Sources */,
 				B2ADC2472833FA8200DB8D3D /* FileCell.swift in Sources */,

@@ -23,6 +23,9 @@ struct AcceptShareSheet: View {
                         row: { dest in
                             Button(action: {
                                 share.acceptShare(targetMeta: meta, parent: dest.id)
+                                fileService.refresh()
+                                share.calculatePendingShares()
+                                
                                 presentationMode.wrappedValue.dismiss()
                             }, label: {
                                 Label(dest.name, systemImage: "folder")
