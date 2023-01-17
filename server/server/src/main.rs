@@ -8,7 +8,7 @@ use lockbook_server_lib::router_service::{
     app_store_notification_webhooks, build_info, core_routes, get_metrics,
     google_play_notification_webhooks, stripe_webhooks,
 };
-use lockbook_server_lib::schema::v2;
+use lockbook_server_lib::schema::{v2, v3};
 use lockbook_server_lib::*;
 use std::sync::Arc;
 use tracing::*;
@@ -22,17 +22,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config = cfg.clone();
     let stripe_client = stripe::Client::new(&cfg.billing.stripe.stripe_secret);
     let google_play_client = get_google_play_client(&cfg.billing.google.service_account_key).await;
-    let index_db = v2::Server::init(&cfg.index_db.db_location).expect("Failed to load index_db");
+    let index_db = v3::Server::init(&cfg.index_db.db_location).expect("Failed to load index_db");
     let app_store_client = reqwest::Client::new();
 
     if index_db.accounts.get_all().unwrap().is_empty() {
         info!("starting migration");
         let source_index_db =
-            lockbook_server_lib::schema::ServerV1::init(&cfg.index_db.db_location)
-                .expect("Failed to load index_db");
+            v2::Server::init(&cfg.index_db.db_location).expect("Failed to load index_db");
 
         source_index_db
-            .transaction(|source_tx| index_db.transaction(|tx| v2::migrate(source_tx, tx)))
+            .transaction(|source_tx| index_db.transaction(|tx| v3::migrate(source_tx, tx)))
             .expect("Failed to migrate index_db")
             .expect("Failed to migrate index_db");
         info!("migration complete");

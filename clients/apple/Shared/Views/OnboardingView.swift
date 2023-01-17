@@ -25,44 +25,54 @@ struct OnboardingView: View {
                 Spacer()
             }
         } else {
-            VStack (spacing: 30) {
-                LogoView()
-                Picker("", selection: $selectedTab) {
-                    Text("Create").tag(OnboardingScreen.Create)
-                    Text("Import").tag(OnboardingScreen.Import)
-                }
-                .pickerStyle(SegmentedPickerStyle())
-                
-                switch selectedTab {
-                case .Create:
-                    TextField("Choose a username: a-z, 0-9", text: self.$onboardingState.username)
-                        .disableAutocorrection(true)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .disabled(self.onboardingState.working)
-                        .onSubmit(self.onboardingState.attemptCreate)
-                    Text(onboardingState.createAccountError)
-                        .foregroundColor(.red)
-                        .bold()
-                    Button("Create Account", action: self.onboardingState.attemptCreate)
-                        .foregroundColor(.blue)
-                        .disabled(self.onboardingState.working)
-                case .Import:
-                    HStack {
-                        SecureField("Account String", text: self.$onboardingState.accountString)
+            ZStack {
+                VStack (spacing: 30) {
+                    LogoView()
+                    Picker("", selection: $selectedTab) {
+                        Text("Create").tag(OnboardingScreen.Create)
+                        Text("Import").tag(OnboardingScreen.Import)
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
+                    
+                    switch selectedTab {
+                    case .Create:
+                        TextField("Choose a username: a-z, 0-9", text: self.$onboardingState.username)
                             .disableAutocorrection(true)
-                            .autocapitalization(.none)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .disabled(self.onboardingState.working)
-                            .onSubmit(self.onboardingState.handleImport)
-                        #if os(iOS)
-                        QRScanner()
-                        #endif
+                            .onSubmit(self.onboardingState.attemptCreate)
+                        Text(onboardingState.createAccountError)
+                            .foregroundColor(.red)
+                            .bold()
+                        Button("Create Account", action: self.onboardingState.attemptCreate)
+                            .foregroundColor(.blue)
+                            .disabled(self.onboardingState.working)
+                    case .Import:
+                        HStack {
+                            SecureField("Account String", text: self.$onboardingState.accountString)
+                                .disableAutocorrection(true)
+                                .autocapitalization(.none)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .disabled(self.onboardingState.working)
+                                .onSubmit(self.onboardingState.handleImport)
+#if os(iOS)
+                            QRScanner()
+#endif
+                        }
+                        Text(onboardingState.importAccountError)
+                            .foregroundColor(.red)
+                            .bold()
+                        Button("Import Account", action: self.onboardingState.handleImport)
+                            .foregroundColor(.blue)
                     }
-                    Text(onboardingState.importAccountError)
-                        .foregroundColor(.red)
-                        .bold()
-                    Button("Import Account", action: self.onboardingState.handleImport)
-                        .foregroundColor(.blue)
+                }
+                
+                VStack {
+                    Spacer()
+                    Text("By using Lockbook, you acknowledge our [Privacy Policy](https://lockbook.net/privacy-policy) and accept our [Terms of Service](https://lockbook.net/tos).")
+                        .foregroundColor(.gray)
+                        .font(.caption)
+                        .padding()
                 }
             }
             .padding()

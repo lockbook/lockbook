@@ -1,10 +1,10 @@
 [package]
 name = "lockbook-desktop"
-version = "0.5.6"
+version = "0.5.8"
 edition = "2021"
 
 [dependencies]
-lb = { package = "lockbook-core", path = "../../core" }
+lb = { package = "lockbook-core", path = "../../libs/core" }
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.8"
 gtk = { package = "gtk4", version = "0.4.8", features = ["v4_6"] }

@@ -1,6 +1,6 @@
 name: lockbook-desktop
 base: core22
-version: '0.5.0'
+version: '0.5.8'
 summary: The linux gui version of Lockbook
 description: |
   The private, polished note-taking platform.

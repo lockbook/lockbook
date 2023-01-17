@@ -5,4 +5,5 @@
         <issue id="PluralsCandidate" severity="ignore" />
         <issue id="VectorPath" severity="ignore" />
         <issue id="OldTargetApi" severity="ignore" />
+        <issue id="InflateParams" severity="ignore" />
 </lint>

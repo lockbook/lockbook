@@ -134,6 +134,17 @@ pub unsafe extern "C" fn get_account() -> *const c_char {
 ///
 /// Be sure to call `release_pointer` on the result of this function to free the data.
 #[no_mangle]
+pub unsafe extern "C" fn delete_account() -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.delete_account()),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
 pub unsafe extern "C" fn create_file_at_path(path_and_name: *const c_char) -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.create_at_path(&str_from_ptr(path_and_name))),
@@ -201,6 +212,17 @@ pub unsafe extern "C" fn create_link(
 pub unsafe extern "C" fn get_root() -> *const c_char {
     c_string(match static_state::get() {
         Ok(core) => translate(core.get_root()),
+        e => translate(e.map(|_| ())),
+    })
+}
+
+/// # Safety
+///
+/// Be sure to call `release_pointer` on the result of this function to free the data.
+#[no_mangle]
+pub unsafe extern "C" fn get_file_by_id(id: *const c_char) -> *const c_char {
+    c_string(match static_state::get() {
+        Ok(core) => translate(core.get_file_by_id(uuid_from_ptr(id))),
         e => translate(e.map(|_| ())),
     })
 }

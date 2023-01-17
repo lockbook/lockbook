@@ -179,7 +179,7 @@
 		87F78F7927094A040001E159 /* BeforeYouStart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeforeYouStart.swift; sourceTree = "<group>"; };
 		B2063A4C27D01BF900A0783C /* EditorTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EditorTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B2063A4E27D01BF900A0783C /* EditorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorTests.swift; sourceTree = "<group>"; };
-		B2063A5627D01CAA00A0783C /* Lockbook (macOS)Development.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Lockbook (macOS)Development.entitlements"; sourceTree = "<group>"; };
+		B217A977296E0D06002339E0 /* Lockbook (macOS)Release.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Lockbook (macOS)Release.entitlements"; sourceTree = "<group>"; };
 		B21AF22A28204D460098C2AB /* CustomNSTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomNSTextView.swift; sourceTree = "<group>"; };
 		B21AF22C282058FC0098C2AB /* TypeAssist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypeAssist.swift; sourceTree = "<group>"; };
 		B21AF22F28218B4E0098C2AB /* CustomUITextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomUITextView.swift; sourceTree = "<group>"; };
@@ -375,7 +375,7 @@
 		EA5C7D622516605F00F7F358 = {
 			isa = PBXGroup;
 			children = (
-				B2063A5627D01CAA00A0783C /* Lockbook (macOS)Development.entitlements */,
+				B217A977296E0D06002339E0 /* Lockbook (macOS)Release.entitlements */,
 				87E1C5D527B47F570029833D /* Editor */,
 				EA5C7D672516605F00F7F358 /* Shared */,
 				EA5C7D712516606000F7F358 /* iOS */,
@@ -957,7 +957,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios";
 				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios_sim";
-				MARKETING_VERSION = 0.5.6;
+				MARKETING_VERSION = 0.5.8;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = iphoneos;
@@ -982,7 +982,7 @@
 					"@executable_path/Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios";
-				MARKETING_VERSION = 0.5.6;
+				MARKETING_VERSION = 0.5.8;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = iphoneos;
@@ -1014,7 +1014,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib";
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 0.5.6;
+				MARKETING_VERSION = 0.5.8;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = macosx;
@@ -1028,7 +1028,7 @@
 				ARCHS = "$(ARCHS_STANDARD)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = macOS/macOS.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "Lockbook (macOS)Release.entitlements";
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -1045,7 +1045,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib";
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 0.5.6;
+				MARKETING_VERSION = 0.5.8;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = macosx;
@@ -1132,7 +1132,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios";
 				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios_sim";
-				MARKETING_VERSION = 0.5.6;
+				MARKETING_VERSION = 0.5.8;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = iphoneos;
@@ -1149,6 +1149,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Lockbook (macOS)Development.entitlements";
 				CODE_SIGN_IDENTITY = "-";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -1163,7 +1164,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib";
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 0.5.6;
+				MARKETING_VERSION = 0.5.8;
 				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook;
 				PRODUCT_NAME = Lockbook;
 				SDKROOT = macosx;

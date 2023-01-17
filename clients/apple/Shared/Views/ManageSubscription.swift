@@ -34,10 +34,10 @@ struct ManageSubscription: View {
             } else if case .some(.failure) = billing.purchaseResult {
                 error
             }
-            
-            Spacer()
+
+            legal
         }
-            .padding()
+        .padding(.horizontal)
             .navigationTitle("Premium")
             .toast(isPresenting: Binding(get: {
                 billing.showPurchaseToast
@@ -79,6 +79,7 @@ struct ManageSubscription: View {
             Text("Current Usage:")
             ColorProgressBar(value: settings.usageProgress)
         }
+        .padding(.vertical, 15)
     }
     
     @ViewBuilder
@@ -87,6 +88,7 @@ struct ManageSubscription: View {
             Text("If you upgraded, your usage would be:")
             ColorProgressBar(value: settings.premiumProgress)
         }
+        .padding(.bottom, 10)
     }
     
     @ViewBuilder
@@ -106,6 +108,17 @@ struct ManageSubscription: View {
             Spacer()
             ProgressView()
             Spacer()
+        }
+    }
+
+    @ViewBuilder
+    var legal: some View {
+        VStack {
+            Spacer()
+            Text("Please review our [Terms of Service](https://lockbook.net/tos) and our [Privacy Policy](https://lockbook.net/privacy-policy).")
+                .foregroundColor(.gray)
+                .font(.caption)
+                .padding()
         }
     }
 }

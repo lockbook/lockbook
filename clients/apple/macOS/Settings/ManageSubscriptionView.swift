@@ -52,8 +52,11 @@ struct ManageSubscriptionView: View {
                     Text("Please cancel your subscription via the App Store.")
                 }
             }
+            
+            legal
         }
-            .padding()
+        .padding(.top, 20)
+        .padding(.horizontal, 20)
             .navigationTitle("Premium")
             .toast(isPresenting: Binding(get: {
                 billing.showPurchaseToast
@@ -109,7 +112,6 @@ struct ManageSubscriptionView: View {
                 .frame(maxWidth: 250, alignment: .trailing)
             ColorProgressBar(value: settings.usageProgress)
         }
-        .padding(.vertical)
     }
     
     @ViewBuilder
@@ -136,6 +138,17 @@ struct ManageSubscriptionView: View {
     var loading: some View {
         HStack {
             ProgressView()
+        }
+    }
+    
+    @ViewBuilder
+    var legal: some View {
+        VStack {
+            Spacer()
+            Text("Please review our [Terms of Service](https://lockbook.net/tos) and our [Privacy Policy](https://lockbook.net/privacy-policy).")
+                .foregroundColor(.gray)
+                .font(.caption)
+                .padding()
         }
     }
 }

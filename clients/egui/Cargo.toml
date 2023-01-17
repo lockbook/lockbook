@@ -1,10 +1,10 @@
 [package]
 name = "lockbook-egui"
-version = "0.5.6"
+version = "0.5.8"
 edition = "2021"
 
 [dependencies]
-lb = { package = "lockbook-core", path = "../../core", default-features = false, features=["native-tls"] }
+lb = { package = "lockbook-core", path = "../../libs/core", default-features = false, features=["native-tls"] }
 eframe = "0.19.0"
 egui-winit = "0.19.0"
 egui_extras = { version = "0.19.0", features = ["image"] }

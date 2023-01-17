@@ -39,6 +39,10 @@ public struct CoreApi: LockbookApi {
         fromPrimitiveResult(result: get_uncompressed_usage())
     }
     
+    public func deleteAccount() -> FfiResult<Empty, DeleteAccountError> {
+        fromPrimitiveResult(result: delete_account())
+    }
+    
     public func syncAll() -> FfiResult<Empty, SyncAllError> {
         fromPrimitiveResult(result: sync_all())
     }

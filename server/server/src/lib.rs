@@ -12,7 +12,7 @@ use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_service::StripeWebhookError;
 use crate::billing::stripe_client::SimplifiedStripeError;
 use crate::billing::stripe_model::{StripeDeclineCodeCatcher, StripeKnownDeclineCode};
-use crate::schema::v2::{transaction, Server};
+use crate::schema::v3::{transaction, Server};
 use crate::ServerError::ClientError;
 pub use stripe;
 
@@ -57,12 +57,12 @@ macro_rules! internal {
     }};
 }
 
-pub fn handle_version<Req: Request>(
-    version: &Option<String>,
+pub fn handle_version_header<Req: Request>(
+    config: &config::Config, version: &Option<String>,
 ) -> Result<(), ErrorWrapper<Req::Error>> {
-    let versions = vec!["0.5.5", "0.5.6"];
-    match version.as_deref() {
-        Some(x) if versions.contains(&x) => {
+    let versions = &config.server.compatible_core_versions;
+    match version {
+        Some(x) if versions.contains(x) => {
             router_service::CORE_VERSION_COUNTER
                 .with_label_values(&[x])
                 .inc();
@@ -72,6 +72,22 @@ pub fn handle_version<Req: Request>(
     }
 }
 
+pub fn handle_version_body<Req: Request>(
+    config: &config::Config, request: &RequestWrapper<Req>,
+) -> Result<(), ErrorWrapper<Req::Error>> {
+    let versions = &config.server.compatible_core_versions;
+    let client_version = &request.client_version;
+
+    match versions.contains(client_version) {
+        true => {
+            router_service::CORE_VERSION_COUNTER
+                .with_label_values(&[client_version.as_str()])
+                .inc();
+            Ok(())
+        }
+        false => Err(ErrorWrapper::<Req::Error>::ClientUpdateRequired),
+    }
+}
 pub fn verify_auth<TRequest: Request + Serialize>(
     server_state: &ServerState, request: &RequestWrapper<TRequest>,
 ) -> Result<(), SharedError> {

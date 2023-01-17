@@ -1,6 +1,6 @@
 name: lockbook
 base: core20
-version: '0.5.0'
+version: '0.5.8'
 summary: The CLI version of Lockbook
 description: |
   The private, polished note-taking platform.

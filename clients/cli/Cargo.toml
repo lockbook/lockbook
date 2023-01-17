@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-cli"
-version = "0.5.6"
+version = "0.5.8"
 edition = "2018"
 
 [[bin]]
@@ -8,7 +8,7 @@ name = "lockbook"
 path = "src/main.rs"
 
 [dependencies]
-lockbook-core = { path = "../../core" }
+lockbook-core = { path = "../../libs/core" }
 structopt = "0.3.13"
 chrono = "0.4"
 qr2term = "0.3.0"
