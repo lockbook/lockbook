@@ -14,9 +14,9 @@ struct QRScanner: View {
         }
         .frame(width: 40, height: 40)
         .disabled(self.onboardingState.working)
-        .sheet(isPresented: $isScanning, content: {
+        .sheet(isPresented: $isScanning) {
             CodeScannerView(codeTypes: [.qr], simulatedData: "This is simulated data", completion: handleScan)
-        })
+        }
     }
     
     func handleScan(result: Result<String, CodeScannerView.ScanError>) {

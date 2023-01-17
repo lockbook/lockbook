@@ -41,6 +41,7 @@ import AppKit
         Settings {
             SettingsView().realDI()
         }
+        
         #endif
     }
 }

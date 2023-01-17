@@ -23,6 +23,7 @@ public protocol LockbookApi {
     // Document
     func getFile(id: UUID) -> FfiResult<String, ReadDocumentError>
     func createFile(name: String, dirId: UUID, isFolder: Bool) -> FfiResult<File, CreateFileError>
+    func createLink(name: String, dirId: UUID, target: UUID) -> FfiResult<Empty, CreateFileError>
     func updateFile(id: UUID, content: String) -> FfiResult<Empty, WriteToDocumentError>
     func deleteFile(id: UUID) -> FfiResult<Empty, FileDeleteError>
     func renameFile(id: UUID, name: String) -> FfiResult<Empty, RenameFileError>
@@ -30,6 +31,9 @@ public protocol LockbookApi {
     func readDrawing(id: UUID) -> FfiResult<Drawing, GetDrawingError>
     func writeDrawing(id: UUID, content: Drawing) -> FfiResult<Empty, WriteToDocumentError>
     func exportDrawing(id: UUID) -> FfiResult<Data, ExportDrawingError>
+    func shareFile(id: UUID, username: String, isWrite: Bool) -> FfiResult<Empty, ShareFileError>
+    func getPendingShares() -> FfiResult<[File], GetPendingShares>
+    func deletePendingShare(id: UUID) ->FfiResult<Empty, DeletePendingShareError>
     
     // Billing
     func newAppleSub(originalTransactionId: String, appAccountToken: String) -> FfiResult<Empty, UpgradeAccountAppStoreError>

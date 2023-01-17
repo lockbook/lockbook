@@ -27,6 +27,11 @@ struct FileCell: View {
                     }, label: {
                         Label("Rename", systemImage: "questionmark.folder")
                     })
+                    Button(action: {
+                        sheets.sharingFileInfo = meta
+                    }, label: {
+                        Label("Share", systemImage: "shareplay")
+                    })
                 })
     }
 

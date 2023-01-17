@@ -110,7 +110,7 @@ struct ManageSubscription: View {
             Spacer()
         }
     }
-    
+
     @ViewBuilder
     var legal: some View {
         VStack {

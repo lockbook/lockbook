@@ -7,6 +7,8 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
     public var name: String
     public var lastModifiedBy: String
     public var lastModified: UInt64
+    public var shares: [Share]
+    
     public var isRoot: Bool { parent == id }
     public static func == (lhs: File, rhs: File) -> Bool {
         return lhs.fileType == rhs.fileType &&
@@ -66,4 +68,15 @@ public struct EncryptedValueWithNonce: Codable {
 
 public struct EncryptedValue: Codable {
     var value: [UInt]
+}
+
+public enum ShareMode: String, Codable {
+    case Write
+    case Read
+}
+
+public struct Share: Codable {
+    public var mode: ShareMode
+    public var sharedBy: String
+    public var sharedWith: String
 }
