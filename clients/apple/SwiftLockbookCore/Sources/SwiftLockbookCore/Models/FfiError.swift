@@ -240,3 +240,20 @@ public enum CancelSubscriptionError: String, UiError {
     case ClientUpdateRequired
     case CannotCancelForAppStore
 }
+
+public enum ShareFileError: String, UiError {
+    case CannotShareRoot
+    case FileNonexistent
+    case ShareAlreadyExists
+    case LinkInSharedFolder
+    case InsufficientPermission
+}
+
+public enum GetPendingShares: String, UiError {
+    case Stub
+}
+
+public enum DeletePendingShareError: String, UiError {
+    case FileNonexistent
+    case ShareNonexistent
+}
