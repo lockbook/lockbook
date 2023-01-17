@@ -120,6 +120,21 @@ pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
         .into_raw()
 }
 
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn free_text(s: *mut c_void) {
+    if s.is_null() {
+        return;
+    }
+    let _ = CString::from_raw(s as *mut c_char);
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn deinit_editor(obj: *mut c_void) {
+    drop(Box::from_raw(obj as *mut WgpuEditor));
+}
+
 async fn request_device(
     instance: &wgpu::Instance, backend: wgpu::Backends, surface: &wgpu::Surface,
 ) -> (wgpu::Adapter, wgpu::Device, wgpu::Queue) {

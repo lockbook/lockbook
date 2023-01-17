@@ -59,8 +59,7 @@ class FrameManager: NSObject, MTKViewDelegate {
     }
     
     deinit {
-        // TODO handle freeing editor here
-        print("de-init")
+        editorHandle.deallocate()
     }
     
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -81,9 +80,11 @@ class FrameManager: NSObject, MTKViewDelegate {
     }
     
     func getText() -> String {
-        let result: UnsafePointer<Int8> = get_text(editorHandle)
-        // todo free me
-        let str = String(cString: result)
-        return str
+        if let result = get_text(editorHandle) {
+            let str = String(cString: result)
+            free_text(result)
+            return str
+        }
+        return ""
     }
 }
