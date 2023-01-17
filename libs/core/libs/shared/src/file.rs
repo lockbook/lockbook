@@ -2,12 +2,25 @@ use crate::account::Username;
 use crate::file_metadata::FileType;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::str::FromStr;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum ShareMode {
     Write,
     Read,
+}
+
+impl FromStr for ShareMode {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Write" => Ok(ShareMode::Write),
+            "Read" => Ok(ShareMode::Read),
+            _ => Err(()),
+        }
+    }
 }
 
 impl fmt::Display for ShareMode {

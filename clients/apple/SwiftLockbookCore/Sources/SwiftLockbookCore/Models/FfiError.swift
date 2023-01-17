@@ -88,6 +88,11 @@ public enum AccountExportError: String, UiError {
     case NoAccount
 }
 
+public enum DeleteAccountError: String, UiError {
+    case CouldNotReachServer
+    case ClientUpdateRequired
+}
+
 public enum GetAccountError: String, UiError {
     case NoAccount
 }
@@ -234,4 +239,21 @@ public enum CancelSubscriptionError: String, UiError {
     case CouldNotReachServer
     case ClientUpdateRequired
     case CannotCancelForAppStore
+}
+
+public enum ShareFileError: String, UiError {
+    case CannotShareRoot
+    case FileNonexistent
+    case ShareAlreadyExists
+    case LinkInSharedFolder
+    case InsufficientPermission
+}
+
+public enum GetPendingShares: String, UiError {
+    case Stub
+}
+
+public enum DeletePendingShareError: String, UiError {
+    case FileNonexistent
+    case ShareNonexistent
 }
