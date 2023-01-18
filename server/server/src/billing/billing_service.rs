@@ -109,7 +109,7 @@ pub async fn upgrade_account_app_store(
         }
     }
 
-    let expires = app_store_service::verify_details(
+    let (expires, account_state) = app_store_service::verify_details(
         &server_state.app_store_client,
         &server_state.config.billing.apple,
         &request.app_account_token,
@@ -129,7 +129,7 @@ pub async fn upgrade_account_app_store(
             .subscription_product_id
             .clone(),
         expiration_time: expires,
-        account_state: AppStoreAccountState::Ok,
+        account_state,
     }));
 
     server_state

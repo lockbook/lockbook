@@ -167,7 +167,6 @@ class BillingService: ObservableObject {
             } else {
                 DI.errors.errorWithTitle("App Store Error", "Cannot retrieve data from the app store.")
             }
-            
         } catch {
             DI.errors.errorWithTitle("App Store Error", "Cannot retrieve data from the app store.")
         }
