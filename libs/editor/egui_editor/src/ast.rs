@@ -1,6 +1,7 @@
 use crate::buffer::Buffer;
 use crate::element::Element;
 use crate::offset_types::DocByteOffset;
+use crate::Editor;
 use pulldown_cmark::{Event, OffsetIter, Options, Parser};
 use std::ops::Range;
 
@@ -134,6 +135,13 @@ impl Ast {
 impl AstNode {
     pub fn new(element: Element, range: Range<DocByteOffset>) -> Self {
         Self { element, range, children: vec![] }
+    }
+}
+
+impl Editor {
+    pub fn print_ast(&self) {
+        println!("ast:");
+        self.ast.print(&self.buffer.raw);
     }
 }
 

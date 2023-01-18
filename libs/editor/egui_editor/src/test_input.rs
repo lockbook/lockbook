@@ -21,14 +21,10 @@ pub static TEST_MARKDOWN_14: &str = "# a\n\n";
 pub static TEST_MARKDOWN_15: &str = "# a\ntest";
 pub static TEST_MARKDOWN_16: &str = "# a\n\ntest";
 pub static TEST_MARKDOWN_17: &str = "# a *b*\n\n\n";
-
-// todo: panics
 pub static TEST_MARKDOWN_18: &str = "+ # a\ntest";
-
 pub static TEST_MARKDOWN_19: &str = "+";
 pub static TEST_MARKDOWN_20: &str = "+ ";
 pub static TEST_MARKDOWN_21: &str = "+ a";
-// todo: terminal cursor position is reasonable, but possibly confusing, wonder if indent level of 1 could appear to begin at col 0
 pub static TEST_MARKDOWN_22: &str = "+ t\n\n";
 pub static TEST_MARKDOWN_23: &str = "test\n+ test\n+ test2";
 pub static TEST_MARKDOWN_24: &str = "+ test\n\t+ test2";
@@ -43,8 +39,6 @@ pub static TEST_MARKDOWN_30: &str = "```\nfn test() {\n}\n```\n";
 pub static TEST_MARKDOWN_31: &str = "```\nfn test() {\n}\n```\ntest";
 pub static TEST_MARKDOWN_32: &str = "    fn a() {\n        test\n    }\ntest";
 
-// todo: weird newline inserted after the first block quote
-// todo: check behavior of code block inside a list item
 pub static TEST_MARKDOWN_33: &str = r#"# a
 # Hello *World*
 
@@ -167,3 +161,6 @@ Clients should expose a context menu to share files as described in the sharing 
 // todo: github supports this and it looks nice, prob want to replace > with |
 pub static TEST_MARKDOWN_35: &str =
     r#"todo: https://raw.githubusercontent.com/mxstbr/markdown-test-file/master/TEST.md"#;
+
+pub static TEST_MARKDOWN_36: &str = "* x\n\n* ";
+pub static TEST_MARKDOWN_37: &str = "* *x*\n\n* ";

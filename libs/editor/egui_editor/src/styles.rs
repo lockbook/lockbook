@@ -32,69 +32,71 @@ impl StyleInfo {
     }
 }
 
-/// Traverse an AST and determine 2 key things:
-/// * The elements that a region of text is impacted by
-/// * Which regions of text should be in their own galley
-///
-/// This is a recursive function that processes a given node, and it's children. It has to
-/// capture text that may occur before the first child, between children, and after the last
-/// child. The rest is handled by recursion.
-///
-/// parent_empty_block serves as a way to signal that the parent is a block, but there was no
-/// text before we traversed into the first child (think: + *first child* tail).
+/// Traverse an AST and determine style info, which is a set of text ranges, each with a stack of
+/// AST elements that they are in and an indicator of whether they are the start of a block (galley)
 pub fn calc(ast: &Ast, selection: &Option<Range<DocByteOffset>>) -> Vec<StyleInfo> {
     let mut styles = Vec::new();
-    calc_recursive(ast, selection, ast.root, &[], false, &mut styles);
+    calc_recursive(ast, selection, ast.root, &[], true, &mut styles);
     styles
 }
 
+/// recursive implementation of calc(); returns whether a block was started
 fn calc_recursive(
     ast: &Ast, selection: &Option<Range<DocByteOffset>>, node_idx: usize,
-    parent_elements: &[Element], parent_empty_block: bool, styles: &mut Vec<StyleInfo>,
-) {
+    parent_elements: &[Element], can_start_block: bool, styles: &mut Vec<StyleInfo>,
+) -> bool {
     let node = &ast.nodes[node_idx];
     let mut elements = Vec::from(parent_elements);
     elements.push(node.element.clone());
 
-    let is_block = node.element.is_block() || parent_empty_block;
+    // this text range starts a block if it is a block element or if it is a leaf node that does not
+    // have an ancestor that starts a block
+    let should_start_block = can_start_block
+        && (node.element.is_block() || node.children.is_empty())
+        || node.element == Element::Item; // items always start blocks
+    let mut did_start_block = false;
 
+    // if this is a leaf node, just emit the style for the whole range
     if node.children.is_empty() {
         styles.extend(cursor_split(
             selection,
-            StyleInfo { block_start: is_block, range: node.range.clone(), elements },
+            StyleInfo { block_start: should_start_block, range: node.range.clone(), elements },
         ));
-        return;
+        return should_start_block;
     }
 
+    // emit style for text before first child
     let head_range =
         Range { start: node.range.start, end: ast.nodes[node.children[0]].range.start };
-
-    let tail_range =
-        Range { start: ast.nodes[*node.children.last().unwrap()].range.end, end: node.range.end };
-
     if !head_range.is_empty() {
-        styles.extend(cursor_split(
-            selection,
-            StyleInfo {
-                block_start: is_block,
-                range: head_range.clone(),
-                elements: elements.clone(),
-            },
-        ));
+        let style = StyleInfo {
+            block_start: should_start_block && !did_start_block,
+            range: head_range,
+            elements: elements.clone(),
+        };
+        if style.block_start {
+            did_start_block = true;
+        }
+        styles.extend(cursor_split(selection, style));
     }
 
+    // emit style for children and text between children
     for index in 0..ast.nodes[node_idx].children.len() {
+        // emit style for children
         let child_idx = ast.nodes[node_idx].children[index];
-        let first_index = index == 0;
-        calc_recursive(
+        did_start_block |= calc_recursive(
             ast,
             selection,
             child_idx,
             &elements,
-            is_block && first_index && head_range.is_empty(),
+            // if this node can't start a block, neither can its descendants
+            // if this node should start a block, only one child can start a block
+            // if this node should not start a block, any number of children may start a block
+            can_start_block && (!should_start_block || !did_start_block),
             styles,
         );
-        // collect any regions in between children
+
+        // emit style for text between children
         let node = &ast.nodes[node_idx];
         let child = &ast.nodes[child_idx];
         if let Some(&next_idx) = node.children.get(index + 1) {
@@ -105,28 +107,35 @@ fn calc_recursive(
             if !(range.is_empty()
                 || child.element == Element::Item && next.element == Element::Item)
             {
-                styles.extend(cursor_split(
-                    selection,
-                    StyleInfo {
-                        block_start: elements == vec![Element::Document],
-                        range,
-                        elements: elements.clone(),
-                    },
-                ));
+                let style = StyleInfo {
+                    block_start: should_start_block && !did_start_block,
+                    range,
+                    elements: elements.clone(),
+                };
+                if style.block_start {
+                    did_start_block = true;
+                }
+                styles.extend(cursor_split(selection, style));
             }
         }
     }
 
+    // emit style for text after last child
+    let tail_range =
+        Range { start: ast.nodes[*node.children.last().unwrap()].range.end, end: node.range.end };
     if !tail_range.is_empty() {
-        styles.extend(cursor_split(
-            selection,
-            StyleInfo {
-                block_start: elements == vec![Element::Document],
-                range: tail_range,
-                elements,
-            },
-        ));
+        let style = StyleInfo {
+            block_start: should_start_block && !did_start_block,
+            range: tail_range,
+            elements: elements.clone(),
+        };
+        if style.block_start {
+            did_start_block = true;
+        }
+        styles.extend(cursor_split(selection, style));
     }
+
+    did_start_block
 }
 
 fn cursor_split(
@@ -176,13 +185,14 @@ fn cursor_split(
 
 impl Editor {
     pub fn print_styles(&self) {
+        println!("styles:");
         for style in &self.styles {
-            println!("elements: {:?}", style.elements);
-            println!("range: {}", &self.buffer.raw[style.range.start.0..style.range.end.0]);
-            if style.block_start {
-                println!("start")
-            }
-            println!();
+            println!(
+                "block_start: {:?}, {:?}, {:?}",
+                style.block_start,
+                &self.buffer.raw[style.range.start.0..style.range.end.0],
+                style.elements
+            );
         }
     }
 }

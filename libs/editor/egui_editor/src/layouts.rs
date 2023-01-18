@@ -4,6 +4,7 @@ use crate::element::{Element, IndentLevel, ItemType, Title, Url};
 use crate::offset_types::{DocByteOffset, DocCharOffset, RelByteOffset, RelCharOffset};
 use crate::styles::StyleInfo;
 use crate::unicode_segs::UnicodeSegs;
+use crate::Editor;
 use egui::text::LayoutJob;
 use egui::TextFormat;
 use pulldown_cmark::{HeadingLevel, LinkType};
@@ -29,7 +30,7 @@ pub struct LayoutJobInfo {
     pub annotation_text_format: TextFormat,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Annotation {
     Item(ItemType, IndentLevel),
     Image(LinkType, Url, Title),
@@ -181,7 +182,7 @@ impl LayoutJobInfo {
         usize::from(
             style.range.end > style.range.start
                 && absorb_terminal_nl
-                && &src[style.range.end.0 - 1..style.range.end.0] == "\n",
+                && src[style.range.start.0..style.range.end.0].ends_with('\n'),
         )
         .into()
     }
@@ -198,5 +199,21 @@ impl LayoutJobInfo {
         UnicodeSegmentation::grapheme_indices(self.head(buffer), true)
             .count()
             .into()
+    }
+}
+
+impl Editor {
+    pub fn print_layouts(&self) {
+        println!("layouts:");
+        for layout in &self.layouts.layouts {
+            println!(
+                "annotation: {:?}, {:?}, {:?}, {:?}",
+                layout.annotation,
+                &self.buffer.raw[layout.range.start.0..layout.range.start.0 + layout.head_size.0],
+                &self.buffer.raw[layout.range.start.0 + layout.head_size.0
+                    ..layout.range.end.0 - layout.tail_size.0],
+                &self.buffer.raw[layout.range.end.0 - layout.tail_size.0..layout.range.end.0],
+            );
+        }
     }
 }

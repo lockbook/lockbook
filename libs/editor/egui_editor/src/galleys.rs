@@ -75,7 +75,9 @@ impl Galleys {
         let galley = &self.galleys[galley_index];
         let galley_text_range = galley.text_range(segs);
         let cursor = galley.galley.from_ccursor(CCursor {
-            index: (char_offset - galley_text_range.start).0,
+            index: (char_offset.clamp(galley_text_range.start, galley_text_range.end)
+                - galley_text_range.start)
+                .0,
             prefer_next_row: true,
         });
 

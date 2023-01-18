@@ -119,7 +119,7 @@ impl Element {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ItemType {
     Bulleted,
     Numbered(usize),
