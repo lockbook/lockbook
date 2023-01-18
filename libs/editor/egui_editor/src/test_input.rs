@@ -164,3 +164,4 @@ pub static TEST_MARKDOWN_35: &str =
 
 pub static TEST_MARKDOWN_36: &str = "* x\n\n* ";
 pub static TEST_MARKDOWN_37: &str = "* *x*\n\n* ";
+pub static TEST_MARKDOWN_38: &str = "1. one\n11. eleven\n";

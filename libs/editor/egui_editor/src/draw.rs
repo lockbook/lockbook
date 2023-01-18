@@ -39,8 +39,8 @@ impl Editor {
                             let pos = galley.bullet_bounds(&self.appearance);
 
                             let galley = ui.ctx().fonts().layout_job(job);
-                            let rect = Align2::LEFT_TOP
-                                .anchor_rect(Rect::from_min_size(pos.min, galley.size()));
+                            let rect = Align2::RIGHT_TOP
+                                .anchor_rect(Rect::from_min_size(pos.max, galley.size()));
                             ui.painter().galley(rect.min, galley);
                         }
                         ItemType::Todo(_) => {
