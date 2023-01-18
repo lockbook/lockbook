@@ -1,0 +1,34 @@
+{
+  "object": {
+    "pins": [
+      {
+        "package": "AlertToast",
+        "repositoryURL": "https://github.com/elai950/AlertToast",
+        "state": {
+          "branch": "master",
+          "revision": "a437862bb6605080a5816e866cbd4ac8c8657b49",
+          "version": null
+        }
+      },
+      {
+        "package": "Down",
+        "repositoryURL": "https://github.com/Parth/Down",
+        "state": {
+          "branch": null,
+          "revision": "bc7f15eefdc44612da63b349082794d880fd039a",
+          "version": null
+        }
+      },
+      {
+        "package": "Introspect",
+        "repositoryURL": "https://github.com/siteline/SwiftUI-Introspect.git",
+        "state": {
+          "branch": null,
+          "revision": "2e09be8af614401bc9f87d40093ec19ce56ccaf2",
+          "version": "0.1.3"
+        }
+      }
+    ]
+  },
+  "version": 1
+}

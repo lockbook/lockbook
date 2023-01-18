@@ -59,7 +59,6 @@ class FrameManager: NSObject, MTKViewDelegate {
     }
     
     deinit {
-//        editorHandle.deallocate()
         deinit_editor(editorHandle)
     }
     

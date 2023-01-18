@@ -90,10 +90,11 @@ pub unsafe extern "C" fn key_event(
     }
 
     // Event::Key
-    let key = key.egui_key().unwrap();
-    obj.raw_input
-        .events
-        .push(Event::Key { key, pressed, modifiers });
+    if let Some(key) = key.egui_key() {
+        obj.raw_input
+            .events
+            .push(Event::Key { key, pressed, modifiers });
+    }
 }
 
 /// # Safety
