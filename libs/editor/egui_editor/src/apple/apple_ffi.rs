@@ -3,6 +3,7 @@ use crate::{Editor, WgpuEditor};
 use egui::{Context, Event, Pos2, Vec2};
 use egui_wgpu_backend::{wgpu, ScreenDescriptor};
 use std::ffi::{c_char, c_void, CStr, CString};
+use egui::PointerButton::{Primary, Secondary};
 
 /// # Safety
 #[no_mangle]
@@ -107,6 +108,29 @@ pub unsafe extern "C" fn scroll_wheel(obj: *mut c_void, scroll_wheel: f32) {
     obj.raw_input
         .events
         .push(Event::Scroll(Vec2::new(0.0, scroll_wheel * 2.0)))
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn mouse_moved(obj: *mut c_void, x: f32, y: f32) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+    obj.raw_input
+        .events
+        .push(Event::PointerMoved(Pos2 { x, y }))
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn mouse_button(obj: *mut c_void, x: f32, y: f32, pressed: bool, primary: bool) {
+    let obj = &mut *(obj as *mut WgpuEditor);
+    obj.raw_input
+        .events
+        .push(Event::PointerButton {
+            pos: Pos2 { x, y },
+            button: if primary { Primary } else { Secondary },
+            pressed,
+            modifiers: Default::default(),
+        })
 }
 
 /// # Safety

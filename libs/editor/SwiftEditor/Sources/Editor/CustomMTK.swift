@@ -2,6 +2,20 @@ import MetalKit
 import Bridge
 
 class CustomMTK: MTKView  {
+    
+    var trackingArea : NSTrackingArea?
+    
+    override func updateTrackingAreas() {
+        if trackingArea != nil {
+            self.removeTrackingArea(trackingArea!)
+        }
+        let options : NSTrackingArea.Options =
+        [.mouseEnteredAndExited, .mouseMoved, .enabledDuringMouseDrag, .activeInKeyWindow]
+        trackingArea = NSTrackingArea(rect: self.bounds, options: options,
+                                      owner: self, userInfo: nil)
+        self.addTrackingArea(trackingArea!)
+    }
+    
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
     }
@@ -13,6 +27,37 @@ class CustomMTK: MTKView  {
     override var acceptsFirstResponder: Bool {
         return true
     }
+    
+    override func mouseDragged(with event: NSEvent) {
+        let local = viewCoordinates(event)
+        mouse_moved(editor(), Float(local.x), Float(local.y))
+    }
+    
+    override func mouseMoved(with event: NSEvent) {
+        let local = viewCoordinates(event)
+        mouse_moved(editor(), Float(local.x), Float(local.y))
+    }
+    
+    override func mouseDown(with event: NSEvent) {
+        let local = viewCoordinates(event)
+        mouse_button(editor(), Float(local.x), Float(local.y), true, true)
+    }
+    
+    override func mouseUp(with event: NSEvent) {
+        let local = viewCoordinates(event)
+        mouse_button(editor(), Float(local.x), Float(local.y), false, true)
+    }
+    
+    override func rightMouseDown(with event: NSEvent) {
+        let local = viewCoordinates(event)
+        mouse_button(editor(), Float(local.x), Float(local.y), true, false)
+    }
+    
+    override func rightMouseUp(with event: NSEvent) {
+        let local = viewCoordinates(event)
+        mouse_button(editor(), Float(local.x), Float(local.y), false, false)
+    }
+    
     
     override func scrollWheel(with event: NSEvent) {
         scroll_wheel(editor(), Float(event.scrollingDeltaY)) // todo: get x too
@@ -34,6 +79,12 @@ class CustomMTK: MTKView  {
     
     func editor() -> UnsafeMutableRawPointer {
         delegate().editorHandle
+    }
+    
+    func viewCoordinates(_ event: NSEvent) -> NSPoint {
+        var local = self.convert(event.locationInWindow, from: nil)
+        local.y = self.frame.size.height - local.y
+        return local
     }
 }
 
