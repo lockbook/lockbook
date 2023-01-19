@@ -412,8 +412,10 @@ fn calc_modifications<'a>(
                 cursor.x_target = None;
 
                 let layout = &layouts[layouts.layout_at_char(cursor.pos, segs)];
-                if layout.head_size > 0 && layout.head_size == layout.size() {
-                    // delete layout head (e.g. bullet) or one character
+                if layout.head_size > 0
+                    && segs.char_offset_to_byte(cursor.pos) == layout.range.start + layout.head_size
+                {
+                    // delete layout head (e.g. bullet)
                     modifications.push(Modification::Delete(layout.head_size_chars(buffer)));
                 } else {
                     // delete selected text or one character
@@ -429,21 +431,86 @@ fn calc_modifications<'a>(
 
                 // auto-insertion of list items
                 let layout = &layouts[layouts.layout_at_char(cursor.pos, segs)];
+                if segs.char_offset_to_byte(cursor.pos) == layout.range.end - layout.tail_size {
+                    match layout.annotation {
+                        Some(Annotation::Item(ItemType::Bulleted, _indent_level)) => {
+                            modifications.push(Modification::InsertOwned {
+                                // bulleted list indentation can be two or four spaces; just use whatever this bullet used
+                                text: layout.head(buffer).to_string(),
+                            });
+                        }
+                        Some(Annotation::Item(ItemType::Numbered(number), indent_level)) => {
+                            // numbered list indentation always four spaces; don't blame me, blame the markdown spec
+                            let text = "    ".to_string().repeat((indent_level - 1) as usize)
+                                + &(number + 1).to_string()
+                                + ". ";
+                            modifications.push(Modification::InsertOwned { text });
+                        }
+                        Some(Annotation::Item(ItemType::Todo(checked), indent_level)) => {
+                            // todo: todo lists currently act very strangely; revisit this once that's fixed
+                            let text = "    ".to_string().repeat((indent_level - 1) as usize)
+                                + if checked { "- [x]" } else { "- [ ]" };
+                            modifications.push(Modification::InsertOwned { text });
+                        }
+                        Some(Annotation::Image(_, _, _)) => {}
+                        Some(Annotation::Rule) => {}
+                        None => {}
+                    }
+                }
+
+                cursor.selection_origin = None;
+            }
+            Event::Key { key: Key::Tab, pressed: true, modifiers } => {
+                // (de-)indentation of list items
+                let reverse = modifiers.shift;
+
+                let layout = &layouts[layouts.layout_at_char(cursor.pos, segs)];
                 match layout.annotation {
-                    Some(Annotation::Item(ItemType::Bulleted, _indent_level)) => {
-                        modifications.push(Modification::InsertOwned {
-                            text: layout.head(buffer).to_string(),
+                    Some(Annotation::Item(ItemType::Bulleted, indent_level)) => {
+                        // are we using two-space- or four-space-indentation?
+                        let leading_whitespace =
+                            layout.head_size - layout.head(buffer).trim_start().len();
+                        let spaces_per_indentation = if reverse && indent_level == 1 {
+                            continue; // can't de-indent un-indented items
+                        } else if indent_level == 1 {
+                            2 // default to 2
+                        } else {
+                            leading_whitespace.0 / (indent_level as usize - 1)
+                        };
+
+                        // move cursor to after leading whitespace
+                        modifications.push(Modification::Cursor {
+                            cur: Cursor {
+                                pos: segs
+                                    .byte_offset_to_char(layout.range.start + leading_whitespace),
+                                ..Default::default()
+                            },
                         });
+
+                        // add or remove indentation
+                        if !reverse {
+                            println!("insert {:?}", spaces_per_indentation);
+                            modifications.push(Modification::InsertOwned {
+                                text: " ".to_string().repeat(spaces_per_indentation),
+                            });
+                        } else {
+                            println!("delete {:?}", spaces_per_indentation);
+                            modifications.push(Modification::Delete(spaces_per_indentation.into()));
+                        }
+
+                        // put the cursor back where it was
+                        modifications.push(Modification::Cursor { cur: cursor });
                     }
                     Some(Annotation::Item(ItemType::Numbered(number), indent_level)) => {
-                        let text = "  ".to_string().repeat((indent_level - 1) as usize)
+                        // numbered list indentation always four spaces; don't blame me, blame the markdown spec
+                        let text = "    ".to_string().repeat((indent_level - 1) as usize)
                             + &(number + 1).to_string()
                             + ". ";
                         modifications.push(Modification::InsertOwned { text });
                     }
                     Some(Annotation::Item(ItemType::Todo(checked), indent_level)) => {
                         // todo: todo lists currently act very strangely; revisit this once that's fixed
-                        let text = "  ".to_string().repeat((indent_level - 1) as usize)
+                        let text = "    ".to_string().repeat((indent_level - 1) as usize)
                             + if checked { "- [x]" } else { "- [ ]" };
                         modifications.push(Modification::InsertOwned { text });
                     }
@@ -451,8 +518,6 @@ fn calc_modifications<'a>(
                     Some(Annotation::Rule) => {}
                     None => {}
                 }
-
-                cursor.selection_origin = None;
             }
             Event::Key { key: Key::A, pressed: true, modifiers } => {
                 if modifiers.command {

@@ -50,14 +50,12 @@ pub fn calc(buffer: &Buffer, styles: &[StyleInfo], vis: &Appearance) -> Layouts 
         }
 
         // If the next range starts a new block, absorb the terminal newline in this block
-        let absorb_terminal_newline = last_item
+        let absorb_terminal_nl = last_item
             || if let Some(next) = styles.get(index + 1) { next.block_start } else { false };
 
         match &mut current {
-            Some(block) => block.append(&buffer.raw, vis, style, absorb_terminal_newline),
-            None => {
-                current = Some(LayoutJobInfo::new(&buffer.raw, vis, style, absorb_terminal_newline))
-            }
+            Some(block) => block.append(&buffer.raw, vis, style, absorb_terminal_nl),
+            None => current = Some(LayoutJobInfo::new(&buffer.raw, vis, style, absorb_terminal_nl)),
         };
 
         if last_item {
@@ -207,7 +205,7 @@ impl Editor {
         println!("layouts:");
         for layout in &self.layouts.layouts {
             println!(
-                "annotation: {:?}, {:?}, {:?}, {:?}",
+                "annotation: {:?},\t{:?}{:?}{:?}",
                 layout.annotation,
                 &self.buffer.raw[layout.range.start.0..layout.range.start.0 + layout.head_size.0],
                 &self.buffer.raw[layout.range.start.0 + layout.head_size.0

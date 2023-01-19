@@ -1,6 +1,6 @@
 use crate::appearance::YELLOW;
 use crate::cursor::Cursor;
-use crate::element::ItemType;
+use crate::element::{Element, ItemType};
 use crate::layouts::Annotation;
 use crate::Editor;
 use egui::text::LayoutJob;
@@ -31,11 +31,11 @@ impl Editor {
                         }
                         ItemType::Numbered(num) => {
                             let mut job = LayoutJob::default();
-                            job.append(
-                                &(num.to_string() + "."),
-                                0.0,
-                                galley.annotation_text_format.clone(),
-                            );
+
+                            let mut text_format = galley.annotation_text_format.clone();
+                            Element::Emphasis.apply_style(&mut text_format, &self.appearance);
+
+                            job.append(&(num.to_string() + "."), 0.0, text_format);
                             let pos = galley.bullet_bounds(&self.appearance);
 
                             let galley = ui.ctx().fonts().layout_job(job);

@@ -188,7 +188,7 @@ impl Editor {
         println!("styles:");
         for style in &self.styles {
             println!(
-                "block_start: {:?}, {:?}, {:?}",
+                "block_start: {:?},\t{:?},\t{:?}",
                 style.block_start,
                 &self.buffer.raw[style.range.start.0..style.range.end.0],
                 style.elements
