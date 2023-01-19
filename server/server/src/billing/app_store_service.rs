@@ -7,7 +7,7 @@ use crate::config::AppleConfig;
 use crate::{ClientError, ServerError, ServerState};
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
 use libsecp256k1::PublicKey;
-use lockbook_shared::api::{UnixTimeMillis, UpgradeAccountAppStoreError};
+use lockbook_shared::api::{AppStoreAccountState, UnixTimeMillis, UpgradeAccountAppStoreError};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use tracing::debug;
@@ -17,6 +17,9 @@ use x509_parser::parse_x509_certificate;
 use x509_parser::prelude::X509Certificate;
 
 const SUBSCRIBED: u16 = 1;
+const EXPIRED: u16 = 2;
+const BILLING_RETRY: u16 = 3;
+const GRACE_PERIOD: u16 = 4;
 
 pub fn get_public_key(
     state: &ServerState, trans: &TransactionInfo,
@@ -36,7 +39,7 @@ pub fn get_public_key(
 pub async fn verify_details(
     client: &reqwest::Client, config: &AppleConfig, app_account_token: &str,
     original_transaction_id: &str,
-) -> Result<UnixTimeMillis, ServerError<UpgradeAccountAppStoreError>> {
+) -> Result<(UnixTimeMillis, AppStoreAccountState), ServerError<UpgradeAccountAppStoreError>> {
     let (transaction, transaction_info) =
         app_store_client::get_sub_status(client, config, original_transaction_id).await?;
 
@@ -44,14 +47,21 @@ pub async fn verify_details(
     debug!(?transaction.original_transaction_id, ?original_transaction_id, "Comparing verified original transaction id and with unverified");
     debug!(?transaction.status, "Checking the subscription status.");
 
+    let account_state = match transaction.status {
+        SUBSCRIBED => AppStoreAccountState::Ok,
+        EXPIRED => AppStoreAccountState::Expired,
+        BILLING_RETRY => AppStoreAccountState::FailedToRenew,
+        GRACE_PERIOD => AppStoreAccountState::GracePeriod,
+        _ => return Err(internal!("Unknown subscription status.")),
+    };
+
     if transaction_info.app_account_token != app_account_token
-        || transaction.status != SUBSCRIBED
         || transaction.original_transaction_id != original_transaction_id
     {
         return Err(ClientError(UpgradeAccountAppStoreError::InvalidAuthDetails));
     }
 
-    Ok(transaction_info.expires_date as UnixTimeMillis)
+    Ok((transaction_info.expires_date as UnixTimeMillis, account_state))
 }
 
 pub fn decode_verify_notification(
