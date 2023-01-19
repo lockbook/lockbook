@@ -845,7 +845,7 @@ pub async fn admin_rebuild_index(
             }
             ServerIndex::FileChildren => {
                 let mut file_children = HashMap::new();
-                for (id, _) in tx.metas.get_all() {
+                for id in tx.metas.keys() {
                     file_children.insert(*id, HashSet::new());
                 }
                 for (id, file) in tx.metas.get_all() {
