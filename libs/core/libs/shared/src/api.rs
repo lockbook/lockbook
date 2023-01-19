@@ -698,6 +698,8 @@ pub type UnixTimeMillis = u64;
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone, Copy)]
 pub enum ServerIndex {
     OwnedFiles,
+    SharedFiles,
+    FileChildren,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
