@@ -64,19 +64,15 @@ class BillingService: ObservableObject {
                             return
                         }
                             
-                        
                         let result = self.core.newAppleSub(originalTransactionId: String(transaction.originalID), appAccountToken: appAccountToken.uuidString.lowercased())
                                 
                         switch result {
                         case .success(_):
                             await transaction.finish()
-                            self.purchaseResult = .success
                         case .failure(let error):
-                            if error.kind == .UiError(.AppStoreAccountAlreadyLinked) || error.kind == .UiError(.InvalidAuthDetails) || error.kind == .UiError(.AlreadyPremium) {
+                            if error.kind == .UiError(.AppStoreAccountAlreadyLinked) {
                                 await transaction.finish()
                                 self.purchaseResult = .success
-                            } else {
-                                DI.errors.handleError(error)
                             }
                         }
                     } else {
@@ -96,7 +92,7 @@ class BillingService: ObservableObject {
             let purchaseOpt: Set<Product.PurchaseOption> = [Product.PurchaseOption.appAccountToken(UUID())]
             
             if case .none = maybeMonthlySubscription {
-                await launchBillingBackgroundTasks()
+                launchBillingBackgroundTasks()
             }
             
             guard let monthlySubscription = maybeMonthlySubscription else {
@@ -165,10 +161,10 @@ class BillingService: ObservableObject {
             if storeProducts.count == 1 {
                 maybeMonthlySubscription = storeProducts[0]
             } else {
-                DI.errors.errorWithTitle("App Store Error", "Cannot retrieve data from the app store.")
+                DI.errors.errorWithTitle("App Store Error", "Cannot retrieve data from the app store (err_id: 2).")
             }
         } catch {
-            DI.errors.errorWithTitle("App Store Error", "Cannot retrieve data from the app store.")
+            DI.errors.errorWithTitle("App Store Error", "Cannot retrieve data from the app store (err_id: 1).")
         }
     }
     

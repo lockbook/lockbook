@@ -39,6 +39,10 @@ impl SubscriptionProfile {
             None => FREE_TIER_USAGE_SIZE,
         }
     }
+
+    pub fn is_active(&self) -> bool {
+        self.data_cap() == PREMIUM_TIER_USAGE_SIZE
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

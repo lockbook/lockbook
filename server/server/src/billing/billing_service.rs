@@ -10,10 +10,7 @@ use crate::billing::{
 };
 use crate::schema::Account;
 use crate::ServerError::ClientError;
-use crate::{
-    account_service, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE,
-    PREMIUM_TIER_USAGE_SIZE,
-};
+use crate::{account_service, RequestContext, ServerError, ServerState, FREE_TIER_USAGE_SIZE};
 use base64::DecodeError;
 use hmdb::transaction::Transaction;
 use libsecp256k1::PublicKey;
@@ -85,10 +82,6 @@ pub async fn upgrade_account_app_store(
 
     let mut account = lock_subscription_profile(server_state, &context.public_key)?;
 
-    if account.billing_info.data_cap() == PREMIUM_TIER_USAGE_SIZE {
-        return Err(ClientError(UpgradeAccountAppStoreError::AlreadyPremium));
-    }
-
     debug!("Upgrading the account of a user through app store billing");
 
     if let Some(owner) = server_state
@@ -97,16 +90,22 @@ pub async fn upgrade_account_app_store(
         .get(&request.app_account_token)?
     {
         if let Some(other_account) = server_state.index_db.accounts.get(&owner)? {
-            if let Some(BillingPlatform::AppStore(info)) =
+            if let Some(BillingPlatform::AppStore(ref info)) =
                 other_account.billing_info.billing_platform
             {
-                if info.account_token == request.app_account_token {
+                if info.account_token == request.app_account_token
+                    && other_account.billing_info.is_active()
+                {
                     return Err(ClientError(
                         UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked,
                     ));
                 }
             }
         }
+    }
+
+    if account.billing_info.is_active() {
+        return Err(ClientError(UpgradeAccountAppStoreError::AlreadyPremium));
     }
 
     let (expires, account_state) = app_store_service::verify_details(
@@ -153,7 +152,7 @@ pub async fn upgrade_account_google_play(
 
     let mut account = lock_subscription_profile(server_state, &context.public_key)?;
 
-    if account.billing_info.data_cap() == PREMIUM_TIER_USAGE_SIZE {
+    if account.billing_info.is_active() {
         return Err(ClientError(UpgradeAccountGooglePlayError::AlreadyPremium));
     }
 
@@ -206,7 +205,7 @@ pub async fn upgrade_account_stripe(
 
     let mut account = lock_subscription_profile(server_state, &context.public_key)?;
 
-    if account.billing_info.data_cap() == PREMIUM_TIER_USAGE_SIZE {
+    if account.billing_info.is_active() {
         return Err(ClientError(UpgradeAccountStripeError::AlreadyPremium));
     }
 
@@ -599,14 +598,20 @@ pub async fn app_store_notification_webhook(
 
     let trans = app_store_service::decode_verify_transaction(
         &server_state.config.billing.apple,
-        &resp.clone().data.encoded_transaction_info.unwrap(),
+        &resp
+            .clone()
+            .data
+            .encoded_transaction_info
+            .ok_or(ClientError(AppStoreNotificationError::InvalidJWS))?,
     )?;
     let public_key = app_store_service::get_public_key(server_state, &trans)?;
 
     let owner = Owner(public_key);
+    let maybe_username = server_state.index_db.accounts.get(&owner)?;
 
     info!(
         ?owner,
+        ?maybe_username,
         ?resp.notification_type,
         ?resp.subtype,
         "Updating app store user's subscription profile to match new subscription state"
@@ -648,7 +653,7 @@ pub async fn app_store_notification_webhook(
                     }
                 }
                 NotificationChange::GracePeriodExpired => {
-                    account.billing_info.billing_platform = None;
+                    info.account_state = AppStoreAccountState::Expired
                 }
                 NotificationChange::Refund => {
                     info!(?resp, "A user has requested a refund.");
