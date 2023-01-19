@@ -564,7 +564,8 @@ pub struct AdminValidateServer {
     // accounts
     pub users_with_validation_failures: HashMap<Username, AdminValidateAccount>,
     // index integrity
-    pub usernames_mapped_to_wrong_accounts: HashMap<String, String>, // mapped username -> account username
+    pub usernames_mapped_to_wrong_accounts: HashMap<String, String>,
+    // mapped username -> account username
     pub usernames_mapped_to_nonexistent_accounts: HashMap<String, Owner>,
     pub usernames_unmapped_to_accounts: HashSet<String>,
     pub owners_mapped_to_unowned_files: HashMap<Owner, HashSet<Uuid>>,
@@ -693,3 +694,26 @@ impl Request for AdminFileInfoRequest {
 
 // number of milliseconds that have elapsed since the unix epoch
 pub type UnixTimeMillis = u64;
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone, Copy)]
+pub enum ServerIndex {
+    OwnedFiles,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AdminRebuildIndexRequest {
+    pub index: ServerIndex,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum AdminRebuildIndexError {
+    NotPermissioned,
+
+}
+
+impl Request for AdminRebuildIndexRequest {
+    type Response = ();
+    type Error = AdminRebuildIndexError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/admin-rebuild-index";
+}

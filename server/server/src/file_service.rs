@@ -35,7 +35,7 @@ pub async fn upsert_file_metadata(
                 &mut tx.file_children,
                 &mut tx.metas,
             )?
-            .to_lazy();
+                .to_lazy();
 
             for id in tree.owned_ids() {
                 if tree.find(&id)?.is_document() && tree.calculate_deleted(&id)? {
@@ -173,7 +173,7 @@ pub async fn change_doc(
             &mut tx.file_children,
             &mut tx.metas,
         )?
-        .to_lazy();
+            .to_lazy();
 
         if tree.maybe_find(request.diff.new.id()).is_none() {
             return Err(ClientError(NotPermissioned));
@@ -232,7 +232,7 @@ pub async fn change_doc(
         request.diff.new.document_hmac().unwrap(),
         &request.new_content,
     )
-    .await?;
+        .await?;
     debug!(?id, ?hmac, "Inserted document contents");
 
     let result = server_state.index_db.transaction(|tx| {
@@ -243,7 +243,7 @@ pub async fn change_doc(
             &mut tx.file_children,
             &mut tx.metas,
         )?
-        .to_lazy();
+            .to_lazy();
         let new_size = request.new_content.value.len() as u64;
 
         if tree.calculate_deleted(request.diff.new.id())? {
@@ -275,7 +275,7 @@ pub async fn change_doc(
             request.diff.new.id(),
             request.diff.new.document_hmac().unwrap(),
         )
-        .await?;
+            .await?;
         debug!(?id, ?hmac, "Cleaned up new document contents after failed metadata update");
     }
 
@@ -306,7 +306,7 @@ pub async fn get_document(
             &mut tx.file_children,
             &mut tx.metas,
         )?
-        .to_lazy();
+            .to_lazy();
 
         let meta = match tree.maybe_find(&request.id) {
             Some(meta) => Ok(meta),
@@ -350,7 +350,7 @@ pub async fn get_file_ids(
                 &mut tx.file_children,
                 &mut tx.metas,
             )?
-            .owned_ids(),
+                .owned_ids(),
         })
     })?
 }
@@ -368,7 +368,7 @@ pub async fn get_updates(
             &mut tx.file_children,
             &mut tx.metas,
         )?
-        .to_lazy();
+            .to_lazy();
 
         let mut result_ids = HashSet::new();
         for id in tree.owned_ids() {
@@ -377,9 +377,9 @@ pub async fn get_updates(
                 result_ids.insert(id);
                 if file.owner() != owner
                     && file
-                        .user_access_keys()
-                        .iter()
-                        .any(|k| !k.deleted && k.encrypted_for == context.public_key)
+                    .user_access_keys()
+                    .iter()
+                    .any(|k| !k.deleted && k.encrypted_for == context.public_key)
                 {
                     result_ids.insert(id);
                     result_ids.extend(tree.descendants(&id)?);
@@ -516,7 +516,7 @@ pub fn validate_account_helper(
         &mut tx.file_children,
         &mut tx.metas,
     )?
-    .to_lazy();
+        .to_lazy();
 
     for id in tree.owned_ids() {
         if !tree.calculate_deleted(&id)? {
@@ -574,7 +574,7 @@ pub async fn admin_validate_server(
                     &mut tx.file_children,
                     &mut tx.metas,
                 )?
-                .to_lazy();
+                    .to_lazy();
                 if tree.calculate_deleted(&id)? {
                     deleted_ids.insert(id);
                 }
@@ -777,7 +777,7 @@ pub async fn admin_file_info(
                 &mut tx.file_children,
                 &mut tx.metas,
             )?
-            .to_lazy();
+                .to_lazy();
 
             let ancestors = tree
                 .ancestors(&request.id)?
@@ -794,4 +794,22 @@ pub async fn admin_file_info(
 
             Ok(AdminFileInfoResponse { file, ancestors, descendants })
         })?
+}
+
+pub async fn admin_rebuild_index(
+    context: RequestContext<'_, AdminRebuildIndexRequest>,
+) -> Result<(), ServerError<AdminRebuildIndexError>> {
+    context.server_state.index_db.transaction(|tx| {
+        match context.request.index {
+            ServerIndex::OwnedFiles => {
+                tx.owned_files.clear();
+                for (id, file) in tx.metas.get_all() {
+                    let mut set = tx.owned_files.get(&file.owner()).cloned().unwrap_or_default();
+                    set.insert(*id);
+                    tx.owned_files.insert(file.owner(), set);
+                }
+                Ok(())
+            }
+        }
+    })?
 }

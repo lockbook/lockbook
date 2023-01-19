@@ -3,6 +3,7 @@ mod disappear;
 mod error;
 mod info;
 mod validate;
+mod indexes;
 
 use std::env;
 
@@ -10,6 +11,7 @@ use structopt::StructOpt;
 
 use crate::error::Error;
 use lockbook_core::{Config, Core, Uuid};
+use crate::indexes::CliIndex;
 
 #[derive(Debug, PartialEq, Eq, StructOpt)]
 pub enum Admin {
@@ -53,6 +55,8 @@ pub enum Admin {
         public_key: Option<String>,
     },
 
+    RebuildIndex(CliIndex),
+
     /// Prints information about a file as it appears on the server
     FileInfo { id: Uuid },
 }
@@ -79,6 +83,7 @@ pub fn main() {
         Admin::ValidateAccount { username } => validate::account(&core, username),
         Admin::ValidateServer => validate::server(&core),
         Admin::FileInfo { id } => info::file(&core, id),
+        Admin::RebuildIndex(index) => indexes::rebuild(&core, index)
     };
 
     if result.is_err() {
