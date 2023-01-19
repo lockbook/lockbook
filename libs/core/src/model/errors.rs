@@ -63,8 +63,8 @@ impl<T> From<crossbeam::channel::SendError<T>> for UnexpectedError {
 
 impl Serialize for UnexpectedError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
+    where
+        S: Serializer,
     {
         let mut state = serializer.serialize_struct("UnexpectedError", 2)?;
         state.serialize_field("tag", "Unexpected")?;
@@ -1175,7 +1175,9 @@ impl From<CoreError> for Error<AdminRebuildIndexError> {
                 UiError(AdminRebuildIndexError::InsufficientPermission)
             }
             CoreError::ServerUnreachable => UiError(AdminRebuildIndexError::CouldNotReachServer),
-            CoreError::ClientUpdateRequired => UiError(AdminRebuildIndexError::ClientUpdateRequired),
+            CoreError::ClientUpdateRequired => {
+                UiError(AdminRebuildIndexError::ClientUpdateRequired)
+            }
             _ => unexpected!("{:#?}", e),
         }
     }

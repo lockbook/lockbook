@@ -1,34 +1,40 @@
 mod account;
 mod disappear;
 mod error;
+mod indexes;
 mod info;
 mod validate;
-mod indexes;
 
 use std::env;
 
 use structopt::StructOpt;
 
 use crate::error::Error;
-use lockbook_core::{Config, Core, Uuid};
 use crate::indexes::CliIndex;
+use lockbook_core::{Config, Core, Uuid};
 
 #[derive(Debug, PartialEq, Eq, StructOpt)]
 pub enum Admin {
     /// Disappear a user
     ///
     /// Frees up their username
-    DisappearAccount { username: String },
+    DisappearAccount {
+        username: String,
+    },
 
     /// Disappear a file
     ///
     /// When you delete a file you flip that file's is_deleted flag to false. In a disaster recovery
     /// scenario, you may want to *disappear* a file so that it never existed. This is useful in a
     /// scenario where your server let in an invalid file.
-    DisappearFile { id: Uuid },
+    DisappearFile {
+        id: Uuid,
+    },
 
     /// Validates file trees of all users on the server and prints any failures
-    ValidateAccount { username: String },
+    ValidateAccount {
+        username: String,
+    },
 
     /// Performs server-wide integrity checks
     ValidateServer,
@@ -58,7 +64,9 @@ pub enum Admin {
     RebuildIndex(CliIndex),
 
     /// Prints information about a file as it appears on the server
-    FileInfo { id: Uuid },
+    FileInfo {
+        id: Uuid,
+    },
 }
 
 type Res<T> = Result<T, Error>;
@@ -83,7 +91,7 @@ pub fn main() {
         Admin::ValidateAccount { username } => validate::account(&core, username),
         Admin::ValidateServer => validate::server(&core),
         Admin::FileInfo { id } => info::file(&core, id),
-        Admin::RebuildIndex(index) => indexes::rebuild(&core, index)
+        Admin::RebuildIndex(index) => indexes::rebuild(&core, index),
     };
 
     if result.is_err() {

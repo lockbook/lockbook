@@ -16,6 +16,7 @@ pub use libsecp256k1::PublicKey;
 pub use uuid::Uuid;
 
 pub use lockbook_shared::account::Account;
+pub use lockbook_shared::api::ServerIndex;
 pub use lockbook_shared::api::{
     AccountFilter, AccountIdentifier, AppStoreAccountState, GooglePlayAccountState, PaymentMethod,
     PaymentPlatform, StripeAccountTier, SubscriptionInfo,
@@ -34,7 +35,6 @@ pub use lockbook_shared::tree_like::TreeLike;
 pub use lockbook_shared::tree_like::TreeLikeMut;
 pub use lockbook_shared::usage::bytes_to_human;
 pub use lockbook_shared::work_unit::{ClientWorkUnit, WorkUnit};
-pub use lockbook_shared::api::ServerIndex;
 
 pub use crate::model::drawing::SupportedImageFormats;
 pub use crate::model::errors::*;
@@ -49,7 +49,9 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use hmdb::transaction::Transaction as _;
 use itertools::Itertools;
 use lockbook_shared::account::Username;
-use lockbook_shared::api::{AccountInfo, AdminFileInfoResponse, AdminValidateAccount, AdminValidateServer};
+use lockbook_shared::api::{
+    AccountInfo, AdminFileInfoResponse, AdminValidateAccount, AdminValidateServer,
+};
 use lockbook_shared::clock;
 use lockbook_shared::crypto::AESKey;
 use serde_json::{json, value::Value};
@@ -490,9 +492,9 @@ impl<Client: Requester> CoreLib<Client> {
     }
 
     #[instrument(
-    level = "debug",
-    skip(self, original_transaction_id, app_account_token),
-    err(Debug)
+        level = "debug",
+        skip(self, original_transaction_id, app_account_token),
+        err(Debug)
     )]
     pub fn upgrade_account_app_store(
         &self, original_transaction_id: String, app_account_token: String,
@@ -600,7 +602,9 @@ impl<Client: Requester> CoreLib<Client> {
     pub fn admin_rebuild_index(
         &self, index: ServerIndex,
     ) -> Result<(), Error<AdminRebuildIndexError>> {
-        let val = self.db.transaction(|tx| self.context(tx)?.rebuild_index(index))?;
+        let val = self
+            .db
+            .transaction(|tx| self.context(tx)?.rebuild_index(index))?;
         Ok(val?)
     }
 }

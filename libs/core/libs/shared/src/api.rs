@@ -708,7 +708,6 @@ pub struct AdminRebuildIndexRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum AdminRebuildIndexError {
     NotPermissioned,
-
 }
 
 impl Request for AdminRebuildIndexRequest {
