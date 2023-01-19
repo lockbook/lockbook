@@ -795,3 +795,26 @@ pub async fn admin_file_info(
             Ok(AdminFileInfoResponse { file, ancestors, descendants })
         })?
 }
+
+pub async fn admin_rebuild_index(
+    context: RequestContext<'_, AdminRebuildIndexRequest>,
+) -> Result<(), ServerError<AdminRebuildIndexError>> {
+    context
+        .server_state
+        .index_db
+        .transaction(|tx| match context.request.index {
+            ServerIndex::OwnedFiles => {
+                tx.owned_files.clear();
+                for (id, file) in tx.metas.get_all() {
+                    let mut set = tx
+                        .owned_files
+                        .get(&file.owner())
+                        .cloned()
+                        .unwrap_or_default();
+                    set.insert(*id);
+                    tx.owned_files.insert(file.owner(), set);
+                }
+                Ok(())
+            }
+        })?
+}
