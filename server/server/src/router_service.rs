@@ -150,6 +150,7 @@ pub fn core_routes(
         .or(core_req!(AdminValidateAccountRequest, admin_validate_account, server_state))
         .or(core_req!(AdminValidateServerRequest, admin_validate_server, server_state))
         .or(core_req!(AdminFileInfoRequest, admin_file_info, server_state))
+        .or(core_req!(AdminRebuildIndexRequest, admin_rebuild_index, server_state))
 }
 
 pub fn build_info() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {

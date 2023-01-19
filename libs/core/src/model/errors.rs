@@ -1162,6 +1162,28 @@ impl From<CoreError> for Error<AdminListUsersError> {
 }
 
 #[derive(Debug, Serialize, EnumIter)]
+pub enum AdminRebuildIndexError {
+    InsufficientPermission,
+    CouldNotReachServer,
+    ClientUpdateRequired,
+}
+
+impl From<CoreError> for Error<AdminRebuildIndexError> {
+    fn from(e: CoreError) -> Self {
+        match e {
+            CoreError::InsufficientPermission => {
+                UiError(AdminRebuildIndexError::InsufficientPermission)
+            }
+            CoreError::ServerUnreachable => UiError(AdminRebuildIndexError::CouldNotReachServer),
+            CoreError::ClientUpdateRequired => {
+                UiError(AdminRebuildIndexError::ClientUpdateRequired)
+            }
+            _ => unexpected!("{:#?}", e),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, EnumIter)]
 pub enum AdminGetAccountInfoError {
     InsufficientPermission,
     UsernameNotFound,
