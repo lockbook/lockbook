@@ -182,7 +182,7 @@ pub async fn get_user_info(
     state: &ServerState, owner: Owner,
 ) -> Result<Option<UserInfo>, ServerError<MetricsError>> {
     state.index_db.transaction(|tx| {
-        if tx.owned_files.get_all().is_empty() {
+        if tx.owned_files.get(&owner).is_none() {
             return Ok(None);
         }
 
