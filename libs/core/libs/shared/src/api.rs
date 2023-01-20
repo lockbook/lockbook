@@ -77,9 +77,6 @@ pub enum UpsertError {
     /// Found update to a deleted file
     DeletedFileUpdated,
 
-    // The encrypted name of the file is too big
-    FileNameTooLong,
-
     /// Other misc validation failures
     Validation(ValidationFailure),
 }
@@ -96,7 +93,6 @@ pub enum ChangeDocError {
     DocumentNotFound,
     DocumentDeleted,
     NotPermissioned,
-    FileNameTooLong,
     OldVersionIncorrect,
     DiffMalformed,
 }

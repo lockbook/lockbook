@@ -47,7 +47,6 @@ pub enum SharedError {
     RootModificationInvalid,
     FileNameEmpty,
     FileParentNonexistent,
-    FileNameTooLong,
     FileNotFolder,
     FileNotDocument,
     SignatureInvalid,
