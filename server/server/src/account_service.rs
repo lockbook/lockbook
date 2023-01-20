@@ -356,9 +356,25 @@ pub async fn delete_account_helper(
             tx.owned_files.delete(Owner(*public_key));
             tx.shared_files.delete(Owner(*public_key));
             tx.last_seen.delete(Owner(*public_key));
+
             for id in metas_to_delete {
-                tx.metas.delete(id);
-                tx.file_children.delete(id);
+                if let Some(meta) = tx.metas.get(&id) {
+                    if &(meta.owner().0) == public_key {
+                        for user_access_key in meta.user_access_keys() {
+                            let sharee = Owner(user_access_key.encrypted_for);
+                            if let Some(shared_files) = tx.shared_files.get(&sharee) {
+                                let new_shared_files = shared_files
+                                    .iter()
+                                    .copied()
+                                    .filter(|id| id != meta.id())
+                                    .collect();
+                                tx.shared_files.insert(sharee, new_shared_files);
+                            }
+                        }
+                        tx.metas.delete(id);
+                        tx.file_children.delete(id);
+                    }
+                }
             }
 
             if free_username {

@@ -64,8 +64,12 @@ fn admin_rebuild_owned_files_index_test() {
         .admin_disappear_account(&customer2.get_account().unwrap().username)
         .unwrap();
 
-    // this should be uncommented after: https://github.com/lockbook/lockbook/issues/1521
-    // assert!(admin_core.admin_validate_server().unwrap().users_with_validation_failures.is_empty());
+    // this statement failed before fix of https://github.com/lockbook/lockbook/issues/1521
+    assert!(admin_core
+        .admin_validate_server()
+        .unwrap()
+        .users_with_validation_failures
+        .is_empty());
 
     admin_core
         .admin_rebuild_index(ServerIndex::OwnedFiles)
@@ -106,8 +110,12 @@ fn admin_rebuild_shared_files_index_test() {
         .admin_disappear_account(&customer1.get_account().unwrap().username)
         .unwrap();
 
-    // this should be uncommented after: https://github.com/lockbook/lockbook/issues/1521
-    // assert!(admin_core.admin_validate_server().unwrap().users_with_validation_failures.is_empty());
+    // this statement failed before fix of https://github.com/lockbook/lockbook/issues/1521
+    assert!(admin_core
+        .admin_validate_server()
+        .unwrap()
+        .users_with_validation_failures
+        .is_empty());
 
     admin_core
         .admin_rebuild_index(ServerIndex::SharedFiles)
