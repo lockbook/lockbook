@@ -425,52 +425,15 @@ fn calc_modifications<'a>(
                     if let Some(Annotation::Item(ItemType::Numbered(_), indent_level)) =
                         layout.annotation
                     {
-                        let mut layout_idx = layout_idx;
-                        loop {
-                            layout_idx += 1;
-                            if layout_idx == layouts.len() {
-                                break;
-                            }
-                            let layout = &layouts[layout_idx];
-                            if let Some(Annotation::Item(
-                                ItemType::Numbered(cur_number),
-                                cur_indent_level,
-                            )) = layout.annotation
-                            {
-                                match cur_indent_level.cmp(&indent_level) {
-                                    Ordering::Greater => {
-                                        continue; // skip nested list items
-                                    }
-                                    Ordering::Less => {
-                                        break; // end of nested list
-                                    }
-                                    Ordering::Equal => {
-                                        // replace cur_number with prev_number in head
-                                        modifications.push(Modification::Cursor {
-                                            cur: Cursor {
-                                                pos: segs.byte_offset_to_char(
-                                                    layout.range.start + layout.head_size,
-                                                ),
-                                                selection_origin: Some(
-                                                    segs.byte_offset_to_char(layout.range.start),
-                                                ),
-                                                ..Default::default()
-                                            },
-                                        });
-                                        let head = layout.head(buffer);
-                                        let text = head
-                                            [0..head.len() - (cur_number).to_string().len() - 2]
-                                            .to_string()
-                                            + &(cur_number - 1).to_string()
-                                            + ". ";
-                                        modifications.push(Modification::InsertOwned { text });
-                                        modifications.push(Modification::Cursor { cur: cursor });
-                                    }
-                                }
-                            } else {
-                                break;
-                            }
-                        }
+                        modifications.extend(increment_numbered_list_items(
+                            layout_idx,
+                            indent_level,
+                            true,
+                            segs,
+                            layouts,
+                            buffer,
+                            cursor,
+                        ));
                     }
                 } else {
                     // delete selected text or one character
@@ -502,57 +465,15 @@ fn calc_modifications<'a>(
                                 + ". ";
                             modifications.push(Modification::InsertOwned { text });
 
-                            // increment subsequent items
-                            let mut layout_idx = layout_idx;
-                            loop {
-                                layout_idx += 1;
-                                if layout_idx == layouts.len() {
-                                    break;
-                                }
-                                let layout = &layouts[layout_idx];
-                                if let Some(Annotation::Item(
-                                    ItemType::Numbered(cur_number),
-                                    cur_indent_level,
-                                )) = layout.annotation
-                                {
-                                    match cur_indent_level.cmp(&indent_level) {
-                                        Ordering::Greater => {
-                                            continue; // skip nested list items
-                                        }
-                                        Ordering::Less => {
-                                            break; // end of nested list
-                                        }
-                                        Ordering::Equal => {
-                                            // replace cur_number with next_number in head
-                                            modifications.push(Modification::Cursor {
-                                                cur: Cursor {
-                                                    pos: segs.byte_offset_to_char(
-                                                        layout.range.start + layout.head_size,
-                                                    ),
-                                                    selection_origin: Some(
-                                                        segs.byte_offset_to_char(
-                                                            layout.range.start,
-                                                        ),
-                                                    ),
-                                                    ..Default::default()
-                                                },
-                                            });
-                                            let head = layout.head(buffer);
-                                            let text = head[0..head.len()
-                                                - (cur_number).to_string().len()
-                                                - 2]
-                                                .to_string()
-                                                + &(cur_number + 1).to_string()
-                                                + ". ";
-                                            modifications.push(Modification::InsertOwned { text });
-                                            modifications
-                                                .push(Modification::Cursor { cur: cursor });
-                                        }
-                                    }
-                                } else {
-                                    break;
-                                }
-                            }
+                            modifications.extend(increment_numbered_list_items(
+                                layout_idx,
+                                indent_level,
+                                false,
+                                segs,
+                                layouts,
+                                buffer,
+                                cursor,
+                            ));
                         }
                         Some(Annotation::Item(ItemType::Todo(_), _)) => {
                             let head = layout.head(buffer);
@@ -725,6 +646,54 @@ fn calc_modifications<'a>(
         if cursor != previous_cursor {
             modifications.push(Modification::Cursor { cur: cursor });
             previous_cursor = cursor;
+        }
+    }
+
+    modifications
+}
+
+fn increment_numbered_list_items<'a>(
+    starting_layout_idx: usize, indent_level: u8, decrement: bool, segs: &UnicodeSegs,
+    layouts: &Layouts, buffer: &Buffer, cursor: Cursor,
+) -> Vec<Modification<'a>> {
+    let mut modifications = Vec::new();
+
+    let mut layout_idx = starting_layout_idx;
+    loop {
+        layout_idx += 1;
+        if layout_idx == layouts.len() {
+            break;
+        }
+        let layout = &layouts[layout_idx];
+        if let Some(Annotation::Item(ItemType::Numbered(cur_number), cur_indent_level)) =
+            layout.annotation
+        {
+            match cur_indent_level.cmp(&indent_level) {
+                Ordering::Greater => {
+                    continue; // skip nested list items
+                }
+                Ordering::Less => {
+                    break; // end of nested list
+                }
+                Ordering::Equal => {
+                    // replace cur_number with next_number in head
+                    modifications.push(Modification::Cursor {
+                        cur: Cursor {
+                            pos: segs.byte_offset_to_char(layout.range.start + layout.head_size),
+                            selection_origin: Some(segs.byte_offset_to_char(layout.range.start)),
+                            ..Default::default()
+                        },
+                    });
+                    let head = layout.head(buffer);
+                    let text = head[0..head.len() - (cur_number).to_string().len() - 2].to_string()
+                        + &(if !decrement { cur_number + 1 } else { cur_number - 1 }).to_string()
+                        + ". ";
+                    modifications.push(Modification::InsertOwned { text });
+                    modifications.push(Modification::Cursor { cur: cursor });
+                }
+            }
+        } else {
+            break;
         }
     }
 
